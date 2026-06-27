@@ -13,6 +13,12 @@ These rules govern how Claude should operate in this project. Follow them withou
 - **Never use the Artifact tool.** It does not render reliably. Always write output to files in the project or reply in plain text/markdown.
 - For plans, reports, or structured documents: write them as markdown directly in the chat response or append to CLAUDE.md.
 
+### Git Commit Rules
+
+- **Never add AI model co-authorship** to commit messages. No `Co-Authored-By: Claude` or any AI model name.
+- Always co-author the project collaborator: `Co-Authored-By: John Carlo Borgueta <johncarloborgueta@gmail.com>`
+- Keep commit messages concise and use the `feat:`, `fix:`, `chore:` prefix convention.
+
 ### Always Use Skills When They Apply
 
 - After implementing any feature or fix, run `/verify` to confirm the change works correctly in the running app.

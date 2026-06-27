@@ -4,6 +4,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ElectionController;
+use App\Http\Controllers\AnnouncementController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -20,6 +21,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/users/{id}', [UserController::class, 'update'])->middleware('role:admin');
     Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware('role:admin');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('role:admin');
+
+    // Announcement Routes
+    Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('role:admin,officer,adviser,student');
+    Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware('role:admin,officer');
+    Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:admin,officer');
+    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:admin,officer');
+    Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:admin,officer');
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware('role:admin,officer,adviser,student');
