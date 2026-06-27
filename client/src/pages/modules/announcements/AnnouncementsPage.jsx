@@ -10,6 +10,7 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
+import PaginationControls from '../../../components/PaginationControls';
 import {
   getAnnouncements,
   createAnnouncement,
@@ -40,6 +41,8 @@ export default function AnnouncementsPage() {
   const [activeTab, setActiveTab] = useState('feed');
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const [formTitle, setFormTitle] = useState('');
   const [formBody, setFormBody] = useState('');
@@ -101,6 +104,12 @@ export default function AnnouncementsPage() {
   const filtered = items.filter((a) =>
     a.title.toLowerCase().includes(search.toLowerCase())
   );
+
+  const pagedAnnouncements = filtered.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, items.length]);
 
   return (
     <div className="space-y-6">
@@ -176,7 +185,7 @@ export default function AnnouncementsPage() {
             <p className="p-8 text-center text-sm text-slate-400">No announcements yet.</p>
           ) : (
             <div className="divide-y divide-[#E5EDF3]">
-              {filtered.map((a) => (
+              {pagedAnnouncements.map((a) => (
                 <div key={a.id} className="flex flex-col gap-3 p-5 transition hover:bg-[#F8FBFD] sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-[#0F172A]">{a.title}</p>
@@ -202,6 +211,13 @@ export default function AnnouncementsPage() {
               ))}
             </div>
           )}
+          <PaginationControls
+            currentPage={page}
+            totalItems={filtered.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            label="announcements"
+          />
         </section>
       )}
 
@@ -238,7 +254,7 @@ export default function AnnouncementsPage() {
                 <select
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value)}
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 >
                   {AUDIENCE_OPTIONS.map((o) => (
                     <option key={o.value} value={o.value}>{o.label}</option>

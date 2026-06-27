@@ -415,7 +415,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   <select
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                   >
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
@@ -428,7 +428,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   <select
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                   >
                     {['Operations', 'Events', 'Elections', 'Merchandise', 'General'].map((c) => (
                       <option key={c}>{c}</option>

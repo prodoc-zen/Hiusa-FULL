@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { getTasks, createTask, updateTaskStatus } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
+import PaginationControls from '../../../components/PaginationControls';
 
 const statusBadge = {
   in_progress: 'bg-[#E6F6FD] text-[#0B8ED0]',
@@ -33,6 +34,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', description: '', assigned_to: '', deadline: '', status: 'pending' });
   const [formError, setFormError] = useState(null);
@@ -94,6 +97,11 @@ export default function TasksPage({ initialTab = 'board' }) {
   const filteredTasks = tasks.filter((t) =>
     t.title?.toLowerCase().includes(search.toLowerCase())
   );
+  const pagedTasks = filteredTasks.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, tasks.length]);
 
   const workloadByAssignee = tasks.reduce((acc, t) => {
     if (!t.assignee) return acc;
@@ -191,7 +199,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {filteredTasks.map((t) => (
+                  {pagedTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
                       <td className="px-5 py-4 font-medium text-slate-600">
@@ -227,6 +235,13 @@ export default function TasksPage({ initialTab = 'board' }) {
               </table>
             </div>
           )}
+          <PaginationControls
+            currentPage={page}
+            totalItems={filteredTasks.length}
+            pageSize={pageSize}
+            onPageChange={setPage}
+            label="tasks"
+          />
         </section>
       )}
 
@@ -353,7 +368,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   <select
                     value={form.assigned_to}
                     onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                   >
                     <option value="">Unassigned</option>
                     {officers.map((u) => (
