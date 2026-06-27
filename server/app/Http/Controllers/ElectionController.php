@@ -35,8 +35,10 @@ class ElectionController extends Controller
         $election = Election::with([
             'positions.candidates.user',
             'positions.candidates.partylist',
+            'positions.candidates.position',
             'candidates.user',
             'candidates.partylist',
+            'candidates.position',
             'votes.voter'
         ])->find($id);
 

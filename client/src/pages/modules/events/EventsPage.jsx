@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { getEvents, createEvent } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
+import PaginationControls from '../../../components/PaginationControls';
 
 const statusBadge = {
   upcoming: 'bg-[#E6F6FD] text-[#0B8ED0]',
@@ -45,6 +46,9 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [eventsPage, setEventsPage] = useState(1);
+  const [tasksPage, setTasksPage] = useState(1);
+  const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '' });
   const [formError, setFormError] = useState(null);
@@ -98,8 +102,19 @@ export default function EventsPage({ initialTab = 'events' }) {
   const filteredEvents = events.filter((e) =>
     e.title?.toLowerCase().includes(search.toLowerCase())
   );
+  const eventLinkedTasks = tasks.filter((t) => t.event_id);
+  const pagedEvents = filteredEvents.slice((eventsPage - 1) * pageSize, eventsPage * pageSize);
+  const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
 
   const completedEvents = events.filter((e) => e.status === 'completed');
+
+  useEffect(() => {
+    setEventsPage(1);
+  }, [search, events.length]);
+
+  useEffect(() => {
+    setTasksPage(1);
+  }, [tasks.length]);
 
   return (
     <div className="space-y-6">
@@ -187,7 +202,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {filteredEvents.map((evt) => (
+                  {pagedEvents.map((evt) => (
                     <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-bold text-[#0F172A]">{evt.title}</td>
                       <td className="px-5 py-4 font-medium text-slate-600">
@@ -213,6 +228,13 @@ export default function EventsPage({ initialTab = 'events' }) {
               </table>
             </div>
           )}
+          <PaginationControls
+            currentPage={eventsPage}
+            totalItems={filteredEvents.length}
+            pageSize={pageSize}
+            onPageChange={setEventsPage}
+            label="events"
+          />
         </section>
       )}
 
@@ -226,7 +248,7 @@ export default function EventsPage({ initialTab = 'events' }) {
             <div className="space-y-2 p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
-          ) : tasks.filter((t) => t.event_id).length === 0 ? (
+          ) : eventLinkedTasks.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-400">No event-linked tasks yet.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -241,7 +263,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {tasks.filter((t) => t.event_id).map((t) => (
+                  {pagedEventTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
                       <td className="px-5 py-4 font-medium text-slate-600">
@@ -262,6 +284,13 @@ export default function EventsPage({ initialTab = 'events' }) {
               </table>
             </div>
           )}
+          <PaginationControls
+            currentPage={tasksPage}
+            totalItems={eventLinkedTasks.length}
+            pageSize={pageSize}
+            onPageChange={setTasksPage}
+            label="tasks"
+          />
         </section>
       )}
 
