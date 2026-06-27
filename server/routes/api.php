@@ -10,6 +10,8 @@ use App\Http\Controllers\TaskController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\FinancialForecastController;
+use App\Http\Controllers\MerchandiseController;
+use App\Http\Controllers\OrderController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -68,6 +70,19 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/forecasts', [FinancialForecastController::class, 'store'])->middleware('role:officer');
     Route::put('/forecasts/{id}', [FinancialForecastController::class, 'update'])->middleware('role:officer');
     Route::delete('/forecasts/{id}', [FinancialForecastController::class, 'destroy'])->middleware('role:officer');
+
+    // Merchandise Routes
+    Route::get('/merchandise', [MerchandiseController::class, 'index'])->middleware('role:admin,officer,adviser,student');
+    Route::post('/merchandise', [MerchandiseController::class, 'store'])->middleware('role:officer');
+    Route::put('/merchandise/{id}', [MerchandiseController::class, 'update'])->middleware('role:officer');
+    Route::delete('/merchandise/{id}', [MerchandiseController::class, 'destroy'])->middleware('role:officer');
+    Route::patch('/merchandise/{id}/stock', [MerchandiseController::class, 'adjustStock'])->middleware('role:officer');
+
+    // Order Routes
+    Route::get('/orders', [OrderController::class, 'index'])->middleware('role:admin,officer,student');
+    Route::post('/orders', [OrderController::class, 'store'])->middleware('role:student');
+    Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware('role:officer');
+    Route::post('/orders/claim', [OrderController::class, 'claimByToken'])->middleware('role:officer');
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware('role:admin,officer,adviser,student');
