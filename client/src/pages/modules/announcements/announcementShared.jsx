@@ -1,58 +1,5 @@
 import { Plus } from 'lucide-react';
 
-export const ANNOUNCEMENTS_DATA = [
-  {
-    id: 1,
-    title: 'General Assembly - Second Semester',
-    audience: 'All Members',
-    status: 'Published',
-    date: 'Jun 20, 2025',
-    views: 198,
-    category: 'General',
-    body: 'All members are required to attend the second semester general assembly to discuss upcoming activities, financial reports, and officer elections.',
-  },
-  {
-    id: 2,
-    title: 'Officer Training Workshop Sign-Up',
-    audience: 'Officers',
-    status: 'Published',
-    date: 'Jun 18, 2025',
-    views: 45,
-    category: 'Training',
-    body: 'Officers are encouraged to sign up for the leadership training workshop happening on July 5. Slots are limited to 30 participants.',
-  },
-  {
-    id: 3,
-    title: 'Merchandise Pre-Order Now Open',
-    audience: 'All Members',
-    status: 'Published',
-    date: 'Jun 15, 2025',
-    views: 312,
-    category: 'Merchandise',
-    body: 'HIUSA merchandise pre-orders are now open. Order your org shirt, lanyard, tote bag, and other items. Payment deadline is June 30.',
-  },
-  {
-    id: 4,
-    title: 'Elections Campaign Period Guidelines',
-    audience: 'All Members',
-    status: 'Draft',
-    date: 'Jun 22, 2025',
-    views: 0,
-    category: 'Elections',
-    body: 'The official campaign period runs from June 18 to June 20. Candidates must follow the posted guidelines.',
-  },
-  {
-    id: 5,
-    title: 'Budget Review Meeting - Officers',
-    audience: 'Officers',
-    status: 'Draft',
-    date: 'Jun 23, 2025',
-    views: 0,
-    category: 'Finance',
-    body: 'Officers are invited to the Q2 budget review meeting on June 24 at 3PM via MS Teams.',
-  },
-];
-
 export function cn(...classes) {
   return classes.filter(Boolean).join(' ');
 }

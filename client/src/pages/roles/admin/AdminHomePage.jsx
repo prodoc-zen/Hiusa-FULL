@@ -1,38 +1,42 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShieldCheck, Users, Megaphone } from 'lucide-react';
+import { ShieldCheck, Users, Megaphone, FileText } from 'lucide-react';
 import { getUsers } from '../../../services/userService';
-import { ANNOUNCEMENTS_DATA } from '../../modules/announcements/announcementShared.jsx';
+import { getAnnouncements } from '../../../services/announcementService';
 
 export default function AdminHomePage() {
   const [summary, setSummary] = useState({ users: 0, published: 0, drafts: 0 });
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
       try {
-        const users = await getUsers();
-        if (!cancelled) {
-          const announcementRows = Array.isArray(ANNOUNCEMENTS_DATA) ? ANNOUNCEMENTS_DATA : [];
-          setSummary({
-            users: Array.isArray(users) ? users.length : 0,
-            published: announcementRows.filter((announcement) => announcement.status === 'Published').length,
-            drafts: announcementRows.filter((announcement) => announcement.status === 'Draft').length,
-          });
-        }
+        const [usersRes, announcementsRes] = await Promise.all([
+          getUsers(),
+          getAnnouncements(),
+        ]);
+
+        if (cancelled) return;
+
+        const users = Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []);
+        const announcements = Array.isArray(announcementsRes?.data) ? announcementsRes.data : [];
+
+        setSummary({
+          users: users.length,
+          published: announcements.filter((a) => a.is_published).length,
+          drafts: announcements.filter((a) => !a.is_published).length,
+        });
       } catch {
-        if (!cancelled) {
-          setSummary({ users: 0, published: 0, drafts: 0 });
-        }
+        if (!cancelled) setSummary({ users: 0, published: 0, drafts: 0 });
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
     load();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   return (
@@ -45,17 +49,17 @@ export default function AdminHomePage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Total Users', value: summary.users, icon: Users },
-          { label: 'Published Announcements', value: summary.published, icon: Megaphone },
-          { label: 'Draft Announcements', value: summary.drafts, icon: ShieldCheck },
-          { label: 'System Notices', value: summary.published + summary.drafts, icon: Megaphone },
+          { label: 'Total Users', value: loading ? '—' : summary.users, icon: Users },
+          { label: 'Published Announcements', value: loading ? '—' : summary.published, icon: Megaphone },
+          { label: 'Draft Announcements', value: loading ? '—' : summary.drafts, icon: FileText },
+          { label: 'Total Announcements', value: loading ? '—' : summary.published + summary.drafts, icon: ShieldCheck },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
               <item.icon size={20} />
             </div>
             <p className="text-sm font-semibold text-slate-500">{item.label}</p>
-            <p className="mt-1 text-2xl font-black text-[#0F172A]">{item.value}</p>
+            <p className="mt-1 text-2xl font-black text-[#0F172A] tabular-nums">{item.value}</p>
           </article>
         ))}
       </section>
@@ -69,7 +73,11 @@ export default function AdminHomePage() {
             { label: 'Create Announcement', path: '/dashboard/announcements/create-announcement' },
             { label: 'View Feed', path: '/dashboard/announcements/view-announcements' },
           ].map((action) => (
-            <NavLink key={action.path} to={action.path} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0B8ED0]/40 hover:bg-white">
+            <NavLink
+              key={action.path}
+              to={action.path}
+              className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0B8ED0]/40 hover:bg-white"
+            >
               {action.label}
             </NavLink>
           ))}
