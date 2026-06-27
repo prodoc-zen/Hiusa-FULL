@@ -7,6 +7,7 @@ use App\Models\Vote;
 use App\Models\Candidate;
 use App\Models\ElectionPosition;
 use App\Models\Partylist;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -372,6 +373,26 @@ class ElectionController extends Controller
             'receipt' => $receipts[0] ?? 'CAST-SUCCESSFUL',
             'receipts' => $receipts,
         ]);
+    }
+
+    public function voters($id)
+    {
+        $election = Election::find($id);
+        if (!$election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        $voterIds = Vote::where('election_id', $id)
+            ->distinct()
+            ->pluck('voter_id');
+
+        $students = User::where('role', 'student')
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get(['id', 'school_id', 'first_name', 'last_name', 'email'])
+            ->map(fn($s) => array_merge($s->toArray(), ['has_voted' => $voterIds->contains($s->id)]));
+
+        return response()->json($students);
     }
 
     public function results($id)

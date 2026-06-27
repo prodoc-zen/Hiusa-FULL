@@ -12,6 +12,7 @@ use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\NotificationController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -22,6 +23,10 @@ Route::post('/login', [UserController::class, 'login']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [UserController::class, 'logout']);
+
+    // Profile Routes (authenticated user updates own profile/password)
+    Route::put('/user/profile', [UserController::class, 'updateProfile']);
+    Route::put('/user/password', [UserController::class, 'updatePassword']);
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware('role:admin,officer');
@@ -89,6 +94,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/elections/{id}', [ElectionController::class, 'show'])->middleware('role:admin,officer,adviser,student');
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware('role:admin,officer,adviser,student');
     Route::get('/elections/{id}/results', [ElectionController::class, 'results'])->middleware('role:admin,officer,adviser,student');
+    Route::get('/elections/{id}/voters', [ElectionController::class, 'voters'])->middleware('role:admin,officer,adviser');
     Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware('role:student');
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware('role:admin,officer');
@@ -105,6 +111,12 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/partylists', [ElectionController::class, 'partylistsStore'])->middleware('role:admin,officer');
     Route::put('/partylists/{id}', [ElectionController::class, 'partylistsUpdate'])->middleware('role:admin,officer');
     Route::delete('/partylists/{id}', [ElectionController::class, 'partylistsDestroy'])->middleware('role:admin,officer');
+
+    // Notification Routes
+    Route::get('/notifications', [NotificationController::class, 'index']);
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead']);
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::post('/notifications', [NotificationController::class, 'store'])->middleware('role:admin,officer');
 });
 
 
