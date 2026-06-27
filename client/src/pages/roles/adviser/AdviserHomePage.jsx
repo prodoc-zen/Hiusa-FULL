@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShieldCheck, Vote, BarChart3, CalendarDays, ClipboardList } from 'lucide-react';
+import { ShieldCheck, Vote, BarChart3, CalendarDays, ClipboardList, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
+import { getAnnouncements } from '../../../services/announcementService';
+
+function formatDate(d) {
+  if (!d) return '—';
+  return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
 
 export default function AdviserHomePage() {
-  const [data, setData] = useState({ elections: [], events: [], tasks: [] });
+  const [data, setData] = useState({ elections: [], events: [], tasks: [], announcements: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -14,21 +20,23 @@ export default function AdviserHomePage() {
 
     async function load() {
       try {
-        const [electionsRes, eventsRes, tasksRes] = await Promise.all([
+        const [electionsRes, eventsRes, tasksRes, announcementsRes] = await Promise.all([
           getElections(),
           getEvents(),
           getTasks(),
+          getAnnouncements(),
         ]);
 
         if (cancelled) return;
 
-        const elections = Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []);
-        const events = Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []);
-        const tasks = Array.isArray(tasksRes?.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []);
-
-        setData({ elections, events, tasks });
+        setData({
+          elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
+          events: Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []),
+          tasks: Array.isArray(tasksRes?.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []),
+          announcements: Array.isArray(announcementsRes?.data) ? announcementsRes.data : [],
+        });
       } catch {
-        if (!cancelled) setData({ elections: [], events: [], tasks: [] });
+        if (!cancelled) setData({ elections: [], events: [], tasks: [], announcements: [] });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -38,11 +46,14 @@ export default function AdviserHomePage() {
     return () => { cancelled = true; };
   }, []);
 
-  const active = data.elections.filter((e) => e.status === 'active').length;
-  const closed = data.elections.filter((e) => e.status === 'closed').length;
-  const upcomingEvents = data.events.filter((e) => e.status === 'upcoming' || e.status === 'approved').length;
+  const activeElection = data.elections.find((e) => e.status === 'active') || null;
+  const upcomingEvents = data.events
+    .filter((e) => e.status === 'upcoming' || e.status === 'approved')
+    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
+    .slice(0, 4);
   const completedTasks = data.tasks.filter((t) => t.status === 'completed').length;
   const totalTasks = data.tasks.length;
+  const recentAnnouncements = data.announcements.filter((a) => a.is_published).slice(0, 3);
 
   const stat = (val) => loading ? '—' : val;
 
@@ -56,9 +67,9 @@ export default function AdviserHomePage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Active Elections', value: stat(active), icon: Vote },
-          { label: 'Closed Elections', value: stat(closed), icon: BarChart3 },
-          { label: 'Upcoming Events', value: stat(upcomingEvents), icon: CalendarDays },
+          { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
+          { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
+          { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
           { label: 'Tasks Completed', value: loading ? '—' : `${completedTasks}/${totalTasks}`, icon: ClipboardList },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
@@ -71,39 +82,140 @@ export default function AdviserHomePage() {
         ))}
       </section>
 
-      {!loading && totalTasks > 0 && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-          <div className="flex items-center justify-between mb-3">
-            <h3 className="text-base font-bold text-[#0F172A]">Task Completion Progress</h3>
-            <span className="text-sm font-bold text-[#0B8ED0]">{Math.round((completedTasks / totalTasks) * 100)}%</span>
-          </div>
-          <div className="h-3 w-full rounded-full bg-[#EEF6FB]">
-            <div
-              className="h-3 rounded-full bg-[#0B8ED0] transition-all"
-              style={{ width: `${Math.round((completedTasks / totalTasks) * 100)}%` }}
-            />
-          </div>
-          <p className="mt-2 text-xs font-medium text-slate-500">{completedTasks} of {totalTasks} tasks completed</p>
-        </section>
-      )}
+      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+        <div className="space-y-6">
+          {/* Active Election Card */}
+          {activeElection ? (
+            <section className="rounded-xl border border-[#0B8ED0]/25 bg-gradient-to-br from-[#E6F6FD] to-white p-5 shadow-sm">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Active Election</p>
+                  <h3 className="mt-1 text-lg font-black text-[#0F172A]">{activeElection.title}</h3>
+                  <p className="mt-1 text-sm text-slate-500">
+                    {formatDate(activeElection.start_date)} — {formatDate(activeElection.end_date)}
+                  </p>
+                </div>
+                <span className="mt-1 rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
+              </div>
+              <div className="mt-4 flex gap-2">
+                <NavLink to="/dashboard/elections" className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-[#F8FBFD]">
+                  View Details
+                </NavLink>
+                <NavLink to="/dashboard/elections/election-results" className="rounded-lg bg-[#0B8ED0] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0878B7]">
+                  View Results
+                </NavLink>
+              </div>
+            </section>
+          ) : (
+            <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+              <div className="flex items-center gap-3">
+                <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-400">
+                  <Vote size={20} />
+                </div>
+                <div>
+                  <p className="font-bold text-[#0F172A]">No Active Election</p>
+                  <p className="text-sm text-slate-400">No elections are currently running.</p>
+                </div>
+              </div>
+            </section>
+          )}
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <h3 className="text-lg font-bold text-[#0F172A]">Oversight Actions</h3>
-        <div className="mt-4 flex flex-wrap gap-2">
-          <NavLink to="/dashboard/elections" className="rounded-lg border border-[#DDE7EF] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#F8FBFD]">
-            View Elections
-          </NavLink>
-          <NavLink to="/dashboard/events" className="rounded-lg border border-[#DDE7EF] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#F8FBFD]">
-            View Events
-          </NavLink>
-          <NavLink to="/dashboard/tasks" className="rounded-lg border border-[#DDE7EF] px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-[#F8FBFD]">
-            View Tasks
-          </NavLink>
-          <NavLink to="/dashboard/elections/results" className="rounded-lg bg-[#0B8ED0] px-4 py-2 text-sm font-semibold text-white hover:bg-[#0878B7]">
-            View Results
-          </NavLink>
+          {/* Upcoming Events */}
+          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
+              <h3 className="text-base font-bold text-[#0F172A]">Upcoming Events</h3>
+              <NavLink to="/dashboard/events" className="text-xs font-bold text-[#0B8ED0] hover:underline">View all</NavLink>
+            </div>
+            {loading ? (
+              <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}</div>
+            ) : upcomingEvents.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-400">No upcoming events.</p>
+            ) : (
+              <div className="divide-y divide-[#E5EDF3]">
+                {upcomingEvents.map((ev) => (
+                  <div key={ev.id} className="flex items-center gap-4 px-5 py-3.5">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                      <CalendarDays size={18} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-semibold text-[#0F172A]">{ev.title}</p>
+                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` · ${ev.location}` : ''}</p>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#0B8ED0]">{ev.status}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
         </div>
-      </section>
+
+        <div className="space-y-6">
+          {/* Task Progress */}
+          {!loading && totalTasks > 0 && (
+            <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-bold text-[#0F172A]">Task Progress</h3>
+                <span className="text-sm font-black text-[#0B8ED0]">{Math.round((completedTasks / totalTasks) * 100)}%</span>
+              </div>
+              <div className="h-3 w-full rounded-full bg-[#EEF6FB]">
+                <div
+                  className="h-3 rounded-full bg-[#0B8ED0] transition-all"
+                  style={{ width: `${Math.round((completedTasks / totalTasks) * 100)}%` }}
+                />
+              </div>
+              <p className="mt-2 text-xs font-medium text-slate-400">{completedTasks} of {totalTasks} completed</p>
+            </section>
+          )}
+
+          {/* Recent Announcements */}
+          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
+              <h3 className="text-base font-bold text-[#0F172A]">Recent Announcements</h3>
+              <NavLink to="/dashboard/announcements/view-announcements" className="text-xs font-bold text-[#0B8ED0] hover:underline">View all</NavLink>
+            </div>
+            {loading ? (
+              <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
+            ) : recentAnnouncements.length === 0 ? (
+              <p className="py-8 text-center text-sm text-slate-400">No announcements yet.</p>
+            ) : (
+              <div className="divide-y divide-[#E5EDF3]">
+                {recentAnnouncements.map((a) => (
+                  <div key={a.id} className="flex items-start gap-3 px-5 py-3.5">
+                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                      <Megaphone size={15} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-semibold text-[#0F172A]">{a.title}</p>
+                      <p className="line-clamp-2 text-xs text-slate-400">{a.body}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
+          {/* Actions */}
+          <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+            <h3 className="mb-3 text-base font-bold text-[#0F172A]">Oversight Actions</h3>
+            <div className="space-y-2">
+              {[
+                { label: 'View Elections', path: '/dashboard/elections' },
+                { label: 'View Events', path: '/dashboard/events' },
+                { label: 'View Tasks', path: '/dashboard/tasks' },
+                { label: 'View Results', path: '/dashboard/elections/election-results' },
+              ].map((a) => (
+                <NavLink
+                  key={a.path}
+                  to={a.path}
+                  className="flex h-10 w-full items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0B8ED0]/40 hover:bg-white"
+                >
+                  {a.label}
+                </NavLink>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
     </div>
   );
 }

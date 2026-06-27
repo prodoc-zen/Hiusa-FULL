@@ -111,23 +111,31 @@ class UserController extends Controller
 
     public function login(Request $request)
     {
-        $validatedData = $request->validate([
-            'school_id' => 'required|string',
-            'password' => 'required|string',
+        $request->validate([
+            'email'     => 'required_without:school_id|nullable|email',
+            'school_id' => 'required_without:email|nullable|string',
+            'password'  => 'required|string',
+            'role'      => 'sometimes|in:student,officer,admin,adviser',
         ]);
 
-        $user = User::where('school_id', $validatedData['school_id'])->first();
+        $user = $request->filled('email')
+            ? User::where('email', $request->email)->first()
+            : User::where('school_id', $request->school_id)->first();
 
-        if (! $user || ! Hash::check($validatedData['password'], $user->password_hash)) {
+        if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             throw ValidationException::withMessages([
-                'school_id' => ['The provided credentials are incorrect.'],
+                'email' => ['The provided credentials are incorrect.'],
             ]);
         }
 
+        if ($request->filled('role') && $user->role !== $request->role) {
+            return response()->json(['message' => 'Role mismatch. Please select the correct role for this account.'], 403);
+        }
+
         return response()->json([
-            'user' => $user,
+            'user'         => $user,
             'access_token' => $user->createToken('auth_token')->plainTextToken,
-            'token_type' => 'Bearer',
+            'token_type'   => 'Bearer',
         ]);
     }
 
