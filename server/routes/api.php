@@ -5,6 +5,7 @@ use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\EventController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -28,6 +29,16 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:admin,officer');
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:admin,officer');
     Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:admin,officer');
+
+    // Event Routes
+    Route::get('/events', [EventController::class, 'index'])->middleware('role:admin,officer,adviser,student');
+    Route::get('/events/{id}', [EventController::class, 'show'])->middleware('role:admin,officer,adviser,student');
+    Route::post('/events', [EventController::class, 'store'])->middleware('role:officer');
+    Route::put('/events/{id}', [EventController::class, 'update'])->middleware('role:officer');
+    Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware('role:officer');
+    Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware('role:officer');
+    Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware('role:admin,officer,adviser');
+    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware('role:officer');
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware('role:admin,officer,adviser,student');
