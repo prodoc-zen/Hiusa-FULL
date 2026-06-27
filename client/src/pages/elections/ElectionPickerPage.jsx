@@ -353,7 +353,7 @@ export default function ElectionPickerPage({ onSelect }) {
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-[30px] leading-tight font-black text-[#0F172A] transition-colors group-hover:text-[#0B8ED0] sm:text-2xl">
+                      <h3 className="text-2xl leading-tight font-black text-[#0F172A] transition-colors group-hover:text-[#0B8ED0] sm:text-[30px]">
                         {el.title}
                       </h3>
                       <span

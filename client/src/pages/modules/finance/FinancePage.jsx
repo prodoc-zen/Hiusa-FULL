@@ -381,7 +381,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
 
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">Record Transaction</h2>
               <button onClick={() => setShowForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>

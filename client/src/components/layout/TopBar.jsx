@@ -121,7 +121,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-80 rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60">
+            <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:w-80">
               <div className="flex items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
                 <p className="text-sm font-bold text-[#0F172A]">
                   Notifications
