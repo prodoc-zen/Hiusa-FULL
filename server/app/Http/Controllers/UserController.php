@@ -139,4 +139,37 @@ class UserController extends Controller
             'message' => 'Successfully logged out',
         ]);
     }
+
+    public function updateProfile(Request $request)
+    {
+        $user = $request->user();
+
+        $data = $request->validate([
+            'first_name' => ['sometimes', 'required', 'string', 'max:100'],
+            'last_name'  => ['sometimes', 'required', 'string', 'max:100'],
+            'email'      => ['sometimes', 'required', 'email', 'max:150', 'unique:users,email,' . $user->id],
+        ]);
+
+        $user->update($data);
+
+        return response()->json($user->fresh());
+    }
+
+    public function updatePassword(Request $request)
+    {
+        $user = $request->user();
+
+        $request->validate([
+            'current_password' => ['required', 'string'],
+            'password'         => ['required', 'string', 'min:8', 'confirmed'],
+        ]);
+
+        if (!Hash::check($request->current_password, $user->password_hash)) {
+            return response()->json(['message' => 'Current password is incorrect.'], 422);
+        }
+
+        $user->update(['password_hash' => $request->password]);
+
+        return response()->json(['message' => 'Password updated successfully.']);
+    }
 }
