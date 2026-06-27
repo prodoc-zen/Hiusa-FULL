@@ -59,7 +59,7 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
     Promise.all([getMerchandise(), getOrders()])
       .then(([mRes, oRes]) => {
         setItems(Array.isArray(mRes.data) ? mRes.data : []);
-        setOrders(Array.isArray(oRes.data) ? oRes.data : []);
+        setOrders(Array.isArray(oRes.data?.data) ? oRes.data.data : (Array.isArray(oRes.data) ? oRes.data : []));
       })
       .catch(() => setError('Failed to load merchandise data.'))
       .finally(() => setLoading(false));

@@ -49,7 +49,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const loadNotifications = useCallback(async () => {
     try {
       const res = await getNotifications();
-      const data = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : []);
+      const data = res?.data?.notifications ?? (Array.isArray(res?.data) ? res.data : []);
       setNotifications(data.slice(0, 10));
     } catch {
       // notifications are non-critical; fail silently

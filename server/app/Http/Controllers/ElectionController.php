@@ -325,7 +325,11 @@ class ElectionController extends Controller
         ]);
 
         $voter = $request->user();
-        
+
+        if (Vote::where('election_id', $election->id)->where('voter_id', $voter->id)->exists()) {
+            return response()->json(['message' => 'You have already voted in this election.'], 422);
+        }
+
         $receipts = [];
 
         DB::transaction(function () use ($election, $voter, $request, &$receipts) {

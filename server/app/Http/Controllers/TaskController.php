@@ -65,6 +65,10 @@ class TaskController extends Controller
             return response()->json(['message' => 'Task not found.'], 404);
         }
 
+        if ($task->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You are not authorized to edit this task.'], 403);
+        }
+
         $data = $request->validate([
             'title'       => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -84,12 +88,16 @@ class TaskController extends Controller
         ]));
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $task = Task::find($id);
 
         if (!$task) {
             return response()->json(['message' => 'Task not found.'], 404);
+        }
+
+        if ($task->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You are not authorized to delete this task.'], 403);
         }
 
         $task->delete();
