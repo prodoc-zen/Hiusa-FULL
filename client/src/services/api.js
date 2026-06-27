@@ -18,4 +18,28 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    const status = error.response?.status;
+
+    if (status === 401) {
+      localStorage.removeItem('auth_token');
+      localStorage.removeItem('user');
+      window.location.href = '/login';
+      return Promise.reject(error);
+    }
+
+    if (status === 403) {
+      error.isForbidden = true;
+    }
+
+    if (status === 422) {
+      error.validationErrors = error.response.data?.errors ?? {};
+    }
+
+    return Promise.reject(error);
+  }
+);
+
 export default api;
