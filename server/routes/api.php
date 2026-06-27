@@ -6,6 +6,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\TaskController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -39,6 +40,13 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware('role:officer');
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware('role:admin,officer,adviser');
     Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware('role:officer');
+
+    // Task Routes
+    Route::get('/tasks', [TaskController::class, 'index'])->middleware('role:admin,officer,adviser');
+    Route::post('/tasks', [TaskController::class, 'store'])->middleware('role:officer');
+    Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware('role:officer');
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware('role:officer');
+    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])->middleware('role:officer');
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware('role:admin,officer,adviser,student');
