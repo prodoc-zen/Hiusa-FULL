@@ -14,8 +14,25 @@ export const updateElectionPosition = async (id, positionId, payload) => unwrap(
 export const deleteElectionPosition = async (id, positionId) => unwrap(await api.delete(`/elections/${id}/positions/${positionId}`));
 
 export const getElectionCandidates = async (id) => unwrap(await api.get(`/elections/${id}/candidates`));
-export const createElectionCandidate = async (id, payload) => unwrap(await api.post(`/elections/${id}/candidates`, payload));
-export const updateElectionCandidate = async (id, candidateId, payload) => unwrap(await api.put(`/elections/${id}/candidates/${candidateId}`, payload));
+
+function toCandidateFormData(payload) {
+  const fd = new FormData();
+  Object.entries(payload).forEach(([k, v]) => {
+    if (k === 'imageFile') { if (v) fd.append('image', v); }
+    else if (v !== undefined && v !== null) fd.append(k, String(v));
+  });
+  return fd;
+}
+
+export const createElectionCandidate = async (id, payload) =>
+  unwrap(await api.post(`/elections/${id}/candidates`, toCandidateFormData(payload)));
+
+export const updateElectionCandidate = async (id, candidateId, payload) => {
+  const fd = toCandidateFormData(payload);
+  fd.append('_method', 'PUT');
+  return unwrap(await api.post(`/elections/${id}/candidates/${candidateId}`, fd));
+};
+
 export const deleteElectionCandidate = async (id, candidateId) => unwrap(await api.delete(`/elections/${id}/candidates/${candidateId}`));
 
 export const getPartylists = async () => unwrap(await api.get('/partylists'));

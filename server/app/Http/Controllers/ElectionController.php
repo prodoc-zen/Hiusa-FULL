@@ -10,6 +10,7 @@ use App\Models\Partylist;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 
@@ -196,7 +197,7 @@ class ElectionController extends Controller
             'position_id' => ['required', 'exists:election_positions,id'],
             'partylist_id' => ['nullable', 'exists:partylists,id'],
             'platform' => ['nullable', 'string'],
-            'image_url' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
         $position = ElectionPosition::where('election_id', $election->id)->find($data['position_id']);
@@ -205,13 +206,19 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Position does not belong to this election'], 422);
         }
 
+        $imageUrl = null;
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('candidates', 'public');
+            $imageUrl = Storage::url($path);
+        }
+
         $candidate = Candidate::create([
             'election_id' => $election->id,
             'user_id' => $data['user_id'],
             'position_id' => $data['position_id'],
             'partylist_id' => $data['partylist_id'] ?? null,
             'platform' => $data['platform'] ?? null,
-            'image_url' => $data['image_url'] ?? null,
+            'image_url' => $imageUrl,
         ]);
 
         return response()->json($candidate->load(['user', 'partylist', 'position']), 201);
@@ -230,7 +237,7 @@ class ElectionController extends Controller
             'position_id' => ['sometimes', 'required', 'exists:election_positions,id'],
             'partylist_id' => ['nullable', 'exists:partylists,id'],
             'platform' => ['nullable', 'string'],
-            'image_url' => ['nullable', 'string', 'max:255'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
         if (array_key_exists('position_id', $data)) {
@@ -240,6 +247,15 @@ class ElectionController extends Controller
                 return response()->json(['message' => 'Position does not belong to this election'], 422);
             }
         }
+
+        if ($request->hasFile('image')) {
+            if ($candidate->image_url && str_starts_with($candidate->image_url, '/storage/')) {
+                Storage::delete('public/' . ltrim(str_replace('/storage/', '', $candidate->image_url), '/'));
+            }
+            $path = $request->file('image')->store('candidates', 'public');
+            $data['image_url'] = Storage::url($path);
+        }
+        unset($data['image']);
 
         $candidate->update($data);
 

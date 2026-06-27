@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Award, Plus, Trash2, X } from 'lucide-react';
+import { Award, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import { createElectionCandidate, deleteElectionCandidate, getPartylists, getUsers } from '../../services/electionService';
 
 function Avatar({ name, size = 'sm' }) {
@@ -22,7 +22,9 @@ export default function ManageCandidatesPage() {
   const [partylists, setPartylists] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [posFilter, setPosFilter] = useState('All');
-  const [form, setForm] = useState({ user_id: '', position_id: '', partylist_id: '', platform: '', image_url: '' });
+  const [form, setForm] = useState({ user_id: '', position_id: '', partylist_id: '', platform: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [error, setError] = useState('');
   const [workingId, setWorkingId] = useState(null);
 
@@ -71,13 +73,15 @@ export default function ManageCandidatesPage() {
       position_id: Number(form.position_id),
       partylist_id: form.partylist_id ? Number(form.partylist_id) : null,
       platform: form.platform || null,
-      image_url: form.image_url || null,
+      imageFile: imageFile || null,
     };
 
     try {
       await createElectionCandidate(election.id, payload);
       await refreshElection();
-      setForm({ user_id: '', position_id: positions[0]?.id ? String(positions[0].id) : '', partylist_id: '', platform: '', image_url: '' });
+      setForm({ user_id: '', position_id: positions[0]?.id ? String(positions[0].id) : '', partylist_id: '', platform: '' });
+      setImageFile(null);
+      setImagePreview(null);
       setShowAdd(false);
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to add candidate.');
@@ -156,8 +160,22 @@ export default function ManageCandidatesPage() {
                 </select>
               </div>
               <div>
-                <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Image URL</label>
-                <input value={form.image_url} onChange={(e) => setForm({ ...form, image_url: e.target.value })} placeholder="https://example.com/photo.jpg" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] transition" />
+                <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Candidate Photo</label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                  {imagePreview
+                    ? <img src={imagePreview} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
+                    : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
+                  }
+                  <span className="text-[13px] font-medium text-slate-400">{imagePreview ? 'Change photo' : 'Upload photo'}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files[0];
+                      if (!f) return;
+                      setImageFile(f);
+                      setImagePreview(URL.createObjectURL(f));
+                    }}
+                  />
+                </label>
               </div>
               <div className="sm:col-span-2">
                 <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Platform Statement</label>
@@ -201,7 +219,10 @@ export default function ManageCandidatesPage() {
                 <div className="p-5">
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
-                      <Avatar name={name || 'Candidate'} size="md" />
+                      {candidate.image_url
+                        ? <img src={candidate.image_url} alt={name} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
+                        : <Avatar name={name || 'Candidate'} size="md" />
+                      }
                       <div className="min-w-0">
                         <p className="font-bold text-[#0F172A]">{name || 'Unknown Candidate'}</p>
                         <p className="text-xs text-[#64748B]">{position}</p>
