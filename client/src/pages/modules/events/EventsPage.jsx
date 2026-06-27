@@ -192,12 +192,12 @@ export default function EventsPage({ initialTab = 'events' }) {
             <p className="p-8 text-center text-sm text-slate-400">No events found.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] text-left">
+              <table className="w-full min-w-[460px] md:min-w-[700px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Event</th>
                     <th className="px-5 py-3">Start Time</th>
-                    <th className="px-5 py-3">Location</th>
+                    <th className="hidden md:table-cell px-5 py-3">Location</th>
                     <th className="px-5 py-3">Status</th>
                   </tr>
                 </thead>
@@ -211,7 +211,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                           {formatDateTime(evt.start_time)}
                         </div>
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">
+                      <td className="hidden md:table-cell px-5 py-4 font-medium text-slate-600">
                         <div className="flex items-center gap-1.5">
                           <MapPin size={13} className="text-slate-400" />
                           {evt.location || '-'}

@@ -290,13 +290,13 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
             <p className="p-8 text-center text-sm text-slate-400">No orders yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[650px] text-left">
+              <table className="w-full min-w-[400px] md:min-w-[650px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="px-5 py-3">Order</th>
+                    <th className="hidden md:table-cell px-5 py-3">Order</th>
                     <th className="px-5 py-3">Student</th>
                     <th className="px-5 py-3">Item</th>
-                    <th className="px-5 py-3">Qty</th>
+                    <th className="hidden md:table-cell px-5 py-3">Qty</th>
                     <th className="px-5 py-3">Total</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3">Action</th>
@@ -305,12 +305,12 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {orders.map((o) => (
                     <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-mono text-xs font-bold text-slate-500">#{o.id}</td>
+                      <td className="hidden md:table-cell px-5 py-4 font-mono text-xs font-bold text-slate-500">#{o.id}</td>
                       <td className="px-5 py-4 font-semibold text-[#0F172A]">
                         {o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}
                       </td>
                       <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '-'}</td>
-                      <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
+                      <td className="hidden md:table-cell px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
                       <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>
@@ -401,13 +401,13 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
               <p className="p-8 text-center text-sm text-slate-400">No paid orders awaiting pickup.</p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[550px] text-left">
+                <table className="w-full min-w-[420px] md:min-w-[550px] text-left">
                   <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-5 py-3">Claim Token</th>
                       <th className="px-5 py-3">Student</th>
                       <th className="px-5 py-3">Item</th>
-                      <th className="px-5 py-3">Qty</th>
+                      <th className="hidden md:table-cell px-5 py-3">Qty</th>
                       <th className="px-5 py-3">Total</th>
                     </tr>
                   </thead>
@@ -419,7 +419,7 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                           {o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}
                         </td>
                         <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '-'}</td>
-                        <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
+                        <td className="hidden md:table-cell px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
                         <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
                       </tr>
                     ))}

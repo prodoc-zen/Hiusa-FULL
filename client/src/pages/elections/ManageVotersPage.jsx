@@ -139,12 +139,12 @@ export default function ManageVotersPage() {
               <button onClick={() => setFilterStatus(filterStatus)} className="mt-2 text-xs font-semibold text-[#0B8ED0] hover:underline">Retry</button>
             </div>
           ) : (
-            <table className="w-full min-w-[550px] text-left">
+            <table className="w-full min-w-[350px] md:min-w-[550px] text-left">
               <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 <tr>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">School ID</th>
-                  <th className="px-4 py-3">Email</th>
+                  <th className="hidden md:table-cell px-4 py-3">Email</th>
                   <th className="px-4 py-3">Vote Status</th>
                 </tr>
               </thead>
@@ -160,7 +160,7 @@ export default function ManageVotersPage() {
                       </div>
                     </td>
                     <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{voter.school_id}</td>
-                    <td className="px-4 py-3.5 text-xs text-[#64748B]">{voter.email}</td>
+                    <td className="hidden md:table-cell px-4 py-3.5 text-xs text-[#64748B]">{voter.email}</td>
                     <td className="px-4 py-3.5">
                       {voter.has_voted ? (
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold text-[#0B8ED0]">

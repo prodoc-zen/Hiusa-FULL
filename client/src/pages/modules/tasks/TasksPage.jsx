@@ -188,11 +188,11 @@ export default function TasksPage({ initialTab = 'board' }) {
             <p className="p-8 text-center text-sm text-slate-400">No tasks found.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[780px] text-left">
+              <table className="w-full min-w-[580px] sm:min-w-[780px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Task</th>
-                    <th className="px-5 py-3">Assignee</th>
+                    <th className="hidden sm:table-cell px-5 py-3">Assignee</th>
                     <th className="px-5 py-3">Deadline</th>
                     <th className="px-5 py-3">Status</th>
                     <th className="px-5 py-3">Action</th>
@@ -202,7 +202,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   {pagedTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
-                      <td className="px-5 py-4 font-medium text-slate-600">
+                      <td className="hidden sm:table-cell px-5 py-4 font-medium text-slate-600">
                         {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
                       <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>
