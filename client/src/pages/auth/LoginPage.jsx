@@ -33,7 +33,7 @@ const BrandingPanel = () => (
             The Simplest Way To Manage Your Organization
           </h1>
           <p className="mt-4 max-w-[320px] text-sm font-medium leading-6 text-slate-300">
-            Payments, events, voting, tasks, and member records — all in one secure workspace.
+            Payments, events, voting, tasks, and member records. All in one secure workspace.
           </p>
         </div>
       </div>
@@ -86,7 +86,7 @@ export default function LoginPage() {
     } catch (err) {
       const status = err.response?.status;
       if (status === 403) {
-        setError('Role mismatch — please select the correct role for this account.');
+        setError('Role mismatch: please select the correct role for this account.');
       } else if (status === 422) {
         const msgs = err.response?.data?.errors;
         const first = msgs ? Object.values(msgs).flat()[0] : null;

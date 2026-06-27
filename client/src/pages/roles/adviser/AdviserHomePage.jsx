@@ -7,7 +7,7 @@ import { getTasks } from '../../../services/taskService';
 import { getAnnouncements } from '../../../services/announcementService';
 
 function formatDate(d) {
-  if (!d) return '—';
+  if (!d) return '-';
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
@@ -55,7 +55,7 @@ export default function AdviserHomePage() {
   const totalTasks = data.tasks.length;
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).slice(0, 3);
 
-  const stat = (val) => loading ? '—' : val;
+  const stat = (val) => loading ? '-' : val;
 
   return (
     <div className="space-y-6">
@@ -70,7 +70,7 @@ export default function AdviserHomePage() {
           { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
           { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
           { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
-          { label: 'Tasks Completed', value: loading ? '—' : `${completedTasks}/${totalTasks}`, icon: ClipboardList },
+          { label: 'Tasks Completed', value: loading ? '-' : `${completedTasks}/${totalTasks}`, icon: ClipboardList },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
@@ -92,7 +92,7 @@ export default function AdviserHomePage() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Active Election</p>
                   <h3 className="mt-1 text-lg font-black text-[#0F172A]">{activeElection.title}</h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    {formatDate(activeElection.start_date)} — {formatDate(activeElection.end_date)}
+                    {formatDate(activeElection.start_date)} to {formatDate(activeElection.end_date)}
                   </p>
                 </div>
                 <span className="mt-1 rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-black text-white">LIVE</span>

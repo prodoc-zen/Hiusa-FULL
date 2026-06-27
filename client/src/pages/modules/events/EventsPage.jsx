@@ -29,12 +29,12 @@ const taskStatusBadge = {
 };
 
 function formatDateTime(iso) {
-  if (!iso) return '—';
+  if (!iso) return '-';
   return new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 function capitalize(s) {
-  return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+  return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
 }
 
 export default function EventsPage({ initialTab = 'events' }) {
@@ -199,7 +199,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                       <td className="px-5 py-4 font-medium text-slate-600">
                         <div className="flex items-center gap-1.5">
                           <MapPin size={13} className="text-slate-400" />
-                          {evt.location || '—'}
+                          {evt.location || '-'}
                         </div>
                       </td>
                       <td className="px-5 py-4">
@@ -245,12 +245,12 @@ export default function EventsPage({ initialTab = 'events' }) {
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
                       <td className="px-5 py-4 font-medium text-slate-600">
-                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '—'}
+                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
                       <td className="px-5 py-4 font-medium text-slate-600">
-                        {t.event?.title ?? '—'}
+                        {t.event?.title ?? '-'}
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '—'}</td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${taskStatusBadge[t.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(t.status)}

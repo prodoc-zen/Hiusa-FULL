@@ -40,7 +40,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
           day: 'numeric',
           year: 'numeric',
         })}{' '}
-        —{' '}
+        to{' '}
         {new Date(election?.end_time).toLocaleDateString('en-US', {
           month: 'short',
           day: 'numeric',

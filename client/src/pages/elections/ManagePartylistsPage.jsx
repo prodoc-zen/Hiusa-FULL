@@ -208,7 +208,7 @@ export default function ManagePartylistsPage() {
                           <div key={candidate.id} className="flex items-center gap-2 text-xs text-slate-600">
                             <div className="w-1.5 h-1.5 rounded-full bg-[#0B8ED0]" />
                             <span className="font-medium">{name}</span>
-                            <span className="text-[#94A3B8]">— {position}</span>
+                            <span className="text-[#94A3B8]">/ {position}</span>
                           </div>
                         );
                       })}

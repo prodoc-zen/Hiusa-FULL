@@ -96,7 +96,7 @@ export default function ManageVotersPage() {
       <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
         <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
           <div>
-            <h3 className="text-base font-bold text-[#0F172A]">Voters — {election.title}</h3>
+            <h3 className="text-base font-bold text-[#0F172A]">Voters: {election.title}</h3>
             <p className="text-sm font-medium text-[#64748B]">{voters.length} registered voters for this election</p>
           </div>
         </div>

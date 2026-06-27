@@ -7,7 +7,7 @@ import { getAnnouncements } from '../../../services/announcementService';
 import { getMerchandise } from '../../../services/merchandiseService';
 
 function formatDate(d) {
-  if (!d) return '—';
+  if (!d) return '-';
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }
 

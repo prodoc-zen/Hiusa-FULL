@@ -280,7 +280,7 @@ export default function ElectionPickerPage({ onSelect }) {
                   <div className="flex items-center gap-4 text-[11px] text-[#94A3B8] flex-wrap mb-2.5">
                     <span className="flex items-center gap-1">
                       <Clock size={11} />
-                      {formatDate(el.start_time)} — {formatDate(el.end_time)}
+                      {formatDate(el.start_time)} to {formatDate(el.end_time)}
                     </span>
                     <span>{positions} positions</span>
                     <span>{candidates} candidates</span>

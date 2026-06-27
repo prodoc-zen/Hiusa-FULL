@@ -89,10 +89,10 @@ export default function DashboardPage() {
   const maxExpense = Math.max(...expensesByCategory.map((c) => Number(c.total)), 1);
 
   const statCards = [
-    { label: 'Open Tasks', value: loading ? '—' : stats.openTasks, helper: 'Pending & in-progress', icon: ClipboardList, trend: 'Active' },
-    { label: 'Upcoming Events', value: loading ? '—' : stats.upcomingEvents, helper: 'Scheduled & approved', icon: CalendarDays, trend: 'Soon' },
-    { label: 'Budget Balance', value: loading ? '—' : fmt(stats.budgetBalance), helper: 'Net income minus expenses', icon: Coins, trend: 'Balance' },
-    { label: 'Pending Orders', value: loading ? '—' : stats.pendingOrders, helper: 'Merch awaiting action', icon: Package, trend: 'Queue' },
+    { label: 'Open Tasks', value: loading ? '-' : stats.openTasks, helper: 'Pending & in-progress', icon: ClipboardList, trend: 'Active' },
+    { label: 'Upcoming Events', value: loading ? '-' : stats.upcomingEvents, helper: 'Scheduled & approved', icon: CalendarDays, trend: 'Soon' },
+    { label: 'Budget Balance', value: loading ? '-' : fmt(stats.budgetBalance), helper: 'Net income minus expenses', icon: Coins, trend: 'Balance' },
+    { label: 'Pending Orders', value: loading ? '-' : stats.pendingOrders, helper: 'Merch awaiting action', icon: Package, trend: 'Queue' },
   ];
 
   const modules = [
@@ -177,10 +177,10 @@ export default function DashboardPage() {
                     <tr key={t.id} className="hover:bg-[#F8FBFD]">
                       <td className="px-5 py-3.5 font-semibold text-[#0F172A]">{t.title}</td>
                       <td className="px-5 py-3.5 text-slate-500">
-                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '—'}
+                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 tabular-nums">
-                        {t.deadline ? new Date(t.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '—'}
+                        {t.deadline ? new Date(t.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '-'}
                       </td>
                       <td className="px-5 py-3.5">
                         <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${STATUS_BADGE[t.status] || 'bg-slate-100 text-slate-500'}`}>
