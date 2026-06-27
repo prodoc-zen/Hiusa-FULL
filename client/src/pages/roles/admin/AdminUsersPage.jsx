@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { PencilLine, Trash2, UserPlus, UserX, X } from 'lucide-react';
 import { createUser, deleteUser, disableUser, getUsers, updateUser } from '../../../services/userService';
+import PaginationControls from '../../../components/PaginationControls';
 
 const roles = ['student', 'officer', 'adviser', 'admin'];
 
@@ -12,6 +13,8 @@ export default function AdminUsersPage() {
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
   const [createForm, setCreateForm] = useState({
     school_id: '',
@@ -65,6 +68,15 @@ export default function AdminUsersPage() {
       return matchesSearch && matchesRole;
     });
   }, [users, search, roleFilter]);
+
+  const pagedUsers = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, page]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, roleFilter]);
 
   const refreshUsers = async () => {
     const rows = await getUsers();
@@ -165,7 +177,7 @@ export default function AdminUsersPage() {
           <select
             value={roleFilter}
             onChange={(event) => setRoleFilter(event.target.value)}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           >
             <option value="all">All roles</option>
             {roles.map((role) => (
@@ -192,7 +204,7 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EDF3] text-sm">
-              {filtered.map((user) => (
+              {pagedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
@@ -230,6 +242,13 @@ export default function AdminUsersPage() {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          currentPage={page}
+          totalItems={filtered.length}
+          pageSize={pageSize}
+          onPageChange={setPage}
+          label="users"
+        />
       </section>
 
       {showCreate && (
@@ -245,7 +264,7 @@ export default function AdminUsersPage() {
             <input value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.first_name} onChange={(event) => setCreateForm({ ...createForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.last_name} onChange={(event) => setCreateForm({ ...createForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+            <select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
               {roles.map((role) => (
                 <option key={role} value={role}>{role}</option>
               ))}
@@ -273,7 +292,7 @@ export default function AdminUsersPage() {
             <input value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.first_name} onChange={(event) => setEditForm({ ...editForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.last_name} onChange={(event) => setEditForm({ ...editForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+            <select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
               {roles.map((role) => (
                 <option key={role} value={role}>{role}</option>
               ))}

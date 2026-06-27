@@ -115,6 +115,18 @@ function NavItem({ label, path, icon: Icon, end, onClick }) {
   );
 }
 
+function SubNavItem({ label, path, onClick }) {
+  return (
+    <NavLink
+      to={path}
+      onClick={onClick}
+      className={({ isActive }) => `flex h-8 items-center rounded-lg px-3 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0B8ED0] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+    >
+      {label}
+    </NavLink>
+  );
+}
+
 function OfficerProfile({ user, roleLabel }) {
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase() || 'HI';
   const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
@@ -225,10 +237,10 @@ export default function Sidebar({ isOpen, onClose }) {
                 </button>
 
                 {isExpanded && (
-                  <div className="mt-1 space-y-0.5">
+                  <div className="ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3">
                     {visibleChildren.map((sub) => (
                       <div key={sub.id} onClick={onClose}>
-                        <NavItem label={sub.label} path={sub.path} icon={item.icon} />
+                        <SubNavItem label={sub.label} path={sub.path} />
                       </div>
                     ))}
                   </div>

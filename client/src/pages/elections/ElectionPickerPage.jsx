@@ -1,20 +1,56 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Vote, Plus, X, Clock, ChevronRight } from 'lucide-react';
+import { Plus, X, Search, CalendarDays, ChevronRight, PencilLine } from 'lucide-react';
 import { createElection, getElections, updateElection } from '../../services/electionService';
+import PaginationControls from '../../components/PaginationControls';
 
 const statusStyles = {
-  upcoming: 'bg-amber-50 text-amber-700 border-amber-200',
+  upcoming: 'bg-[#EEF6FB] text-[#0B8ED0] border-[#D5E8F5]',
   active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   closed: 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
+const accentByStatus = {
+  upcoming: 'border-l-[#0B8ED0]',
+  active: 'border-l-[#16A34A]',
+  closed: 'border-l-[#94A3B8]',
+};
+
 function formatDate(dt) {
+  if (!dt) {
+    return '-';
+  }
+
   return new Date(dt).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
   });
+}
+
+function formatTimeline(status, startTime, endTime) {
+  const now = Date.now();
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return '';
+  }
+
+  const dayMs = 1000 * 60 * 60 * 24;
+
+  if (status === 'active') {
+    const daysLeft = Math.max(0, Math.ceil((end - now) / dayMs));
+    return `${daysLeft} day${daysLeft === 1 ? '' : 's'} remaining`;
+  }
+
+  if (status === 'upcoming') {
+    const daysToStart = Math.max(0, Math.ceil((start - now) / dayMs));
+    return `Starts in ${daysToStart} day${daysToStart === 1 ? '' : 's'}`;
+  }
+
+  const daysSinceEnd = Math.max(0, Math.ceil((now - end) / dayMs));
+  return `Ended ${daysSinceEnd} day${daysSinceEnd === 1 ? '' : 's'} ago`;
 }
 
 export default function ElectionPickerPage({ onSelect }) {
@@ -24,6 +60,9 @@ export default function ElectionPickerPage({ onSelect }) {
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [elections, setElections] = useState([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [page, setPage] = useState(1);
+  const pageSize = 8;
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
@@ -124,33 +163,76 @@ export default function ElectionPickerPage({ onSelect }) {
     }
   };
 
-  return (
-    <div className="space-y-5">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold text-[#0F172A]">Elections</h2>
-          <p className="text-sm font-medium text-[#64748B] mt-0.5">
-            Select an election to manage its candidates, voters, and results.
-          </p>
-        </div>
-        {canManageElections && (
-          <button
-            onClick={() => setShowCreate(true)}
-            className="flex items-center gap-1.5 bg-[#0B8ED0] text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-[#0878B7] transition-colors"
-          >
-            <Plus size={15} />
-            New Election
-          </button>
-        )}
-      </div>
+  const openElectionAndGo = (electionId, destination) => {
+    if (onSelect) {
+      onSelect(electionId);
+      navigate(destination);
+      return;
+    }
 
-      {/* Create Form */}
+    navigate(destination);
+  };
+
+  const filteredElections = elections.filter((item) => {
+    const query = searchTerm.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    const title = String(item.title || '').toLowerCase();
+    const status = String(item.status || '').toLowerCase();
+    return title.includes(query) || status.includes(query);
+  });
+
+  const pagedElections = filteredElections.slice((page - 1) * pageSize, page * pageSize);
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, elections.length]);
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h2 className="text-[32px] leading-none font-black text-[#0F172A]">Elections</h2>
+            <p className="mt-2 text-sm font-medium text-[#64748B]">
+              Select an election to manage its candidates, voters, and results.
+            </p>
+            <div className="mt-3 relative w-full max-w-sm">
+              <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
+              <input
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                placeholder="Search elections"
+                className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm font-medium text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0]"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 lg:flex-col lg:items-end">
+            <p className="text-xs font-semibold text-[#64748B]">
+              {filteredElections.length} election{filteredElections.length === 1 ? '' : 's'}
+            </p>
+            {canManageElections && (
+              <button
+                type="button"
+                onClick={() => setShowCreate(true)}
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition-colors hover:bg-[#0878B7]"
+              >
+                <Plus size={15} />
+                New Election
+              </button>
+            )}
+          </div>
+        </div>
+      </section>
+
       {showCreate && canManageElections && (
-        <div className="rounded-xl border border-[#0B8ED0]/30 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-bold text-[#0F172A]">Create New Election</h3>
             <button
+              type="button"
               onClick={() => setShowCreate(false)}
               className="p-1 hover:bg-red-50 rounded text-slate-400"
             >
@@ -166,7 +248,7 @@ export default function ElectionPickerPage({ onSelect }) {
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g. HIUSA General Elections 2026"
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 transition"
+                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
               />
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -180,7 +262,7 @@ export default function ElectionPickerPage({ onSelect }) {
                   onChange={(e) =>
                     setForm({ ...form, start_time: e.target.value })
                   }
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] transition"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none transition focus:border-[#0B8ED0]"
                 />
               </div>
               <div>
@@ -193,7 +275,7 @@ export default function ElectionPickerPage({ onSelect }) {
                   onChange={(e) =>
                     setForm({ ...form, end_time: e.target.value })
                   }
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] transition"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none transition focus:border-[#0B8ED0]"
                 />
               </div>
             </div>
@@ -210,7 +292,7 @@ export default function ElectionPickerPage({ onSelect }) {
               <select
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] transition"
+                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
               >
                 <option value="upcoming">Upcoming</option>
                 <option value="active">Active</option>
@@ -220,24 +302,23 @@ export default function ElectionPickerPage({ onSelect }) {
               <button
                 type="submit"
                 disabled={!form.title || !form.start_time || !form.end_time}
-                className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-40"
+                className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
               >
                 Create Election
               </button>
               <button
                 type="button"
                 onClick={() => setShowCreate(false)}
-                className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] transition"
+                className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD]"
               >
                 Cancel
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
 
-      {/* Election Cards */}
-      <div className="space-y-3">
+      <section className="space-y-3">
         {loading && (
           <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 text-sm font-medium text-slate-500 shadow-sm">
             Loading elections...
@@ -250,123 +331,162 @@ export default function ElectionPickerPage({ onSelect }) {
           </div>
         )}
 
-        {!loading && elections.map((el) => {
+        {!loading && elections.length > 0 && filteredElections.length === 0 && (
+          <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 text-sm font-medium text-slate-500 shadow-sm">
+            No elections match your search.
+          </div>
+        )}
+
+        {!loading && pagedElections.map((el) => {
           const positions = el.positions_count ?? 0;
           const candidates = el.candidates_count ?? 0;
           const votes = el.votes_count ?? 0;
+          const turnout = Number(el.turnout_percentage);
+          const timeline = formatTimeline(el.status, el.start_time, el.end_time);
 
           return (
-            <div
+            <article
               key={el.id}
-              className="w-full rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm hover:border-[#0B8ED0]/40 hover:shadow-md transition-all text-left group"
+              className={`group rounded-xl border border-[#DDE7EF] border-l-4 bg-white px-4 py-4 shadow-sm transition-all hover:border-[#0B8ED0]/35 ${accentByStatus[el.status] || accentByStatus.closed}`}
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    {el.status === 'active' && (
-                      <div className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse shrink-0" />
-                    )}
-                    <h3 className="text-sm font-bold text-[#0F172A] group-hover:text-[#0B8ED0] transition-colors">
-                      {el.title}
-                    </h3>
-                    <span
-                      className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold capitalize ${
-                        statusStyles[el.status]
-                      }`}
-                    >
-                      {el.status}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-4 text-[11px] text-[#94A3B8] flex-wrap mb-2.5">
-                    <span className="flex items-center gap-1">
-                      <Clock size={11} />
-                      {formatDate(el.start_time)} — {formatDate(el.end_time)}
-                    </span>
-                    <span>{positions} positions</span>
-                    <span>{candidates} candidates</span>
-                    <span>{votes} votes cast</span>
-                  </div>
-                  {positions > 0 && (
-                    <div className="flex gap-1.5 flex-wrap">
-                      <span className="px-2 py-0.5 bg-[#EEF6FB] text-[#0B8ED0] text-[10px] font-semibold rounded-full border border-[#0B8ED0]/15">
-                        Election ready
+              <div className="space-y-3">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-[30px] leading-tight font-black text-[#0F172A] transition-colors group-hover:text-[#0B8ED0] sm:text-2xl">
+                        {el.title}
+                      </h3>
+                      <span
+                        className={`rounded-md border px-2.5 py-0.5 text-xs font-bold uppercase tracking-wide ${
+                          statusStyles[el.status]
+                        }`}
+                      >
+                        {el.status}
                       </span>
-
-                      {canManageElections && el.status !== 'active' && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(el.id, 'active')}
-                          className="px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-semibold rounded-full border border-emerald-200"
-                        >
-                          Open
-                        </button>
-                      )}
-
-                      {canManageElections && el.status === 'active' && (
-                        <button
-                          type="button"
-                          onClick={() => handleStatusChange(el.id, 'closed')}
-                          className="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-semibold rounded-full border border-slate-200"
-                        >
-                          Close
-                        </button>
-                      )}
-
-                      {canManageElections && (
-                        <button
-                          type="button"
-                          onClick={() => handleOpenEdit(el)}
-                          className="px-2 py-0.5 bg-amber-50 text-amber-700 text-[10px] font-semibold rounded-full border border-amber-200"
-                        >
-                          Edit
-                        </button>
-                      )}
                     </div>
-                  )}
+                    <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-[#64748B]">
+                      <span className="flex items-center gap-1">
+                        <CalendarDays size={12} />
+                        {formatDate(el.start_time)} - {formatDate(el.end_time)}
+                      </span>
+                      <span>{timeline}</span>
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[36px] leading-none font-black text-[#0B8ED0]">{votes.toLocaleString()}</p>
+                    <p className="text-[11px] font-semibold text-[#64748B]">Votes Cast</p>
+                  </div>
                 </div>
-                <div className="text-right shrink-0 flex flex-col items-end">
-                  {el.status === 'active' ? (
-                    <div>
-                      <p className="text-lg font-black text-[#0B8ED0]">
-                        {votes}
-                      </p>
-                      <p className="text-[10px] text-[#94A3B8]">votes cast</p>
-                    </div>
-                  ) : el.status === 'closed' ? (
-                    <p className="text-xs font-bold text-[#64748B]">
-                      {votes} total votes
+
+                <div className="grid grid-cols-3 gap-4 border-y border-[#DDE7EF] py-3">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">Positions</p>
+                    <p className="mt-1 text-2xl font-black text-[#0F172A]">{positions}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">Candidates</p>
+                    <p className="mt-1 text-2xl font-black text-[#0F172A]">{candidates}</p>
+                  </div>
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-wide text-[#64748B]">
+                      {Number.isFinite(turnout) ? 'Turnout' : 'Status'}
                     </p>
-                  ) : (
-                    <p className="text-xs font-bold text-amber-600">
-                      Scheduled
+                    <p className="mt-1 text-2xl font-black text-[#0F172A]">
+                      {Number.isFinite(turnout) ? `${turnout.toFixed(1)}%` : el.status === 'active' ? 'Live' : 'Ready'}
                     </p>
-                  )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    {canManageElections && (
+                      <button
+                        type="button"
+                        onClick={() => openElectionAndGo(el.id, '/dashboard/elections/manage-candidates')}
+                        className="inline-flex h-9 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
+                      >
+                        Manage Candidates
+                      </button>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
+                      className="inline-flex h-9 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
+                    >
+                      View Results
+                    </button>
+
+                    {canManageElections && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEdit(el)}
+                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#DDE7EF] text-[#0F172A] hover:bg-[#F8FBFD]"
+                        aria-label="Edit election"
+                      >
+                        <PencilLine size={14} />
+                      </button>
+                    )}
+
+                    {canManageElections && el.status !== 'active' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(el.id, 'active')}
+                        className="inline-flex h-9 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700"
+                      >
+                        Open Election
+                      </button>
+                    )}
+
+                    {canManageElections && el.status === 'active' && (
+                      <button
+                        type="button"
+                        onClick={() => handleStatusChange(el.id, 'closed')}
+                        className="inline-flex h-9 items-center rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700"
+                      >
+                        Close Election
+                      </button>
+                    )}
+                  </div>
+
                   <button
                     type="button"
                     onClick={() => {
-                      if (onSelect) {
-                        onSelect(el.id);
-                      } else {
-                        navigate('/dashboard/elections/manage-elections');
+                      if (canManageElections) {
+                        openElectionAndGo(el.id, '/dashboard/elections/manage-elections');
+                        return;
                       }
+
+                      openElectionAndGo(el.id, '/dashboard/elections/election-results');
                     }}
-                    className="mt-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-[#EEF6FB]"
+                    className="inline-flex h-9 items-center gap-1 rounded-md px-2 text-sm font-semibold text-[#1D4ED8] hover:text-[#0B8ED0]"
                   >
-                    Open
-                    <ChevronRight size={14} className="text-slate-400 group-hover:text-[#0B8ED0] transition-colors" />
+                    Full Details
+                    <ChevronRight size={14} className="transition-colors" />
                   </button>
                 </div>
               </div>
-            </div>
+            </article>
           );
         })}
-      </div>
+        {!loading && filteredElections.length > 0 && (
+          <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <PaginationControls
+              currentPage={page}
+              totalItems={filteredElections.length}
+              pageSize={pageSize}
+              onPageChange={setPage}
+              label="elections"
+            />
+          </div>
+        )}
+      </section>
 
       {showEdit && canManageElections && (
-        <div className="rounded-xl border border-amber-200 bg-white p-6 shadow-sm">
+        <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-bold text-[#0F172A]">Edit Election</h3>
-            <button onClick={() => setShowEdit(false)} className="rounded p-1 text-slate-400 hover:bg-red-50">
+            <button type="button" onClick={() => setShowEdit(false)} className="rounded p-1 text-slate-400 hover:bg-red-50">
               <X size={16} />
             </button>
           </div>
@@ -407,7 +527,7 @@ export default function ElectionPickerPage({ onSelect }) {
               <select
                 value={editForm.status}
                 onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
               >
                 <option value="upcoming">Upcoming</option>
                 <option value="active">Active</option>
@@ -432,7 +552,7 @@ export default function ElectionPickerPage({ onSelect }) {
               </button>
             </div>
           </form>
-        </div>
+        </section>
       )}
     </div>
   );

@@ -4,13 +4,6 @@ import { Bell, ChevronDown, LogOut, Menu, Settings, User } from 'lucide-react';
 import { logout } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 
-const ROLE_COLORS = {
-  admin:   { bg: 'bg-[#0B8ED0]', text: 'text-white' },
-  officer: { bg: 'bg-[#0B8ED0]', text: 'text-white' },
-  adviser: { bg: 'bg-[#0B8ED0]', text: 'text-white' },
-  student: { bg: 'bg-[#0B8ED0]', text: 'text-white' },
-};
-
 function timeAgo(dateStr) {
   const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
   if (diff < 60) return 'just now';
@@ -33,8 +26,6 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role?.toLowerCase() ?? '';
   const roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Member';
-
-  const ALL_ROLES = ['Admin', 'Officer', 'Adviser', 'Student'];
 
   const parentByPrefix = [
     ['/dashboard/announcements/', 'Announcements'],
@@ -108,25 +99,6 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             HIUSA{parentLabel ? ` · ${parentLabel}` : ''}
           </p>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
-        </div>
-
-        {/* Role chips */}
-        <div className="hidden items-center gap-1 xl:flex">
-          {ALL_ROLES.map((r) => {
-            const isActive = roleLabel === r;
-            return (
-              <span
-                key={r}
-                className={`rounded-full px-2.5 py-1 text-[11px] font-bold transition ${
-                  isActive
-                    ? 'bg-[#0B8ED0] text-white'
-                    : 'border border-[#DDE7EF] text-slate-400'
-                }`}
-              >
-                {r}
-              </span>
-            );
-          })}
         </div>
 
         {/* Notification Bell */}
