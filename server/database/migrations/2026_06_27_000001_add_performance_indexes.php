@@ -27,20 +27,40 @@ return new class extends Migration
 
     public function down(): void
     {
-        Schema::table('announcements', function (Blueprint $table) {
-            $table->dropIndex('announcements_published_role_index');
-        });
+        Schema::disableForeignKeyConstraints();
 
-        Schema::table('tasks', function (Blueprint $table) {
-            $table->dropIndex('tasks_assigned_status_index');
-        });
+        if (Schema::hasTable('announcements')) {
+            Schema::table('announcements', function (Blueprint $table) {
+                if (Schema::hasIndex('announcements', 'announcements_published_role_index')) {
+                    $table->dropIndex('announcements_published_role_index');
+                }
+            });
+        }
 
-        Schema::table('events', function (Blueprint $table) {
-            $table->dropIndex('events_status_start_index');
-        });
+        if (Schema::hasTable('tasks')) {
+            Schema::table('tasks', function (Blueprint $table) {
+                if (Schema::hasIndex('tasks', 'tasks_assigned_status_index')) {
+                    $table->dropIndex('tasks_assigned_status_index');
+                }
+            });
+        }
 
-        Schema::table('orders', function (Blueprint $table) {
-            $table->dropIndex('orders_student_status_index');
-        });
+        if (Schema::hasTable('events')) {
+            Schema::table('events', function (Blueprint $table) {
+                if (Schema::hasIndex('events', 'events_status_start_index')) {
+                    $table->dropIndex('events_status_start_index');
+                }
+            });
+        }
+
+        if (Schema::hasTable('orders')) {
+            Schema::table('orders', function (Blueprint $table) {
+                if (Schema::hasIndex('orders', 'orders_student_status_index')) {
+                    $table->dropIndex('orders_student_status_index');
+                }
+            });
+        }
+
+        Schema::enableForeignKeyConstraints();
     }
 };
