@@ -21,9 +21,11 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::table('candidates', function (Blueprint $table) {
-            $table->dropForeign(['partylist_id']);
-            $table->dropColumn('partylist_id');
-        });
+        if (Schema::hasTable('candidates') && Schema::hasColumn('candidates', 'partylist_id')) {
+            Schema::table('candidates', function (Blueprint $table) {
+                $table->dropForeign(['partylist_id']);
+                $table->dropColumn('partylist_id');
+            });
+        }
     }
 };
