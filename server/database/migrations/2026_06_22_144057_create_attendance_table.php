@@ -16,7 +16,7 @@ return new class extends Migration
             $table->foreignId('event_id')->constrained('events')->cascadeOnDelete();
             $table->foreignId('user_id')->constrained('users')->cascadeOnDelete();
             $table->dateTime('check_in_time')->useCurrent();
-            $table->enum('method', ['biometric', 'qr_code', 'manual'])->default('biometric');
+            $table->enum('method', ['biometric', 'manual'])->default('manual');
             $table->unique(['event_id', 'user_id'], 'unique_attendance');
         });
     }

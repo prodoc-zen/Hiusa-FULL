@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -63,9 +63,13 @@ const tokenBadge = {
   Expired: 'bg-slate-100 text-slate-500',
 };
 
-export default function MerchandisePage() {
-  const [activeTab, setActiveTab] = useState('inventory');
+export default function MerchandisePage({ initialTab = 'inventory' }) {
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [showForm, setShowForm] = useState(false);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="space-y-6">

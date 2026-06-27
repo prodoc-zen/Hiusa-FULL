@@ -16,6 +16,7 @@ return new class extends Migration
             $table->string('school_id', 50)->unique();
             $table->string('first_name', 100);
             $table->string('last_name', 100);
+            $table->boolean('is_member')->default(false);
             $table->string('email', 150)->unique();
             $table->string('password_hash');
             $table->enum('role', ['student', 'officer', 'admin', 'adviser'])->default('student');

@@ -15,8 +15,8 @@ import {
   User,
 } from 'lucide-react';
 
-export default function SettingsPage() {
-  const [activeSection, setActiveSection] = useState('profile');
+export default function SettingsPage({ initialSection = 'profile' }) {
+  const [activeSection, setActiveSection] = useState(initialSection);
   const [showPassword, setShowPassword] = useState(false);
 
   const sections = [

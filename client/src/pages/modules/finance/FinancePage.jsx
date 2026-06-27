@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -45,9 +45,13 @@ const forecastData = [
 
 const maxProjected = Math.max(...forecastData.map(d => d.projected));
 
-export default function FinancePage() {
+export default function FinancePage({ initialTab = 'transactions' }) {
   const [showForm, setShowForm] = useState(false);
-  const [activeTab, setActiveTab] = useState('transactions');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="space-y-6">

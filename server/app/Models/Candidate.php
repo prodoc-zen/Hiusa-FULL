@@ -29,6 +29,11 @@ class Candidate extends Model
         return $this->belongsTo(ElectionPosition::class, 'position_id');
     }
 
+    public function partylist(): BelongsTo
+    {
+        return $this->belongsTo(Partylist::class, 'partylist_id');
+    }
+
     public function votes(): HasMany
     {
         return $this->hasMany(Vote::class);

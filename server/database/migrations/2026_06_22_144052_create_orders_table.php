@@ -18,7 +18,6 @@ return new class extends Migration
             $table->integer('quantity')->default(1);
             $table->decimal('total_price', 10, 2);
             $table->enum('status', ['pending', 'paid', 'claimed', 'cancelled'])->default('pending');
-            $table->enum('payment_method', ['cash_on_claim', 'e_wallet'])->default('cash_on_claim');
             $table->string('claim_token', 50)->unique();
             $table->foreignId('processed_by')->nullable()->constrained('users')->nullOnDelete();
             $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();

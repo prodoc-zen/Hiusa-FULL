@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   Calendar,
   CheckCircle2,
@@ -46,9 +46,13 @@ const taskStatusBadge = {
   'Not Started': 'bg-slate-100 text-slate-500',
 };
 
-export default function EventsPage() {
+export default function EventsPage({ initialTab = 'events' }) {
   const [showForm, setShowForm] = useState(false);
-  const [activeTab, setActiveTab] = useState('events');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="space-y-6">

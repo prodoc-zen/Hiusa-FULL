@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   AlertCircle,
   Bot,
@@ -51,9 +51,13 @@ const officerWorkloads = [
   { name: 'Mika Santos', role: 'VP Internal', tasks: 4, completed: 2 },
 ];
 
-export default function TasksPage() {
+export default function TasksPage({ initialTab = 'board' }) {
   const [showForm, setShowForm] = useState(false);
-  const [activeTab, setActiveTab] = useState('board');
+  const [activeTab, setActiveTab] = useState(initialTab);
+
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
 
   return (
     <div className="space-y-6">

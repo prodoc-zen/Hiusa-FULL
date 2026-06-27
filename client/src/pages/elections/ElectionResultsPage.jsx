@@ -1,0 +1,161 @@
+import { useOutletContext } from 'react-router-dom';
+import { Vote, Award, Users, Trophy } from 'lucide-react';
+
+function Avatar({ name, size = 'sm' }) {
+  const initials = name
+    .split(' ')
+    .map((value) => value[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase();
+
+  const colors = [
+    'bg-[#0B8ED0]',
+    'bg-purple-500',
+    'bg-emerald-500',
+    'bg-red-500',
+    'bg-amber-500',
+    'bg-indigo-500',
+    'bg-pink-500',
+  ];
+  const bg = colors[name.charCodeAt(0) % colors.length];
+  const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
+
+  return <div className={`rounded-full flex items-center justify-center text-white font-bold shrink-0 ${sz} ${bg}`}>{initials}</div>;
+}
+
+export default function ElectionResultsPage() {
+  const { election } = useOutletContext();
+
+  if (!election) {
+    return (
+      <div className="text-center py-20">
+        <p className="text-sm text-slate-500">Election not found.</p>
+      </div>
+    );
+  }
+
+  const positions = election.positions || [];
+  const allCandidates = election.candidates || [];
+  const allVotes = election.votes || [];
+  const uniqueVoters = new Set(allVotes.map((vote) => vote.voter_id)).size;
+
+  const positionResults = positions.map((position) => {
+    const positionCandidates = allCandidates
+      .filter((candidate) => candidate.position_id === position.id)
+      .map((candidate) => ({
+        ...candidate,
+        name: `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim(),
+        partylist: candidate.partylist?.name || 'Independent',
+        votes: allVotes.filter((vote) => vote.candidate_id === candidate.id).length,
+      }))
+      .sort((a, b) => b.votes - a.votes);
+
+    const totalVotes = positionCandidates.reduce((sum, candidate) => sum + candidate.votes, 0);
+    return { position, candidates: positionCandidates, totalVotes };
+  });
+
+  return (
+    <div className="space-y-5">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {[
+          { label: 'Total Votes Cast', value: allVotes.length, sub: `${uniqueVoters} unique voters`, icon: Vote, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
+          { label: 'Voter Turnout', value: uniqueVoters, sub: 'Unique voters participated', icon: Award, color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' } },
+          { label: 'Positions', value: positions.length, icon: Award, color: { bg: 'bg-purple-50', icon: 'text-purple-600', border: 'border-purple-200' } },
+          { label: 'Candidates', value: allCandidates.length, icon: Users, color: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200' } },
+        ].map((stat) => (
+          <div key={stat.label} className={`rounded-xl border bg-white p-5 shadow-sm flex items-start gap-4 ${stat.color.border}`}>
+            <div className={`p-2.5 rounded-lg ${stat.color.bg}`}>
+              <stat.icon size={20} className={stat.color.icon} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-[#64748B] font-medium uppercase tracking-wide">{stat.label}</p>
+              <p className="text-2xl font-black text-[#0F172A] mt-0.5">{stat.value}</p>
+              {stat.sub && <p className="text-xs text-[#64748B] mt-1">{stat.sub}</p>}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        {positionResults.map(({ position, candidates, totalVotes }) => {
+          if (candidates.length === 0) {
+            return null;
+          }
+
+          if (candidates.length === 1) {
+            const candidate = candidates[0];
+            return (
+              <div key={position.id} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+                <div className="flex items-center gap-2 mb-4">
+                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wide">{position.title}</span>
+                  {position.max_winners > 1 && <span className="text-[10px] text-[#94A3B8]">(Top {position.max_winners})</span>}
+                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Uncontested</span>
+                </div>
+                <div className="flex items-center gap-4">
+                  <Avatar name={candidate.name} size="lg" />
+                  <div>
+                    <p className="text-lg font-black text-[#0F172A]">{candidate.name}</p>
+                    <span className="inline-block px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{candidate.partylist}</span>
+                    <p className="text-xs text-[#64748B] mt-1">{candidate.votes} votes</p>
+                  </div>
+                  <Trophy size={24} className="text-amber-500 ml-auto" />
+                </div>
+              </div>
+            );
+          }
+
+          const [a, b] = candidates;
+          const aPct = totalVotes > 0 ? Math.round((a.votes / totalVotes) * 100) : 0;
+          const bPct = totalVotes > 0 ? Math.round((b.votes / totalVotes) * 100) : 0;
+          const aWins = a.votes > b.votes;
+
+          return (
+            <div key={position.id} className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-3 border-b border-[#DDE7EF] bg-[#F8FBFD]">
+                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{position.title}</span>
+                {position.max_winners > 1 && <span className="text-[10px] text-[#94A3B8]">(Top {position.max_winners})</span>}
+                <span className="text-[10px] text-[#94A3B8] ml-auto">{totalVotes} votes cast</span>
+              </div>
+              <div className="p-5">
+                <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center mb-4">
+                  <div className={`text-center p-4 rounded-xl border-2 transition-all relative ${aWins ? 'border-[#0B8ED0] shadow-md' : 'border-[#DDE7EF]'}`}>
+                    {aWins && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
+                        <Trophy size={9} />
+                        WINNER
+                      </div>
+                    )}
+                    <Avatar name={a.name} size="md" />
+                    <p className="text-sm font-black text-[#0F172A] mt-2">{a.name}</p>
+                    <span className="inline-block mt-0.5 mb-2 px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{a.partylist}</span>
+                    <p className="text-2xl font-black text-[#0B8ED0]">{a.votes}</p>
+                    <p className="text-xs text-[#94A3B8]">votes · {aPct}%</p>
+                  </div>
+                  <div className="flex flex-col items-center gap-1">
+                    <div className="w-px h-8 bg-[#DDE7EF]" />
+                    <span className="text-xs font-black text-[#94A3B8] bg-white px-1.5 py-0.5 rounded-full border border-[#DDE7EF]">VS</span>
+                    <div className="w-px h-8 bg-[#DDE7EF]" />
+                  </div>
+                  <div className={`text-center p-4 rounded-xl border-2 transition-all relative ${!aWins && b.votes > a.votes ? 'border-[#0B8ED0] shadow-md' : 'border-[#DDE7EF]'}`}>
+                    {!aWins && b.votes > a.votes && (
+                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
+                        <Trophy size={9} />
+                        WINNER
+                      </div>
+                    )}
+                    <Avatar name={b.name} size="md" />
+                    <p className="text-sm font-black text-[#0F172A] mt-2">{b.name}</p>
+                    <span className="inline-block mt-0.5 mb-2 px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{b.partylist}</span>
+                    <p className="text-2xl font-black text-[#0B8ED0]">{b.votes}</p>
+                    <p className="text-xs text-[#94A3B8]">votes · {bPct}%</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}

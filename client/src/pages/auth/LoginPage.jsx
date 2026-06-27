@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ArrowRight, Eye, EyeOff, Lock, Mail } from 'lucide-react';
-import hiusaLogo from '../assets/Hiusa Logo.png';
-import { login } from '../services/authService';
+import hiusaLogo from '../../assets/Hiusa Logo.png';
+import { login } from '../../services/authService';
 import { useNavigate } from 'react-router-dom';
 
 

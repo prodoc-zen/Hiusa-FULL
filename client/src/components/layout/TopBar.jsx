@@ -9,11 +9,28 @@ import {
   Settings,
   User,
 } from 'lucide-react';
+import { logout } from '../../services/authService';
 
-export default function TopBar({ title, onMenuToggle }) {
+export default function TopBar({ title, pathname, onMenuToggle }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const dropdownRef = useRef(null);
   const navigate = useNavigate();
+  const storedUser = localStorage.getItem('user');
+  const user = storedUser ? JSON.parse(storedUser) : null;
+  const initials = user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : 'HI';
+  const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
+  const roleLabel = user?.role ? user.role.charAt(0).toUpperCase() + user.role.slice(1) : 'Member';
+
+  const parentByPrefix = [
+    ['/dashboard/announcements/', 'Announcements'],
+    ['/dashboard/elections/', 'Elections'],
+    ['/dashboard/events/', 'Events'],
+    ['/dashboard/finance/', 'Financial'],
+    ['/dashboard/tasks/', 'Tasks'],
+    ['/dashboard/merchandise/', 'Merchandise'],
+  ];
+
+  const parentLabel = parentByPrefix.find(([prefix]) => pathname?.startsWith(prefix))?.[1] || null;
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -42,7 +59,7 @@ export default function TopBar({ title, onMenuToggle }) {
         {/* Page title */}
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
-            HIUSA System
+            HIUSA · {roleLabel}{parentLabel ? ` · ${parentLabel}` : ''}
           </p>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">
             {title}
@@ -73,11 +90,11 @@ export default function TopBar({ title, onMenuToggle }) {
             className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#EEF6FB]"
           >
             <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
-              JC
+              {initials}
             </div>
             <div className="hidden min-w-0 text-left sm:block">
-              <p className="text-[13px] font-bold text-[#0F172A]">John Carlo</p>
-              <p className="text-[11px] font-medium text-slate-400">President</p>
+              <p className="text-[13px] font-bold text-[#0F172A]">{fullName}</p>
+              <p className="text-[11px] font-medium text-slate-400">{roleLabel}</p>
             </div>
             <ChevronDown
               size={14}
@@ -90,14 +107,14 @@ export default function TopBar({ title, onMenuToggle }) {
           {profileOpen && (
             <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60 animate-in">
               <div className="border-b border-[#DDE7EF] px-3 py-3 mb-1.5">
-                <p className="text-sm font-bold text-[#0F172A]">John Carlo</p>
-                <p className="text-xs font-medium text-slate-400">john.carlo@hiusa.edu</p>
+                <p className="text-sm font-bold text-[#0F172A]">{fullName}</p>
+                <p className="text-xs font-medium text-slate-400">{user?.email || 'no-email@hiusa.edu'}</p>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setProfileOpen(false);
-                  navigate('/dashboard/settings');
+                  navigate('/dashboard/profile');
                 }}
                 className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
               >
@@ -118,9 +135,13 @@ export default function TopBar({ title, onMenuToggle }) {
               <div className="my-1.5 border-t border-[#DDE7EF]" />
               <button
                 type="button"
-                onClick={() => {
+                onClick={async () => {
                   setProfileOpen(false);
-                  navigate('/login');
+                  try {
+                    await logout();
+                  } finally {
+                    navigate('/login');
+                  }
                 }}
                 className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-red-500 transition hover:bg-red-50"
               >
