@@ -22,7 +22,7 @@ const statusBadge = {
 };
 
 function capitalize(s) {
-  return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '—';
+  return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
 }
 
 export default function TasksPage({ initialTab = 'board' }) {
@@ -195,9 +195,9 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
                       <td className="px-5 py-4 font-medium text-slate-600">
-                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '—'}
+                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '—'}</td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(t.status)}

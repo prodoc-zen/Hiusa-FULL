@@ -31,7 +31,7 @@ const statusBadge = {
 };
 
 function formatDate(iso) {
-  return iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '—';
+  return iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 }
 
 export default function AnnouncementsPage() {

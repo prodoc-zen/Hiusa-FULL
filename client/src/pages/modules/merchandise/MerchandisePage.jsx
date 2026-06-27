@@ -31,7 +31,7 @@ const orderBadge = {
 };
 
 function capitalize(s) {
-  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—';
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '-';
 }
 
 function fmt(n) {
@@ -307,9 +307,9 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                     <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-mono text-xs font-bold text-slate-500">#{o.id}</td>
                       <td className="px-5 py-4 font-semibold text-[#0F172A]">
-                        {o.student ? `${o.student.first_name} ${o.student.last_name}` : '—'}
+                        {o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '—'}</td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '-'}</td>
                       <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
                       <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
                       <td className="px-5 py-4">
@@ -416,9 +416,9 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                       <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
                         <td className="px-5 py-4 font-mono text-xs font-black text-[#0B8ED0]">{o.claim_token}</td>
                         <td className="px-5 py-4 font-semibold text-[#0F172A]">
-                          {o.student ? `${o.student.first_name} ${o.student.last_name}` : '—'}
+                          {o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}
                         </td>
-                        <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '—'}</td>
+                        <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '-'}</td>
                         <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
                         <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
                       </tr>
@@ -498,7 +498,7 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                     <>
                       <ImagePlus size={24} className="mb-1 text-slate-300" />
                       <span className="text-[13px] font-semibold text-slate-400">Click to upload</span>
-                      <span className="text-[11px] text-slate-300">JPG, PNG, WebP — max 2MB</span>
+                      <span className="text-[11px] text-slate-300">JPG, PNG, WebP (max 2MB)</span>
                     </>
                   )}
                   <input

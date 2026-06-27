@@ -64,7 +64,7 @@ export default function AdminHomePage() {
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {ROLE_CONFIG.map((rc) => {
-            const count = loading ? '—' : countByRole(rc.key);
+            const count = loading ? '-' : countByRole(rc.key);
             const Icon = rc.icon;
             return (
               <div key={rc.key} className={`flex items-center gap-3 rounded-lg border p-3.5 ${rc.color}`}>
@@ -82,9 +82,9 @@ export default function AdminHomePage() {
       {/* Announcement summary */}
       <section className="grid gap-4 sm:grid-cols-3">
         {[
-          { label: 'Published Announcements', value: loading ? '—' : published, icon: Megaphone, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
-          { label: 'Draft Announcements', value: loading ? '—' : drafts, icon: FileText, color: 'bg-amber-50 text-amber-700' },
-          { label: 'Total Announcements', value: loading ? '—' : published + drafts, icon: ShieldCheck, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
+          { label: 'Published Announcements', value: loading ? '-' : published, icon: Megaphone, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
+          { label: 'Draft Announcements', value: loading ? '-' : drafts, icon: FileText, color: 'bg-amber-50 text-amber-700' },
+          { label: 'Total Announcements', value: loading ? '-' : published + drafts, icon: ShieldCheck, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className={`mb-4 grid h-11 w-11 place-items-center rounded-lg ${item.color}`}>

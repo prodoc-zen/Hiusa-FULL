@@ -1,0 +1,17 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell(Start-Process -FilePath \"php\" -ArgumentList \"artisan\",\"serve\",\"--port=8000\" -WorkingDirectory \"c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\server\" -WindowStyle Minimized)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:8000/api\" -UseBasicParsing -TimeoutSec 5 2>&1)",
+      "PowerShell(Start-Process -FilePath \"cmd.exe\" -ArgumentList \"/c\",\"cd /d c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client && npm run dev\" -WindowStyle Normal)",
+      "PowerShell(Invoke-WebRequest -Uri \"http://localhost:8000\" -UseBasicParsing -TimeoutSec 5)",
+      "PowerShell(netstat -ano)",
+      "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"cd 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client'; npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 10; netstat -ano | findstr \":5173\" | findstr \"LISTEN\")",
+      "Bash(npm run *)",
+      "Read(//tmp/**)",
+      "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client'; npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 8; netstat -ano | findstr \":5173\" | findstr \"LISTEN\")",
+      "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\server'; php artisan serve\" -WindowStyle Normal)",
+      "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client'; npm run dev\" -WindowStyle Normal)"
+    ]
+  }
+}
