@@ -7,6 +7,9 @@ use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\BudgetController;
+use App\Http\Controllers\TransactionController;
+use App\Http\Controllers\FinancialForecastController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -47,6 +50,24 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware('role:officer');
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware('role:officer');
     Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])->middleware('role:officer');
+
+    // Finance Routes — Budgets
+    Route::get('/budgets', [BudgetController::class, 'index'])->middleware('role:admin,officer,adviser');
+    Route::post('/budgets', [BudgetController::class, 'store'])->middleware('role:officer');
+    Route::put('/budgets/{id}', [BudgetController::class, 'update'])->middleware('role:officer');
+    Route::delete('/budgets/{id}', [BudgetController::class, 'destroy'])->middleware('role:officer');
+
+    // Finance Routes — Transactions
+    Route::get('/transactions/summary', [TransactionController::class, 'summary'])->middleware('role:admin,officer,adviser');
+    Route::get('/transactions', [TransactionController::class, 'index'])->middleware('role:admin,officer,adviser');
+    Route::post('/transactions', [TransactionController::class, 'store'])->middleware('role:officer');
+    Route::delete('/transactions/{id}', [TransactionController::class, 'destroy'])->middleware('role:officer');
+
+    // Finance Routes — Forecasts
+    Route::get('/forecasts', [FinancialForecastController::class, 'index'])->middleware('role:admin,officer,adviser');
+    Route::post('/forecasts', [FinancialForecastController::class, 'store'])->middleware('role:officer');
+    Route::put('/forecasts/{id}', [FinancialForecastController::class, 'update'])->middleware('role:officer');
+    Route::delete('/forecasts/{id}', [FinancialForecastController::class, 'destroy'])->middleware('role:officer');
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware('role:admin,officer,adviser,student');
