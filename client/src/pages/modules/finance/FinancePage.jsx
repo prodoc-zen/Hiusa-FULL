@@ -237,12 +237,12 @@ export default function FinancePage({ initialTab = 'transactions' }) {
             <p className="p-8 text-center text-sm text-slate-400">No transactions recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[700px] text-left">
+              <table className="w-full min-w-[500px] md:min-w-[700px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Description</th>
-                    <th className="px-5 py-3">Category</th>
+                    <th className="hidden md:table-cell px-5 py-3">Category</th>
                     <th className="px-5 py-3">Type</th>
                     <th className="px-5 py-3">Amount</th>
                   </tr>
@@ -252,7 +252,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                     <tr key={tx.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-4 font-medium text-slate-600">{tx.transaction_date}</td>
                       <td className="px-5 py-4 font-semibold text-[#0F172A]">{tx.description}</td>
-                      <td className="px-5 py-4">
+                      <td className="hidden md:table-cell px-5 py-4">
                         <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
                       </td>
                       <td className="px-5 py-4">

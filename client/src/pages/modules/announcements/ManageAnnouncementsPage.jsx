@@ -74,7 +74,7 @@ export default function ManageAnnouncementsPage() {
         <p className="py-8 text-center text-sm text-slate-400">No announcements yet.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-xs">
+          <table className="w-full min-w-[600px] text-xs">
             <thead>
               <tr className="border-b border-[#DDE7EF]">
                 {['Title', 'Audience', 'Status', 'Date', 'Actions'].map((h) => (
