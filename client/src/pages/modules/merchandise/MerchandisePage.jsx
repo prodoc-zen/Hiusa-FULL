@@ -3,7 +3,6 @@ import {
   AlertTriangle,
   ArrowRight,
   DollarSign,
-  Filter,
   Package,
   Plus,
   Search,
@@ -11,71 +10,130 @@ import {
   Ticket,
   X,
 } from 'lucide-react';
+import { getMerchandise, createItem, adjustStock } from '../../../services/merchandiseService';
+import { getOrders, updateOrderStatus, claimByToken } from '../../../services/orderService';
 
-const stats = [
-  { label: 'Total Items', value: '32', helper: 'In inventory', icon: Package },
-  { label: 'Low Stock', value: '4', helper: 'Needs restocking', icon: AlertTriangle },
-  { label: 'Active Orders', value: '18', helper: 'Pending fulfillment', icon: ShoppingBag },
-  { label: 'Revenue', value: '₱67,200', helper: 'This semester', icon: DollarSign },
-];
-
-const inventory = [
-  { name: 'HIUSA Official T-Shirt (S)', sku: 'MERCH-001', stock: 45, price: 350, status: 'In Stock' },
-  { name: 'HIUSA Official T-Shirt (M)', sku: 'MERCH-002', stock: 62, price: 350, status: 'In Stock' },
-  { name: 'HIUSA Official T-Shirt (L)', sku: 'MERCH-003', stock: 3, price: 350, status: 'Low Stock' },
-  { name: 'HIUSA Lanyard', sku: 'MERCH-004', stock: 120, price: 75, status: 'In Stock' },
-  { name: 'HIUSA Sticker Pack', sku: 'MERCH-005', stock: 200, price: 50, status: 'In Stock' },
-  { name: 'HIUSA Tote Bag', sku: 'MERCH-006', stock: 0, price: 280, status: 'Out of Stock' },
-  { name: 'HIUSA Cap', sku: 'MERCH-007', stock: 2, price: 320, status: 'Low Stock' },
-];
-
-const orders = [
-  { id: 'ORD-001', student: 'Ana Garcia', item: 'T-Shirt (M)', qty: 1, status: 'Processing', date: '2026-06-22' },
-  { id: 'ORD-002', student: 'Ben Torres', item: 'Lanyard', qty: 2, status: 'Ready', date: '2026-06-21' },
-  { id: 'ORD-003', student: 'Clara Dela Cruz', item: 'Sticker Pack', qty: 3, status: 'Fulfilled', date: '2026-06-20' },
-  { id: 'ORD-004', student: 'David Lim', item: 'T-Shirt (L)', qty: 1, status: 'Processing', date: '2026-06-22' },
-  { id: 'ORD-005', student: 'Eva Mendoza', item: 'Tote Bag', qty: 1, status: 'Cancelled', date: '2026-06-19' },
-];
-
-const tokens = [
-  { code: 'TKN-7A3F', student: 'Ana Garcia', item: 'T-Shirt (M)', status: 'Active', issued: '2026-06-22' },
-  { code: 'TKN-9B2E', student: 'Ben Torres', item: 'Lanyard', status: 'Redeemed', issued: '2026-06-21' },
-  { code: 'TKN-4C8D', student: 'Clara Dela Cruz', item: 'Sticker Pack', status: 'Redeemed', issued: '2026-06-20' },
-  { code: 'TKN-1D5F', student: 'David Lim', item: 'T-Shirt (L)', status: 'Active', issued: '2026-06-22' },
-];
-
-const stockBadge = {
-  'In Stock': 'bg-emerald-50 text-emerald-700',
-  'Low Stock': 'bg-amber-50 text-amber-700',
-  'Out of Stock': 'bg-red-50 text-red-700',
+const stockBadge = (qty) => {
+  if (qty === 0) return 'bg-red-50 text-red-700';
+  if (qty < 10) return 'bg-amber-50 text-amber-700';
+  return 'bg-emerald-50 text-emerald-700';
 };
+const stockLabel = (qty) => (qty === 0 ? 'Out of Stock' : qty < 10 ? 'Low Stock' : 'In Stock');
 
 const orderBadge = {
-  Processing: 'bg-[#E6F6FD] text-[#0B8ED0]',
-  Ready: 'bg-amber-50 text-amber-700',
-  Fulfilled: 'bg-emerald-50 text-emerald-700',
-  Cancelled: 'bg-red-50 text-red-700',
+  pending: 'bg-[#E6F6FD] text-[#0B8ED0]',
+  paid: 'bg-amber-50 text-amber-700',
+  claimed: 'bg-emerald-50 text-emerald-700',
+  cancelled: 'bg-red-50 text-red-700',
 };
 
-const tokenBadge = {
-  Active: 'bg-[#E6F6FD] text-[#0B8ED0]',
-  Redeemed: 'bg-emerald-50 text-emerald-700',
-  Expired: 'bg-slate-100 text-slate-500',
-};
+function capitalize(s) {
+  return s ? s.charAt(0).toUpperCase() + s.slice(1) : '—';
+}
+
+function fmt(n) {
+  return `₱${Number(n || 0).toLocaleString('en-PH')}`;
+}
 
 export default function MerchandisePage({ initialTab = 'inventory' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [showForm, setShowForm] = useState(false);
+  const [items, setItems] = useState([]);
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [search, setSearch] = useState('');
 
-  useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+  const [form, setForm] = useState({ name: '', unit_price: '', stock_quantity: '', description: '' });
+  const [formError, setFormError] = useState(null);
+  const [formSubmitting, setFormSubmitting] = useState(false);
+
+  const [claimToken, setClaimToken] = useState('');
+  const [claimError, setClaimError] = useState(null);
+  const [claimSuccess, setClaimSuccess] = useState(null);
+  const [claiming, setClaiming] = useState(false);
+
+  function load() {
+    setLoading(true);
+    setError(null);
+    Promise.all([getMerchandise(), getOrders()])
+      .then(([mRes, oRes]) => {
+        setItems(Array.isArray(mRes.data) ? mRes.data : []);
+        setOrders(Array.isArray(oRes.data) ? oRes.data : []);
+      })
+      .catch(() => setError('Failed to load merchandise data.'))
+      .finally(() => setLoading(false));
+  }
+
+  useEffect(load, []);
+  useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+
+  async function handleAddItem(e) {
+    e.preventDefault();
+    if (!form.name || !form.unit_price || !form.stock_quantity) return;
+    setFormSubmitting(true);
+    setFormError(null);
+    try {
+      await createItem({
+        name: form.name,
+        unit_price: parseFloat(form.unit_price),
+        stock_quantity: parseInt(form.stock_quantity, 10),
+        description: form.description,
+        is_active: true,
+      });
+      setShowForm(false);
+      setForm({ name: '', unit_price: '', stock_quantity: '', description: '' });
+      load();
+    } catch (err) {
+      setFormError(err.response?.data?.message ?? 'Failed to add item.');
+    } finally {
+      setFormSubmitting(false);
+    }
+  }
+
+  async function handleStatusChange(id, status) {
+    try {
+      const res = await updateOrderStatus(id, status);
+      setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
+    } catch {
+      alert('Failed to update order status.');
+    }
+  }
+
+  async function handleClaim(e) {
+    e.preventDefault();
+    if (!claimToken.trim()) return;
+    setClaiming(true);
+    setClaimError(null);
+    setClaimSuccess(null);
+    try {
+      const res = await claimByToken(claimToken.trim().toUpperCase());
+      setClaimSuccess(`Order claimed for ${res.data?.student?.first_name ?? 'student'}.`);
+      setClaimToken('');
+      load();
+    } catch (err) {
+      setClaimError(err.response?.data?.message ?? 'Invalid or already used token.');
+    } finally {
+      setClaiming(false);
+    }
+  }
+
+  const totalRevenue = orders.filter((o) => ['paid', 'claimed'].includes(o.status)).reduce((s, o) => s + (o.total_price || 0), 0);
+  const activeOrders = orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
+  const lowStock = items.filter((i) => i.stock_quantity > 0 && i.stock_quantity < 10).length;
+  const paidOrders = orders.filter((o) => o.status === 'paid');
+
+  const filteredItems = items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase()));
 
   return (
     <div className="space-y-6">
-      {/* Stats */}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat) => (
+        {[
+          { label: 'Total Items', value: items.length, helper: 'In inventory', icon: Package },
+          { label: 'Low Stock', value: lowStock, helper: 'Needs restocking', icon: AlertTriangle },
+          { label: 'Active Orders', value: activeOrders, helper: 'Pending fulfillment', icon: ShoppingBag },
+          { label: 'Revenue', value: fmt(totalRevenue), helper: 'From paid orders', icon: DollarSign },
+        ].map((stat) => (
           <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
             <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-rose-50 text-rose-600 group-hover:bg-rose-600 group-hover:text-white transition">
               <stat.icon size={19} />
@@ -87,7 +145,6 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
         ))}
       </section>
 
-      {/* Tabs */}
       <div className="flex flex-wrap gap-2">
         {['inventory', 'orders', 'tokens'].map((tab) => (
           <button
@@ -104,7 +161,13 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
         ))}
       </div>
 
-      {/* Inventory */}
+      {error && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center">
+          <p className="text-sm font-semibold text-red-700">{error}</p>
+          <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
+        </div>
+      )}
+
       {activeTab === 'inventory' && (
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -115,7 +178,13 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
             <div className="flex gap-2">
               <div className="flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3">
                 <Search size={15} className="text-slate-400" />
-                <input type="text" placeholder="Search items..." className="w-[140px] bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
+                <input
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  type="text"
+                  placeholder="Search items..."
+                  className="w-[140px] bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                />
               </div>
               <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                 <Plus size={16} />
@@ -123,134 +192,167 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
               </button>
             </div>
           </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[650px] text-left">
-              <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Item</th>
-                  <th className="px-5 py-3">SKU</th>
-                  <th className="px-5 py-3">Stock</th>
-                  <th className="px-5 py-3">Price</th>
-                  <th className="px-5 py-3">Status</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                {inventory.map((item) => (
-                  <tr key={item.sku} className="transition hover:bg-[#F8FBFD]">
-                    <td className="px-5 py-4 font-bold text-[#0F172A]">{item.name}</td>
-                    <td className="px-5 py-4 font-mono text-xs font-bold text-slate-500">{item.sku}</td>
-                    <td className="px-5 py-4 font-black text-[#0F172A]">{item.stock}</td>
-                    <td className="px-5 py-4 font-bold text-[#0F172A]">₱{item.price}</td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${stockBadge[item.status]}`}>{item.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* Orders */}
-      {activeTab === 'orders' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">Orders</h2>
-              <p className="text-sm font-medium text-slate-500">Process and track student merchandise orders</p>
-            </div>
-            <button type="button" className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"><Filter size={16} /></button>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[650px] text-left">
-              <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                <tr>
-                  <th className="px-5 py-3">Order ID</th>
-                  <th className="px-5 py-3">Student</th>
-                  <th className="px-5 py-3">Item</th>
-                  <th className="px-5 py-3">Qty</th>
-                  <th className="px-5 py-3">Date</th>
-                  <th className="px-5 py-3">Status</th>
-                  <th className="px-5 py-3">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                {orders.map((o) => (
-                  <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
-                    <td className="px-5 py-4 font-mono text-xs font-bold text-slate-500">{o.id}</td>
-                    <td className="px-5 py-4 font-semibold text-[#0F172A]">{o.student}</td>
-                    <td className="px-5 py-4 font-medium text-slate-600">{o.item}</td>
-                    <td className="px-5 py-4 font-bold text-[#0F172A]">{o.qty}</td>
-                    <td className="px-5 py-4 font-medium text-slate-600">{o.date}</td>
-                    <td className="px-5 py-4">
-                      <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status]}`}>{o.status}</span>
-                    </td>
-                    <td className="px-5 py-4">
-                      {o.status === 'Processing' && (
-                        <button className="flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition">
-                          Mark Ready <ArrowRight size={12} />
-                        </button>
-                      )}
-                      {o.status === 'Ready' && (
-                        <button className="flex items-center gap-1 rounded-md bg-[#E6F6FD] px-3 py-1.5 text-xs font-bold text-[#0B8ED0] hover:bg-[#d2eef9] transition">
-                          Fulfill <ArrowRight size={12} />
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      )}
-
-      {/* Tokens */}
-      {activeTab === 'tokens' && (
-        <section className="space-y-4">
-          <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[#0F172A]">Queue Tokens</h2>
-                <p className="text-sm font-medium text-slate-500">Generate and manage redemption tokens</p>
-              </div>
-              <button className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
-                <Ticket size={16} />
-                Generate Token
-              </button>
-            </div>
+          {loading ? (
+            <div className="space-y-2 p-5">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
+          ) : filteredItems.length === 0 ? (
+            <p className="p-8 text-center text-sm text-slate-400">No inventory items yet.</p>
+          ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[550px] text-left">
+              <table className="w-full min-w-[600px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="px-5 py-3">Token Code</th>
-                    <th className="px-5 py-3">Student</th>
                     <th className="px-5 py-3">Item</th>
-                    <th className="px-5 py-3">Issued</th>
+                    <th className="px-5 py-3">Stock</th>
+                    <th className="px-5 py-3">Unit Price</th>
                     <th className="px-5 py-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {tokens.map((t) => (
-                    <tr key={t.code} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-mono text-xs font-black text-[#0B8ED0]">{t.code}</td>
-                      <td className="px-5 py-4 font-semibold text-[#0F172A]">{t.student}</td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.item}</td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.issued}</td>
+                  {filteredItems.map((item) => (
+                    <tr key={item.id} className="transition hover:bg-[#F8FBFD]">
+                      <td className="px-5 py-4 font-bold text-[#0F172A]">{item.name}</td>
+                      <td className="px-5 py-4 font-black text-[#0F172A]">{item.stock_quantity}</td>
+                      <td className="px-5 py-4 font-bold text-[#0F172A]">{fmt(item.unit_price)}</td>
                       <td className="px-5 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${tokenBadge[t.status]}`}>{t.status}</span>
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${stockBadge(item.stock_quantity)}`}>
+                          {stockLabel(item.stock_quantity)}
+                        </span>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'orders' && (
+        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="border-b border-[#DDE7EF] p-5">
+            <h2 className="text-lg font-bold text-[#0F172A]">Orders</h2>
+            <p className="text-sm font-medium text-slate-500">Process and track student merchandise orders</p>
+          </div>
+          {loading ? (
+            <div className="space-y-2 p-5">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
+          ) : orders.length === 0 ? (
+            <p className="p-8 text-center text-sm text-slate-400">No orders yet.</p>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[650px] text-left">
+                <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                  <tr>
+                    <th className="px-5 py-3">Order</th>
+                    <th className="px-5 py-3">Student</th>
+                    <th className="px-5 py-3">Item</th>
+                    <th className="px-5 py-3">Qty</th>
+                    <th className="px-5 py-3">Total</th>
+                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                  {orders.map((o) => (
+                    <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
+                      <td className="px-5 py-4 font-mono text-xs font-bold text-slate-500">#{o.id}</td>
+                      <td className="px-5 py-4 font-semibold text-[#0F172A]">
+                        {o.student ? `${o.student.first_name} ${o.student.last_name}` : '—'}
+                      </td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '—'}</td>
+                      <td className="px-5 py-4 font-bold text-[#0F172A]">{o.quantity}</td>
+                      <td className="px-5 py-4 font-bold text-[#0F172A]">{fmt(o.total_price)}</td>
+                      <td className="px-5 py-4">
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>
+                          {capitalize(o.status)}
+                        </span>
+                      </td>
+                      <td className="px-5 py-4">
+                        {o.status === 'pending' && (
+                          <button onClick={() => handleStatusChange(o.id, 'paid')} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 transition">
+                            Mark Paid <ArrowRight size={12} />
+                          </button>
+                        )}
+                        {o.status === 'paid' && (
+                          <button onClick={() => handleStatusChange(o.id, 'claimed')} className="flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition">
+                            Mark Claimed <ArrowRight size={12} />
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'tokens' && (
+        <section className="space-y-4">
+          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+            <h2 className="mb-1 text-lg font-bold text-[#0F172A]">Claim by Token</h2>
+            <p className="mb-4 text-sm font-medium text-slate-500">Enter the claim token from a paid order to mark it as claimed</p>
+            <form onSubmit={handleClaim} className="flex gap-3">
+              <input
+                value={claimToken}
+                onChange={(e) => setClaimToken(e.target.value.toUpperCase())}
+                placeholder="e.g. A1B2C3D4"
+                className="h-11 flex-1 rounded-lg border border-[#DDE7EF] px-3 font-mono text-sm uppercase outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+              />
+              <button
+                type="submit"
+                disabled={claiming || !claimToken.trim()}
+                className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
+              >
+                <Ticket size={16} />
+                {claiming ? 'Processing...' : 'Claim'}
+              </button>
+            </form>
+            {claimError && <p className="mt-2 text-xs text-red-600">{claimError}</p>}
+            {claimSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{claimSuccess}</p>}
+          </div>
+
+          <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="border-b border-[#DDE7EF] p-5">
+              <h2 className="text-lg font-bold text-[#0F172A]">Paid Orders Awaiting Pickup</h2>
+              <p className="text-sm font-medium text-slate-500">Orders with active claim tokens</p>
+            </div>
+            {loading ? (
+              <div className="space-y-2 p-5">{[1, 2].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
+            ) : paidOrders.length === 0 ? (
+              <p className="p-8 text-center text-sm text-slate-400">No paid orders awaiting pickup.</p>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[550px] text-left">
+                  <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-5 py-3">Claim Token</th>
+                      <th className="px-5 py-3">Student</th>
+                      <th className="px-5 py-3">Item</th>
+                      <th className="px-5 py-3">Qty</th>
+                      <th className="px-5 py-3">Total</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                    {paidOrders.map((o) => (
+                      <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
+                        <td className="px-5 py-4 font-mono text-xs font-black text-[#0B8ED0]">{o.claim_token}</td>
+                        <td className="px-5 py-4 font-semibold text-[#0F172A]">
+                          {o.student ? `${o.student.first_name} ${o.student.last_name}` : '—'}
+                        </td>
+                        <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '—'}</td>
+                        <td className="px-5 py-4 font-bold text-[#0F172A]">{o.quantity}</td>
+                        <td className="px-5 py-4 font-bold text-[#0F172A]">{fmt(o.total_price)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         </section>
       )}
 
-      {/* Add Item Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
@@ -258,28 +360,62 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
               <h2 className="text-lg font-bold text-[#0F172A]">Add Merchandise Item</h2>
               <button onClick={() => setShowForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
             </div>
-            <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); setShowForm(false); }}>
+            <form className="space-y-4" onSubmit={handleAddItem}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Item Name</label>
-                <input type="text" placeholder="e.g. HIUSA T-Shirt (XL)" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <label className="text-[13px] font-semibold text-[#0F172A]">Item Name *</label>
+                <input
+                  type="text"
+                  value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  placeholder="e.g. HIUSA T-Shirt (XL)"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Price (₱)</label>
-                  <input type="number" placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Unit Price (₱) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={form.unit_price}
+                    onChange={(e) => setForm({ ...form, unit_price: e.target.value })}
+                    placeholder="0.00"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                  />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Initial Stock</label>
-                  <input type="number" placeholder="0" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Initial Stock *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={form.stock_quantity}
+                    onChange={(e) => setForm({ ...form, stock_quantity: e.target.value })}
+                    placeholder="0"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
+                  />
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">SKU</label>
-                <input type="text" placeholder="Auto-generated" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                <label className="text-[13px] font-semibold text-[#0F172A]">Description</label>
+                <textarea
+                  rows={2}
+                  value={form.description}
+                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  placeholder="Optional description..."
+                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
+                />
               </div>
+              {formError && <p className="text-xs text-red-600">{formError}</p>}
               <div className="flex justify-end gap-3 pt-2">
                 <button type="button" onClick={() => setShowForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
-                <button type="submit" className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition">Add Item</button>
+                <button
+                  type="submit"
+                  disabled={formSubmitting || !form.name || !form.unit_price || !form.stock_quantity}
+                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
+                >
+                  {formSubmitting ? 'Adding...' : 'Add Item'}
+                </button>
               </div>
             </form>
           </div>
