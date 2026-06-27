@@ -2,7 +2,10 @@ import { useEffect, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
   DollarSign,
+  ImagePlus,
   Package,
   Plus,
   Search,
@@ -43,8 +46,11 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [ordersMeta, setOrdersMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 20 });
 
   const [form, setForm] = useState({ name: '', unit_price: '', stock_quantity: '', description: '' });
+  const [imageFile, setImageFile] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
@@ -53,20 +59,52 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
   const [claimSuccess, setClaimSuccess] = useState(null);
   const [claiming, setClaiming] = useState(false);
 
+  function extractOrders(oRes) {
+    const arr = Array.isArray(oRes.data?.data) ? oRes.data.data : (Array.isArray(oRes.data) ? oRes.data : []);
+    setOrders(arr);
+    if (oRes.data?.current_page !== undefined) {
+      setOrdersMeta({
+        current_page: oRes.data.current_page,
+        last_page: oRes.data.last_page,
+        total: oRes.data.total,
+        per_page: oRes.data.per_page,
+      });
+    }
+  }
+
   function load() {
     setLoading(true);
     setError(null);
-    Promise.all([getMerchandise(), getOrders()])
+    Promise.all([getMerchandise(), getOrders({ page: 1 })])
       .then(([mRes, oRes]) => {
         setItems(Array.isArray(mRes.data) ? mRes.data : []);
-        setOrders(Array.isArray(oRes.data?.data) ? oRes.data.data : (Array.isArray(oRes.data) ? oRes.data : []));
+        extractOrders(oRes);
       })
       .catch(() => setError('Failed to load merchandise data.'))
       .finally(() => setLoading(false));
   }
 
+  async function loadOrders(page) {
+    setLoading(true);
+    try {
+      const oRes = await getOrders({ page });
+      extractOrders(oRes);
+    } catch {
+      setError('Failed to load orders.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   useEffect(load, []);
   useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+
+  function handleImageSelect(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImageFile(file);
+    setImagePreview(URL.createObjectURL(file));
+  }
 
   async function handleAddItem(e) {
     e.preventDefault();
@@ -76,13 +114,16 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
     try {
       await createItem({
         name: form.name,
-        unit_price: parseFloat(form.unit_price),
+        price: parseFloat(form.unit_price),
         stock_quantity: parseInt(form.stock_quantity, 10),
         description: form.description,
         is_active: true,
+        imageFile,
       });
       setShowForm(false);
       setForm({ name: '', unit_price: '', stock_quantity: '', description: '' });
+      setImageFile(null);
+      setImagePreview(null);
       load();
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to add item.');
@@ -122,8 +163,10 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
   const activeOrders = orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
   const lowStock = items.filter((i) => i.stock_quantity > 0 && i.stock_quantity < 10).length;
   const paidOrders = orders.filter((o) => o.status === 'paid');
-
   const filteredItems = items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase()));
+
+  const ordFrom = (ordersMeta.current_page - 1) * ordersMeta.per_page + 1;
+  const ordTo = Math.min(ordersMeta.current_page * ordersMeta.per_page, ordersMeta.total);
 
   return (
     <div className="space-y-6">
@@ -198,7 +241,7 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
             <p className="p-8 text-center text-sm text-slate-400">No inventory items yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[600px] text-left">
+              <table className="w-full min-w-[640px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Item</th>
@@ -210,10 +253,18 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {filteredItems.map((item) => (
                     <tr key={item.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{item.name}</td>
-                      <td className="px-5 py-4 font-black text-[#0F172A]">{item.stock_quantity}</td>
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{fmt(item.unit_price)}</td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-3">
+                          {item.image_url
+                            ? <img src={item.image_url} alt={item.name} className="h-9 w-9 shrink-0 rounded-lg border border-[#DDE7EF] object-cover" />
+                            : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><Package size={16} className="text-[#0B8ED0]" /></div>
+                          }
+                          <span className="font-bold text-[#0F172A]">{item.name}</span>
+                        </div>
+                      </td>
+                      <td className="px-5 py-3.5 font-black tabular-nums text-[#0F172A]">{item.stock_quantity}</td>
+                      <td className="px-5 py-3.5 font-bold tabular-nums text-[#0F172A]">{fmt(item.price)}</td>
+                      <td className="px-5 py-3.5">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${stockBadge(item.stock_quantity)}`}>
                           {stockLabel(item.stock_quantity)}
                         </span>
@@ -259,8 +310,8 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                         {o.student ? `${o.student.first_name} ${o.student.last_name}` : '—'}
                       </td>
                       <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '—'}</td>
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{o.quantity}</td>
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{fmt(o.total_price)}</td>
+                      <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
+                      <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(o.status)}
@@ -282,6 +333,33 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                   ))}
                 </tbody>
               </table>
+            </div>
+          )}
+
+          {ordersMeta.total > ordersMeta.per_page && (
+            <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
+              <p className="text-xs font-medium text-slate-400">
+                Showing <span className="font-bold text-slate-600">{ordFrom}–{ordTo}</span> of <span className="font-bold text-slate-600">{ordersMeta.total}</span>
+              </p>
+              <div className="flex items-center gap-1">
+                <button
+                  onClick={() => loadOrders(ordersMeta.current_page - 1)}
+                  disabled={ordersMeta.current_page === 1}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronLeft size={14} />
+                </button>
+                <span className="px-2 text-[13px] font-bold tabular-nums text-[#0F172A]">
+                  {ordersMeta.current_page} / {ordersMeta.last_page}
+                </span>
+                <button
+                  onClick={() => loadOrders(ordersMeta.current_page + 1)}
+                  disabled={ordersMeta.current_page === ordersMeta.last_page}
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  <ChevronRight size={14} />
+                </button>
+              </div>
             </div>
           )}
         </section>
@@ -341,8 +419,8 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                           {o.student ? `${o.student.first_name} ${o.student.last_name}` : '—'}
                         </td>
                         <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '—'}</td>
-                        <td className="px-5 py-4 font-bold text-[#0F172A]">{o.quantity}</td>
-                        <td className="px-5 py-4 font-bold text-[#0F172A]">{fmt(o.total_price)}</td>
+                        <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{o.quantity}</td>
+                        <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -358,7 +436,12 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
           <div className="w-full max-w-lg rounded-xl bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">Add Merchandise Item</h2>
-              <button onClick={() => setShowForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+              <button
+                onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); }}
+                className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"
+              >
+                <X size={18} />
+              </button>
             </div>
             <form className="space-y-4" onSubmit={handleAddItem}>
               <div className="space-y-1.5">
@@ -406,9 +489,35 @@ export default function MerchandisePage({ initialTab = 'inventory' }) {
                   className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#0F172A]">Product Image</label>
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                  {imagePreview ? (
+                    <img src={imagePreview} alt="Preview" className="h-24 w-24 rounded-lg object-cover" />
+                  ) : (
+                    <>
+                      <ImagePlus size={24} className="mb-1 text-slate-300" />
+                      <span className="text-[13px] font-semibold text-slate-400">Click to upload</span>
+                      <span className="text-[11px] text-slate-300">JPG, PNG, WebP — max 2MB</span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={handleImageSelect}
+                    className="sr-only"
+                  />
+                </label>
+              </div>
               {formError && <p className="text-xs text-red-600">{formError}</p>}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+                <button
+                  type="button"
+                  onClick={() => { setShowForm(false); setImageFile(null); setImagePreview(null); }}
+                  className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]"
+                >
+                  Cancel
+                </button>
                 <button
                   type="submit"
                   disabled={formSubmitting || !form.name || !form.unit_price || !form.stock_quantity}

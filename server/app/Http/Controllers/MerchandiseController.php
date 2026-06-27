@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\Merchandise;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Storage;
 
 class MerchandiseController extends Controller
 {
@@ -26,9 +27,15 @@ class MerchandiseController extends Controller
             'description'    => ['nullable', 'string'],
             'price'          => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
-            'image_url'      => ['nullable', 'string', 'max:500'],
             'is_active'      => ['boolean'],
+            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
+
+        if ($request->hasFile('image')) {
+            $path = $request->file('image')->store('merchandise', 'public');
+            $data['image_url'] = Storage::url($path);
+        }
+        unset($data['image']);
 
         $item = Merchandise::create($data);
 
@@ -49,9 +56,18 @@ class MerchandiseController extends Controller
             'description'    => ['nullable', 'string'],
             'price'          => ['sometimes', 'required', 'numeric', 'min:0'],
             'stock_quantity' => ['sometimes', 'required', 'integer', 'min:0'],
-            'image_url'      => ['nullable', 'string', 'max:500'],
             'is_active'      => ['boolean'],
+            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
+
+        if ($request->hasFile('image')) {
+            if ($item->image_url && str_starts_with($item->image_url, '/storage/')) {
+                Storage::delete('public/' . ltrim(str_replace('/storage/', '', $item->image_url), '/'));
+            }
+            $path = $request->file('image')->store('merchandise', 'public');
+            $data['image_url'] = Storage::url($path);
+        }
+        unset($data['image']);
 
         $item->update($data);
 

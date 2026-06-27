@@ -30,7 +30,8 @@ class TransactionController extends Controller
             $query->whereDate('transaction_date', '<=', $request->to);
         }
 
-        return response()->json($query->paginate(20));
+        $perPage = min((int) $request->get('per_page', 20), 1000);
+        return response()->json($query->paginate($perPage));
     }
 
     public function summary(Request $request)
