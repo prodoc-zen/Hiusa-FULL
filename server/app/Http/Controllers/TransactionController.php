@@ -30,7 +30,7 @@ class TransactionController extends Controller
             $query->whereDate('transaction_date', '<=', $request->to);
         }
 
-        return response()->json($query->get());
+        return response()->json($query->paginate(20));
     }
 
     public function summary(Request $request)

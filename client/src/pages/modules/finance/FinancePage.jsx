@@ -46,7 +46,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     setError(null);
     Promise.all([getTransactions(), getTransactionSummary(), getForecasts()])
       .then(([txRes, sumRes, fcRes]) => {
-        setTransactions(Array.isArray(txRes.data) ? txRes.data : []);
+        setTransactions(Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []));
         setSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setForecasts(Array.isArray(fcRes.data) ? fcRes.data : []);
       })

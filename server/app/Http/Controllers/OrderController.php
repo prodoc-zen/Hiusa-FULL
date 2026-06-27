@@ -28,7 +28,7 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
-        return response()->json($query->get());
+        return response()->json($query->paginate(20));
     }
 
     public function store(Request $request)

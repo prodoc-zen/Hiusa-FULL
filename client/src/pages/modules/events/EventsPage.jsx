@@ -76,6 +76,11 @@ export default function EventsPage({ initialTab = 'events' }) {
     try {
       const start_time = `${form.date}T${form.startTime}:00`;
       const end_time = form.endDate && form.endTime ? `${form.endDate}T${form.endTime}:00` : start_time;
+      if (end_time <= start_time) {
+        setFormError('End date/time must be after start date/time.');
+        setFormSubmitting(false);
+        return;
+      }
       await createEvent({ title: form.title, start_time, end_time, location: form.location, description: form.description, status: 'upcoming' });
       setShowForm(false);
       setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '' });
