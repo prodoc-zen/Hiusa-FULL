@@ -195,11 +195,14 @@ export default function StudentHomePage() {
             <div className="grid grid-cols-2 gap-3 p-5">
               {availableMerch.map((item) => (
                 <div key={item.id} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                  <div className="mb-2 grid h-12 w-full place-items-center rounded-md bg-[#E6F6FD]">
-                    <Package size={22} className="text-[#0B8ED0]" />
+                  <div className="mb-2 h-12 w-full overflow-hidden rounded-md bg-[#E6F6FD]">
+                    {item.image_url
+                      ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+                      : <div className="grid h-full w-full place-items-center"><Package size={22} className="text-[#0B8ED0]" /></div>
+                    }
                   </div>
                   <p className="truncate text-[13px] font-bold text-[#0F172A]">{item.name}</p>
-                  <p className="text-xs font-semibold text-[#0B8ED0]">{fmtPrice(item.unit_price)}</p>
+                  <p className="text-xs font-semibold text-[#0B8ED0]">{fmtPrice(item.price)}</p>
                   <p className="text-[11px] text-slate-400">{item.stock_quantity} left</p>
                 </div>
               ))}
