@@ -85,7 +85,7 @@ export default function StudentHomePage() {
               </div>
               <span className="mt-1 shrink-0 rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
             </div>
-            <div className="mt-4 flex gap-2">
+            <div className="mt-4 flex flex-wrap gap-2 sm:gap-4">
               <NavLink
                 to="/dashboard/elections/cast-vote"
                 className="flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0878B7]"

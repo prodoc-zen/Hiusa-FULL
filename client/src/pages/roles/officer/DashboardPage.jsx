@@ -125,7 +125,7 @@ export default function DashboardPage() {
         {statCards.map((stat) => (
           <article
             key={stat.label}
-            className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition-all duration-200 hover:shadow-md hover:border-[#0B8ED0]/20"
+            className="group rounded-xl border border-[#DDE7EF] bg-white p-3 shadow-sm transition-all duration-200 hover:shadow-md hover:border-[#0B8ED0]/20 sm:p-5"
           >
             <div className="mb-4 flex items-center justify-between">
               <div className="grid h-11 w-11 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0] transition-colors group-hover:bg-[#0B8ED0] group-hover:text-white">
@@ -235,7 +235,7 @@ export default function DashboardPage() {
                 <NavLink
                   key={a.path}
                   to={a.path}
-                  className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-bold text-[#0F172A] transition hover:border-[#0B8ED0]/30 hover:bg-white hover:text-[#0B8ED0]"
+                  className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-bold text-[#0F172A] transition hover:border-[#0B8ED0]/30 hover:bg-white hover:text-[#0B8ED0] sm:text-sm"
                 >
                   <Plus size={13} className="shrink-0 text-[#0B8ED0]" />
                   {a.label}

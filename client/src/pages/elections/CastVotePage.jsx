@@ -96,7 +96,7 @@ export default function CastVotePage() {
 
   if (phase === 'preview') {
     return (
-      <div className="max-w-2xl mx-auto space-y-5">
+      <div className="max-w-2xl mx-auto space-y-5 px-4 sm:px-0">
         <div className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-6">
           <h2 className="text-base font-extrabold text-slate-800">Live Standings</h2>
           <p className="text-xs text-slate-500 mt-1">{(election.votes || []).length} votes counted · {groupedPositions.length} positions</p>
@@ -161,7 +161,7 @@ export default function CastVotePage() {
     const missing = groupedPositions.filter((entry) => !votes[entry.position.id]);
 
     return (
-      <div className="max-w-lg mx-auto space-y-4">
+      <div className="max-w-lg mx-auto space-y-4 px-4 sm:px-0">
         <div className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-5">
           <h2 className="text-base font-extrabold text-slate-800 mb-1">Review Your Ballot</h2>
           <p className="text-xs text-slate-500 mb-4">You cannot edit your vote after submission.</p>
@@ -242,7 +242,7 @@ export default function CastVotePage() {
   }
 
   return (
-    <div className="max-w-lg mx-auto">
+    <div className="max-w-lg mx-auto px-4 sm:px-0">
       <div className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-5 mb-4">
         <div className="flex items-center justify-between mb-1">
           <p className="text-xs font-semibold text-slate-500">{election.title}</p>

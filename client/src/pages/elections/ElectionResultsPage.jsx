@@ -118,7 +118,7 @@ export default function ElectionResultsPage() {
                 <span className="text-[10px] text-[#94A3B8] ml-auto">{totalVotes} votes cast</span>
               </div>
               <div className="p-5">
-                <div className="grid grid-cols-[1fr_auto_1fr] gap-4 items-center mb-4">
+                <div className="grid grid-cols-1 gap-4 items-center mb-4 sm:grid-cols-[1fr_auto_1fr]">
                   <div className={`text-center p-4 rounded-xl border-2 transition-all relative ${aWins ? 'border-[#0B8ED0] shadow-md' : 'border-[#DDE7EF]'}`}>
                     {aWins && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
@@ -132,10 +132,10 @@ export default function ElectionResultsPage() {
                     <p className="text-2xl font-black text-[#0B8ED0]">{a.votes}</p>
                     <p className="text-xs text-[#94A3B8]">votes · {aPct}%</p>
                   </div>
-                  <div className="flex flex-col items-center gap-1">
-                    <div className="w-px h-8 bg-[#DDE7EF]" />
+                  <div className="flex items-center gap-1 sm:flex-col">
+                    <div className="h-px w-8 bg-[#DDE7EF] sm:h-8 sm:w-px" />
                     <span className="text-xs font-black text-[#94A3B8] bg-white px-1.5 py-0.5 rounded-full border border-[#DDE7EF]">VS</span>
-                    <div className="w-px h-8 bg-[#DDE7EF]" />
+                    <div className="h-px w-8 bg-[#DDE7EF] sm:h-8 sm:w-px" />
                   </div>
                   <div className={`text-center p-4 rounded-xl border-2 transition-all relative ${!aWins && b.votes > a.votes ? 'border-[#0B8ED0] shadow-md' : 'border-[#DDE7EF]'}`}>
                     {!aWins && b.votes > a.votes && (
