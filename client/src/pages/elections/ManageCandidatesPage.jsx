@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Award, ImagePlus, Plus, Trash2, X } from 'lucide-react';
+import { Award, ChevronDown, ImagePlus, Plus, Trash2, X } from 'lucide-react';
 import { createElectionCandidate, deleteElectionCandidate, getPartylists, getUsers } from '../../services/electionService';
 
 function Avatar({ name, size = 'sm' }) {
@@ -134,30 +134,39 @@ export default function ManageCandidatesPage() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Student *</label>
-                <select value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] transition">
-                  <option value="">Select a student...</option>
-                  {users.map((user) => (
-                    <option key={user.id} value={user.id}>{user.first_name} {user.last_name} ({user.school_id})</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select value={form.user_id} onChange={(e) => setForm({ ...form, user_id: e.target.value })} className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 transition">
+                    <option value="">Select a student...</option>
+                    {users.map((user) => (
+                      <option key={user.id} value={user.id}>{user.first_name} {user.last_name} ({user.school_id})</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
               <div>
                 <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Position *</label>
-                <select value={form.position_id} onChange={(e) => setForm({ ...form, position_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] transition">
-                  <option value="">Select a position...</option>
-                  {positions.map((position) => (
-                    <option key={position.id} value={position.id}>{position.title}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select value={form.position_id} onChange={(e) => setForm({ ...form, position_id: e.target.value })} className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 transition">
+                    <option value="">Select a position...</option>
+                    {positions.map((position) => (
+                      <option key={position.id} value={position.id}>{position.title}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
               <div>
                 <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Party List</label>
-                <select value={form.partylist_id} onChange={(e) => setForm({ ...form, partylist_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] transition">
-                  <option value="">Independent</option>
-                  {partylists.map((partylist) => (
-                    <option key={partylist.id} value={partylist.id}>{partylist.name}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
-                  ))}
-                </select>
+                <div className="relative">
+                  <select value={form.partylist_id} onChange={(e) => setForm({ ...form, partylist_id: e.target.value })} className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 transition">
+                    <option value="">Independent</option>
+                    {partylists.map((partylist) => (
+                      <option key={partylist.id} value={partylist.id}>{partylist.name}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
+                    ))}
+                  </select>
+                  <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                </div>
               </div>
               <div>
                 <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">Candidate Photo</label>
