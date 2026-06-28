@@ -68,17 +68,22 @@ class NotificationController extends Controller
 
         if (!empty($data['target_role'])) {
             $userIds = User::where('role', $data['target_role'])->pluck('id');
+            $now = now();
 
-            $notifications = $userIds->map(fn($uid) => Notification::create([
-                'user_id' => $uid,
-                'title'   => $data['title'],
-                'message' => $data['message'],
-                'is_read' => false,
-            ]));
+            Notification::insert(
+                $userIds->map(fn($uid) => [
+                    'user_id'    => $uid,
+                    'title'      => $data['title'],
+                    'message'    => $data['message'],
+                    'is_read'    => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all()
+            );
 
             return response()->json([
-                'message' => "Sent to {$notifications->count()} user(s).",
-                'count'   => $notifications->count(),
+                'message' => "Sent to {$userIds->count()} user(s).",
+                'count'   => $userIds->count(),
             ], 201);
         }
 

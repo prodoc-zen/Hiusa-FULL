@@ -82,6 +82,13 @@ class EventController extends Controller
             'status'      => ['sometimes', 'required', 'in:planning,approved,ongoing,completed,cancelled'],
         ]);
 
+        $endTime   = $data['end_time']   ?? $event->end_time;
+        $startTime = $data['start_time'] ?? $event->start_time;
+
+        if (strtotime($endTime) <= strtotime($startTime)) {
+            return response()->json(['message' => 'End time must be after start time.'], 422);
+        }
+
         $event->update($data);
 
         return response()->json($event->fresh()->load('creator:id,first_name,last_name'));

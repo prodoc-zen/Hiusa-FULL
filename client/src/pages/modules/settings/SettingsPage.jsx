@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react';
 import {
   Bell,
-  Camera,
   ChevronRight,
   Eye,
   EyeOff,
@@ -116,13 +115,8 @@ export default function SettingsPage({ initialSection = 'profile' }) {
           <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
             <h2 className="text-lg font-bold text-[#0F172A] mb-6">Your Profile</h2>
             <div className="flex items-center gap-5 mb-6">
-              <div className="relative">
-                <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xl font-black text-white">
-                  {initials}
-                </div>
-                <button className="absolute -bottom-1 -right-1 grid h-8 w-8 place-items-center rounded-full border-2 border-[#DDE7EF] bg-white text-slate-500 hover:text-[#0B8ED0] transition shadow-sm">
-                  <Camera size={14} />
-                </button>
+              <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xl font-black text-white">
+                {initials}
               </div>
               <div>
                 <p className="text-base font-bold text-[#0F172A]">{storedUser.first_name} {storedUser.last_name}</p>
