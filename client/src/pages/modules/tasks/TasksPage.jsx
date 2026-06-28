@@ -201,7 +201,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {pagedTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
+                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
                       <td className="hidden sm:table-cell px-5 py-4 font-medium text-slate-600">
                         {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>

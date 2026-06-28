@@ -175,8 +175,8 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {urgentTasks.map((t) => (
                     <tr key={t.id} className="hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-3.5 font-semibold text-[#0F172A]">{t.title}</td>
-                      <td className="px-5 py-3.5 text-slate-500">
+                      <td className="max-w-[220px] truncate px-5 py-3.5 font-semibold text-[#0F172A]">{t.title}</td>
+                      <td className="max-w-[160px] truncate px-5 py-3.5 text-slate-500">
                         {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 tabular-nums">
