@@ -286,9 +286,21 @@ class ElectionController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:partylists,name'],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
-        $partylist = Partylist::create($data);
+        $bannerUrl = null;
+        if ($request->hasFile('banner')) {
+            $path = $request->file('banner')->store('partylists', 'public');
+            $bannerUrl = '/storage/' . $path;
+        }
+
+        $partylist = Partylist::create([
+            'name' => $data['name'],
+            'acronym' => $data['acronym'] ?? null,
+            'description' => $data['description'] ?? null,
+            'banner_url' => $bannerUrl,
+        ]);
 
         return response()->json($partylist, 201);
     }
@@ -305,9 +317,22 @@ class ElectionController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
+            'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
-        $partylist->update($data);
+        if ($request->hasFile('banner')) {
+            if ($partylist->banner_url && str_starts_with($partylist->banner_url, '/storage/')) {
+                Storage::disk('public')->delete(str_replace('/storage/', '', $partylist->banner_url));
+            }
+            $path = $request->file('banner')->store('partylists', 'public');
+            $partylist->banner_url = '/storage/' . $path;
+        }
+
+        $partylist->fill([
+            'name' => $data['name'] ?? $partylist->name,
+            'acronym' => array_key_exists('acronym', $data) ? $data['acronym'] : $partylist->acronym,
+            'description' => array_key_exists('description', $data) ? $data['description'] : $partylist->description,
+        ])->save();
 
         return response()->json($partylist->fresh());
     }

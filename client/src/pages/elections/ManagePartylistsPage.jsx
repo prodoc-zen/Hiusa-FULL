@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Flag, X, Edit2, Trash2, Search, CirclePlus, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Flag, ImagePlus, X, Edit2, Trash2, Search, CirclePlus, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
 import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../services/electionService';
 
 const CARD_ACCENTS = ['#0B8ED0', '#16A34A', '#0F2F62', '#0878B7'];
@@ -20,7 +20,11 @@ export default function ManagePartylistsPage() {
   const [partylistRows, setPartylistRows] = useState([]);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', acronym: '', description: '' });
+  const [bannerFile, setBannerFile] = useState(null);
+  const [bannerPreview, setBannerPreview] = useState(null);
   const [editing, setEditing] = useState(null);
+  const [editBannerFile, setEditBannerFile] = useState(null);
+  const [editBannerPreview, setEditBannerPreview] = useState(null);
   const [editTab, setEditTab] = useState('general');
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
@@ -83,9 +87,11 @@ export default function ManagePartylistsPage() {
     setError('');
 
     try {
-      const created = await createPartylist(form);
+      const created = await createPartylist({ ...form, bannerFile: bannerFile || null });
       setPartylistRows((current) => [...current, created]);
       setForm({ name: '', acronym: '', description: '' });
+      setBannerFile(null);
+      setBannerPreview(null);
       setShowAdd(false);
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to add partylist.');
@@ -103,9 +109,12 @@ export default function ManagePartylistsPage() {
         name: editing.name,
         acronym: editing.acronym || null,
         description: editing.description || null,
+        bannerFile: editBannerFile || null,
       });
 
       setPartylistRows((current) => current.map((row) => (row.id === updated.id ? { ...row, ...updated } : row)));
+      setEditBannerFile(null);
+      setEditBannerPreview(null);
       setEditing(null);
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update partylist.');
@@ -205,6 +214,27 @@ export default function ManagePartylistsPage() {
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Description</label>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Party description or tagline..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              </div>
+              <div className="sm:col-span-2">
+                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                  {bannerPreview
+                    ? <img src={bannerPreview} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
+                    : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
+                  }
+                  <div>
+                    <p className="text-[13px] font-medium text-slate-500">{bannerPreview ? 'Change banner' : 'Upload banner image'}</p>
+                    <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 2MB)</p>
+                  </div>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+                    onChange={(e) => {
+                      const f = e.target.files[0];
+                      if (!f) return;
+                      setBannerFile(f);
+                      setBannerPreview(URL.createObjectURL(f));
+                    }}
+                  />
+                </label>
               </div>
             </div>
             {error && (
@@ -315,6 +345,27 @@ export default function ManagePartylistsPage() {
                       <p className="mt-1 text-xs text-[#94A3B8]">
                         This statement appears in candidate pages and election records.
                       </p>
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                        {editBannerPreview
+                          ? <img src={editBannerPreview} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
+                          : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
+                        }
+                        <div>
+                          <p className="text-[13px] font-medium text-slate-500">{editBannerPreview ? 'Change banner' : 'Upload banner image'}</p>
+                          <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 2MB)</p>
+                        </div>
+                        <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
+                          onChange={(e) => {
+                            const f = e.target.files[0];
+                            if (!f) return;
+                            setEditBannerFile(f);
+                            setEditBannerPreview(URL.createObjectURL(f));
+                          }}
+                        />
+                      </label>
                     </div>
                   </div>
                   {error && (
@@ -431,7 +482,10 @@ export default function ManagePartylistsPage() {
 
             return (
               <article key={partylist.id} className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-                <div className="h-1.5" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
+                {partylist.banner_url
+                  ? <img src={partylist.banner_url} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
+                  : <div className="h-2" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
+                }
                 <div className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -447,6 +501,8 @@ export default function ManagePartylistsPage() {
                           type="button"
                           onClick={() => {
                             setEditTab('general');
+                            setEditBannerFile(null);
+                            setEditBannerPreview(partylist.banner_url || null);
                             setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' });
                           }}
                           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#0B8ED0] transition hover:bg-[#EEF6FB]"
@@ -477,9 +533,10 @@ export default function ManagePartylistsPage() {
                           const position = resolvePositionTitle(candidate);
                           return (
                             <div key={candidate.id} className="text-center">
-                              <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">
-                                {getInitials(name)}
-                              </div>
+                              {candidate.image_url
+                                ? <img src={candidate.image_url} alt={name} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
+                                : <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">{getInitials(name)}</div>
+                              }
                               <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{name}</p>
                               <span className="mt-1 inline-flex rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0B8ED0]">
                                 {position}

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Search, CalendarDays, ChevronRight, PencilLine } from 'lucide-react';
+import { Plus, X, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine } from 'lucide-react';
 import { createElection, getElections, updateElection } from '../../services/electionService';
 import PaginationControls from '../../components/PaginationControls';
 
@@ -289,14 +289,17 @@ export default function ElectionPickerPage({ onSelect }) {
               <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">
                 Initial Status
               </label>
-              <select
-                value={form.status}
-                onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-              >
-                <option value="upcoming">Upcoming</option>
-                <option value="active">Active</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={form.status}
+                  onChange={(e) => setForm({ ...form, status: e.target.value })}
+                  className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="active">Active</option>
+                </select>
+                <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
             </div>
             <div className="flex gap-3 pt-2">
               <button
@@ -524,15 +527,18 @@ export default function ElectionPickerPage({ onSelect }) {
 
             <div>
               <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Status</label>
-              <select
-                value={editForm.status}
-                onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-              >
-                <option value="upcoming">Upcoming</option>
-                <option value="active">Active</option>
-                <option value="closed">Closed</option>
-              </select>
+              <div className="relative">
+                <select
+                  value={editForm.status}
+                  onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}
+                  className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                >
+                  <option value="upcoming">Upcoming</option>
+                  <option value="active">Active</option>
+                  <option value="closed">Closed</option>
+                </select>
+                <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+              </div>
             </div>
 
             <div className="flex gap-3 pt-2">

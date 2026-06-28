@@ -35,9 +35,23 @@ export const updateElectionCandidate = async (id, candidateId, payload) => {
 
 export const deleteElectionCandidate = async (id, candidateId) => unwrap(await api.delete(`/elections/${id}/candidates/${candidateId}`));
 
+function toPartylistFormData(payload) {
+  const fd = new FormData();
+  Object.entries(payload).forEach(([k, v]) => {
+    if (k === 'bannerFile') { if (v) fd.append('banner', v); }
+    else if (v !== undefined && v !== null) fd.append(k, String(v));
+  });
+  return fd;
+}
+
 export const getPartylists = async () => unwrap(await api.get('/partylists'));
-export const createPartylist = async (payload) => unwrap(await api.post('/partylists', payload));
-export const updatePartylist = async (id, payload) => unwrap(await api.put(`/partylists/${id}`, payload));
+export const createPartylist = async (payload) =>
+  unwrap(await api.post('/partylists', toPartylistFormData(payload)));
+export const updatePartylist = async (id, payload) => {
+  const fd = toPartylistFormData(payload);
+  fd.append('_method', 'PUT');
+  return unwrap(await api.post(`/partylists/${id}`, fd));
+};
 export const deletePartylist = async (id) => unwrap(await api.delete(`/partylists/${id}`));
 
 export const getUsers = async () => unwrap(await api.get('/users'));

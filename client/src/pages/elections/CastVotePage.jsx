@@ -121,7 +121,10 @@ export default function CastVotePage() {
                     <div key={candidate.id}>
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
-                          <Avatar name={candidateName || 'Candidate'} size="sm" />
+                          {candidate.image_url
+                            ? <img src={candidate.image_url} alt={candidateName} className="h-7 w-7 shrink-0 rounded-full object-cover border border-[#DDE7EF]" />
+                            : <Avatar name={candidateName || 'Candidate'} size="sm" />
+                          }
                           <div>
                             <p className="text-xs font-bold text-slate-800">{candidateName}</p>
                             <p className="text-[10px] text-slate-500">{candidate.partylist?.name || 'Independent'}</p>
@@ -282,7 +285,10 @@ export default function CastVotePage() {
                 }}
                 className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${selected ? 'border-[#0B8ED0] bg-blue-50 shadow-md' : 'border-[#DDE7EF] bg-white hover:border-[#0B8ED0]/40'}`}
               >
-                <Avatar name={candidateName || 'Candidate'} size="md" />
+                {candidate.image_url
+                  ? <img src={candidate.image_url} alt={candidateName} className="h-11 w-11 shrink-0 rounded-full object-cover border border-[#DDE7EF]" />
+                  : <Avatar name={candidateName || 'Candidate'} size="md" />
+                }
                 <div className="flex-1">
                   <p className="text-sm font-bold text-slate-800">{candidateName}</p>
                   <p className="text-xs text-slate-500">{candidate.partylist?.name || 'Independent'}</p>
