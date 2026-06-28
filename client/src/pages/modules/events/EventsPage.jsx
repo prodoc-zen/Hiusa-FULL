@@ -166,15 +166,15 @@ export default function EventsPage({ initialTab = 'events' }) {
               <h2 className="text-lg font-bold text-[#0F172A]">All Events</h2>
               <p className="text-sm font-medium text-slate-500">Create, manage, and monitor events</p>
             </div>
-            <div className="flex gap-2">
-              <div className="flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3">
+            <div className="flex w-full gap-2 sm:w-auto">
+              <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-400" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   type="text"
                   placeholder="Search events..."
-                  className="w-[140px] bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
                 />
               </div>
               <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
