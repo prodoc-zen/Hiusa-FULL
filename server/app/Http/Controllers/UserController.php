@@ -33,6 +33,15 @@ class UserController extends Controller
             'password' => 'sometimes|required|string|min:8',
         ]);
 
+        if (
+            array_key_exists('role', $validatedData) &&
+            $validatedData['role'] !== 'admin' &&
+            $user->role === 'admin' &&
+            User::where('role', 'admin')->count() <= 1
+        ) {
+            return response()->json(['message' => 'Cannot change the role of the last admin account.'], 422);
+        }
+
         if (array_key_exists('password', $validatedData)) {
             $validatedData['password_hash'] = $validatedData['password'];
             unset($validatedData['password']);

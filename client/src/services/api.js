@@ -37,6 +37,10 @@ api.interceptors.response.use(
       error.validationErrors = error.response.data?.errors ?? {};
     }
 
+    if (status >= 500) {
+      error.isServerError = true;
+    }
+
     return Promise.reject(error);
   }
 );
