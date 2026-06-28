@@ -11,7 +11,14 @@
       "Read(//tmp/**)",
       "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client'; npm run dev\" -WindowStyle Normal; Start-Sleep -Seconds 8; netstat -ano | findstr \":5173\" | findstr \"LISTEN\")",
       "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\server'; php artisan serve\" -WindowStyle Normal)",
-      "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client'; npm run dev\" -WindowStyle Normal)"
+      "PowerShell(Start-Process -FilePath \"powershell.exe\" -ArgumentList \"-NoExit\",\"-Command\",\"Set-Location 'c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\client'; npm run dev\" -WindowStyle Normal)",
+      "PowerShell(cd \"c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\server\"; php artisan migrate --env=local 2>&1; echo \"Exit: $LASTEXITCODE\")",
+      "PowerShell(mysql -u root -e \"SELECT 1\" 2>&1)",
+      "PowerShell(& \"C:\\\\xampp\\\\mysql\\\\bin\\\\mysql.exe\" -u root -e \"SELECT user, host, plugin FROM mysql.user WHERE user='root'\" 2>&1)",
+      "Read(//c/Program Files/MySQL/**)",
+      "PowerShell(& \"C:\\\\Program Files\\\\MySQL\\\\MySQL Server 8.0\\\\bin\\\\mysql.exe\" -u root -e \"SELECT user, host, plugin, authentication_string FROM mysql.user WHERE user='root'\" 2>&1)",
+      "PowerShell(cd \"c:\\\\BSIT\\\\React\\\\Hiusa-FULL\\\\server\"; php -r \"try { \\\\$pdo = new PDO\\('mysql:host=127.0.0.1;port=3306;dbname=hiusa_db', 'root', ''\\); echo 'Connected OK'; } catch\\(Exception \\\\$e\\) { echo 'FAIL: ' . \\\\$e->getMessage\\(\\); }\")",
+      "Bash(php artisan *)"
     ]
   }
 }

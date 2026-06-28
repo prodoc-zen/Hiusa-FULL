@@ -101,6 +101,22 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
         </div>
 
+        {/* Role chips — desktop only */}
+        <div className="hidden items-center gap-1.5 lg:flex">
+          {['Admin', 'Adviser', 'Officer', 'Student'].map((r) => (
+            <span
+              key={r}
+              className={`rounded-full px-3 py-1 text-[11px] font-bold ${
+                role === r.toLowerCase()
+                  ? 'bg-[#0B8ED0] text-white'
+                  : 'border border-[#DDE7EF] text-[#94A3B8]'
+              }`}
+            >
+              {r}
+            </span>
+          ))}
+        </div>
+
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button

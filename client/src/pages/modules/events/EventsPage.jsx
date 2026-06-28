@@ -2,16 +2,18 @@ import { useEffect, useState } from 'react';
 import {
   Calendar,
   CheckCircle2,
+  ChevronLeft,
   Clock,
-  Filter,
   MapPin,
   Plus,
   Search,
+  UserCheck,
   Users,
   X,
 } from 'lucide-react';
-import { getEvents, createEvent } from '../../../services/eventService';
+import { getEvents, createEvent, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
+import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
 
 const statusBadge = {
@@ -54,6 +56,20 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
+  const [selectedAttEventId, setSelectedAttEventId] = useState(null);
+  const [attendanceData, setAttendanceData] = useState(null);
+  const [attendanceLoading, setAttendanceLoading] = useState(false);
+  const [allUsers, setAllUsers] = useState([]);
+  const [usersLoaded, setUsersLoaded] = useState(false);
+  const [checkInSearch, setCheckInSearch] = useState('');
+  const [checkInUserId, setCheckInUserId] = useState(null);
+  const [checkInSubmitting, setCheckInSubmitting] = useState(false);
+  const [checkInError, setCheckInError] = useState(null);
+  const [checkInSuccess, setCheckInSuccess] = useState(null);
+
+  let currentUserRole = '';
+  try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role?.toLowerCase() ?? ''; } catch {}
+
   function load() {
     setLoading(true);
     setError(null);
@@ -71,6 +87,54 @@ export default function EventsPage({ initialTab = 'events' }) {
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (activeTab === 'attendance' && !usersLoaded) {
+      getUsers()
+        .then((data) => {
+          setAllUsers(Array.isArray(data) ? data : []);
+          setUsersLoaded(true);
+        })
+        .catch(() => {});
+    }
+  }, [activeTab, usersLoaded]);
+
+  async function handleSelectAttEvent(id) {
+    setSelectedAttEventId(id);
+    setAttendanceData(null);
+    setAttendanceLoading(true);
+    setCheckInSearch('');
+    setCheckInUserId(null);
+    setCheckInError(null);
+    setCheckInSuccess(null);
+    try {
+      const res = await getAttendance(id);
+      setAttendanceData(res.data);
+    } catch {
+      setAttendanceData(null);
+    } finally {
+      setAttendanceLoading(false);
+    }
+  }
+
+  async function handleCheckIn() {
+    if (!checkInUserId) return;
+    setCheckInSubmitting(true);
+    setCheckInError(null);
+    setCheckInSuccess(null);
+    try {
+      await recordAttendance(selectedAttEventId, { user_id: checkInUserId, method: 'manual' });
+      setCheckInUserId(null);
+      setCheckInSearch('');
+      setCheckInSuccess('Check-in recorded.');
+      const res = await getAttendance(selectedAttEventId);
+      setAttendanceData(res.data);
+    } catch (err) {
+      setCheckInError(err.response?.data?.message ?? 'Failed to record check-in.');
+    } finally {
+      setCheckInSubmitting(false);
+    }
+  }
 
   async function handleCreateEvent(e) {
     e.preventDefault();
@@ -106,7 +170,16 @@ export default function EventsPage({ initialTab = 'events' }) {
   const pagedEvents = filteredEvents.slice((eventsPage - 1) * pageSize, eventsPage * pageSize);
   const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
 
-  const completedEvents = events.filter((e) => e.status === 'completed');
+  const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
+  const filteredCheckInUsers = allUsers
+    .filter(
+      (u) =>
+        !checkedInUserIds.has(u.id) &&
+        (checkInSearch.trim() === '' ||
+          `${u.first_name} ${u.last_name}`.toLowerCase().includes(checkInSearch.toLowerCase()) ||
+          (u.school_id ?? '').toLowerCase().includes(checkInSearch.toLowerCase()))
+    )
+    .slice(0, 6);
 
   useEffect(() => {
     setEventsPage(1);
@@ -295,24 +368,175 @@ export default function EventsPage({ initialTab = 'events' }) {
       )}
 
       {activeTab === 'attendance' && (
-        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="border-b border-[#DDE7EF] p-5">
+            <h2 className="text-lg font-bold text-[#0F172A]">Attendance Tracking</h2>
+            <p className="text-sm font-medium text-slate-500">Record and view event check-ins</p>
+          </div>
           {loading ? (
-            [1, 2, 3].map((i) => <div key={i} className="h-36 animate-pulse rounded-xl bg-slate-100" />)
-          ) : completedEvents.length === 0 ? (
-            <div className="col-span-3 rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
-              <p className="text-sm text-slate-400">No completed events yet.</p>
+            <div className="space-y-2 p-5">
+              {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
+          ) : events.length === 0 ? (
+            <p className="p-8 text-center text-sm text-slate-400">No events yet.</p>
           ) : (
-            completedEvents.map((evt) => (
-              <div key={evt.id} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm hover:shadow-md transition">
-                <div className="mb-3 flex items-center justify-between">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">Completed</span>
-                  <span className="text-xs font-medium text-slate-400">{formatDateTime(evt.start_time)}</span>
+            <div className="flex min-h-[400px]">
+              {/* Left panel — event list */}
+              <div className={`border-r border-[#DDE7EF] lg:flex lg:w-72 lg:shrink-0 lg:flex-col ${selectedAttEventId ? 'hidden' : 'flex w-full flex-col'}`}>
+                <div className="border-b border-[#DDE7EF] px-4 py-3">
+                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Event</p>
                 </div>
-                <h3 className="text-base font-bold text-[#0F172A]">{evt.title}</h3>
-                <p className="mt-1 text-sm font-medium text-slate-500">{evt.location || 'No location set'}</p>
+                <div className="flex-1 overflow-y-auto">
+                  {events.map((evt) => (
+                    <button
+                      key={evt.id}
+                      type="button"
+                      onClick={() => handleSelectAttEvent(evt.id)}
+                      className={`flex w-full items-start gap-3 border-b border-[#E5EDF3] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#F8FBFD] ${selectedAttEventId === evt.id ? 'bg-[#EEF6FB]' : ''}`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-bold text-[#0F172A]">{evt.title}</p>
+                        <p className="mt-0.5 text-[11px] font-medium text-slate-400">{formatDateTime(evt.start_time)}</p>
+                      </div>
+                      <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
+                        {capitalize(evt.status)}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
-            ))
+
+              {/* Right panel — detail */}
+              <div className={`min-w-0 flex-1 flex-col ${selectedAttEventId ? 'flex' : 'hidden lg:flex'}`}>
+                {!selectedAttEventId ? (
+                  <div className="flex flex-1 items-center justify-center p-10 text-center">
+                    <div>
+                      <Users size={36} className="mx-auto mb-3 text-slate-200" />
+                      <p className="text-sm text-slate-400">Select an event to view attendance</p>
+                    </div>
+                  </div>
+                ) : attendanceLoading ? (
+                  <div className="space-y-2 p-5">
+                    {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
+                  </div>
+                ) : (
+                  <>
+                    {/* Mobile back button */}
+                    <div className="flex items-center border-b border-[#DDE7EF] p-4 lg:hidden">
+                      <button
+                        type="button"
+                        onClick={() => setSelectedAttEventId(null)}
+                        className="flex items-center gap-1.5 text-[13px] font-bold text-[#0B8ED0]"
+                      >
+                        <ChevronLeft size={16} />
+                        All Events
+                      </button>
+                    </div>
+
+                    {/* Event header */}
+                    <div className="border-b border-[#DDE7EF] p-5">
+                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Attendance</p>
+                      <h3 className="mt-1 text-base font-black text-[#0F172A]">{attendanceData?.event?.title ?? '-'}</h3>
+                      <p className="mt-0.5 text-xs font-medium text-slate-500">{formatDateTime(attendanceData?.event?.start_time)}</p>
+                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                        <UserCheck size={12} />
+                        {attendanceData?.count ?? 0} checked in
+                      </div>
+                    </div>
+
+                    {/* Check-in form — officer only */}
+                    {currentUserRole === 'officer' && (
+                      <div className="border-b border-[#DDE7EF] p-5">
+                        <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Check-In</p>
+                        <div className="flex gap-2">
+                          <div className="relative flex-1">
+                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                            <input
+                              value={checkInSearch}
+                              onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); }}
+                              type="text"
+                              placeholder="Search name or student ID..."
+                              className="h-10 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                            />
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleCheckIn}
+                            disabled={!checkInUserId || checkInSubmitting}
+                            className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
+                          >
+                            <UserCheck size={15} />
+                            <span className="hidden sm:inline">{checkInSubmitting ? 'Recording...' : 'Check In'}</span>
+                          </button>
+                        </div>
+                        {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length > 0 && (
+                          <div className="mt-1 overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-lg">
+                            {filteredCheckInUsers.map((u) => (
+                              <button
+                                key={u.id}
+                                type="button"
+                                onClick={() => {
+                                  setCheckInUserId(u.id);
+                                  setCheckInSearch(`${u.first_name} ${u.last_name} (${u.school_id})`);
+                                }}
+                                className="flex w-full items-center gap-3 border-b border-[#E5EDF3] px-4 py-2.5 text-left transition last:border-b-0 hover:bg-[#EEF6FB]"
+                              >
+                                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-[10px] font-black text-white">
+                                  {u.first_name?.[0]}{u.last_name?.[0]}
+                                </div>
+                                <div>
+                                  <p className="text-[13px] font-semibold text-[#0F172A]">{u.first_name} {u.last_name}</p>
+                                  <p className="text-[11px] font-medium text-slate-400">{u.school_id} · {capitalize(u.role)}</p>
+                                </div>
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                        {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length === 0 && (
+                          <p className="mt-2 text-xs font-medium text-slate-400">No matching members found.</p>
+                        )}
+                        {checkInError && <p className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
+                        {checkInSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
+                      </div>
+                    )}
+
+                    {/* Attendees table */}
+                    {(attendanceData?.records?.length ?? 0) === 0 ? (
+                      <p className="p-8 text-center text-sm text-slate-400">No check-ins recorded yet.</p>
+                    ) : (
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[400px] text-left">
+                          <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                            <tr>
+                              <th className="px-5 py-3">Member</th>
+                              <th className="px-5 py-3">School ID</th>
+                              <th className="px-5 py-3">Method</th>
+                              <th className="px-5 py-3">Time</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                            {attendanceData.records.map((rec) => (
+                              <tr key={rec.id} className="transition hover:bg-[#F8FBFD]">
+                                <td className="px-5 py-3.5 font-bold text-[#0F172A]">
+                                  {rec.user ? `${rec.user.first_name} ${rec.user.last_name}` : '-'}
+                                </td>
+                                <td className="px-5 py-3.5 font-medium text-slate-600">{rec.user?.school_id ?? '-'}</td>
+                                <td className="px-5 py-3.5">
+                                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${rec.method === 'biometric' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
+                                    {capitalize(rec.method)}
+                                  </span>
+                                </td>
+                                <td className="px-5 py-3.5 font-medium text-slate-600">{formatDateTime(rec.check_in_time)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
           )}
         </section>
       )}
