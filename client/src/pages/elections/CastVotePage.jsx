@@ -219,8 +219,8 @@ export default function CastVotePage() {
 
                 const response = await castVotes(election.id, ballot);
                 setReceipt(response.receipt || 'CAST-SUCCESSFUL');
-                await refreshElection();
                 setPhase('submitted');
+                refreshElection().catch(() => {});
               } catch (error) {
                 setSubmitError(error?.response?.data?.message || 'Unable to submit ballot.');
               } finally {
@@ -342,7 +342,13 @@ export default function CastVotePage() {
         ) : (
           <button
             type="button"
-            onClick={() => setPhase('review')}
+            onClick={() => {
+              if (!votes[currentPosition.position.id]) {
+                setErrors((current) => ({ ...current, [currentPosition.position.id]: true }));
+                return;
+              }
+              setPhase('review');
+            }}
             className="flex-1 flex items-center justify-center gap-1.5 bg-emerald-600 text-white font-bold py-2.5 rounded-lg hover:bg-emerald-700 transition text-sm"
           >
             <Eye size={15} />
