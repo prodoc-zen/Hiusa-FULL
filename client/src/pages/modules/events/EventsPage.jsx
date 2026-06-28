@@ -265,11 +265,11 @@ export default function EventsPage({ initialTab = 'events' }) {
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {pagedEventTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
-                      <td className="px-5 py-4 font-medium text-slate-600">
+                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
+                      <td className="max-w-[160px] truncate px-5 py-4 font-medium text-slate-600">
                         {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">
+                      <td className="max-w-[160px] truncate px-5 py-4 font-medium text-slate-600">
                         {t.event?.title ?? '-'}
                       </td>
                       <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>

@@ -151,15 +151,15 @@ export default function ManageVotersPage() {
               <tbody className="divide-y divide-[#E5EDF3] text-sm">
                 {filtered.map((voter) => (
                   <tr key={voter.id} className="transition hover:bg-[#F8FBFD]">
-                    <td className="px-4 py-3.5">
-                      <div className="flex items-center gap-2.5">
+                    <td className="max-w-[200px] px-4 py-3.5">
+                      <div className="flex min-w-0 items-center gap-2.5">
                         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-[10px] font-black text-white">
                           {voter.first_name?.[0] ?? ''}{voter.last_name?.[0] ?? ''}
                         </div>
-                        <span className="font-semibold text-[#0F172A]">{voter.first_name} {voter.last_name}</span>
+                        <span className="truncate font-semibold text-[#0F172A]">{voter.first_name} {voter.last_name}</span>
                       </div>
                     </td>
-                    <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{voter.school_id}</td>
+                    <td className="max-w-[120px] truncate px-4 py-3.5 font-mono text-xs text-[#64748B]">{voter.school_id}</td>
                     <td className="hidden md:table-cell px-4 py-3.5 text-xs text-[#64748B]">{voter.email}</td>
                     <td className="px-4 py-3.5">
                       {voter.has_voted ? (
