@@ -35,6 +35,8 @@ const pageTitles = {
   '/dashboard/merchandise/manage-inventory': 'Inventory',
   '/dashboard/merchandise/manage-orders': 'Manage Orders',
   '/dashboard/merchandise/claim-tokens': 'Claim Tokens',
+  '/dashboard/merchandise/order-merchandise': 'Order Merchandise',
+  '/dashboard/merchandise/my-orders': 'My Orders',
   '/dashboard/announcements': 'Announcements',
   '/dashboard/announcements/manage-announcements': 'Manage Announcements',
   '/dashboard/announcements/create-announcement': 'Create Announcement',
@@ -61,20 +63,18 @@ export default function DashboardLayout() {
   const title = getTitle(location.pathname);
 
   return (
-    <main className="min-h-screen bg-[#EEF6FB] font-sans text-[#0F172A]">
-      <div className="flex min-h-screen">
-        <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-        <div className="min-w-0 flex-1 flex flex-col">
-          <TopBar
-            title={title}
-            pathname={location.pathname}
-            onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-          />
-          <div className="flex-1 p-4 sm:p-6">
-            <Outlet />
-          </div>
-        </div>
+    <div className="flex h-screen overflow-hidden bg-[#EEF6FB] font-sans text-[#0F172A]">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+        <TopBar
+          title={title}
+          pathname={location.pathname}
+          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
+        />
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <Outlet />
+        </main>
       </div>
-    </main>
+    </div>
   );
 }

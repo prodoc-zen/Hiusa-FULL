@@ -210,7 +210,7 @@ export default function EventsPage({ initialTab = 'events' }) {
       </section>
 
       <div className="flex flex-wrap gap-2">
-        {['events', 'tasks', 'attendance'].map((tab) => (
+        {['events', ...(currentUserRole !== 'student' ? ['tasks', 'attendance'] : [])].map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -250,10 +250,12 @@ export default function EventsPage({ initialTab = 'events' }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
                 />
               </div>
-              <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
-                <Plus size={16} />
-                <span className="hidden sm:inline">Create Event</span>
-              </button>
+              {currentUserRole !== 'student' && (
+                <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+                  <Plus size={16} />
+                  <span className="hidden sm:inline">Create Event</span>
+                </button>
+              )}
             </div>
           </div>
 

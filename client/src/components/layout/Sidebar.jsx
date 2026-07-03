@@ -92,7 +92,10 @@ const NAV_STRUCTURE = [
     children: [
       { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['officer'] },
       { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['officer'] },
-      { id: 'claim-tokens', label: 'Claim Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['officer', 'student'] },
+      { id: 'claim-tokens', label: 'Issue Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['officer'] },
+      { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['student'] },
+      { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['student'] },
+      { id: 'student-claim-tokens', label: 'Claim Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['student'] },
     ],
   },
 ];
@@ -200,7 +203,7 @@ export default function Sidebar({ isOpen, onClose }) {
         </button>
       </div>
 
-      <nav className="flex flex-1 flex-col px-3 py-4">
+      <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
         <div className="flex-1 space-y-1">
           <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Modules</p>
           {nav.map((item) => {
@@ -271,7 +274,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      <aside className="hidden min-h-screen w-[260px] shrink-0 flex-col bg-[#0B1831] lg:flex">{sidebarContent}</aside>
+      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col bg-[#0B1831] lg:flex">{sidebarContent}</aside>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
     </>

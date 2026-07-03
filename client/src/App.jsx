@@ -102,7 +102,7 @@ function MerchandiseIndexRedirect() {
   const role = getStoredRole();
 
   if (role === 'student') {
-    return <Navigate to="claim-tokens" replace />;
+    return <Navigate to="order-merchandise" replace />;
   }
 
   return <Navigate to="manage-inventory" replace />;
@@ -168,6 +168,8 @@ function App() {
             <Route path="manage-inventory" element={<ProtectedRoute allowedRoles={["officer"]}><MerchandisePage initialTab="inventory" /></ProtectedRoute>} />
             <Route path="manage-orders" element={<ProtectedRoute allowedRoles={["officer"]}><MerchandisePage initialTab="orders" /></ProtectedRoute>} />
             <Route path="claim-tokens" element={<ProtectedRoute allowedRoles={["officer", "student"]}><MerchandisePage initialTab="tokens" /></ProtectedRoute>} />
+            <Route path="order-merchandise" element={<ProtectedRoute allowedRoles={["student"]}><MerchandisePage initialTab="order" /></ProtectedRoute>} />
+            <Route path="my-orders" element={<ProtectedRoute allowedRoles={["student"]}><MerchandisePage initialTab="my-orders" /></ProtectedRoute>} />
           </Route>
 
           <Route path="tasks">
