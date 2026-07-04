@@ -123,6 +123,10 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
+        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You are not authorized to update this event status.'], 403);
+        }
+
         $data = $request->validate([
             'status' => ['required', 'in:planning,approved,ongoing,completed,cancelled'],
         ]);
@@ -173,12 +177,16 @@ class EventController extends Controller
             return response()->json(['message' => 'This member is already checked in for this event.'], 409);
         }
 
-        $record = Attendance::create([
-            'event_id'      => $id,
-            'user_id'       => $data['user_id'],
-            'method'        => $data['method'],
-            'check_in_time' => now(),
-        ]);
+        try {
+            $record = Attendance::create([
+                'event_id'      => $id,
+                'user_id'       => $data['user_id'],
+                'method'        => $data['method'],
+                'check_in_time' => now(),
+            ]);
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            return response()->json(['message' => 'This member is already checked in for this event.'], 409);
+        }
 
         return response()->json(
             $record->load('user:id,first_name,last_name,school_id'),

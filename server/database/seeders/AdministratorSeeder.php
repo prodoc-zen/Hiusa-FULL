@@ -9,6 +9,10 @@ class AdministratorSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->isProduction()) {
+            return;
+        }
+
         User::updateOrCreate(
             ['school_id' => 'HIUSA-ADMIN-0001'],
             [

@@ -29,8 +29,7 @@ export default function CastVotePage() {
   const [receipt, setReceipt] = useState('');
 
   const currentUser = useMemo(() => {
-    const stored = localStorage.getItem('user');
-    return stored ? JSON.parse(stored) : null;
+    try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
   }, []);
 
   if (!election) {
@@ -45,7 +44,8 @@ export default function CastVotePage() {
     .filter((entry) => entry.candidates.length > 0);
 
   const currentPosition = groupedPositions[positionIndex];
-  const currentUserVotes = (election.votes || []).filter((vote) => vote.voter_id === currentUser?.id);
+  // my_votes contains only the current student's own votes (server strips other voters' identities)
+  const currentUserVotes = election.my_votes || (election.votes || []).filter((vote) => vote.voter_id === currentUser?.id);
   const hasVoted = currentUserVotes.length > 0;
   const allSelected = groupedPositions.length > 0 && groupedPositions.every((entry) => votes[entry.position.id]);
 
@@ -99,11 +99,14 @@ export default function CastVotePage() {
       <div className="max-w-2xl mx-auto space-y-5 px-4 sm:px-0">
         <div className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-6">
           <h2 className="text-base font-extrabold text-slate-800">Live Standings</h2>
-          <p className="text-xs text-slate-500 mt-1">{(election.votes || []).length} votes counted · {groupedPositions.length} positions</p>
+          <p className="text-xs text-slate-500 mt-1">{Object.values(election.vote_counts || {}).reduce((s, c) => s + c, 0) || (election.votes || []).length} votes counted · {groupedPositions.length} positions</p>
         </div>
 
         {groupedPositions.map((entry) => {
-          const totalVotes = entry.candidates.reduce((sum, candidate) => sum + (election.votes || []).filter((vote) => vote.candidate_id === candidate.id).length, 0);
+          const getVoteCount = (candidateId) => election.vote_counts
+            ? (election.vote_counts[candidateId] || 0)
+            : (election.votes || []).filter((v) => v.candidate_id === candidateId).length;
+          const totalVotes = entry.candidates.reduce((sum, c) => sum + getVoteCount(c.id), 0);
 
           return (
             <div key={entry.position.id} className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-5">
@@ -111,7 +114,7 @@ export default function CastVotePage() {
               <div className="space-y-3">
                 {entry.candidates
                   .map((candidate) => {
-                    const votesCount = (election.votes || []).filter((vote) => vote.candidate_id === candidate.id).length;
+                    const votesCount = getVoteCount(candidate.id);
                     const pct = totalVotes > 0 ? Math.round((votesCount / totalVotes) * 100) : 0;
                     const candidateName = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim();
                     return { candidate, candidateName, votesCount, pct };

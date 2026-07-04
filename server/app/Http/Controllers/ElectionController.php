@@ -67,9 +67,9 @@ class ElectionController extends Controller
         return response()->json($elections);
     }
 
-    public function show($id)
+    public function show(Request $request, $id)
     {
-        $user = request()->user();
+        $user = $request->user();
         $with = [
             'positions.candidates.user',
             'positions.candidates.partylist',
@@ -81,8 +81,6 @@ class ElectionController extends Controller
 
         if ($user?->role !== 'student') {
             $with[] = 'votes.voter';
-        } else {
-            $with[] = 'votes';
         }
 
         $election = Election::with($with)->find($id);
@@ -91,8 +89,30 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($user?->role === 'student' && $election->status !== 'active') {
-            return response()->json(['message' => 'Students can only access active elections.'], 403);
+        if ($user?->role === 'student') {
+            if ($election->status !== 'active') {
+                return response()->json(['message' => 'Students can only access active elections.'], 403);
+            }
+
+            // Only return this student's own votes (never expose other voters' identities)
+            $myVotes = Vote::where('election_id', $id)
+                ->where('voter_id', $user->id)
+                ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id']);
+
+            // Aggregate counts per candidate so live standings work without exposing voter identity
+            $candidateIds = $election->candidates->pluck('id');
+            $voteCounts = $candidateIds->isNotEmpty()
+                ? Vote::whereIn('candidate_id', $candidateIds)
+                    ->selectRaw('candidate_id, COUNT(*) as count')
+                    ->groupBy('candidate_id')
+                    ->get()->pluck('count', 'candidate_id')
+                : collect();
+
+            $data = $election->toArray();
+            $data['my_votes']    = $myVotes;
+            $data['vote_counts'] = $voteCounts;
+
+            return response()->json($data);
         }
 
         return response()->json($election);

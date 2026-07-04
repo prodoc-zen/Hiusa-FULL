@@ -152,7 +152,7 @@ class AnnouncementController extends Controller
 
         $now = now();
         $message = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $announcement->body))), 180);
-        $title = 'New Announcement: ' . $announcement->title;
+        $title = 'New Announcement: ' . Str::limit($announcement->title, 230);
 
         foreach ($userIds->chunk(100) as $chunk) {
             Notification::insert(

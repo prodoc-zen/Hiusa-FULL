@@ -9,8 +9,8 @@ export default function ElectionsHub() {
   const [activeElection, setActiveElection] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const storedUser = localStorage.getItem('user');
-  const currentUser = storedUser ? JSON.parse(storedUser) : null;
+  let currentUser = null;
+  try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const role = currentUser?.role || 'officer';
 
   const [activeElectionId, setActiveElectionId] = useState(() => {

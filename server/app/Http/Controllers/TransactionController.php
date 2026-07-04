@@ -36,6 +36,11 @@ class TransactionController extends Controller
 
     public function summary(Request $request)
     {
+        $request->validate([
+            'from' => ['nullable', 'date'],
+            'to'   => ['nullable', 'date'],
+        ]);
+
         $query = Transaction::query();
 
         if ($request->filled('from')) {
@@ -89,12 +94,16 @@ class TransactionController extends Controller
         );
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $transaction = Transaction::find($id);
 
         if (!$transaction) {
             return response()->json(['message' => 'Transaction not found.'], 404);
+        }
+
+        if ($transaction->recorded_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
         }
 
         $transaction->delete();

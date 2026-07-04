@@ -121,6 +121,7 @@ class MerchandiseController extends Controller
             ], 409);
         }
 
+        $this->deleteMerchandiseImage($item->image_url);
         $item->delete();
 
         return response()->json(['message' => 'Item deleted successfully.']);
