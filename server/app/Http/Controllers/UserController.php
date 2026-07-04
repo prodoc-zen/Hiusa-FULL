@@ -45,9 +45,11 @@ class UserController extends Controller
         if (array_key_exists('password', $validatedData)) {
             $validatedData['password_hash'] = $validatedData['password'];
             unset($validatedData['password']);
+            $user->update($validatedData);
+            $user->tokens()->delete();
+        } else {
+            $user->update($validatedData);
         }
-
-        $user->update($validatedData);
 
         return response()->json($user->fresh());
     }

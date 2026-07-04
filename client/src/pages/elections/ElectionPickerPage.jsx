@@ -61,7 +61,8 @@ function formatTimeline(status, startTime, endTime) {
 
 export default function ElectionPickerPage({ onSelect }) {
   const navigate = useNavigate();
-  const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+  let currentUser = null;
+  try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const role = currentUser?.role || 'officer';
   const canManageElections = currentUser?.role === 'admin' || currentUser?.role === 'officer';
   const [showCreate, setShowCreate] = useState(false);
@@ -71,6 +72,7 @@ export default function ElectionPickerPage({ onSelect }) {
   const [page, setPage] = useState(1);
   const pageSize = 8;
   const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [form, setForm] = useState({
     title: '',
@@ -116,6 +118,8 @@ export default function ElectionPickerPage({ onSelect }) {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const created = await createElection(form);
       setElections((current) => [created, ...current]);
@@ -124,6 +128,8 @@ export default function ElectionPickerPage({ onSelect }) {
       setError('');
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to create election.');
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -140,7 +146,8 @@ export default function ElectionPickerPage({ onSelect }) {
 
   const handleEdit = async (event) => {
     event.preventDefault();
-
+    if (submitting) return;
+    setSubmitting(true);
     try {
       const updated = await updateElection(editForm.id, {
         title: editForm.title,
@@ -156,6 +163,8 @@ export default function ElectionPickerPage({ onSelect }) {
       setError('');
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update election.');
+    } finally {
+      setSubmitting(false);
     }
   };
 

@@ -50,17 +50,17 @@ export default function ManageAnnouncementsPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
 
-  function load() {
+  useEffect(() => {
+    let cancelled = false;
     setLoading(true);
     setError(null);
     const params = categoryFilter === 'all' ? undefined : { category: categoryFilter };
     getAnnouncements(params)
-      .then((res) => setItems(Array.isArray(res.data) ? res.data : []))
-      .catch(() => setError('Failed to load announcements.'))
-      .finally(() => setLoading(false));
-  }
-
-  useEffect(load, [categoryFilter]);
+      .then((res) => { if (!cancelled) setItems(Array.isArray(res.data) ? res.data : []); })
+      .catch(() => { if (!cancelled) setError('Failed to load announcements.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [categoryFilter]);
 
   async function handleToggle(id) {
     try {
