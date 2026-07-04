@@ -191,7 +191,7 @@ export default function StudentHomePage() {
             <NavLink to="/dashboard/merchandise" className="text-xs font-bold text-[#0B8ED0] hover:underline">Shop</NavLink>
           </div>
           {loading ? (
-            <div className="grid grid-cols-2 gap-3 p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-5">
               {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : availableMerch.length === 0 ? (
@@ -200,7 +200,7 @@ export default function StudentHomePage() {
               <p className="text-sm text-slate-400">No merchandise available.</p>
             </div>
           ) : (
-            <div className="grid grid-cols-2 gap-3 p-5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-5">
               {availableMerch.map((item) => (
                 <div key={item.id} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
                   <div className="mb-2 h-12 w-full overflow-hidden rounded-md bg-[#E6F6FD]">

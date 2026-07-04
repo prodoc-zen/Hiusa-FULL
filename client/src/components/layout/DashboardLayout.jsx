@@ -58,7 +58,7 @@ function getTitle(pathname) {
 }
 
 export default function DashboardLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const location = useLocation();
   const title = getTitle(location.pathname);
 

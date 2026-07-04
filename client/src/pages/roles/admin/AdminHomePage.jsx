@@ -49,7 +49,7 @@ export default function AdminHomePage() {
     <div className="space-y-6">
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Administrator</p>
-        <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Control Center</h2>
+        <h2 className="mt-1 text-2xl sm:text-3xl font-black text-[#0F172A]">Control Center</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Manage users, oversee elections, and enforce system governance.</p>
       </section>
 

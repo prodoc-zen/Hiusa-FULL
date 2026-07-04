@@ -217,18 +217,18 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex gap-2">
-                      <button onClick={() => openEdit(user)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1 text-xs font-semibold text-slate-600 hover:bg-[#EEF6FB]">
+                      <button onClick={() => openEdit(user)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-[#EEF6FB]">
                         <PencilLine size={13} />
                         Edit
                       </button>
                       {user.role !== 'admin' && (
-                        <button onClick={() => handleDisable(user.id)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                        <button onClick={() => handleDisable(user.id)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
                           <UserX size={13} />
                           Disable
                         </button>
                       )}
                       {user.role !== 'admin' && (
-                        <button onClick={() => handleDelete(user.id)} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 hover:bg-red-100">
+                        <button onClick={() => handleDelete(user.id)} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">
                           <Trash2 size={13} />
                           Delete
                         </button>
@@ -275,8 +275,8 @@ export default function AdminUsersPage() {
             <input type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} placeholder="Password" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input type="password" value={createForm.password_confirmation} onChange={(event) => setCreateForm({ ...createForm, password_confirmation: event.target.value })} placeholder="Confirm password" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <div className="sm:col-span-2 flex gap-2 pt-1">
-              <button type="submit" className="rounded-lg bg-[#0B8ED0] px-4 py-2 text-sm font-bold text-white hover:bg-[#0878B7]">Create</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-[#DDE7EF] px-4 py-2 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+              <button type="submit" className="rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">Create</button>
+              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-[#DDE7EF] px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
             </div>
           </form>
         </div>
@@ -301,8 +301,8 @@ export default function AdminUsersPage() {
               ))}
             </select>
             <div className="sm:col-span-2 flex gap-2 pt-1">
-              <button type="submit" className="rounded-lg bg-[#0B8ED0] px-4 py-2 text-sm font-bold text-white hover:bg-[#0878B7]">Save</button>
-              <button type="button" onClick={() => setShowEdit(false)} className="rounded-lg border border-[#DDE7EF] px-4 py-2 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+              <button type="submit" className="rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">Save</button>
+              <button type="button" onClick={() => setShowEdit(false)} className="rounded-lg border border-[#DDE7EF] px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
             </div>
           </form>
         </div>

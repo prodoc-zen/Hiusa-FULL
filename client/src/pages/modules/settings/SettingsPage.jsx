@@ -88,7 +88,7 @@ export default function SettingsPage({ initialSection = 'profile' }) {
   ];
 
   return (
-    <div className="grid gap-6 xl:grid-cols-[280px_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
       <nav className="rounded-xl border border-[#DDE7EF] bg-white p-3 shadow-sm h-fit">
         <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Settings</p>
         <div className="space-y-1">

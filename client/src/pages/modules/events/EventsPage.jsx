@@ -226,7 +226,7 @@ export default function EventsPage({ initialTab = 'events' }) {
               <p className="text-sm font-medium text-slate-500">Create, manage, and monitor events</p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
-              <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
+              <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-400" />
                 <input
                   value={search}
@@ -237,7 +237,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                 />
               </div>
               {currentUserRole !== 'student' && (
-                <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+                <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                   <Plus size={16} />
                   <span className="hidden sm:inline">Create Event</span>
                 </button>
@@ -444,14 +444,14 @@ export default function EventsPage({ initialTab = 'events' }) {
                               onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); }}
                               type="text"
                               placeholder="Search name or student ID..."
-                              className="h-10 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                              className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                             />
                           </div>
                           <button
                             type="button"
                             onClick={handleCheckIn}
                             disabled={!checkInUserId || checkInSubmitting}
-                            className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
+                            className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
                           >
                             <UserCheck size={15} />
                             <span className="hidden sm:inline">{checkInSubmitting ? 'Recording...' : 'Check In'}</span>
@@ -547,7 +547,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">Start Date *</label>
                   <input
@@ -567,7 +567,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   />
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">End Date</label>
                   <input

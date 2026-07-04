@@ -104,7 +104,7 @@ export default function ManageAnnouncementsPage() {
       <SectionHeader title="All Announcements" />
       <div className="mb-4 flex items-center gap-2">
         <label className="text-xs font-semibold text-slate-500">Category:</label>
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-9 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
           {CATEGORY_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
@@ -146,7 +146,7 @@ export default function ManageAnnouncementsPage() {
                             action: async () => handleToggle(a.id),
                             busy: false,
                           })}
-                          className="rounded bg-emerald-100 px-2 py-1 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
+                          className="rounded bg-emerald-100 px-2 py-2 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
                         >
                           Publish
                         </button>
@@ -160,7 +160,7 @@ export default function ManageAnnouncementsPage() {
                             action: async () => handleToggle(a.id),
                             busy: false,
                           })}
-                          className="rounded bg-amber-100 px-2 py-1 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-200"
+                          className="rounded bg-amber-100 px-2 py-2 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-200"
                         >
                           Unpublish
                         </button>
@@ -174,7 +174,7 @@ export default function ManageAnnouncementsPage() {
                           action: async () => handleDelete(a.id),
                           busy: false,
                         })}
-                        className="rounded-md p-1.5 text-red-500 transition hover:bg-red-50"
+                        className="rounded-md p-2 text-red-500 transition hover:bg-red-50"
                       >
                         <Trash2 size={13} />
                       </button>
