@@ -19,15 +19,15 @@ const ROLE_CONFIG = {
 };
 
 const BrandingPanel = () => (
-  <aside className="relative flex min-h-[360px] overflow-hidden bg-[#0b1831] px-6 py-6 text-white sm:min-h-[410px] sm:px-10 sm:py-8 lg:min-h-[620px] lg:w-[47%] lg:px-11 lg:py-10">
+  <aside className="relative flex overflow-hidden bg-[#0b1831] px-6 py-5 text-white sm:min-h-[410px] sm:px-10 sm:py-8 lg:min-h-[620px] lg:w-[47%] lg:flex-col lg:px-11 lg:py-10">
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(25,211,249,0.20),transparent_34%),linear-gradient(135deg,#0b1831_0%,#0f2f62_52%,#075f93_100%)]" />
     <div className="absolute bottom-0 right-0 h-52 w-52 translate-x-14 translate-y-10 rotate-45 rounded-md border border-white/10 bg-white/[0.03]" />
     <div className="relative z-10 flex w-full flex-col">
       <div className="flex items-center gap-3">
-        <img src={hiusaLogo} alt="HIUSA" className="h-11 w-11 object-contain" />
+        <img src={hiusaLogo} alt="HIUSA" className="h-10 w-10 object-contain sm:h-11 sm:w-11" />
         <span className="text-lg font-black text-white">HIUSA</span>
       </div>
-      <div className="flex flex-1 items-center">
+      <div className="hidden sm:flex sm:flex-1 sm:items-center">
         <div className="max-w-[360px]">
           <h1 className="text-2xl font-black leading-tight text-white sm:text-3xl lg:text-[34px]">
             The Simplest Way To Manage Your Organization
@@ -104,7 +104,7 @@ export default function LoginPage() {
       <section className="mx-auto flex w-full max-w-[960px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl shadow-[#0b1831]/10 ring-1 ring-slate-200/70 lg:min-h-[620px] lg:flex-row">
         <BrandingPanel />
 
-        <div className="relative flex flex-1 items-center bg-white px-6 py-9 sm:px-10 sm:py-12 lg:px-14">
+        <div className="relative flex flex-1 items-center bg-white px-6 py-7 sm:px-10 sm:py-12 lg:px-14">
           <div className="mx-auto w-full max-w-[370px]">
             <div className="mb-6">
               <p className="mb-2 text-xs font-bold uppercase tracking-[0.14em] text-[#0b8ed0]">Secure login</p>
