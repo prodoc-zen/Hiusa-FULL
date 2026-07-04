@@ -20,8 +20,9 @@ import {
 import { getMerchandise, createItem } from '../../../services/merchandiseService';
 import { getOrders, placeOrder, updateOrderStatus, claimByToken } from '../../../services/orderService';
 
-const role = (() => { try { return JSON.parse(localStorage.getItem('user'))?.role || 'officer'; } catch { return 'officer'; } })();
-const isStudent = role === 'student';
+function getRole() {
+  try { return JSON.parse(localStorage.getItem('user'))?.role || 'officer'; } catch { return 'officer'; }
+}
 
 const stockBadge = (qty) => {
   if (qty === 0) return 'bg-red-50 text-red-700';
@@ -71,6 +72,8 @@ function StepTracker({ status }) {
 
 export default function MerchandisePage({ initialTab }) {
   const navigate = useNavigate();
+  const role = getRole();
+  const isStudent = role === 'student';
   const defaultTab = isStudent ? 'order' : 'inventory';
   const [activeTab, setActiveTab] = useState(initialTab || defaultTab);
 
