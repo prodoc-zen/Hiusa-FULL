@@ -126,9 +126,10 @@ class AnnouncementController extends Controller
             return response()->json(['message' => 'You can only publish your own announcements.'], 403);
         }
 
-        $announcement->update(['is_published' => !$announcement->is_published]);
+        $wasPublished = $announcement->is_published;
+        $announcement->update(['is_published' => !$wasPublished]);
 
-        if ($announcement->is_published) {
+        if (!$wasPublished && $announcement->is_published) {
             $this->dispatchAnnouncementNotifications($announcement);
         }
 

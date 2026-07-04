@@ -54,7 +54,8 @@ export default function DashboardPage() {
         const tasks = Array.isArray(tasksRes?.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []);
         const events = Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []);
         const summary = summaryRes?.data ?? summaryRes ?? {};
-        const orders = Array.isArray(ordersRes?.data) ? ordersRes.data : (Array.isArray(ordersRes) ? ordersRes : []);
+        const ordersRaw = ordersRes?.data;
+        const orders = Array.isArray(ordersRaw?.data) ? ordersRaw.data : (Array.isArray(ordersRaw) ? ordersRaw : []);
 
         const openTasks = tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress');
 

@@ -25,6 +25,7 @@ class User extends Authenticatable
         'email',
         'password_hash',
         'role',
+        'is_member',
         'biometric_template',
     ];
 

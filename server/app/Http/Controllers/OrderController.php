@@ -41,6 +41,10 @@ class OrderController extends Controller
         return DB::transaction(function () use ($data, $request) {
             $item = Merchandise::lockForUpdate()->find($data['merchandise_id']);
 
+            if (!$item) {
+                return response()->json(['message' => 'Item is no longer available.'], 422);
+            }
+
             if (!$item->is_active) {
                 return response()->json(['message' => 'This item is no longer available.'], 422);
             }
