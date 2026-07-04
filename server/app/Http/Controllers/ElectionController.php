@@ -12,6 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class ElectionController extends Controller
@@ -68,21 +69,29 @@ class ElectionController extends Controller
 
     public function show($id)
     {
-        $election = Election::with([
+        $user = request()->user();
+        $with = [
             'positions.candidates.user',
             'positions.candidates.partylist',
             'positions.candidates.position',
             'candidates.user',
             'candidates.partylist',
             'candidates.position',
-            'votes.voter'
-        ])->find($id);
+        ];
+
+        if ($user?->role !== 'student') {
+            $with[] = 'votes.voter';
+        } else {
+            $with[] = 'votes';
+        }
+
+        $election = Election::with($with)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if (request()->user()?->role === 'student' && $election->status !== 'active') {
+        if ($user?->role === 'student' && $election->status !== 'active') {
             return response()->json(['message' => 'Students can only access active elections.'], 403);
         }
 
@@ -118,7 +127,9 @@ class ElectionController extends Controller
             'status' => ['sometimes', 'required', 'in:upcoming,active,closed'],
         ]);
 
-        if (array_key_exists('start_time', $data) && array_key_exists('end_time', $data) && $data['end_time'] <= $data['start_time']) {
+        $endTime   = isset($data['end_time'])   ? \Carbon\Carbon::parse($data['end_time'])   : $election->end_time;
+        $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $election->start_time;
+        if ($endTime->lte($startTime)) {
             return response()->json(['message' => 'End time must be after start time.'], 422);
         }
 
@@ -133,6 +144,10 @@ class ElectionController extends Controller
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        if ($election->votes()->exists()) {
+            return response()->json(['message' => 'Cannot delete an election that already has votes cast.'], 409);
         }
 
         $election->delete();
@@ -196,6 +211,10 @@ class ElectionController extends Controller
 
         if (!$position) {
             return response()->json(['message' => 'Position not found'], 404);
+        }
+
+        if ($position->votes()->exists()) {
+            return response()->json(['message' => 'Cannot delete a position that already has votes cast.'], 409);
         }
 
         $position->delete();
@@ -324,6 +343,10 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Candidate not found'], 404);
         }
 
+        if ($candidate->votes()->exists()) {
+            return response()->json(['message' => 'Cannot delete a candidate that already has votes cast.'], 409);
+        }
+
         $candidate->delete();
 
         return response()->json(['message' => 'Candidate deleted successfully']);
@@ -367,7 +390,7 @@ class ElectionController extends Controller
         }
 
         $data = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('partylists', 'name')->ignore($id)],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
@@ -425,6 +448,7 @@ class ElectionController extends Controller
 
         $receipts = [];
 
+        try {
         DB::transaction(function () use ($election, $voter, $request, &$receipts) {
             foreach ($request->votes as $voteData) {
                 // Verify candidate belongs to the position and election
@@ -463,6 +487,14 @@ class ElectionController extends Controller
                 ]);
             }
         });
+        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+            return response()->json(['message' => 'You have already voted for one of these positions.'], 422);
+        } catch (\Exception $e) {
+            if (str_contains($e->getMessage(), 'UNIQUE constraint failed') || str_contains($e->getMessage(), 'Duplicate entry')) {
+                return response()->json(['message' => 'You have already voted for one of these positions.'], 422);
+            }
+            throw $e;
+        }
 
         return response()->json([
             'success' => true,
@@ -504,15 +536,15 @@ class ElectionController extends Controller
 
         foreach ($positions as $position) {
             $candidates = Candidate::with(['user', 'partylist'])
+                ->withCount('votes')
                 ->where('position_id', $position->id)
                 ->get()
                 ->map(function ($candidate) {
-                    $votesCount = Vote::where('candidate_id', $candidate->id)->count();
                     return [
                         'id' => $candidate->id,
-                        'name' => $candidate->user->first_name . ' ' . $candidate->user->last_name,
+                        'name' => ($candidate->user->first_name ?? '') . ' ' . ($candidate->user->last_name ?? ''),
                         'partylist' => $candidate->partylist ? $candidate->partylist->name : 'Independent',
-                        'votes' => $votesCount,
+                        'votes' => $candidate->votes_count,
                     ];
                 })
                 ->sortByDesc('votes')

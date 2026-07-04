@@ -37,7 +37,7 @@ export function SectionHeader({ title, sub = null, action = null, onAction = nul
   return (
     <div className="mb-5 flex items-center justify-between">
       <div>
-        <h2 className="text-lg font-bold text-slate-800" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
+        <h2 className="text-lg font-bold text-[#0F172A]">
           {title}
         </h2>
         {sub && <p className="mt-0.5 text-sm text-slate-500">{sub}</p>}
@@ -45,7 +45,7 @@ export function SectionHeader({ title, sub = null, action = null, onAction = nul
       {action && (
         <button
           onClick={onAction}
-          className="flex items-center gap-1.5 rounded-lg bg-[#2563EB] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#1D4ED8]"
+          className="flex items-center gap-1.5 rounded-lg bg-[#0B8ED0] px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-[#0878B7]"
         >
           <Plus size={15} />
           {action}
@@ -56,15 +56,17 @@ export function SectionHeader({ title, sub = null, action = null, onAction = nul
 }
 
 export function Avatar({ name, size = 'sm', color = null }) {
-  const initials = name
+  const safeName = name || '?';
+  const initials = safeName
     .split(' ')
     .map((part) => part[0])
+    .filter(Boolean)
     .slice(0, 2)
     .join('')
-    .toUpperCase();
+    .toUpperCase() || '?';
 
   const colors = ['bg-blue-500', 'bg-purple-500', 'bg-green-500', 'bg-red-500', 'bg-yellow-500', 'bg-indigo-500', 'bg-pink-500'];
-  const bg = color || colors[name.charCodeAt(0) % colors.length];
+  const bg = color || colors[safeName.charCodeAt(0) % colors.length];
   const sizeClass = size === 'lg' ? 'h-12 w-12 text-base' : size === 'md' ? 'h-9 w-9 text-sm' : 'h-7 w-7 text-xs';
 
   return <div className={cn('flex shrink-0 items-center justify-center rounded-full font-bold text-white', sizeClass, bg)}>{initials}</div>;

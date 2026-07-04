@@ -73,7 +73,9 @@ export default function EventsPage({ initialTab = 'events' }) {
   function load() {
     setLoading(true);
     setError(null);
-    Promise.all([getEvents(), getTasks()])
+    const isStudent = currentUserRole === 'student';
+    const requests = isStudent ? [getEvents(), Promise.resolve({ data: [] })] : [getEvents(), getTasks()];
+    Promise.all(requests)
       .then(([evRes, taskRes]) => {
         setEvents(Array.isArray(evRes.data) ? evRes.data : []);
         setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);

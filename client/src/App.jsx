@@ -111,7 +111,7 @@ function MerchandiseIndexRedirect() {
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
-  if (role === 'student') {
+  if (role === 'student' || role === 'adviser') {
     return <Navigate to="view-announcements" replace />;
   }
 

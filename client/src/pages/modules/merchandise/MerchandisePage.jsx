@@ -42,7 +42,7 @@ function resolveImageUrl(url) {
 }
 
 function getRole() {
-  try { return JSON.parse(localStorage.getItem('user'))?.role || 'officer'; } catch { return 'officer'; }
+  try { return JSON.parse(localStorage.getItem('user'))?.role || null; } catch { return null; }
 }
 
 const stockBadge = (qty) => {

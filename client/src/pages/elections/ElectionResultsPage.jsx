@@ -2,12 +2,14 @@ import { useOutletContext } from 'react-router-dom';
 import { Vote, Award, Users, Trophy } from 'lucide-react';
 
 function Avatar({ name, size = 'sm' }) {
-  const initials = name
+  const safeName = name || '?';
+  const initials = safeName
     .split(' ')
     .map((value) => value[0])
+    .filter(Boolean)
     .slice(0, 2)
     .join('')
-    .toUpperCase();
+    .toUpperCase() || '?';
 
   const colors = [
     'bg-[#0B8ED0]',
@@ -18,7 +20,7 @@ function Avatar({ name, size = 'sm' }) {
     'bg-indigo-500',
     'bg-pink-500',
   ];
-  const bg = colors[name.charCodeAt(0) % colors.length];
+  const bg = colors[safeName.charCodeAt(0) % colors.length];
   const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
 
   return <div className={`rounded-full flex items-center justify-center text-white font-bold shrink-0 ${sz} ${bg}`}>{initials}</div>;
@@ -106,11 +108,6 @@ export default function ElectionResultsPage() {
             );
           }
 
-          const [a, b] = candidates;
-          const aPct = totalVotes > 0 ? Math.round((a.votes / totalVotes) * 100) : 0;
-          const bPct = totalVotes > 0 ? Math.round((b.votes / totalVotes) * 100) : 0;
-          const aWins = a.votes > b.votes;
-
           return (
             <div key={position.id} className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm overflow-hidden">
               <div className="flex items-center gap-2 px-5 py-3 border-b border-[#DDE7EF] bg-[#F8FBFD]">
@@ -118,40 +115,38 @@ export default function ElectionResultsPage() {
                 {position.max_winners > 1 && <span className="text-[10px] text-[#94A3B8]">(Top {position.max_winners})</span>}
                 <span className="text-[10px] text-[#94A3B8] ml-auto">{totalVotes} votes cast</span>
               </div>
-              <div className="p-5">
-                <div className="grid grid-cols-1 gap-4 items-center mb-4 sm:grid-cols-[1fr_auto_1fr]">
-                  <div className={`text-center p-4 rounded-xl border-2 transition-all relative ${aWins ? 'border-[#0B8ED0] shadow-md' : 'border-[#DDE7EF]'}`}>
-                    {aWins && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
-                        <Trophy size={9} />
-                        {electionIsClosed ? 'WINNER' : 'LEADING'}
+              <div className="divide-y divide-[#E5EDF3]">
+                {candidates.map((candidate, idx) => {
+                  const pct = totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0;
+                  const isWinner = idx < position.max_winners && candidate.votes > 0;
+                  return (
+                    <div key={candidate.id} className={`flex items-center gap-4 px-5 py-4 ${isWinner ? 'bg-[#F0FAFF]' : ''}`}>
+                      <Avatar name={candidate.name} size="md" />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-sm font-black text-[#0F172A]">{candidate.name}</p>
+                          {isWinner && (
+                            <span className="flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
+                              <Trophy size={9} />
+                              {electionIsClosed ? 'WINNER' : 'LEADING'}
+                            </span>
+                          )}
+                        </div>
+                        <span className="inline-block mt-0.5 mb-1.5 px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{candidate.partylist}</span>
+                        <div className="h-1.5 w-full rounded-full bg-[#EEF6FB]">
+                          <div
+                            className={`h-1.5 rounded-full transition-all ${isWinner ? 'bg-[#0B8ED0]' : 'bg-slate-300'}`}
+                            style={{ width: `${pct}%` }}
+                          />
+                        </div>
                       </div>
-                    )}
-                    <Avatar name={a.name} size="md" />
-                    <p className="text-sm font-black text-[#0F172A] mt-2">{a.name}</p>
-                    <span className="inline-block mt-0.5 mb-2 px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{a.partylist}</span>
-                    <p className="text-2xl font-black text-[#0B8ED0]">{a.votes}</p>
-                    <p className="text-xs text-[#94A3B8]">votes · {aPct}%</p>
-                  </div>
-                  <div className="flex items-center gap-1 sm:flex-col">
-                    <div className="h-px w-8 bg-[#DDE7EF] sm:h-8 sm:w-px" />
-                    <span className="text-xs font-black text-[#94A3B8] bg-white px-1.5 py-0.5 rounded-full border border-[#DDE7EF]">VS</span>
-                    <div className="h-px w-8 bg-[#DDE7EF] sm:h-8 sm:w-px" />
-                  </div>
-                  <div className={`text-center p-4 rounded-xl border-2 transition-all relative ${!aWins && b.votes > a.votes ? 'border-[#0B8ED0] shadow-md' : 'border-[#DDE7EF]'}`}>
-                    {!aWins && b.votes > a.votes && (
-                      <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
-                        <Trophy size={9} />
-                        {electionIsClosed ? 'WINNER' : 'LEADING'}
+                      <div className="shrink-0 text-right">
+                        <p className="text-lg font-black text-[#0F172A] tabular-nums">{candidate.votes}</p>
+                        <p className="text-xs text-[#94A3B8]">{pct}%</p>
                       </div>
-                    )}
-                    <Avatar name={b.name} size="md" />
-                    <p className="text-sm font-black text-[#0F172A] mt-2">{b.name}</p>
-                    <span className="inline-block mt-0.5 mb-2 px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{b.partylist}</span>
-                    <p className="text-2xl font-black text-[#0B8ED0]">{b.votes}</p>
-                    <p className="text-xs text-[#94A3B8]">votes · {bPct}%</p>
-                  </div>
-                </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           );

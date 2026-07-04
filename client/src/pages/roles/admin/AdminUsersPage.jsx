@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
       const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
       const matchesSearch =
         fullName.includes(search.toLowerCase()) ||
-        user.school_id.toLowerCase().includes(search.toLowerCase()) ||
+        (user.school_id?.toLowerCase() ?? '').includes(search.toLowerCase()) ||
         user.email.toLowerCase().includes(search.toLowerCase());
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       return matchesSearch && matchesRole;

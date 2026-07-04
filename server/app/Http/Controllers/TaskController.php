@@ -113,12 +113,20 @@ class TaskController extends Controller
             return response()->json(['message' => 'Task not found.'], 404);
         }
 
+        if ($task->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You are not authorized to update this task.'], 403);
+        }
+
         $data = $request->validate([
             'status' => ['required', 'in:pending,in_progress,completed,overdue'],
         ]);
 
         $task->update($data);
 
-        return response()->json($task->fresh());
+        return response()->json($task->fresh()->load([
+            'assignee:id,first_name,last_name',
+            'creator:id,first_name,last_name',
+            'event:id,title',
+        ]));
     }
 }

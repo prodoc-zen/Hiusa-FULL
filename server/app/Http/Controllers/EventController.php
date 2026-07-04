@@ -73,19 +73,23 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
+        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You are not authorized to edit this event.'], 403);
+        }
+
         $data = $request->validate([
             'title'       => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'start_time'  => ['sometimes', 'required', 'date'],
-            'end_time'    => ['sometimes', 'required', 'date', 'after:start_time'],
+            'end_time'    => ['sometimes', 'required', 'date'],
             'location'    => ['nullable', 'string', 'max:255'],
             'status'      => ['sometimes', 'required', 'in:planning,approved,ongoing,completed,cancelled'],
         ]);
 
-        $endTime   = $data['end_time']   ?? $event->end_time;
-        $startTime = $data['start_time'] ?? $event->start_time;
+        $endTime   = isset($data['end_time'])   ? \Carbon\Carbon::parse($data['end_time'])   : $event->end_time;
+        $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $event->start_time;
 
-        if (strtotime($endTime) <= strtotime($startTime)) {
+        if ($endTime->lte($startTime)) {
             return response()->json(['message' => 'End time must be after start time.'], 422);
         }
 
@@ -94,12 +98,16 @@ class EventController extends Controller
         return response()->json($event->fresh()->load('creator:id,first_name,last_name'));
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
         $event = Event::find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
+        }
+
+        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+            return response()->json(['message' => 'You are not authorized to delete this event.'], 403);
         }
 
         $event->delete();
@@ -121,7 +129,7 @@ class EventController extends Controller
 
         $event->update($data);
 
-        return response()->json($event->fresh());
+        return response()->json($event->fresh()->load('creator:id,first_name,last_name'));
     }
 
     public function getAttendance($id)
