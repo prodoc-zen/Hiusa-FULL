@@ -122,13 +122,13 @@ export default function AnnouncementsPage() {
           <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
         </div>
       )}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Posts', value: items.length, helper: 'All time', icon: FileText },
           { label: 'Published', value: published, helper: 'Currently visible', icon: Globe },
           { label: 'Drafts', value: drafts, helper: 'Unpublished', icon: Edit3 },
         ].map((stat) => (
-          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
+          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
             <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white transition">
               <stat.icon size={19} />
             </div>

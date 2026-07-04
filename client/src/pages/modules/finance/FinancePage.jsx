@@ -158,14 +158,14 @@ export default function FinancePage({ initialTab = 'transactions' }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Income', value: fmt(summary.total_income), helper: 'Recorded income', icon: ArrowUpRight, up: true },
           { label: 'Total Expenses', value: fmt(summary.total_expense), helper: 'Recorded expenses', icon: ArrowDownRight, up: false },
           { label: 'Net Balance', value: fmt(summary.net_balance), helper: 'Income minus expenses', icon: Coins, up: summary.net_balance >= 0 },
           { label: 'Transactions', value: txMeta.total || transactions.length, helper: 'All records', icon: Wallet, up: true },
         ].map((card) => (
-          <article key={card.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition-all hover:shadow-md hover:border-[#0B8ED0]/20">
+          <article key={card.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition-all hover:shadow-md hover:border-[#0B8ED0]/20">
             <div className="mb-3 flex items-center justify-between">
               <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
                 <card.icon size={19} />

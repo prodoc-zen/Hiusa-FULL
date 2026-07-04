@@ -1018,7 +1018,7 @@ export default function MerchandisePage({ initialTab }) {
   return (
     <div className="space-y-6">
       {feedbackPopup}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Items', value: items.length, helper: 'In inventory', icon: Package },
           { label: 'Low Stock', value: lowStock, helper: 'Needs restocking', icon: AlertTriangle },

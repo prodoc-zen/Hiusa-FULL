@@ -65,7 +65,7 @@ export default function AdviserHomePage() {
         <p className="mt-1 text-sm font-medium text-slate-500">Monitor election progress, events, and officer task completion.</p>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
           { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },

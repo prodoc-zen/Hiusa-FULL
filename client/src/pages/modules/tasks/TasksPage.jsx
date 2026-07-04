@@ -26,6 +26,11 @@ function capitalize(s) {
   return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
 }
 
+function formatDate(d) {
+  if (!d) return '-';
+  return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function TasksPage({ initialTab = 'board' }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -114,14 +119,14 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Tasks', value: tasks.length, helper: 'All time', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },
         ].map((stat) => (
-          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
+          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
             <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-amber-50 text-amber-600 group-hover:bg-amber-600 group-hover:text-white transition">
               <stat.icon size={19} />
             </div>
@@ -147,7 +152,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <p className="text-sm font-medium text-slate-500">Create and manage officer tasks</p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
-              <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
+              <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-400" />
                 <input
                   value={search}
@@ -157,7 +162,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
                 />
               </div>
-              <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+              <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                 <Plus size={16} />
                 <span className="hidden sm:inline">Create Task</span>
               </button>
@@ -189,7 +194,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <td className="hidden sm:table-cell px-5 py-4 font-medium text-slate-600">
                         {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{formatDate(t.deadline)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(t.status)}
