@@ -209,10 +209,6 @@ export default function EventsPage({ initialTab = 'events' }) {
         ))}
       </section>
 
-      <div className="rounded-xl border border-[#DDE7EF] bg-white px-4 py-3">
-        <p className="text-[13px] font-semibold text-slate-500">Use the sidebar to switch between event pages.</p>
-      </div>
-
       {error && (
         <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>

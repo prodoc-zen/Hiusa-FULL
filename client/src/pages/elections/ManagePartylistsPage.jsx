@@ -4,6 +4,13 @@ import { Flag, ImagePlus, X, Edit2, Trash2, Search, CirclePlus, ArrowLeft, Check
 import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../services/electionService';
 
 const CARD_ACCENTS = ['#0B8ED0', '#16A34A', '#0F2F62', '#0878B7'];
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
+
+function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^(https?:|blob:|data:)/i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
 
 function getInitials(name) {
   return String(name || '')
@@ -224,7 +231,7 @@ export default function ManagePartylistsPage() {
                   }
                   <div>
                     <p className="text-[13px] font-medium text-slate-500">{bannerPreview ? 'Change banner' : 'Upload banner image'}</p>
-                    <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 2MB)</p>
+                    <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 5MB)</p>
                   </div>
                   <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
                     onChange={(e) => {
@@ -350,12 +357,12 @@ export default function ManagePartylistsPage() {
                       <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
                       <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
                         {editBannerPreview
-                          ? <img src={editBannerPreview} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
+                          ? <img src={resolveImageUrl(editBannerPreview)} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
                           : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
                         }
                         <div>
                           <p className="text-[13px] font-medium text-slate-500">{editBannerPreview ? 'Change banner' : 'Upload banner image'}</p>
-                          <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 2MB)</p>
+                          <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 5MB)</p>
                         </div>
                         <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
                           onChange={(e) => {
@@ -483,7 +490,7 @@ export default function ManagePartylistsPage() {
             return (
               <article key={partylist.id} className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
                 {partylist.banner_url
-                  ? <img src={partylist.banner_url} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
+                  ? <img src={resolveImageUrl(partylist.banner_url)} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
                   : <div className="h-2" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
                 }
                 <div className="space-y-4 p-5">
@@ -534,7 +541,7 @@ export default function ManagePartylistsPage() {
                           return (
                             <div key={candidate.id} className="text-center">
                               {candidate.image_url
-                                ? <img src={candidate.image_url} alt={name} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
+                                ? <img src={resolveImageUrl(candidate.image_url)} alt={name} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
                                 : <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">{getInitials(name)}</div>
                               }
                               <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{name}</p>

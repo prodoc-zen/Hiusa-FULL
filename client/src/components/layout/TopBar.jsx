@@ -1,8 +1,24 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, Settings, User } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, Settings, ShoppingCart, User } from 'lucide-react';
 import { logout } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
+
+const STUDENT_CART_KEY = 'hiusa_student_cart';
+
+function readStudentCart() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(STUDENT_CART_KEY) || '[]');
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+function formatMoney(value) {
+  const num = Number.parseFloat(String(value ?? 0));
+  return `P${Number.isFinite(num) ? num.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}`;
+}
 
 function timeAgo(dateStr) {
   const diff = Math.floor((Date.now() - new Date(dateStr)) / 1000);
@@ -15,9 +31,12 @@ function timeAgo(dateStr) {
 export default function TopBar({ title, pathname, onMenuToggle }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [cartItems, setCartItems] = useState([]);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
+  const cartRef = useRef(null);
   const navigate = useNavigate();
 
   const storedUser = localStorage.getItem('user');
@@ -26,6 +45,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role?.toLowerCase() ?? '';
   const roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Member';
+  const isStudent = role === 'student';
 
   const parentByPrefix = [
     ['/dashboard/announcements/', 'Announcements'],
@@ -47,12 +67,39 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     }
   }, []);
 
+  const loadCart = useCallback(() => {
+    setCartItems(readStudentCart());
+  }, []);
+
   useEffect(() => {
     loadNotifications();
     const onFocus = () => loadNotifications();
     window.addEventListener('focus', onFocus);
     return () => window.removeEventListener('focus', onFocus);
   }, [loadNotifications]);
+
+  useEffect(() => {
+    if (!isStudent) {
+      return undefined;
+    }
+
+    loadCart();
+
+    const onCartUpdate = () => loadCart();
+    const onStorage = (event) => {
+      if (!event.key || event.key === STUDENT_CART_KEY) {
+        loadCart();
+      }
+    };
+
+    window.addEventListener('hiusa-cart-updated', onCartUpdate);
+    window.addEventListener('storage', onStorage);
+
+    return () => {
+      window.removeEventListener('hiusa-cart-updated', onCartUpdate);
+      window.removeEventListener('storage', onStorage);
+    };
+  }, [isStudent, loadCart]);
 
   async function handleMarkRead(id) {
     try {
@@ -81,6 +128,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     function handleClickOutside(e) {
       if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
+      if (cartRef.current && !cartRef.current.contains(e.target)) setCartOpen(false);
     }
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
@@ -88,6 +136,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
   const unreadCount = notifications.filter((n) => !n.is_read).length;
   const recent5 = notifications.slice(0, 5);
+  const cartTypeCount = cartItems.length;
+  const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#DDE7EF] bg-white">
@@ -110,6 +160,70 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
         </div>
 
+        {isStudent && (
+          <div className="relative" ref={cartRef}>
+            <button
+              type="button"
+              aria-label="Cart"
+              onClick={() => {
+                setCartOpen(!cartOpen);
+                setNotifOpen(false);
+                setProfileOpen(false);
+              }}
+              className="relative grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+            >
+              <ShoppingCart size={17} />
+              {cartTypeCount > 0 && (
+                <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#16C7F3] px-1 text-[10px] font-black text-white ring-2 ring-white">
+                  {cartTypeCount > 9 ? '9+' : cartTypeCount}
+                </span>
+              )}
+            </button>
+
+            {cartOpen && (
+              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:w-96">
+                <div className="flex items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
+                  <p className="text-sm font-bold text-[#0F172A]">Your Cart</p>
+                  <span className="rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-black text-[#0B8ED0]">{cartTypeCount} item type{cartTypeCount === 1 ? '' : 's'}</span>
+                </div>
+
+                <div className="max-h-[300px] overflow-y-auto">
+                  {cartItems.length === 0 ? (
+                    <div className="py-10 text-center">
+                      <ShoppingCart size={28} className="mx-auto mb-2 text-slate-200" />
+                      <p className="text-sm text-slate-400">Cart is empty</p>
+                    </div>
+                  ) : (
+                    cartItems.map((row) => (
+                      <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-[#EEF2F7] px-4 py-3 last:border-b-0">
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold text-[#0F172A]">{row.item?.name || 'Item'}</p>
+                          <p className="text-[11px] text-slate-500">Qty: {row.quantity || 0} · {formatMoney(row.item?.price || 0)}</p>
+                        </div>
+                        <p className="text-xs font-black text-[#0F172A]">{formatMoney((row.item?.price || 0) * (row.quantity || 0))}</p>
+                      </div>
+                    ))
+                  )}
+                </div>
+
+                <div className="border-t border-[#DDE7EF] px-4 py-3">
+                  <p className="mb-2 text-xs font-bold text-slate-500">Total: <span className="text-[#0F172A]">{formatMoney(cartTotal)}</span></p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCartOpen(false);
+                      navigate('/dashboard/merchandise/order-merchandise', { state: { openCartAt: Date.now() } });
+                    }}
+                    className="h-9 w-full rounded-lg bg-[#0B8ED0] text-xs font-bold text-white transition hover:bg-[#0878B7]"
+                  >
+                    Open Cart
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
           <button
@@ -118,6 +232,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             onClick={() => {
               setNotifOpen(!notifOpen);
               setProfileOpen(false);
+              setCartOpen(false);
             }}
             className="relative grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
           >
@@ -184,6 +299,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             onClick={() => {
               setProfileOpen(!profileOpen);
               setNotifOpen(false);
+              setCartOpen(false);
             }}
             className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#EEF6FB]"
           >
