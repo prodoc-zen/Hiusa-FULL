@@ -193,14 +193,14 @@ export default function EventsPage({ initialTab = 'events' }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Events', value: events.length, helper: 'This academic year', icon: Calendar },
           { label: 'Upcoming', value: upcoming, helper: 'Scheduled', icon: Clock },
           { label: 'Completed', value: completed, helper: 'Successfully held', icon: CheckCircle2 },
           { label: 'Total Tasks', value: tasks.length, helper: 'Across all events', icon: Users },
         ].map((stat) => (
-          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
+          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
             <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-violet-50 text-violet-600 group-hover:bg-violet-600 group-hover:text-white transition">
               <stat.icon size={19} />
             </div>

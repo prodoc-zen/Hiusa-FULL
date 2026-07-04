@@ -80,7 +80,7 @@ export default function AdminHomePage() {
       </section>
 
       {/* Announcement summary */}
-      <section className="grid gap-4 sm:grid-cols-3">
+      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
           { label: 'Published Announcements', value: loading ? '-' : published, icon: Megaphone, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
           { label: 'Draft Announcements', value: loading ? '-' : drafts, icon: FileText, color: 'bg-amber-50 text-amber-700' },
@@ -98,7 +98,7 @@ export default function AdminHomePage() {
 
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <h3 className="text-base font-bold text-[#0F172A] mb-4">Quick Actions</h3>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
           {[
             { label: 'Manage User Accounts', path: '/dashboard/admin/users' },
             { label: 'Manage Announcements', path: '/dashboard/announcements/manage-announcements' },

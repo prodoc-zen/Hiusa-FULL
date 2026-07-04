@@ -122,7 +122,7 @@ export default function DashboardPage() {
       </section>
 
       {/* Stats */}
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {statCards.map((stat) => (
           <article
             key={stat.label}
@@ -164,7 +164,7 @@ export default function DashboardPage() {
             <div className="py-10 text-center text-sm text-slate-400">No open tasks. You're all caught up!</div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full text-left">
+              <table className="w-full min-w-[560px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-400">
                   <tr>
                     <th className="px-5 py-3">Task</th>
