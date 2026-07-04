@@ -44,19 +44,19 @@ Route::middleware('auth:sanctum')->group(function () {
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware('role:admin,officer,adviser,student');
     Route::get('/events/{id}', [EventController::class, 'show'])->middleware('role:admin,officer,adviser,student');
-    Route::post('/events', [EventController::class, 'store'])->middleware('role:officer');
-    Route::put('/events/{id}', [EventController::class, 'update'])->middleware('role:officer');
-    Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware('role:officer');
-    Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware('role:officer');
+    Route::post('/events', [EventController::class, 'store'])->middleware('role:admin,officer');
+    Route::put('/events/{id}', [EventController::class, 'update'])->middleware('role:admin,officer');
+    Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware('role:admin,officer');
+    Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware('role:admin,officer');
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware('role:admin,officer,adviser');
     Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware('role:officer');
 
     // Task Routes
     Route::get('/tasks', [TaskController::class, 'index'])->middleware('role:admin,officer,adviser');
-    Route::post('/tasks', [TaskController::class, 'store'])->middleware('role:officer');
-    Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware('role:officer');
-    Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware('role:officer');
-    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])->middleware('role:officer');
+    Route::post('/tasks', [TaskController::class, 'store'])->middleware('role:admin,officer');
+    Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware('role:admin,officer');
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware('role:admin,officer');
+    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])->middleware('role:admin,officer');
 
     // Finance Routes — Budgets
     Route::get('/budgets', [BudgetController::class, 'index'])->middleware('role:admin,officer,adviser');
@@ -113,9 +113,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/partylists/{id}', [ElectionController::class, 'partylistsDestroy'])->middleware('role:admin,officer');
 
     // Notification Routes
-    Route::get('/notifications', [NotificationController::class, 'index']);
-    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead']);
-    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead']);
+    Route::get('/notifications', [NotificationController::class, 'index'])->middleware('role:admin,officer,adviser,student');
+    Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware('role:admin,officer,adviser,student');
+    Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware('role:admin,officer,adviser,student');
     Route::post('/notifications', [NotificationController::class, 'store'])->middleware('role:admin,officer');
 });
 

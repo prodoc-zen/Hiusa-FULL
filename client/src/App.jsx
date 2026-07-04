@@ -47,7 +47,7 @@ function DashboardIndexRedirect() {
     return <Navigate to={`/dashboard/${role}`} replace />;
   }
 
-  return <Navigate to="/dashboard/officer" replace />;
+  return <Navigate to="/login" replace />;
 }
 
 function ElectionsIndexRedirect() {

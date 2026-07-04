@@ -20,7 +20,7 @@ class ElectionController extends Controller
     private function storePartylistBanner(Request $request): string
     {
         $file = $request->file('banner');
-        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $ext = strtolower($file->extension() ?: 'jpg');
         $filename = Str::uuid()->toString() . '.' . $ext;
         $destDir = public_path('uploads/partylists');
 
@@ -254,6 +254,11 @@ class ElectionController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
         ]);
 
+        $candidateUser = User::find($data['user_id']);
+        if (!$candidateUser || $candidateUser->role !== 'student') {
+            return response()->json(['message' => 'Only students can be added as candidates.'], 422);
+        }
+
         $position = ElectionPosition::where('election_id', $election->id)->find($data['position_id']);
 
         if (!$position) {
@@ -418,6 +423,10 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Partylist not found'], 404);
         }
 
+        if ($partylist->candidates()->exists()) {
+            return response()->json(['message' => 'Cannot delete a partylist that has active candidates assigned to it.'], 409);
+        }
+
         $partylist->delete();
 
         return response()->json(['message' => 'Partylist deleted successfully']);
@@ -532,32 +541,31 @@ class ElectionController extends Controller
         }
 
         $positions = ElectionPosition::where('election_id', $id)->get();
-        $results = [];
+        $positionIds = $positions->pluck('id');
 
-        foreach ($positions as $position) {
-            $candidates = Candidate::with(['user', 'partylist'])
-                ->withCount('votes')
-                ->where('position_id', $position->id)
-                ->get()
-                ->map(function ($candidate) {
-                    return [
-                        'id' => $candidate->id,
-                        'name' => ($candidate->user->first_name ?? '') . ' ' . ($candidate->user->last_name ?? ''),
-                        'partylist' => $candidate->partylist ? $candidate->partylist->name : 'Independent',
-                        'votes' => $candidate->votes_count,
-                    ];
-                })
+        $allCandidates = Candidate::with(['user:id,first_name,last_name', 'partylist:id,name'])
+            ->withCount('votes')
+            ->whereIn('position_id', $positionIds)
+            ->get()
+            ->groupBy('position_id');
+
+        $results = $positions->map(function ($position) use ($allCandidates) {
+            $candidates = $allCandidates->get($position->id, collect())
+                ->map(fn($c) => [
+                    'id'       => $c->id,
+                    'name'     => trim(($c->user->first_name ?? '') . ' ' . ($c->user->last_name ?? '')),
+                    'partylist' => $c->partylist ? $c->partylist->name : 'Independent',
+                    'votes'    => $c->votes_count,
+                ])
                 ->sortByDesc('votes')
                 ->values();
 
-            $totalVotes = $candidates->sum('votes');
-
-            $results[] = [
-                'position' => $position,
+            return [
+                'position'   => $position,
                 'candidates' => $candidates,
-                'totalVotes' => $totalVotes,
+                'totalVotes' => $candidates->sum('votes'),
             ];
-        }
+        })->values();
 
         return response()->json($results);
     }

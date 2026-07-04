@@ -10,6 +10,7 @@ export default function ManageVotersPage() {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
+  const [retryKey, setRetryKey] = useState(0);
 
   useEffect(() => {
     if (!election) return;
@@ -30,7 +31,7 @@ export default function ManageVotersPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [election?.id]);
+  }, [election?.id, retryKey]);
 
   if (!election) {
     return (
@@ -136,7 +137,7 @@ export default function ManageVotersPage() {
           ) : error ? (
             <div className="py-10 text-center">
               <p className="text-sm text-red-600">{error}</p>
-              <button onClick={() => setFilterStatus(filterStatus)} className="mt-2 text-xs font-semibold text-[#0B8ED0] hover:underline">Retry</button>
+              <button onClick={() => setRetryKey((k) => k + 1)} className="mt-2 text-xs font-semibold text-[#0B8ED0] hover:underline">Retry</button>
             </div>
           ) : (
             <table className="w-full min-w-[350px] md:min-w-[550px] text-left">

@@ -152,16 +152,19 @@ class AnnouncementController extends Controller
 
         $now = now();
         $message = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $announcement->body))), 180);
+        $title = 'New Announcement: ' . $announcement->title;
 
-        Notification::insert(
-            $userIds->map(fn($userId) => [
-                'user_id' => $userId,
-                'title' => 'New Announcement: ' . $announcement->title,
-                'message' => $message,
-                'is_read' => false,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])->all()
-        );
+        foreach ($userIds->chunk(100) as $chunk) {
+            Notification::insert(
+                $chunk->map(fn($userId) => [
+                    'user_id'    => $userId,
+                    'title'      => $title,
+                    'message'    => $message,
+                    'is_read'    => false,
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all()
+            );
+        }
     }
 }

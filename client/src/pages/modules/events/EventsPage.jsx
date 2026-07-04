@@ -145,13 +145,13 @@ export default function EventsPage({ initialTab = 'events' }) {
     setFormError(null);
     try {
       const start_time = `${form.date}T${form.startTime}:00`;
-      const end_time = form.endDate && form.endTime ? `${form.endDate}T${form.endTime}:00` : start_time;
-      if (end_time <= start_time) {
+      const end_time = form.endDate && form.endTime ? `${form.endDate}T${form.endTime}:00` : null;
+      if (end_time && end_time <= start_time) {
         setFormError('End date/time must be after start date/time.');
         setFormSubmitting(false);
         return;
       }
-      await createEvent({ title: form.title, start_time, end_time, location: form.location, description: form.description, status: 'upcoming' });
+      await createEvent({ title: form.title, start_time, end_time: end_time || start_time, location: form.location, description: form.description, status: 'planning' });
       setShowForm(false);
       setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '' });
       load();
