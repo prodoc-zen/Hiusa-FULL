@@ -100,7 +100,7 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#eef6fb] px-4 py-5 font-sans text-slate-900 sm:px-6 sm:py-8 lg:grid lg:place-items-center">
+    <main className="grid min-h-screen place-items-center bg-[#eef6fb] px-4 py-5 font-sans text-slate-900 sm:px-6 sm:py-8">
       <section className="mx-auto flex w-full max-w-[960px] flex-col overflow-hidden rounded-lg bg-white shadow-2xl shadow-[#0b1831]/10 ring-1 ring-slate-200/70 lg:min-h-[620px] lg:flex-row">
         <BrandingPanel />
 
