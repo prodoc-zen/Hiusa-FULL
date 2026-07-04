@@ -17,7 +17,7 @@ class FinancialForecastController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'forecast_period'    => ['required', 'string', 'max:100'],
+            'forecast_period'    => ['required', 'string', 'max:50'],
             'predicted_income'   => ['required', 'numeric', 'min:0'],
             'predicted_expense'  => ['required', 'numeric', 'min:0'],
             'confidence_note'    => ['nullable', 'string'],

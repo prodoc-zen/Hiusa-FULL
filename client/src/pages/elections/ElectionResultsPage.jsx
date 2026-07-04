@@ -40,8 +40,19 @@ export default function ElectionResultsPage() {
 
   const positions = election.positions || [];
   const allCandidates = election.candidates || [];
+
+  // Student view: backend sends vote_counts (aggregated) instead of raw votes array
+  const voteCounts = election.vote_counts || null;
   const allVotes = election.votes || [];
-  const uniqueVoters = new Set(allVotes.map((vote) => vote.voter_id)).size;
+
+  const getVoteCount = (candidateId) =>
+    voteCounts ? (voteCounts[candidateId] || 0) : allVotes.filter((v) => v.candidate_id === candidateId).length;
+
+  const totalVotesCast = voteCounts
+    ? Object.values(voteCounts).reduce((s, c) => s + c, 0)
+    : allVotes.length;
+
+  const uniqueVoters = voteCounts ? null : new Set(allVotes.map((v) => v.voter_id)).size;
 
   const positionResults = positions.map((position) => {
     const positionCandidates = allCandidates
@@ -50,7 +61,7 @@ export default function ElectionResultsPage() {
         ...candidate,
         name: `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim(),
         partylist: candidate.partylist?.name || 'Independent',
-        votes: allVotes.filter((vote) => vote.candidate_id === candidate.id).length,
+        votes: getVoteCount(candidate.id),
       }))
       .sort((a, b) => b.votes - a.votes);
 
@@ -62,8 +73,8 @@ export default function ElectionResultsPage() {
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: 'Total Votes Cast', value: allVotes.length, sub: `${uniqueVoters} unique voters`, icon: Vote, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
-          { label: 'Voter Turnout', value: uniqueVoters, sub: 'Unique voters participated', icon: Award, color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' } },
+          { label: 'Total Votes Cast', value: totalVotesCast, sub: uniqueVoters != null ? `${uniqueVoters} unique voters` : undefined, icon: Vote, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
+          { label: 'Voter Turnout', value: uniqueVoters ?? totalVotesCast, sub: 'Unique voters participated', icon: Award, color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' } },
           { label: 'Positions', value: positions.length, icon: Award, color: { bg: 'bg-purple-50', icon: 'text-purple-600', border: 'border-purple-200' } },
           { label: 'Candidates', value: allCandidates.length, icon: Users, color: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200' } },
         ].map((stat) => (

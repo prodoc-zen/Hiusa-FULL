@@ -336,6 +336,11 @@ class ElectionController extends Controller
         }
 
         if (array_key_exists('user_id', $data)) {
+            $candidateUser = User::find($data['user_id']);
+            if (!$candidateUser || $candidateUser->role !== 'student') {
+                return response()->json(['message' => 'Only students can be assigned as candidates.'], 422);
+            }
+
             $alreadyCandidate = Candidate::where('election_id', $candidate->election_id)
                 ->where('user_id', $data['user_id'])
                 ->where('id', '!=', $candidate->id)

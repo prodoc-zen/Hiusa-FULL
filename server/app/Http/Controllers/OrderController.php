@@ -87,6 +87,10 @@ class OrderController extends Controller
 
         $previousStatus = $order->status;
 
+        if ($previousStatus === 'cancelled' && $data['status'] !== 'cancelled') {
+            return response()->json(['message' => 'Cancelled orders cannot be reactivated.'], 422);
+        }
+
         $order->update([
             'status'       => $data['status'],
             'processed_by' => $request->user()->id,
