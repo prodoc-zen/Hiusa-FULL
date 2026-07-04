@@ -206,6 +206,14 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Position does not belong to this election'], 422);
         }
 
+        $alreadyCandidate = Candidate::where('election_id', $election->id)
+            ->where('user_id', $data['user_id'])
+            ->exists();
+
+        if ($alreadyCandidate) {
+            return response()->json(['message' => 'This student is already assigned as a candidate in this election.'], 422);
+        }
+
         $imageUrl = null;
         if ($request->hasFile('image')) {
             $path = $request->file('image')->store('candidates', 'public');
@@ -245,6 +253,17 @@ class ElectionController extends Controller
 
             if (!$position) {
                 return response()->json(['message' => 'Position does not belong to this election'], 422);
+            }
+        }
+
+        if (array_key_exists('user_id', $data)) {
+            $alreadyCandidate = Candidate::where('election_id', $candidate->election_id)
+                ->where('user_id', $data['user_id'])
+                ->where('id', '!=', $candidate->id)
+                ->exists();
+
+            if ($alreadyCandidate) {
+                return response()->json(['message' => 'This student is already assigned as a candidate in this election.'], 422);
             }
         }
 
@@ -292,7 +311,7 @@ class ElectionController extends Controller
         $bannerUrl = null;
         if ($request->hasFile('banner')) {
             $path = $request->file('banner')->store('partylists', 'public');
-            $bannerUrl = '/storage/' . $path;
+            $bannerUrl = Storage::url($path);
         }
 
         $partylist = Partylist::create([
@@ -325,7 +344,7 @@ class ElectionController extends Controller
                 Storage::disk('public')->delete(str_replace('/storage/', '', $partylist->banner_url));
             }
             $path = $request->file('banner')->store('partylists', 'public');
-            $partylist->banner_url = '/storage/' . $path;
+            $partylist->banner_url = Storage::url($path);
         }
 
         $partylist->fill([

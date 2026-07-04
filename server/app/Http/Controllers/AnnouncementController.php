@@ -3,7 +3,10 @@
 namespace App\Http\Controllers;
 
 use App\Models\Announcement;
+use App\Models\Notification;
+use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
 {
@@ -11,8 +14,15 @@ class AnnouncementController extends Controller
     {
         $user = $request->user();
 
+        $allowedCategories = ['general', 'election', 'training', 'events', 'merchandise'];
+        $category = strtolower((string) $request->query('category', ''));
+
         $query = Announcement::with('creator:id,first_name,last_name,role')
             ->orderBy('created_at', 'desc');
+
+        if ($category !== '' && in_array($category, $allowedCategories, true)) {
+            $query->where('category', $category);
+        }
 
         if (in_array($user->role, ['student', 'adviser'])) {
             $query->where('is_published', true)
@@ -31,6 +41,7 @@ class AnnouncementController extends Controller
             'title'       => ['required', 'string', 'max:255'],
             'body'        => ['required', 'string'],
             'target_role' => ['required', 'in:all,student,officer,adviser'],
+            'category'    => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
         ]);
 
@@ -38,9 +49,14 @@ class AnnouncementController extends Controller
             'title'        => $data['title'],
             'body'         => $data['body'],
             'target_role'  => $data['target_role'],
+            'category'     => $data['category'] ?? 'general',
             'is_published' => $data['is_published'] ?? false,
             'created_by'   => $request->user()->id,
         ]);
+
+        if ($announcement->is_published) {
+            $this->dispatchAnnouncementNotifications($announcement);
+        }
 
         return response()->json($announcement->load('creator:id,first_name,last_name,role'), 201);
     }
@@ -63,10 +79,16 @@ class AnnouncementController extends Controller
             'title'        => ['sometimes', 'required', 'string', 'max:255'],
             'body'         => ['sometimes', 'required', 'string'],
             'target_role'  => ['sometimes', 'required', 'in:all,student,officer,adviser'],
+            'category'     => ['sometimes', 'required', 'in:general,election,training,events,merchandise'],
             'is_published' => ['sometimes', 'boolean'],
         ]);
 
+        $wasPublished = (bool) $announcement->is_published;
         $announcement->update($data);
+
+        if (!$wasPublished && $announcement->is_published) {
+            $this->dispatchAnnouncementNotifications($announcement);
+        }
 
         return response()->json($announcement->fresh()->load('creator:id,first_name,last_name,role'));
     }
@@ -106,6 +128,39 @@ class AnnouncementController extends Controller
 
         $announcement->update(['is_published' => !$announcement->is_published]);
 
+        if ($announcement->is_published) {
+            $this->dispatchAnnouncementNotifications($announcement);
+        }
+
         return response()->json($announcement->fresh()->load('creator:id,first_name,last_name,role'));
+    }
+
+    private function dispatchAnnouncementNotifications(Announcement $announcement): void
+    {
+        $query = User::query()->where('id', '!=', $announcement->created_by);
+
+        if ($announcement->target_role !== 'all') {
+            $query->where('role', $announcement->target_role);
+        }
+
+        $userIds = $query->pluck('id');
+
+        if ($userIds->isEmpty()) {
+            return;
+        }
+
+        $now = now();
+        $message = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $announcement->body))), 180);
+
+        Notification::insert(
+            $userIds->map(fn($userId) => [
+                'user_id' => $userId,
+                'title' => 'New Announcement: ' . $announcement->title,
+                'message' => $message,
+                'is_read' => false,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all()
+        );
     }
 }

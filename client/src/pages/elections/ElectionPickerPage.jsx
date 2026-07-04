@@ -16,6 +16,12 @@ const accentByStatus = {
   closed: 'border-l-[#94A3B8]',
 };
 
+const statusLabels = {
+  upcoming: 'Upcoming',
+  active: 'Live',
+  closed: 'Closed',
+};
+
 function formatDate(dt) {
   if (!dt) {
     return '-';
@@ -56,6 +62,7 @@ function formatTimeline(status, startTime, endTime) {
 export default function ElectionPickerPage({ onSelect }) {
   const navigate = useNavigate();
   const currentUser = JSON.parse(localStorage.getItem('user') || 'null');
+  const role = currentUser?.role || 'officer';
   const canManageElections = currentUser?.role === 'admin' || currentUser?.role === 'officer';
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
@@ -364,7 +371,7 @@ export default function ElectionPickerPage({ onSelect }) {
                           statusStyles[el.status]
                         }`}
                       >
-                        {el.status}
+                        {statusLabels[el.status] || el.status}
                       </span>
                     </div>
                     <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-[#64748B]">
@@ -395,7 +402,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       {Number.isFinite(turnout) ? 'Turnout' : 'Status'}
                     </p>
                     <p className="mt-1 text-2xl font-black text-[#0F172A]">
-                      {Number.isFinite(turnout) ? `${turnout.toFixed(1)}%` : el.status === 'active' ? 'Live' : 'Ready'}
+                      {Number.isFinite(turnout) ? `${turnout.toFixed(1)}%` : el.status === 'active' ? 'Live' : 'Closed'}
                     </p>
                   </div>
                 </div>
@@ -412,13 +419,15 @@ export default function ElectionPickerPage({ onSelect }) {
                       </button>
                     )}
 
-                    <button
-                      type="button"
-                      onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
-                      className="inline-flex h-9 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
-                    >
-                      View Results
-                    </button>
+                    {role !== 'student' && (
+                      <button
+                        type="button"
+                        onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
+                        className="inline-flex h-9 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
+                      >
+                        View Results
+                      </button>
+                    )}
 
                     {canManageElections && (
                       <button
@@ -457,6 +466,11 @@ export default function ElectionPickerPage({ onSelect }) {
                     onClick={() => {
                       if (canManageElections) {
                         openElectionAndGo(el.id, '/dashboard/elections/manage-elections');
+                        return;
+                      }
+
+                      if (role === 'student') {
+                        openElectionAndGo(el.id, '/dashboard/elections/cast-vote');
                         return;
                       }
 

@@ -1,5 +1,4 @@
-import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useState } from 'react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -10,14 +9,16 @@ import {
   DollarSign,
   ImagePlus,
   Info,
+  Minus,
   Package,
   Plus,
   Search,
   ShoppingBag,
   Ticket,
+  Trash2,
   X,
 } from 'lucide-react';
-import { getMerchandise, createItem } from '../../../services/merchandiseService';
+import { getMerchandise, createItem, updateItem, adjustStock } from '../../../services/merchandiseService';
 import { getOrders, placeOrder, updateOrderStatus, claimByToken } from '../../../services/orderService';
 
 function getRole() {
@@ -39,7 +40,12 @@ const orderBadge = {
 };
 
 function capitalize(s) { return s ? s.charAt(0).toUpperCase() + s.slice(1) : '-'; }
-function fmt(n) { return `₱${Number(n || 0).toLocaleString('en-PH')}`; }
+function toNumber(value) {
+  if (typeof value === 'number') return Number.isFinite(value) ? value : 0;
+  const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+function fmt(n) { return `₱${toNumber(n).toLocaleString('en-PH')}`; }
 function fmtDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -70,8 +76,28 @@ function StepTracker({ status }) {
   );
 }
 
+function ConfirmModal({ open, title, message, confirmText = 'Confirm', busy = false, onCancel, onConfirm }) {
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+        <h3 className="text-lg font-extrabold text-[#0F172A]">{title}</h3>
+        <p className="mt-2 text-sm text-slate-600">{message}</p>
+        <div className="mt-5 flex justify-end gap-3">
+          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={busy}>
+            Cancel
+          </button>
+          <button type="button" onClick={onConfirm} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50" disabled={busy}>
+            {busy ? 'Processing...' : confirmText}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MerchandisePage({ initialTab }) {
-  const navigate = useNavigate();
   const role = getRole();
   const isStudent = role === 'student';
   const defaultTab = isStudent ? 'order' : 'inventory';
@@ -81,12 +107,15 @@ export default function MerchandisePage({ initialTab }) {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [search, setSearch] = useState('');
+  const [inventorySearch, setInventorySearch] = useState('');
+  const [officerOrderSearch, setOfficerOrderSearch] = useState('');
+  const [studentItemSearch, setStudentItemSearch] = useState('');
+  const [studentOrderSearch, setStudentOrderSearch] = useState('');
   const [ordersMeta, setOrdersMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 20 });
 
   // Officer-only state
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ name: '', unit_price: '', stock_quantity: '', description: '' });
+  const [form, setForm] = useState({ name: '', category: '', unit_price: '', stock_quantity: '', description: '', is_active: true });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
   const [formError, setFormError] = useState(null);
@@ -95,10 +124,15 @@ export default function MerchandisePage({ initialTab }) {
   const [claimError, setClaimError] = useState(null);
   const [claimSuccess, setClaimSuccess] = useState(null);
   const [claiming, setClaiming] = useState(false);
+  const [stockDraft, setStockDraft] = useState({});
+  const [confirmModal, setConfirmModal] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
 
   // Student-only state
-  const [reserving, setReserving] = useState(null);
-  const [reserveError, setReserveError] = useState(null);
+  const [cart, setCart] = useState([]);
+  const [draftQty, setDraftQty] = useState({});
+  const [cartError, setCartError] = useState(null);
+  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
 
   function extractOrders(oRes) {
     const arr = Array.isArray(oRes.data?.data) ? oRes.data.data : (Array.isArray(oRes.data) ? oRes.data : []);
@@ -116,7 +150,8 @@ export default function MerchandisePage({ initialTab }) {
       : [getMerchandise(), getOrders({ page: 1 })];
     Promise.all(calls)
       .then(([mRes, oRes]) => {
-        setItems(Array.isArray(mRes.data) ? mRes.data : []);
+        const merch = Array.isArray(mRes.data?.data) ? mRes.data.data : (Array.isArray(mRes.data) ? mRes.data : []);
+        setItems(merch);
         extractOrders(oRes);
       })
       .catch(() => setError('Failed to load merchandise data.'))
@@ -133,6 +168,14 @@ export default function MerchandisePage({ initialTab }) {
   useEffect(load, []);
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
 
+  function openConfirm({ title, message, confirmText, action }) {
+    setConfirmModal({ open: true, title, message, confirmText, action, busy: false });
+  }
+
+  function closeConfirm() {
+    setConfirmModal({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
+  }
+
   // Officer handlers
   function handleImageSelect(e) {
     const file = e.target.files[0];
@@ -146,9 +189,9 @@ export default function MerchandisePage({ initialTab }) {
     if (!form.name || !form.unit_price || !form.stock_quantity) return;
     setFormSubmitting(true); setFormError(null);
     try {
-      await createItem({ name: form.name, price: parseFloat(form.unit_price), stock_quantity: parseInt(form.stock_quantity, 10), description: form.description, is_active: true, imageFile });
+      await createItem({ name: form.name, category: form.category || null, price: parseFloat(form.unit_price), stock_quantity: parseInt(form.stock_quantity, 10), description: form.description, is_active: form.is_active, imageFile });
       setShowForm(false);
-      setForm({ name: '', unit_price: '', stock_quantity: '', description: '' });
+      setForm({ name: '', category: '', unit_price: '', stock_quantity: '', description: '', is_active: true });
       setImageFile(null); setImagePreview(null);
       load();
     } catch (err) { setFormError(err.response?.data?.message ?? 'Failed to add item.'); }
@@ -159,15 +202,15 @@ export default function MerchandisePage({ initialTab }) {
     try {
       const res = await updateOrderStatus(id, status);
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
-    } catch { alert('Failed to update order status.'); }
+    } catch {
+      setError('Failed to update order status.');
+    }
   }
 
-  async function handleClaim(e) {
-    e.preventDefault();
-    if (!claimToken.trim()) return;
+  async function handleClaimByToken(token) {
     setClaiming(true); setClaimError(null); setClaimSuccess(null);
     try {
-      const res = await claimByToken(claimToken.trim().toUpperCase());
+      const res = await claimByToken(token.trim().toUpperCase());
       setClaimSuccess(`Order claimed for ${res.data?.student?.first_name ?? 'student'}.`);
       setClaimToken('');
       load();
@@ -175,29 +218,168 @@ export default function MerchandisePage({ initialTab }) {
     finally { setClaiming(false); }
   }
 
-  // Student handler
-  async function handleReserve(item) {
-    setReserving(item.id); setReserveError(null);
+  function confirmStatusChange(order, nextStatus) {
+    openConfirm({
+      title: 'Confirm Status Update',
+      message: `Set order ORD-${order.id} to ${capitalize(nextStatus)}?`,
+      confirmText: `Mark ${capitalize(nextStatus)}`,
+      action: async () => handleStatusChange(order.id, nextStatus),
+    });
+  }
+
+  function confirmSellingToggle(item) {
+    const nextActive = !item.is_active;
+    openConfirm({
+      title: nextActive ? 'Set Item Active' : 'Set Item Inactive',
+      message: nextActive
+        ? `Mark ${item.name} as active for selling?`
+        : `Mark ${item.name} as inactive? Students will not be able to order this item.`,
+      confirmText: nextActive ? 'Set Active' : 'Set Inactive',
+      action: async () => {
+        const res = await updateItem(item.id, { is_active: nextActive });
+        const updated = res.data;
+        setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, ...updated } : row)));
+      },
+    });
+  }
+
+  function confirmStockUpdate(item) {
+    const raw = stockDraft[item.id];
+    const nextStock = Number.parseInt(String(raw ?? item.stock_quantity), 10);
+
+    if (!Number.isInteger(nextStock) || nextStock < 0) {
+      setError('Stock quantity must be a non-negative whole number.');
+      return;
+    }
+
+    openConfirm({
+      title: 'Update Stock Quantity',
+      message: `Set ${item.name} stock from ${item.stock_quantity} to ${nextStock}?`,
+      confirmText: 'Update Stock',
+      action: async () => {
+        const res = await adjustStock(item.id, nextStock);
+        const updated = res.data;
+        setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, ...updated } : row)));
+      },
+    });
+  }
+
+  function handleClaim(e) {
+    e.preventDefault();
+    const token = claimToken.trim().toUpperCase();
+    if (!token) return;
+
+    const match = orders.find((order) => (order.claim_token || '').toUpperCase() === token);
+    const studentName = match?.student ? `${match.student.first_name} ${match.student.last_name}` : null;
+    const itemName = match?.merchandise?.name || null;
+    const quantity = match?.quantity || null;
+    const details = match
+      ? `\n\nStudent: ${studentName || '-'}\nItem: ${itemName || '-'}\nQuantity: ${quantity || '-'}\nStatus: ${capitalize(match.status)}`
+      : '';
+
+    openConfirm({
+      title: 'Confirm Token Claim',
+      message: `Use token ${token} to release an item? This finalizes the claim.${details}`,
+      confirmText: 'Confirm Claim',
+      action: async () => handleClaimByToken(token),
+    });
+  }
+
+  function addToCart(item) {
+    const requested = Math.max(1, Math.min(item.stock_quantity, Number(draftQty[item.id] || 1)));
+    setCartError(null);
+
+    setCart((prev) => {
+      const existing = prev.find((row) => row.item.id === item.id);
+      if (!existing) {
+        return [...prev, { item, quantity: requested }];
+      }
+
+      const nextQty = Math.min(item.stock_quantity, existing.quantity + requested);
+      if (nextQty === existing.quantity) {
+        setCartError(`Cannot add more than available stock for ${item.name}.`);
+        return prev;
+      }
+
+      return prev.map((row) => (row.item.id === item.id ? { ...row, quantity: nextQty } : row));
+    });
+
+    setDraftQty((prev) => ({ ...prev, [item.id]: 1 }));
+  }
+
+  function changeCartQty(itemId, nextQty) {
+    setCart((prev) => prev.map((row) => {
+      if (row.item.id !== itemId) return row;
+      const safeQty = Math.max(1, Math.min(row.item.stock_quantity, nextQty));
+      return { ...row, quantity: safeQty };
+    }));
+  }
+
+  function removeFromCart(itemId) {
+    setCart((prev) => prev.filter((row) => row.item.id !== itemId));
+  }
+
+  async function submitCartOrders() {
+    setCheckoutSubmitting(true);
+    setCartError(null);
+
+    const submittedIds = [];
     try {
-      await placeOrder({ merchandise_id: item.id, quantity: 1 });
+      for (const row of cart) {
+        await placeOrder({ merchandise_id: row.item.id, quantity: row.quantity });
+        submittedIds.push(row.item.id);
+      }
+
+      setCart([]);
+      setCheckoutOpen(false);
       await load();
-      setActiveTab('tokens');
+      setActiveTab('my-orders');
     } catch (err) {
-      setReserveError(err.response?.data?.message ?? 'Failed to place order. Please try again.');
-    } finally { setReserving(null); }
+      const msg = err.response?.data?.message ?? 'Failed to submit cart. Please try again.';
+      setCartError(submittedIds.length > 0 ? `Some items were submitted before an error occurred. ${msg}` : msg);
+      setCart((prev) => prev.filter((row) => !submittedIds.includes(row.item.id)));
+      await load();
+    } finally {
+      setCheckoutSubmitting(false);
+    }
   }
 
   // Derived data
-  const totalRevenue = orders.filter((o) => ['paid', 'claimed'].includes(o.status)).reduce((s, o) => s + (o.total_price || 0), 0);
+  const totalRevenue = orders
+    .filter((o) => ['paid', 'claimed'].includes(o.status))
+    .reduce((sum, o) => sum + toNumber(o.total_price), 0);
   const activeOrders = orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
   const lowStock = items.filter((i) => i.stock_quantity > 0 && i.stock_quantity < 10).length;
   const paidOrders = orders.filter((o) => o.status === 'paid');
   const availableItems = items.filter((i) => i.stock_quantity > 0);
+  const cartTotal = useMemo(() => cart.reduce((sum, row) => sum + (toNumber(row.item.price) * row.quantity), 0), [cart]);
 
-  const filteredItems = items.filter((i) => i.name?.toLowerCase().includes(search.toLowerCase()));
-  const filteredOrders = orders.filter((o) => {
-    const q = search.toLowerCase();
-    return (o.merchandise?.name ?? '').toLowerCase().includes(q) || `ord-${o.id}`.includes(q);
+  const filteredInventoryItems = items.filter((i) => i.name?.toLowerCase().includes(inventorySearch.toLowerCase()));
+
+  const filteredStudentItems = items.filter((i) =>
+    i.stock_quantity > 0 && i.name?.toLowerCase().includes(studentItemSearch.toLowerCase())
+  );
+
+  const filteredStudentOrders = orders.filter((o) => {
+    const q = studentOrderSearch.toLowerCase();
+    return (
+      (o.merchandise?.name ?? '').toLowerCase().includes(q)
+      || `ord-${o.id}`.toLowerCase().includes(q)
+      || (o.claim_token ?? '').toLowerCase().includes(q)
+    );
+  });
+
+  const filteredOfficerOrders = orders.filter((o) => {
+    const q = officerOrderSearch.toLowerCase().trim();
+    if (!q) return true;
+    const studentName = `${o.student?.first_name ?? ''} ${o.student?.last_name ?? ''}`.toLowerCase();
+    return (
+      `ord-${o.id}`.toLowerCase().includes(q)
+      || (o.claim_token ?? '').toLowerCase().includes(q)
+      || (o.merchandise?.name ?? '').toLowerCase().includes(q)
+      || studentName.includes(q)
+      || (o.status ?? '').toLowerCase().includes(q)
+    );
   });
 
   const ordFrom = (ordersMeta.current_page - 1) * ordersMeta.per_page + 1;
@@ -225,14 +407,11 @@ export default function MerchandisePage({ initialTab }) {
           ))}
         </section>
 
-        {/* Student tabs */}
-        <div className="flex flex-wrap gap-2">
-          {[['order', 'Order Merchandise'], ['my-orders', 'My Orders'], ['tokens', 'Claim Tokens']].map(([key, label]) => (
-            <button key={key} onClick={() => setActiveTab(key)}
-              className={`rounded-lg px-4 py-2.5 text-[13px] font-bold transition-all ${activeTab === key ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20' : 'border border-[#DDE7EF] bg-white text-slate-600 hover:bg-[#EEF6FB]'}`}>
-              {label}
-            </button>
-          ))}
+        <div className="flex items-center justify-between rounded-xl border border-[#DDE7EF] bg-white px-4 py-3">
+          <p className="text-[13px] font-semibold text-slate-500">Use the sidebar to navigate pages. Cart is available from Order Merchandise.</p>
+          <button type="button" onClick={() => setActiveTab('cart')} className="rounded-lg bg-[#0B8ED0] px-4 py-2 text-xs font-bold text-white hover:bg-[#0878B7]">
+            View Cart ({cart.length})
+          </button>
         </div>
 
         {error && (
@@ -250,29 +429,29 @@ export default function MerchandisePage({ initialTab }) {
               <p className="text-[13px] font-medium text-[#0B1831]">No online payment required. Orders are reserved with a claim token. Present your token to the officer and pay in person during pickup.</p>
             </div>
 
-            {reserveError && (
+            {cartError && (
               <div className="rounded-xl border border-red-100 bg-red-50 p-4">
-                <p className="text-sm font-semibold text-red-700">{reserveError}</p>
+                <p className="text-sm font-semibold text-red-700">{cartError}</p>
               </div>
             )}
 
             <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
               <Search size={15} className="text-slate-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} type="text" placeholder="Search merchandise..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
+              <input value={studentItemSearch} onChange={(e) => setStudentItemSearch(e.target.value)} type="text" placeholder="Search merchandise..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
             </div>
 
             {loading ? (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                 {[1, 2, 3].map((i) => <div key={i} className="h-56 animate-pulse rounded-xl bg-slate-100" />)}
               </div>
-            ) : filteredItems.filter((i) => i.stock_quantity > 0).length === 0 ? (
+            ) : filteredStudentItems.length === 0 ? (
               <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
                 <Package size={36} className="mx-auto mb-3 text-slate-200" />
                 <p className="text-sm font-semibold text-slate-400">No items available right now.</p>
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredItems.filter((i) => i.stock_quantity > 0).map((item) => (
+                {filteredStudentItems.map((item) => (
                   <div key={item.id} className="flex flex-col rounded-xl border border-[#DDE7EF] bg-white shadow-sm overflow-hidden">
                     {item.image_url
                       ? <img src={item.image_url} alt={item.name} className="h-40 w-full object-cover" />
@@ -285,16 +464,86 @@ export default function MerchandisePage({ initialTab }) {
                       </div>
                       {item.description && <p className="mt-1 text-[12px] text-slate-400 line-clamp-2">{item.description}</p>}
                       <p className="mt-3 text-lg font-black text-[#0B8ED0]">{fmt(item.price)}</p>
-                      <button
-                        onClick={() => handleReserve(item)}
-                        disabled={reserving === item.id || item.stock_quantity === 0}
-                        className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        {reserving === item.id ? 'Reserving...' : 'Reserve & Get Token'}
+                      <div className="mt-3 flex items-center gap-2">
+                        <button type="button" onClick={() => setDraftQty((prev) => ({ ...prev, [item.id]: Math.max(1, Number(prev[item.id] || 1) - 1) }))} className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]" aria-label={`Decrease quantity for ${item.name}`}>
+                          <Minus size={14} />
+                        </button>
+                        <input
+                          type="number"
+                          min="1"
+                          max={item.stock_quantity}
+                          value={draftQty[item.id] || 1}
+                          onChange={(e) => {
+                            const typed = Number(e.target.value || 1);
+                            const safe = Math.max(1, Math.min(item.stock_quantity, typed));
+                            setDraftQty((prev) => ({ ...prev, [item.id]: safe }));
+                          }}
+                          className="h-10 w-16 rounded-lg border border-[#DDE7EF] text-center text-sm font-bold outline-none focus:border-[#0B8ED0]"
+                        />
+                        <button type="button" onClick={() => setDraftQty((prev) => ({ ...prev, [item.id]: Math.min(item.stock_quantity, Number(prev[item.id] || 1) + 1) }))} className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]" aria-label={`Increase quantity for ${item.name}`}>
+                          <Plus size={14} />
+                        </button>
+                      </div>
+                      <button type="button" onClick={() => addToCart(item)} className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-[13px] font-bold text-white transition hover:bg-[#0878B7]">
+                        <ShoppingBag size={14} />
+                        Add To Cart
                       </button>
                     </div>
                   </div>
                 ))}
+              </div>
+            )}
+          </section>
+        )}
+
+        {activeTab === 'cart' && (
+          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="border-b border-[#DDE7EF] p-5">
+              <h2 className="text-lg font-bold text-[#0F172A]">Order Cart</h2>
+              <p className="text-sm font-medium text-slate-500">Review your items before finalizing your reservation list.</p>
+            </div>
+            {cart.length === 0 ? (
+              <div className="p-8 text-center">
+                <ShoppingBag size={36} className="mx-auto mb-2 text-slate-200" />
+                <p className="text-sm font-semibold text-slate-400">Your cart is empty.</p>
+                <button type="button" onClick={() => setActiveTab('order')} className="mt-4 rounded-lg bg-[#0B8ED0] px-5 py-2 text-sm font-bold text-white hover:bg-[#0878B7] transition">
+                  Browse Merchandise
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-4 p-5">
+                {cart.map((row) => (
+                  <div key={row.item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#DDE7EF] p-4">
+                    <div>
+                      <p className="font-bold text-[#0F172A]">{row.item.name}</p>
+                      <p className="text-xs text-slate-500">{fmt(row.item.price)} each</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button type="button" onClick={() => changeCartQty(row.item.id, row.quantity - 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]" aria-label={`Decrease quantity for ${row.item.name}`}>
+                        <Minus size={13} />
+                      </button>
+                      <span className="w-8 text-center text-sm font-black text-[#0F172A]">{row.quantity}</span>
+                      <button type="button" onClick={() => changeCartQty(row.item.id, row.quantity + 1)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]" aria-label={`Increase quantity for ${row.item.name}`}>
+                        <Plus size={13} />
+                      </button>
+                      <button type="button" onClick={() => removeFromCart(row.item.id)} className="ml-1 grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50" aria-label={`Remove ${row.item.name} from cart`}>
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                    <p className="text-sm font-black text-[#0F172A]">{fmt(toNumber(row.item.price) * row.quantity)}</p>
+                  </div>
+                ))}
+                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#DDE7EF] pt-4">
+                  <p className="text-sm font-bold text-slate-600">Total: <span className="text-[#0F172A]">{fmt(cartTotal)}</span></p>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setCart([])} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]">
+                      Clear Cart
+                    </button>
+                    <button type="button" onClick={() => setCheckoutOpen(true)} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]">
+                      Finalize Order List
+                    </button>
+                  </div>
+                </div>
               </div>
             )}
           </section>
@@ -305,19 +554,19 @@ export default function MerchandisePage({ initialTab }) {
           <section className="space-y-4">
             <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
               <Search size={15} className="text-slate-400" />
-              <input value={search} onChange={(e) => setSearch(e.target.value)} type="text" placeholder="Search orders..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
+              <input value={studentOrderSearch} onChange={(e) => setStudentOrderSearch(e.target.value)} type="text" placeholder="Search orders or token..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
             </div>
 
             {loading ? (
               <div className="space-y-3">{[1, 2, 3].map((i) => <div key={i} className="h-24 animate-pulse rounded-xl bg-slate-100" />)}</div>
-            ) : filteredOrders.length === 0 ? (
+            ) : filteredStudentOrders.length === 0 ? (
               <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
                 <ShoppingBag size={36} className="mx-auto mb-3 text-slate-200" />
                 <p className="text-sm font-semibold text-slate-400">No orders yet. Browse merchandise to place your first order.</p>
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredOrders.map((o) => (
+                {filteredStudentOrders.map((o) => (
                   <div key={o.id} className={`rounded-xl border bg-white p-5 shadow-sm ${o.status === 'claimed' ? 'border-emerald-200' : o.status === 'paid' ? 'border-amber-200' : 'border-[#DDE7EF]'}`}>
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -365,7 +614,7 @@ export default function MerchandisePage({ initialTab }) {
             ) : orders.filter((o) => ['pending', 'paid'].includes(o.status)).length === 0 ? (
               <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
                 <Ticket size={36} className="mx-auto mb-3 text-slate-200" />
-                <p className="text-sm font-semibold text-slate-400">No active tokens. Reserve an item to get a claim token.</p>
+                <p className="text-sm font-semibold text-slate-400">No active tokens. Finalize an order list to receive claim tokens.</p>
                 <button onClick={() => setActiveTab('order')} className="mt-4 rounded-lg bg-[#0B8ED0] px-5 py-2 text-sm font-bold text-white hover:bg-[#0878B7] transition">
                   Browse Merchandise
                 </button>
@@ -405,6 +654,54 @@ export default function MerchandisePage({ initialTab }) {
             )}
           </section>
         )}
+
+        {checkoutOpen && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-xl rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+              <h2 className="text-lg font-bold text-[#0F172A]">Confirm Order List</h2>
+              <p className="mt-1 text-sm text-slate-500">Please review all items before finalizing.</p>
+              <div className="mt-4 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-[#DDE7EF] p-3">
+                {cart.map((row) => (
+                  <div key={row.item.id} className="flex items-center justify-between gap-3 border-b border-[#EEF2F7] pb-2 last:border-b-0 last:pb-0">
+                    <div>
+                      <p className="text-sm font-bold text-[#0F172A]">{row.item.name}</p>
+                      <p className="text-xs text-slate-500">Qty: {row.quantity} x {fmt(row.item.price)}</p>
+                    </div>
+                    <p className="text-sm font-black text-[#0F172A]">{fmt(toNumber(row.item.price) * row.quantity)}</p>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-3 text-sm font-bold text-[#0F172A]">Grand Total: {fmt(cartTotal)}</p>
+              <div className="mt-5 flex justify-end gap-3">
+                <button type="button" onClick={() => setCheckoutOpen(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={checkoutSubmitting}>
+                  Cancel
+                </button>
+                <button type="button" onClick={submitCartOrders} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50" disabled={checkoutSubmitting}>
+                  {checkoutSubmitting ? 'Submitting...' : 'Confirm & Submit'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <ConfirmModal
+          open={confirmModal.open}
+          title={confirmModal.title}
+          message={confirmModal.message}
+          confirmText={confirmModal.confirmText}
+          busy={confirmModal.busy}
+          onCancel={closeConfirm}
+          onConfirm={async () => {
+            if (!confirmModal.action) return;
+            setConfirmModal((prev) => ({ ...prev, busy: true }));
+            try {
+              await confirmModal.action();
+              closeConfirm();
+            } finally {
+              setConfirmModal((prev) => ({ ...prev, busy: false }));
+            }
+          }}
+        />
       </div>
     );
   }
@@ -430,13 +727,8 @@ export default function MerchandisePage({ initialTab }) {
         ))}
       </section>
 
-      <div className="flex flex-wrap gap-2">
-        {[['inventory', 'Manage Inventory'], ['orders', 'Process Orders'], ['tokens', 'Issue Tokens']].map(([key, label]) => (
-          <button key={key} onClick={() => setActiveTab(key)}
-            className={`rounded-lg px-4 py-2.5 text-[13px] font-bold transition-all ${activeTab === key ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20' : 'border border-[#DDE7EF] bg-white text-slate-600 hover:bg-[#EEF6FB]'}`}>
-            {label}
-          </button>
-        ))}
+      <div className="rounded-xl border border-[#DDE7EF] bg-white px-4 py-3">
+        <p className="text-[13px] font-semibold text-slate-500">Use the sidebar to switch between merchandise pages.</p>
       </div>
 
       {error && (
@@ -456,7 +748,7 @@ export default function MerchandisePage({ initialTab }) {
             <div className="flex w-full gap-2 sm:w-auto">
               <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-400" />
-                <input value={search} onChange={(e) => setSearch(e.target.value)} type="text" placeholder="Search items..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]" />
+                <input value={inventorySearch} onChange={(e) => setInventorySearch(e.target.value)} type="text" placeholder="Search items..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]" />
               </div>
               <button onClick={() => setShowForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                 <Plus size={16} /><span className="hidden sm:inline">Add Item</span>
@@ -465,7 +757,7 @@ export default function MerchandisePage({ initialTab }) {
           </div>
           {loading ? (
             <div className="space-y-2 p-5">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
-          ) : filteredItems.length === 0 ? (
+          ) : filteredInventoryItems.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-400">No inventory items yet.</p>
           ) : (
             <div className="overflow-x-auto">
@@ -474,12 +766,14 @@ export default function MerchandisePage({ initialTab }) {
                   <tr>
                     <th className="px-5 py-3">Item</th>
                     <th className="px-5 py-3">Stock</th>
+                    <th className="px-5 py-3">Adjust Stock</th>
                     <th className="px-5 py-3">Unit Price</th>
-                    <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Stock Status</th>
+                    <th className="px-5 py-3">Selling</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {filteredItems.map((item) => (
+                  {filteredInventoryItems.map((item) => (
                     <tr key={item.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="px-5 py-3.5">
                         <div className="flex items-center gap-3">
@@ -489,10 +783,36 @@ export default function MerchandisePage({ initialTab }) {
                           <span className="font-bold text-[#0F172A]">{item.name}</span>
                         </div>
                       </td>
-                      <td className="px-5 py-3.5 font-black tabular-nums text-[#0F172A]">{item.stock_quantity}</td>
+                      <td className="px-5 py-3.5">
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="number"
+                            min="0"
+                            value={stockDraft[item.id] ?? item.stock_quantity}
+                            onChange={(event) => setStockDraft((prev) => ({ ...prev, [item.id]: event.target.value }))}
+                            className="h-9 w-24 rounded-lg border border-[#DDE7EF] px-2 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => confirmStockUpdate(item)}
+                            className="h-9 rounded-md border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] transition hover:bg-[#F8FBFD]"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </td>
                       <td className="px-5 py-3.5 font-bold tabular-nums text-[#0F172A]">{fmt(item.price)}</td>
                       <td className="px-5 py-3.5">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${stockBadge(item.stock_quantity)}`}>{stockLabel(item.stock_quantity)}</span>
+                      </td>
+                      <td className="px-5 py-3.5">
+                        <button
+                          type="button"
+                          onClick={() => confirmSellingToggle(item)}
+                          className={`rounded-full px-3 py-1 text-xs font-bold transition ${item.is_active ? 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}
+                        >
+                          {item.is_active ? 'Active' : 'Inactive'}
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -505,20 +825,27 @@ export default function MerchandisePage({ initialTab }) {
 
       {activeTab === 'orders' && (
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="border-b border-[#DDE7EF] p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">Orders</h2>
-            <p className="text-sm font-medium text-slate-500">Process and track student merchandise orders</p>
+          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[#0F172A]">Orders</h2>
+              <p className="text-sm font-medium text-slate-500">Process and track student merchandise orders</p>
+            </div>
+            <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3">
+              <Search size={15} className="text-slate-400" />
+              <input value={officerOrderSearch} onChange={(e) => setOfficerOrderSearch(e.target.value)} type="text" placeholder="Search order or token..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
+            </div>
           </div>
           {loading ? (
             <div className="space-y-2 p-5">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
-          ) : orders.length === 0 ? (
+          ) : filteredOfficerOrders.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-400">No orders yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[400px] text-left md:min-w-[650px]">
+              <table className="w-full min-w-[540px] text-left md:min-w-[850px]">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="hidden px-5 py-3 md:table-cell">Order</th>
+                    <th className="px-5 py-3">Token</th>
                     <th className="px-5 py-3">Student</th>
                     <th className="px-5 py-3">Item</th>
                     <th className="hidden px-5 py-3 md:table-cell">Qty</th>
@@ -528,9 +855,10 @@ export default function MerchandisePage({ initialTab }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {orders.map((o) => (
+                  {filteredOfficerOrders.map((o) => (
                     <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="hidden px-5 py-4 font-mono text-xs font-bold text-slate-500 md:table-cell">#{o.id}</td>
+                      <td className="px-5 py-4 font-mono text-xs font-black text-[#0B8ED0]">{o.claim_token || '-'}</td>
                       <td className="px-5 py-4 font-semibold text-[#0F172A]">{o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}</td>
                       <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '-'}</td>
                       <td className="hidden px-5 py-4 font-bold tabular-nums text-[#0F172A] md:table-cell">{o.quantity}</td>
@@ -540,12 +868,12 @@ export default function MerchandisePage({ initialTab }) {
                       </td>
                       <td className="px-5 py-4">
                         {o.status === 'pending' && (
-                          <button onClick={() => handleStatusChange(o.id, 'paid')} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
+                          <button onClick={() => confirmStatusChange(o, 'paid')} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
                             Mark Paid <ArrowRight size={12} />
                           </button>
                         )}
                         {o.status === 'paid' && (
-                          <button onClick={() => handleStatusChange(o.id, 'claimed')} className="flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100">
+                          <button onClick={() => confirmStatusChange(o, 'claimed')} className="flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100">
                             Mark Claimed <ArrowRight size={12} />
                           </button>
                         )}
@@ -635,6 +963,10 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">Item Name *</label>
                 <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. HIUSA T-Shirt (XL)" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#0F172A]">Category</label>
+                <input type="text" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} placeholder="e.g. Apparel, Accessories" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">Unit Price (₱) *</label>
@@ -648,6 +980,13 @@ export default function MerchandisePage({ initialTab }) {
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">Description</label>
                 <textarea rows={2} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Optional description..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#0F172A]">Selling Status</label>
+                <select value={form.is_active ? '1' : '0'} onChange={(e) => setForm({ ...form, is_active: e.target.value === '1' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                  <option value="1">Active</option>
+                  <option value="0">Inactive</option>
+                </select>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">Product Image</label>
@@ -665,6 +1004,25 @@ export default function MerchandisePage({ initialTab }) {
           </div>
         </div>
       )}
+
+      <ConfirmModal
+        open={confirmModal.open}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        busy={confirmModal.busy}
+        onCancel={closeConfirm}
+        onConfirm={async () => {
+          if (!confirmModal.action) return;
+          setConfirmModal((prev) => ({ ...prev, busy: true }));
+          try {
+            await confirmModal.action();
+            closeConfirm();
+          } finally {
+            setConfirmModal((prev) => ({ ...prev, busy: false }));
+          }
+        }}
+      />
     </div>
   );
 }

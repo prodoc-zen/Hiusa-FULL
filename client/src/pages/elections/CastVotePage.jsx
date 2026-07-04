@@ -222,7 +222,12 @@ export default function CastVotePage() {
                 setPhase('submitted');
                 refreshElection().catch(() => {});
               } catch (error) {
-                setSubmitError(error?.response?.data?.message || 'Unable to submit ballot.');
+                const backendMessage = String(error?.response?.data?.message || '');
+                if (/already voted/i.test(backendMessage)) {
+                  setSubmitError("You've already voted for this position.");
+                } else {
+                  setSubmitError(backendMessage || 'Unable to submit ballot.');
+                }
               } finally {
                 setSubmitting(false);
               }

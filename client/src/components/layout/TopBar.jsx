@@ -68,6 +68,15 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     } catch {}
   }
 
+  async function handleNotificationClick(notification) {
+    await handleMarkRead(notification.id);
+    setNotifOpen(false);
+
+    if (String(notification.title || '').startsWith('New Announcement:')) {
+      navigate('/dashboard/announcements/view-announcements');
+    }
+  }
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
@@ -100,13 +109,6 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           </p>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
         </div>
-
-        {/* Current role chip — desktop only */}
-        {role && (
-          <span className="hidden rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-bold capitalize text-white lg:inline-flex">
-            {roleLabel}
-          </span>
-        )}
 
         {/* Notification Bell */}
         <div className="relative" ref={notifRef}>
@@ -158,7 +160,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     <button
                       key={n.id}
                       type="button"
-                      onClick={() => handleMarkRead(n.id)}
+                      onClick={() => handleNotificationClick(n)}
                       className={`flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#F8FBFD] ${!n.is_read ? 'bg-[#EEF6FB]' : ''}`}
                     >
                       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.is_read ? 'bg-slate-200' : 'bg-[#16C7F3]'}`} />
