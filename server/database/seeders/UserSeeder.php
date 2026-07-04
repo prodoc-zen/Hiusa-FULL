@@ -9,6 +9,10 @@ class UserSeeder extends Seeder
 {
     public function run(): void
     {
+        if (app()->isProduction()) {
+            return;
+        }
+
         $users = [
             // Officers (login with email)
             ['school_id' => 'OFF-2024-001', 'role' => 'officer',  'first_name' => 'Marco',      'last_name' => 'Dela Cruz',   'email' => 'officer1@hiusa.local'],
