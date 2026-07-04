@@ -26,6 +26,7 @@ function Avatar({ name, size = 'sm' }) {
 
 export default function ElectionResultsPage() {
   const { election } = useOutletContext();
+  const electionIsClosed = election?.status === 'closed';
 
   if (!election) {
     return (
@@ -123,7 +124,7 @@ export default function ElectionResultsPage() {
                     {aWins && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
                         <Trophy size={9} />
-                        WINNER
+                        {electionIsClosed ? 'WINNER' : 'LEADING'}
                       </div>
                     )}
                     <Avatar name={a.name} size="md" />
@@ -141,7 +142,7 @@ export default function ElectionResultsPage() {
                     {!aWins && b.votes > a.votes && (
                       <div className="absolute -top-3 left-1/2 -translate-x-1/2 flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
                         <Trophy size={9} />
-                        WINNER
+                        {electionIsClosed ? 'WINNER' : 'LEADING'}
                       </div>
                     )}
                     <Avatar name={b.name} size="md" />

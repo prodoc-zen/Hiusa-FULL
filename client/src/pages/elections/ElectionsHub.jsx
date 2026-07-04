@@ -1,12 +1,11 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useLocation, useNavigate } from 'react-router-dom';
+import { Outlet, useNavigate } from 'react-router-dom';
 import ElectionBreadcrumb from '../../components/elections/ElectionBreadcrumb';
 import ElectionPickerPage from './ElectionPickerPage';
 import { getElectionDetails } from '../../services/electionService';
 
 export default function ElectionsHub() {
   const navigate = useNavigate();
-  const location = useLocation();
   const [activeElection, setActiveElection] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -64,25 +63,9 @@ export default function ElectionsHub() {
     }
   };
 
-  const resolveDefaultPath = () => {
-    if (role === 'student') {
-      return '/dashboard/elections/cast-vote';
-    }
-
-    if (role === 'adviser') {
-      return '/dashboard/elections/election-results';
-    }
-
-    return '/dashboard/elections/manage-elections';
-  };
-
   const handleSelect = (id) => {
     sessionStorage.setItem('activeElectionId', id);
     setActiveElectionId(id);
-
-    if (location.pathname === '/dashboard/elections') {
-      navigate(resolveDefaultPath());
-    }
   };
 
   const handleClear = () => {

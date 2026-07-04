@@ -7,7 +7,13 @@ function toFormData(data) {
   const fd = new FormData();
   Object.entries(data).forEach(([k, v]) => {
     if (k === 'imageFile') { if (v) fd.append('image', v); }
-    else if (v !== undefined && v !== null) fd.append(k, String(v));
+    else if (v !== undefined && v !== null) {
+      if (typeof v === 'boolean') {
+        fd.append(k, v ? '1' : '0');
+      } else {
+        fd.append(k, String(v));
+      }
+    }
   });
   return fd;
 }

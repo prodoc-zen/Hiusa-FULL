@@ -181,20 +181,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
         ))}
       </section>
 
-      <div className="flex flex-wrap gap-2">
-        {['transactions', 'forecasting', 'reports'].map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`rounded-lg px-4 py-2.5 text-[13px] font-bold capitalize transition-all ${
-              activeTab === tab
-                ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20'
-                : 'bg-white text-slate-600 border border-[#DDE7EF] hover:bg-[#EEF6FB]'
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
+      <div className="rounded-xl border border-[#DDE7EF] bg-white px-4 py-3">
+        <p className="text-[13px] font-semibold text-slate-500">Use the sidebar to switch between financial pages.</p>
       </div>
 
       {error && (
