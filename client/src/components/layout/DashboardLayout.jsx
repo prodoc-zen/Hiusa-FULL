@@ -58,14 +58,14 @@ function getTitle(pathname) {
 }
 
 export default function DashboardLayout() {
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const title = getTitle(location.pathname);
 
   return (
     <div className="flex h-screen overflow-hidden bg-[#EEF6FB] font-sans text-[#0F172A]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
+      <div className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 ${sidebarOpen ? 'lg:pl-[260px]' : 'lg:pl-0'}`}>
         <TopBar
           title={title}
           pathname={location.pathname}

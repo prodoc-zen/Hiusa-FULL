@@ -190,6 +190,12 @@ export default function Sidebar({ isOpen, onClose }) {
     }
   };
 
+  const handleNavItemClick = () => {
+    if (window.innerWidth < 1024) {
+      onClose();
+    }
+  };
+
   const sidebarContent = (
     <>
       <div className="flex h-[72px] items-center gap-3 border-b border-white/10 px-5">
@@ -212,7 +218,7 @@ export default function Sidebar({ isOpen, onClose }) {
             const itemPath = resolveItemPath(item);
 
             if (!hasChildren) {
-              return <NavItem key={item.id} label={item.label} path={itemPath} icon={item.icon} end onClick={onClose} />;
+              return <NavItem key={item.id} label={item.label} path={itemPath} icon={item.icon} end onClick={handleNavItemClick} />;
             }
 
             const onParentRoute = visibleChildren.some((child) => location.pathname.startsWith(child.path));
@@ -242,7 +248,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 {isExpanded && (
                   <div className="ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3">
                     {visibleChildren.map((sub) => (
-                      <div key={sub.id} onClick={onClose}>
+                      <div key={sub.id} onClick={handleNavItemClick}>
                         <SubNavItem label={sub.label} path={sub.path} />
                       </div>
                     ))}
@@ -255,7 +261,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
         <div className="space-y-1 border-t border-white/10 pt-4">
           {profileNav.map((item) => (
-            <div key={item.path} onClick={onClose}>
+            <div key={item.path} onClick={handleNavItemClick}>
               <NavItem {...item} />
             </div>
           ))}
@@ -274,9 +280,8 @@ export default function Sidebar({ isOpen, onClose }) {
 
   return (
     <>
-      <aside className="sticky top-0 hidden h-screen w-[260px] shrink-0 flex-col bg-[#0B1831] lg:flex">{sidebarContent}</aside>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[280px] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out lg:hidden ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
     </>
   );
 }

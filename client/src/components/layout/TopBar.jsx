@@ -142,12 +142,12 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   return (
     <header className="sticky top-0 z-30 border-b border-[#DDE7EF] bg-white">
       <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6">
-        {/* Hamburger — mobile only */}
+        {/* Hamburger toggle */}
         <button
           type="button"
           aria-label="Open menu"
           onClick={onMenuToggle}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0] lg:hidden"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
         >
           <Menu size={19} />
         </button>
