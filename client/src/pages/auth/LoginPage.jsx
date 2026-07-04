@@ -19,7 +19,7 @@ const ROLE_CONFIG = {
 };
 
 const BrandingPanel = () => (
-  <aside className="relative flex overflow-hidden bg-[#0b1831] px-6 py-5 text-white sm:min-h-[410px] sm:px-10 sm:py-8 lg:min-h-[620px] lg:w-[47%] lg:flex-col lg:px-11 lg:py-10">
+  <aside className="relative flex overflow-hidden bg-[#0b1831] px-6 py-5 text-white sm:min-h-[410px] sm:px-10 sm:py-8 lg:min-h-[620px] lg:w-[47%] lg:px-11 lg:py-10">
     <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(25,211,249,0.20),transparent_34%),linear-gradient(135deg,#0b1831_0%,#0f2f62_52%,#075f93_100%)]" />
     <div className="absolute bottom-0 right-0 h-52 w-52 translate-x-14 translate-y-10 rotate-45 rounded-md border border-white/10 bg-white/[0.03]" />
     <div className="relative z-10 flex w-full flex-col">
