@@ -82,13 +82,13 @@ export default function ElectionDetailPage() {
           <form onSubmit={handleAddPosition} className="flex flex-col gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 sm:flex-row sm:items-end">
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">New position</label>
-              <input value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} className="mt-1 h-10 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" placeholder="e.g. Treasurer" />
+              <input value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" placeholder="e.g. Treasurer" />
             </div>
             <div>
               <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Max winners</label>
               <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} className="mt-1 h-10 w-28 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
             </div>
-            <button type="submit" className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7]">Add Position</button>
+            <button type="submit" className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7]">Add Position</button>
           </form>
         </div>
       </section>

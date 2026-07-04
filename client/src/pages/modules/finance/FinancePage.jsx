@@ -381,7 +381,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">Amount (₱) *</label>
                   <input
@@ -406,7 +406,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   </select>
                 </div>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">Category</label>
                   <select

@@ -422,7 +422,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       <button
                         type="button"
                         onClick={() => openElectionAndGo(el.id, '/dashboard/elections/manage-candidates')}
-                        className="inline-flex h-9 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
+                        className="inline-flex h-10 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
                       >
                         Manage Candidates
                       </button>
@@ -432,7 +432,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       <button
                         type="button"
                         onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
-                        className="inline-flex h-9 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
+                        className="inline-flex h-10 items-center rounded-md border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F172A] hover:bg-[#F8FBFD]"
                       >
                         View Results
                       </button>
@@ -442,7 +442,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       <button
                         type="button"
                         onClick={() => handleOpenEdit(el)}
-                        className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-[#DDE7EF] text-[#0F172A] hover:bg-[#F8FBFD]"
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-[#DDE7EF] text-[#0F172A] hover:bg-[#F8FBFD]"
                         aria-label="Edit election"
                       >
                         <PencilLine size={14} />
@@ -453,7 +453,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       <button
                         type="button"
                         onClick={() => handleStatusChange(el.id, 'active')}
-                        className="inline-flex h-9 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700"
+                        className="inline-flex h-10 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700"
                       >
                         Open Election
                       </button>
@@ -463,7 +463,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       <button
                         type="button"
                         onClick={() => handleStatusChange(el.id, 'closed')}
-                        className="inline-flex h-9 items-center rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700"
+                        className="inline-flex h-10 items-center rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700"
                       >
                         Close Election
                       </button>
@@ -485,7 +485,7 @@ export default function ElectionPickerPage({ onSelect }) {
 
                       openElectionAndGo(el.id, '/dashboard/elections/election-results');
                     }}
-                    className="inline-flex h-9 items-center gap-1 rounded-md px-2 text-sm font-semibold text-[#1D4ED8] hover:text-[#0B8ED0]"
+                    className="inline-flex h-10 items-center gap-1 rounded-md px-2 text-sm font-semibold text-[#1D4ED8] hover:text-[#0B8ED0]"
                   >
                     Full Details
                     <ChevronRight size={14} className="transition-colors" />

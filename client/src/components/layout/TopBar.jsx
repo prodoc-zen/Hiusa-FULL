@@ -171,7 +171,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                 setNotifOpen(false);
                 setProfileOpen(false);
               }}
-              className="relative grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+              className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
             >
               <ShoppingCart size={17} />
               {cartTypeCount > 0 && (
@@ -235,7 +235,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
               setProfileOpen(false);
               setCartOpen(false);
             }}
-            className="relative grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+            className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
           >
             <Bell size={17} />
             {unreadCount > 0 && (

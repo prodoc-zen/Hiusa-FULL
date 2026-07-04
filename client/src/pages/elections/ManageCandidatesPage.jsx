@@ -160,10 +160,10 @@ function CandidateForm({
         )}
 
         <div className="flex gap-3">
-          <button type="submit" disabled={submitting || !form.user_id || !form.position_id} className="h-10 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-40">
+          <button type="submit" disabled={submitting || !form.user_id || !form.position_id} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-40">
             {submitting ? 'Saving...' : submitLabel}
           </button>
-          <button type="button" onClick={onCancel} className="h-10 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] transition">Cancel</button>
+          <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] transition">Cancel</button>
         </div>
       </form>
     </div>

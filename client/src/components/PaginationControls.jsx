@@ -26,7 +26,7 @@ export default function PaginationControls({
           type="button"
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronLeft size={14} />
         </button>
@@ -37,7 +37,7 @@ export default function PaginationControls({
           type="button"
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
         >
           <ChevronRight size={14} />
         </button>

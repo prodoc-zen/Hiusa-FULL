@@ -164,7 +164,7 @@ export default function ManagePartylistsPage() {
         <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Elections · Manage Party Lists</p>
         <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl font-black text-[#0F172A]">Party Rosters</h2>
+            <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A]">Party Rosters</h2>
             <p className="mt-1 max-w-2xl text-sm font-medium text-[#64748B]">
               Review and manage the official candidate line-ups for {election.title}. Ensure all documentation is complete before final ratification.
             </p>
