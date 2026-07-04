@@ -89,20 +89,22 @@ export default function AdminUsersPage() {
 
     try {
       await createUser(createForm);
-      setShowCreate(false);
-      setCreateForm({
-        school_id: '',
-        first_name: '',
-        last_name: '',
-        email: '',
-        role: 'student',
-        password: '',
-        password_confirmation: '',
-      });
-      await refreshUsers();
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to create user.');
+      return;
     }
+
+    setShowCreate(false);
+    setCreateForm({
+      school_id: '',
+      first_name: '',
+      last_name: '',
+      email: '',
+      role: 'student',
+      password: '',
+      password_confirmation: '',
+    });
+    try { await refreshUsers(); } catch {}
   };
 
   const openEdit = (user) => {
@@ -124,19 +126,20 @@ export default function AdminUsersPage() {
     setError('');
     try {
       await updateUser(selectedUser.id, editForm);
-      setShowEdit(false);
-      setSelectedUser(null);
-      await refreshUsers();
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update user.');
+      return;
     }
+    setShowEdit(false);
+    setSelectedUser(null);
+    try { await refreshUsers(); } catch {}
   };
 
   const handleDisable = async (id) => {
     setError('');
     try {
       await disableUser(id);
-      await refreshUsers();
+      try { await refreshUsers(); } catch {}
     } catch (disableError) {
       setError(disableError?.response?.data?.message || 'Unable to disable user.');
     }
@@ -146,7 +149,7 @@ export default function AdminUsersPage() {
     setError('');
     try {
       await deleteUser(id);
-      await refreshUsers();
+      try { await refreshUsers(); } catch {}
     } catch (deleteError) {
       setError(deleteError?.response?.data?.message || 'Unable to delete user.');
     }

@@ -13,7 +13,7 @@ class MarkOverdueTasks extends Command
     public function handle(): int
     {
         $updated = Task::whereIn('status', ['pending', 'in_progress'])
-            ->whereDate('deadline', '<', now())
+            ->where('deadline', '<', now())
             ->update(['status' => 'overdue']);
 
         $this->info("Marked {$updated} task(s) as overdue.");

@@ -40,7 +40,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const navigate = useNavigate();
 
   const storedUser = localStorage.getItem('user');
-  const user = storedUser ? JSON.parse(storedUser) : null;
+  let user = null;
+  try { user = storedUser ? JSON.parse(storedUser) : null; } catch { user = null; }
   const initials = user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : 'HI';
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role?.toLowerCase() ?? '';

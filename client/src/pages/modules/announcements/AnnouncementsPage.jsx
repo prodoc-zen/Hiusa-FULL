@@ -50,11 +50,14 @@ export default function AnnouncementsPage() {
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [formError, setFormError] = useState(null);
 
+  const [error, setError] = useState(null);
+
   function load() {
     setLoading(true);
+    setError(null);
     getAnnouncements()
       .then((res) => setItems(Array.isArray(res.data) ? res.data : []))
-      .catch(() => {})
+      .catch(() => setError('Failed to load announcements.'))
       .finally(() => setLoading(false));
   }
 
@@ -113,6 +116,12 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="space-y-6">
+      {error && (
+        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
+          <p className="text-sm font-semibold text-red-700">{error}</p>
+          <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
+        </div>
+      )}
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Posts', value: items.length, helper: 'All time', icon: FileText },

@@ -12,7 +12,7 @@ class MerchandiseController extends Controller
     private function storeMerchandiseImage(Request $request): string
     {
         $file = $request->file('image');
-        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $ext = strtolower($file->extension() ?: 'jpg');
         $filename = Str::uuid()->toString() . '.' . $ext;
         $destDir = public_path('uploads/merchandise');
 

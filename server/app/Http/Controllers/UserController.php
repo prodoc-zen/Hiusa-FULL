@@ -86,7 +86,14 @@ class UserController extends Controller
         }
 
         $user->tokens()->delete();
-        $user->delete();
+
+        try {
+            $user->delete();
+        } catch (\Illuminate\Database\QueryException $e) {
+            return response()->json([
+                'message' => 'Cannot delete this user — they have existing records (transactions, tasks, etc.) linked to their account.',
+            ], 409);
+        }
 
         return response()->json(['message' => 'User deleted successfully.']);
     }
@@ -186,7 +193,8 @@ class UserController extends Controller
         }
 
         $user->update(['password_hash' => $request->password]);
+        $user->tokens()->delete();
 
-        return response()->json(['message' => 'Password updated successfully.']);
+        return response()->json(['message' => 'Password updated successfully. Please log in again.']);
     }
 }

@@ -85,10 +85,16 @@ class OrderController extends Controller
             'status' => ['required', 'in:pending,paid,claimed,cancelled'],
         ]);
 
+        $previousStatus = $order->status;
+
         $order->update([
             'status'       => $data['status'],
             'processed_by' => $request->user()->id,
         ]);
+
+        if ($data['status'] === 'cancelled' && in_array($previousStatus, ['pending', 'paid'])) {
+            $order->merchandise()->increment('stock_quantity', $order->quantity);
+        }
 
         return response()->json($order->fresh()->load([
             'merchandise:id,name,price',
