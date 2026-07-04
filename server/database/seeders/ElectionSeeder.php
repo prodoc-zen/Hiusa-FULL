@@ -44,10 +44,17 @@ class ElectionSeeder extends Seeder
             'description' => 'Focused on modernizing HIUSA operations and digital student services.',
         ]);
 
-        $student1 = User::where('school_id', '2023-00001')->first();
-        $student2 = User::where('school_id', '2023-00002')->first();
-        $student3 = User::where('school_id', '2023-00003')->first();
-        $student4 = User::where('school_id', '2023-00004')->first();
+        $students = User::query()
+            ->where('role', 'student')
+            ->orderBy('school_id')
+            ->take(4)
+            ->get();
+
+        if ($students->count() < 4) {
+            throw new \RuntimeException('ElectionSeeder requires at least 4 student users. Seed UserSeeder first.');
+        }
+
+        [$student1, $student2, $student3, $student4] = $students->values()->all();
 
         Candidate::create([
             'election_id' => $election->id,
