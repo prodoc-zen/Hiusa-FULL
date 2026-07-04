@@ -9,6 +9,14 @@ import {
   updateElectionCandidate,
 } from '../../services/electionService';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
+
+function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^(https?:|blob:|data:)/i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 function Avatar({ name, size = 'sm' }) {
   const initials = name
     .split(' ')
@@ -55,8 +63,6 @@ function CandidateForm({
   positions,
   partylists,
   users,
-  userSearch,
-  setUserSearch,
   imagePreview,
   onImageChange,
   error,
@@ -72,19 +78,6 @@ function CandidateForm({
       </div>
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Find Student *</label>
-            <div className="relative">
-              <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-              <input
-                value={userSearch}
-                onChange={(event) => setUserSearch(event.target.value)}
-                placeholder="Search by student name or school ID"
-                className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-              />
-            </div>
-          </div>
-
           <div>
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Student *</label>
             <div className="relative">
@@ -140,7 +133,7 @@ function CandidateForm({
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Candidate Photo</label>
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
               {imagePreview
-                ? <img src={imagePreview} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
+                ? <img src={resolveImageUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
                 : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
               }
               <span className="text-[13px] font-medium text-slate-400">{imagePreview ? 'Change photo' : 'Upload photo'}</span>
@@ -186,8 +179,6 @@ export default function ManageCandidatesPage() {
   const [editId, setEditId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [posFilter, setPosFilter] = useState('All');
-  const [addSearch, setAddSearch] = useState('');
-  const [editSearch, setEditSearch] = useState('');
   const [form, setForm] = useState({ user_id: '', position_id: '', partylist_id: '', platform: '' });
   const [editForm, setEditForm] = useState({ user_id: '', position_id: '', partylist_id: '', platform: '' });
   const [imageFile, setImageFile] = useState(null);
@@ -237,27 +228,11 @@ export default function ManageCandidatesPage() {
     posFilter === 'All' ? candidates : candidates.filter((candidate) => candidate.position_id === Number(posFilter))
   ), [candidates, posFilter]);
 
-  const searchUsers = (query, currentUserId = null) => {
-    const normalized = query.trim().toLowerCase();
-    return users
-      .filter((user) => user.id === currentUserId || !assignedUserIds.has(user.id))
-      .filter((user) => {
-        if (!normalized) {
-          return true;
-        }
-
-        const name = `${user.first_name || ''} ${user.last_name || ''}`.toLowerCase();
-        const schoolId = String(user.school_id || '').toLowerCase();
-        return name.includes(normalized) || schoolId.includes(normalized);
-      });
-  };
-
-  const availableAddUsers = searchUsers(addSearch);
-  const availableEditUsers = searchUsers(editSearch, editForm.user_id ? Number(editForm.user_id) : null);
+  const availableAddUsers = users.filter((user) => !assignedUserIds.has(user.id));
+  const availableEditUsers = users.filter((user) => user.id === Number(editForm.user_id) || !assignedUserIds.has(user.id));
 
   const resetAddForm = () => {
     setForm({ user_id: '', position_id: '', partylist_id: '', platform: '' });
-    setAddSearch('');
     setImageFile(null);
     setImagePreview(null);
     setShowAdd(false);
@@ -266,13 +241,11 @@ export default function ManageCandidatesPage() {
   const resetEditForm = () => {
     setEditId(null);
     setEditForm({ user_id: '', position_id: '', partylist_id: '', platform: '' });
-    setEditSearch('');
     setEditImageFile(null);
     setEditImagePreview(null);
   };
 
   const openEdit = (candidate) => {
-    const selectedUserName = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim();
     setEditId(candidate.id);
     setEditForm({
       user_id: candidate.user_id ? String(candidate.user_id) : '',
@@ -280,7 +253,6 @@ export default function ManageCandidatesPage() {
       partylist_id: candidate.partylist_id ? String(candidate.partylist_id) : '',
       platform: candidate.platform || '',
     });
-    setEditSearch(selectedUserName || '');
     setEditImageFile(null);
     setEditImagePreview(candidate.image_url || null);
     setError('');
@@ -384,8 +356,6 @@ export default function ManageCandidatesPage() {
           positions={positions}
           partylists={partylists}
           users={availableAddUsers}
-          userSearch={addSearch}
-          setUserSearch={setAddSearch}
           imagePreview={imagePreview}
           onImageChange={(event) => {
             const file = event.target.files[0];
@@ -409,8 +379,6 @@ export default function ManageCandidatesPage() {
           positions={positions}
           partylists={partylists}
           users={availableEditUsers}
-          userSearch={editSearch}
-          setUserSearch={setEditSearch}
           imagePreview={editImagePreview}
           onImageChange={(event) => {
             const file = event.target.files[0];
@@ -450,7 +418,7 @@ export default function ManageCandidatesPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       {candidate.image_url
-                        ? <img src={candidate.image_url} alt={name} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
+                        ? <img src={resolveImageUrl(candidate.image_url)} alt={name} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
                         : <Avatar name={name || 'Candidate'} size="md" />
                       }
                       <div className="min-w-0">

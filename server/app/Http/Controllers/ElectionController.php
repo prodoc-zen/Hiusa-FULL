@@ -16,6 +16,41 @@ use Illuminate\Validation\ValidationException;
 
 class ElectionController extends Controller
 {
+    private function storePartylistBanner(Request $request): string
+    {
+        $file = $request->file('banner');
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $filename = Str::uuid()->toString() . '.' . $ext;
+        $destDir = public_path('uploads/partylists');
+
+        if (!is_dir($destDir)) {
+            mkdir($destDir, 0755, true);
+        }
+
+        $file->move($destDir, $filename);
+
+        return '/uploads/partylists/' . $filename;
+    }
+
+    private function deletePartylistBanner(?string $bannerUrl): void
+    {
+        if (!$bannerUrl) {
+            return;
+        }
+
+        if (str_starts_with($bannerUrl, '/storage/')) {
+            Storage::delete('public/' . ltrim(str_replace('/storage/', '', $bannerUrl), '/'));
+            return;
+        }
+
+        if (str_starts_with($bannerUrl, '/uploads/')) {
+            $fullPath = public_path(ltrim($bannerUrl, '/'));
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        }
+    }
+
     public function index()
     {
         $query = Election::withCount(['votes', 'positions', 'candidates']);
@@ -305,13 +340,12 @@ class ElectionController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:partylists,name'],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
         $bannerUrl = null;
         if ($request->hasFile('banner')) {
-            $path = $request->file('banner')->store('partylists', 'public');
-            $bannerUrl = Storage::url($path);
+            $bannerUrl = $this->storePartylistBanner($request);
         }
 
         $partylist = Partylist::create([
@@ -336,15 +370,12 @@ class ElectionController extends Controller
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
         if ($request->hasFile('banner')) {
-            if ($partylist->banner_url && str_starts_with($partylist->banner_url, '/storage/')) {
-                Storage::disk('public')->delete(str_replace('/storage/', '', $partylist->banner_url));
-            }
-            $path = $request->file('banner')->store('partylists', 'public');
-            $partylist->banner_url = Storage::url($path);
+            $this->deletePartylistBanner($partylist->banner_url);
+            $partylist->banner_url = $this->storePartylistBanner($request);
         }
 
         $partylist->fill([

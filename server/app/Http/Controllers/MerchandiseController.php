@@ -5,9 +5,45 @@ namespace App\Http\Controllers;
 use App\Models\Merchandise;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 
 class MerchandiseController extends Controller
 {
+    private function storeMerchandiseImage(Request $request): string
+    {
+        $file = $request->file('image');
+        $ext = strtolower($file->getClientOriginalExtension() ?: 'jpg');
+        $filename = Str::uuid()->toString() . '.' . $ext;
+        $destDir = public_path('uploads/merchandise');
+
+        if (!is_dir($destDir)) {
+            mkdir($destDir, 0755, true);
+        }
+
+        $file->move($destDir, $filename);
+
+        return '/uploads/merchandise/' . $filename;
+    }
+
+    private function deleteMerchandiseImage(?string $imageUrl): void
+    {
+        if (!$imageUrl) {
+            return;
+        }
+
+        if (str_starts_with($imageUrl, '/storage/')) {
+            Storage::delete('public/' . ltrim(str_replace('/storage/', '', $imageUrl), '/'));
+            return;
+        }
+
+        if (str_starts_with($imageUrl, '/uploads/')) {
+            $fullPath = public_path(ltrim($imageUrl, '/'));
+            if (is_file($fullPath)) {
+                @unlink($fullPath);
+            }
+        }
+    }
+
     public function index(Request $request)
     {
         $query = Merchandise::withCount('orders')->orderBy('name', 'asc');
@@ -28,12 +64,11 @@ class MerchandiseController extends Controller
             'price'          => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
             'is_active'      => ['boolean'],
-            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
         if ($request->hasFile('image')) {
-            $path = $request->file('image')->store('merchandise', 'public');
-            $data['image_url'] = Storage::url($path);
+            $data['image_url'] = $this->storeMerchandiseImage($request);
         }
         unset($data['image']);
 
@@ -57,15 +92,12 @@ class MerchandiseController extends Controller
             'price'          => ['sometimes', 'required', 'numeric', 'min:0'],
             'stock_quantity' => ['sometimes', 'required', 'integer', 'min:0'],
             'is_active'      => ['boolean'],
-            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:2048'],
+            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
         if ($request->hasFile('image')) {
-            if ($item->image_url && str_starts_with($item->image_url, '/storage/')) {
-                Storage::delete('public/' . ltrim(str_replace('/storage/', '', $item->image_url), '/'));
-            }
-            $path = $request->file('image')->store('merchandise', 'public');
-            $data['image_url'] = Storage::url($path);
+            $this->deleteMerchandiseImage($item->image_url);
+            $data['image_url'] = $this->storeMerchandiseImage($request);
         }
         unset($data['image']);
 

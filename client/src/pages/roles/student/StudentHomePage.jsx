@@ -6,6 +6,14 @@ import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getMerchandise } from '../../../services/merchandiseService';
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
+
+function resolveImageUrl(url) {
+  if (!url) return null;
+  if (/^(https?:|blob:|data:)/i.test(url)) return url;
+  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
+}
+
 function formatDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
@@ -197,7 +205,7 @@ export default function StudentHomePage() {
                 <div key={item.id} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
                   <div className="mb-2 h-12 w-full overflow-hidden rounded-md bg-[#E6F6FD]">
                     {item.image_url
-                      ? <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" />
+                      ? <img src={resolveImageUrl(item.image_url)} alt={item.name} className="h-full w-full object-cover" />
                       : <div className="grid h-full w-full place-items-center"><Package size={22} className="text-[#0B8ED0]" /></div>
                     }
                   </div>
