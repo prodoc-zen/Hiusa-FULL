@@ -14,7 +14,7 @@ return new class extends Migration
         Schema::create('transactions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('budget_id')->nullable()->constrained('budgets')->nullOnDelete();
-            $table->foreignId('recorded_by')->constrained('users')->restrictOnDelete();
+            $table->unsignedInteger('recorded_by');
             $table->enum('type', ['income', 'expense']);
             $table->string('category', 100);
             $table->decimal('amount', 10, 2);
@@ -22,6 +22,8 @@ return new class extends Migration
             $table->string('receipt_reference', 100)->nullable()->unique();
             $table->dateTime('transaction_date')->useCurrent();
             $table->timestamps();
+
+            $table->foreign('recorded_by')->references('school_id')->on('users')->restrictOnDelete();
         });
     }
 

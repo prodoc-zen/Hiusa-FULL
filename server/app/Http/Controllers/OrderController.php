@@ -16,9 +16,11 @@ class OrderController extends Controller
 
         $query = Order::with([
             'merchandise:id,name,price,image_url',
-            'student:id,first_name,last_name,school_id',
-            'processor:id,first_name,last_name',
-        ])->orderBy('created_at', 'desc');
+            'student:school_id,first_name,last_name',
+            'processor:school_id,first_name,last_name',
+        ])
+            ->where('organization_id', $user->organization_id)
+            ->orderBy('created_at', 'desc');
 
         if ($user->role === 'student') {
             $query->where('student_id', $user->id);
@@ -39,7 +41,9 @@ class OrderController extends Controller
         ]);
 
         return DB::transaction(function () use ($data, $request) {
-            $item = Merchandise::lockForUpdate()->find($data['merchandise_id']);
+            $item = Merchandise::where('organization_id', $request->user()->organization_id)
+                ->lockForUpdate()
+                ->find($data['merchandise_id']);
 
             if (!$item) {
                 return response()->json(['message' => 'Item is no longer available.'], 422);
@@ -64,6 +68,7 @@ class OrderController extends Controller
                 'total_price'    => $item->price * $data['quantity'],
                 'status'         => 'pending',
                 'claim_token'    => strtoupper(Str::random(8)),
+                'organization_id' => $request->user()->organization_id,
             ]);
 
             return response()->json(
@@ -75,7 +80,7 @@ class OrderController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $order = Order::find($id);
+        $order = Order::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$order) {
             return response()->json(['message' => 'Order not found.'], 404);
@@ -102,7 +107,7 @@ class OrderController extends Controller
 
         return response()->json($order->fresh()->load([
             'merchandise:id,name,price',
-            'student:id,first_name,last_name,school_id',
+            'student:school_id,first_name,last_name',
         ]));
     }
 
@@ -112,7 +117,9 @@ class OrderController extends Controller
             'claim_token' => ['required', 'string'],
         ]);
 
-        $order = Order::where('claim_token', strtoupper($data['claim_token']))->first();
+        $order = Order::where('organization_id', $request->user()->organization_id)
+            ->where('claim_token', strtoupper($data['claim_token']))
+            ->first();
 
         if (!$order) {
             return response()->json(['message' => 'Invalid claim token.'], 404);
@@ -136,7 +143,7 @@ class OrderController extends Controller
 
         return response()->json($order->fresh()->load([
             'merchandise:id,name,price,image_url',
-            'student:id,first_name,last_name,school_id',
+            'student:school_id,first_name,last_name',
         ]));
     }
 }

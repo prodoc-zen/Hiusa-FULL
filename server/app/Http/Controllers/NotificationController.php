@@ -11,6 +11,7 @@ class NotificationController extends Controller
     public function index(Request $request)
     {
         $notifications = Notification::where('user_id', $request->user()->id)
+            ->where('organization_id', $request->user()->organization_id)
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -22,7 +23,7 @@ class NotificationController extends Controller
 
     public function markRead(Request $request, $id)
     {
-        $notification = Notification::find($id);
+        $notification = Notification::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$notification) {
             return response()->json(['message' => 'Notification not found.'], 404);
@@ -40,6 +41,7 @@ class NotificationController extends Controller
     public function markAllRead(Request $request)
     {
         Notification::where('user_id', $request->user()->id)
+            ->where('organization_id', $request->user()->organization_id)
             ->where('is_read', false)
             ->update(['is_read' => true]);
 
@@ -51,23 +53,34 @@ class NotificationController extends Controller
         $data = $request->validate([
             'title'       => ['required', 'string', 'max:255'],
             'message'     => ['required', 'string'],
-            'user_id'     => ['nullable', 'exists:users,id'],
+            'user_id'     => ['nullable', 'exists:users,school_id'],
             'target_role' => ['nullable', 'in:student,officer,adviser,admin'],
         ]);
 
         if (!empty($data['user_id'])) {
+            $recipientBelongsToOrganization = User::where('organization_id', $request->user()->organization_id)
+                ->where('school_id', $data['user_id'])
+                ->exists();
+
+            if (!$recipientBelongsToOrganization) {
+                return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
+            }
+
             $notification = Notification::create([
                 'user_id' => $data['user_id'],
                 'title'   => $data['title'],
                 'message' => $data['message'],
                 'is_read' => false,
+                'organization_id' => $request->user()->organization_id,
             ]);
 
             return response()->json($notification, 201);
         }
 
         if (!empty($data['target_role'])) {
-            $userIds = User::where('role', $data['target_role'])->pluck('id');
+            $userIds = User::where('organization_id', $request->user()->organization_id)
+                ->where('role', $data['target_role'])
+                ->pluck('school_id');
             $now = now();
 
             Notification::insert(
@@ -76,6 +89,7 @@ class NotificationController extends Controller
                     'title'      => $data['title'],
                     'message'    => $data['message'],
                     'is_read'    => false,
+                    'organization_id' => $request->user()->organization_id,
                     'created_at' => $now,
                     'updated_at' => $now,
                 ])->all()

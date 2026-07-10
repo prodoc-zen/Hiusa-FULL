@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -13,9 +14,12 @@ class AdministratorSeeder extends Seeder
             return;
         }
 
+        $organizationId = Organization::where('acronym', 'PSITS-CCS')->value('id');
+
         User::updateOrCreate(
-            ['school_id' => 'HIUSA-ADMIN-0001'],
+            ['school_id' => 990001],
             [
+                'organization_id' => $organizationId,
                 'first_name' => 'System',
                 'last_name' => 'Administrator',
                 'email' => 'admin@hiusa.local',

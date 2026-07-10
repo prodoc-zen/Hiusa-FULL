@@ -14,14 +14,17 @@ return new class extends Migration
         Schema::create('tasks', function (Blueprint $table) {
             $table->id();
             $table->foreignId('event_id')->nullable()->constrained('events')->cascadeOnDelete();
-            $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
+            $table->unsignedInteger('created_by');
             $table->string('title');
             $table->text('description')->nullable();
-            $table->foreignId('assigned_to')->nullable()->constrained('users')->nullOnDelete();
+            $table->unsignedInteger('assigned_to')->nullable();
             $table->enum('status', ['pending', 'in_progress', 'completed', 'overdue'])->default('pending');
             $table->dateTime('deadline');
             $table->text('ai_recommendation_note')->nullable();
             $table->timestamps();
+
+            $table->foreign('created_by')->references('school_id')->on('users')->cascadeOnDelete();
+            $table->foreign('assigned_to')->references('school_id')->on('users')->nullOnDelete();
         });
     }
 

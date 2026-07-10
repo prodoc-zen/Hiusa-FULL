@@ -1,6 +1,6 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { ArrowRight, Eye, EyeOff, Lock, Mail, Hash } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { ArrowRight, Building2, Eye, EyeOff, Lock, Mail, Hash } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { login } from '../../services/authService';
 
@@ -12,7 +12,7 @@ const ROLES = [
 ];
 
 const ROLE_CONFIG = {
-  student: { idField: 'school_id', label: 'Student ID', placeholder: 'e.g. 2023-00001', icon: Hash },
+  student: { idField: 'school_id', label: 'Student ID', placeholder: 'e.g. 2400142', icon: Hash },
   officer: { idField: 'email', label: 'Email Address', placeholder: 'officer@university.edu', icon: Mail },
   adviser: { idField: 'email', label: 'Email Address', placeholder: 'adviser@university.edu', icon: Mail },
   admin:   { idField: 'email', label: 'Email Address', placeholder: 'admin@university.edu', icon: Mail },
@@ -45,10 +45,27 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [activeRole, setActiveRole] = useState('student');
   const [showPassword, setShowPassword] = useState(false);
+  const [selectedOrganization, setSelectedOrganization] = useState(null);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('selected_organization');
+
+    if (!stored) {
+      navigate('/select-organization', { replace: true });
+      return;
+    }
+
+    try {
+      setSelectedOrganization(JSON.parse(stored));
+    } catch {
+      localStorage.removeItem('selected_organization');
+      navigate('/select-organization', { replace: true });
+    }
+  }, [navigate]);
 
   const config = ROLE_CONFIG[activeRole];
   const IdIcon = config.icon;
@@ -66,9 +83,17 @@ export default function LoginPage() {
 
     const credentials = {
       [config.idField]: identifier.trim(),
+      organization_id: selectedOrganization?.id,
       password,
       role: activeRole,
     };
+
+    if (!credentials.organization_id) {
+      setError('Select your student organization before signing in.');
+      setLoading(false);
+      navigate('/select-organization', { replace: true });
+      return;
+    }
 
     try {
       const response = await login(credentials);
@@ -112,6 +137,29 @@ export default function LoginPage() {
               <p className="mt-1.5 text-sm font-medium text-slate-500">Sign in to access your account.</p>
             </div>
 
+            {selectedOrganization && (
+              <div className="mb-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+                <div className="flex items-start gap-3">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#E9F7FD] text-[#0B8ED0]">
+                    <Building2 size={17} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-bold uppercase text-slate-500">Selected organization</p>
+                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">{selectedOrganization.name}</p>
+                    {selectedOrganization.college && (
+                      <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{selectedOrganization.college}</p>
+                    )}
+                  </div>
+                </div>
+                <Link
+                  to="/select-organization"
+                  className="mt-3 inline-flex text-xs font-bold text-[#0878B7] transition hover:text-[#0B1831]"
+                >
+                  Change organization
+                </Link>
+              </div>
+            )}
+
             {/* Role Tabs */}
             <div className="mb-6 flex rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-1 gap-0.5">
               {ROLES.map((r) => (
@@ -139,7 +187,9 @@ export default function LoginPage() {
                     <IdIcon size={17} />
                   </div>
                   <input
-                    type={activeRole === 'student' ? 'text' : 'email'}
+                    type={activeRole === 'student' ? 'number' : 'email'}
+                    min={activeRole === 'student' ? 1 : undefined}
+                    max={activeRole === 'student' ? 99999999 : undefined}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={config.placeholder}

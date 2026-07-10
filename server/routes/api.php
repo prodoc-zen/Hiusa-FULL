@@ -13,6 +13,7 @@ use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\OrganizationController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -20,6 +21,7 @@ Route::get('/user', function (Request $request) {
 
 Route::post('/register', [UserController::class, 'register']);
 Route::post('/login', [UserController::class, 'login']);
+Route::get('/organizations', [OrganizationController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [UserController::class, 'logout']);
@@ -30,6 +32,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware('role:admin,officer');
+    Route::post('/users', [UserController::class, 'store'])->middleware('role:admin');
     Route::put('/users/{id}', [UserController::class, 'update'])->middleware('role:admin');
     Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware('role:admin');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('role:admin');
@@ -118,5 +121,3 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware('role:admin,officer,adviser,student');
     Route::post('/notifications', [NotificationController::class, 'store'])->middleware('role:admin,officer');
 });
-
-

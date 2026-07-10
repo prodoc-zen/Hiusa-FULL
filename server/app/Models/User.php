@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -16,9 +17,16 @@ class User extends Authenticatable
 
     protected $authPasswordName = 'password_hash';
 
+    protected $primaryKey = 'school_id';
+
+    protected $keyType = 'int';
+
+    public $incrementing = false;
+
     protected $rememberTokenName = '';
 
     protected $fillable = [
+        'organization_id',
         'school_id',
         'first_name',
         'last_name',
@@ -29,6 +37,10 @@ class User extends Authenticatable
         'biometric_template',
     ];
 
+    protected $with = ['organization:id,name,slug,college,acronym'];
+
+    protected $appends = ['id'];
+
     protected $hidden = [
         'password_hash',
         'biometric_template',
@@ -37,13 +49,24 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
+            'school_id' => 'integer',
             'password_hash' => 'hashed',
         ];
+    }
+
+    public function getIdAttribute(): int
+    {
+        return $this->school_id;
     }
 
     public function announcements(): HasMany
     {
         return $this->hasMany(Announcement::class, 'created_by');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 
     public function events(): HasMany

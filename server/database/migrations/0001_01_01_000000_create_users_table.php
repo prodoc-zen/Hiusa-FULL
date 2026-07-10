@@ -2,6 +2,7 @@
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -12,17 +13,23 @@ return new class extends Migration
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
-            $table->id();
-            $table->string('school_id', 50)->unique();
-            $table->string('first_name', 100);
-            $table->string('last_name', 100);
+            $table->unsignedInteger('school_id')->primary();
+            $table->string('first_name', 60);
+            $table->string('last_name', 60);
             $table->boolean('is_member')->default(false);
-            $table->string('email', 150)->unique();
-            $table->string('password_hash');
+            $table->string('email', 100)->unique();
+            $table->string('password_hash', 255);
             $table->enum('role', ['student', 'officer', 'admin', 'adviser'])->default('student');
-            $table->text('biometric_template')->nullable();
+            $table->binary('biometric_template')->nullable();
             $table->timestamps();
         });
+
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            DB::statement('ALTER TABLE users MODIFY biometric_template LONGBLOB NULL');
+            DB::statement('ALTER TABLE users ADD CONSTRAINT users_school_id_8_digits_check CHECK (school_id BETWEEN 1 AND 99999999)');
+        } elseif (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE users ADD CONSTRAINT users_school_id_8_digits_check CHECK (school_id BETWEEN 1 AND 99999999)');
+        }
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {
             $table->string('email')->primary();
@@ -32,7 +39,7 @@ return new class extends Migration
 
         Schema::create('sessions', function (Blueprint $table) {
             $table->string('id')->primary();
-            $table->foreignId('user_id')->nullable()->index();
+            $table->unsignedInteger('user_id')->nullable()->index();
             $table->string('ip_address', 45)->nullable();
             $table->text('user_agent')->nullable();
             $table->longText('payload');

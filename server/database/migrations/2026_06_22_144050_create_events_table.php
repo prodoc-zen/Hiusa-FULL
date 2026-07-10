@@ -19,8 +19,10 @@ return new class extends Migration
             $table->dateTime('end_time');
             $table->string('location')->nullable();
             $table->enum('status', ['planning', 'approved', 'ongoing', 'completed', 'cancelled'])->default('planning');
-            $table->foreignId('created_by')->constrained('users')->cascadeOnDelete();
+            $table->unsignedInteger('created_by');
             $table->timestamps();
+
+            $table->foreign('created_by')->references('school_id')->on('users')->cascadeOnDelete();
         });
     }
 

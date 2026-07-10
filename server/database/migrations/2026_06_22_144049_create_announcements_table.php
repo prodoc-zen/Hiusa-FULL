@@ -15,10 +15,12 @@ return new class extends Migration
             $table->id();
             $table->string('title');
             $table->text('body');
-            $table->foreignId('created_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->unsignedInteger('created_by')->nullable();
             $table->enum('target_role', ['all', 'student', 'officer', 'adviser'])->default('all');
             $table->boolean('is_published')->default(false);
             $table->timestamps();
+
+            $table->foreign('created_by')->references('school_id')->on('users')->nullOnDelete();
         });
     }
 

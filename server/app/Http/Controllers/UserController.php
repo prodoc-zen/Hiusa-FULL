@@ -6,14 +6,63 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $users = User::orderBy('last_name')->orderBy('first_name')->get();
+        $users = User::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->get();
+
         return response()->json($users);
+    }
+
+    public function store(Request $request)
+    {
+        $actor = $request->user();
+        $organizationId = $request->input('organization_id', $actor->organization_id);
+        $role = $request->input('role', 'student');
+
+        $validatedData = $request->validate([
+            'organization_id' => ['sometimes', 'required', 'exists:organizations,id'],
+            'school_id' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:99999999',
+                Rule::unique('users', 'school_id'),
+            ],
+            'first_name' => 'required|string|max:60',
+            'last_name' => 'required|string|max:60',
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')
+                    ->where(fn ($query) => $query->where('organization_id', $organizationId)),
+            ],
+            'password' => 'required|string|min:8|confirmed',
+            'role' => 'required|in:student,officer,admin,adviser',
+        ]);
+
+        $user = User::create([
+            'organization_id' => $role === 'admin' ? $organizationId : ($validatedData['organization_id'] ?? $organizationId),
+            'school_id' => $validatedData['school_id'],
+            'first_name' => $validatedData['first_name'],
+            'last_name' => $validatedData['last_name'],
+            'email' => $validatedData['email'],
+            'password_hash' => $validatedData['password'],
+            'role' => $validatedData['role'],
+            'is_member' => true,
+        ]);
+
+        return response()->json($user, 201);
     }
 
     public function update(Request $request, $id)
@@ -25,10 +74,28 @@ class UserController extends Controller
         }
 
         $validatedData = $request->validate([
-            'school_id' => 'sometimes|required|string|max:50|unique:users,school_id,' . $user->id,
-            'first_name' => 'sometimes|required|string|max:100',
-            'last_name' => 'sometimes|required|string|max:100',
-            'email' => 'sometimes|required|string|email|max:150|unique:users,email,' . $user->id,
+            'organization_id' => 'sometimes|required|exists:organizations,id',
+            'school_id' => [
+                'sometimes',
+                'required',
+                'integer',
+                'min:1',
+                'max:99999999',
+                Rule::unique('users', 'school_id')
+                    ->ignore($user->school_id, 'school_id'),
+            ],
+            'first_name' => 'sometimes|required|string|max:60',
+            'last_name' => 'sometimes|required|string|max:60',
+            'email' => [
+                'sometimes',
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')
+                    ->where(fn ($query) => $query->where('organization_id', $request->input('organization_id', $user->organization_id)))
+                    ->ignore($user->school_id, 'school_id'),
+            ],
             'role' => 'sometimes|required|in:student,officer,admin,adviser',
             'password' => 'sometimes|required|string|min:8',
         ]);
@@ -103,15 +170,29 @@ class UserController extends Controller
     public function register(Request $request)
     {
         $validatedData = $request->validate([
-            'school_id' => 'required|string|max:50|unique:users',
-            'first_name' => 'required|string|max:100',
-            'last_name' => 'required|string|max:100',
-            'email' => 'required|string|email|max:150|unique:users',
+            'organization_id' => ['required', 'exists:organizations,id'],
+            'school_id' => [
+                'required',
+                'integer',
+                'min:1',
+                'max:99999999',
+                Rule::unique('users', 'school_id'),
+            ],
+            'first_name' => 'required|string|max:60',
+            'last_name' => 'required|string|max:60',
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $request->organization_id)),
+            ],
             'password' => 'required|string|min:8|confirmed',
             'role' => 'sometimes|in:student',
         ]);
 
         $user = User::create([
+            'organization_id' => $validatedData['organization_id'],
             'school_id' => $validatedData['school_id'],
             'first_name' => $validatedData['first_name'],
             'last_name' => $validatedData['last_name'],
@@ -130,15 +211,16 @@ class UserController extends Controller
     public function login(Request $request)
     {
         $request->validate([
+            'organization_id' => 'required|exists:organizations,id',
             'email'     => 'required_without:school_id|nullable|email',
-            'school_id' => 'required_without:email|nullable|string',
+            'school_id' => 'required_without:email|nullable|integer|min:1|max:99999999',
             'password'  => 'required|string',
             'role'      => 'sometimes|in:student,officer,admin,adviser',
         ]);
 
         $user = $request->filled('email')
-            ? User::where('email', $request->email)->first()
-            : User::where('school_id', $request->school_id)->first();
+            ? User::where('organization_id', $request->organization_id)->where('email', $request->email)->first()
+            : User::where('organization_id', $request->organization_id)->where('school_id', $request->school_id)->first();
 
         if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             throw ValidationException::withMessages([
@@ -171,9 +253,17 @@ class UserController extends Controller
         $user = $request->user();
 
         $data = $request->validate([
-            'first_name' => ['sometimes', 'required', 'string', 'max:100'],
-            'last_name'  => ['sometimes', 'required', 'string', 'max:100'],
-            'email'      => ['sometimes', 'required', 'email', 'max:150', 'unique:users,email,' . $user->id],
+            'first_name' => ['sometimes', 'required', 'string', 'max:60'],
+            'last_name'  => ['sometimes', 'required', 'string', 'max:60'],
+            'email'      => [
+                'sometimes',
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')
+                    ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
+                    ->ignore($user->school_id, 'school_id'),
+            ],
         ]);
 
         $user->update($data);

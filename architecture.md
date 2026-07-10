@@ -101,9 +101,10 @@ The application's route structure is controlled inside:
 🔗 **[App.jsx](file:///c:/Users/John%20Carlo/WEBSITE%20PROJECTS/HIUSA%20-%20system/client/src/App.jsx)**
 
 ### Routing Logic
-1. **Guest Guards (`LoggedInRoute.jsx`):** Wraps routes like `/login`. If the user is already authenticated, they are automatically redirected to `/dashboard`.
-2. **Auth Guards (`ProtectedRoute.jsx`):** Protects the main application routes. If no session/token is found in `localStorage`, the user is immediately kicked back to the `/login` page.
-3. **Admin Layout (`DashboardLayout.jsx`):** Renders the dashboard shell (containing the `Sidebar` and `TopBar`) and serves nested routes via React Router's `<Outlet />`.
+1. **Guest Guards (`LoggedInRoute.jsx`):** Wraps routes like `/select-organization` and `/login`. If the user is already authenticated, they are automatically redirected to `/dashboard`.
+2. **Organization Selection (`/select-organization`):** Guest users choose an active student body organization before reaching `/login`. The selected organization is stored in `localStorage` and submitted with the login request.
+3. **Auth Guards (`ProtectedRoute.jsx`):** Protects the main application routes. If no session/token is found in `localStorage`, the user is immediately kicked back to the `/login` page.
+4. **Admin Layout (`DashboardLayout.jsx`):** Renders the dashboard shell (containing the `Sidebar` and `TopBar`) and serves nested routes via React Router's `<Outlet />`.
 
 ---
 
@@ -113,7 +114,8 @@ Database schemas are defined in migration scripts under `server/database/migrati
 
 | Model Name | Table Name | Purpose |
 | :--- | :--- | :--- |
-| **`User`** | `users` | User credentials, roles, and profiles. |
+| **`Organization`** | `organizations` | Student body organizations/workspaces selected before login. |
+| **`User`** | `users` | User credentials, roles, and profiles. Uses integer `school_id` as the primary key. |
 | **`Announcement`** | `announcements` | System bulletins, organization news, or notices. |
 | **`Event`** | `events` | Calendared system activities. |
 | **`Attendance`** | `attendance` | Member attendance records tracking check-ins for events. |

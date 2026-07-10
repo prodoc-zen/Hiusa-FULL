@@ -13,16 +13,20 @@ return new class extends Migration
     {
         Schema::create('orders', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('student_id')->constrained('users')->cascadeOnDelete();
+            $table->unsignedInteger('student_id');
             $table->foreignId('merchandise_id')->constrained('merchandise')->cascadeOnDelete();
             $table->integer('quantity')->default(1);
             $table->decimal('total_price', 10, 2);
             $table->enum('status', ['pending', 'paid', 'claimed', 'cancelled'])->default('pending');
             $table->string('claim_token', 50)->unique();
-            $table->foreignId('processed_by')->nullable()->constrained('users')->nullOnDelete();
-            $table->foreignId('approved_by')->nullable()->constrained('users')->nullOnDelete();
+            $table->unsignedInteger('processed_by')->nullable();
+            $table->unsignedInteger('approved_by')->nullable();
             $table->dateTime('claimed_at')->nullable();
             $table->timestamps();
+
+            $table->foreign('student_id')->references('school_id')->on('users')->cascadeOnDelete();
+            $table->foreign('processed_by')->references('school_id')->on('users')->nullOnDelete();
+            $table->foreign('approved_by')->references('school_id')->on('users')->nullOnDelete();
         });
     }
 
