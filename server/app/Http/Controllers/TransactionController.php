@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Budget;
 use App\Models\Transaction;
 use Illuminate\Http\Request;
 
@@ -11,8 +12,10 @@ class TransactionController extends Controller
     {
         $query = Transaction::with([
             'budget:id,title',
-            'recorder:id,first_name,last_name',
-        ])->orderBy('transaction_date', 'desc');
+            'recorder:school_id,first_name,last_name',
+        ])
+            ->where('organization_id', $request->user()->organization_id)
+            ->orderBy('transaction_date', 'desc');
 
         if ($request->filled('budget_id')) {
             $query->where('budget_id', $request->budget_id);
@@ -41,7 +44,8 @@ class TransactionController extends Controller
             'to'   => ['nullable', 'date'],
         ]);
 
-        $query = Transaction::query();
+        $query = Transaction::query()
+            ->where('organization_id', $request->user()->organization_id);
 
         if ($request->filled('from')) {
             $query->whereDate('transaction_date', '>=', $request->from);
@@ -80,15 +84,26 @@ class TransactionController extends Controller
             'receipt_reference' => ['nullable', 'string', 'max:100', 'unique:transactions,receipt_reference'],
         ]);
 
+        if (!empty($data['budget_id'])) {
+            $budgetBelongsToOrganization = Budget::where('organization_id', $request->user()->organization_id)
+                ->where('id', $data['budget_id'])
+                ->exists();
+
+            if (!$budgetBelongsToOrganization) {
+                return response()->json(['message' => 'Selected budget does not belong to this organization.'], 422);
+            }
+        }
+
         $transaction = Transaction::create([
             ...$data,
             'recorded_by' => $request->user()->id,
+            'organization_id' => $request->user()->organization_id,
         ]);
 
         return response()->json(
             $transaction->load([
                 'budget:id,title',
-                'recorder:id,first_name,last_name',
+                'recorder:school_id,first_name,last_name',
             ]),
             201
         );
@@ -96,7 +111,7 @@ class TransactionController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $transaction = Transaction::find($id);
+        $transaction = Transaction::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$transaction) {
             return response()->json(['message' => 'Transaction not found.'], 404);

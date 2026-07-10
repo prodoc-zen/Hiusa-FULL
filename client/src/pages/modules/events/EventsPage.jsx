@@ -179,7 +179,7 @@ export default function EventsPage({ initialTab = 'events' }) {
         !checkedInUserIds.has(u.id) &&
         (checkInSearch.trim() === '' ||
           `${u.first_name} ${u.last_name}`.toLowerCase().includes(checkInSearch.toLowerCase()) ||
-          (u.school_id ?? '').toLowerCase().includes(checkInSearch.toLowerCase()))
+          String(u.school_id ?? '').toLowerCase().includes(checkInSearch.toLowerCase()))
     )
     .slice(0, 6);
 

@@ -13,7 +13,8 @@ class EventController extends Controller
     {
         $user = $request->user();
 
-        $query = Event::with('creator:id,first_name,last_name')
+        $query = Event::with('creator:school_id,first_name,last_name')
+            ->where('organization_id', $user->organization_id)
             ->withCount('attendanceRecords')
             ->orderBy('start_time', 'asc');
 
@@ -27,10 +28,13 @@ class EventController extends Controller
     public function show(Request $request, $id)
     {
         $event = Event::with([
-            'creator:id,first_name,last_name',
-            'tasks.assignee:id,first_name,last_name',
-            'attendanceRecords.user:id,first_name,last_name,school_id',
-        ])->withCount('attendanceRecords')->find($id);
+            'creator:school_id,first_name,last_name',
+            'tasks.assignee:school_id,first_name,last_name',
+            'attendanceRecords.user:school_id,first_name,last_name,role',
+        ])
+            ->where('organization_id', $request->user()->organization_id)
+            ->withCount('attendanceRecords')
+            ->find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -57,17 +61,18 @@ class EventController extends Controller
         $event = Event::create([
             ...$data,
             'created_by' => $request->user()->id,
+            'organization_id' => $request->user()->organization_id,
         ]);
 
         return response()->json(
-            $event->load('creator:id,first_name,last_name'),
+            $event->load('creator:school_id,first_name,last_name'),
             201
         );
     }
 
     public function update(Request $request, $id)
     {
-        $event = Event::find($id);
+        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -95,12 +100,12 @@ class EventController extends Controller
 
         $event->update($data);
 
-        return response()->json($event->fresh()->load('creator:id,first_name,last_name'));
+        return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
     }
 
     public function destroy(Request $request, $id)
     {
-        $event = Event::find($id);
+        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -117,7 +122,7 @@ class EventController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $event = Event::find($id);
+        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
@@ -133,18 +138,18 @@ class EventController extends Controller
 
         $event->update($data);
 
-        return response()->json($event->fresh()->load('creator:id,first_name,last_name'));
+        return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
     }
 
-    public function getAttendance($id)
+    public function getAttendance(Request $request, $id)
     {
-        $event = Event::find($id);
+        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        $records = Attendance::with('user:id,first_name,last_name,school_id,role')
+        $records = Attendance::with('user:school_id,first_name,last_name,role')
             ->where('event_id', $id)
             ->orderBy('check_in_time', 'asc')
             ->get();
@@ -158,16 +163,24 @@ class EventController extends Controller
 
     public function recordAttendance(Request $request, $id)
     {
-        $event = Event::find($id);
+        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
         $data = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
+            'user_id' => ['required', 'exists:users,school_id'],
             'method'  => ['required', 'in:biometric,manual'],
         ]);
+
+        $attendeeBelongsToOrganization = User::where('organization_id', $request->user()->organization_id)
+            ->where('school_id', $data['user_id'])
+            ->exists();
+
+        if (!$attendeeBelongsToOrganization) {
+            return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
+        }
 
         $alreadyCheckedIn = Attendance::where('event_id', $id)
             ->where('user_id', $data['user_id'])
@@ -189,7 +202,7 @@ class EventController extends Controller
         }
 
         return response()->json(
-            $record->load('user:id,first_name,last_name,school_id'),
+            $record->load('user:school_id,first_name,last_name'),
             201
         );
     }

@@ -52,11 +52,12 @@ class ElectionController extends Controller
         }
     }
 
-    public function index()
+    public function index(Request $request)
     {
-        $query = Election::withCount(['votes', 'positions', 'candidates']);
+        $query = Election::withCount(['votes', 'positions', 'candidates'])
+            ->where('organization_id', $request->user()->organization_id);
 
-        if (request()->user()?->role === 'student') {
+        if ($request->user()?->role === 'student') {
             $query->where('status', 'active');
         }
 
@@ -83,7 +84,9 @@ class ElectionController extends Controller
             $with[] = 'votes.voter';
         }
 
-        $election = Election::with($with)->find($id);
+        $election = Election::with($with)
+            ->where('organization_id', $user->organization_id)
+            ->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -127,14 +130,17 @@ class ElectionController extends Controller
             'status' => ['required', 'in:upcoming,active,closed'],
         ]);
 
-        $election = Election::create($data);
+        $election = Election::create([
+            ...$data,
+            'organization_id' => $request->user()->organization_id,
+        ]);
 
         return response()->json($election, 201);
     }
 
     public function update(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -158,9 +164,9 @@ class ElectionController extends Controller
         return response()->json($election->fresh());
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -175,9 +181,9 @@ class ElectionController extends Controller
         return response()->json(['message' => 'Election deleted successfully']);
     }
 
-    public function positionsIndex($id)
+    public function positionsIndex(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -188,7 +194,7 @@ class ElectionController extends Controller
 
     public function positionsStore(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -209,7 +215,13 @@ class ElectionController extends Controller
 
     public function positionsUpdate(Request $request, $id, $positionId)
     {
-        $position = ElectionPosition::where('election_id', $id)->find($positionId);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (!$election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        $position = ElectionPosition::where('election_id', $election->id)->find($positionId);
 
         if (!$position) {
             return response()->json(['message' => 'Position not found'], 404);
@@ -225,9 +237,15 @@ class ElectionController extends Controller
         return response()->json($position->fresh());
     }
 
-    public function positionsDestroy($id, $positionId)
+    public function positionsDestroy(Request $request, $id, $positionId)
     {
-        $position = ElectionPosition::where('election_id', $id)->find($positionId);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (!$election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        $position = ElectionPosition::where('election_id', $election->id)->find($positionId);
 
         if (!$position) {
             return response()->json(['message' => 'Position not found'], 404);
@@ -242,9 +260,9 @@ class ElectionController extends Controller
         return response()->json(['message' => 'Position deleted successfully']);
     }
 
-    public function candidatesIndex($id)
+    public function candidatesIndex(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -260,14 +278,14 @@ class ElectionController extends Controller
 
     public function candidatesStore(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
 
         $data = $request->validate([
-            'user_id' => ['required', 'exists:users,id'],
+            'user_id' => ['required', 'exists:users,school_id'],
             'position_id' => ['required', 'exists:election_positions,id'],
             'partylist_id' => ['nullable', 'exists:partylists,id'],
             'platform' => ['nullable', 'string'],
@@ -275,7 +293,7 @@ class ElectionController extends Controller
         ]);
 
         $candidateUser = User::find($data['user_id']);
-        if (!$candidateUser || $candidateUser->role !== 'student') {
+        if (!$candidateUser || $candidateUser->role !== 'student' || $candidateUser->organization_id !== $request->user()->organization_id) {
             return response()->json(['message' => 'Only students can be added as candidates.'], 422);
         }
 
@@ -283,6 +301,10 @@ class ElectionController extends Controller
 
         if (!$position) {
             return response()->json(['message' => 'Position does not belong to this election'], 422);
+        }
+
+        if (!empty($data['partylist_id']) && !Partylist::where('organization_id', $request->user()->organization_id)->where('id', $data['partylist_id'])->exists()) {
+            return response()->json(['message' => 'Selected partylist does not belong to this organization.'], 422);
         }
 
         $alreadyCandidate = Candidate::where('election_id', $election->id)
@@ -313,14 +335,20 @@ class ElectionController extends Controller
 
     public function candidatesUpdate(Request $request, $id, $candidateId)
     {
-        $candidate = Candidate::where('election_id', $id)->find($candidateId);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (!$election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        $candidate = Candidate::where('election_id', $election->id)->find($candidateId);
 
         if (!$candidate) {
             return response()->json(['message' => 'Candidate not found'], 404);
         }
 
         $data = $request->validate([
-            'user_id' => ['sometimes', 'required', 'exists:users,id'],
+            'user_id' => ['sometimes', 'required', 'exists:users,school_id'],
             'position_id' => ['sometimes', 'required', 'exists:election_positions,id'],
             'partylist_id' => ['nullable', 'exists:partylists,id'],
             'platform' => ['nullable', 'string'],
@@ -337,7 +365,7 @@ class ElectionController extends Controller
 
         if (array_key_exists('user_id', $data)) {
             $candidateUser = User::find($data['user_id']);
-            if (!$candidateUser || $candidateUser->role !== 'student') {
+            if (!$candidateUser || $candidateUser->role !== 'student' || $candidateUser->organization_id !== $request->user()->organization_id) {
                 return response()->json(['message' => 'Only students can be assigned as candidates.'], 422);
             }
 
@@ -349,6 +377,10 @@ class ElectionController extends Controller
             if ($alreadyCandidate) {
                 return response()->json(['message' => 'This student is already assigned as a candidate in this election.'], 422);
             }
+        }
+
+        if (!empty($data['partylist_id']) && !Partylist::where('organization_id', $request->user()->organization_id)->where('id', $data['partylist_id'])->exists()) {
+            return response()->json(['message' => 'Selected partylist does not belong to this organization.'], 422);
         }
 
         if ($request->hasFile('image')) {
@@ -365,9 +397,15 @@ class ElectionController extends Controller
         return response()->json($candidate->fresh()->load(['user', 'partylist', 'position']));
     }
 
-    public function candidatesDestroy($id, $candidateId)
+    public function candidatesDestroy(Request $request, $id, $candidateId)
     {
-        $candidate = Candidate::where('election_id', $id)->find($candidateId);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (!$election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        $candidate = Candidate::where('election_id', $election->id)->find($candidateId);
 
         if (!$candidate) {
             return response()->json(['message' => 'Candidate not found'], 404);
@@ -382,15 +420,25 @@ class ElectionController extends Controller
         return response()->json(['message' => 'Candidate deleted successfully']);
     }
 
-    public function partylistsIndex()
+    public function partylistsIndex(Request $request)
     {
-        return response()->json(Partylist::withCount('candidates')->orderBy('name')->get());
+        return response()->json(
+            Partylist::withCount('candidates')
+                ->where('organization_id', $request->user()->organization_id)
+                ->orderBy('name')
+                ->get()
+        );
     }
 
     public function partylistsStore(Request $request)
     {
         $data = $request->validate([
-            'name' => ['required', 'string', 'max:255', 'unique:partylists,name'],
+            'name' => [
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('partylists', 'name')->where(fn ($query) => $query->where('organization_id', $request->user()->organization_id)),
+            ],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
@@ -403,6 +451,7 @@ class ElectionController extends Controller
 
         $partylist = Partylist::create([
             'name' => $data['name'],
+            'organization_id' => $request->user()->organization_id,
             'acronym' => $data['acronym'] ?? null,
             'description' => $data['description'] ?? null,
             'banner_url' => $bannerUrl,
@@ -413,14 +462,22 @@ class ElectionController extends Controller
 
     public function partylistsUpdate(Request $request, $id)
     {
-        $partylist = Partylist::find($id);
+        $partylist = Partylist::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$partylist) {
             return response()->json(['message' => 'Partylist not found'], 404);
         }
 
         $data = $request->validate([
-            'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('partylists', 'name')->ignore($id)],
+            'name' => [
+                'sometimes',
+                'required',
+                'string',
+                'max:255',
+                Rule::unique('partylists', 'name')
+                    ->where(fn ($query) => $query->where('organization_id', $request->user()->organization_id))
+                    ->ignore($id),
+            ],
             'acronym' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
             'banner' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
@@ -440,9 +497,9 @@ class ElectionController extends Controller
         return response()->json($partylist->fresh());
     }
 
-    public function partylistsDestroy($id)
+    public function partylistsDestroy(Request $request, $id)
     {
-        $partylist = Partylist::find($id);
+        $partylist = Partylist::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$partylist) {
             return response()->json(['message' => 'Partylist not found'], 404);
@@ -459,7 +516,7 @@ class ElectionController extends Controller
 
     public function vote(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
@@ -538,9 +595,9 @@ class ElectionController extends Controller
         ]);
     }
 
-    public function voters($id)
+    public function voters(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
@@ -550,17 +607,18 @@ class ElectionController extends Controller
             ->pluck('voter_id');
 
         $students = User::where('role', 'student')
+            ->where('organization_id', $request->user()->organization_id)
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['id', 'school_id', 'first_name', 'last_name', 'email'])
+            ->get(['school_id', 'first_name', 'last_name', 'email'])
             ->map(fn($s) => array_merge($s->toArray(), ['has_voted' => $voterIds->contains($s->id)]));
 
         return response()->json($students);
     }
 
-    public function results($id)
+    public function results(Request $request, $id)
     {
-        $election = Election::find($id);
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (!$election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
@@ -568,7 +626,7 @@ class ElectionController extends Controller
         $positions = ElectionPosition::where('election_id', $id)->get();
         $positionIds = $positions->pluck('id');
 
-        $allCandidates = Candidate::with(['user:id,first_name,last_name', 'partylist:id,name'])
+        $allCandidates = Candidate::with(['user:school_id,first_name,last_name', 'partylist:id,name'])
             ->withCount('votes')
             ->whereIn('position_id', $positionIds)
             ->get()

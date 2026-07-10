@@ -16,10 +16,12 @@ return new class extends Migration
             $table->foreignId('election_id')->constrained('elections')->cascadeOnDelete();
             $table->foreignId('position_id')->constrained('election_positions')->cascadeOnDelete();
             $table->foreignId('candidate_id')->constrained('candidates')->cascadeOnDelete();
-            $table->foreignId('voter_id')->constrained('users')->cascadeOnDelete();
+            $table->unsignedInteger('voter_id');
             $table->string('vote_hash')->unique();
             $table->timestamp('cast_at')->useCurrent();
             $table->unique(['election_id', 'position_id', 'voter_id'], 'unique_vote_per_position');
+
+            $table->foreign('voter_id')->references('school_id')->on('users')->cascadeOnDelete();
         });
     }
 

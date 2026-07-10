@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import LoginPage from './pages/auth/LoginPage';
+import OrganizationSelectPage from './pages/auth/OrganizationSelectPage';
 import DashboardLayout from './components/layout/DashboardLayout';
 import DashboardPage from './pages/roles/officer/DashboardPage';
 import AdminHomePage from './pages/roles/admin/AdminHomePage';
@@ -122,8 +123,9 @@ function App() {
   return (
     <Routes>
       {/* Authentication */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<Navigate to="/select-organization" replace />} />
       <Route element={<LoggedInRoute />}>
+        <Route path="/select-organization" element={<OrganizationSelectPage />} />
         <Route path="/login" element={<LoginPage />} />
       </Route>
       

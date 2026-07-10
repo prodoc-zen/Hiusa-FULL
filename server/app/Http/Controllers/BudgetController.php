@@ -3,13 +3,15 @@
 namespace App\Http\Controllers;
 
 use App\Models\Budget;
+use App\Models\Event;
 use Illuminate\Http\Request;
 
 class BudgetController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         $budgets = Budget::with('event:id,title')
+            ->where('organization_id', $request->user()->organization_id)
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
             ->orderBy('created_at', 'desc')
@@ -27,7 +29,14 @@ class BudgetController extends Controller
             'event_id'           => ['nullable', 'exists:events,id'],
         ]);
 
-        $budget = Budget::create($data);
+        if (!empty($data['event_id']) && !Event::where('organization_id', $request->user()->organization_id)->where('id', $data['event_id'])->exists()) {
+            return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
+        }
+
+        $budget = Budget::create([
+            ...$data,
+            'organization_id' => $request->user()->organization_id,
+        ]);
 
         return response()->json(
             $budget->load('event:id,title'),
@@ -37,7 +46,7 @@ class BudgetController extends Controller
 
     public function update(Request $request, $id)
     {
-        $budget = Budget::find($id);
+        $budget = Budget::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$budget) {
             return response()->json(['message' => 'Budget not found.'], 404);
@@ -50,14 +59,18 @@ class BudgetController extends Controller
             'event_id'          => ['nullable', 'exists:events,id'],
         ]);
 
+        if (!empty($data['event_id']) && !Event::where('organization_id', $request->user()->organization_id)->where('id', $data['event_id'])->exists()) {
+            return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
+        }
+
         $budget->update($data);
 
         return response()->json($budget->fresh()->load('event:id,title'));
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $budget = Budget::find($id);
+        $budget = Budget::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$budget) {
             return response()->json(['message' => 'Budget not found.'], 404);

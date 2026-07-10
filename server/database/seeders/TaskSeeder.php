@@ -11,8 +11,8 @@ class TaskSeeder extends Seeder
 {
     public function run(): void
     {
-        $officer1 = User::where('school_id', 'OFF-2024-001')->first();
-        $officer2 = User::where('school_id', 'OFF-2024-002')->first();
+        $officer1 = User::where('school_id', 900001)->first();
+        $officer2 = User::where('school_id', 900002)->first();
         $assembly = Event::where('title', 'HIUSA General Assembly')->first();
         $sportsFest = Event::where('title', 'Sports Fest 2024')->first();
 

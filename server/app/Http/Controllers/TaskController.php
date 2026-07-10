@@ -2,7 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Event;
 use App\Models\Task;
+use App\Models\User;
 use Illuminate\Http\Request;
 
 class TaskController extends Controller
@@ -10,10 +12,12 @@ class TaskController extends Controller
     public function index(Request $request)
     {
         $query = Task::with([
-            'assignee:id,first_name,last_name',
-            'creator:id,first_name,last_name',
+            'assignee:school_id,first_name,last_name',
+            'creator:school_id,first_name,last_name',
             'event:id,title',
-        ])->orderBy('deadline', 'asc');
+        ])
+            ->where('organization_id', $request->user()->organization_id)
+            ->orderBy('deadline', 'asc');
 
         if ($request->filled('event_id')) {
             $query->where('event_id', $request->event_id);
@@ -37,20 +41,25 @@ class TaskController extends Controller
             'description' => ['nullable', 'string'],
             'deadline'    => ['required', 'date'],
             'status'      => ['required', 'in:pending,in_progress,completed,overdue'],
-            'assigned_to' => ['nullable', 'exists:users,id'],
+            'assigned_to' => ['nullable', 'exists:users,school_id'],
             'event_id'    => ['nullable', 'exists:events,id'],
             'ai_recommendation_note' => ['nullable', 'string'],
         ]);
 
+        if (!$this->validOrganizationLinks($request, $data)) {
+            return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
+        }
+
         $task = Task::create([
             ...$data,
             'created_by' => $request->user()->id,
+            'organization_id' => $request->user()->organization_id,
         ]);
 
         return response()->json(
             $task->load([
-                'assignee:id,first_name,last_name',
-                'creator:id,first_name,last_name',
+                'assignee:school_id,first_name,last_name',
+                'creator:school_id,first_name,last_name',
                 'event:id,title',
             ]),
             201
@@ -59,7 +68,7 @@ class TaskController extends Controller
 
     public function update(Request $request, $id)
     {
-        $task = Task::find($id);
+        $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$task) {
             return response()->json(['message' => 'Task not found.'], 404);
@@ -74,23 +83,27 @@ class TaskController extends Controller
             'description' => ['nullable', 'string'],
             'deadline'    => ['sometimes', 'required', 'date'],
             'status'      => ['sometimes', 'required', 'in:pending,in_progress,completed,overdue'],
-            'assigned_to' => ['nullable', 'exists:users,id'],
+            'assigned_to' => ['nullable', 'exists:users,school_id'],
             'event_id'    => ['nullable', 'exists:events,id'],
             'ai_recommendation_note' => ['nullable', 'string'],
         ]);
 
+        if (!$this->validOrganizationLinks($request, $data)) {
+            return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
+        }
+
         $task->update($data);
 
         return response()->json($task->fresh()->load([
-            'assignee:id,first_name,last_name',
-            'creator:id,first_name,last_name',
+            'assignee:school_id,first_name,last_name',
+            'creator:school_id,first_name,last_name',
             'event:id,title',
         ]));
     }
 
     public function destroy(Request $request, $id)
     {
-        $task = Task::find($id);
+        $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$task) {
             return response()->json(['message' => 'Task not found.'], 404);
@@ -107,7 +120,7 @@ class TaskController extends Controller
 
     public function updateStatus(Request $request, $id)
     {
-        $task = Task::find($id);
+        $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$task) {
             return response()->json(['message' => 'Task not found.'], 404);
@@ -129,9 +142,30 @@ class TaskController extends Controller
         $task->update($data);
 
         return response()->json($task->fresh()->load([
-            'assignee:id,first_name,last_name',
-            'creator:id,first_name,last_name',
+            'assignee:school_id,first_name,last_name',
+            'creator:school_id,first_name,last_name',
             'event:id,title',
         ]));
+    }
+
+    private function validOrganizationLinks(Request $request, array $data): bool
+    {
+        if (!empty($data['assigned_to'])) {
+            $validAssignee = User::where('organization_id', $request->user()->organization_id)
+                ->where('school_id', $data['assigned_to'])
+                ->exists();
+
+            if (!$validAssignee) {
+                return false;
+            }
+        }
+
+        if (!empty($data['event_id'])) {
+            return Event::where('organization_id', $request->user()->organization_id)
+                ->where('id', $data['event_id'])
+                ->exists();
+        }
+
+        return true;
     }
 }

@@ -7,10 +7,12 @@ use Illuminate\Http\Request;
 
 class FinancialForecastController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
         return response()->json(
-            FinancialForecast::orderBy('forecast_period', 'asc')->get()
+            FinancialForecast::where('organization_id', $request->user()->organization_id)
+                ->orderBy('forecast_period', 'asc')
+                ->get()
         );
     }
 
@@ -23,14 +25,17 @@ class FinancialForecastController extends Controller
             'confidence_note'    => ['nullable', 'string'],
         ]);
 
-        $forecast = FinancialForecast::create($data);
+        $forecast = FinancialForecast::create([
+            ...$data,
+            'organization_id' => $request->user()->organization_id,
+        ]);
 
         return response()->json($forecast, 201);
     }
 
     public function update(Request $request, $id)
     {
-        $forecast = FinancialForecast::find($id);
+        $forecast = FinancialForecast::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$forecast) {
             return response()->json(['message' => 'Forecast not found.'], 404);
@@ -48,9 +53,9 @@ class FinancialForecastController extends Controller
         return response()->json($forecast->fresh());
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $forecast = FinancialForecast::find($id);
+        $forecast = FinancialForecast::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$forecast) {
             return response()->json(['message' => 'Forecast not found.'], 404);

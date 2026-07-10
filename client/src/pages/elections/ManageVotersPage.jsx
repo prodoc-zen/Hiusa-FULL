@@ -43,7 +43,7 @@ export default function ManageVotersPage() {
 
   const filtered = voters.filter((voter) => {
     const fullName = `${voter.first_name} ${voter.last_name}`.toLowerCase();
-    const matchesSearch = fullName.includes(search.toLowerCase()) || (voter.school_id || '').includes(search);
+    const matchesSearch = fullName.includes(search.toLowerCase()) || String(voter.school_id || '').includes(search);
     const matchesFilter =
       filterStatus === 'All' ||
       (filterStatus === 'Voted' && voter.has_voted) ||

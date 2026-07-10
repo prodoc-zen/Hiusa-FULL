@@ -17,7 +17,8 @@ class AnnouncementController extends Controller
         $allowedCategories = ['general', 'election', 'training', 'events', 'merchandise'];
         $category = strtolower((string) $request->query('category', ''));
 
-        $query = Announcement::with('creator:id,first_name,last_name,role')
+        $query = Announcement::with('creator:school_id,first_name,last_name,role')
+            ->where('organization_id', $user->organization_id)
             ->orderBy('created_at', 'desc');
 
         if ($category !== '' && in_array($category, $allowedCategories, true)) {
@@ -52,18 +53,19 @@ class AnnouncementController extends Controller
             'category'     => $data['category'] ?? 'general',
             'is_published' => $data['is_published'] ?? false,
             'created_by'   => $request->user()->id,
+            'organization_id' => $request->user()->organization_id,
         ]);
 
         if ($announcement->is_published) {
             $this->dispatchAnnouncementNotifications($announcement);
         }
 
-        return response()->json($announcement->load('creator:id,first_name,last_name,role'), 201);
+        return response()->json($announcement->load('creator:school_id,first_name,last_name,role'), 201);
     }
 
     public function update(Request $request, $id)
     {
-        $announcement = Announcement::find($id);
+        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -90,12 +92,12 @@ class AnnouncementController extends Controller
             $this->dispatchAnnouncementNotifications($announcement);
         }
 
-        return response()->json($announcement->fresh()->load('creator:id,first_name,last_name,role'));
+        return response()->json($announcement->fresh()->load('creator:school_id,first_name,last_name,role'));
     }
 
     public function destroy(Request $request, $id)
     {
-        $announcement = Announcement::find($id);
+        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -114,7 +116,7 @@ class AnnouncementController extends Controller
 
     public function togglePublish(Request $request, $id)
     {
-        $announcement = Announcement::find($id);
+        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -133,18 +135,20 @@ class AnnouncementController extends Controller
             $this->dispatchAnnouncementNotifications($announcement);
         }
 
-        return response()->json($announcement->fresh()->load('creator:id,first_name,last_name,role'));
+        return response()->json($announcement->fresh()->load('creator:school_id,first_name,last_name,role'));
     }
 
     private function dispatchAnnouncementNotifications(Announcement $announcement): void
     {
-        $query = User::query()->where('id', '!=', $announcement->created_by);
+        $query = User::query()
+            ->where('organization_id', $announcement->organization_id)
+            ->where('school_id', '!=', $announcement->created_by);
 
         if ($announcement->target_role !== 'all') {
             $query->where('role', $announcement->target_role);
         }
 
-        $userIds = $query->pluck('id');
+        $userIds = $query->pluck('school_id');
 
         if ($userIds->isEmpty()) {
             return;

@@ -46,7 +46,9 @@ class MerchandiseController extends Controller
 
     public function index(Request $request)
     {
-        $query = Merchandise::withCount('orders')->orderBy('name', 'asc');
+        $query = Merchandise::withCount('orders')
+            ->where('organization_id', $request->user()->organization_id)
+            ->orderBy('name', 'asc');
 
         if ($request->user()->role === 'student') {
             $query->where('is_active', true);
@@ -72,14 +74,17 @@ class MerchandiseController extends Controller
         }
         unset($data['image']);
 
-        $item = Merchandise::create($data);
+        $item = Merchandise::create([
+            ...$data,
+            'organization_id' => $request->user()->organization_id,
+        ]);
 
         return response()->json($item, 201);
     }
 
     public function update(Request $request, $id)
     {
-        $item = Merchandise::find($id);
+        $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$item) {
             return response()->json(['message' => 'Item not found.'], 404);
@@ -106,9 +111,9 @@ class MerchandiseController extends Controller
         return response()->json($item->fresh());
     }
 
-    public function destroy($id)
+    public function destroy(Request $request, $id)
     {
-        $item = Merchandise::find($id);
+        $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$item) {
             return response()->json(['message' => 'Item not found.'], 404);
@@ -129,7 +134,7 @@ class MerchandiseController extends Controller
 
     public function adjustStock(Request $request, $id)
     {
-        $item = Merchandise::find($id);
+        $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (!$item) {
             return response()->json(['message' => 'Item not found.'], 404);

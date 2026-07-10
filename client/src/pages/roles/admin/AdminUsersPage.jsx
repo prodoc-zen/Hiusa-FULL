@@ -62,7 +62,7 @@ export default function AdminUsersPage() {
       const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
       const matchesSearch =
         fullName.includes(search.toLowerCase()) ||
-        (user.school_id?.toLowerCase() ?? '').includes(search.toLowerCase()) ||
+        String(user.school_id ?? '').toLowerCase().includes(search.toLowerCase()) ||
         user.email.toLowerCase().includes(search.toLowerCase());
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       return matchesSearch && matchesRole;
@@ -263,7 +263,7 @@ export default function AdminUsersPage() {
             </button>
           </div>
           <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-2">
-            <input value={createForm.school_id} onChange={(event) => setCreateForm({ ...createForm, school_id: event.target.value })} placeholder="School ID" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+            <input type="number" min="1" max="99999999" value={createForm.school_id} onChange={(event) => setCreateForm({ ...createForm, school_id: event.target.value })} placeholder="School ID" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.first_name} onChange={(event) => setCreateForm({ ...createForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.last_name} onChange={(event) => setCreateForm({ ...createForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
@@ -291,7 +291,7 @@ export default function AdminUsersPage() {
             </button>
           </div>
           <form onSubmit={handleEdit} className="grid gap-3 sm:grid-cols-2">
-            <input value={editForm.school_id} onChange={(event) => setEditForm({ ...editForm, school_id: event.target.value })} placeholder="School ID" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+            <input type="number" min="1" max="99999999" value={editForm.school_id} onChange={(event) => setEditForm({ ...editForm, school_id: event.target.value })} placeholder="School ID" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.first_name} onChange={(event) => setEditForm({ ...editForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.last_name} onChange={(event) => setEditForm({ ...editForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
