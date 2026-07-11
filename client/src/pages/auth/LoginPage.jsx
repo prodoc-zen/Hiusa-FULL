@@ -5,17 +5,17 @@ import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { login } from '../../services/authService';
 
 const ROLES = [
-  { key: 'student', label: 'Student' },
-  { key: 'officer', label: 'Officer' },
-  { key: 'adviser', label: 'Adviser' },
-  { key: 'admin', label: 'Admin' },
+  { key: 'STUDENT', label: 'Student' },
+  { key: 'SBO_OFFICER', label: 'Officer' },
+  { key: 'DEPARTMENT_HEAD', label: 'Department Head' },
+  { key: 'ADMIN', label: 'Admin' },
 ];
 
 const ROLE_CONFIG = {
-  student: { idField: 'school_id', label: 'Student ID', placeholder: 'e.g. 2400142', icon: Hash },
-  officer: { idField: 'email', label: 'Email Address', placeholder: 'officer@university.edu', icon: Mail },
-  adviser: { idField: 'email', label: 'Email Address', placeholder: 'adviser@university.edu', icon: Mail },
-  admin:   { idField: 'email', label: 'Email Address', placeholder: 'admin@university.edu', icon: Mail },
+  STUDENT: { idField: 'school_id', label: 'Student ID', placeholder: 'e.g. 2400142', icon: Hash },
+  SBO_OFFICER: { idField: 'email', label: 'Email Address', placeholder: 'officer@university.edu', icon: Mail },
+  DEPARTMENT_HEAD: { idField: 'email', label: 'Email Address', placeholder: 'dean@university.edu', icon: Mail },
+  ADMIN:   { idField: 'email', label: 'Email Address', placeholder: 'admin@university.edu', icon: Mail },
 };
 
 const BrandingPanel = () => (
@@ -43,7 +43,7 @@ const BrandingPanel = () => (
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [activeRole, setActiveRole] = useState('student');
+  const [activeRole, setActiveRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
   const [selectedOrganization, setSelectedOrganization] = useState(null);
   const [identifier, setIdentifier] = useState('');
@@ -102,10 +102,10 @@ export default function LoginPage() {
 
       const role = response.data.user?.role;
       const redirects = {
-        admin: '/dashboard/admin',
-        officer: '/dashboard/officer',
-        adviser: '/dashboard/adviser',
-        student: '/dashboard/student',
+        ADMIN: '/dashboard/admin',
+        SBO_OFFICER: '/dashboard/officer',
+        DEPARTMENT_HEAD: '/dashboard/department-head',
+        STUDENT: '/dashboard/student',
       };
       navigate(redirects[role] || '/dashboard');
     } catch (err) {
@@ -187,9 +187,9 @@ export default function LoginPage() {
                     <IdIcon size={17} />
                   </div>
                   <input
-                    type={activeRole === 'student' ? 'number' : 'email'}
-                    min={activeRole === 'student' ? 1 : undefined}
-                    max={activeRole === 'student' ? 99999999 : undefined}
+                    type={activeRole === 'STUDENT' ? 'number' : 'email'}
+                    min={activeRole === 'STUDENT' ? 1 : undefined}
+                    max={activeRole === 'STUDENT' ? 99999999 : undefined}
                     value={identifier}
                     onChange={(e) => setIdentifier(e.target.value)}
                     placeholder={config.placeholder}
