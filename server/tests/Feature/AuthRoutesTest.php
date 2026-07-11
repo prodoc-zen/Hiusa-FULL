@@ -28,13 +28,13 @@ class AuthRoutesTest extends TestCase
         $response
             ->assertCreated()
             ->assertJsonPath('user.email', 'ada@example.com')
-            ->assertJsonPath('user.role', 'student')
+            ->assertJsonPath('user.role', 'STUDENT')
             ->assertJsonStructure(['access_token', 'token_type', 'user']);
 
         $this->assertDatabaseHas('users', [
             'school_id' => 1001,
             'email' => 'ada@example.com',
-            'role' => 'student',
+            'role' => 'STUDENT',
         ]);
     }
 

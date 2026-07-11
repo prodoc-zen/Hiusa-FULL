@@ -23,28 +23,33 @@ class UserFactory extends Factory
             'last_name' => fake()->lastName(),
             'email' => fake()->unique()->safeEmail(),
             'password_hash' => static::$password ??= Hash::make('password'),
-            'role' => fake()->randomElement(['student', 'officer', 'admin', 'adviser']),
+            'role' => fake()->randomElement(['STUDENT', 'SBO_OFFICER', 'ADMIN']),
             'biometric_template' => null,
         ];
     }
 
     public function student(): static
     {
-        return $this->state(fn () => ['role' => 'student']);
+        return $this->state(fn () => ['role' => 'STUDENT']);
     }
 
     public function officer(): static
     {
-        return $this->state(fn () => ['role' => 'officer']);
+        return $this->state(fn () => ['role' => 'SBO_OFFICER']);
     }
 
     public function admin(): static
     {
-        return $this->state(fn () => ['role' => 'admin']);
+        return $this->state(fn () => ['role' => 'ADMIN']);
     }
 
     public function adviser(): static
     {
-        return $this->state(fn () => ['role' => 'adviser']);
+        return $this->state(fn () => ['role' => 'ADMIN', 'position_title' => 'Adviser']);
+    }
+
+    public function departmentHead(): static
+    {
+        return $this->state(fn () => ['role' => 'DEPARTMENT_HEAD']);
     }
 }
