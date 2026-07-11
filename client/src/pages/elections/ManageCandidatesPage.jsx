@@ -197,7 +197,7 @@ export default function ManageCandidatesPage() {
         const [userData, partylistData] = await Promise.all([getUsers(), getPartylists()]);
         if (!cancelled) {
           const allUsers = Array.isArray(userData) ? userData : [];
-          setUsers(allUsers.filter((user) => user.role === 'student'));
+          setUsers(allUsers.filter((user) => user.role === 'STUDENT'));
           setPartylists(Array.isArray(partylistData) ? partylistData : []);
         }
       } catch {

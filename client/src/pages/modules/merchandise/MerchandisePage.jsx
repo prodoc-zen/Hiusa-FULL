@@ -151,7 +151,7 @@ function AddStockModal({ open, itemName, quantity, busy = false, onQuantityChang
 export default function MerchandisePage({ initialTab }) {
   const location = useLocation();
   const role = getRole();
-  const isStudent = role === 'student';
+  const isStudent = role === 'STUDENT';
   const defaultTab = isStudent ? 'order' : 'inventory';
   const [activeTab, setActiveTab] = useState(initialTab || defaultTab);
 

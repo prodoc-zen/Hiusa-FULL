@@ -6,6 +6,13 @@ import { getNotifications, markRead, markAllRead } from '../../services/notifica
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
+const ROLE_LABELS = {
+  ADMIN: 'Admin',
+  SBO_OFFICER: 'Officer',
+  DEPARTMENT_HEAD: 'Department Head',
+  STUDENT: 'Student',
+};
+
 function readStudentCart() {
   try {
     const parsed = JSON.parse(localStorage.getItem(STUDENT_CART_KEY) || '[]');
@@ -44,9 +51,9 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   try { user = storedUser ? JSON.parse(storedUser) : null; } catch { user = null; }
   const initials = user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : 'HI';
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
-  const role = user?.role?.toLowerCase() ?? '';
-  const roleLabel = role ? role.charAt(0).toUpperCase() + role.slice(1) : 'Member';
-  const isStudent = role === 'student';
+  const role = user?.role ?? '';
+  const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
+  const isStudent = role === 'STUDENT';
 
   const parentByPrefix = [
     ['/dashboard/announcements/', 'Announcements'],
