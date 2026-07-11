@@ -117,7 +117,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
-        if ($transaction->recorded_by !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($transaction->recorded_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
         }
 

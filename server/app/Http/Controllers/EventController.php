@@ -18,7 +18,7 @@ class EventController extends Controller
             ->withCount('attendanceRecords')
             ->orderBy('start_time', 'asc');
 
-        if ($user->role === 'student') {
+        if ($user->role === 'STUDENT') {
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
         }
 
@@ -40,7 +40,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        if ($request->user()->role === 'student' && !in_array($event->status, ['approved', 'ongoing', 'completed'])) {
+        if ($request->user()->role === 'STUDENT' && !in_array($event->status, ['approved', 'ongoing', 'completed'])) {
             return response()->json(['message' => 'Event not available.'], 403);
         }
 
@@ -78,7 +78,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
             return response()->json(['message' => 'You are not authorized to edit this event.'], 403);
         }
 
@@ -111,7 +111,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
             return response()->json(['message' => 'You are not authorized to delete this event.'], 403);
         }
 
@@ -128,7 +128,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'admin') {
+        if ($event->created_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
             return response()->json(['message' => 'You are not authorized to update this event status.'], 403);
         }
 

@@ -50,7 +50,7 @@ class MerchandiseController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('name', 'asc');
 
-        if ($request->user()->role === 'student') {
+        if ($request->user()->role === 'STUDENT') {
             $query->where('is_active', true);
         }
 
