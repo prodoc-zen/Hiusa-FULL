@@ -11,7 +11,7 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-export default function AdviserHomePage() {
+export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], tasks: [], announcements: [] });
   const [loading, setLoading] = useState(true);
 
@@ -60,7 +60,7 @@ export default function AdviserHomePage() {
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Adviser Portal</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Department Head Portal</p>
         <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Oversight Dashboard</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Monitor election progress, events, and officer task completion.</p>
       </section>
