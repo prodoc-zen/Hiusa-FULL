@@ -44,11 +44,16 @@ return new class extends Migration
         DB::table('announcements')->where('target_role', 'all')->update(['target_role_new' => 'all']);
 
         Schema::table('announcements', function (Blueprint $table) {
+            $table->dropIndex('announcements_published_role_index');
             $table->dropColumn('target_role');
         });
 
         Schema::table('announcements', function (Blueprint $table) {
             $table->renameColumn('target_role_new', 'target_role');
+        });
+
+        Schema::table('announcements', function (Blueprint $table) {
+            $table->index(['is_published', 'target_role'], 'announcements_published_role_index');
         });
     }
 
@@ -87,11 +92,16 @@ return new class extends Migration
         DB::table('announcements')->where('target_role', 'all')->update(['target_role_old' => 'all']);
 
         Schema::table('announcements', function (Blueprint $table) {
+            $table->dropIndex('announcements_published_role_index');
             $table->dropColumn('target_role');
         });
 
         Schema::table('announcements', function (Blueprint $table) {
             $table->renameColumn('target_role_old', 'target_role');
+        });
+
+        Schema::table('announcements', function (Blueprint $table) {
+            $table->index(['is_published', 'target_role'], 'announcements_published_role_index');
         });
     }
 };
