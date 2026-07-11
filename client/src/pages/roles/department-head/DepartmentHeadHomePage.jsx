@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShieldCheck, Vote, BarChart3, CalendarDays, ClipboardList, Megaphone } from 'lucide-react';
+import { ShieldCheck, Vote, BarChart3, CalendarDays, ClipboardCheck, ClipboardList, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
 import { getAnnouncements } from '../../../services/announcementService';
+import { getApprovalRequests } from '../../../services/approvalService';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -12,7 +13,7 @@ function formatDate(d) {
 }
 
 export default function DepartmentHeadHomePage() {
-  const [data, setData] = useState({ elections: [], events: [], tasks: [], announcements: [] });
+  const [data, setData] = useState({ elections: [], events: [], tasks: [], announcements: [], pendingApprovals: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -20,11 +21,12 @@ export default function DepartmentHeadHomePage() {
 
     async function load() {
       try {
-        const [electionsRes, eventsRes, tasksRes, announcementsRes] = await Promise.all([
+        const [electionsRes, eventsRes, tasksRes, announcementsRes, approvalsRes] = await Promise.all([
           getElections(),
           getEvents(),
           getTasks(),
           getAnnouncements(),
+          getApprovalRequests({ status: 'pending' }),
         ]);
 
         if (cancelled) return;
@@ -34,9 +36,10 @@ export default function DepartmentHeadHomePage() {
           events: Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []),
           tasks: Array.isArray(tasksRes?.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []),
           announcements: Array.isArray(announcementsRes?.data) ? announcementsRes.data : [],
+          pendingApprovals: Array.isArray(approvalsRes?.data) ? approvalsRes.data : [],
         });
       } catch {
-        if (!cancelled) setData({ elections: [], events: [], tasks: [], announcements: [] });
+        if (!cancelled) setData({ elections: [], events: [], tasks: [], announcements: [], pendingApprovals: [] });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -64,6 +67,24 @@ export default function DepartmentHeadHomePage() {
         <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Oversight Dashboard</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Monitor election progress, events, and officer task completion.</p>
       </section>
+
+      {!loading && data.pendingApprovals.length > 0 && (
+        <NavLink
+          to="/dashboard/department-head/approvals"
+          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:bg-amber-100"
+        >
+          <div className="flex items-center gap-3">
+            <div className="grid h-11 w-11 place-items-center rounded-lg bg-white text-amber-600">
+              <ClipboardCheck size={20} />
+            </div>
+            <div>
+              <p className="font-bold text-[#0F172A]">{data.pendingApprovals.length} item{data.pendingApprovals.length === 1 ? '' : 's'} awaiting your approval</p>
+              <p className="text-sm text-amber-700">Events, budgets, and elections need your sign-off before they go live.</p>
+            </div>
+          </div>
+          <span className="shrink-0 text-sm font-bold text-amber-700">Review →</span>
+        </NavLink>
+      )}
 
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
@@ -199,6 +220,7 @@ export default function DepartmentHeadHomePage() {
             <h3 className="mb-3 text-base font-bold text-[#0F172A]">Oversight Actions</h3>
             <div className="space-y-2">
               {[
+                { label: 'Review Approvals', path: '/dashboard/department-head/approvals' },
                 { label: 'View Elections', path: '/dashboard/elections' },
                 { label: 'View Events', path: '/dashboard/events' },
                 { label: 'View Tasks', path: '/dashboard/tasks' },
