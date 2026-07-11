@@ -63,8 +63,8 @@ export default function ElectionPickerPage({ onSelect }) {
   const navigate = useNavigate();
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
-  const role = currentUser?.role || 'officer';
-  const canManageElections = currentUser?.role === 'admin' || currentUser?.role === 'officer';
+  const role = currentUser?.role || 'SBO_OFFICER';
+  const canManageElections = currentUser?.role === 'ADMIN' || currentUser?.role === 'SBO_OFFICER';
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [elections, setElections] = useState([]);
@@ -428,7 +428,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       </button>
                     )}
 
-                    {role !== 'student' && (
+                    {role !== 'STUDENT' && (
                       <button
                         type="button"
                         onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
@@ -478,7 +478,7 @@ export default function ElectionPickerPage({ onSelect }) {
                         return;
                       }
 
-                      if (role === 'student') {
+                      if (role === 'STUDENT') {
                         openElectionAndGo(el.id, '/dashboard/elections/cast-vote');
                         return;
                       }

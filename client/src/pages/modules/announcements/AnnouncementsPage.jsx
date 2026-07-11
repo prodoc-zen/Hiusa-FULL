@@ -18,12 +18,12 @@ import {
   deleteAnnouncement,
 } from '../../../services/announcementService';
 
-const ROLE_LABEL = { all: 'All Members', student: 'Students', officer: 'Officers', adviser: 'Advisers' };
+const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const AUDIENCE_OPTIONS = [
   { label: 'All Members', value: 'all' },
-  { label: 'Officers Only', value: 'officer' },
-  { label: 'Students Only', value: 'student' },
-  { label: 'Advisers Only', value: 'adviser' },
+  { label: 'Officers Only', value: 'SBO_OFFICER' },
+  { label: 'Students Only', value: 'STUDENT' },
+  { label: 'Admins Only', value: 'ADMIN' },
 ];
 
 const statusBadge = {

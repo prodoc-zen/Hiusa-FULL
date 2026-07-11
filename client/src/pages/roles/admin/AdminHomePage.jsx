@@ -5,10 +5,10 @@ import { getUsers } from '../../../services/userService';
 import { getAnnouncements } from '../../../services/announcementService';
 
 const ROLE_CONFIG = [
-  { key: 'student',  label: 'Students',  icon: GraduationCap, color: 'bg-blue-50 text-blue-700 border-blue-200' },
-  { key: 'officer',  label: 'Officers',  icon: Briefcase,     color: 'bg-purple-50 text-purple-700 border-purple-200' },
-  { key: 'adviser',  label: 'Advisers',  icon: UserCheck,     color: 'bg-amber-50 text-amber-700 border-amber-200' },
-  { key: 'admin',    label: 'Admins',    icon: ShieldCheck,   color: 'bg-red-50 text-red-700 border-red-200' },
+  { key: 'STUDENT',         label: 'Students',      icon: GraduationCap, color: 'bg-blue-50 text-blue-700 border-blue-200' },
+  { key: 'SBO_OFFICER',     label: 'Officers',      icon: Briefcase,     color: 'bg-purple-50 text-purple-700 border-purple-200' },
+  { key: 'ADMIN',           label: 'Admins',        icon: ShieldCheck,   color: 'bg-red-50 text-red-700 border-red-200' },
+  { key: 'DEPARTMENT_HEAD', label: 'Dept. Heads',   icon: UserCheck,     color: 'bg-amber-50 text-amber-700 border-amber-200' },
 ];
 
 export default function AdminHomePage() {

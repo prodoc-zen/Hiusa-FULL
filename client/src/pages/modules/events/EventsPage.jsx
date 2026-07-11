@@ -68,12 +68,12 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [checkInSuccess, setCheckInSuccess] = useState(null);
 
   let currentUserRole = '';
-  try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role?.toLowerCase() ?? ''; } catch {}
+  try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
 
   function load() {
     setLoading(true);
     setError(null);
-    const isStudent = currentUserRole === 'student';
+    const isStudent = currentUserRole === 'STUDENT';
     const requests = isStudent ? [getEvents(), Promise.resolve({ data: [] })] : [getEvents(), getTasks()];
     Promise.all(requests)
       .then(([evRes, taskRes]) => {
@@ -236,7 +236,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
                 />
               </div>
-              {currentUserRole !== 'student' && (
+              {currentUserRole !== 'STUDENT' && (
                 <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                   <Plus size={16} />
                   <span className="hidden sm:inline">Create Event</span>
@@ -433,7 +433,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                     </div>
 
                     {/* Check-in form — officer only */}
-                    {currentUserRole === 'officer' && (
+                    {currentUserRole === 'SBO_OFFICER' && (
                       <div className="border-b border-[#DDE7EF] p-5">
                         <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Check-In</p>
                         <div className="flex gap-2">

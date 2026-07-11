@@ -53,7 +53,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       .then(([taskRes, userRes]) => {
         setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
         const allUsers = Array.isArray(userRes) ? userRes : (Array.isArray(userRes.data) ? userRes.data : []);
-        setOfficers(allUsers.filter((u) => u.role === 'officer'));
+        setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER'));
       })
       .catch(() => setError('Failed to load tasks.'))
       .finally(() => setLoading(false));
