@@ -20,6 +20,7 @@ class DatabaseSeeder extends Seeder
             OrganizationSeeder::class,
             AdministratorSeeder::class,
             UserSeeder::class,
+            DepartmentHeadSeeder::class,
             AnnouncementSeeder::class,
             EventSeeder::class,
             TaskSeeder::class,
