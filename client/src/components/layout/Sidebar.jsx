@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, CalendarDays, CheckSquare, ChevronDown, Coins, Home, LogOut, Megaphone, Package, Users, Vote, X } from 'lucide-react';
+import { BarChart3, CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, Users, Vote, X } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 
@@ -30,6 +30,13 @@ const NAV_STRUCTURE = [
     icon: Users,
     path: '/dashboard/admin/users',
     roles: ['ADMIN'],
+  },
+  {
+    id: 'approvals',
+    label: 'Approvals',
+    icon: ClipboardCheck,
+    path: '/dashboard/department-head/approvals',
+    roles: ['DEPARTMENT_HEAD'],
   },
   {
     id: 'announcements',

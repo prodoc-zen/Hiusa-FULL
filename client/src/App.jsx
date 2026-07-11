@@ -5,6 +5,7 @@ import DashboardLayout from './components/layout/DashboardLayout';
 import DashboardPage from './pages/roles/officer/DashboardPage';
 import AdminHomePage from './pages/roles/admin/AdminHomePage';
 import DepartmentHeadHomePage from './pages/roles/department-head/DepartmentHeadHomePage';
+import DepartmentHeadApprovalsPage from './pages/roles/department-head/DepartmentHeadApprovalsPage';
 import StudentHomePage from './pages/roles/student/StudentHomePage';
 import AdminUsersPage from './pages/roles/admin/AdminUsersPage';
 import FinancePage from './pages/modules/finance/FinancePage';
@@ -139,6 +140,7 @@ function App() {
           <Route path="admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminHomePage /></ProtectedRoute>} />
           <Route path="officer" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><DashboardPage /></ProtectedRoute>} />
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
+          <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
           <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
 
