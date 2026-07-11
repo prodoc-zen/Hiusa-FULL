@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
 use App\Models\Election;
 use App\Models\Vote;
 use App\Models\Candidate;
@@ -130,9 +131,25 @@ class ElectionController extends Controller
             'status' => ['required', 'in:upcoming,active,closed'],
         ]);
 
+        $targetStatus = $data['status'];
+
         $election = Election::create([
             ...$data,
+            'status' => 'pending_approval',
             'organization_id' => $request->user()->organization_id,
+        ]);
+
+        ApprovalRequest::create([
+            'organization_id' => $request->user()->organization_id,
+            'entity_type' => 'election',
+            'entity_id' => $election->id,
+            'title' => $election->title,
+            'summary' => [
+                'start_time' => $election->start_time,
+                'end_time' => $election->end_time,
+                'target_status' => $targetStatus,
+            ],
+            'requested_by' => $request->user()->id,
         ]);
 
         return response()->json($election, 201);
@@ -153,6 +170,12 @@ class ElectionController extends Controller
             'status' => ['sometimes', 'required', 'in:upcoming,active,closed'],
         ]);
 
+        if (array_key_exists('status', $data) && $election->status === 'pending_approval') {
+            return response()->json([
+                'message' => 'This election is awaiting Department Head approval and cannot be activated directly.',
+            ], 422);
+        }
+
         $endTime   = isset($data['end_time'])   ? \Carbon\Carbon::parse($data['end_time'])   : $election->end_time;
         $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $election->start_time;
         if ($endTime->lte($startTime)) {
@@ -160,6 +183,17 @@ class ElectionController extends Controller
         }
 
         $election->update($data);
+
+        ApprovalRequest::where('entity_type', 'election')
+            ->where('entity_id', $election->id)
+            ->where('status', 'rejected')
+            ->update([
+                'status' => 'pending',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'remarks' => null,
+                'requested_at' => now(),
+            ]);
 
         return response()->json($election->fresh());
     }

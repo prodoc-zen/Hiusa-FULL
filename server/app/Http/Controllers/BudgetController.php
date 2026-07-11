@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
 use Illuminate\Http\Request;
@@ -35,7 +36,21 @@ class BudgetController extends Controller
 
         $budget = Budget::create([
             ...$data,
+            'status' => 'pending',
             'organization_id' => $request->user()->organization_id,
+        ]);
+
+        ApprovalRequest::create([
+            'organization_id' => $request->user()->organization_id,
+            'entity_type' => 'budget',
+            'entity_id' => $budget->id,
+            'title' => $budget->title,
+            'summary' => [
+                'allocated_amount' => $budget->allocated_amount,
+                'warning_threshold' => $budget->warning_threshold,
+                'event_id' => $budget->event_id,
+            ],
+            'requested_by' => $request->user()->id,
         ]);
 
         return response()->json(
@@ -64,6 +79,17 @@ class BudgetController extends Controller
         }
 
         $budget->update($data);
+
+        ApprovalRequest::where('entity_type', 'budget')
+            ->where('entity_id', $budget->id)
+            ->where('status', 'rejected')
+            ->update([
+                'status' => 'pending',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'remarks' => null,
+                'requested_at' => now(),
+            ]);
 
         return response()->json($budget->fresh()->load('event:id,title'));
     }
