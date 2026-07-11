@@ -5,18 +5,21 @@ import { createElection, getElections, updateElection } from '../../services/ele
 import PaginationControls from '../../components/PaginationControls';
 
 const statusStyles = {
+  pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
   upcoming: 'bg-[#EEF6FB] text-[#0B8ED0] border-[#D5E8F5]',
   active: 'bg-emerald-50 text-emerald-700 border-emerald-200',
   closed: 'bg-slate-100 text-slate-500 border-slate-200',
 };
 
 const accentByStatus = {
+  pending_approval: 'border-l-amber-400',
   upcoming: 'border-l-[#0B8ED0]',
   active: 'border-l-[#16A34A]',
   closed: 'border-l-[#94A3B8]',
 };
 
 const statusLabels = {
+  pending_approval: 'Pending Approval',
   upcoming: 'Upcoming',
   active: 'Live',
   closed: 'Closed',
@@ -449,7 +452,13 @@ export default function ElectionPickerPage({ onSelect }) {
                       </button>
                     )}
 
-                    {canManageElections && el.status !== 'active' && (
+                    {canManageElections && el.status === 'pending_approval' && (
+                      <span className="inline-flex h-10 items-center rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">
+                        Awaiting Department Head approval
+                      </span>
+                    )}
+
+                    {canManageElections && el.status !== 'active' && el.status !== 'pending_approval' && (
                       <button
                         type="button"
                         onClick={() => handleStatusChange(el.id, 'active')}

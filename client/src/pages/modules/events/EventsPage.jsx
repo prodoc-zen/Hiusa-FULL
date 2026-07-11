@@ -17,11 +17,16 @@ import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
 
 const statusBadge = {
+  planning: 'bg-amber-50 text-amber-700',
   upcoming: 'bg-[#E6F6FD] text-[#0B8ED0]',
   approved: 'bg-[#E6F6FD] text-[#0B8ED0]',
   ongoing: 'bg-violet-50 text-violet-700',
   completed: 'bg-emerald-50 text-emerald-700',
   cancelled: 'bg-red-50 text-red-700',
+};
+
+const statusLabel = {
+  planning: 'Pending Approval',
 };
 
 const taskStatusBadge = {
@@ -280,8 +285,13 @@ export default function EventsPage({ initialTab = 'events' }) {
                       </td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
-                          {capitalize(evt.status)}
+                          {statusLabel[evt.status] || capitalize(evt.status)}
                         </span>
+                        {evt.approval_status === 'rejected' && evt.approval_remarks && (
+                          <p className="mt-1 max-w-[220px] text-[11px] text-red-600">
+                            <span className="font-semibold">Rejected:</span> {evt.approval_remarks}
+                          </p>
+                        )}
                       </td>
                     </tr>
                   ))}

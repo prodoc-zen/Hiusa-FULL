@@ -17,7 +17,16 @@ import {
   getTransactionSummary,
   createTransaction,
   getForecasts,
+  getBudgets,
+  createBudget,
 } from '../../../services/financeService';
+import { getEvents } from '../../../services/eventService';
+
+const budgetStatusBadge = {
+  pending: 'bg-amber-50 text-amber-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-700',
+};
 
 function fmt(n) {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
@@ -56,11 +65,18 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
 
+  const [budgets, setBudgets] = useState([]);
+  const [events, setEvents] = useState([]);
+  const [showBudgetForm, setShowBudgetForm] = useState(false);
+  const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+  const [budgetFormError, setBudgetFormError] = useState(null);
+  const [budgetFormSubmitting, setBudgetFormSubmitting] = useState(false);
+
   function load(page = 1) {
     setLoading(true);
     setError(null);
-    Promise.all([getTransactions({ page }), getTransactionSummary(), getForecasts()])
-      .then(([txRes, sumRes, fcRes]) => {
+    Promise.all([getTransactions({ page }), getTransactionSummary(), getForecasts(), getBudgets(), getEvents()])
+      .then(([txRes, sumRes, fcRes, budgetRes, eventsRes]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -73,9 +89,33 @@ export default function FinancePage({ initialTab = 'transactions' }) {
         }
         setSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
         setForecasts(Array.isArray(fcRes.data) ? fcRes.data : []);
+        setBudgets(Array.isArray(budgetRes.data) ? budgetRes.data : []);
+        setEvents(Array.isArray(eventsRes.data) ? eventsRes.data : []);
       })
       .catch(() => setError('Failed to load financial data.'))
       .finally(() => setLoading(false));
+  }
+
+  async function handleCreateBudget(e) {
+    e.preventDefault();
+    if (!budgetForm.title || !budgetForm.allocated_amount || !budgetForm.warning_threshold) return;
+    setBudgetFormSubmitting(true);
+    setBudgetFormError(null);
+    try {
+      await createBudget({
+        title: budgetForm.title,
+        allocated_amount: parseFloat(budgetForm.allocated_amount),
+        warning_threshold: parseFloat(budgetForm.warning_threshold),
+        event_id: budgetForm.event_id || null,
+      });
+      setShowBudgetForm(false);
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+      load(txMeta.current_page);
+    } catch (err) {
+      setBudgetFormError(err.response?.data?.message ?? 'Failed to save budget.');
+    } finally {
+      setBudgetFormSubmitting(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -283,6 +323,49 @@ export default function FinancePage({ initialTab = 'transactions' }) {
         </section>
       )}
 
+      {activeTab === 'budgets' && (
+        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-lg font-bold text-[#0F172A]">Budget Allocation</h2>
+              <p className="text-sm font-medium text-slate-500">Propose fund allocations for events and projects</p>
+            </div>
+            <button onClick={() => setShowBudgetForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+              <Plus size={16} />
+              <span className="hidden sm:inline">Propose Budget</span>
+            </button>
+          </div>
+
+          {loading ? (
+            <div className="space-y-2 p-5">
+              {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
+            </div>
+          ) : budgets.length === 0 ? (
+            <p className="p-8 text-center text-sm text-slate-400">No budgets proposed yet.</p>
+          ) : (
+            <div className="divide-y divide-[#E5EDF3]">
+              {budgets.map((b) => (
+                <div key={b.id} className="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-[#0F172A]">{b.title}</p>
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${budgetStatusBadge[b.status] || 'bg-slate-100 text-slate-500'}`}>
+                        {b.status || 'pending'}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs text-slate-400">
+                      Allocated {fmt(b.allocated_amount)} · Warning threshold {fmt(b.warning_threshold)}
+                      {b.event ? ` · ${b.event.title}` : ''}
+                    </p>
+                  </div>
+                  <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
+
       {activeTab === 'forecasting' && (
         <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
           <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
@@ -438,6 +521,82 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
                 >
                   {formSubmitting ? 'Saving...' : 'Save Transaction'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showBudgetForm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
+            <div className="mb-5 flex items-center justify-between">
+              <h2 className="text-lg font-bold text-[#0F172A]">Propose Budget</h2>
+              <button onClick={() => setShowBudgetForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+            </div>
+            <p className="mb-4 text-xs font-medium text-slate-500">
+              New budgets await Department Head approval before funds can be tracked against them.
+            </p>
+            <form className="space-y-4" onSubmit={handleCreateBudget}>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#0F172A]">Title *</label>
+                <input
+                  type="text"
+                  value={budgetForm.title}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, title: e.target.value })}
+                  placeholder="e.g. Sports Fest 2026 Budget"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Allocated Amount (₱) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={budgetForm.allocated_amount}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, allocated_amount: e.target.value })}
+                    placeholder="0.00"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Warning Threshold (₱) *</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={budgetForm.warning_threshold}
+                    onChange={(e) => setBudgetForm({ ...budgetForm, warning_threshold: e.target.value })}
+                    placeholder="0.00"
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  />
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[13px] font-semibold text-[#0F172A]">Linked Event (optional)</label>
+                <select
+                  value={budgetForm.event_id}
+                  onChange={(e) => setBudgetForm({ ...budgetForm, event_id: e.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                >
+                  <option value="">No linked event</option>
+                  {events.map((ev) => (
+                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                  ))}
+                </select>
+              </div>
+              {budgetFormError && <p className="text-xs text-red-600">{budgetFormError}</p>}
+              <div className="flex justify-end gap-3 pt-2">
+                <button type="button" onClick={() => setShowBudgetForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+                <button
+                  type="submit"
+                  disabled={budgetFormSubmitting || !budgetForm.title || !budgetForm.allocated_amount || !budgetForm.warning_threshold}
+                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
+                >
+                  {budgetFormSubmitting ? 'Submitting...' : 'Submit for Approval'}
                 </button>
               </div>
             </form>
