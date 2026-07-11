@@ -14,6 +14,7 @@ use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrganizationController;
+use App\Http\Controllers\ApprovalRequestController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
@@ -114,6 +115,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/partylists', [ElectionController::class, 'partylistsStore'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::put('/partylists/{id}', [ElectionController::class, 'partylistsUpdate'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::delete('/partylists/{id}', [ElectionController::class, 'partylistsDestroy'])->middleware('role:ADMIN,SBO_OFFICER');
+
+    // Approval Requests (Department Head sign-off on events, budgets, elections)
+    Route::get('/approval-requests', [ApprovalRequestController::class, 'index'])->middleware('role:ADMIN,DEPARTMENT_HEAD');
+    Route::patch('/approval-requests/{id}', [ApprovalRequestController::class, 'review'])->middleware('role:DEPARTMENT_HEAD');
 
     // Notification Routes
     Route::get('/notifications', [NotificationController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');

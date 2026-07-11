@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\Attendance;
 use App\Models\User;
@@ -22,7 +23,27 @@ class EventController extends Controller
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
         }
 
-        return response()->json($query->get());
+        $events = $query->get();
+
+        $this->attachApprovalInfo($events);
+
+        return response()->json($events);
+    }
+
+    private function attachApprovalInfo($events): void
+    {
+        $ids = $events instanceof Event ? [$events->id] : $events->pluck('id');
+
+        $approvals = ApprovalRequest::where('entity_type', 'event')
+            ->whereIn('entity_id', $ids)
+            ->get()
+            ->keyBy('entity_id');
+
+        foreach (($events instanceof Event ? [$events] : $events) as $event) {
+            $approval = $approvals->get($event->id);
+            $event->approval_status = $approval?->status;
+            $event->approval_remarks = $approval?->remarks;
+        }
     }
 
     public function show(Request $request, $id)
@@ -44,6 +65,8 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not available.'], 403);
         }
 
+        $this->attachApprovalInfo($event);
+
         return response()->json($event);
     }
 
@@ -55,13 +78,26 @@ class EventController extends Controller
             'start_time'  => ['required', 'date'],
             'end_time'    => ['required', 'date', 'after:start_time'],
             'location'    => ['nullable', 'string', 'max:255'],
-            'status'      => ['required', 'in:planning,approved,ongoing,completed,cancelled'],
         ]);
 
         $event = Event::create([
             ...$data,
+            'status' => 'planning',
             'created_by' => $request->user()->id,
             'organization_id' => $request->user()->organization_id,
+        ]);
+
+        ApprovalRequest::create([
+            'organization_id' => $request->user()->organization_id,
+            'entity_type' => 'event',
+            'entity_id' => $event->id,
+            'title' => $event->title,
+            'summary' => [
+                'start_time' => $event->start_time,
+                'end_time' => $event->end_time,
+                'location' => $event->location,
+            ],
+            'requested_by' => $request->user()->id,
         ]);
 
         return response()->json(
@@ -88,7 +124,7 @@ class EventController extends Controller
             'start_time'  => ['sometimes', 'required', 'date'],
             'end_time'    => ['sometimes', 'required', 'date'],
             'location'    => ['nullable', 'string', 'max:255'],
-            'status'      => ['sometimes', 'required', 'in:planning,approved,ongoing,completed,cancelled'],
+            'status'      => ['sometimes', 'required', 'in:planning,ongoing,completed,cancelled'],
         ]);
 
         $endTime   = isset($data['end_time'])   ? \Carbon\Carbon::parse($data['end_time'])   : $event->end_time;
@@ -100,7 +136,23 @@ class EventController extends Controller
 
         $event->update($data);
 
+        $this->resubmitIfRejected($event);
+
         return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
+    }
+
+    private function resubmitIfRejected(Event $event): void
+    {
+        ApprovalRequest::where('entity_type', 'event')
+            ->where('entity_id', $event->id)
+            ->where('status', 'rejected')
+            ->update([
+                'status' => 'pending',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'remarks' => null,
+                'requested_at' => now(),
+            ]);
     }
 
     public function destroy(Request $request, $id)
@@ -133,7 +185,7 @@ class EventController extends Controller
         }
 
         $data = $request->validate([
-            'status' => ['required', 'in:planning,approved,ongoing,completed,cancelled'],
+            'status' => ['required', 'in:planning,ongoing,completed,cancelled'],
         ]);
 
         $event->update($data);
