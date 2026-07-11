@@ -57,7 +57,7 @@ class ElectionController extends Controller
         $query = Election::withCount(['votes', 'positions', 'candidates'])
             ->where('organization_id', $request->user()->organization_id);
 
-        if ($request->user()?->role === 'student') {
+        if ($request->user()?->role === 'STUDENT') {
             $query->where('status', 'active');
         }
 
@@ -80,7 +80,7 @@ class ElectionController extends Controller
             'candidates.position',
         ];
 
-        if ($user?->role !== 'student') {
+        if ($user?->role !== 'STUDENT') {
             $with[] = 'votes.voter';
         }
 
@@ -92,7 +92,7 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($user?->role === 'student') {
+        if ($user?->role === 'STUDENT') {
             if ($election->status !== 'active') {
                 return response()->json(['message' => 'Students can only access active elections.'], 403);
             }
@@ -293,7 +293,7 @@ class ElectionController extends Controller
         ]);
 
         $candidateUser = User::find($data['user_id']);
-        if (!$candidateUser || $candidateUser->role !== 'student' || $candidateUser->organization_id !== $request->user()->organization_id) {
+        if (!$candidateUser || $candidateUser->role !== 'STUDENT' || $candidateUser->organization_id !== $request->user()->organization_id) {
             return response()->json(['message' => 'Only students can be added as candidates.'], 422);
         }
 
@@ -365,7 +365,7 @@ class ElectionController extends Controller
 
         if (array_key_exists('user_id', $data)) {
             $candidateUser = User::find($data['user_id']);
-            if (!$candidateUser || $candidateUser->role !== 'student' || $candidateUser->organization_id !== $request->user()->organization_id) {
+            if (!$candidateUser || $candidateUser->role !== 'STUDENT' || $candidateUser->organization_id !== $request->user()->organization_id) {
                 return response()->json(['message' => 'Only students can be assigned as candidates.'], 422);
             }
 
@@ -606,7 +606,7 @@ class ElectionController extends Controller
             ->distinct()
             ->pluck('voter_id');
 
-        $students = User::where('role', 'student')
+        $students = User::where('role', 'STUDENT')
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('last_name')
             ->orderBy('first_name')

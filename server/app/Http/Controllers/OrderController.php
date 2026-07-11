@@ -22,7 +22,7 @@ class OrderController extends Controller
             ->where('organization_id', $user->organization_id)
             ->orderBy('created_at', 'desc');
 
-        if ($user->role === 'student') {
+        if ($user->role === 'STUDENT') {
             $query->where('student_id', $user->id);
         }
 

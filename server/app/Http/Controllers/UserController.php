@@ -26,7 +26,7 @@ class UserController extends Controller
     {
         $actor = $request->user();
         $organizationId = $request->input('organization_id', $actor->organization_id);
-        $role = $request->input('role', 'student');
+        $role = $request->input('role', 'STUDENT');
 
         $validatedData = $request->validate([
             'organization_id' => ['sometimes', 'required', 'exists:organizations,id'],
@@ -48,11 +48,11 @@ class UserController extends Controller
                     ->where(fn ($query) => $query->where('organization_id', $organizationId)),
             ],
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'required|in:student,officer,admin,adviser',
+            'role' => 'required|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
         ]);
 
         $user = User::create([
-            'organization_id' => $role === 'admin' ? $organizationId : ($validatedData['organization_id'] ?? $organizationId),
+            'organization_id' => $role === 'ADMIN' ? $organizationId : ($validatedData['organization_id'] ?? $organizationId),
             'school_id' => $validatedData['school_id'],
             'first_name' => $validatedData['first_name'],
             'last_name' => $validatedData['last_name'],
@@ -96,15 +96,15 @@ class UserController extends Controller
                     ->where(fn ($query) => $query->where('organization_id', $request->input('organization_id', $user->organization_id)))
                     ->ignore($user->school_id, 'school_id'),
             ],
-            'role' => 'sometimes|required|in:student,officer,admin,adviser',
+            'role' => 'sometimes|required|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
             'password' => 'sometimes|required|string|min:8',
         ]);
 
         if (
             array_key_exists('role', $validatedData) &&
-            $validatedData['role'] !== 'admin' &&
-            $user->role === 'admin' &&
-            User::where('role', 'admin')->count() <= 1
+            $validatedData['role'] !== 'ADMIN' &&
+            $user->role === 'ADMIN' &&
+            User::where('role', 'ADMIN')->where('organization_id', $user->organization_id)->count() <= 1
         ) {
             return response()->json(['message' => 'Cannot change the role of the last admin account.'], 422);
         }
@@ -129,7 +129,7 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
-        if ($user->role === 'admin') {
+        if ($user->role === 'ADMIN') {
             return response()->json(['message' => 'Admin accounts cannot be disabled using this endpoint.'], 422);
         }
 
@@ -150,7 +150,7 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
-        if ($user->role === 'admin') {
+        if ($user->role === 'ADMIN') {
             return response()->json(['message' => 'Admin accounts cannot be deleted using this endpoint.'], 422);
         }
 
@@ -188,7 +188,7 @@ class UserController extends Controller
                 Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $request->organization_id)),
             ],
             'password' => 'required|string|min:8|confirmed',
-            'role' => 'sometimes|in:student',
+            'role' => 'sometimes|in:STUDENT',
         ]);
 
         $user = User::create([
@@ -198,7 +198,7 @@ class UserController extends Controller
             'last_name' => $validatedData['last_name'],
             'email' => $validatedData['email'],
             'password_hash' => $validatedData['password'],
-            'role' => $validatedData['role'] ?? 'student',
+            'role' => $validatedData['role'] ?? 'STUDENT',
         ]);
 
         return response()->json([
@@ -215,7 +215,7 @@ class UserController extends Controller
             'email'     => 'required_without:school_id|nullable|email',
             'school_id' => 'required_without:email|nullable|integer|min:1|max:99999999',
             'password'  => 'required|string',
-            'role'      => 'sometimes|in:student,officer,admin,adviser',
+            'role'      => 'sometimes|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
         ]);
 
         $user = $request->filled('email')

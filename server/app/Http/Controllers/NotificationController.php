@@ -54,7 +54,7 @@ class NotificationController extends Controller
             'title'       => ['required', 'string', 'max:255'],
             'message'     => ['required', 'string'],
             'user_id'     => ['nullable', 'exists:users,school_id'],
-            'target_role' => ['nullable', 'in:student,officer,adviser,admin'],
+            'target_role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
         ]);
 
         if (!empty($data['user_id'])) {

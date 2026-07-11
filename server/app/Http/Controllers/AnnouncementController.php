@@ -25,7 +25,7 @@ class AnnouncementController extends Controller
             $query->where('category', $category);
         }
 
-        if (in_array($user->role, ['student', 'adviser'])) {
+        if (in_array($user->role, ['STUDENT', 'DEPARTMENT_HEAD'])) {
             $query->where('is_published', true)
                 ->where(function ($q) use ($user) {
                     $q->where('target_role', 'all')
@@ -41,7 +41,7 @@ class AnnouncementController extends Controller
         $data = $request->validate([
             'title'       => ['required', 'string', 'max:255'],
             'body'        => ['required', 'string'],
-            'target_role' => ['required', 'in:all,student,officer,adviser'],
+            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category'    => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
         ]);
@@ -73,14 +73,14 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && $user->role !== 'admin') {
+        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only edit your own announcements.'], 403);
         }
 
         $data = $request->validate([
             'title'        => ['sometimes', 'required', 'string', 'max:255'],
             'body'         => ['sometimes', 'required', 'string'],
-            'target_role'  => ['sometimes', 'required', 'in:all,student,officer,adviser'],
+            'target_role'  => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category'     => ['sometimes', 'required', 'in:general,election,training,events,merchandise'],
             'is_published' => ['sometimes', 'boolean'],
         ]);
@@ -105,7 +105,7 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && $user->role !== 'admin') {
+        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only delete your own announcements.'], 403);
         }
 
@@ -124,7 +124,7 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && $user->role !== 'admin') {
+        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only publish your own announcements.'], 403);
         }
 
