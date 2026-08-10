@@ -97,18 +97,18 @@ export default function DashboardPage() {
   ];
 
   const modules = [
-    { label: 'Finance', desc: 'Transactions, budgets, reports', path: '/dashboard/finance', icon: Coins },
-    { label: 'Events', desc: 'Create events and attendance', path: '/dashboard/events', icon: CalendarDays },
-    { label: 'Tasks', desc: 'Create tasks and monitor progress', path: '/dashboard/tasks', icon: ClipboardList },
-    { label: 'Elections', desc: 'Manage ballots and results', path: '/dashboard/elections', icon: Vote },
-    { label: 'Merchandise', desc: 'Inventory and orders', path: '/dashboard/merchandise', icon: Package },
-    { label: 'Announcements', desc: 'Post updates and notices', path: '/dashboard/announcements', icon: Megaphone },
+    { label: 'Finance', desc: 'Budgets, insights, and reports', path: '/dashboard/finance', icon: Coins },
+    { label: 'Events', desc: 'Attendance and event operations', path: '/dashboard/events', icon: CalendarDays },
+    { label: 'Tasks', desc: 'View and update assigned tasks', path: '/dashboard/tasks', icon: ClipboardList },
+    { label: 'Elections', desc: 'Candidates, voters, ballots, and results', path: '/dashboard/elections', icon: Vote },
+    { label: 'Merchandise', desc: 'Orders, claims, and personal shopping', path: '/dashboard/merchandise', icon: Package },
+    { label: 'Announcements', desc: 'Draft, submit, and view notices', path: '/dashboard/announcements', icon: Megaphone },
   ];
 
   const quickActions = [
-    { label: 'New Task', path: '/dashboard/tasks', icon: ClipboardList },
-    { label: 'New Event', path: '/dashboard/events', icon: CalendarDays },
-    { label: 'Record Transaction', path: '/dashboard/finance', icon: Coins },
+    { label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', icon: ClipboardList },
+    { label: 'Event Operations', path: '/dashboard/events/event-operations', icon: CalendarDays },
+    { label: 'Financial Insights', path: '/dashboard/finance/financial-insights', icon: Coins },
     { label: 'Post Announcement', path: '/dashboard/announcements/create-announcement', icon: Megaphone },
   ];
 

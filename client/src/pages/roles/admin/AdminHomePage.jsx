@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShieldCheck, Users, Megaphone, FileText, GraduationCap, UserCheck, Briefcase } from 'lucide-react';
+import { ShieldCheck, Megaphone, FileText, GraduationCap, UserCheck, Briefcase } from 'lucide-react';
 import { getUsers } from '../../../services/userService';
 import { getAnnouncements } from '../../../services/announcementService';
 

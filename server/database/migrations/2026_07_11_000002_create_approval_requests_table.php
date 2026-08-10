@@ -10,20 +10,19 @@ return new class extends Migration
     {
         Schema::create('approval_requests', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('organization_id')->constrained('organizations')->cascadeOnDelete();
-            $table->enum('entity_type', ['event', 'budget', 'election']);
+            $table->foreignId('organization_id')->nullable()->constrained('organizations')->nullOnDelete();
+            $table->string('entity_type', 40);
             $table->unsignedBigInteger('entity_id');
-            $table->string('title');
-            $table->text('summary')->nullable();
             $table->unsignedInteger('requested_by');
-            $table->enum('status', ['pending', 'approved', 'rejected'])->default('pending');
+            $table->string('required_role', 30);
+            $table->string('status', 20)->default('pending');
             $table->unsignedInteger('reviewed_by')->nullable();
             $table->text('remarks')->nullable();
             $table->timestamp('requested_at')->useCurrent();
             $table->dateTime('reviewed_at')->nullable();
-            $table->timestamps();
 
-            $table->unique(['entity_type', 'entity_id']);
+            $table->index(['entity_type', 'entity_id'], 'approval_entity_index');
+            $table->index(['status', 'required_role'], 'approval_status_role_index');
             $table->foreign('requested_by')->references('school_id')->on('users')->cascadeOnDelete();
             $table->foreign('reviewed_by')->references('school_id')->on('users')->nullOnDelete();
         });

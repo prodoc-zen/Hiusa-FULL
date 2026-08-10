@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { AlignLeft, Bold, CheckCircle, Italic, Link, List, Send } from 'lucide-react';
+import { AlignLeft, Bold, Bot, CheckCircle, Italic, Link, List, Send } from 'lucide-react';
 import { SectionHeader } from './announcementShared.jsx';
-import { createAnnouncement } from '../../../services/announcementService';
+import { createAnnouncement, generateAnnouncementDraft } from '../../../services/announcementService';
 import { useNavigate } from 'react-router-dom';
 
 const AUDIENCE_OPTIONS = [
@@ -47,6 +47,7 @@ export default function CreateAnnouncementPage() {
   const [category, setCategory] = useState('general');
   const [body, setBody] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [generating, setGenerating] = useState(false);
   const [error, setError] = useState(null);
   const [posted, setPosted] = useState(false);
   const [lastPublishState, setLastPublishState] = useState(true);
@@ -64,6 +65,29 @@ export default function CreateAnnouncementPage() {
       setError(err.response?.data?.message ?? 'Failed to post announcement. Please try again.');
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function handleGenerateDraft() {
+    if (!title.trim()) {
+      setError('Enter a title before generating a draft.');
+      return;
+    }
+
+    setGenerating(true);
+    setError(null);
+    try {
+      const res = await generateAnnouncementDraft({
+        title,
+        target_role: targetRole,
+        category,
+        details: body,
+      });
+      setBody(res.data?.output_text || '');
+    } catch (err) {
+      setError(err.response?.data?.message ?? 'Failed to generate announcement draft.');
+    } finally {
+      setGenerating(false);
     }
   }
 
@@ -138,7 +162,18 @@ export default function CreateAnnouncementPage() {
         </div>
 
         <div>
-          <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Content *</label>
+          <div className="mb-1.5 flex items-center justify-between gap-3">
+            <label className="block text-[13px] font-semibold text-[#0F172A]">Content *</label>
+            <button
+              type="button"
+              onClick={handleGenerateDraft}
+              disabled={generating || !title.trim()}
+              className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-xs font-bold text-[#0B8ED0] transition hover:bg-[#EEF6FB] disabled:opacity-50"
+            >
+              <Bot size={14} />
+              {generating ? 'Generating...' : 'Generate Draft'}
+            </button>
+          </div>
           <div className="overflow-hidden rounded-lg border border-[#DDE7EF]">
             <div className="flex gap-1 border-b border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2">
               {[Bold, Italic, List, AlignLeft, Link].map((Icon, i) => (

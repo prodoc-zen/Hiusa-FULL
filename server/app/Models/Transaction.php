@@ -26,8 +26,18 @@ class Transaction extends Model
         return $this->belongsTo(Budget::class);
     }
 
+    public function event(): BelongsTo
+    {
+        return $this->belongsTo(Event::class);
+    }
+
     public function recorder(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'recorded_by');
+        return $this->belongsTo(User::class, 'recorded_by', 'school_id');
+    }
+
+    public function payer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'payer_id', 'school_id');
     }
 }

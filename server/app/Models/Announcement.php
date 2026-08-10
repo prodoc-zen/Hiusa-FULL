@@ -17,11 +17,17 @@ class Announcement extends Model
     {
         return [
             'is_published' => 'boolean',
+            'published_at' => 'datetime',
         ];
     }
 
     public function creator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by', 'school_id');
+    }
+
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by', 'school_id');
     }
 }

@@ -1,20 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { CheckCircle, Plus, Trash2, Vote, X, AlertCircle } from 'lucide-react';
-import { createElectionPosition, deleteElectionPosition } from '../../services/electionService';
-
-function Avatar({ name, size = 'sm' }) {
-  const initials = name
-    .split(' ')
-    .map((value) => value[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase();
-  const colors = ['bg-[#0B8ED0]', 'bg-purple-500', 'bg-emerald-500', 'bg-red-500', 'bg-amber-500', 'bg-indigo-500', 'bg-pink-500'];
-  const bg = colors[name.charCodeAt(0) % colors.length];
-  const sizeClass = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
-  return <div className={`rounded-full flex items-center justify-center text-white font-bold shrink-0 ${sizeClass} ${bg}`}>{initials}</div>;
-}
+import { Trash2 } from 'lucide-react';
+import { createElectionPosition, deleteElectionPosition } from '../../../services/electionService';
 
 export default function ElectionDetailPage() {
   const { election, refreshElection } = useOutletContext();

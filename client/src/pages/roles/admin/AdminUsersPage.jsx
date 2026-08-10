@@ -1,15 +1,26 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, Trash2, UserPlus, UserX, X } from 'lucide-react';
-import { createUser, deleteUser, disableUser, getUsers, updateUser } from '../../../services/userService';
+import { PencilLine, UserPlus, UserX, X } from 'lucide-react';
+import { createUser, disableUser, getUsers, updateUser } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
 
 const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const ROLE_LABELS = {
   STUDENT: 'Student',
-  SBO_OFFICER: 'Officer',
+  SBO_OFFICER: 'SBO Officer',
   ADMIN: 'Admin',
   DEPARTMENT_HEAD: 'Department Head',
 };
+
+const SBO_POSITIONS = [
+  'President',
+  'Vice President',
+  'Secretary',
+  'Treasurer',
+  'Auditor',
+  'Public Information Officer',
+  'Business Manager',
+  'Representative',
+];
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
@@ -28,6 +39,7 @@ export default function AdminUsersPage() {
     last_name: '',
     email: '',
     role: 'STUDENT',
+    position_title: '',
     password: '',
     password_confirmation: '',
   });
@@ -38,6 +50,7 @@ export default function AdminUsersPage() {
     last_name: '',
     email: '',
     role: 'STUDENT',
+    position_title: '',
   });
 
   useEffect(() => {
@@ -49,7 +62,7 @@ export default function AdminUsersPage() {
         if (!cancelled) {
           setUsers(Array.isArray(rows) ? rows : []);
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
           setError('Unable to load users.');
         }
@@ -94,7 +107,10 @@ export default function AdminUsersPage() {
     setError('');
 
     try {
-      await createUser(createForm);
+      await createUser({
+        ...createForm,
+        position_title: createForm.role === 'SBO_OFFICER' ? createForm.position_title : '',
+      });
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to create user.');
       return;
@@ -107,6 +123,7 @@ export default function AdminUsersPage() {
       last_name: '',
       email: '',
       role: 'STUDENT',
+      position_title: '',
       password: '',
       password_confirmation: '',
     });
@@ -121,6 +138,7 @@ export default function AdminUsersPage() {
       last_name: user.last_name,
       email: user.email,
       role: user.role,
+      position_title: user.position_title || '',
     });
     setShowEdit(true);
   };
@@ -131,7 +149,10 @@ export default function AdminUsersPage() {
 
     setError('');
     try {
-      await updateUser(selectedUser.id, editForm);
+      await updateUser(selectedUser.id, {
+        ...editForm,
+        position_title: editForm.role === 'SBO_OFFICER' ? editForm.position_title : '',
+      });
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update user.');
       return;
@@ -141,23 +162,16 @@ export default function AdminUsersPage() {
     try { await refreshUsers(); } catch {}
   };
 
-  const handleDisable = async (id) => {
+  const handleDisable = async (user) => {
+    const confirmed = window.confirm(`Deactivate ${user.first_name} ${user.last_name}? This will update the account status and sign the user out of active sessions.`);
+    if (!confirmed) return;
+
     setError('');
     try {
-      await disableUser(id);
+      await disableUser(user.id);
       try { await refreshUsers(); } catch {}
     } catch (disableError) {
       setError(disableError?.response?.data?.message || 'Unable to disable user.');
-    }
-  };
-
-  const handleDelete = async (id) => {
-    setError('');
-    try {
-      await deleteUser(id);
-      try { await refreshUsers(); } catch {}
-    } catch (deleteError) {
-      setError(deleteError?.response?.data?.message || 'Unable to delete user.');
     }
   };
 
@@ -168,7 +182,7 @@ export default function AdminUsersPage() {
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Administrator</p>
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">User Management</h2>
-            <p className="mt-1 text-sm text-slate-500">Create, edit, disable, and remove user accounts.</p>
+            <p className="mt-1 text-sm text-slate-500">View, search, filter, add, update, and deactivate user accounts.</p>
           </div>
           <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">
             <UserPlus size={15} />
@@ -209,6 +223,8 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3">Name</th>
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
+                <th className="px-4 py-3">SBO Position</th>
+                <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
             </thead>
@@ -221,22 +237,22 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3.5">
                     <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0B8ED0]">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
+                  <td className="px-4 py-3.5 text-xs text-[#64748B]">{user.role === 'SBO_OFFICER' ? (user.position_title || '-') : '-'}</td>
+                  <td className="px-4 py-3.5">
+                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
+                      {user.account_status || 'active'}
+                    </span>
+                  </td>
                   <td className="px-4 py-3.5">
                     <div className="flex gap-2">
                       <button onClick={() => openEdit(user)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-[#EEF6FB]">
                         <PencilLine size={13} />
                         Edit
                       </button>
-                      {user.role !== 'ADMIN' && (
-                        <button onClick={() => handleDisable(user.id)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                      {user.role !== 'ADMIN' && user.account_status !== 'disabled' && (
+                        <button onClick={() => handleDisable(user)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
                           <UserX size={13} />
-                          Disable
-                        </button>
-                      )}
-                      {user.role !== 'ADMIN' && (
-                        <button onClick={() => handleDelete(user.id)} className="inline-flex items-center gap-1 rounded-md border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-semibold text-red-700 hover:bg-red-100">
-                          <Trash2 size={13} />
-                          Delete
+                          Deactivate
                         </button>
                       )}
                     </div>
@@ -245,7 +261,7 @@ export default function AdminUsersPage() {
               ))}
               {filtered.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-[#94A3B8]">No users found.</td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#94A3B8]">No users found.</td>
                 </tr>
               )}
             </tbody>
@@ -273,9 +289,20 @@ export default function AdminUsersPage() {
             <input value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.first_name} onChange={(event) => setCreateForm({ ...createForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={createForm.last_name} onChange={(event) => setCreateForm({ ...createForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+            <select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? createForm.position_title : '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
               {roles.map((role) => (
                 <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+              ))}
+            </select>
+            <select
+              value={createForm.position_title}
+              onChange={(event) => setCreateForm({ ...createForm, position_title: event.target.value })}
+              disabled={createForm.role !== 'SBO_OFFICER'}
+              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              <option value="">Assign SBO position</option>
+              {SBO_POSITIONS.map((position) => (
+                <option key={position} value={position}>{position}</option>
               ))}
             </select>
             <input type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} placeholder="Password" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
@@ -301,9 +328,20 @@ export default function AdminUsersPage() {
             <input value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.first_name} onChange={(event) => setEditForm({ ...editForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
             <input value={editForm.last_name} onChange={(event) => setEditForm({ ...editForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+            <select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? editForm.position_title : '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
               {roles.map((role) => (
                 <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+              ))}
+            </select>
+            <select
+              value={editForm.position_title}
+              onChange={(event) => setEditForm({ ...editForm, position_title: event.target.value })}
+              disabled={editForm.role !== 'SBO_OFFICER'}
+              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
+            >
+              <option value="">Assign SBO position</option>
+              {SBO_POSITIONS.map((position) => (
+                <option key={position} value={position}>{position}</option>
               ))}
             </select>
             <div className="sm:col-span-2 flex gap-2 pt-1">

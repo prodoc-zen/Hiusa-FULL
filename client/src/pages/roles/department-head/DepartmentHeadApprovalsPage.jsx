@@ -1,17 +1,21 @@
 import { useEffect, useState } from 'react';
-import { CalendarDays, Check, Clock, Coins, Vote, X } from 'lucide-react';
+import { CalendarDays, Check, Clock, Coins, Megaphone, Package, Vote, X } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 
 const ENTITY_ICON = {
   event: CalendarDays,
   budget: Coins,
   election: Vote,
+  announcement: Megaphone,
+  payment: Package,
 };
 
 const ENTITY_LABEL = {
   event: 'Event',
   budget: 'Budget',
   election: 'Election',
+  announcement: 'Announcement',
+  payment: 'Payment',
 };
 
 const STATUS_BADGE = {
@@ -29,19 +33,43 @@ function summaryLine(entityType, summary) {
   if (!summary) return null;
 
   if (entityType === 'event') {
-    return `${formatDate(summary.start_time)} – ${formatDate(summary.end_time)}${summary.location ? ` · ${summary.location}` : ''}`;
+    return `${formatDate(summary.start_time)} - ${formatDate(summary.end_time)}${summary.location ? ` | ${summary.location}` : ''}`;
   }
 
   if (entityType === 'budget') {
     const amount = Number(summary.allocated_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
-    return `Allocation: ₱${amount}`;
+    return `Allocation: PHP ${amount}${summary.event_title ? ` | ${summary.event_title}` : ''}`;
   }
 
   if (entityType === 'election') {
-    return `${formatDate(summary.start_time)} – ${formatDate(summary.end_time)} · Requested status: ${summary.target_status || 'upcoming'}`;
+    return `${formatDate(summary.start_time)} - ${formatDate(summary.end_time)} | Requested status: ${summary.target_status || 'upcoming'}`;
+  }
+
+  if (entityType === 'announcement') {
+    return `Audience: ${summary.target_role || 'all'} | Category: ${summary.category || 'general'} | Status: ${summary.approval_status || 'pending'}`;
+  }
+
+  if (entityType === 'payment') {
+    const total = Number(summary.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
+    return `${summary.item || 'Merchandise'} | Buyer: ${summary.buyer || 'Unknown'} | PHP ${total}${summary.payment_reference ? ` | Ref: ${summary.payment_reference}` : ''}`;
   }
 
   return null;
+}
+
+function getStoredUser() {
+  try {
+    return JSON.parse(localStorage.getItem('user')) || {};
+  } catch {
+    return {};
+  }
+}
+
+function roleLabel(role) {
+  return {
+    ADMIN: 'Admin',
+    DEPARTMENT_HEAD: 'Department Head',
+  }[role] || 'Reviewer';
 }
 
 function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
@@ -64,7 +92,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
         <p className="mt-2 text-sm text-slate-600">
           {isReject
             ? 'Let the requester know what needs to change before resubmitting.'
-            : 'This will make the item live immediately.'}
+            : 'This will update the request and notify the requester.'}
         </p>
         <div className="mt-4 space-y-1.5">
           <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -72,10 +100,10 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
           </label>
           <textarea
             value={remarks}
-            onChange={(e) => setRemarks(e.target.value)}
+            onChange={(event) => setRemarks(event.target.value)}
             rows={3}
             placeholder={isReject ? 'e.g. Budget not yet finalized.' : 'Optional note for the requester...'}
-            className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
+            className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
         </div>
         <div className="mt-5 flex justify-end gap-3">
@@ -97,6 +125,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
 }
 
 export default function DepartmentHeadApprovalsPage() {
+  const currentUser = getStoredUser();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -129,14 +158,14 @@ export default function DepartmentHeadApprovalsPage() {
     }
   }
 
-  const pendingCount = requests.filter((r) => r.status === 'pending').length;
+  const pendingCount = requests.filter((request) => request.status === 'pending').length;
 
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Department Head</p>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">{roleLabel(currentUser.role)}</p>
         <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Approvals</h2>
-        <p className="mt-1 text-sm font-medium text-slate-500">Review events, budgets, and elections awaiting sign-off.</p>
+        <p className="mt-1 text-sm font-medium text-slate-500">Review approval requests awaiting your role's sign-off.</p>
       </section>
 
       <div className="flex gap-2">
@@ -147,7 +176,7 @@ export default function DepartmentHeadApprovalsPage() {
             className={`rounded-lg px-4 py-2.5 text-[13px] font-bold capitalize transition-all ${
               statusFilter === tab
                 ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20'
-                : 'bg-white text-slate-600 border border-[#DDE7EF] hover:bg-[#EEF6FB]'
+                : 'border border-[#DDE7EF] bg-white text-slate-600 hover:bg-[#EEF6FB]'
             }`}
           >
             {tab === 'pending' ? `Pending${pendingCount ? ` (${pendingCount})` : ''}` : 'All History'}
@@ -164,7 +193,7 @@ export default function DepartmentHeadApprovalsPage() {
       <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
         {loading ? (
           <div className="space-y-2 p-5">
-            {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}
+            {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}
           </div>
         ) : requests.length === 0 ? (
           <div className="py-14 text-center">
@@ -193,9 +222,11 @@ export default function DepartmentHeadApprovalsPage() {
                           {request.status}
                         </span>
                       </div>
-                      <p className="mt-1 text-xs text-slate-400">{summaryLine(request.entity_type, request.summary)}</p>
+                      {summaryLine(request.entity_type, request.summary) && (
+                        <p className="mt-1 text-xs text-slate-400">{summaryLine(request.entity_type, request.summary)}</p>
+                      )}
                       <p className="mt-1 text-xs text-slate-400">
-                        Requested by {request.requester ? `${request.requester.first_name} ${request.requester.last_name}` : 'Unknown'} · {formatDate(request.requested_at)}
+                        Requested by {request.requester ? `${request.requester.first_name} ${request.requester.last_name}` : 'Unknown'} | {formatDate(request.requested_at)}
                       </p>
                       {request.status !== 'pending' && request.remarks && (
                         <p className="mt-1.5 rounded-md bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">

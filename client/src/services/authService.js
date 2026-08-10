@@ -15,6 +15,18 @@ export const logout = () => {
   });
 };
 
+export const requestPasswordReset = (data) => {
+  return api.post('/password/forgot', data);
+};
+
+export const validatePasswordResetToken = (data) => {
+  return api.post('/password/reset/validate', data);
+};
+
+export const resetPassword = (data) => {
+  return api.post('/password/reset', data);
+};
+
 export const getCurrentUser = async () => {
   const response = await api.get("/user");
 

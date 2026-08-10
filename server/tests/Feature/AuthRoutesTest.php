@@ -2,9 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Mail\PasswordResetMail;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Mail;
 use Tests\TestCase;
 
 class AuthRoutesTest extends TestCase
@@ -59,6 +63,172 @@ class AuthRoutesTest extends TestCase
             ->getJson('/api/user')
             ->assertOk()
             ->assertJsonPath('email', 'student@example.com');
+    }
+
+    public function test_inactive_user_cannot_login(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'inactive@example.com',
+            'password_hash' => 'password123',
+            'account_status' => 'disabled',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $user->organization_id,
+            'email' => 'inactive@example.com',
+            'password' => 'password123',
+        ])
+            ->assertForbidden()
+            ->assertJsonPath('account_status', 'disabled');
+    }
+
+    public function test_user_can_recover_account_and_set_new_password(): void
+    {
+        Mail::fake();
+
+        $user = User::factory()->create([
+            'email' => 'recover@example.com',
+            'password_hash' => 'old-password',
+            'account_status' => 'active',
+        ]);
+
+        $request = $this->postJson('/api/password/forgot', [
+            'organization_id' => $user->organization_id,
+            'email' => 'recover@example.com',
+        ]);
+
+        $request
+            ->assertOk()
+            ->assertJsonStructure(['message'])
+            ->assertJsonMissing(['reset_url'])
+            ->assertJsonMissing(['token']);
+
+        $resetUrl = null;
+
+        Mail::assertSent(PasswordResetMail::class, function (PasswordResetMail $mail) use (&$resetUrl) {
+            $resetUrl = $mail->resetUrl;
+
+            return $mail->hasTo('recover@example.com')
+                && str_contains($mail->resetUrl, '/reset-password?')
+                && $mail->expiresInMinutes === 60;
+        });
+
+        parse_str((string) parse_url($resetUrl, PHP_URL_QUERY), $resetQuery);
+        $token = $resetQuery['token'] ?? null;
+
+        $this->assertNotEmpty($token);
+
+        $this->postJson('/api/password/reset/validate', [
+            'organization_id' => $user->organization_id,
+            'email' => 'recover@example.com',
+            'token' => $token,
+        ])->assertOk();
+
+        $this->postJson('/api/password/reset', [
+            'organization_id' => $user->organization_id,
+            'email' => 'recover@example.com',
+            'token' => $token,
+            'password' => 'new-password',
+            'password_confirmation' => 'new-password',
+        ])->assertOk();
+
+        $this->postJson('/api/login', [
+            'organization_id' => $user->organization_id,
+            'email' => 'recover@example.com',
+            'password' => 'new-password',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('password_reset_tokens', [
+            'organization_id' => $user->organization_id,
+            'email' => 'recover@example.com',
+        ]);
+
+        $this->postJson('/api/password/reset/validate', [
+            'organization_id' => $user->organization_id,
+            'email' => 'recover@example.com',
+            'token' => $token,
+        ])->assertUnprocessable();
+    }
+
+    public function test_expired_password_reset_token_is_rejected(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'expired-reset@example.com',
+            'account_status' => 'active',
+        ]);
+
+        DB::table('password_reset_tokens')->insert([
+            'organization_id' => $user->organization_id,
+            'email' => $user->email,
+            'token' => Hash::make('expired-token'),
+            'created_at' => now()->subMinutes(61),
+        ]);
+
+        $this->postJson('/api/password/reset/validate', [
+            'organization_id' => $user->organization_id,
+            'email' => $user->email,
+            'token' => 'expired-token',
+        ])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Password reset token is invalid or expired.');
+    }
+
+    public function test_all_roles_can_update_their_own_profile(): void
+    {
+        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+            $this->flushHeaders();
+            $this->app['auth']->forgetGuards();
+
+            $user = User::factory()->create([
+                'role' => $role,
+                'email' => strtolower($role).'@example.com',
+            ]);
+
+            $this->withToken($user->createToken('profile-test')->plainTextToken)
+                ->putJson('/api/user/profile', [
+                    'first_name' => 'Updated',
+                    'last_name' => str_replace('_', '', ucwords(strtolower($role), '_')),
+                    'email' => 'updated-'.strtolower($role).'@example.com',
+                ])
+                ->assertOk()
+                ->assertJsonPath('first_name', 'Updated')
+                ->assertJsonPath('email', 'updated-'.strtolower($role).'@example.com');
+        }
+    }
+
+    public function test_all_roles_can_change_their_password(): void
+    {
+        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+            $this->flushHeaders();
+            $this->app['auth']->forgetGuards();
+
+            $user = User::factory()->create([
+                'role' => $role,
+                'email' => 'password-'.strtolower($role).'@example.com',
+                'password_hash' => Hash::make('current-password'),
+            ]);
+
+            $this->assertTrue(Hash::check('current-password', $user->password_hash), $role.' password fixture is invalid.');
+
+            $response = $this->withToken($user->createToken('password-test')->plainTextToken)
+                ->putJson('/api/user/password', [
+                    'current_password' => 'current-password',
+                    'password' => 'updated-password',
+                    'password_confirmation' => 'updated-password',
+                ]);
+
+            $this->assertTrue($response->isOk(), $role.': '.json_encode($response->json()));
+
+            $this->postJson('/api/login', [
+                'organization_id' => $user->organization_id,
+                'email' => $user->email,
+                'password' => 'updated-password',
+            ])->assertOk();
+
+            $this->app['auth']->forgetGuards();
+        }
+
+        $this->flushHeaders();
     }
 
     public function test_no_prefix_auth_aliases_accept_requests(): void

@@ -18,12 +18,13 @@ class Order extends Model
         return [
             'total_price' => 'decimal:2',
             'claimed_at' => 'datetime',
+            'claim_verified_at' => 'datetime',
         ];
     }
 
     public function student(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'student_id');
+        return $this->belongsTo(User::class, 'student_id', 'school_id');
     }
 
     public function merchandise(): BelongsTo
@@ -33,11 +34,21 @@ class Order extends Model
 
     public function processor(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'processed_by');
+        return $this->belongsTo(User::class, 'processed_by', 'school_id');
     }
 
     public function approver(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'approved_by');
+        return $this->belongsTo(User::class, 'approved_by', 'school_id');
+    }
+
+    public function claimVerifier(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'claim_verified_by', 'school_id');
+    }
+
+    public function transaction(): BelongsTo
+    {
+        return $this->belongsTo(Transaction::class);
     }
 }

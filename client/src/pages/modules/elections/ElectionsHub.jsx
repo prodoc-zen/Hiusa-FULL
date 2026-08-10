@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Outlet, useNavigate } from 'react-router-dom';
-import ElectionBreadcrumb from '../../components/elections/ElectionBreadcrumb';
+import ElectionBreadcrumb from '../../../components/elections/ElectionBreadcrumb';
 import ElectionPickerPage from './ElectionPickerPage';
-import { getElectionDetails } from '../../services/electionService';
+import { getElectionDetails } from '../../../services/electionService';
 
 export default function ElectionsHub() {
   const navigate = useNavigate();
@@ -34,7 +34,7 @@ export default function ElectionsHub() {
         if (!cancelled) {
           setActiveElection(election);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           setActiveElection(null);
         }

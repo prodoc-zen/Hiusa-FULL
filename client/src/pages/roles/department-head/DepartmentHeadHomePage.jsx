@@ -1,9 +1,8 @@
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { ShieldCheck, Vote, BarChart3, CalendarDays, ClipboardCheck, ClipboardList, Megaphone } from 'lucide-react';
+import { Vote, BarChart3, CalendarDays, ClipboardCheck, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
-import { getTasks } from '../../../services/taskService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getApprovalRequests } from '../../../services/approvalService';
 
@@ -13,7 +12,7 @@ function formatDate(d) {
 }
 
 export default function DepartmentHeadHomePage() {
-  const [data, setData] = useState({ elections: [], events: [], tasks: [], announcements: [], pendingApprovals: [] });
+  const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,11 +20,10 @@ export default function DepartmentHeadHomePage() {
 
     async function load() {
       try {
-        const [electionsRes, eventsRes, tasksRes, announcementsRes, approvalsRes] = await Promise.all([
+        const [electionsRes, eventsRes, announcementsRes, approvalsRes] = await Promise.all([
           getElections(),
           getEvents(),
-          getTasks(),
-          getAnnouncements(),
+          getAnnouncements({ published_only: 1 }),
           getApprovalRequests({ status: 'pending' }),
         ]);
 
@@ -34,12 +32,11 @@ export default function DepartmentHeadHomePage() {
         setData({
           elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
           events: Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []),
-          tasks: Array.isArray(tasksRes?.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []),
           announcements: Array.isArray(announcementsRes?.data) ? announcementsRes.data : [],
           pendingApprovals: Array.isArray(approvalsRes?.data) ? approvalsRes.data : [],
         });
       } catch {
-        if (!cancelled) setData({ elections: [], events: [], tasks: [], announcements: [], pendingApprovals: [] });
+        if (!cancelled) setData({ elections: [], events: [], announcements: [], pendingApprovals: [] });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -54,8 +51,6 @@ export default function DepartmentHeadHomePage() {
     .filter((e) => e.status === 'upcoming' || e.status === 'approved')
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
     .slice(0, 4);
-  const completedTasks = data.tasks.filter((t) => t.status === 'completed').length;
-  const totalTasks = data.tasks.length;
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).slice(0, 3);
 
   const stat = (val) => loading ? '-' : val;
@@ -65,7 +60,7 @@ export default function DepartmentHeadHomePage() {
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Department Head Portal</p>
         <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Oversight Dashboard</h2>
-        <p className="mt-1 text-sm font-medium text-slate-500">Monitor election progress, events, and officer task completion.</p>
+        <p className="mt-1 text-sm font-medium text-slate-500">Review approvals and monitor elections, events, and published announcements.</p>
       </section>
 
       {!loading && data.pendingApprovals.length > 0 && (
@@ -91,7 +86,7 @@ export default function DepartmentHeadHomePage() {
           { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
           { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
           { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
-          { label: 'Tasks Completed', value: loading ? '-' : `${completedTasks}/${totalTasks}`, icon: ClipboardList },
+          { label: 'Pending Approvals', value: stat(data.pendingApprovals.length), icon: ClipboardCheck },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
@@ -113,7 +108,7 @@ export default function DepartmentHeadHomePage() {
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Active Election</p>
                   <h3 className="mt-1 text-lg font-black text-[#0F172A]">{activeElection.title}</h3>
                   <p className="mt-1 text-sm text-slate-500">
-                    {formatDate(activeElection.start_date)} to {formatDate(activeElection.end_date)}
+                    {formatDate(activeElection.start_time)} to {formatDate(activeElection.end_time)}
                   </p>
                 </div>
                 <span className="mt-1 rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
@@ -171,23 +166,6 @@ export default function DepartmentHeadHomePage() {
         </div>
 
         <div className="space-y-6">
-          {/* Task Progress */}
-          {!loading && totalTasks > 0 && (
-            <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-base font-bold text-[#0F172A]">Task Progress</h3>
-                <span className="text-sm font-black text-[#0B8ED0]">{Math.round((completedTasks / totalTasks) * 100)}%</span>
-              </div>
-              <div className="h-3 w-full rounded-full bg-[#EEF6FB]">
-                <div
-                  className="h-3 rounded-full bg-[#0B8ED0] transition-all"
-                  style={{ width: `${Math.round((completedTasks / totalTasks) * 100)}%` }}
-                />
-              </div>
-              <p className="mt-2 text-xs font-medium text-slate-400">{completedTasks} of {totalTasks} completed</p>
-            </section>
-          )}
-
           {/* Recent Announcements */}
           <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
@@ -223,7 +201,6 @@ export default function DepartmentHeadHomePage() {
                 { label: 'Review Approvals', path: '/dashboard/department-head/approvals' },
                 { label: 'View Elections', path: '/dashboard/elections' },
                 { label: 'View Events', path: '/dashboard/events' },
-                { label: 'View Tasks', path: '/dashboard/tasks' },
                 { label: 'View Results', path: '/dashboard/elections/election-results' },
               ].map((a) => (
                 <NavLink

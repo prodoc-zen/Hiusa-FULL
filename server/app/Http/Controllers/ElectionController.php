@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\Election;
 use App\Models\Vote;
 use App\Models\Candidate;
@@ -59,7 +60,15 @@ class ElectionController extends Controller
             ->where('organization_id', $request->user()->organization_id);
 
         if ($request->user()?->role === 'STUDENT') {
-            $query->where('status', 'active');
+            $query->where(function ($studentQuery) {
+                $studentQuery
+                    ->where('status', 'active')
+                    ->orWhere(function ($resultsQuery) {
+                        $resultsQuery
+                            ->where('status', 'closed')
+                            ->where('results_visible', true);
+                    });
+            });
         }
 
         $elections = $query
@@ -94,8 +103,8 @@ class ElectionController extends Controller
         }
 
         if ($user?->role === 'STUDENT') {
-            if ($election->status !== 'active') {
-                return response()->json(['message' => 'Students can only access active elections.'], 403);
+            if ($election->status !== 'active' && !($election->status === 'closed' && $election->results_visible)) {
+                return response()->json(['message' => 'Students can only access active elections or visible election results.'], 403);
             }
 
             // Only return this student's own votes (never expose other voters' identities)
@@ -128,14 +137,16 @@ class ElectionController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'start_time' => ['required', 'date'],
             'end_time' => ['required', 'date', 'after:start_time'],
-            'status' => ['required', 'in:upcoming,active,closed'],
+            'status' => ['nullable', 'in:upcoming,active,closed,pending_approval'],
+            'results_visible' => ['boolean'],
         ]);
 
-        $targetStatus = $data['status'];
-
         $election = Election::create([
-            ...$data,
+            'title' => $data['title'],
+            'start_time' => $data['start_time'],
+            'end_time' => $data['end_time'],
             'status' => 'pending_approval',
+            'results_visible' => $data['results_visible'] ?? true,
             'organization_id' => $request->user()->organization_id,
         ]);
 
@@ -143,13 +154,8 @@ class ElectionController extends Controller
             'organization_id' => $request->user()->organization_id,
             'entity_type' => 'election',
             'entity_id' => $election->id,
-            'title' => $election->title,
-            'summary' => [
-                'start_time' => $election->start_time,
-                'end_time' => $election->end_time,
-                'target_status' => $targetStatus,
-            ],
             'requested_by' => $request->user()->id,
+            'required_role' => 'DEPARTMENT_HEAD',
         ]);
 
         return response()->json($election, 201);
@@ -168,13 +174,9 @@ class ElectionController extends Controller
             'start_time' => ['sometimes', 'required', 'date'],
             'end_time' => ['sometimes', 'required', 'date'],
             'status' => ['sometimes', 'required', 'in:upcoming,active,closed'],
+            'results_visible' => ['boolean'],
         ]);
 
-        if (array_key_exists('status', $data) && $election->status === 'pending_approval') {
-            return response()->json([
-                'message' => 'This election is awaiting Department Head approval and cannot be activated directly.',
-            ], 422);
-        }
 
         $endTime   = isset($data['end_time'])   ? \Carbon\Carbon::parse($data['end_time'])   : $election->end_time;
         $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $election->start_time;
@@ -182,18 +184,18 @@ class ElectionController extends Controller
             return response()->json(['message' => 'End time must be after start time.'], 422);
         }
 
+        if (($data['status'] ?? null) === 'active' && !$election->approved_at) {
+            return response()->json(['message' => 'Election must be approved before it can be opened.'], 422);
+        }
+
         $election->update($data);
 
         ApprovalRequest::where('entity_type', 'election')
             ->where('entity_id', $election->id)
             ->where('status', 'rejected')
-            ->update([
-                'status' => 'pending',
-                'reviewed_by' => null,
-                'reviewed_at' => null,
-                'remarks' => null,
-                'requested_at' => now(),
-            ]);
+            ->where('organization_id', $election->organization_id)
+            ->get()
+            ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
 
         return response()->json($election->fresh());
     }
@@ -449,7 +451,9 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Cannot delete a candidate that already has votes cast.'], 409);
         }
 
+        $oldValues = $this->auditableCandidateValues($candidate);
         $candidate->delete();
+        $this->recordElectionAudit($request, 'candidate_removed', Candidate::class, $candidate->id, $oldValues, null);
 
         return response()->json(['message' => 'Candidate deleted successfully']);
     }
@@ -543,7 +547,9 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Cannot delete a partylist that has active candidates assigned to it.'], 409);
         }
 
+        $oldValues = $this->auditablePartylistValues($partylist);
         $partylist->delete();
+        $this->recordElectionAudit($request, 'partylist_removed', Partylist::class, $partylist->id, $oldValues, null);
 
         return response()->json(['message' => 'Partylist deleted successfully']);
     }
@@ -559,10 +565,14 @@ class ElectionController extends Controller
             return response()->json(['message' => 'This election is not currently accepting votes'], 400);
         }
 
+        if (now()->lt($election->start_time) || now()->gt($election->end_time)) {
+            return response()->json(['message' => 'Voting is outside the configured election period.'], 422);
+        }
+
         $request->validate([
-            'votes' => 'required|array',
-            'votes.*.position_id' => 'required|exists:election_positions,id',
-            'votes.*.candidate_id' => 'required|exists:candidates,id',
+            'votes' => 'required|array|min:1',
+            'votes.*.position_id' => 'required|distinct|exists:election_positions,id',
+            'votes.*.candidate_id' => 'required|distinct|exists:candidates,id',
         ]);
 
         $voter = $request->user();
@@ -657,6 +667,10 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
+        if (!$election->results_visible && $request->user()->role === 'STUDENT') {
+            return response()->json(['message' => 'Election results are not visible yet.'], 403);
+        }
+
         $positions = ElectionPosition::where('election_id', $id)->get();
         $positionIds = $positions->pluck('id');
 
@@ -685,5 +699,46 @@ class ElectionController extends Controller
         })->values();
 
         return response()->json($results);
+    }
+
+    private function auditableCandidateValues(Candidate $candidate): array
+    {
+        return [
+            'id' => $candidate->id,
+            'election_id' => $candidate->election_id,
+            'user_id' => $candidate->user_id,
+            'position_id' => $candidate->position_id,
+            'partylist_id' => $candidate->partylist_id,
+            'platform' => $candidate->platform,
+            'image_url' => $candidate->image_url,
+        ];
+    }
+
+    private function auditablePartylistValues(Partylist $partylist): array
+    {
+        return [
+            'id' => $partylist->id,
+            'organization_id' => $partylist->organization_id,
+            'name' => $partylist->name,
+            'acronym' => $partylist->acronym,
+            'description' => $partylist->description,
+            'banner_url' => $partylist->banner_url,
+        ];
+    }
+
+    private function recordElectionAudit(Request $request, string $action, string $recordType, int|string|null $recordId, ?array $oldValues, ?array $newValues): void
+    {
+        AuditLog::create([
+            'organization_id' => $request->user()?->organization_id,
+            'user_id' => $request->user()?->school_id,
+            'module' => 'elections',
+            'action' => $action,
+            'record_type' => $recordType,
+            'record_id' => $recordId,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
     }
 }

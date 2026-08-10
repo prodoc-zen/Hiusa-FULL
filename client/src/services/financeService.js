@@ -23,12 +23,21 @@ export const getTransactionSummary = (params) =>
 export const createTransaction = (data) =>
   api.post('/transactions', data);
 
+export const updateTransaction = (id, data) =>
+  api.put(`/transactions/${id}`, data);
+
 export const deleteTransaction = (id) =>
   api.delete(`/transactions/${id}`);
+
+export const getPersonalReceipts = () =>
+  api.get('/transactions/personal-receipts');
 
 // Forecasts
 export const getForecasts = () =>
   api.get('/forecasts');
+
+export const generateForecast = (data = {}) =>
+  api.post('/forecasts/generate', data);
 
 export const createForecast = (data) =>
   api.post('/forecasts', data);
@@ -38,3 +47,10 @@ export const updateForecast = (id, data) =>
 
 export const deleteForecast = (id) =>
   api.delete(`/forecasts/${id}`);
+
+// Reports
+export const getFinancialReports = () =>
+  api.get('/financial-reports');
+
+export const generateFinancialReport = (data) =>
+  api.post('/financial-reports/generate', data);

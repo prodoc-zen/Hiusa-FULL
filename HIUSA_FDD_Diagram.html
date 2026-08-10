@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HIUSA Functional Decomposition Diagram</title>
+  <style>
+    :root {
+      --ink: #111827;
+      --line: #1f2937;
+      --green: #a9d9ae;
+      --orange: #f4a582;
+      --cyan: #a9dbe2;
+      --purple: #cdb6d8;
+      --cream: #f3f1dc;
+      --blue: #b8d7e8;
+      --red: #f0b1a8;
+      --gray: #d8d8d8;
+      --teal: #badfdf;
+    }
+
+    body {
+      margin: 0;
+      background: #f5f5f5;
+      color: var(--ink);
+      font-family: "Times New Roman", Times, serif;
+    }
+
+    .page {
+      width: 1800px;
+      margin: 24px auto;
+      background: #fff;
+      box-shadow: 0 12px 40px rgba(0, 0, 0, 0.16);
+      padding: 24px;
+    }
+
+    .actions {
+      width: 1800px;
+      margin: 18px auto 0;
+      display: flex;
+      gap: 10px;
+      font-family: Arial, sans-serif;
+    }
+
+    button {
+      border: 1px solid #334155;
+      background: #0f172a;
+      color: white;
+      border-radius: 6px;
+      padding: 10px 14px;
+      cursor: pointer;
+      font-weight: 700;
+    }
+
+    button.secondary {
+      background: white;
+      color: #0f172a;
+    }
+
+    svg {
+      width: 100%;
+      height: auto;
+      display: block;
+      background: #fff;
+    }
+
+    .box {
+      fill: #fff;
+      stroke: #111827;
+      stroke-width: 2;
+      rx: 0;
+      ry: 0;
+    }
+
+    .title-box {
+      fill: #cfe6f5;
+      stroke: #111827;
+      stroke-width: 3;
+    }
+
+    .actor {
+      stroke: #111827;
+      stroke-width: 2;
+    }
+
+    .module {
+      fill: var(--blue);
+      stroke: #111827;
+      stroke-width: 2;
+    }
+
+    .txt {
+      font-size: 18px;
+      font-weight: 700;
+      text-anchor: middle;
+      dominant-baseline: middle;
+    }
+
+    .small {
+      font-size: 15px;
+      font-weight: 700;
+    }
+
+    .tiny {
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .line {
+      fill: none;
+      stroke: #111827;
+      stroke-width: 2.4;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .thin {
+      stroke-width: 1.8;
+    }
+
+    .admin-line { stroke: #2f7d3b; }
+    .officer-line { stroke: #e8872d; }
+    .head-line { stroke: #7a4ca0; }
+    .student-line { stroke: #2f75b5; }
+
+    @media print {
+      body { background: white; }
+      .actions { display: none; }
+      .page { box-shadow: none; margin: 0; padding: 0; width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <div class="actions">
+    <button onclick="window.print()">Print / Save as PDF</button>
+    <button class="secondary" onclick="downloadSvg()">Download SVG</button>
+  </div>
+
+  <main class="page">
+    <svg id="fdd" viewBox="0 0 1800 1400" role="img" aria-label="HIUSA Functional Decomposition Diagram">
+      <defs>
+        <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#111827"></path>
+        </marker>
+        <marker id="arrowGreen" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#2f7d3b"></path>
+        </marker>
+        <marker id="arrowOrange" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#e8872d"></path>
+        </marker>
+        <marker id="arrowPurple" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#7a4ca0"></path>
+        </marker>
+        <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+          <path d="M0,0 L8,4 L0,8 Z" fill="#2f75b5"></path>
+        </marker>
+      </defs>
+
+      <!-- Top title -->
+      <rect x="760" y="18" width="280" height="62" rx="30" ry="30" class="title-box"></rect>
+      <text x="900" y="49" class="txt">HIUSA</text>
+
+      <!-- Top connector to actor row -->
+      <path d="M900 80 L900 118 L235 118 Q220 118 220 133 L220 150" class="line"></path>
+      <path d="M900 118 L548 118 Q533 118 533 133 L533 150" class="line"></path>
+      <path d="M900 118 L900 150" class="line"></path>
+      <path d="M900 118 L1267 118 Q1282 118 1282 133 L1282 150" class="line"></path>
+      <path d="M900 118 L1580 118 Q1595 118 1595 133 L1595 150" class="line"></path>
+
+      <!-- Actor boxes -->
+      <rect x="145" y="150" width="150" height="70" class="actor" fill="var(--green)"></rect>
+      <text x="220" y="185" class="txt">Admin</text>
+
+      <rect x="458" y="150" width="150" height="70" class="actor" fill="var(--orange)"></rect>
+      <text x="533" y="178" class="txt">SBO</text>
+      <text x="533" y="201" class="txt">Officer</text>
+
+      <rect x="825" y="150" width="150" height="70" class="actor" fill="var(--cyan)"></rect>
+      <text x="900" y="178" class="txt">Department</text>
+      <text x="900" y="201" class="txt">Head</text>
+
+      <rect x="1207" y="150" width="150" height="70" class="actor" fill="var(--purple)"></rect>
+      <text x="1282" y="185" class="txt">Student</text>
+
+      <rect x="1520" y="150" width="150" height="70" class="actor" fill="var(--cream)"></rect>
+      <text x="1595" y="185" class="txt">System</text>
+
+      <!-- Colored actor bus lines -->
+      <path d="M220 220 L220 260 Q220 272 232 272 L1620 272" class="line thin admin-line"></path>
+      <path d="M533 220 L533 260 Q533 272 545 272 L1510 272" class="line thin officer-line"></path>
+      <path d="M900 220 L900 260 Q900 272 912 272 L1395 272" class="line thin head-line"></path>
+      <path d="M1282 220 L1282 260 Q1282 272 1294 272 L1500 272" class="line thin student-line"></path>
+      <path d="M1595 220 L1595 260 Q1595 272 1583 272 L1420 272" class="line thin" stroke="#c9b34a"></path>
+
+      <!-- Module headings -->
+      <rect x="35" y="330" width="175" height="72" class="module"></rect>
+      <text x="122.5" y="354" class="small txt">Account, User</text>
+      <text x="122.5" y="374" class="small txt">&amp; Access</text>
+      <text x="122.5" y="394" class="small txt">Management</text>
+
+      <rect x="245" y="330" width="175" height="72" class="module" fill="#f7dec0"></rect>
+      <text x="332.5" y="359" class="small txt">Announcements</text>
+      <text x="332.5" y="381" class="small txt">&amp; Notifications</text>
+
+      <rect x="455" y="330" width="175" height="72" class="module" fill="#bfe2f7"></rect>
+      <text x="542.5" y="354" class="small txt">Event &amp;</text>
+      <text x="542.5" y="374" class="small txt">Attendance</text>
+      <text x="542.5" y="394" class="small txt">Management</text>
+
+      <rect x="665" y="330" width="175" height="72" class="module" fill="#f7c9c9"></rect>
+      <text x="752.5" y="354" class="small txt">Task &amp;</text>
+      <text x="752.5" y="374" class="small txt">Workflow</text>
+      <text x="752.5" y="394" class="small txt">Management</text>
+
+      <rect x="875" y="330" width="175" height="72" class="module" fill="#cdebec"></rect>
+      <text x="962.5" y="354" class="small txt">Financial</text>
+      <text x="962.5" y="374" class="small txt">Management</text>
+      <text x="962.5" y="394" class="small txt">&amp; Reporting</text>
+
+      <rect x="1085" y="330" width="175" height="72" class="module" fill="#f6d9b9"></rect>
+      <text x="1172.5" y="359" class="small txt">Merchandise</text>
+      <text x="1172.5" y="381" class="small txt">&amp; Fulfillment</text>
+
+      <rect x="1295" y="330" width="175" height="72" class="module" fill="#ddd0ef"></rect>
+      <text x="1382.5" y="354" class="small txt">Election &amp;</text>
+      <text x="1382.5" y="374" class="small txt">Voting</text>
+      <text x="1382.5" y="394" class="small txt">Management</text>
+
+      <rect x="1505" y="330" width="175" height="72" class="module" fill="#ececec"></rect>
+      <text x="1592.5" y="354" class="small txt">Approval, Audit</text>
+      <text x="1592.5" y="374" class="small txt">&amp; AI</text>
+      <text x="1592.5" y="394" class="small txt">Support</text>
+
+      <!-- Module vertical stems -->
+      <path d="M122.5 402 L122.5 1220" class="line thin"></path>
+      <path d="M332.5 402 L332.5 1045" class="line thin"></path>
+      <path d="M542.5 402 L542.5 1220" class="line thin"></path>
+      <path d="M752.5 402 L752.5 1070" class="line thin"></path>
+      <path d="M962.5 402 L962.5 1295" class="line thin"></path>
+      <path d="M1172.5 402 L1172.5 1130" class="line thin"></path>
+      <path d="M1382.5 402 L1382.5 1130" class="line thin"></path>
+      <path d="M1592.5 402 L1592.5 910" class="line thin"></path>
+
+      <!-- Reusable connector marks for child boxes -->
+      <g class="line thin" marker-end="url(#arrow)">
+        <path d="M122.5 480 L155 480"></path><path d="M122.5 610 L155 610"></path><path d="M122.5 740 L155 740"></path><path d="M122.5 870 L155 870"></path>
+        <path d="M332.5 480 L365 480"></path><path d="M332.5 610 L365 610"></path><path d="M332.5 740 L365 740"></path><path d="M332.5 870 L365 870"></path>
+        <path d="M542.5 470 L575 470"></path><path d="M542.5 590 L575 590"></path><path d="M542.5 710 L575 710"></path><path d="M542.5 830 L575 830"></path><path d="M542.5 950 L575 950"></path>
+        <path d="M752.5 480 L785 480"></path><path d="M752.5 610 L785 610"></path><path d="M752.5 740 L785 740"></path><path d="M752.5 870 L785 870"></path>
+        <path d="M962.5 455 L995 455"></path><path d="M962.5 565 L995 565"></path><path d="M962.5 675 L995 675"></path><path d="M962.5 785 L995 785"></path><path d="M962.5 895 L995 895"></path><path d="M962.5 1005 L995 1005"></path>
+        <path d="M1172.5 480 L1205 480"></path><path d="M1172.5 610 L1205 610"></path><path d="M1172.5 740 L1205 740"></path><path d="M1172.5 870 L1205 870"></path><path d="M1172.5 1000 L1205 1000"></path>
+        <path d="M1382.5 480 L1415 480"></path><path d="M1382.5 610 L1415 610"></path><path d="M1382.5 740 L1415 740"></path><path d="M1382.5 870 L1415 870"></path><path d="M1382.5 1000 L1415 1000"></path>
+        <path d="M1592.5 480 L1625 480"></path><path d="M1592.5 610 L1625 610"></path><path d="M1592.5 740 L1625 740"></path>
+      </g>
+
+      <!-- Child boxes: Account -->
+      <rect x="155" y="430" width="150" height="100" class="box" fill="#e8f5e9"></rect>
+      <text x="230" y="462" class="tiny txt">Authenticate &amp;</text><text x="230" y="482" class="tiny txt">Recover</text><text x="230" y="502" class="tiny txt">Account</text>
+      <desc>Authenticate and Recover Account for Admin, SBO Officer, Department Head, and Student includes Enter Login Credentials, Validate Credentials by retrieving the account, verifying password, checking account status, establishing user session, verifying user role, redirecting to the role-based dashboard, and extends Recover Account with password reset request, reset link, token validation, new password confirmation, and password update.</desc>
+      <rect x="155" y="560" width="150" height="100" class="box" fill="#e8f5e9"></rect>
+      <text x="230" y="590" class="tiny txt">Manage User</text><text x="230" y="610" class="tiny txt">Accounts &amp;</text><text x="230" y="630" class="tiny txt">Permissions</text>
+      <desc>Manage User Accounts and Permissions for Admin includes View User List with Search User and Filter User by Role, extends Add User Account with Enter User Information, Assign Role, Assign SBO Position, Save Record, extends Update User Account with View User Details, Edit User Information, Save Record, and extends Deactivate User Account with Confirm Deactivation, Update Account Status, Record Audit Log.</desc>
+      <rect x="155" y="690" width="150" height="100" class="box" fill="#e8f5e9"></rect>
+      <text x="230" y="740" class="tiny txt">Manage Profile</text>
+      <desc>Manage Profile for Admin, SBO Officer, Department Head, and Student includes View Profile Information by retrieving and displaying profile details, extends Edit Profile Information with profile validation and saving changes, and extends Change Password with current password verification, new password validation, and password update.</desc>
+      <rect x="155" y="820" width="150" height="100" class="box" fill="#e8f5e9"></rect>
+      <text x="230" y="850" class="tiny txt">View Role-</text><text x="230" y="870" class="tiny txt">Based</text><text x="230" y="890" class="tiny txt">Dashboard</text>
+      <desc>View Role-Based Dashboard for Admin, SBO Officer, Department Head, Student includes Identify User Role, Load Authorized Modules, Load Role-Based Summary, Display Dashboard, and extends Open Selected Module.</desc>
+
+      <!-- Announcements -->
+      <rect x="365" y="430" width="150" height="100" class="box" fill="#fff4dc"></rect>
+      <text x="440" y="470" class="tiny txt">Manage</text><text x="440" y="492" class="tiny txt">Announcements</text>
+      <desc>Manage Announcements for Admin and SBO Officer extends Generate Announcement Draft with Enter Announcement Details, Use Groq LLM, Save AI Output, extends Create Announcement with Enter Announcement Content and Save Record, extends Edit Announcement with View Announcement Details, Update Announcement Content, Save Record, includes Submit Announcement for Approval, Review Approval Request, extends Publish Approved Announcement with Update Announcement Status and Notify User, and includes Record Audit Log.</desc>
+      <rect x="365" y="560" width="150" height="100" class="box" fill="#fff4dc"></rect>
+      <text x="440" y="590" class="tiny txt">Review</text><text x="440" y="610" class="tiny txt">Announcement</text><text x="440" y="630" class="tiny txt">Requests</text>
+      <rect x="365" y="690" width="150" height="100" class="box" fill="#fff4dc"></rect>
+      <text x="440" y="720" class="tiny txt">View Calendar</text><text x="440" y="740" class="tiny txt">&amp;</text><text x="440" y="760" class="tiny txt">Notifications</text>
+      <desc>View Announcements and Notifications for Admin, SBO Officer, Department Head, Student includes Load Published Announcements, Display Announcement List, extends Open Announcement Details with View Details, includes Load User Notifications, extends Open Notification Details, and extends Mark Notification as Read.</desc>
+      <rect x="365" y="820" width="150" height="100" class="box" fill="#fff4dc"></rect>
+      <text x="440" y="850" class="tiny txt">Manage</text><text x="440" y="870" class="tiny txt">Notification</text><text x="440" y="890" class="tiny txt">Preferences</text>
+
+      <!-- Events -->
+      <rect x="575" y="420" width="150" height="100" class="box" fill="#e3f2fd"></rect>
+      <text x="650" y="452" class="tiny txt">Manage Events</text><text x="650" y="472" class="tiny txt">&amp;</text><text x="650" y="492" class="tiny txt">Scheduling</text>
+      <desc>Manage Events and Scheduling for Admin extends Create Event with event details, schedule, budget details, vendor deadlines, logistics checklist, and Save Record; extends Edit Event; includes Submit Event for Approval, Review Approval Request, and Notify User.</desc>
+      <rect x="575" y="540" width="150" height="100" class="box" fill="#e3f2fd"></rect>
+      <text x="650" y="570" class="tiny txt">Review Event</text><text x="650" y="590" class="tiny txt">Approval</text>
+      <rect x="575" y="660" width="150" height="100" class="box" fill="#d7f0ef"></rect>
+      <text x="650" y="690" class="tiny txt">Generate Event</text><text x="650" y="710" class="tiny txt">Plan &amp; Workflow</text>
+      <desc>Generate Event Plans and Workflows for Admin includes Select Event, Enter Event Planning Requirements, Generate Event Plan Using Groq LLM with timeline, resource checklist, and delay or conflict detection, extends Generate Workflow with task sequence, deadlines, event links, Save Workflow, and includes Save Generated Plan.</desc>
+      <rect x="575" y="780" width="150" height="100" class="box" fill="#e3f2fd"></rect>
+      <text x="650" y="810" class="tiny txt">Manage Event</text><text x="650" y="830" class="tiny txt">Operations</text>
+      <rect x="575" y="900" width="150" height="100" class="box" fill="#e3f2fd"></rect>
+      <text x="650" y="950" class="tiny txt">Track Attendance</text>
+      <desc>Manage Attendance for Admin and SBO Officer includes Select Event, Load Attendance List, Record Manual Attendance, Record Biometric Attendance, and View Attendance Summary. Check In to Event for Admin, SBO Officer, Department Head, and Student includes Select Active Event, Verify User Identity, Submit Manual Attendance or Scan Biometric, Save Attendance Entry, and Display Attendance Confirmation.</desc>
+
+      <!-- Tasks -->
+      <rect x="785" y="430" width="150" height="100" class="box" fill="#fdeaea"></rect>
+      <text x="860" y="480" class="tiny txt">Manage Tasks</text>
+      <desc>Manage Tasks and Workflow for Admin extends Create Task with Enter Task Details, Set Task Deadline, optional Link Task to Event, and Save Record; includes Evaluate Officer Eligibility, Apply Rule-Based Weighted Scoring, Recommend Best-Fit Officer, Generate Task Explanation Using Groq LLM, Generate Workflow, Assign Task, and Monitor Task Status.</desc>
+      <rect x="785" y="560" width="150" height="100" class="box" fill="#fdeaea"></rect>
+      <text x="860" y="592" class="tiny txt">Assign &amp;</text><text x="860" y="612" class="tiny txt">Delegate Tasks</text>
+      <rect x="785" y="690" width="150" height="100" class="box" fill="#fdeaea"></rect>
+      <text x="860" y="730" class="tiny txt">Workflow</text><text x="860" y="750" class="tiny txt">Automation</text>
+      <rect x="785" y="820" width="150" height="100" class="box" fill="#fdeaea"></rect>
+      <text x="860" y="850" class="tiny txt">Monitor Task</text><text x="860" y="870" class="tiny txt">Progress</text>
+      <desc>View and Update Assigned Tasks for SBO Officer includes Load Assigned Tasks, View Task Details with description, deadline, status, related event, progress history, and AI assignment explanation, extends Update Task Progress, extends Mark Task as Completed, and includes Notify Admin.</desc>
+
+      <!-- Finance -->
+      <rect x="995" y="405" width="150" height="100" class="box" fill="#e1f4f3"></rect>
+      <text x="1070" y="435" class="tiny txt">Record Financial</text><text x="1070" y="455" class="tiny txt">Transactions</text>
+      <desc>Manage Financial Transactions and Ledger for Admin extends Add Financial Transaction with Select Transaction Type, Enter Transaction Details, optional Link Transaction to Event, Validate Transaction Entry, Save Record, extends Edit Financial Transaction, extends Generate Receipt, and includes Update Financial Balance.</desc>
+      <rect x="995" y="515" width="150" height="100" class="box" fill="#e1f4f3"></rect>
+      <text x="1070" y="555" class="tiny txt">Digital Receipt</text><text x="1070" y="575" class="tiny txt">System</text>
+      <desc>View Personal Receipts for Admin, SBO Officer, Department Head, and Student includes Validate Receipt Ownership, Load User Transactions, Load Approved Payment Records, Display Personal Receipt List, Open Receipt Details, View Details, and Download or Print Receipt.</desc>
+      <rect x="995" y="625" width="150" height="100" class="box" fill="#e1f4f3"></rect>
+      <text x="1070" y="655" class="tiny txt">Manage Budget</text><text x="1070" y="675" class="tiny txt">Allocation</text>
+      <desc>Manage Budget Allocation and Monitoring for Admin, Department Head, and SBO Officer extends Create Budget Allocation with Select Event or Project, Enter Budget Amount, Validate Budget Details, Submit Request for Approval, includes Review Approval Request, Track Allocated Budget, Track Remaining Funds, extends View Spending Against Budget, and extends Update Budget Status.</desc>
+      <rect x="995" y="735" width="150" height="100" class="box" fill="#e1f4f3"></rect>
+      <text x="1070" y="765" class="tiny txt">View</text><text x="1070" y="785" class="tiny txt">Transaction</text><text x="1070" y="805" class="tiny txt">History</text>
+      <desc>View Financial Reports and Transaction History for Admin, Department Head, and SBO Officer includes Load Financial Records, Display Transaction History, Search Transactions, Filter Transactions by Date, Event, or Type, Generate Financial Report, Display Report, and export report output.</desc>
+      <rect x="995" y="845" width="150" height="100" class="box" fill="#d7f0ef"></rect>
+      <text x="1070" y="875" class="tiny txt">Generate</text><text x="1070" y="895" class="tiny txt">Financial</text><text x="1070" y="915" class="tiny txt">Insights</text>
+      <desc>Generate Financial Forecasts and Budget Advice for Admin and SBO Officer includes Load Historical Transactions, Validate Financial Dataset, Apply OLS Linear Regression, Forecast Budget Availability, Estimate Safe Spending Limit, Detect Overspending Risk, Detect Possible Deficit, Generate Budget Advice, and Generate Financial Summary Using Groq LLM.</desc>
+      <rect x="995" y="955" width="150" height="100" class="box" fill="#d7f0ef"></rect>
+      <text x="1070" y="985" class="tiny txt">Generate</text><text x="1070" y="1005" class="tiny txt">Financial</text><text x="1070" y="1025" class="tiny txt">Reports</text>
+
+      <!-- Merchandise -->
+      <rect x="1205" y="430" width="150" height="100" class="box" fill="#fff0df"></rect>
+      <text x="1280" y="470" class="tiny txt">Manage</text><text x="1280" y="492" class="tiny txt">Inventory</text>
+      <desc>Manage Merchandise Inventory for Admin extends Add Merchandise Item with Enter Item Details, Set Item Price, Set Stock Quantity, optional Upload Merchandise Image, and Save Record; extends Update Merchandise Item with View Item Details, Edit Item Information, Update Stock Level, and Save Record; extends Deactivate Merchandise Item with Confirm Deactivation and Record Audit Log.</desc>
+      <rect x="1205" y="560" width="150" height="100" class="box" fill="#fff0df"></rect>
+      <text x="1280" y="600" class="tiny txt">Browse</text><text x="1280" y="622" class="tiny txt">Merchandise</text>
+      <desc>Order Merchandise and Claim Items for Admin, SBO Officer, Department Head, and Student includes Browse Merchandise Catalog, View Item Details, Check Item Availability, Reserve Merchandise Item with Enter Order Details, Save Order as Pending, Notify Officer, Submit GCash Payment Proof, Track Order Status, Receive Digital Receipt, Receive Claim Token, and Present Claim Token for Validation.</desc>
+      <rect x="1205" y="690" width="150" height="100" class="box" fill="#fff0df"></rect>
+      <text x="1280" y="720" class="tiny txt">Manage Orders</text><text x="1280" y="740" class="tiny txt">&amp; Fulfillment</text>
+      <desc>Manage Merchandise Orders and Fulfillment for Admin and SBO Officer includes Load Pending Orders, View Order Details, Verify Payment Submission with View Payment Proof, Match Payment Amount, Validate GCash Reference, Mark Payment as Invalid, Approve Payment with Generate Digital Receipt, Generate Claim Token, Notify Buyer, Reject Payment, Validate Claim Token, Release Merchandise Item, and Update Order Status.</desc>
+      <rect x="1205" y="820" width="150" height="100" class="box" fill="#fff0df"></rect>
+      <text x="1280" y="850" class="tiny txt">Generate</text><text x="1280" y="870" class="tiny txt">Claim Tokens</text>
+      <rect x="1205" y="950" width="150" height="100" class="box" fill="#fff0df"></rect>
+      <text x="1280" y="980" class="tiny txt">Validate</text><text x="1280" y="1000" class="tiny txt">Claim Tokens</text>
+
+      <!-- Election -->
+      <rect x="1415" y="430" width="150" height="100" class="box" fill="#f0e9fa"></rect>
+      <text x="1490" y="480" class="tiny txt">Manage Elections</text>
+      <desc>Manage Elections for Admin extends Create Election with Enter Election Details, Set Voting Period, Configure Election Positions, Save Record, extends Edit Election with View Election Details, Update Election Information, Save Record, includes Submit Election for Approval, Review Approval Request, extends Open Approved Election, and extends Close Election.</desc>
+      <rect x="1415" y="560" width="150" height="100" class="box" fill="#f0e9fa"></rect>
+      <text x="1490" y="600" class="tiny txt">Manage</text><text x="1490" y="622" class="tiny txt">Candidates</text>
+      <desc>Manage Candidates for Admin and SBO Officer extends Register Candidate with Enter Candidate Information, Assign Election Position, optional Assign Candidate to Partylist, optional Upload Candidate Image, and Save Record; extends Update Candidate with View Candidate Details, Edit Candidate Information, and Save Record; extends Remove Candidate with Confirm Removal and Record Audit Log.</desc>
+      <rect x="1415" y="690" width="150" height="100" class="box" fill="#f0e9fa"></rect>
+      <text x="1490" y="730" class="tiny txt">Manage</text><text x="1490" y="752" class="tiny txt">Partylists</text>
+      <desc>Manage Partylists for Admin extends Create Partylist with Enter Partylist Information, optional Upload Partylist Image, and Save Record; extends Update Partylist with Edit Partylist Information and Save Record; extends View Partylist Members; extends Remove Partylist with Confirm Removal and Record Audit Log.</desc>
+      <rect x="1415" y="820" width="150" height="100" class="box" fill="#f0e9fa"></rect>
+      <text x="1490" y="850" class="tiny txt">Conduct Voting</text><text x="1490" y="870" class="tiny txt">&amp; Validation</text>
+      <desc>Cast Vote in Election for Admin, SBO Officer, Department Head, and Student includes Validate Election Period, Validate Voter Eligibility, Check Previous Vote Record, Display Official Ballot, Select Candidate, Record Vote, Prevent Duplicate Vote, and Display Vote Confirmation.</desc>
+      <rect x="1415" y="950" width="150" height="100" class="box" fill="#f0e9fa"></rect>
+      <text x="1490" y="980" class="tiny txt">Generate</text><text x="1490" y="1000" class="tiny txt">Election Results</text>
+      <desc>View Election Results for Admin, SBO Officer, Department Head, and Student includes Check Election Status, Load Election Results, Display Vote Tally, Display Winning Candidates, and extends Filter Results by Position.</desc>
+
+      <!-- Approval -->
+      <rect x="1625" y="430" width="150" height="100" class="box" fill="#f0f0f0"></rect>
+      <text x="1700" y="458" class="tiny txt">Review &amp;</text><text x="1700" y="478" class="tiny txt">Decide Approval</text><text x="1700" y="498" class="tiny txt">Requests</text>
+      <desc>Submit Requests for Approval for Admin and SBO Officer includes Select Request Type, Enter Request Details, optional supporting information, Validate Request Information, Save Request as Pending, Notify Approver, Notify User, and Record Audit Log. Review and Decide Approval Requests for Admin and Department Head includes Validate Approver Permission, Load Pending Approval Requests, Open Request Details, view related event, budget, announcement, and election details, Approve Request or Reject Request with status update, requester notification, and audit log.</desc>
+      <rect x="1625" y="560" width="150" height="100" class="box" fill="#f0f0f0"></rect>
+      <text x="1700" y="600" class="tiny txt">Maintain</text><text x="1700" y="622" class="tiny txt">Audit Logs</text>
+      <rect x="1625" y="690" width="150" height="100" class="box" fill="#f0f0f0"></rect>
+      <text x="1700" y="730" class="tiny txt">Store AI</text><text x="1700" y="752" class="tiny txt">Outputs</text>
+
+      <!-- Actor-to-module colored links, intentionally sparse/readable -->
+      <g fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1620 272 L1620 306 L122 306 L122 330" class="admin-line" marker-end="url(#arrowGreen)"></path>
+        <path d="M1520 272 L1520 306 L333 306 L333 330" class="officer-line" marker-end="url(#arrowOrange)"></path>
+        <path d="M1395 272 L1395 306 L1593 306 L1593 330" class="head-line" marker-end="url(#arrowPurple)"></path>
+        <path d="M1500 272 L1500 306 L1383 306 L1383 330" class="student-line" marker-end="url(#arrowBlue)"></path>
+        <path d="M1620 272 L1620 306 L963 306 L963 330" class="admin-line" marker-end="url(#arrowGreen)"></path>
+        <path d="M1510 272 L1510 306 L1173 306 L1173 330" class="officer-line" marker-end="url(#arrowOrange)"></path>
+        <path d="M1395 272 L1395 306 L543 306 L543 330" class="head-line" marker-end="url(#arrowPurple)"></path>
+        <path d="M1500 272 L1500 306 L1283 306 L1283 220" class="student-line"></path>
+      </g>
+    </svg>
+  </main>
+
+  <script>
+    function downloadSvg() {
+      const svg = document.getElementById('fdd');
+      const clone = svg.cloneNode(true);
+      clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
+      const source = '<!DOCTYPE svg>\n' + clone.outerHTML;
+      const blob = new Blob([source], { type: 'image/svg+xml;charset=utf-8' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = 'HIUSA_FDD_Diagram.svg';
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+  </script>
+</body>
+</html>

@@ -24,6 +24,7 @@ class UserFactory extends Factory
             'email' => fake()->unique()->safeEmail(),
             'password_hash' => static::$password ??= Hash::make('password'),
             'role' => fake()->randomElement(['STUDENT', 'SBO_OFFICER', 'ADMIN']),
+            'account_status' => 'active',
             'biometric_template' => null,
         ];
     }

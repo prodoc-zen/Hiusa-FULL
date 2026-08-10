@@ -2,14 +2,23 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Order;
+use App\Models\ApprovalRequest;
 use App\Models\Merchandise;
+use App\Models\Notification;
+use App\Models\Order;
+use App\Models\User;
+use App\Services\OrderFulfillmentService;
+use DomainException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
+    public function __construct(private readonly OrderFulfillmentService $fulfillmentService)
+    {
+    }
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -18,11 +27,16 @@ class OrderController extends Controller
             'merchandise:id,name,price,image_url',
             'student:school_id,first_name,last_name',
             'processor:school_id,first_name,last_name',
+            'approver:school_id,first_name,last_name',
+            'claimVerifier:school_id,first_name,last_name',
+            'transaction:id,receipt_reference,receipt_number',
         ])
             ->where('organization_id', $user->organization_id)
             ->orderBy('created_at', 'desc');
 
-        if ($user->role === 'STUDENT') {
+        $personalView = $user->role === 'STUDENT' || $request->boolean('mine');
+
+        if ($personalView) {
             $query->where('student_id', $user->id);
         }
 
@@ -30,15 +44,39 @@ class OrderController extends Controller
             $query->where('status', $request->status);
         }
 
-        return response()->json($query->paginate(20));
+        $orders = $query->paginate(20);
+
+        if ($personalView) {
+            $orders->getCollection()->each(function (Order $order) {
+                if (! in_array($order->status, ['paid', 'claimed'], true)) {
+                    $order->setAttribute('claim_token', null);
+                }
+            });
+        }
+
+        return response()->json($orders);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
             'merchandise_id' => ['required', 'exists:merchandise,id'],
-            'quantity'       => ['required', 'integer', 'min:1'],
+            'quantity' => ['required', 'integer', 'min:1'],
+            'payment_method' => ['nullable', 'in:cash,gcash,other'],
+            'payment_reference' => ['nullable', 'string', 'max:150', 'required_if:payment_method,gcash'],
+            'payment_proof_url' => ['nullable', 'string', 'max:500'],
+            'payment_proof' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
+
+        if (($data['payment_method'] ?? null) === 'gcash' && ! $request->hasFile('payment_proof') && empty($data['payment_proof_url'])) {
+            return response()->json(['message' => 'GCash orders require an uploaded payment proof.'], 422);
+        }
+
+        if ($request->hasFile('payment_proof')) {
+            $data['payment_proof_url'] = $this->storePaymentProof($request);
+        }
+
+        unset($data['payment_proof']);
 
         return DB::transaction(function () use ($data, $request) {
             $item = Merchandise::where('organization_id', $request->user()->organization_id)
@@ -62,19 +100,26 @@ class OrderController extends Controller
             $item->decrement('stock_quantity', $data['quantity']);
 
             $order = Order::create([
-                'student_id'     => $request->user()->id,
+                'student_id' => $request->user()->id,
                 'merchandise_id' => $item->id,
-                'quantity'       => $data['quantity'],
-                'total_price'    => $item->price * $data['quantity'],
-                'status'         => 'pending',
-                'claim_token'    => strtoupper(Str::random(8)),
+                'quantity' => $data['quantity'],
+                'total_price' => $item->price * $data['quantity'],
+                'payment_method' => $data['payment_method'] ?? null,
+                'payment_reference' => $data['payment_reference'] ?? null,
+                'payment_proof_url' => $data['payment_proof_url'] ?? null,
+                'officer_review_status' => 'pending',
+                'admin_review_status' => 'pending',
+                'status' => 'pending',
+                'claim_token' => strtoupper(Str::random(8)),
                 'organization_id' => $request->user()->organization_id,
             ]);
 
-            return response()->json(
-                $order->load('merchandise:id,name,price,image_url'),
-                201
-            );
+            $this->notifyFulfillmentTeam($order);
+
+            $order->load('merchandise:id,name,price,image_url');
+            $order->setAttribute('claim_token', null);
+
+            return response()->json($order, 201);
         });
     }
 
@@ -87,27 +132,56 @@ class OrderController extends Controller
         }
 
         $data = $request->validate([
-            'status' => ['required', 'in:pending,paid,claimed,cancelled'],
+            'status' => ['required', 'in:paid,cancelled'],
+            'review_remarks' => ['nullable', 'string', 'required_if:status,cancelled'],
         ]);
 
-        $previousStatus = $order->status;
+        try {
+            if ($data['status'] === 'cancelled') {
+                $order = $this->fulfillmentService->rejectPayment($order, $request->user(), $data['review_remarks']);
+            } elseif ($request->user()->role === 'SBO_OFFICER') {
+                $order->update([
+                    'officer_review_status' => 'approved',
+                    'processed_by' => $request->user()->id,
+                    'review_remarks' => null,
+                ]);
 
-        if ($previousStatus === 'cancelled' && $data['status'] !== 'cancelled') {
-            return response()->json(['message' => 'Cancelled orders cannot be reactivated.'], 422);
+                ApprovalRequest::firstOrCreate(
+                    [
+                        'organization_id' => $order->organization_id,
+                        'entity_type' => 'payment',
+                        'entity_id' => $order->id,
+                        'status' => 'pending',
+                    ],
+                    [
+                        'requested_by' => $request->user()->id,
+                        'required_role' => 'ADMIN',
+                    ]
+                );
+                $order = $order->fresh();
+            } else {
+                $pendingApproval = ApprovalRequest::where('organization_id', $order->organization_id)
+                    ->where('entity_type', 'payment')
+                    ->where('entity_id', $order->id)
+                    ->where('status', 'pending')
+                    ->exists();
+
+                if ($pendingApproval) {
+                    return response()->json(['message' => 'Review this payment from the Approvals module.'], 422);
+                }
+
+                $order = $this->fulfillmentService->approvePayment($order, $request->user());
+            }
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
         }
 
-        $order->update([
-            'status'       => $data['status'],
-            'processed_by' => $request->user()->id,
-        ]);
-
-        if ($data['status'] === 'cancelled' && in_array($previousStatus, ['pending', 'paid'])) {
-            $order->merchandise()->increment('stock_quantity', $order->quantity);
-        }
-
-        return response()->json($order->fresh()->load([
+        return response()->json($order->load([
             'merchandise:id,name,price',
             'student:school_id,first_name,last_name',
+            'processor:school_id,first_name,last_name',
+            'approver:school_id,first_name,last_name',
+            'transaction:id,receipt_reference,receipt_number',
         ]));
     }
 
@@ -136,14 +210,55 @@ class OrderController extends Controller
         }
 
         $order->update([
-            'status'       => 'claimed',
-            'claimed_at'   => now(),
+            'status' => 'claimed',
+            'claimed_at' => now(),
+            'claim_verified_by' => $request->user()->id,
+            'claim_verified_at' => now(),
             'processed_by' => $request->user()->id,
         ]);
 
         return response()->json($order->fresh()->load([
             'merchandise:id,name,price,image_url',
             'student:school_id,first_name,last_name',
+            'claimVerifier:school_id,first_name,last_name',
         ]));
+    }
+
+    private function storePaymentProof(Request $request): string
+    {
+        $file = $request->file('payment_proof');
+        $extension = strtolower($file->extension() ?: 'jpg');
+        $filename = Str::uuid().'.'.$extension;
+        $directory = public_path('uploads/payments');
+
+        if (! is_dir($directory)) {
+            mkdir($directory, 0755, true);
+        }
+
+        $file->move($directory, $filename);
+
+        return '/uploads/payments/'.$filename;
+    }
+
+    private function notifyFulfillmentTeam(Order $order): void
+    {
+        $reviewers = User::where('organization_id', $order->organization_id)
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
+            ->where('account_status', 'active')
+            ->get(['school_id']);
+
+        foreach ($reviewers as $reviewer) {
+            Notification::create([
+                'organization_id' => $order->organization_id,
+                'user_id' => $reviewer->school_id,
+                'title' => 'New Merchandise Order',
+                'message' => 'Order ORD-'.$order->id.' is awaiting payment verification.',
+                'notification_type' => 'merchandise',
+                'reference_type' => Order::class,
+                'reference_id' => $order->id,
+                'is_read' => false,
+                'sent_at' => now(),
+            ]);
+        }
     }
 }

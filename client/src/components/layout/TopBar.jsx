@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, Settings, ShoppingCart, User } from 'lucide-react';
+import { Bell, ChevronDown, LogOut, Menu, ShoppingCart, User } from 'lucide-react';
 import { logout } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 
@@ -40,20 +40,26 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
   const cartRef = useRef(null);
   const navigate = useNavigate();
 
-  const storedUser = localStorage.getItem('user');
-  let user = null;
-  try { user = storedUser ? JSON.parse(storedUser) : null; } catch { user = null; }
+  const user = (() => {
+    try {
+      const storedUser = localStorage.getItem('user');
+      return storedUser ? JSON.parse(storedUser) : null;
+    } catch {
+      return null;
+    }
+  })();
   const initials = user ? `${user.first_name?.[0] || ''}${user.last_name?.[0] || ''}`.toUpperCase() : 'HI';
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role ?? '';
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
-  const isStudent = role === 'STUDENT';
+  const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(role);
 
   const parentByPrefix = [
     ['/dashboard/announcements/', 'Announcements'],
@@ -87,7 +93,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   }, [loadNotifications]);
 
   useEffect(() => {
-    if (!isStudent) {
+    if (!canOrderMerchandise) {
       return undefined;
     }
 
@@ -107,7 +113,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
       window.removeEventListener('hiusa-cart-updated', onCartUpdate);
       window.removeEventListener('storage', onStorage);
     };
-  }, [isStudent, loadCart]);
+  }, [canOrderMerchandise, loadCart]);
 
   async function handleMarkRead(id) {
     try {
@@ -125,11 +131,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
   async function handleNotificationClick(notification) {
     await handleMarkRead(notification.id);
-    setNotifOpen(false);
-
-    if (String(notification.title || '').startsWith('New Announcement:')) {
-      navigate('/dashboard/announcements/view-announcements');
-    }
+    setSelectedNotification({ ...notification, is_read: true });
   }
 
   useEffect(() => {
@@ -168,7 +170,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
         </div>
 
-        {isStudent && (
+        {canOrderMerchandise && (
           <div className="relative" ref={cartRef}>
             <button
               type="button"
@@ -239,6 +241,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             aria-label="Notifications"
             onClick={() => {
               setNotifOpen(!notifOpen);
+              setSelectedNotification(null);
               setProfileOpen(false);
               setCartOpen(false);
             }}
@@ -273,7 +276,33 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
               </div>
 
               <div className="max-h-[340px] overflow-y-auto">
-                {recent5.length === 0 ? (
+                {selectedNotification ? (
+                  <div className="p-4">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedNotification(null)}
+                      className="mb-3 text-xs font-bold text-[#0B8ED0] hover:underline"
+                    >
+                      Back to notifications
+                    </button>
+                    <p className="text-sm font-black text-[#0F172A]">{selectedNotification.title}</p>
+                    <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">{selectedNotification.message}</p>
+                    <p className="mt-3 text-[11px] font-medium text-slate-300">{timeAgo(selectedNotification.created_at)}</p>
+                    {String(selectedNotification.title || '').startsWith('New Announcement:') && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setNotifOpen(false);
+                          setSelectedNotification(null);
+                          navigate('/dashboard/announcements/view-announcements');
+                        }}
+                        className="mt-4 h-9 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]"
+                      >
+                        Open Announcement
+                      </button>
+                    )}
+                  </div>
+                ) : recent5.length === 0 ? (
                   <div className="py-10 text-center">
                     <Bell size={28} className="mx-auto mb-2 text-slate-200" />
                     <p className="text-sm text-slate-400">No notifications yet</p>
@@ -334,14 +363,6 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
               >
                 <User size={16} />
                 View Profile
-              </button>
-              <button
-                type="button"
-                onClick={() => { setProfileOpen(false); navigate('/dashboard/settings'); }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
-              >
-                <Settings size={16} />
-                Settings
               </button>
               <div className="my-1.5 border-t border-[#DDE7EF]" />
               <button

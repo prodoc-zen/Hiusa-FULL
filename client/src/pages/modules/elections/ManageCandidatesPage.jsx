@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Award, ChevronDown, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
+import { Award, ChevronDown, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react';
 import {
   createElectionCandidate,
   deleteElectionCandidate,
   getPartylists,
   getUsers,
   updateElectionCandidate,
-} from '../../services/electionService';
+} from '../../../services/electionService';
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
 
@@ -215,12 +215,8 @@ export default function ManageCandidatesPage() {
     };
   }, []);
 
-  if (!election) {
-    return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
-  }
-
-  const positions = election.positions || [];
-  const candidates = election.candidates || [];
+  const positions = useMemo(() => election?.positions || [], [election?.positions]);
+  const candidates = useMemo(() => election?.candidates || [], [election?.candidates]);
 
   const assignedUserIds = useMemo(() => new Set(candidates.map((candidate) => candidate.user_id)), [candidates]);
 
@@ -230,6 +226,10 @@ export default function ManageCandidatesPage() {
 
   const availableAddUsers = users.filter((user) => !assignedUserIds.has(user.id));
   const availableEditUsers = users.filter((user) => user.id === Number(editForm.user_id) || !assignedUserIds.has(user.id));
+
+  if (!election) {
+    return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
+  }
 
   const resetAddForm = () => {
     setForm({ user_id: '', position_id: '', partylist_id: '', platform: '' });

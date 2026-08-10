@@ -111,7 +111,7 @@ export default function LoginPage() {
     } catch (err) {
       const status = err.response?.status;
       if (status === 403) {
-        setError('Role mismatch: please select the correct role for this account.');
+        setError(err.response?.data?.message || 'Role mismatch: please select the correct role for this account.');
       } else if (status === 422) {
         const msgs = err.response?.data?.errors;
         const first = msgs ? Object.values(msgs).flat()[0] : null;
@@ -232,9 +232,9 @@ export default function LoginPage() {
               )}
 
               <div className="flex items-center justify-between text-sm">
-                <button type="button" className="font-bold text-[#0878b7] transition hover:text-[#0b1831]">
+                <Link to="/recover-account" className="font-bold text-[#0878b7] transition hover:text-[#0b1831]">
                   Forgot Password?
-                </button>
+                </Link>
               </div>
 
               <div className="pt-1">

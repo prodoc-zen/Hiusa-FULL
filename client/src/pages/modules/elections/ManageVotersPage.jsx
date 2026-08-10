@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Users, Search, CheckCircle, Clock } from 'lucide-react';
-import { getElectionVoters } from '../../services/electionService';
+import { getElectionVoters } from '../../../services/electionService';
 
 export default function ManageVotersPage() {
   const { election } = useOutletContext();
@@ -31,7 +31,7 @@ export default function ManageVotersPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [election?.id, retryKey]);
+  }, [election, retryKey]);
 
   if (!election) {
     return (

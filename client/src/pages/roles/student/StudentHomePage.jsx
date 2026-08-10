@@ -23,7 +23,7 @@ function fmtPrice(n) {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-const ROLE_LABEL = { all: 'All Members', student: 'Students', officer: 'Officers', adviser: 'Advisers' };
+const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 
 export default function StudentHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], merchandise: [] });
@@ -37,7 +37,7 @@ export default function StudentHomePage() {
         const [electionsRes, eventsRes, announcementsRes, merchandiseRes] = await Promise.all([
           getElections(),
           getEvents(),
-          getAnnouncements(),
+          getAnnouncements({ published_only: 1 }),
           getMerchandise(),
         ]);
 
