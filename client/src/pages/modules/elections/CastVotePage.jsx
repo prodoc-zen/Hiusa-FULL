@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AlertCircle, Check, CheckCircle, ChevronLeft, ChevronRight, Eye, ShieldCheck, Vote } from 'lucide-react';
-import { castVotes } from '../../services/electionService';
+import { castVotes } from '../../../services/electionService';
 
 function Avatar({ name, size = 'sm' }) {
   const safeName = name || 'Candidate';

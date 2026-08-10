@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Flag, ImagePlus, X, Edit2, Trash2, Search, CirclePlus, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
-import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../services/electionService';
+import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../../services/electionService';
 
 const CARD_ACCENTS = ['#0B8ED0', '#16A34A', '#0F2F62', '#0878B7'];
 const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
@@ -47,7 +47,7 @@ export default function ManagePartylistsPage() {
           const partylists = Array.isArray(partylistData) ? partylistData : [];
           setPartylistRows(partylists);
         }
-      } catch (error) {
+      } catch {
         if (!cancelled) {
           setPartylistRows([]);
         }

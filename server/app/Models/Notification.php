@@ -17,11 +17,13 @@ class Notification extends Model
     {
         return [
             'is_read' => 'boolean',
+            'scheduled_at' => 'datetime',
+            'sent_at' => 'datetime',
         ];
     }
 
     public function user(): BelongsTo
     {
-        return $this->belongsTo(User::class);
+        return $this->belongsTo(User::class, 'user_id', 'school_id');
     }
 }

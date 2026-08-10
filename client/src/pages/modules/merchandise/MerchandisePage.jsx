@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Circle,
   DollarSign,
+  Eye,
   ImagePlus,
   Info,
   Minus,
@@ -151,9 +152,10 @@ function AddStockModal({ open, itemName, quantity, busy = false, onQuantityChang
 export default function MerchandisePage({ initialTab }) {
   const location = useLocation();
   const role = getRole();
-  const isStudent = role === 'STUDENT';
-  const defaultTab = isStudent ? 'order' : 'inventory';
+  const isFulfillmentRole = role === 'ADMIN' || role === 'SBO_OFFICER';
+  const defaultTab = role === 'ADMIN' ? 'inventory' : role === 'SBO_OFFICER' ? 'orders' : 'order';
   const [activeTab, setActiveTab] = useState(initialTab || defaultTab);
+  const isPersonalShoppingView = ['order', 'cart', 'my-orders'].includes(activeTab) || (activeTab === 'tokens' && !isFulfillmentRole);
 
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -192,6 +194,8 @@ export default function MerchandisePage({ initialTab }) {
   const [cartError, setCartError] = useState(null);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
+  const [checkoutPayment, setCheckoutPayment] = useState({ method: 'cash', reference: '', proof_file: null });
+  const [rejectionModal, setRejectionModal] = useState({ open: false, order: null, remarks: '', busy: false });
   const [studentTokenSearch, setStudentTokenSearch] = useState('');
 
   function extractOrders(oRes) {
@@ -205,8 +209,8 @@ export default function MerchandisePage({ initialTab }) {
   function load() {
     setLoading(true);
     setError(null);
-    const calls = isStudent
-      ? [getMerchandise(), getOrders()]
+    const calls = isPersonalShoppingView
+      ? [getMerchandise(), getOrders({ mine: 1 })]
       : [getMerchandise(), getOrders({ page: 1 })];
     Promise.all(calls)
       .then(([mRes, oRes]) => {
@@ -225,22 +229,22 @@ export default function MerchandisePage({ initialTab }) {
     finally { setLoading(false); }
   }
 
-  useEffect(load, []);
+  useEffect(load, [isPersonalShoppingView]);
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
   useEffect(() => {
-    if (isStudent && location.state?.openCartAt) {
+    if (isPersonalShoppingView && location.state?.openCartAt) {
       setActiveTab('cart');
     }
-  }, [isStudent, location.state?.openCartAt]);
+  }, [isPersonalShoppingView, location.state?.openCartAt]);
 
   useEffect(() => {
-    if (!isStudent) {
+    if (!isPersonalShoppingView) {
       return;
     }
 
     localStorage.setItem(STUDENT_CART_KEY, JSON.stringify(cart));
     window.dispatchEvent(new Event('hiusa-cart-updated'));
-  }, [cart, isStudent]);
+  }, [cart, isPersonalShoppingView]);
 
   useEffect(() => {
     if (!feedback.open) return;
@@ -405,13 +409,15 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
-  async function handleStatusChange(id, status) {
+  async function handleStatusChange(id, status, remarks = null) {
     try {
-      const res = await updateOrderStatus(id, status);
+      const res = await updateOrderStatus(id, status, remarks);
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
-      setTransactionMessage(`Order ORD-${id} marked as ${capitalize(status)}.`);
-    } catch {
-      setError('Failed to update order status.');
+      setTransactionMessage(role === 'SBO_OFFICER' && status === 'paid'
+        ? `Order ORD-${id} submitted for Admin approval.`
+        : `Order ORD-${id} marked as ${capitalize(status)}.`);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update order status.');
     }
   }
 
@@ -600,15 +606,28 @@ export default function MerchandisePage({ initialTab }) {
     setCheckoutSubmitting(true);
     setCartError(null);
 
+    if (checkoutPayment.method === 'gcash' && (!checkoutPayment.reference.trim() || !checkoutPayment.proof_file)) {
+      setCartError('GCash checkout requires both a reference number and an uploaded payment proof.');
+      setCheckoutSubmitting(false);
+      return;
+    }
+
     const submittedIds = [];
     try {
       for (const row of cart) {
-        await placeOrder({ merchandise_id: row.item.id, quantity: row.quantity });
+        await placeOrder({
+          merchandise_id: row.item.id,
+          quantity: row.quantity,
+          payment_method: checkoutPayment.method,
+          payment_reference: checkoutPayment.method === 'gcash' ? checkoutPayment.reference : null,
+          payment_proof: checkoutPayment.method === 'gcash' ? checkoutPayment.proof_file : null,
+        });
         submittedIds.push(row.item.id);
       }
 
       setCart([]);
       setCheckoutOpen(false);
+      setCheckoutPayment({ method: 'cash', reference: '', proof_file: null });
       await load();
       setActiveTab('my-orders');
       setTransactionMessage('Order list submitted successfully. Wait for payment confirmation.');
@@ -629,13 +648,13 @@ export default function MerchandisePage({ initialTab }) {
   const activeOrders = orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
   const lowStock = items.filter((i) => i.stock_quantity > 0 && i.stock_quantity < 10).length;
   const paidOrders = orders.filter((o) => o.status === 'paid');
-  const availableItems = items.filter((i) => i.stock_quantity > 0);
+  const availableItems = items.filter((i) => i.is_active && i.stock_quantity > 0);
   const cartTotal = useMemo(() => cart.reduce((sum, row) => sum + (toNumber(row.item.price) * row.quantity), 0), [cart]);
 
   const filteredInventoryItems = items.filter((i) => i.name?.toLowerCase().includes(inventorySearch.toLowerCase()));
 
   const filteredStudentItems = items.filter((i) =>
-    i.stock_quantity > 0 && i.name?.toLowerCase().includes(studentItemSearch.toLowerCase())
+    i.is_active && i.stock_quantity > 0 && i.name?.toLowerCase().includes(studentItemSearch.toLowerCase())
   );
 
   const filteredStudentOrders = orders.filter((o) => {
@@ -648,7 +667,7 @@ export default function MerchandisePage({ initialTab }) {
   });
 
   const filteredStudentTokens = orders
-    .filter((o) => ['pending', 'paid'].includes(o.status))
+    .filter((o) => o.status === 'paid')
     .filter((o) => {
       const query = studentTokenSearch.trim().toLowerCase();
       if (!query) return true;
@@ -698,7 +717,7 @@ export default function MerchandisePage({ initialTab }) {
   ) : null;
 
   // ── STUDENT VIEW ─────────────────────────────────────────────────────────────
-  if (isStudent) {
+  if (isPersonalShoppingView) {
     return (
       <div className="space-y-6">
         {feedbackPopup}
@@ -725,7 +744,7 @@ export default function MerchandisePage({ initialTab }) {
           <section className="space-y-4">
             <div className="flex items-start gap-3 rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] p-4">
               <Info size={18} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
-              <p className="text-[13px] font-medium text-[#0B1831]">No online payment required. Orders are reserved with a claim token. Present your token to the officer and pay in person during pickup.</p>
+              <p className="text-[13px] font-medium text-[#0B1831]">Reserve available items, then choose cash or submit your GCash reference and payment proof for verification.</p>
             </div>
 
             <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
@@ -870,7 +889,7 @@ export default function MerchandisePage({ initialTab }) {
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(o.status)}</span>
-                        {o.claim_token && (
+                        {o.claim_token && ['paid', 'claimed'].includes(o.status) && (
                           <span className="font-mono text-xs font-black text-slate-500">TKN: {o.claim_token}</span>
                         )}
                       </div>
@@ -899,7 +918,7 @@ export default function MerchandisePage({ initialTab }) {
           <section className="space-y-4">
             <div className="flex items-start gap-3 rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] p-4">
               <Info size={18} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
-              <p className="text-[13px] font-medium text-[#0B1831]">Pay → Show token → officer marks Paid. Claim → Show token again → officer releases item → Completed.</p>
+              <p className="text-[13px] font-medium text-[#0B1831]">After payment approval, present the claim token to an authorized officer to release the item.</p>
             </div>
 
             <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
@@ -980,6 +999,27 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
               <p className="mt-3 text-sm font-bold text-[#0F172A]">Grand Total: {fmt(cartTotal)}</p>
+              <div className="mt-4 space-y-3">
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Payment Method</label>
+                  <select value={checkoutPayment.method} onChange={(e) => setCheckoutPayment((current) => ({ ...current, method: e.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]">
+                    <option value="cash">Cash on pickup</option>
+                    <option value="gcash">GCash</option>
+                  </select>
+                </div>
+                {checkoutPayment.method === 'gcash' && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-1.5">
+                      <label className="text-[13px] font-semibold text-[#0F172A]">GCash Reference *</label>
+                      <input value={checkoutPayment.reference} onChange={(e) => setCheckoutPayment((current) => ({ ...current, reference: e.target.value }))} placeholder="Reference number" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                    </div>
+                    <div className="space-y-1.5">
+                      <label className="text-[13px] font-semibold text-[#0F172A]">Payment Proof *</label>
+                      <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setCheckoutPayment((current) => ({ ...current, proof_file: e.target.files?.[0] || null }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm outline-none focus:border-[#0B8ED0]" />
+                    </div>
+                  </div>
+                )}
+              </div>
               <div className="mt-5 flex justify-end gap-3">
                 <button type="button" onClick={() => setCheckoutOpen(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={checkoutSubmitting}>
                   Cancel
@@ -1168,14 +1208,16 @@ export default function MerchandisePage({ initialTab }) {
                       </td>
                       <td className="px-5 py-4">
                         {o.status === 'pending' && (
-                          <button onClick={() => confirmStatusChange(o, 'paid')} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
-                            Mark Paid <ArrowRight size={12} />
-                          </button>
+                          <div className="flex flex-wrap gap-2">
+                            <button onClick={() => confirmStatusChange(o, 'paid')} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
+                              {role === 'SBO_OFFICER' ? 'Submit Approval' : 'Approve Payment'} <ArrowRight size={12} />
+                            </button>
+                            <button onClick={() => setRejectionModal({ open: true, order: o, remarks: '', busy: false })} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100">Reject</button>
+                            {o.payment_proof_url && <a href={resolveImageUrl(o.payment_proof_url)} target="_blank" rel="noreferrer" title="View payment proof" className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"><Eye size={14} /></a>}
+                          </div>
                         )}
                         {o.status === 'paid' && (
-                          <button onClick={() => confirmStatusChange(o, 'claimed')} className="flex items-center gap-1 rounded-md bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100">
-                            Mark Claimed <ArrowRight size={12} />
-                          </button>
+                          <span className="text-xs font-semibold text-emerald-700">Awaiting token validation</span>
                         )}
                       </td>
                     </tr>
@@ -1363,6 +1405,31 @@ export default function MerchandisePage({ initialTab }) {
                 <button type="submit" disabled={formSubmitting || !editForm.name || !editForm.unit_price || !editForm.stock_quantity} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50">{formSubmitting ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {rejectionModal.open && rejectionModal.order && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-extrabold text-[#0F172A]">Reject Payment</h3>
+            <p className="mt-1 text-sm text-slate-500">Provide the reason for rejecting order ORD-{rejectionModal.order.id}.</p>
+            <textarea rows={4} value={rejectionModal.remarks} onChange={(e) => setRejectionModal((current) => ({ ...current, remarks: e.target.value }))} className="mt-4 w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0]" placeholder="Rejection reason" />
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setRejectionModal({ open: false, order: null, remarks: '', busy: false })} disabled={rejectionModal.busy} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600">Cancel</button>
+              <button
+                type="button"
+                disabled={rejectionModal.busy || !rejectionModal.remarks.trim()}
+                onClick={async () => {
+                  setRejectionModal((current) => ({ ...current, busy: true }));
+                  await handleStatusChange(rejectionModal.order.id, 'cancelled', rejectionModal.remarks.trim());
+                  setRejectionModal({ open: false, order: null, remarks: '', busy: false });
+                }}
+                className="h-11 rounded-lg bg-red-600 px-5 text-sm font-bold text-white disabled:opacity-50"
+              >
+                {rejectionModal.busy ? 'Rejecting...' : 'Reject Payment'}
+              </button>
+            </div>
           </div>
         </div>
       )}

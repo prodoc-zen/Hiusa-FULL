@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AuditLog;
 use App\Models\Merchandise;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -50,7 +51,7 @@ class MerchandiseController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('name', 'asc');
 
-        if ($request->user()->role === 'STUDENT') {
+        if (in_array($request->user()->role, ['STUDENT', 'DEPARTMENT_HEAD'], true)) {
             $query->where('is_active', true);
         }
 
@@ -126,10 +127,11 @@ class MerchandiseController extends Controller
             ], 409);
         }
 
-        $this->deleteMerchandiseImage($item->image_url);
-        $item->delete();
+        $oldValues = $this->auditableMerchandiseValues($item);
+        $item->update(['is_active' => false]);
+        $this->recordMerchandiseAudit($request, 'deactivated', $item, $oldValues, $this->auditableMerchandiseValues($item));
 
-        return response()->json(['message' => 'Item deleted successfully.']);
+        return response()->json(['message' => 'Item deactivated successfully.']);
     }
 
     public function adjustStock(Request $request, $id)
@@ -147,5 +149,34 @@ class MerchandiseController extends Controller
         $item->update($data);
 
         return response()->json($item->fresh());
+    }
+
+    private function auditableMerchandiseValues(Merchandise $item): array
+    {
+        return [
+            'id' => $item->id,
+            'name' => $item->name,
+            'category' => $item->category,
+            'price' => $item->price,
+            'stock_quantity' => $item->stock_quantity,
+            'is_active' => $item->is_active,
+            'image_url' => $item->image_url,
+        ];
+    }
+
+    private function recordMerchandiseAudit(Request $request, string $action, Merchandise $item, ?array $oldValues, ?array $newValues): void
+    {
+        AuditLog::create([
+            'organization_id' => $request->user()?->organization_id,
+            'user_id' => $request->user()?->school_id,
+            'module' => 'merchandise',
+            'action' => $action,
+            'record_type' => Merchandise::class,
+            'record_id' => $item->id,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
     }
 }

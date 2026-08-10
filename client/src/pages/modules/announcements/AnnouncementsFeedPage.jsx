@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
-import { Avatar, cn } from './announcementShared.jsx';
+import { Avatar } from './announcementShared.jsx';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
 
-const ROLE_LABEL = { all: 'All Members', student: 'Students', officer: 'Officers', adviser: 'Advisers' };
+const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
 const CATEGORY_OPTIONS = [
   { label: 'All Categories', value: 'all' },
@@ -30,7 +30,7 @@ export default function AnnouncementsFeedPage() {
   function load() {
     setLoading(true);
     setError(null);
-    const params = categoryFilter === 'all' ? undefined : { category: categoryFilter };
+    const params = { published_only: 1, ...(categoryFilter === 'all' ? {} : { category: categoryFilter }) };
     getAnnouncements(params)
       .then((res) => setAnnouncements(Array.isArray(res.data) ? res.data : []))
       .catch(() => setError('Failed to load announcements.'))

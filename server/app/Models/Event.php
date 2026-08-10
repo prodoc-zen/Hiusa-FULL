@@ -19,12 +19,15 @@ class Event extends Model
         return [
             'start_time' => 'datetime',
             'end_time' => 'datetime',
+            'requires_budget' => 'boolean',
+            'planning_details' => 'array',
+            'approved_at' => 'datetime',
         ];
     }
 
     public function creator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by', 'school_id');
     }
 
     public function tasks(): HasMany

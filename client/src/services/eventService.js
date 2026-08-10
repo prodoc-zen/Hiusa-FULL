@@ -18,6 +18,9 @@ export const deleteEvent = (id) =>
 export const updateEventStatus = (id, status) =>
   api.patch(`/events/${id}/status`, { status });
 
+export const generateEventPlan = (id, data) =>
+  api.post(`/events/${id}/generate-plan`, data);
+
 export const getAttendance = (id) =>
   api.get(`/events/${id}/attendance`);
 

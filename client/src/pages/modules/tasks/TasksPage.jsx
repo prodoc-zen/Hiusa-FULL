@@ -4,15 +4,14 @@ import {
   Bot,
   CheckCircle2,
   Clock,
-  Filter,
   ListChecks,
   Plus,
   Search,
   X,
-  Zap,
 } from 'lucide-react';
 import { getTasks, createTask, updateTaskStatus } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
+import { getEvents } from '../../../services/eventService';
 import PaginationControls from '../../../components/PaginationControls';
 
 const statusBadge = {
@@ -36,30 +35,40 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [tasks, setTasks] = useState([]);
   const [officers, setOfficers] = useState([]);
+  const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const [form, setForm] = useState({ title: '', description: '', assigned_to: '', deadline: '', status: 'pending' });
+  const [form, setForm] = useState({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const currentUserRole = (() => {
+    try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; }
+    catch { return ''; }
+  })();
+  const canManageTasks = currentUserRole === 'ADMIN';
+  const canUpdateAssignedTasks = currentUserRole === 'SBO_OFFICER';
 
   function load() {
     setLoading(true);
     setError(null);
-    Promise.all([getTasks(), getUsers()])
-      .then(([taskRes, userRes]) => {
+    const usersRequest = canManageTasks ? getUsers() : Promise.resolve([]);
+    const eventsRequest = canManageTasks ? getEvents() : Promise.resolve({ data: [] });
+    Promise.all([getTasks(), usersRequest, eventsRequest])
+      .then(([taskRes, userRes, eventRes]) => {
         setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
         const allUsers = Array.isArray(userRes) ? userRes : (Array.isArray(userRes.data) ? userRes.data : []);
         setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER'));
+        setEvents(Array.isArray(eventRes.data) ? eventRes.data : []);
       })
       .catch(() => setError('Failed to load tasks.'))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, []);
+  useEffect(load, [canManageTasks]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -75,11 +84,12 @@ export default function TasksPage({ initialTab = 'board' }) {
         title: form.title,
         description: form.description,
         assigned_to: form.assigned_to || null,
+        event_id: form.event_id || null,
         deadline: form.deadline,
         status: form.status,
       });
       setShowForm(false);
-      setForm({ title: '', description: '', assigned_to: '', deadline: '', status: 'pending' });
+      setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       load();
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to create task.');
@@ -148,8 +158,8 @@ export default function TasksPage({ initialTab = 'board' }) {
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">All Tasks</h2>
-              <p className="text-sm font-medium text-slate-500">Create and manage officer tasks</p>
+              <h2 className="text-lg font-bold text-[#0F172A]">{canManageTasks ? 'All Tasks' : 'Assigned Tasks'}</h2>
+              <p className="text-sm font-medium text-slate-500">{canManageTasks ? 'Create and manage officer tasks' : 'View and update your assignments'}</p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
@@ -162,10 +172,12 @@ export default function TasksPage({ initialTab = 'board' }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
                 />
               </div>
-              <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
-                <Plus size={16} />
-                <span className="hidden sm:inline">Create Task</span>
-              </button>
+              {canManageTasks && (
+                <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+                  <Plus size={16} />
+                  <span className="hidden sm:inline">Create Task</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -201,7 +213,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        {t.status === 'pending' && (
+                        {(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && (
                           <button
                             onClick={() => handleStatusChange(t.id, 'in_progress')}
                             className="rounded-md bg-[#E6F6FD] px-2.5 py-1 text-xs font-bold text-[#0B8ED0] hover:bg-[#d2eef9] transition"
@@ -209,7 +221,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                             Start
                           </button>
                         )}
-                        {t.status === 'in_progress' && (
+                        {(canManageTasks || canUpdateAssignedTasks) && t.status === 'in_progress' && (
                           <button
                             onClick={() => handleStatusChange(t.id, 'completed')}
                             className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
@@ -351,7 +363,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">Assign To</label>
                   <select
@@ -365,6 +377,21 @@ export default function TasksPage({ initialTab = 'board' }) {
                     ))}
                   </select>
                 </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Related Event</label>
+                  <select
+                    value={form.event_id}
+                    onChange={(e) => setForm({ ...form, event_id: e.target.value })}
+                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  >
+                    <option value="">No linked event</option>
+                    {events.map((event) => (
+                      <option key={event.id} value={event.id}>{event.title}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">Deadline *</label>
                   <input

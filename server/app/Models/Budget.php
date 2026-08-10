@@ -18,6 +18,7 @@ class Budget extends Model
     {
         return [
             'allocated_amount' => 'decimal:2',
+            'remaining_amount' => 'decimal:2',
             'warning_threshold' => 'decimal:2',
         ];
     }

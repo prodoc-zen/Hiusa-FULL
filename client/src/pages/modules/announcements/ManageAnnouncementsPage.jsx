@@ -1,13 +1,14 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { Badge, SectionHeader, StatusBadge } from './announcementShared.jsx';
 import {
   getAnnouncements,
+  updateAnnouncement,
   togglePublish,
   deleteAnnouncement,
 } from '../../../services/announcementService';
 
-const ROLE_LABEL = { all: 'All Members', student: 'Students', officer: 'Officers', adviser: 'Advisers' };
+const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
 const CATEGORY_OPTIONS = [
   { label: 'All Categories', value: 'all' },
@@ -49,8 +50,10 @@ export default function ManageAnnouncementsPage() {
   const [error, setError] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
+  const [editing, setEditing] = useState(null);
+  const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
 
-  useEffect(() => {
+  const loadAnnouncements = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
@@ -61,6 +64,10 @@ export default function ManageAnnouncementsPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [categoryFilter]);
+
+  useEffect(() => {
+    return loadAnnouncements();
+  }, [loadAnnouncements]);
 
   async function handleToggle(id) {
     try {
@@ -80,6 +87,29 @@ export default function ManageAnnouncementsPage() {
     }
   }
 
+  function openEdit(announcement) {
+    setEditing(announcement);
+    setEditForm({
+      title: announcement.title || '',
+      body: announcement.body || '',
+      target_role: announcement.target_role || 'all',
+      category: announcement.category || 'general',
+    });
+  }
+
+  async function handleEdit(event) {
+    event.preventDefault();
+    if (!editing) return;
+
+    try {
+      const res = await updateAnnouncement(editing.id, editForm);
+      setItems((prev) => prev.map((a) => (a.id === editing.id ? res.data : a)));
+      setEditing(null);
+    } catch {
+      setError('Failed to update announcement. Please try again.');
+    }
+  }
+
   if (loading) {
     return (
       <div className="space-y-3 rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
@@ -94,7 +124,7 @@ export default function ManageAnnouncementsPage() {
     return (
       <div className="rounded-xl border border-red-100 bg-red-50 p-6 text-center">
         <p className="text-sm font-semibold text-red-700">{error}</p>
-        <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
+        <button onClick={loadAnnouncements} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
       </div>
     );
   }
@@ -131,17 +161,27 @@ export default function ManageAnnouncementsPage() {
                     <Badge color="blue">{CATEGORY_LABEL[a.category] ?? 'General'}</Badge>
                   </td>
                   <td className="px-3 py-3">
-                    <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />
+                    {a.approval_status === 'pending'
+                      ? <Badge color="yellow">Pending Approval</Badge>
+                      : a.approval_status === 'rejected'
+                        ? <Badge color="red">Rejected</Badge>
+                        : <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />}
                   </td>
                   <td className="px-3 py-3 text-slate-500">{formatDate(a.created_at)}</td>
                   <td className="px-3 py-3">
                     <div className="flex gap-1.5">
-                      {!a.is_published ? (
+                      <button
+                        onClick={() => openEdit(a)}
+                        className="rounded bg-[#EEF6FB] px-2 py-2 text-[10px] font-semibold text-[#0B8ED0] transition hover:bg-[#DDE7EF]"
+                      >
+                        Edit
+                      </button>
+                      {!a.is_published && !['pending', 'rejected'].includes(a.approval_status) ? (
                         <button
                           onClick={() => setConfirmState({
                             open: true,
                             title: 'Publish Announcement',
-                            message: `Publish \"${a.title}\" now?`,
+                            message: `Publish "${a.title}" now?`,
                             confirmText: 'Publish',
                             action: async () => handleToggle(a.id),
                             busy: false,
@@ -150,12 +190,12 @@ export default function ManageAnnouncementsPage() {
                         >
                           Publish
                         </button>
-                      ) : (
+                      ) : a.is_published ? (
                         <button
                           onClick={() => setConfirmState({
                             open: true,
                             title: 'Unpublish Announcement',
-                            message: `Set \"${a.title}\" back to draft?`,
+                            message: `Set "${a.title}" back to draft?`,
                             confirmText: 'Unpublish',
                             action: async () => handleToggle(a.id),
                             busy: false,
@@ -164,12 +204,12 @@ export default function ManageAnnouncementsPage() {
                         >
                           Unpublish
                         </button>
-                      )}
+                      ) : null}
                       <button
                         onClick={() => setConfirmState({
                           open: true,
                           title: 'Delete Announcement',
-                          message: `Delete \"${a.title}\"? This cannot be undone.`,
+                          message: `Delete "${a.title}"? This cannot be undone.`,
                           confirmText: 'Delete',
                           action: async () => handleDelete(a.id),
                           busy: false,
@@ -205,6 +245,31 @@ export default function ManageAnnouncementsPage() {
           }
         }}
       />
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <form onSubmit={handleEdit} className="w-full max-w-2xl rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-[#0F172A]">Edit Announcement</h3>
+              <button type="button" onClick={() => setEditing(null)} className="rounded p-1 text-slate-400 hover:bg-red-50">Close</button>
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <input value={editForm.title} onChange={(e) => setEditForm({ ...editForm, title: e.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Title" />
+              <select value={editForm.target_role} onChange={(e) => setEditForm({ ...editForm, target_role: e.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+                {Object.entries(ROLE_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+              <select value={editForm.category} onChange={(e) => setEditForm({ ...editForm, category: e.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm sm:col-span-2">
+                {CATEGORY_OPTIONS.filter((opt) => opt.value !== 'all').map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
+              </select>
+              <textarea value={editForm.body} onChange={(e) => setEditForm({ ...editForm, body: e.target.value })} rows={8} className="rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm sm:col-span-2" placeholder="Announcement content" />
+            </div>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setEditing(null)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+              <button type="submit" disabled={!editForm.title.trim() || !editForm.body.trim()} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">Save Record</button>
+            </div>
+          </form>
+        </div>
+      )}
     </div>
   );
 }

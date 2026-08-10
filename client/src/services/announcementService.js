@@ -6,6 +6,9 @@ export const getAnnouncements = (params) =>
 export const createAnnouncement = (data) =>
   api.post('/announcements', data);
 
+export const generateAnnouncementDraft = (data) =>
+  api.post('/announcements/generate-draft', data);
+
 export const updateAnnouncement = (id, data) =>
   api.put(`/announcements/${id}`, data);
 

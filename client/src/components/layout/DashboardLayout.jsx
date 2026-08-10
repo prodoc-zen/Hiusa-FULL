@@ -7,7 +7,10 @@ const pageTitles = {
   '/dashboard': 'Officer Dashboard',
   '/dashboard/admin': 'Admin Dashboard',
   '/dashboard/admin/users': 'User Management',
+  '/dashboard/approvals': 'Approvals',
   '/dashboard/officer': 'Officer Dashboard',
+  '/dashboard/department-head': 'Department Head Dashboard',
+  '/dashboard/department-head/approvals': 'Approvals',
   '/dashboard/adviser': 'Adviser Dashboard',
   '/dashboard/student': 'Student Dashboard',
   '/dashboard/finance': 'Financial Management',
@@ -41,9 +44,9 @@ const pageTitles = {
   '/dashboard/announcements/manage-announcements': 'Manage Announcements',
   '/dashboard/announcements/create-announcement': 'Create Announcement',
   '/dashboard/announcements/view-announcements': 'Announcements Feed',
-  '/dashboard/organization': 'Organization',
-  '/dashboard/profile': 'Profile',
-  '/dashboard/settings': 'Settings',
+  '/dashboard/profile': 'Manage Profile',
+  '/dashboard/organization': 'Manage Profile',
+  '/dashboard/settings': 'Manage Profile',
 };
 
 function getTitle(pathname) {

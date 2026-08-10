@@ -12,12 +12,15 @@ class NotificationController extends Controller
     {
         $notifications = Notification::where('user_id', $request->user()->id)
             ->where('organization_id', $request->user()->organization_id)
-            ->orderBy('created_at', 'desc')
+            ->where(function ($query) {
+                $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
+            })
+            ->orderByRaw('COALESCE(sent_at, created_at) DESC')
             ->get();
 
         return response()->json([
             'notifications' => $notifications,
-            'unread_count'  => $notifications->where('is_read', false)->count(),
+            'unread_count' => $notifications->where('is_read', false)->count(),
         ]);
     }
 
@@ -51,10 +54,14 @@ class NotificationController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'title'       => ['required', 'string', 'max:255'],
-            'message'     => ['required', 'string'],
-            'user_id'     => ['nullable', 'exists:users,school_id'],
+            'title' => ['required', 'string', 'max:255'],
+            'message' => ['required', 'string'],
+            'user_id' => ['nullable', 'exists:users,school_id'],
             'target_role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'notification_type' => ['nullable', 'in:general,event,announcement,task,election,merchandise,financial'],
+            'reference_type' => ['nullable', 'string', 'max:40'],
+            'reference_id' => ['nullable', 'integer'],
+            'scheduled_at' => ['nullable', 'date'],
         ]);
 
         if (!empty($data['user_id'])) {
@@ -66,13 +73,7 @@ class NotificationController extends Controller
                 return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
             }
 
-            $notification = Notification::create([
-                'user_id' => $data['user_id'],
-                'title'   => $data['title'],
-                'message' => $data['message'],
-                'is_read' => false,
-                'organization_id' => $request->user()->organization_id,
-            ]);
+            $notification = Notification::create($this->payload($data, $request->user()->organization_id, $data['user_id']));
 
             return response()->json($notification, 201);
         }
@@ -81,26 +82,37 @@ class NotificationController extends Controller
             $userIds = User::where('organization_id', $request->user()->organization_id)
                 ->where('role', $data['target_role'])
                 ->pluck('school_id');
-            $now = now();
 
             Notification::insert(
-                $userIds->map(fn($uid) => [
-                    'user_id'    => $uid,
-                    'title'      => $data['title'],
-                    'message'    => $data['message'],
-                    'is_read'    => false,
-                    'organization_id' => $request->user()->organization_id,
-                    'created_at' => $now,
-                    'updated_at' => $now,
-                ])->all()
+                $userIds->map(fn ($uid) => $this->payload($data, $request->user()->organization_id, $uid))->all()
             );
 
             return response()->json([
                 'message' => "Sent to {$userIds->count()} user(s).",
-                'count'   => $userIds->count(),
+                'count' => $userIds->count(),
             ], 201);
         }
 
         return response()->json(['message' => 'Provide either user_id or target_role.'], 422);
+    }
+
+    private function payload(array $data, int $organizationId, int $userId): array
+    {
+        $now = now();
+
+        return [
+            'organization_id' => $organizationId,
+            'user_id' => $userId,
+            'notification_type' => $data['notification_type'] ?? 'general',
+            'title' => $data['title'],
+            'message' => $data['message'],
+            'reference_type' => $data['reference_type'] ?? null,
+            'reference_id' => $data['reference_id'] ?? null,
+            'scheduled_at' => $data['scheduled_at'] ?? null,
+            'sent_at' => empty($data['scheduled_at']) ? $now : null,
+            'is_read' => false,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ];
     }
 }

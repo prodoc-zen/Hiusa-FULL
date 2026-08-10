@@ -1,19 +1,9 @@
-import { useEffect, useState } from 'react';
-import {
-  Bell,
-  ChevronRight,
-  Eye,
-  EyeOff,
-  Globe,
-  Key,
-  Lock,
-  Moon,
-  Save,
-  Shield,
-  Sun,
-  User,
-} from 'lucide-react';
-import { updateProfile, updatePassword } from '../../../services/profileService';
+import { useCallback, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import { Eye, EyeOff, Key, Lock, Mail, Save, User } from 'lucide-react';
+import FeedbackToast from '../../../components/FeedbackToast';
+import { updatePassword, updateProfile } from '../../../services/profileService';
+import { getApiErrorMessage } from '../../../utils/apiError';
 
 function getStoredUser() {
   try {
@@ -23,311 +13,292 @@ function getStoredUser() {
   }
 }
 
-export default function SettingsPage({ initialSection = 'profile' }) {
-  const [activeSection, setActiveSection] = useState(initialSection);
+function roleLabel(role) {
+  return {
+    ADMIN: 'Admin',
+    SBO_OFFICER: 'SBO Officer',
+    STUDENT: 'Student',
+    DEPARTMENT_HEAD: 'Department Head',
+  }[role] || role || 'User';
+}
+
+export default function SettingsPage() {
+  const navigate = useNavigate();
+  const [currentUser, setCurrentUser] = useState(getStoredUser);
   const [showPassword, setShowPassword] = useState(false);
-  const storedUser = getStoredUser();
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
 
   const [profileForm, setProfileForm] = useState({
-    first_name: storedUser.first_name || '',
-    last_name: storedUser.last_name || '',
-    email: storedUser.email || '',
+    first_name: currentUser.first_name || '',
+    last_name: currentUser.last_name || '',
+    email: currentUser.email || '',
   });
   const [profileSaving, setProfileSaving] = useState(false);
-  const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState(null);
 
   const [pwForm, setPwForm] = useState({ current_password: '', password: '', password_confirmation: '' });
   const [pwSaving, setPwSaving] = useState(false);
-  const [pwSuccess, setPwSuccess] = useState(false);
   const [pwError, setPwError] = useState(null);
 
-  const initials = [storedUser.first_name?.[0], storedUser.last_name?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
+  const closeFeedback = useCallback(() => {
+    setFeedback((current) => ({ ...current, open: false }));
+  }, []);
 
-  async function handleProfileSave(e) {
-    e.preventDefault();
+  const showFeedback = useCallback((type, message) => {
+    setFeedback({ open: true, type, message });
+  }, []);
+
+  const initials = [currentUser.first_name?.[0], currentUser.last_name?.[0]].filter(Boolean).join('').toUpperCase() || 'U';
+  const fullName = `${currentUser.first_name || ''} ${currentUser.last_name || ''}`.trim() || 'User';
+  const organizationName = currentUser.organization?.name || currentUser.organization?.acronym || 'Selected organization';
+
+  async function handleProfileSave(event) {
+    event.preventDefault();
+
+    if (!profileForm.first_name.trim() || !profileForm.last_name.trim() || !profileForm.email.trim()) {
+      const message = 'First name, last name, and email are required.';
+      setProfileError(message);
+      showFeedback('error', message);
+      return;
+    }
+
     setProfileSaving(true);
     setProfileError(null);
-    setProfileSuccess(false);
+
     try {
-      const res = await updateProfile(profileForm);
-      localStorage.setItem('user', JSON.stringify({ ...storedUser, ...res.data }));
-      setProfileSuccess(true);
-    } catch (err) {
-      setProfileError(err.response?.data?.message ?? 'Failed to save profile.');
+      const response = await updateProfile({
+        first_name: profileForm.first_name.trim(),
+        last_name: profileForm.last_name.trim(),
+        email: profileForm.email.trim(),
+      });
+      const updatedUser = { ...currentUser, ...response.data };
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
+      setProfileForm({
+        first_name: updatedUser.first_name || '',
+        last_name: updatedUser.last_name || '',
+        email: updatedUser.email || '',
+      });
+      showFeedback('success', 'Profile changes saved.');
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Failed to save profile.');
+      setProfileError(message);
+      showFeedback('error', message);
     } finally {
       setProfileSaving(false);
     }
   }
 
-  async function handlePasswordSave(e) {
-    e.preventDefault();
-    if (pwForm.password !== pwForm.password_confirmation) {
-      setPwError('New passwords do not match.');
+  async function handlePasswordSave(event) {
+    event.preventDefault();
+
+    if (!pwForm.current_password || !pwForm.password || !pwForm.password_confirmation) {
+      const message = 'Current password, new password, and confirmation are required.';
+      setPwError(message);
+      showFeedback('error', message);
       return;
     }
+
+    if (pwForm.password.length < 8) {
+      const message = 'New password must be at least 8 characters.';
+      setPwError(message);
+      showFeedback('error', message);
+      return;
+    }
+
+    if (pwForm.password !== pwForm.password_confirmation) {
+      const message = 'New passwords do not match.';
+      setPwError(message);
+      showFeedback('error', message);
+      return;
+    }
+
     setPwSaving(true);
     setPwError(null);
-    setPwSuccess(false);
+
     try {
       await updatePassword(pwForm);
       setPwForm({ current_password: '', password: '', password_confirmation: '' });
-      setPwSuccess(true);
-    } catch (err) {
-      setPwError(err.response?.data?.message ?? 'Failed to update password.');
+      showFeedback('success', 'Password updated. Please log in again.');
+      window.setTimeout(() => {
+        localStorage.removeItem('auth_token');
+        localStorage.removeItem('user');
+        navigate('/login', { replace: true });
+      }, 1200);
+    } catch (error) {
+      const message = getApiErrorMessage(error, 'Failed to update password.');
+      setPwError(message);
+      showFeedback('error', message);
     } finally {
       setPwSaving(false);
     }
   }
 
-  const sections = [
-    { key: 'profile', label: 'Profile', icon: User },
-    { key: 'organization', label: 'Organization', icon: Globe },
-    { key: 'security', label: 'Security', icon: Shield },
-    { key: 'preferences', label: 'Preferences', icon: Bell },
-  ];
-
   return (
-    <div className="grid gap-6 lg:grid-cols-[240px_1fr]">
-      <nav className="rounded-xl border border-[#DDE7EF] bg-white p-3 shadow-sm h-fit">
-        <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400">Settings</p>
-        <div className="space-y-1">
-          {sections.map((s) => (
-            <button
-              key={s.key}
-              onClick={() => setActiveSection(s.key)}
-              className={`flex w-full items-center justify-between rounded-lg px-3 py-3 text-[13px] font-semibold transition ${
-                activeSection === s.key ? 'bg-[#E6F6FD] text-[#0B8ED0]' : 'text-slate-600 hover:bg-[#F8FBFD]'
-              }`}
-            >
-              <div className="flex items-center gap-3">
-                <s.icon size={17} />
-                {s.label}
-              </div>
-              <ChevronRight size={14} className={activeSection === s.key ? 'text-[#0B8ED0]' : 'text-slate-300'} />
-            </button>
-          ))}
+    <div className="mx-auto max-w-5xl space-y-6">
+      <FeedbackToast feedback={feedback} onClose={closeFeedback} />
+
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+          <div className="grid h-16 w-16 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-lg font-black text-white">
+            {initials}
+          </div>
+          <div className="min-w-0">
+            <h1 className="text-xl font-black text-[#0F172A]">Manage Profile</h1>
+            <p className="mt-1 text-sm font-semibold text-slate-600">{fullName}</p>
+            <p className="mt-0.5 text-xs font-medium text-slate-400">
+              {roleLabel(currentUser.role)} - {organizationName}
+            </p>
+          </div>
         </div>
-      </nav>
+      </section>
 
-      <div className="space-y-6">
-        {activeSection === 'profile' && (
-          <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-[#0F172A] mb-6">Your Profile</h2>
-            <div className="flex items-center gap-5 mb-6">
-              <div className="grid h-20 w-20 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xl font-black text-white">
-                {initials}
-              </div>
-              <div>
-                <p className="text-base font-bold text-[#0F172A]">{storedUser.first_name} {storedUser.last_name}</p>
-                <p className="text-sm font-medium text-slate-500 capitalize">{storedUser.role} · HIUSA</p>
-              </div>
+      <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+              <User size={18} />
             </div>
+            <div>
+              <h2 className="text-base font-bold text-[#0F172A]">Profile Information</h2>
+              <p className="text-xs font-medium text-slate-500">View and update your account details.</p>
+            </div>
+          </div>
 
-            <form className="space-y-4" onSubmit={handleProfileSave}>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">First Name</label>
-                  <input
-                    type="text"
-                    value={profileForm.first_name}
-                    onChange={(e) => setProfileForm({ ...profileForm, first_name: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Last Name</label>
-                  <input
-                    type="text"
-                    value={profileForm.last_name}
-                    onChange={(e) => setProfileForm({ ...profileForm, last_name: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                  />
-                </div>
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Email</label>
+          <div className="mb-5 grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm">
+            <div className="flex items-center justify-between gap-4">
+              <span className="font-semibold text-slate-500">School ID</span>
+              <span className="font-bold text-[#0F172A]">{currentUser.school_id || currentUser.id || 'N/A'}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="font-semibold text-slate-500">Role</span>
+              <span className="font-bold text-[#0F172A]">{roleLabel(currentUser.role)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <span className="font-semibold text-slate-500">Organization</span>
+              <span className="truncate text-right font-bold text-[#0F172A]">{organizationName}</span>
+            </div>
+          </div>
+
+          <form className="space-y-4" onSubmit={handleProfileSave}>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <label className="space-y-1.5">
+                <span className="text-[13px] font-semibold text-[#0F172A]">First Name</span>
+                <input
+                  type="text"
+                  value={profileForm.first_name}
+                  onChange={(event) => setProfileForm({ ...profileForm, first_name: event.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
+              </label>
+              <label className="space-y-1.5">
+                <span className="text-[13px] font-semibold text-[#0F172A]">Last Name</span>
+                <input
+                  type="text"
+                  value={profileForm.last_name}
+                  onChange={(event) => setProfileForm({ ...profileForm, last_name: event.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
+              </label>
+            </div>
+            <label className="space-y-1.5">
+              <span className="text-[13px] font-semibold text-[#0F172A]">Email</span>
+              <span className="relative block">
+                <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                 <input
                   type="email"
                   value={profileForm.email}
-                  onChange={(e) => setProfileForm({ ...profileForm, email: e.target.value })}
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 pr-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Student ID</label>
-                  <input type="text" value={storedUser.school_id || ''} disabled className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm bg-[#F8FBFD] outline-none text-slate-400" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Role</label>
-                  <input type="text" value={storedUser.role || ''} disabled className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm bg-[#F8FBFD] outline-none capitalize text-slate-400" />
-                </div>
-              </div>
-              {profileError && <p className="text-xs text-red-600">{profileError}</p>}
-              {profileSuccess && <p className="text-xs font-semibold text-emerald-600">Profile updated successfully.</p>}
-              <div className="flex justify-end pt-2">
+              </span>
+            </label>
+
+            {profileError && <p className="text-xs font-semibold text-red-600">{profileError}</p>}
+
+            <div className="flex justify-end pt-1">
+              <button
+                type="submit"
+                disabled={profileSaving}
+                className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+              >
+                <Save size={15} />
+                {profileSaving ? 'Saving...' : 'Save Profile'}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
+          <div className="mb-5 flex items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+              <Lock size={18} />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-[#0F172A]">Change Password</h2>
+              <p className="text-xs font-medium text-slate-500">Verify your current password before setting a new one.</p>
+            </div>
+          </div>
+
+          <form className="space-y-4" onSubmit={handlePasswordSave}>
+            <label className="space-y-1.5">
+              <span className="text-[13px] font-semibold text-[#0F172A]">Current Password</span>
+              <span className="relative block">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={pwForm.current_password}
+                  onChange={(event) => setPwForm({ ...pwForm, current_password: event.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 pr-10 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
                 <button
-                  type="submit"
-                  disabled={profileSaving}
-                  className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
+                  type="button"
+                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 transition hover:text-[#0B8ED0]"
                 >
-                  <Save size={15} />
-                  {profileSaving ? 'Saving...' : 'Save Changes'}
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
-              </div>
-            </form>
-          </section>
-        )}
+              </span>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[13px] font-semibold text-[#0F172A]">New Password</span>
+              <span className="relative block">
+                <Key className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={pwForm.password}
+                  onChange={(event) => setPwForm({ ...pwForm, password: event.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 pr-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
+              </span>
+            </label>
+            <label className="space-y-1.5">
+              <span className="text-[13px] font-semibold text-[#0F172A]">Confirm New Password</span>
+              <span className="relative block">
+                <Key className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  value={pwForm.password_confirmation}
+                  onChange={(event) => setPwForm({ ...pwForm, password_confirmation: event.target.value })}
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 pr-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                />
+              </span>
+            </label>
 
-        {activeSection === 'organization' && (
-          <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-            <h2 className="text-lg font-bold text-[#0F172A] mb-6">Organization Profile</h2>
-            <form className="space-y-4" onSubmit={(e) => e.preventDefault()}>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Organization Name</label>
-                <input type="text" defaultValue="HIUSA" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Description</label>
-                <textarea rows={3} defaultValue="Official student council organization managing student governance, events, elections, and services." className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none" />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Academic Year</label>
-                  <input type="text" defaultValue="2025-2026" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">School</label>
-                  <input type="text" defaultValue="University" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
-                </div>
-              </div>
-              <div className="flex justify-end pt-2">
-                <button type="submit" className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition">
-                  <Save size={15} /> Save Changes
-                </button>
-              </div>
-            </form>
-          </section>
-        )}
+            {pwError && <p className="text-xs font-semibold text-red-600">{pwError}</p>}
 
-        {activeSection === 'security' && (
-          <section className="space-y-6">
-            <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-[#0F172A] mb-6">Change Password</h2>
-              <form className="space-y-4 max-w-md" onSubmit={handlePasswordSave}>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Current Password</label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><Lock size={16} /></div>
-                    <input
-                      type={showPassword ? 'text' : 'password'}
-                      value={pwForm.current_password}
-                      onChange={(e) => setPwForm({ ...pwForm, current_password: e.target.value })}
-                      placeholder="••••••••"
-                      className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 pr-10 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                    />
-                    <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-[#0B8ED0]">
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">New Password</label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><Key size={16} /></div>
-                    <input
-                      type="password"
-                      value={pwForm.password}
-                      onChange={(e) => setPwForm({ ...pwForm, password: e.target.value })}
-                      placeholder="••••••••"
-                      className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                    />
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Confirm New Password</label>
-                  <div className="relative">
-                    <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3 text-slate-400"><Key size={16} /></div>
-                    <input
-                      type="password"
-                      value={pwForm.password_confirmation}
-                      onChange={(e) => setPwForm({ ...pwForm, password_confirmation: e.target.value })}
-                      placeholder="••••••••"
-                      className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-10 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                    />
-                  </div>
-                </div>
-                {pwError && <p className="text-xs text-red-600">{pwError}</p>}
-                {pwSuccess && <p className="text-xs font-semibold text-emerald-600">Password updated successfully.</p>}
-                <button
-                  type="submit"
-                  disabled={pwSaving}
-                  className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
-                >
-                  <Lock size={15} />
-                  {pwSaving ? 'Updating...' : 'Update Password'}
-                </button>
-              </form>
-            </div>
-
-            <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-[#0F172A] mb-4">Two-Factor Authentication</h2>
-              <div className="flex items-center justify-between rounded-lg bg-[#F8FBFD] p-4">
-                <div className="flex items-center gap-3">
-                  <Shield size={20} className="text-[#0B8ED0]" />
-                  <div>
-                    <p className="text-sm font-bold text-[#0F172A]">Two-Factor Authentication</p>
-                    <p className="text-xs font-medium text-slate-500">Add an extra layer of security</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex cursor-pointer items-center">
-                  <input type="checkbox" className="sr-only peer" />
-                  <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-[#0B8ED0] after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full after:shadow-sm" />
-                </label>
-              </div>
-            </div>
-          </section>
-        )}
-
-        {activeSection === 'preferences' && (
-          <section className="space-y-6">
-            <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-[#0F172A] mb-4">Notification Preferences</h2>
-              <div className="space-y-3">
-                {[
-                  { label: 'Election updates', desc: 'Get notified about voting periods and results' },
-                  { label: 'Task assignments', desc: 'New tasks assigned to you or your team' },
-                  { label: 'Event reminders', desc: 'Upcoming events and attendance alerts' },
-                  { label: 'Announcements', desc: 'New posts and important updates' },
-                ].map((pref) => (
-                  <div key={pref.label} className="flex items-center justify-between rounded-lg bg-[#F8FBFD] p-4">
-                    <div>
-                      <p className="text-sm font-bold text-[#0F172A]">{pref.label}</p>
-                      <p className="text-xs font-medium text-slate-500">{pref.desc}</p>
-                    </div>
-                    <label className="relative inline-flex cursor-pointer items-center">
-                      <input type="checkbox" defaultChecked className="sr-only peer" />
-                      <div className="h-6 w-11 rounded-full bg-slate-200 peer-checked:bg-[#0B8ED0] after:absolute after:left-[2px] after:top-0.5 after:h-5 after:w-5 after:rounded-full after:bg-white after:transition-all peer-checked:after:translate-x-full after:shadow-sm" />
-                    </label>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-              <h2 className="text-lg font-bold text-[#0F172A] mb-4">Appearance</h2>
-              <div className="flex gap-3">
-                <button className="flex flex-1 items-center justify-center gap-2 rounded-lg border-2 border-[#0B8ED0] bg-[#E6F6FD] p-4 text-sm font-bold text-[#0B8ED0]">
-                  <Sun size={18} /> Light
-                </button>
-                <button className="flex flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white p-4 text-sm font-bold text-slate-500 hover:bg-[#F8FBFD] transition">
-                  <Moon size={18} /> Dark
-                </button>
-              </div>
-            </div>
-          </section>
-        )}
+            <button
+              type="submit"
+              disabled={pwSaving}
+              className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+            >
+              <Lock size={15} />
+              {pwSaving ? 'Updating...' : 'Update Password'}
+            </button>
+          </form>
+        </section>
       </div>
     </div>
   );

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, X, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine } from 'lucide-react';
-import { createElection, getElections, updateElection } from '../../services/electionService';
-import PaginationControls from '../../components/PaginationControls';
+import { createElection, getElections, updateElection } from '../../../services/electionService';
+import PaginationControls from '../../../components/PaginationControls';
 
 const statusStyles = {
   pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -67,7 +67,8 @@ export default function ElectionPickerPage({ onSelect }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const role = currentUser?.role || 'SBO_OFFICER';
-  const canManageElections = currentUser?.role === 'ADMIN' || currentUser?.role === 'SBO_OFFICER';
+  const canManageElections = currentUser?.role === 'ADMIN';
+  const canManageCandidates = currentUser?.role === 'ADMIN' || currentUser?.role === 'SBO_OFFICER';
   const [showCreate, setShowCreate] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [elections, setElections] = useState([]);
@@ -81,7 +82,7 @@ export default function ElectionPickerPage({ onSelect }) {
     title: '',
     start_time: '',
     end_time: '',
-    status: 'upcoming',
+    status: 'pending_approval',
   });
   const [editForm, setEditForm] = useState({
     id: null,
@@ -101,7 +102,7 @@ export default function ElectionPickerPage({ onSelect }) {
         if (!cancelled) {
           setElections(Array.isArray(data) ? data : []);
         }
-      } catch (loadError) {
+      } catch {
         if (!cancelled) {
           setError('Unable to load elections.');
         }
@@ -127,7 +128,7 @@ export default function ElectionPickerPage({ onSelect }) {
       const created = await createElection(form);
       setElections((current) => [created, ...current]);
       setShowCreate(false);
-      setForm({ title: '', start_time: '', end_time: '', status: 'upcoming' });
+      setForm({ title: '', start_time: '', end_time: '', status: 'pending_approval' });
       setError('');
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to create election.');
@@ -306,7 +307,7 @@ export default function ElectionPickerPage({ onSelect }) {
             )}
             <div>
               <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">
-                Initial Status
+                Approval
               </label>
               <div className="relative">
                 <select
@@ -314,8 +315,7 @@ export default function ElectionPickerPage({ onSelect }) {
                   onChange={(e) => setForm({ ...form, status: e.target.value })}
                   className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 >
-                  <option value="upcoming">Upcoming</option>
-                  <option value="active">Active</option>
+                  <option value="pending_approval">Submit for Approval</option>
                 </select>
                 <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
@@ -326,7 +326,7 @@ export default function ElectionPickerPage({ onSelect }) {
                 disabled={!form.title || !form.start_time || !form.end_time}
                 className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
               >
-                Create Election
+                Submit Election
               </button>
               <button
                 type="button"
@@ -421,7 +421,7 @@ export default function ElectionPickerPage({ onSelect }) {
 
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex flex-wrap items-center gap-2">
-                    {canManageElections && (
+                    {canManageCandidates && (
                       <button
                         type="button"
                         onClick={() => openElectionAndGo(el.id, '/dashboard/elections/manage-candidates')}
@@ -431,7 +431,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       </button>
                     )}
 
-                    {role !== 'STUDENT' && (
+                    {(role !== 'STUDENT' || el.status === 'closed' || el.results_visible) && (
                       <button
                         type="button"
                         onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
@@ -487,7 +487,7 @@ export default function ElectionPickerPage({ onSelect }) {
                         return;
                       }
 
-                      if (role === 'STUDENT') {
+                      if (role === 'STUDENT' && el.status === 'active') {
                         openElectionAndGo(el.id, '/dashboard/elections/cast-vote');
                         return;
                       }

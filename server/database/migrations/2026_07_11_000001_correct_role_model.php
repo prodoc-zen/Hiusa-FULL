@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('role_new', 20)->default('STUDENT')->after('role');
         });
 
-        DB::table('users')->where('role', 'adviser')->update(['role_new' => 'ADMIN', 'position_title' => 'Adviser']);
+        DB::table('users')->where('role', 'adviser')->update(['role_new' => 'DEPARTMENT_HEAD', 'position_title' => 'Adviser']);
         DB::table('users')->where('role', 'officer')->update(['role_new' => 'SBO_OFFICER']);
         DB::table('users')->where('role', 'admin')->update(['role_new' => 'ADMIN']);
         DB::table('users')->where('role', 'student')->update(['role_new' => 'STUDENT']);
@@ -37,7 +37,7 @@ return new class extends Migration
             $table->string('target_role_new', 20)->default('all')->after('target_role');
         });
 
-        DB::table('announcements')->where('target_role', 'adviser')->update(['target_role_new' => 'ADMIN']);
+        DB::table('announcements')->where('target_role', 'adviser')->update(['target_role_new' => 'DEPARTMENT_HEAD']);
         DB::table('announcements')->where('target_role', 'officer')->update(['target_role_new' => 'SBO_OFFICER']);
         DB::table('announcements')->where('target_role', 'admin')->update(['target_role_new' => 'ADMIN']);
         DB::table('announcements')->where('target_role', 'student')->update(['target_role_new' => 'STUDENT']);

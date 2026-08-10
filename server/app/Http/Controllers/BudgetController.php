@@ -18,25 +18,29 @@ class BudgetController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
+        $this->attachApprovalInfo($budgets);
+
         return response()->json($budgets);
     }
 
     public function store(Request $request)
     {
         $data = $request->validate([
-            'title'              => ['required', 'string', 'max:255'],
-            'allocated_amount'   => ['required', 'numeric', 'min:0'],
-            'warning_threshold'  => ['required', 'numeric', 'min:0'],
-            'event_id'           => ['nullable', 'exists:events,id'],
+            'title' => ['required', 'string', 'max:255'],
+            'allocated_amount' => ['required', 'numeric', 'min:0'],
+            'warning_threshold' => ['required', 'numeric', 'min:0'],
+            'event_id' => ['nullable', 'exists:events,id'],
+            'advisory_note' => ['nullable', 'string'],
+            'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
 
-        if (!empty($data['event_id']) && !Event::where('organization_id', $request->user()->organization_id)->where('id', $data['event_id'])->exists()) {
+        if (! $this->eventBelongsToOrganization($request, $data['event_id'] ?? null)) {
             return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
         }
 
         $budget = Budget::create([
             ...$data,
-            'status' => 'pending',
+            'remaining_amount' => $data['allocated_amount'],
             'organization_id' => $request->user()->organization_id,
         ]);
 
@@ -44,19 +48,11 @@ class BudgetController extends Controller
             'organization_id' => $request->user()->organization_id,
             'entity_type' => 'budget',
             'entity_id' => $budget->id,
-            'title' => $budget->title,
-            'summary' => [
-                'allocated_amount' => $budget->allocated_amount,
-                'warning_threshold' => $budget->warning_threshold,
-                'event_id' => $budget->event_id,
-            ],
             'requested_by' => $request->user()->id,
+            'required_role' => $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD',
         ]);
 
-        return response()->json(
-            $budget->load('event:id,title'),
-            201
-        );
+        return response()->json($budget->load('event:id,title'), 201);
     }
 
     public function update(Request $request, $id)
@@ -68,14 +64,22 @@ class BudgetController extends Controller
         }
 
         $data = $request->validate([
-            'title'             => ['sometimes', 'required', 'string', 'max:255'],
-            'allocated_amount'  => ['sometimes', 'required', 'numeric', 'min:0'],
+            'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'allocated_amount' => ['sometimes', 'required', 'numeric', 'min:0'],
             'warning_threshold' => ['sometimes', 'required', 'numeric', 'min:0'],
-            'event_id'          => ['nullable', 'exists:events,id'],
+            'event_id' => ['nullable', 'exists:events,id'],
+            'advisory_note' => ['nullable', 'string'],
+            'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
 
-        if (!empty($data['event_id']) && !Event::where('organization_id', $request->user()->organization_id)->where('id', $data['event_id'])->exists()) {
+        if (! $this->eventBelongsToOrganization($request, $data['event_id'] ?? null)) {
             return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
+        }
+
+        if (array_key_exists('allocated_amount', $data)) {
+            $spent = $budget->transactions()->where('type', 'expense')->sum('amount');
+            $income = $budget->transactions()->where('type', 'income')->sum('amount');
+            $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
         }
 
         $budget->update($data);
@@ -83,13 +87,9 @@ class BudgetController extends Controller
         ApprovalRequest::where('entity_type', 'budget')
             ->where('entity_id', $budget->id)
             ->where('status', 'rejected')
-            ->update([
-                'status' => 'pending',
-                'reviewed_by' => null,
-                'reviewed_at' => null,
-                'remarks' => null,
-                'requested_at' => now(),
-            ]);
+            ->where('organization_id', $budget->organization_id)
+            ->get()
+            ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
 
         return response()->json($budget->fresh()->load('event:id,title'));
     }
@@ -111,5 +111,30 @@ class BudgetController extends Controller
         $budget->delete();
 
         return response()->json(['message' => 'Budget deleted successfully.']);
+    }
+
+    private function eventBelongsToOrganization(Request $request, mixed $eventId): bool
+    {
+        if (empty($eventId)) {
+            return true;
+        }
+
+        return Event::where('organization_id', $request->user()->organization_id)
+            ->where('id', $eventId)
+            ->exists();
+    }
+
+    private function attachApprovalInfo($budgets): void
+    {
+        $approvals = ApprovalRequest::where('entity_type', 'budget')
+            ->whereIn('entity_id', $budgets->pluck('id'))
+            ->get()
+            ->keyBy('entity_id');
+
+        foreach ($budgets as $budget) {
+            $approval = $approvals->get($budget->id);
+            $budget->approval_status = $approval?->status;
+            $budget->approval_remarks = $approval?->remarks;
+        }
     }
 }

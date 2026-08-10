@@ -13,7 +13,7 @@ use Laravel\Sanctum\HasApiTokens;
 class User extends Authenticatable
 {
     /** @use HasFactory<UserFactory> */
-    use HasFactory, Notifiable, HasApiTokens;
+    use HasApiTokens, HasFactory, Notifiable;
 
     protected $authPasswordName = 'password_hash';
 
@@ -33,8 +33,11 @@ class User extends Authenticatable
         'email',
         'password_hash',
         'role',
+        'account_status',
+        'position_title',
         'is_member',
         'biometric_template',
+        'notification_preferences',
     ];
 
     protected $with = ['organization:id,name,slug,college,acronym'];
@@ -50,7 +53,9 @@ class User extends Authenticatable
     {
         return [
             'school_id' => 'integer',
+            'is_member' => 'boolean',
             'password_hash' => 'hashed',
+            'notification_preferences' => 'array',
         ];
     }
 
@@ -61,7 +66,7 @@ class User extends Authenticatable
 
     public function announcements(): HasMany
     {
-        return $this->hasMany(Announcement::class, 'created_by');
+        return $this->hasMany(Announcement::class, 'created_by', 'school_id');
     }
 
     public function organization(): BelongsTo
@@ -71,56 +76,56 @@ class User extends Authenticatable
 
     public function events(): HasMany
     {
-        return $this->hasMany(Event::class, 'created_by');
+        return $this->hasMany(Event::class, 'created_by', 'school_id');
     }
 
     public function createdTasks(): HasMany
     {
-        return $this->hasMany(Task::class, 'created_by');
+        return $this->hasMany(Task::class, 'created_by', 'school_id');
     }
 
     public function assignedTasks(): HasMany
     {
-        return $this->hasMany(Task::class, 'assigned_to');
+        return $this->hasMany(Task::class, 'assigned_to', 'school_id');
     }
 
     public function attendanceRecords(): HasMany
     {
-        return $this->hasMany(Attendance::class);
+        return $this->hasMany(Attendance::class, 'user_id', 'school_id');
     }
 
     public function recordedTransactions(): HasMany
     {
-        return $this->hasMany(Transaction::class, 'recorded_by');
+        return $this->hasMany(Transaction::class, 'recorded_by', 'school_id');
     }
 
     public function orders(): HasMany
     {
-        return $this->hasMany(Order::class, 'student_id');
+        return $this->hasMany(Order::class, 'student_id', 'school_id');
     }
 
     public function processedOrders(): HasMany
     {
-        return $this->hasMany(Order::class, 'processed_by');
+        return $this->hasMany(Order::class, 'processed_by', 'school_id');
     }
 
     public function approvedOrders(): HasMany
     {
-        return $this->hasMany(Order::class, 'approved_by');
+        return $this->hasMany(Order::class, 'approved_by', 'school_id');
     }
 
     public function candidacies(): HasMany
     {
-        return $this->hasMany(Candidate::class);
+        return $this->hasMany(Candidate::class, 'user_id', 'school_id');
     }
 
     public function votes(): HasMany
     {
-        return $this->hasMany(Vote::class, 'voter_id');
+        return $this->hasMany(Vote::class, 'voter_id', 'school_id');
     }
 
     public function systemNotifications(): HasMany
     {
-        return $this->hasMany(Notification::class);
+        return $this->hasMany(Notification::class, 'user_id', 'school_id');
     }
 }

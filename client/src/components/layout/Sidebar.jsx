@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BarChart3, CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, Users, Vote, X } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, Users, Vote, X } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 
@@ -35,56 +35,61 @@ const NAV_STRUCTURE = [
     id: 'approvals',
     label: 'Approvals',
     icon: ClipboardCheck,
-    path: '/dashboard/department-head/approvals',
-    roles: ['DEPARTMENT_HEAD'],
+    rolePaths: {
+      ADMIN: '/dashboard/approvals',
+      DEPARTMENT_HEAD: '/dashboard/department-head/approvals',
+    },
+    roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
   {
     id: 'announcements',
     label: 'Announcements',
     icon: Megaphone,
-    roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'],
+    roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
       { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
+      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
     id: 'elections',
     label: 'Elections',
     icon: Vote,
-    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
-      { id: 'manage-elections', label: 'Manage Election', path: '/dashboard/elections/manage-elections', roles: ['SBO_OFFICER'] },
-      { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['SBO_OFFICER'] },
+      { id: 'manage-elections', label: 'Manage Election', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
+      { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'manage-voters', label: 'Voters', path: '/dashboard/elections/manage-voters', roles: ['SBO_OFFICER'] },
-      { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['SBO_OFFICER'] },
-      { id: 'cast-vote', label: 'Cast Vote', path: '/dashboard/elections/cast-vote', roles: ['STUDENT'] },
-      { id: 'election-results', label: 'Results', path: '/dashboard/elections/election-results', roles: ['SBO_OFFICER', 'ADMIN'] },
+      { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['ADMIN'] },
+      { id: 'cast-vote', label: 'Cast Vote', path: '/dashboard/elections/cast-vote', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'election-results', label: 'Results', path: '/dashboard/elections/election-results', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
   {
     id: 'events',
     label: 'Events',
     icon: CalendarDays,
-    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
-      { id: 'manage-events', label: 'Manage Events', path: '/dashboard/events/manage-events', roles: ['SBO_OFFICER'] },
-      { id: 'event-planner', label: 'Event Planner', path: '/dashboard/events/event-planner', roles: ['SBO_OFFICER'] },
+      { id: 'manage-events', label: 'Manage Events', path: '/dashboard/events/manage-events', roles: ['ADMIN'] },
+      { id: 'event-planner', label: 'Event Planner', path: '/dashboard/events/event-planner', roles: ['ADMIN'] },
       { id: 'event-operations', label: 'Event Operations', path: '/dashboard/events/event-operations', roles: ['SBO_OFFICER', 'ADMIN'] },
-      { id: 'activity-calendar', label: 'Activity Calendar', path: '/dashboard/events/activity-calendar', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'] },
+      { id: 'check-in', label: 'Check In', path: '/dashboard/events/check-in', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'activity-calendar', label: 'Activity Calendar', path: '/dashboard/events/activity-calendar', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
     id: 'financial',
     label: 'Financial',
     icon: Coins,
-    roles: ['SBO_OFFICER', 'ADMIN'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
-      { id: 'financial-ledger', label: 'Digital Ledger', path: '/dashboard/finance/financial-ledger', roles: ['SBO_OFFICER', 'ADMIN'] },
-      { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['SBO_OFFICER', 'ADMIN'] },
+      { id: 'financial-ledger', label: 'Digital Ledger', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN'] },
+      { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
       { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['SBO_OFFICER', 'ADMIN'] },
-      { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['SBO_OFFICER', 'ADMIN'] },
+      { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
+      { id: 'personal-receipts', label: 'My Receipts', path: '/dashboard/finance/personal-receipts', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
   {
@@ -93,23 +98,24 @@ const NAV_STRUCTURE = [
     icon: CheckSquare,
     roles: ['SBO_OFFICER', 'ADMIN'],
     children: [
-      { id: 'task-board', label: 'Task Board', path: '/dashboard/tasks/task-board', roles: ['SBO_OFFICER'] },
-      { id: 'create-task', label: 'Create Task', path: '/dashboard/tasks/create-task', roles: ['SBO_OFFICER'] },
-      { id: 'task-progress', label: 'Monitor Progress', path: '/dashboard/tasks/task-progress', roles: ['SBO_OFFICER', 'ADMIN'] },
+      { id: 'task-board', label: 'Task Board', path: '/dashboard/tasks/task-board', roles: ['ADMIN'] },
+      { id: 'create-task', label: 'Create Task', path: '/dashboard/tasks/create-task', roles: ['ADMIN'] },
+      { id: 'assigned-tasks', label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', roles: ['SBO_OFFICER'] },
+      { id: 'task-progress', label: 'Monitor Progress', path: '/dashboard/tasks/task-progress', roles: ['ADMIN'] },
     ],
   },
   {
     id: 'merchandise',
     label: 'Merchandise',
     icon: Package,
-    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
-      { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['SBO_OFFICER', 'ADMIN'] },
-      { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['SBO_OFFICER'] },
-      { id: 'claim-tokens', label: 'Issue Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['SBO_OFFICER'] },
-      { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['STUDENT'] },
-      { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['STUDENT'] },
-      { id: 'student-claim-tokens', label: 'Claim Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['STUDENT'] },
+      { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
+      { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'claim-tokens', label: 'Validate Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'student-claim-tokens', label: 'Claim Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
 ];

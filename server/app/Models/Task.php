@@ -17,6 +17,12 @@ class Task extends Model
     {
         return [
             'deadline' => 'datetime',
+            'is_ai_generated' => 'boolean',
+            'role_score' => 'decimal:2',
+            'workload_score' => 'decimal:2',
+            'performance_score' => 'decimal:2',
+            'final_score' => 'decimal:2',
+            'completed_at' => 'datetime',
         ];
     }
 
@@ -27,11 +33,11 @@ class Task extends Model
 
     public function creator(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'created_by');
+        return $this->belongsTo(User::class, 'created_by', 'school_id');
     }
 
     public function assignee(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'assigned_to');
+        return $this->belongsTo(User::class, 'assigned_to', 'school_id');
     }
 }
