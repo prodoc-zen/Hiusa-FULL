@@ -188,6 +188,16 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election must be approved before it can be opened.'], 422);
         }
 
+        if ($election->votes()->exists() && count(array_intersect(array_keys($data), ['title', 'start_time', 'end_time'])) > 0) {
+            return response()->json(['message' => 'Election details cannot be changed after votes have been cast.'], 409);
+        }
+
+        if ($election->approved_at && $this->hasMaterialElectionChange($data)) {
+            $data['status'] = 'pending_approval';
+            $data['approved_at'] = null;
+            $this->reopenApproval($election, $request);
+        }
+
         $election->update($data);
 
         ApprovalRequest::where('entity_type', 'election')
@@ -198,6 +208,33 @@ class ElectionController extends Controller
             ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
 
         return response()->json($election->fresh());
+    }
+
+    private function hasMaterialElectionChange(array $data): bool
+    {
+        return count(array_intersect(array_keys($data), [
+            'title',
+            'start_time',
+            'end_time',
+        ])) > 0;
+    }
+
+    private function reopenApproval(Election $election, Request $request): void
+    {
+        ApprovalRequest::where('entity_type', 'election')
+            ->where('entity_id', $election->id)
+            ->where('organization_id', $election->organization_id)
+            ->latest('id')
+            ->first()
+            ?->update([
+                'status' => 'pending',
+                'requested_by' => $request->user()->id,
+                'required_role' => 'DEPARTMENT_HEAD',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'remarks' => null,
+                'requested_at' => now(),
+            ]);
     }
 
     public function destroy(Request $request, $id)

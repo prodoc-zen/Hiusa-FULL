@@ -208,13 +208,13 @@ class TransactionController extends Controller
             $budgetExists = Budget::where('organization_id', $organizationId)
                 ->where('id', $data['budget_id'])
                 ->exists();
-            $budgetApproved = ApprovalRequest::where('organization_id', $organizationId)
+            $latestApproval = ApprovalRequest::where('organization_id', $organizationId)
                 ->where('entity_type', 'budget')
                 ->where('entity_id', $data['budget_id'])
-                ->where('status', 'approved')
-                ->exists();
+                ->latest('id')
+                ->first();
 
-            if (! $budgetExists || ! $budgetApproved) {
+            if (! $budgetExists || $latestApproval?->status !== 'approved') {
                 return false;
             }
         }

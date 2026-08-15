@@ -60,7 +60,7 @@ return new class extends Migration
     /**
      * Lossy: former-adviser users were merged into 'ADMIN' with
      * position_title = 'Adviser' in up(), so down() cannot tell them apart
-     * from originally-seeded admins — both map back to 'admin'. Any
+     * from originally-seeded admins - both map back to 'admin'. Any
      * 'DEPARTMENT_HEAD' users created after this migration have no
      * equivalent in the old 4-role model and also become 'admin'.
      */

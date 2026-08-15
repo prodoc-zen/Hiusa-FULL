@@ -82,6 +82,10 @@ class BudgetController extends Controller
             $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
         }
 
+        if ($this->hasApprovedApproval($budget) && $this->hasMaterialBudgetChange($data)) {
+            $this->reopenApproval($budget, $request);
+        }
+
         $budget->update($data);
 
         ApprovalRequest::where('entity_type', 'budget')
@@ -128,6 +132,7 @@ class BudgetController extends Controller
     {
         $approvals = ApprovalRequest::where('entity_type', 'budget')
             ->whereIn('entity_id', $budgets->pluck('id'))
+            ->orderBy('id')
             ->get()
             ->keyBy('entity_id');
 
@@ -136,5 +141,44 @@ class BudgetController extends Controller
             $budget->approval_status = $approval?->status;
             $budget->approval_remarks = $approval?->remarks;
         }
+    }
+
+    private function hasApprovedApproval(Budget $budget): bool
+    {
+        return ApprovalRequest::where('entity_type', 'budget')
+            ->where('entity_id', $budget->id)
+            ->where('organization_id', $budget->organization_id)
+            ->where('status', 'approved')
+            ->exists();
+    }
+
+    private function hasMaterialBudgetChange(array $data): bool
+    {
+        return count(array_intersect(array_keys($data), [
+            'title',
+            'allocated_amount',
+            'warning_threshold',
+            'event_id',
+            'advisory_note',
+            'overspending_risk',
+        ])) > 0;
+    }
+
+    private function reopenApproval(Budget $budget, Request $request): void
+    {
+        ApprovalRequest::where('entity_type', 'budget')
+            ->where('entity_id', $budget->id)
+            ->where('organization_id', $budget->organization_id)
+            ->latest('id')
+            ->first()
+            ?->update([
+                'status' => 'pending',
+                'requested_by' => $request->user()->id,
+                'required_role' => $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'remarks' => null,
+                'requested_at' => now(),
+            ]);
     }
 }

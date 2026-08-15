@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AlertCircle, Check, CheckCircle, ChevronLeft, ChevronRight, Eye, ShieldCheck, Vote } from 'lucide-react';
 import { castVotes } from '../../../services/electionService';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 function Avatar({ name, size = 'sm' }) {
   const safeName = name || 'Candidate';
@@ -99,7 +100,7 @@ export default function CastVotePage() {
       <div className="max-w-2xl mx-auto space-y-5 px-4 sm:px-0">
         <div className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-6">
           <h2 className="text-base font-extrabold text-slate-800">Live Standings</h2>
-          <p className="text-xs text-slate-500 mt-1">{Object.values(election.vote_counts || {}).reduce((s, c) => s + c, 0) || (election.votes || []).length} votes counted · {groupedPositions.length} positions</p>
+          <p className="text-xs text-slate-500 mt-1">{Object.values(election.vote_counts || {}).reduce((s, c) => s + c, 0) || (election.votes || []).length} votes counted - {groupedPositions.length} positions</p>
         </div>
 
         {groupedPositions.map((entry) => {
@@ -125,7 +126,7 @@ export default function CastVotePage() {
                       <div className="flex items-center justify-between mb-1.5">
                         <div className="flex items-center gap-2">
                           {candidate.image_url
-                            ? <img src={candidate.image_url} alt={candidateName} className="h-7 w-7 shrink-0 rounded-full object-cover border border-[#DDE7EF]" />
+                            ? <img src={resolveAssetUrl(candidate.image_url)} alt={candidateName} className="h-7 w-7 shrink-0 rounded-full object-cover border border-[#DDE7EF]" />
                             : <Avatar name={candidateName || 'Candidate'} size="sm" />
                           }
                           <div>
@@ -133,7 +134,7 @@ export default function CastVotePage() {
                             <p className="text-[10px] text-slate-500">{candidate.partylist?.name || 'Independent'}</p>
                           </div>
                         </div>
-                        <p className="text-xs font-bold text-[#0B8ED0]">{votesCount} · {pct}%</p>
+                        <p className="text-xs font-bold text-[#0B8ED0]">{votesCount} - {pct}%</p>
                       </div>
                       <div className="w-full bg-blue-100 rounded-full h-2.5">
                         <div className="h-2.5 rounded-full bg-[#0B8ED0]" style={{ width: `${pct}%` }} />
@@ -294,7 +295,7 @@ export default function CastVotePage() {
                 className={`w-full flex items-center gap-4 p-4 rounded-xl border-2 transition-all text-left ${selected ? 'border-[#0B8ED0] bg-blue-50 shadow-md' : 'border-[#DDE7EF] bg-white hover:border-[#0B8ED0]/40'}`}
               >
                 {candidate.image_url
-                  ? <img src={candidate.image_url} alt={candidateName} className="h-11 w-11 shrink-0 rounded-full object-cover border border-[#DDE7EF]" />
+                  ? <img src={resolveAssetUrl(candidate.image_url)} alt={candidateName} className="h-11 w-11 shrink-0 rounded-full object-cover border border-[#DDE7EF]" />
                   : <Avatar name={candidateName || 'Candidate'} size="md" />
                 }
                 <div className="flex-1">

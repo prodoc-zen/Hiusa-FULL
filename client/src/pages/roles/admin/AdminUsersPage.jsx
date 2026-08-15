@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, UserPlus, UserX, X } from 'lucide-react';
-import { createUser, disableUser, getUsers, updateUser } from '../../../services/userService';
+import { PencilLine, UserCheck, UserPlus, UserX } from 'lucide-react';
+import ConfirmModal from '../../../components/ConfirmModal';
+import FeedbackToast from '../../../components/FeedbackToast';
+import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
+import { createUser, disableUser, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 
 const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const ROLE_LABELS = {
@@ -22,36 +25,62 @@ const SBO_POSITIONS = [
   'Representative',
 ];
 
+const emptyCreateForm = {
+  school_id: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  role: 'STUDENT',
+  position_title: '',
+  password: '',
+  password_confirmation: '',
+};
+
+const emptyEditForm = {
+  school_id: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  role: 'STUDENT',
+  position_title: '',
+};
+
+function Field({ label, children, error }) {
+  return (
+    <label className="block">
+      <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">{label}</span>
+      {children}
+      {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
+    </label>
+  );
+}
+
+function firstError(error) {
+  const errors = error?.response?.data?.errors;
+  if (errors) {
+    return Object.values(errors).flat()[0];
+  }
+
+  return error?.response?.data?.message;
+}
+
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
-  const [showEdit, setShowEdit] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [disableTarget, setDisableTarget] = useState(null);
+  const [reactivateTarget, setReactivateTarget] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [page, setPage] = useState(1);
   const pageSize = 10;
 
-  const [createForm, setCreateForm] = useState({
-    school_id: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    role: 'STUDENT',
-    position_title: '',
-    password: '',
-    password_confirmation: '',
-  });
-
-  const [editForm, setEditForm] = useState({
-    school_id: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    role: 'STUDENT',
-    position_title: '',
-  });
+  const [createForm, setCreateForm] = useState(emptyCreateForm);
+  const [editForm, setEditForm] = useState(emptyEditForm);
 
   useEffect(() => {
     let cancelled = false;
@@ -79,10 +108,11 @@ export default function AdminUsersPage() {
   const filtered = useMemo(() => {
     return users.filter((user) => {
       const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
+      const query = search.toLowerCase();
       const matchesSearch =
-        fullName.includes(search.toLowerCase()) ||
-        String(user.school_id ?? '').toLowerCase().includes(search.toLowerCase()) ||
-        user.email.toLowerCase().includes(search.toLowerCase());
+        fullName.includes(query) ||
+        String(user.school_id ?? '').toLowerCase().includes(query) ||
+        user.email.toLowerCase().includes(query);
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       return matchesSearch && matchesRole;
     });
@@ -102,32 +132,16 @@ export default function AdminUsersPage() {
     setUsers(Array.isArray(rows) ? rows : []);
   };
 
-  const handleCreate = async (event) => {
-    event.preventDefault();
-    setError('');
+  const openCreate = () => {
+    setCreateForm(emptyCreateForm);
+    setModalError('');
+    setShowCreate(true);
+  };
 
-    try {
-      await createUser({
-        ...createForm,
-        position_title: createForm.role === 'SBO_OFFICER' ? createForm.position_title : '',
-      });
-    } catch (createError) {
-      setError(createError?.response?.data?.message || 'Unable to create user.');
-      return;
-    }
-
+  const closeCreate = () => {
+    if (busy) return;
     setShowCreate(false);
-    setCreateForm({
-      school_id: '',
-      first_name: '',
-      last_name: '',
-      email: '',
-      role: 'STUDENT',
-      position_title: '',
-      password: '',
-      password_confirmation: '',
-    });
-    try { await refreshUsers(); } catch {}
+    setModalError('');
   };
 
   const openEdit = (user) => {
@@ -140,51 +154,169 @@ export default function AdminUsersPage() {
       role: user.role,
       position_title: user.position_title || '',
     });
-    setShowEdit(true);
+    setModalError('');
+  };
+
+  const closeEdit = () => {
+    if (busy) return;
+    setSelectedUser(null);
+    setModalError('');
+  };
+
+  const handleCreate = async (event) => {
+    event.preventDefault();
+    setModalError('');
+    setBusy(true);
+
+    try {
+      await createUser({
+        ...createForm,
+        position_title: createForm.role === 'SBO_OFFICER' ? createForm.position_title : '',
+      });
+      setShowCreate(false);
+      setCreateForm(emptyCreateForm);
+      await refreshUsers();
+      setFeedback({ open: true, type: 'success', message: 'User account created.' });
+    } catch (createError) {
+      setModalError(firstError(createError) || 'Unable to create user.');
+    } finally {
+      setBusy(false);
+    }
   };
 
   const handleEdit = async (event) => {
     event.preventDefault();
     if (!selectedUser) return;
 
-    setError('');
+    setModalError('');
+    setBusy(true);
+
     try {
+      const editableFields = { ...editForm };
+      delete editableFields.school_id;
       await updateUser(selectedUser.id, {
-        ...editForm,
+        ...editableFields,
         position_title: editForm.role === 'SBO_OFFICER' ? editForm.position_title : '',
       });
+      setSelectedUser(null);
+      await refreshUsers();
+      setFeedback({ open: true, type: 'success', message: 'User account updated.' });
     } catch (updateError) {
-      setError(updateError?.response?.data?.message || 'Unable to update user.');
-      return;
+      setModalError(firstError(updateError) || 'Unable to update user.');
+    } finally {
+      setBusy(false);
     }
-    setShowEdit(false);
-    setSelectedUser(null);
-    try { await refreshUsers(); } catch {}
   };
 
-  const handleDisable = async (user) => {
-    const confirmed = window.confirm(`Deactivate ${user.first_name} ${user.last_name}? This will update the account status and sign the user out of active sessions.`);
-    if (!confirmed) return;
+  const handleReactivate = async () => {
+    if (!reactivateTarget) return;
 
     setError('');
+    setBusy(true);
+
     try {
-      await disableUser(user.id);
-      try { await refreshUsers(); } catch {}
-    } catch (disableError) {
-      setError(disableError?.response?.data?.message || 'Unable to disable user.');
+      await reactivateUser(reactivateTarget.id);
+      await refreshUsers();
+      setFeedback({ open: true, type: 'success', message: `${reactivateTarget.first_name} ${reactivateTarget.last_name} was reactivated.` });
+      setReactivateTarget(null);
+    } catch (reactivateError) {
+      setError(firstError(reactivateError) || 'Unable to reactivate user.');
+    } finally {
+      setBusy(false);
     }
   };
+
+  const handleDisable = async () => {
+    if (!disableTarget) return;
+
+    setError('');
+    setBusy(true);
+
+    try {
+      await disableUser(disableTarget.id);
+      await refreshUsers();
+      setFeedback({ open: true, type: 'success', message: `${disableTarget.first_name} ${disableTarget.last_name} was deactivated.` });
+      setDisableTarget(null);
+    } catch (disableError) {
+      setError(firstError(disableError) || 'Unable to disable user.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const userForm = (form, setForm, mode) => (
+    <form id={`${mode}-user-form`} onSubmit={mode === 'create' ? handleCreate : handleEdit} className="grid gap-3 sm:grid-cols-2">
+      <Field label="School ID">
+        <input
+          type="number"
+          min="1"
+          max="99999999"
+          value={form.school_id}
+          onChange={(event) => mode === 'create' && setForm({ ...form, school_id: event.target.value })}
+          required
+          readOnly={mode === 'edit'}
+          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 read-only:bg-slate-100 read-only:text-slate-500 read-only:focus:border-[#DDE7EF] read-only:focus:ring-0"
+        />
+      </Field>
+      <Field label="Email">
+        <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="First Name">
+        <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="Last Name">
+        <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="Role">
+        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? form.position_title : '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+          {roles.map((role) => (
+            <option key={role} value={role}>{ROLE_LABELS[role]}</option>
+          ))}
+        </select>
+      </Field>
+      <Field label="SBO Position">
+        <select
+          value={form.position_title}
+          onChange={(event) => setForm({ ...form, position_title: event.target.value })}
+          disabled={form.role !== 'SBO_OFFICER'}
+          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
+        >
+          <option value="">Assign SBO position</option>
+          {SBO_POSITIONS.map((position) => (
+            <option key={position} value={position}>{position}</option>
+          ))}
+        </select>
+      </Field>
+      {mode === 'create' && (
+        <>
+          <Field label="Password">
+            <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+          </Field>
+          <Field label="Confirm Password">
+            <input type="password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+          </Field>
+        </>
+      )}
+      {modalError && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 sm:col-span-2">
+          {modalError}
+        </div>
+      )}
+    </form>
+  );
 
   return (
     <div className="space-y-5">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Administrator</p>
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">User Management</h2>
-            <p className="mt-1 text-sm text-slate-500">View, search, filter, add, update, and deactivate user accounts.</p>
+            <p className="mt-1 text-sm text-slate-500">View, search, filter, add, update, deactivate, and reactivate user accounts.</p>
           </div>
-          <button onClick={() => setShowCreate(true)} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">
+          <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">
             <UserPlus size={15} />
             New User
           </button>
@@ -250,9 +382,15 @@ export default function AdminUsersPage() {
                         Edit
                       </button>
                       {user.role !== 'ADMIN' && user.account_status !== 'disabled' && (
-                        <button onClick={() => handleDisable(user)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
+                        <button onClick={() => setDisableTarget(user)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
                           <UserX size={13} />
                           Deactivate
+                        </button>
+                      )}
+                      {user.account_status !== 'active' && (
+                        <button onClick={() => setReactivateTarget(user)} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
+                          <UserCheck size={13} />
+                          Reactivate
                         </button>
                       )}
                     </div>
@@ -276,81 +414,63 @@ export default function AdminUsersPage() {
         />
       </section>
 
-      {showCreate && (
-        <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-bold text-[#0F172A]">Create User</h3>
-            <button onClick={() => setShowCreate(false)} className="rounded p-1 text-slate-400 hover:bg-red-50">
-              <X size={16} />
-            </button>
-          </div>
-          <form onSubmit={handleCreate} className="grid gap-3 sm:grid-cols-2">
-            <input type="number" min="1" max="99999999" value={createForm.school_id} onChange={(event) => setCreateForm({ ...createForm, school_id: event.target.value })} placeholder="School ID" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input value={createForm.email} onChange={(event) => setCreateForm({ ...createForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input value={createForm.first_name} onChange={(event) => setCreateForm({ ...createForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input value={createForm.last_name} onChange={(event) => setCreateForm({ ...createForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <select value={createForm.role} onChange={(event) => setCreateForm({ ...createForm, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? createForm.position_title : '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
-              {roles.map((role) => (
-                <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-              ))}
-            </select>
-            <select
-              value={createForm.position_title}
-              onChange={(event) => setCreateForm({ ...createForm, position_title: event.target.value })}
-              disabled={createForm.role !== 'SBO_OFFICER'}
-              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
-            >
-              <option value="">Assign SBO position</option>
-              {SBO_POSITIONS.map((position) => (
-                <option key={position} value={position}>{position}</option>
-              ))}
-            </select>
-            <input type="password" value={createForm.password} onChange={(event) => setCreateForm({ ...createForm, password: event.target.value })} placeholder="Password" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input type="password" value={createForm.password_confirmation} onChange={(event) => setCreateForm({ ...createForm, password_confirmation: event.target.value })} placeholder="Confirm password" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <div className="sm:col-span-2 flex gap-2 pt-1">
-              <button type="submit" className="rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">Create</button>
-              <button type="button" onClick={() => setShowCreate(false)} className="rounded-lg border border-[#DDE7EF] px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
-            </div>
-          </form>
-        </div>
-      )}
+      <Modal
+        open={showCreate}
+        title="Create User"
+        description="Add a new account. The user will sign in with their School ID."
+        onClose={closeCreate}
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy}
+        footer={(
+          <>
+            <button type="button" onClick={closeCreate} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button type="submit" form="create-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Creating...' : 'Create User'}</button>
+          </>
+        )}
+      >
+        {userForm(createForm, setCreateForm, 'create')}
+      </Modal>
 
-      {showEdit && selectedUser && (
-        <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-base font-bold text-[#0F172A]">Edit User</h3>
-            <button onClick={() => setShowEdit(false)} className="rounded p-1 text-slate-400 hover:bg-red-50">
-              <X size={16} />
-            </button>
-          </div>
-          <form onSubmit={handleEdit} className="grid gap-3 sm:grid-cols-2">
-            <input type="number" min="1" max="99999999" value={editForm.school_id} onChange={(event) => setEditForm({ ...editForm, school_id: event.target.value })} placeholder="School ID" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} placeholder="Email" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input value={editForm.first_name} onChange={(event) => setEditForm({ ...editForm, first_name: event.target.value })} placeholder="First name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <input value={editForm.last_name} onChange={(event) => setEditForm({ ...editForm, last_name: event.target.value })} placeholder="Last name" className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-            <select value={editForm.role} onChange={(event) => setEditForm({ ...editForm, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? editForm.position_title : '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
-              {roles.map((role) => (
-                <option key={role} value={role}>{ROLE_LABELS[role]}</option>
-              ))}
-            </select>
-            <select
-              value={editForm.position_title}
-              onChange={(event) => setEditForm({ ...editForm, position_title: event.target.value })}
-              disabled={editForm.role !== 'SBO_OFFICER'}
-              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
-            >
-              <option value="">Assign SBO position</option>
-              {SBO_POSITIONS.map((position) => (
-                <option key={position} value={position}>{position}</option>
-              ))}
-            </select>
-            <div className="sm:col-span-2 flex gap-2 pt-1">
-              <button type="submit" className="rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">Save</button>
-              <button type="button" onClick={() => setShowEdit(false)} className="rounded-lg border border-[#DDE7EF] px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
-            </div>
-          </form>
-        </div>
-      )}
+      <Modal
+        open={Boolean(selectedUser)}
+        title="Edit User"
+        description={selectedUser ? `${selectedUser.first_name} ${selectedUser.last_name}` : ''}
+        onClose={closeEdit}
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy}
+        footer={(
+          <>
+            <button type="button" onClick={closeEdit} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button type="submit" form="edit-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Saving...' : 'Save Changes'}</button>
+          </>
+        )}
+      >
+        {userForm(editForm, setEditForm, 'edit')}
+      </Modal>
+
+      <ConfirmModal
+        open={Boolean(disableTarget)}
+        title="Deactivate User"
+        message="This will change the account status and sign the user out of active sessions."
+        recordName={disableTarget ? `${disableTarget.first_name} ${disableTarget.last_name}` : ''}
+        confirmText="Deactivate"
+        variant="danger"
+        busy={busy}
+        onCancel={() => !busy && setDisableTarget(null)}
+        onConfirm={handleDisable}
+      />
+
+      <ConfirmModal
+        open={Boolean(reactivateTarget)}
+        title="Reactivate User"
+        message="This will restore account access. If the account was previously deactivated, the user may still need to recover or reset their password."
+        recordName={reactivateTarget ? `${reactivateTarget.first_name} ${reactivateTarget.last_name}` : ''}
+        confirmText="Reactivate"
+        variant="success"
+        busy={busy}
+        onCancel={() => !busy && setReactivateTarget(null)}
+        onConfirm={handleReactivate}
+      />
     </div>
   );
 }

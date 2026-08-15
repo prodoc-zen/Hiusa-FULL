@@ -74,7 +74,7 @@ export default function ManageAnnouncementsPage() {
       const res = await togglePublish(id);
       setItems((prev) => prev.map((a) => (a.id === id ? res.data : a)));
     } catch {
-      alert('Failed to update announcement. Please try again.');
+      setError('Failed to update announcement. Please try again.');
     }
   }
 

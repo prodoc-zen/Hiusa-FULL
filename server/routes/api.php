@@ -40,6 +40,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users', [UserController::class, 'store'])->middleware('role:ADMIN');
     Route::put('/users/{id}', [UserController::class, 'update'])->middleware('role:ADMIN');
     Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware('role:ADMIN');
+    Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware('role:ADMIN');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('role:ADMIN');
 
     // Announcement Routes

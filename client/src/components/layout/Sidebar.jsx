@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, Users, Vote, X } from 'lucide-react';
+import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 
@@ -169,6 +170,8 @@ export default function Sidebar({ isOpen, onClose }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState({});
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
 
   const user = useMemo(() => {
     const stored = localStorage.getItem('user');
@@ -203,9 +206,12 @@ export default function Sidebar({ isOpen, onClose }) {
   };
 
   const handleLogout = async () => {
+    setLogoutBusy(true);
     try {
       await logout();
     } finally {
+      setLogoutBusy(false);
+      setLogoutConfirmOpen(false);
       navigate('/login');
     }
   };
@@ -285,7 +291,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavItem {...item} />
             </div>
           ))}
-          <button type="button" onClick={handleLogout} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
+          <button type="button" onClick={() => setLogoutConfirmOpen(true)} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
             <LogOut size={18} strokeWidth={2} />
             Logout
           </button>
@@ -302,6 +308,15 @@ export default function Sidebar({ isOpen, onClose }) {
     <>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
       <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <ConfirmModal
+        open={logoutConfirmOpen}
+        title="Log Out"
+        message="You will need to sign in again to access your dashboard."
+        confirmText="Log Out"
+        busy={logoutBusy}
+        onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
+        onConfirm={handleLogout}
+      />
     </>
   );
 }

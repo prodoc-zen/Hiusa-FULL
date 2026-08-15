@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, X, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine } from 'lucide-react';
+import { Plus, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine } from 'lucide-react';
 import { createElection, getElections, updateElection } from '../../../services/electionService';
+import FeedbackToast from '../../../components/FeedbackToast';
+import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 
 const statusStyles = {
@@ -78,6 +80,7 @@ export default function ElectionPickerPage({ onSelect }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [form, setForm] = useState({
     title: '',
     start_time: '',
@@ -130,6 +133,7 @@ export default function ElectionPickerPage({ onSelect }) {
       setShowCreate(false);
       setForm({ title: '', start_time: '', end_time: '', status: 'pending_approval' });
       setError('');
+      setFeedback({ open: true, type: 'success', message: 'Election submitted for approval.' });
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to create election.');
     } finally {
@@ -165,6 +169,7 @@ export default function ElectionPickerPage({ onSelect }) {
       );
       setShowEdit(false);
       setError('');
+      setFeedback({ open: true, type: 'success', message: 'Election updated.' });
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update election.');
     } finally {
@@ -212,6 +217,8 @@ export default function ElectionPickerPage({ onSelect }) {
 
   return (
     <div className="space-y-4">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+
       <section className="rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] px-5 py-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -247,19 +254,22 @@ export default function ElectionPickerPage({ onSelect }) {
         </div>
       </section>
 
-      {showCreate && canManageElections && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-[#0F172A]">Create New Election</h3>
-            <button
-              type="button"
-              onClick={() => setShowCreate(false)}
-              className="p-1 hover:bg-red-50 rounded text-slate-400"
-            >
-              <X size={16} />
-            </button>
-          </div>
-          <form onSubmit={handleCreate} className="space-y-4">
+      <Modal
+        open={showCreate && canManageElections}
+        title="Create New Election"
+        description="Submit a new election setup for approval."
+        onClose={() => !submitting && setShowCreate(false)}
+        closeOnBackdrop={!submitting}
+        closeOnEscape={!submitting}
+        maxWidth="max-w-2xl"
+        footer={(
+          <>
+            <button type="button" onClick={() => setShowCreate(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button type="submit" form="create-election-form" disabled={submitting || !form.title || !form.start_time || !form.end_time} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Election'}</button>
+          </>
+        )}
+      >
+          <form id="create-election-form" onSubmit={handleCreate} className="space-y-4">
             <div>
               <label className="text-[13px] font-semibold text-[#0F172A] block mb-1.5">
                 Election Title *
@@ -320,25 +330,8 @@ export default function ElectionPickerPage({ onSelect }) {
                 <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
               </div>
             </div>
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={!form.title || !form.start_time || !form.end_time}
-                className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
-              >
-                Submit Election
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD]"
-              >
-                Cancel
-              </button>
-            </div>
           </form>
-        </section>
-      )}
+      </Modal>
 
       <section className="space-y-3">
         {loading && (
@@ -517,16 +510,22 @@ export default function ElectionPickerPage({ onSelect }) {
         )}
       </section>
 
-      {showEdit && canManageElections && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-bold text-[#0F172A]">Edit Election</h3>
-            <button type="button" onClick={() => setShowEdit(false)} className="rounded p-1 text-slate-400 hover:bg-red-50">
-              <X size={16} />
-            </button>
-          </div>
-
-          <form onSubmit={handleEdit} className="space-y-4">
+      <Modal
+        open={showEdit && canManageElections}
+        title="Edit Election"
+        description="Update election schedule and status."
+        onClose={() => !submitting && setShowEdit(false)}
+        closeOnBackdrop={!submitting}
+        closeOnEscape={!submitting}
+        maxWidth="max-w-2xl"
+        footer={(
+          <>
+            <button type="button" onClick={() => setShowEdit(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button type="submit" form="edit-election-form" disabled={submitting || !editForm.title || !editForm.start_time || !editForm.end_time} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-40">{submitting ? 'Saving...' : 'Save Changes'}</button>
+          </>
+        )}
+      >
+          <form id="edit-election-form" onSubmit={handleEdit} className="space-y-4">
             <div>
               <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Election Title *</label>
               <input
@@ -573,25 +572,8 @@ export default function ElectionPickerPage({ onSelect }) {
               </div>
             </div>
 
-            <div className="flex gap-3 pt-2">
-              <button
-                type="submit"
-                disabled={!editForm.title || !editForm.start_time || !editForm.end_time}
-                className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-40"
-              >
-                Save Changes
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowEdit(false)}
-                className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]"
-              >
-                Cancel
-              </button>
-            </div>
           </form>
-        </section>
-      )}
+      </Modal>
     </div>
   );
 }

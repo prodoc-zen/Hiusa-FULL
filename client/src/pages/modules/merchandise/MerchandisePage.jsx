@@ -23,8 +23,8 @@ import {
 } from 'lucide-react';
 import { getMerchandise, createItem, updateItem, adjustStock, deleteItem } from '../../../services/merchandiseService';
 import { getOrders, placeOrder, updateOrderStatus, claimByToken } from '../../../services/orderService';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
 function readStudentCart() {
@@ -34,12 +34,6 @@ function readStudentCart() {
   } catch {
     return [];
   }
-}
-
-function resolveImageUrl(url) {
-  if (!url) return null;
-  if (/^https?:\/\//i.test(url)) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
 }
 
 function getRole() {
@@ -350,7 +344,7 @@ export default function MerchandisePage({ initialTab }) {
       is_active: Boolean(item.is_active),
     });
     setEditImageFile(null);
-    setEditImagePreview(resolveImageUrl(item.image_url));
+    setEditImagePreview(resolveAssetUrl(item.image_url));
     setFormError(null);
     setShowEditForm(true);
   }
@@ -766,7 +760,7 @@ export default function MerchandisePage({ initialTab }) {
                 {filteredStudentItems.map((item) => (
                   <div key={item.id} className="flex flex-col rounded-xl border border-[#DDE7EF] bg-white shadow-sm overflow-hidden">
                     {item.image_url
-                      ? <img src={resolveImageUrl(item.image_url)} alt={item.name} className="h-40 w-full object-cover" />
+                      ? <img src={resolveAssetUrl(item.image_url)} alt={item.name} className="h-40 w-full object-cover" />
                       : <div className="flex h-40 items-center justify-center bg-[#F8FBFD]"><Package size={40} className="text-slate-200" /></div>
                     }
                     <div className="flex flex-1 flex-col p-4">
@@ -884,7 +878,7 @@ export default function MerchandisePage({ initialTab }) {
                       <div>
                         <p className="font-mono text-xs font-bold text-slate-400">ORD-{o.id}</p>
                         <p className="mt-0.5 font-bold text-[#0F172A]">{o.merchandise?.name ?? '-'}</p>
-                        <p className="text-[13px] text-slate-500">Qty: {o.quantity} · Total: {fmt(o.total_price)}</p>
+                        <p className="text-[13px] text-slate-500">Qty: {o.quantity} - Total: {fmt(o.total_price)}</p>
                         <p className="mt-1 text-[12px] text-slate-400">{fmtDate(o.created_at)}</p>
                       </div>
                       <div className="flex flex-col items-end gap-2">
@@ -914,7 +908,7 @@ export default function MerchandisePage({ initialTab }) {
         )}
 
         {/* Student Claim Tokens tab */}
-        {activeTab === 'tokens' && (
+        {activeTab === 'tokens' && !isFulfillmentRole && (
           <section className="space-y-4">
             <div className="flex items-start gap-3 rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] p-4">
               <Info size={18} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
@@ -954,7 +948,7 @@ export default function MerchandisePage({ initialTab }) {
                       <div>
                         <p className="font-mono text-xs font-bold text-slate-400">ORD-{o.id}</p>
                         <p className="mt-0.5 font-bold text-[#0F172A]">{o.merchandise?.name ?? '-'}</p>
-                        <p className="text-[13px] text-slate-500">Qty: {o.quantity} · {fmt(o.total_price)}</p>
+                        <p className="text-[13px] text-slate-500">Qty: {o.quantity} - {fmt(o.total_price)}</p>
                       </div>
                       <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(o.status)}</span>
                     </div>
@@ -1104,7 +1098,7 @@ export default function MerchandisePage({ initialTab }) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-3">
                       {item.image_url
-                        ? <img src={resolveImageUrl(item.image_url)} alt={item.name} className="h-14 w-14 rounded-lg border border-[#DDE7EF] object-cover" />
+                        ? <img src={resolveAssetUrl(item.image_url)} alt={item.name} className="h-14 w-14 rounded-lg border border-[#DDE7EF] object-cover" />
                         : <div className="grid h-14 w-14 place-items-center rounded-lg bg-[#E6F6FD]"><Package size={20} className="text-[#0B8ED0]" /></div>}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-[#0F172A]">{item.name}</p>
@@ -1213,7 +1207,7 @@ export default function MerchandisePage({ initialTab }) {
                               {role === 'SBO_OFFICER' ? 'Submit Approval' : 'Approve Payment'} <ArrowRight size={12} />
                             </button>
                             <button onClick={() => setRejectionModal({ open: true, order: o, remarks: '', busy: false })} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100">Reject</button>
-                            {o.payment_proof_url && <a href={resolveImageUrl(o.payment_proof_url)} target="_blank" rel="noreferrer" title="View payment proof" className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"><Eye size={14} /></a>}
+                            {o.payment_proof_url && <a href={resolveAssetUrl(o.payment_proof_url)} target="_blank" rel="noreferrer" title="View payment proof" className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"><Eye size={14} /></a>}
                           </div>
                         )}
                         {o.status === 'paid' && (
@@ -1228,7 +1222,7 @@ export default function MerchandisePage({ initialTab }) {
           )}
           {ordersMeta.total > ordersMeta.per_page && (
             <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
-              <p className="text-xs font-medium text-slate-400">Showing <span className="font-bold text-slate-600">{ordFrom}–{ordTo}</span> of <span className="font-bold text-slate-600">{ordersMeta.total}</span></p>
+              <p className="text-xs font-medium text-slate-400">Showing <span className="font-bold text-slate-600">{ordFrom}-{ordTo}</span> of <span className="font-bold text-slate-600">{ordersMeta.total}</span></p>
               <div className="flex items-center gap-1">
                 <button onClick={() => loadOrders(ordersMeta.current_page - 1)} disabled={ordersMeta.current_page === 1} className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"><ChevronLeft size={14} /></button>
                 <span className="px-2 text-[13px] font-bold tabular-nums text-[#0F172A]">{ordersMeta.current_page} / {ordersMeta.last_page}</span>
@@ -1239,7 +1233,7 @@ export default function MerchandisePage({ initialTab }) {
         </section>
       )}
 
-      {activeTab === 'tokens' && (
+      {activeTab === 'tokens' && isFulfillmentRole && (
         <section className="space-y-4">
           <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h2 className="mb-1 text-lg font-bold text-[#0F172A]">Claim by Token</h2>

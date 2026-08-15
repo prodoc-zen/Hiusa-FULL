@@ -14,7 +14,7 @@ class ElectionSeeder extends Seeder
     public function run(): void
     {
         $election = Election::create([
-            'title'      => 'HIUSA Student Council Election 2024–2025',
+            'title'      => 'HIUSA Student Council Election 2024-2025',
             'start_time' => now()->subDay(),
             'end_time'   => now()->addDays(7),
             'status'     => 'active',

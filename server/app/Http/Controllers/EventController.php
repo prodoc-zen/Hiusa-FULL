@@ -40,6 +40,7 @@ class EventController extends Controller
 
         $approvals = ApprovalRequest::where('entity_type', 'event')
             ->whereIn('entity_id', $ids)
+            ->orderBy('id')
             ->get()
             ->keyBy('entity_id');
 
@@ -150,6 +151,12 @@ class EventController extends Controller
             return response()->json(['message' => 'Only approved events can be started or completed.'], 422);
         }
 
+        if ($event->approved_at && $this->hasMaterialEventChange($data)) {
+            $data['status'] = 'planning';
+            $data['approved_at'] = null;
+            $this->reopenApproval($event, $request);
+        }
+
         $event->update($data);
         $this->resubmitIfRejected($event);
 
@@ -164,6 +171,37 @@ class EventController extends Controller
             ->where('organization_id', $event->organization_id)
             ->get()
             ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
+    }
+
+    private function hasMaterialEventChange(array $data): bool
+    {
+        return count(array_intersect(array_keys($data), [
+            'title',
+            'description',
+            'start_time',
+            'end_time',
+            'location',
+            'requires_budget',
+            'planning_details',
+        ])) > 0;
+    }
+
+    private function reopenApproval(Event $event, Request $request): void
+    {
+        ApprovalRequest::where('entity_type', 'event')
+            ->where('entity_id', $event->id)
+            ->where('organization_id', $event->organization_id)
+            ->latest('id')
+            ->first()
+            ?->update([
+                'status' => 'pending',
+                'requested_by' => $request->user()->id,
+                'required_role' => 'DEPARTMENT_HEAD',
+                'reviewed_by' => null,
+                'reviewed_at' => null,
+                'remarks' => null,
+                'requested_at' => now(),
+            ]);
     }
 
     public function destroy(Request $request, $id)

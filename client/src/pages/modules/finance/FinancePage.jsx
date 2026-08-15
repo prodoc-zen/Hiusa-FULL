@@ -583,7 +583,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
           {txMeta.total > txMeta.per_page && (
             <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
               <p className="text-xs font-medium text-slate-400">
-                Showing <span className="font-bold text-slate-600">{txFrom}–{txTo}</span> of <span className="font-bold text-slate-600">{txMeta.total}</span>
+                Showing <span className="font-bold text-slate-600">{txFrom}-{txTo}</span> of <span className="font-bold text-slate-600">{txMeta.total}</span>
               </p>
               <div className="flex items-center gap-1">
                 <button
@@ -642,8 +642,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">
-                      Allocated {fmt(b.allocated_amount)} · Warning threshold {fmt(b.warning_threshold)}
-                      {b.event ? ` · ${b.event.title}` : ''}
+                      Allocated {fmt(b.allocated_amount)} - Warning threshold {fmt(b.warning_threshold)}
+                      {b.event ? ` - ${b.event.title}` : ''}
                     </p>
                   </div>
                   <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</p>

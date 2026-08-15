@@ -88,15 +88,6 @@ class UserController extends Controller
         $oldValues = $this->auditableUserValues($user);
 
         $validatedData = $request->validate([
-            'school_id' => [
-                'sometimes',
-                'required',
-                'integer',
-                'min:1',
-                'max:99999999',
-                Rule::unique('users', 'school_id')
-                    ->ignore($user->school_id, 'school_id'),
-            ],
             'first_name' => 'sometimes|required|string|max:60',
             'last_name' => 'sometimes|required|string|max:60',
             'email' => [
@@ -186,6 +177,30 @@ class UserController extends Controller
         return response()->json(['message' => 'User account disabled successfully.']);
     }
 
+    public function reactivate(Request $request, $id)
+    {
+        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+
+        if (! $user) {
+            return response()->json(['message' => 'User not found.'], 404);
+        }
+
+        if ($user->account_status === 'active') {
+            return response()->json(['message' => 'User account is already active.'], 422);
+        }
+
+        $oldValues = $this->auditableUserValues($user);
+
+        $user->forceFill([
+            'account_status' => 'active',
+        ])->save();
+
+        $freshUser = $user->fresh();
+        $this->recordUserAudit($request, 'reactivated', $freshUser, $oldValues, $this->auditableUserValues($freshUser));
+
+        return response()->json($freshUser);
+    }
+
     public function destroy(Request $request, $id)
     {
         $user = User::where('organization_id', $request->user()->organization_id)->find($id);
@@ -204,7 +219,7 @@ class UserController extends Controller
             $user->delete();
         } catch (QueryException $e) {
             return response()->json([
-                'message' => 'Cannot delete this user — they have existing records (transactions, tasks, etc.) linked to their account.',
+                'message' => 'Cannot delete this user - they have existing records (transactions, tasks, etc.) linked to their account.',
             ], 409);
         }
 
@@ -260,19 +275,17 @@ class UserController extends Controller
     {
         $request->validate([
             'organization_id' => 'required|exists:organizations,id',
-            'email' => 'required_without:school_id|nullable|email',
-            'school_id' => 'required_without:email|nullable|integer|min:1|max:99999999',
+            'school_id' => 'required|integer|min:1|max:99999999',
             'password' => 'required|string',
-            'role' => 'sometimes|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
         ]);
 
-        $user = $request->filled('email')
-            ? User::where('organization_id', $request->organization_id)->where('email', $request->email)->first()
-            : User::where('organization_id', $request->organization_id)->where('school_id', $request->school_id)->first();
+        $user = User::where('organization_id', $request->organization_id)
+            ->where('school_id', $request->school_id)
+            ->first();
 
         if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             throw ValidationException::withMessages([
-                'email' => ['The provided credentials are incorrect.'],
+                'school_id' => ['The provided credentials are incorrect.'],
             ]);
         }
 
@@ -281,10 +294,6 @@ class UserController extends Controller
                 'message' => 'This account is not active. Please contact an administrator.',
                 'account_status' => $user->account_status,
             ], 403);
-        }
-
-        if ($request->filled('role') && $user->role !== $request->role) {
-            return response()->json(['message' => 'Role mismatch. Please select the correct role for this account.'], 403);
         }
 
         return response()->json([

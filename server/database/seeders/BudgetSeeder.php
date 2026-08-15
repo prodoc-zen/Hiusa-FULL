@@ -46,7 +46,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'income',
                 'category'         => 'Org Fee',
                 'amount'           => 18500.00,
-                'description'      => 'First semester organizational fee collection — 37 members',
+                'description'      => 'First semester organizational fee collection - 37 members',
                 'transaction_date' => now()->subMonths(3)->startOfMonth(),
             ],
             [
@@ -55,7 +55,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'income',
                 'category'         => 'Org Fee',
                 'amount'           => 15000.00,
-                'description'      => 'Second semester organizational fee collection — 30 members',
+                'description'      => 'Second semester organizational fee collection - 30 members',
                 'transaction_date' => now()->subMonths(1)->startOfMonth(),
             ],
             [
@@ -64,7 +64,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'income',
                 'category'         => 'Sponsorship',
                 'amount'           => 10000.00,
-                'description'      => 'Corporate sponsorship from TechPH — Sports Fest',
+                'description'      => 'Corporate sponsorship from TechPH - Sports Fest',
                 'transaction_date' => now()->subMonths(2),
             ],
             [
@@ -73,7 +73,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'income',
                 'category'         => 'Merchandise Sales',
                 'amount'           => 8750.00,
-                'description'      => 'First batch merchandise revenue — shirts and lanyards',
+                'description'      => 'First batch merchandise revenue - shirts and lanyards',
                 'transaction_date' => now()->subWeeks(3),
             ],
             // Expense entries
@@ -83,7 +83,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'expense',
                 'category'         => 'Venue',
                 'amount'           => 5000.00,
-                'description'      => 'AVR rental for General Assembly — 3 hours',
+                'description'      => 'AVR rental for General Assembly - 3 hours',
                 'transaction_date' => now()->subWeeks(3),
             ],
             [
@@ -92,7 +92,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'expense',
                 'category'         => 'Food & Catering',
                 'amount'           => 4500.00,
-                'description'      => 'Snacks and drinks for General Assembly — 80 pax',
+                'description'      => 'Snacks and drinks for General Assembly - 80 pax',
                 'transaction_date' => now()->subWeeks(2),
             ],
             [
@@ -110,7 +110,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'expense',
                 'category'         => 'Supplies',
                 'amount'           => 3800.00,
-                'description'      => 'Sports equipment and medals — basketball, volleyball',
+                'description'      => 'Sports equipment and medals - basketball, volleyball',
                 'transaction_date' => now()->subWeek(),
             ],
             [
@@ -119,7 +119,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'expense',
                 'category'         => 'Merchandise',
                 'amount'           => 12500.00,
-                'description'      => 'Merchandise procurement — 50 shirts, 30 tote bags, 100 lanyards',
+                'description'      => 'Merchandise procurement - 50 shirts, 30 tote bags, 100 lanyards',
                 'transaction_date' => now()->subMonths(2),
             ],
             [
@@ -128,7 +128,7 @@ class BudgetSeeder extends Seeder
                 'type'             => 'expense',
                 'category'         => 'Transport',
                 'amount'           => 1800.00,
-                'description'      => 'Van rental for Leadership Seminar — round trip',
+                'description'      => 'Van rental for Leadership Seminar - round trip',
                 'transaction_date' => now()->subDays(2),
             ],
         ];
@@ -139,19 +139,19 @@ class BudgetSeeder extends Seeder
 
         $forecasts = [
             [
-                'forecast_period'   => 'Q3 2024 (Jul–Sep)',
+                'forecast_period'   => 'Q3 2024 (Jul-Sep)',
                 'predicted_income'  => 20000.00,
                 'predicted_expense' => 15000.00,
                 'confidence_note'   => 'Based on previous semester patterns. Includes Sports Fest and Induction expenses.',
             ],
             [
-                'forecast_period'   => 'Q4 2024 (Oct–Dec)',
+                'forecast_period'   => 'Q4 2024 (Oct-Dec)',
                 'predicted_income'  => 22000.00,
                 'predicted_expense' => 18500.00,
                 'confidence_note'   => 'Semester-end period. Higher expected expenses for Recognition ceremony and year-end activities.',
             ],
             [
-                'forecast_period'   => 'Q1 2025 (Jan–Mar)',
+                'forecast_period'   => 'Q1 2025 (Jan-Mar)',
                 'predicted_income'  => 15000.00,
                 'predicted_expense' => 12000.00,
                 'confidence_note'   => 'New semester org fee collection expected. Lower expenses in early semester.',

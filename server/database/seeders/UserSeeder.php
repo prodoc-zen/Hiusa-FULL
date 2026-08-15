@@ -22,7 +22,7 @@ class UserSeeder extends Seeder
             ['school_id' => 900001, 'role' => 'SBO_OFFICER',  'first_name' => 'Marco',      'last_name' => 'Dela Cruz',   'email' => 'officer1@hiusa.local'],
             ['school_id' => 900002, 'role' => 'SBO_OFFICER',  'first_name' => 'Angela',     'last_name' => 'Santos',      'email' => 'officer2@hiusa.local'],
 
-            // Advisers — exec-board members, role ADMIN with position_title 'Adviser' (login with email)
+            // Advisers - exec-board members, role ADMIN with position_title 'Adviser' (login with email)
             ['school_id' => 910001, 'role' => 'ADMIN',  'position_title' => 'Adviser', 'first_name' => 'Ricardo',    'last_name' => 'Lim',         'email' => 'adviser1@hiusa.local'],
             ['school_id' => 910002, 'role' => 'ADMIN',  'position_title' => 'Adviser', 'first_name' => 'Maria',      'last_name' => 'Reyes',       'email' => 'adviser2@hiusa.local'],
 

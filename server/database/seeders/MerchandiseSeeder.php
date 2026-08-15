@@ -29,7 +29,7 @@ class MerchandiseSeeder extends Seeder
             [
                 'name'           => 'HIUSA Tote Bag',
                 'category'       => 'Accessories',
-                'description'    => 'Reusable canvas tote bag with HIUSA logo print. Dimensions: 35cm × 38cm. Natural beige color.',
+                'description'    => 'Reusable canvas tote bag with HIUSA logo print. Dimensions: 35cm x 38cm. Natural beige color.',
                 'price'          => 180.00,
                 'stock_quantity' => 20,
                 'is_active'      => true,
@@ -45,7 +45,7 @@ class MerchandiseSeeder extends Seeder
             [
                 'name'           => 'HIUSA Notebook (A5)',
                 'category'       => 'Stationery',
-                'description'    => 'Soft-cover A5 ruled notebook with HIUSA logo on the cover. 120 pages. Currently out of stock — reorder in progress.',
+                'description'    => 'Soft-cover A5 ruled notebook with HIUSA logo on the cover. 120 pages. Currently out of stock - reorder in progress.',
                 'price'          => 120.00,
                 'stock_quantity' => 0,
                 'is_active'      => true,

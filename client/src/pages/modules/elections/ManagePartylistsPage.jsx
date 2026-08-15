@@ -1,16 +1,13 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Flag, ImagePlus, X, Edit2, Trash2, Search, CirclePlus, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Flag, ImagePlus, Edit2, Trash2, Search, CirclePlus, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import ConfirmModal from '../../../components/ConfirmModal';
+import FeedbackToast from '../../../components/FeedbackToast';
+import Modal from '../../../components/Modal';
 import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../../services/electionService';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const CARD_ACCENTS = ['#0B8ED0', '#16A34A', '#0F2F62', '#0878B7'];
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
-
-function resolveImageUrl(url) {
-  if (!url) return null;
-  if (/^(https?:|blob:|data:)/i.test(url)) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-}
 
 function getInitials(name) {
   return String(name || '')
@@ -36,6 +33,8 @@ export default function ManagePartylistsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState('');
   const [workingId, setWorkingId] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
 
   useEffect(() => {
     let cancelled = false;
@@ -92,6 +91,7 @@ export default function ManagePartylistsPage() {
   const handleAdd = async (event) => {
     event.preventDefault();
     setError('');
+    setWorkingId('add');
 
     try {
       const created = await createPartylist({ ...form, bannerFile: bannerFile || null });
@@ -100,8 +100,11 @@ export default function ManagePartylistsPage() {
       setBannerFile(null);
       setBannerPreview(null);
       setShowAdd(false);
+      setFeedback({ open: true, type: 'success', message: 'Partylist registered.' });
     } catch (createError) {
       setError(createError?.response?.data?.message || 'Unable to add partylist.');
+    } finally {
+      setWorkingId(null);
     }
   };
 
@@ -110,6 +113,7 @@ export default function ManagePartylistsPage() {
     if (!editing?.id) return;
 
     setError('');
+    setWorkingId(editing.id);
 
     try {
       const updated = await updatePartylist(editing.id, {
@@ -123,19 +127,26 @@ export default function ManagePartylistsPage() {
       setEditBannerFile(null);
       setEditBannerPreview(null);
       setEditing(null);
+      setFeedback({ open: true, type: 'success', message: 'Partylist updated.' });
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update partylist.');
+    } finally {
+      setWorkingId(null);
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+
     setError('');
-    setWorkingId(id);
+    setWorkingId(deleteTarget.id);
 
     try {
-      await deletePartylist(id);
-      setPartylistRows((current) => current.filter((row) => row.id !== id));
+      await deletePartylist(deleteTarget.id);
+      setPartylistRows((current) => current.filter((row) => row.id !== deleteTarget.id));
       await refreshElection();
+      setFeedback({ open: true, type: 'success', message: `${deleteTarget.name} was removed.` });
+      setDeleteTarget(null);
     } catch (deleteError) {
       setError(deleteError?.response?.data?.message || 'Unable to delete partylist.');
     } finally {
@@ -160,8 +171,10 @@ export default function ManagePartylistsPage() {
 
   return (
     <div className="space-y-4">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+
       <section className="rounded-xl border border-[#DDE7EF] bg-white px-5 py-4">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Elections · Manage Party Lists</p>
+        <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Elections - Manage Party Lists</p>
         <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A]">Party Rosters</h2>
@@ -202,13 +215,22 @@ export default function ManagePartylistsPage() {
         </p>
       </div>
 
-      {showAdd && (
-        <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[#0F172A]">Register Partylist</h3>
-            <button type="button" onClick={() => setShowAdd(false)} className="rounded p-1 text-slate-400 hover:bg-red-50"><X size={16} /></button>
-          </div>
-          <form onSubmit={handleAdd} className="space-y-4">
+      <Modal
+        open={showAdd}
+        title="Register Partylist"
+        description="Add a new party roster for the current election."
+        onClose={() => workingId !== 'add' && setShowAdd(false)}
+        closeOnBackdrop={workingId !== 'add'}
+        closeOnEscape={workingId !== 'add'}
+        maxWidth="max-w-2xl"
+        footer={(
+          <>
+            <button type="button" onClick={() => setShowAdd(false)} disabled={workingId === 'add'} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button type="submit" form="add-partylist-form" disabled={workingId === 'add' || !form.name.trim()} className="h-10 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40">{workingId === 'add' ? 'Registering...' : 'Register Partylist'}</button>
+          </>
+        )}
+      >
+          <form id="add-partylist-form" onSubmit={handleAdd} className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Partylist Name *</label>
@@ -249,15 +271,17 @@ export default function ManagePartylistsPage() {
                 {error}
               </div>
             )}
-            <div className="flex gap-3">
-              <button type="submit" disabled={!form.name.trim()} className="h-10 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40">Register Partylist</button>
-              <button type="button" onClick={() => setShowAdd(false)} className="h-10 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD]">Cancel</button>
-            </div>
           </form>
-        </div>
-      )}
+      </Modal>
 
-      {editing && (
+      <Modal
+        open={Boolean(editing)}
+        onClose={() => workingId !== editing?.id && setEditing(null)}
+        closeOnBackdrop={workingId !== editing?.id}
+        closeOnEscape={workingId !== editing?.id}
+        maxWidth="max-w-6xl"
+      >
+        {editing && (
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
@@ -279,17 +303,18 @@ export default function ManagePartylistsPage() {
                 <button
                   type="button"
                   onClick={() => setEditing(null)}
-                  className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F172A] hover:bg-[#F8FBFD]"
+                  disabled={workingId === editing.id}
+                  className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F172A] hover:bg-[#F8FBFD] disabled:opacity-50"
                 >
                   Discard Draft
                 </button>
                 <button
                   type="button"
                   onClick={(event) => handleUpdate(event)}
-                  disabled={!editing.name?.trim()}
+                  disabled={workingId === editing.id || !editing.name?.trim()}
                   className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-40"
                 >
-                  Save Changes
+                  {workingId === editing.id ? 'Saving...' : 'Save Changes'}
                 </button>
               </div>
             </div>
@@ -357,7 +382,7 @@ export default function ManagePartylistsPage() {
                       <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
                       <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
                         {editBannerPreview
-                          ? <img src={resolveImageUrl(editBannerPreview)} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
+                          ? <img src={resolveAssetUrl(editBannerPreview)} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
                           : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
                         }
                         <div>
@@ -462,7 +487,8 @@ export default function ManagePartylistsPage() {
             </aside>
           </div>
         </section>
-      )}
+        )}
+      </Modal>
 
       {error && !showAdd && !editing && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -490,7 +516,7 @@ export default function ManagePartylistsPage() {
             return (
               <article key={partylist.id} className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
                 {partylist.banner_url
-                  ? <img src={resolveImageUrl(partylist.banner_url)} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
+                  ? <img src={resolveAssetUrl(partylist.banner_url)} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
                   : <div className="h-2" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
                 }
                 <div className="space-y-4 p-5">
@@ -519,7 +545,7 @@ export default function ManagePartylistsPage() {
                         </button>
                         <button
                           type="button"
-                          onClick={() => handleDelete(partylist.id)}
+                          onClick={() => setDeleteTarget(partylist)}
                           disabled={workingId === partylist.id}
                           className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
                         >
@@ -541,7 +567,7 @@ export default function ManagePartylistsPage() {
                           return (
                             <div key={candidate.id} className="text-center">
                               {candidate.image_url
-                                ? <img src={resolveImageUrl(candidate.image_url)} alt={name} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
+                                ? <img src={resolveAssetUrl(candidate.image_url)} alt={name} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
                                 : <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">{getInitials(name)}</div>
                               }
                               <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{name}</p>
@@ -581,6 +607,17 @@ export default function ManagePartylistsPage() {
           })}
         </div>
       )}
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Remove Partylist"
+        message="This will remove the partylist record from the election workspace."
+        recordName={deleteTarget?.name}
+        confirmText="Remove"
+        busy={Boolean(deleteTarget && workingId === deleteTarget.id)}
+        onCancel={() => workingId !== deleteTarget?.id && setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

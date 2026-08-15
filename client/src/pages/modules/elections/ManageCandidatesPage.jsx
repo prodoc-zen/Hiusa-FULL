@@ -8,14 +8,8 @@ import {
   getUsers,
   updateElectionCandidate,
 } from '../../../services/electionService';
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
-
-function resolveImageUrl(url) {
-  if (!url) return null;
-  if (/^(https?:|blob:|data:)/i.test(url)) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-}
+import Modal from '../../../components/Modal';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 function Avatar({ name, size = 'sm' }) {
   const initials = name
@@ -133,7 +127,7 @@ function CandidateForm({
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Candidate Photo</label>
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
               {imagePreview
-                ? <img src={resolveImageUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
+                ? <img src={resolveAssetUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
                 : <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
               }
               <span className="text-[13px] font-medium text-slate-400">{imagePreview ? 'Change photo' : 'Upload photo'}</span>
@@ -347,51 +341,63 @@ export default function ManageCandidatesPage() {
         )}
       </div>
 
-      {showAdd && (
+      <Modal
+        open={showAdd}
+        onClose={() => !submitting && resetAddForm()}
+        closeOnBackdrop={!submitting}
+        closeOnEscape={!submitting}
+        maxWidth="max-w-3xl"
+      >
         <CandidateForm
-          title="Add Candidate"
-          submitLabel="Add Candidate"
-          form={form}
-          setForm={setForm}
-          positions={positions}
-          partylists={partylists}
-          users={availableAddUsers}
-          imagePreview={imagePreview}
-          onImageChange={(event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            setImageFile(file);
-            setImagePreview(URL.createObjectURL(file));
-          }}
-          error={error}
-          submitting={submitting}
-          onSubmit={handleAdd}
-          onCancel={resetAddForm}
-        />
-      )}
+            title="Add Candidate"
+            submitLabel="Add Candidate"
+            form={form}
+            setForm={setForm}
+            positions={positions}
+            partylists={partylists}
+            users={availableAddUsers}
+            imagePreview={imagePreview}
+            onImageChange={(event) => {
+              const file = event.target.files[0];
+              if (!file) return;
+              setImageFile(file);
+              setImagePreview(URL.createObjectURL(file));
+            }}
+            error={error}
+            submitting={submitting}
+            onSubmit={handleAdd}
+            onCancel={resetAddForm}
+          />
+      </Modal>
 
-      {editId && (
+      <Modal
+        open={Boolean(editId)}
+        onClose={() => !submitting && resetEditForm()}
+        closeOnBackdrop={!submitting}
+        closeOnEscape={!submitting}
+        maxWidth="max-w-3xl"
+      >
         <CandidateForm
-          title="Edit Candidate"
-          submitLabel="Save Changes"
-          form={editForm}
-          setForm={setEditForm}
-          positions={positions}
-          partylists={partylists}
-          users={availableEditUsers}
-          imagePreview={editImagePreview}
-          onImageChange={(event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            setEditImageFile(file);
-            setEditImagePreview(URL.createObjectURL(file));
-          }}
-          error={error}
-          submitting={submitting}
-          onSubmit={handleEdit}
-          onCancel={resetEditForm}
-        />
-      )}
+            title="Edit Candidate"
+            submitLabel="Save Changes"
+            form={editForm}
+            setForm={setEditForm}
+            positions={positions}
+            partylists={partylists}
+            users={availableEditUsers}
+            imagePreview={editImagePreview}
+            onImageChange={(event) => {
+              const file = event.target.files[0];
+              if (!file) return;
+              setEditImageFile(file);
+              setEditImagePreview(URL.createObjectURL(file));
+            }}
+            error={error}
+            submitting={submitting}
+            onSubmit={handleEdit}
+            onCancel={resetEditForm}
+          />
+      </Modal>
 
       {error && !showAdd && !editId && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
@@ -418,7 +424,7 @@ export default function ManageCandidatesPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       {candidate.image_url
-                        ? <img src={resolveImageUrl(candidate.image_url)} alt={name} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
+                        ? <img src={resolveAssetUrl(candidate.image_url)} alt={name} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
                         : <Avatar name={name || 'Candidate'} size="md" />
                       }
                       <div className="min-w-0">

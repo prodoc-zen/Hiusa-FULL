@@ -5,14 +5,7 @@ import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getMerchandise } from '../../../services/merchandiseService';
-
-const API_BASE_URL = (import.meta.env.VITE_API_URL || 'http://localhost:8000/api').replace(/\/api\/?$/, '');
-
-function resolveImageUrl(url) {
-  if (!url) return null;
-  if (/^(https?:|blob:|data:)/i.test(url)) return url;
-  return `${API_BASE_URL}${url.startsWith('/') ? '' : '/'}${url}`;
-}
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -20,7 +13,7 @@ function formatDate(d) {
 }
 
 function fmtPrice(n) {
-  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `PHP ${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
@@ -143,7 +136,7 @@ export default function StudentHomePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-[#0F172A]">{ev.title}</p>
-                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` · ${ev.location}` : ''}</p>
+                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
                     </div>
                   </div>
                 ))}
@@ -205,7 +198,7 @@ export default function StudentHomePage() {
                 <div key={item.id} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
                   <div className="mb-2 h-12 w-full overflow-hidden rounded-md bg-[#E6F6FD]">
                     {item.image_url
-                      ? <img src={resolveImageUrl(item.image_url)} alt={item.name} className="h-full w-full object-cover" />
+                      ? <img src={resolveAssetUrl(item.image_url)} alt={item.name} className="h-full w-full object-cover" />
                       : <div className="grid h-full w-full place-items-center"><Package size={22} className="text-[#0B8ED0]" /></div>
                     }
                   </div>
