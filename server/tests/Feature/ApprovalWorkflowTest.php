@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
+use App\Models\Election;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -161,5 +162,35 @@ class ApprovalWorkflowTest extends TestCase
         $this->withToken($this->loginAs($officer))
             ->patchJson("/api/approval-requests/{$approvalId}", ['status' => 'approved'])
             ->assertForbidden();
+    }
+
+    public function test_department_head_approval_moves_election_out_of_pending_approval(): void
+    {
+        $admin = User::factory()->create(['role' => 'ADMIN', 'password_hash' => 'password123']);
+        $deptHead = User::factory()->create([
+            'role' => 'DEPARTMENT_HEAD',
+            'organization_id' => $admin->organization_id,
+            'password_hash' => 'password123',
+        ]);
+
+        $electionId = $this->withToken($this->loginAs($admin))->postJson('/api/elections', [
+            'title' => 'Approved Student Election',
+            'start_time' => now()->addDay()->toDateTimeString(),
+            'end_time' => now()->addDays(2)->toDateTimeString(),
+        ])
+            ->assertCreated()
+            ->assertJsonPath('status', 'pending_approval')
+            ->json('id');
+
+        $approvalId = ApprovalRequest::where('entity_type', 'election')->where('entity_id', $electionId)->value('id');
+
+        $this->withToken($this->loginAs($deptHead))
+            ->patchJson("/api/approval-requests/{$approvalId}", ['status' => 'approved'])
+            ->assertOk();
+
+        $election = Election::findOrFail($electionId);
+
+        $this->assertSame('upcoming', $election->status);
+        $this->assertNotNull($election->approved_at);
     }
 }

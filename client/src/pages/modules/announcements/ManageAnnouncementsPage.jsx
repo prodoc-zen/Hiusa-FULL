@@ -44,6 +44,23 @@ function formatDate(iso) {
   return iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 }
 
+function getCurrentRole() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+  } catch {
+    return '';
+  }
+}
+
+function getCurrentUserId() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    return user?.id ?? user?.school_id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export default function ManageAnnouncementsPage() {
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,6 +69,8 @@ export default function ManageAnnouncementsPage() {
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
+  const currentRole = getCurrentRole();
+  const currentUserId = getCurrentUserId();
 
   const loadAnnouncements = useCallback(() => {
     let cancelled = false;
@@ -73,8 +92,8 @@ export default function ManageAnnouncementsPage() {
     try {
       const res = await togglePublish(id);
       setItems((prev) => prev.map((a) => (a.id === id ? res.data : a)));
-    } catch {
-      setError('Failed to update announcement. Please try again.');
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
     }
   }
 
@@ -153,75 +172,98 @@ export default function ManageAnnouncementsPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((a) => (
-                <tr key={a.id} className="border-b border-[#EEF6FB] transition-colors hover:bg-[#F8FBFD]">
-                  <td className="max-w-xs truncate px-3 py-3 font-semibold text-[#0F172A]">{a.title}</td>
-                  <td className="px-3 py-3 text-slate-500">{ROLE_LABEL[a.target_role] ?? a.target_role}</td>
-                  <td className="px-3 py-3">
-                    <Badge color="blue">{CATEGORY_LABEL[a.category] ?? 'General'}</Badge>
-                  </td>
-                  <td className="px-3 py-3">
-                    {a.approval_status === 'pending'
-                      ? <Badge color="yellow">Pending Approval</Badge>
-                      : a.approval_status === 'rejected'
-                        ? <Badge color="red">Rejected</Badge>
-                        : <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />}
-                  </td>
-                  <td className="px-3 py-3 text-slate-500">{formatDate(a.created_at)}</td>
-                  <td className="px-3 py-3">
-                    <div className="flex gap-1.5">
-                      <button
-                        onClick={() => openEdit(a)}
-                        className="rounded bg-[#EEF6FB] px-2 py-2 text-[10px] font-semibold text-[#0B8ED0] transition hover:bg-[#DDE7EF]"
-                      >
-                        Edit
-                      </button>
-                      {!a.is_published && !['pending', 'rejected'].includes(a.approval_status) ? (
-                        <button
-                          onClick={() => setConfirmState({
-                            open: true,
-                            title: 'Publish Announcement',
-                            message: `Publish "${a.title}" now?`,
-                            confirmText: 'Publish',
-                            action: async () => handleToggle(a.id),
-                            busy: false,
-                          })}
-                          className="rounded bg-emerald-100 px-2 py-2 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
-                        >
-                          Publish
-                        </button>
-                      ) : a.is_published ? (
-                        <button
-                          onClick={() => setConfirmState({
-                            open: true,
-                            title: 'Unpublish Announcement',
-                            message: `Set "${a.title}" back to draft?`,
-                            confirmText: 'Unpublish',
-                            action: async () => handleToggle(a.id),
-                            busy: false,
-                          })}
-                          className="rounded bg-amber-100 px-2 py-2 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-200"
-                        >
-                          Unpublish
-                        </button>
-                      ) : null}
-                      <button
-                        onClick={() => setConfirmState({
-                          open: true,
-                          title: 'Delete Announcement',
-                          message: `Delete "${a.title}"? This cannot be undone.`,
-                          confirmText: 'Delete',
-                          action: async () => handleDelete(a.id),
-                          busy: false,
-                        })}
-                        className="rounded-md p-2 text-red-500 transition hover:bg-red-50"
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+              {items.map((a) => {
+                const canModify = currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId);
+                const canPublishOwnDraft = canModify && ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentRole);
+
+                return (
+                  <tr key={a.id} className="border-b border-[#EEF6FB] transition-colors hover:bg-[#F8FBFD]">
+                      <td className="max-w-xs truncate px-3 py-3 font-semibold text-[#0F172A]">{a.title}</td>
+                      <td className="px-3 py-3 text-slate-500">{ROLE_LABEL[a.target_role] ?? a.target_role}</td>
+                      <td className="px-3 py-3">
+                        <Badge color="blue">{CATEGORY_LABEL[a.category] ?? 'General'}</Badge>
+                      </td>
+                      <td className="px-3 py-3">
+                        {a.approval_status === 'pending'
+                          ? <Badge color="yellow">Pending Approval</Badge>
+                          : a.approval_status === 'rejected'
+                            ? <Badge color="red">Rejected</Badge>
+                            : <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />}
+                      </td>
+                      <td className="px-3 py-3 text-slate-500">{formatDate(a.created_at)}</td>
+                      <td className="px-3 py-3">
+                        <div className="flex gap-1.5">
+                          {canModify && (
+                            <button
+                              onClick={() => openEdit(a)}
+                              className="rounded bg-[#EEF6FB] px-2 py-2 text-[10px] font-semibold text-[#0B8ED0] transition hover:bg-[#DDE7EF]"
+                            >
+                              Edit
+                            </button>
+                          )}
+                          {!a.is_published && a.approval_status === 'pending' && currentRole === 'ADMIN' ? (
+                            <button
+                              onClick={() => setConfirmState({
+                                open: true,
+                                title: 'Approve and Publish',
+                                message: `Approve and publish "${a.title}" now?`,
+                                confirmText: 'Approve & Publish',
+                                action: async () => handleToggle(a.id),
+                                busy: false,
+                              })}
+                              className="rounded bg-emerald-100 px-2 py-2 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
+                            >
+                              Approve & Publish
+                            </button>
+                          ) : !a.is_published && !['pending', 'rejected'].includes(a.approval_status) && canPublishOwnDraft ? (
+                            <button
+                              onClick={() => setConfirmState({
+                                open: true,
+                                title: 'Publish Announcement',
+                                message: `Publish "${a.title}" now?`,
+                                confirmText: 'Publish',
+                                action: async () => handleToggle(a.id),
+                                busy: false,
+                              })}
+                              className="rounded bg-emerald-100 px-2 py-2 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
+                            >
+                              Publish
+                            </button>
+                          ) : a.is_published && canPublishOwnDraft ? (
+                            <button
+                              onClick={() => setConfirmState({
+                                open: true,
+                                title: 'Unpublish Announcement',
+                                message: `Set "${a.title}" back to draft?`,
+                                confirmText: 'Unpublish',
+                                action: async () => handleToggle(a.id),
+                                busy: false,
+                              })}
+                              className="rounded bg-amber-100 px-2 py-2 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-200"
+                            >
+                              Unpublish
+                            </button>
+                          ) : null}
+                          {canModify && (
+                            <button
+                              onClick={() => setConfirmState({
+                                open: true,
+                                title: 'Delete Announcement',
+                                message: `Delete "${a.title}"? This cannot be undone.`,
+                                confirmText: 'Delete',
+                                action: async () => handleDelete(a.id),
+                                busy: false,
+                              })}
+                              className="rounded-md p-2 text-red-500 transition hover:bg-red-50"
+                            >
+                              <Trash2 size={13} />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

@@ -9,6 +9,7 @@ const AUDIENCE_OPTIONS = [
   { label: 'Officers Only', value: 'SBO_OFFICER' },
   { label: 'Students Only', value: 'STUDENT' },
   { label: 'Admins Only', value: 'ADMIN' },
+  { label: 'Department Heads Only', value: 'DEPARTMENT_HEAD' },
 ];
 
 const CATEGORY_OPTIONS = [

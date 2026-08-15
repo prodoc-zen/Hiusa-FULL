@@ -9,6 +9,7 @@ use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
@@ -76,12 +77,14 @@ class AnnouncementController extends Controller
             $query->where('category', $category);
         }
 
-        if ($request->boolean('published_only') || in_array($user->role, ['STUDENT', 'DEPARTMENT_HEAD'], true)) {
+        $publishedOnly = $request->boolean('published_only');
+
+        if ($publishedOnly || $user->role === 'STUDENT') {
             $query->where('is_published', true)
                 ->where('approval_status', 'approved');
         }
 
-        if (in_array($user->role, ['STUDENT', 'DEPARTMENT_HEAD'], true)) {
+        if ($user->role === 'STUDENT' || ($publishedOnly && $user->role === 'DEPARTMENT_HEAD')) {
             $query->where(function ($q) use ($user) {
                     $q->where('target_role', 'all')
                         ->orWhere('target_role', $user->role);
@@ -102,17 +105,18 @@ class AnnouncementController extends Controller
         ]);
 
         $user = $request->user();
-        $isAdminPublish = $user->role === 'ADMIN' && ($data['is_published'] ?? false);
+        $canPublishWithoutApproval = in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true);
+        $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
 
         $announcement = Announcement::create([
             'title' => $data['title'],
             'body' => $data['body'],
             'target_role' => $data['target_role'],
             'category' => $data['category'] ?? 'general',
-            'is_published' => $isAdminPublish,
-            'approval_status' => $isAdminPublish ? 'approved' : ($user->role === 'SBO_OFFICER' ? 'pending' : 'draft'),
-            'reviewed_by' => $isAdminPublish ? $user->id : null,
-            'published_at' => $isAdminPublish ? now() : null,
+            'is_published' => $isDirectPublish,
+            'approval_status' => $isDirectPublish ? 'approved' : ($user->role === 'SBO_OFFICER' ? 'pending' : 'draft'),
+            'reviewed_by' => $isDirectPublish ? $user->id : null,
+            'published_at' => $isDirectPublish ? now() : null,
             'created_by' => $user->id,
             'organization_id' => $user->organization_id,
         ]);
@@ -221,14 +225,76 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($user->role !== 'ADMIN') {
+        if (! in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true)) {
             return response()->json(['message' => 'Announcements from SBO officers require admin approval before publishing.'], 403);
         }
 
         $wasPublished = (bool) $announcement->is_published;
 
+        if ($user->role === 'DEPARTMENT_HEAD' && $announcement->created_by !== $user->id) {
+            return response()->json(['message' => 'You can only publish or unpublish your own announcements.'], 403);
+        }
+
         if (! $wasPublished && $announcement->approval_status === 'pending') {
-            return response()->json(['message' => 'Review this announcement from the Approvals module before publishing.'], 422);
+            if ($user->role !== 'ADMIN') {
+                return response()->json(['message' => 'Pending SBO announcements require admin approval before publishing.'], 403);
+            }
+
+            $approval = ApprovalRequest::where('organization_id', $announcement->organization_id)
+                ->where('entity_type', 'announcement')
+                ->where('entity_id', $announcement->id)
+                ->where('required_role', 'ADMIN')
+                ->where('status', 'pending')
+                ->latest('id')
+                ->first();
+
+            if (! $approval) {
+                return response()->json(['message' => 'Pending approval request not found.'], 409);
+            }
+
+            if ($approval->requested_by === $user->id) {
+                return response()->json(['message' => 'You cannot approve your own announcement request.'], 403);
+            }
+
+            $oldValues = $this->auditableAnnouncementValues($announcement);
+
+            $freshAnnouncement = DB::transaction(function () use ($approval, $announcement, $request, $oldValues) {
+                $approval->update([
+                    'status' => 'approved',
+                    'remarks' => null,
+                    'reviewed_by' => $request->user()->id,
+                    'reviewed_at' => now(),
+                ]);
+
+                $announcement->update([
+                    'is_published' => true,
+                    'approval_status' => 'approved',
+                    'reviewed_by' => $request->user()->id,
+                    'review_remarks' => null,
+                    'published_at' => now(),
+                ]);
+
+                $fresh = $announcement->fresh();
+
+                $this->notifyApprovalRequester($approval, 'approved');
+                $this->recordApprovalAudit($request, $approval->fresh(), 'approved');
+                $this->recordAnnouncementAudit(
+                    $request,
+                    'published',
+                    $fresh,
+                    $oldValues,
+                    $this->auditableAnnouncementValues($fresh)
+                );
+
+                return $fresh;
+            });
+
+            $this->dispatchAnnouncementNotifications($freshAnnouncement);
+
+            return response()->json($freshAnnouncement->load([
+                'creator:school_id,first_name,last_name,role',
+                'reviewer:school_id,first_name,last_name,role',
+            ]));
         }
 
         if (! $wasPublished && $announcement->approval_status === 'rejected') {
@@ -368,6 +434,42 @@ class AnnouncementController extends Controller
             'record_id' => $announcement?->id,
             'old_values' => $oldValues,
             'new_values' => $newValues,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
+    }
+
+    private function notifyApprovalRequester(ApprovalRequest $approval, string $status): void
+    {
+        Notification::create([
+            'organization_id' => $approval->organization_id,
+            'user_id' => $approval->requested_by,
+            'title' => 'Approval Request '.Str::headline($status),
+            'message' => Str::headline($approval->entity_type).' request #'.$approval->entity_id.' was '.$status.'.',
+            'notification_type' => 'general',
+            'reference_type' => 'approval_request',
+            'reference_id' => $approval->id,
+            'is_read' => false,
+            'sent_at' => now(),
+        ]);
+    }
+
+    private function recordApprovalAudit(Request $request, ApprovalRequest $approval, string $status): void
+    {
+        AuditLog::create([
+            'organization_id' => $request->user()?->organization_id,
+            'user_id' => $request->user()?->school_id,
+            'module' => 'approvals',
+            'action' => 'reviewed_'.$status,
+            'record_type' => ApprovalRequest::class,
+            'record_id' => $approval->id,
+            'old_values' => null,
+            'new_values' => [
+                'entity_type' => $approval->entity_type,
+                'entity_id' => $approval->entity_id,
+                'status' => $status,
+                'remarks' => $approval->remarks,
+            ],
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);

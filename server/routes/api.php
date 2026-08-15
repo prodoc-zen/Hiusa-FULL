@@ -45,11 +45,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
-    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware('role:ADMIN,SBO_OFFICER');
-    Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER');
-    Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER');
-    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER');
-    Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');

@@ -475,13 +475,44 @@ class UseCaseComplianceTest extends TestCase
 
         $this->authenticate($admin);
         $this->patchJson("/api/announcements/{$announcementId}/publish")
-            ->assertUnprocessable();
+            ->assertOk()
+            ->assertJsonPath('approval_status', 'approved')
+            ->assertJsonPath('is_published', true);
         $approval = ApprovalRequest::where('entity_type', 'announcement')->where('entity_id', $announcementId)->firstOrFail();
-        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+        $this->assertSame('approved', $approval->status);
 
         $announcement = Announcement::findOrFail($announcementId);
         $this->assertTrue($announcement->is_published);
         $this->assertSame('approved', $announcement->approval_status);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $student->school_id,
+            'reference_type' => 'announcement',
+            'reference_id' => $announcementId,
+        ]);
+    }
+
+    public function test_department_head_announcements_bypass_approval(): void
+    {
+        $departmentHead = $this->user('DEPARTMENT_HEAD');
+        $student = $this->user('STUDENT', $departmentHead->organization_id);
+
+        $this->authenticate($departmentHead);
+        $announcementId = $this->postJson('/api/announcements', [
+            'title' => 'Department Notice',
+            'body' => 'This announcement is posted directly by the Department Head.',
+            'target_role' => 'all',
+            'category' => 'general',
+            'is_published' => true,
+        ])
+            ->assertCreated()
+            ->assertJsonPath('approval_status', 'approved')
+            ->assertJsonPath('is_published', true)
+            ->json('id');
+
+        $this->assertDatabaseMissing('approval_requests', [
+            'entity_type' => 'announcement',
+            'entity_id' => $announcementId,
+        ]);
         $this->assertDatabaseHas('notifications', [
             'user_id' => $student->school_id,
             'reference_type' => 'announcement',
