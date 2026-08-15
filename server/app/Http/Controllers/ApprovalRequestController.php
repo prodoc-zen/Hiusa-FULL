@@ -128,9 +128,7 @@ class ApprovalRequestController extends Controller
             'budget' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
                 'remaining_amount' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->value('allocated_amount'),
             ]),
-            'election' => Election::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
-                'approved_at' => now(),
-            ]),
+            'election' => $this->approveElection($approval),
             'announcement' => $this->approveAnnouncement($approval, $request),
             'payment' => $this->fulfillmentService->approvePayment(
                 Order::where('organization_id', $approval->organization_id)->findOrFail($approval->entity_id),
@@ -138,6 +136,37 @@ class ApprovalRequestController extends Controller
             ),
             default => null,
         };
+    }
+
+    private function approveElection(ApprovalRequest $approval): void
+    {
+        $election = Election::where('organization_id', $approval->organization_id)
+            ->where('id', $approval->entity_id)
+            ->first();
+
+        if (!$election) {
+            return;
+        }
+
+        $election->update([
+            'status' => $this->approvedElectionStatus($election),
+            'approved_at' => now(),
+        ]);
+    }
+
+    private function approvedElectionStatus(Election $election): string
+    {
+        $now = now();
+
+        if ($election->start_time && $now->lt($election->start_time)) {
+            return 'upcoming';
+        }
+
+        if ($election->end_time && $now->gt($election->end_time)) {
+            return 'closed';
+        }
+
+        return 'active';
     }
 
     private function applyRejection(ApprovalRequest $approval, Request $request): void

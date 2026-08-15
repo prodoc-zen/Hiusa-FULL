@@ -136,7 +136,7 @@ function MerchandiseIndexRedirect() {
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
-  if (role === 'STUDENT' || role === 'ADMIN' || role === 'DEPARTMENT_HEAD') {
+  if (role === 'STUDENT' || role === 'ADMIN') {
     return <Navigate to="view-announcements" replace />;
   }
 
@@ -172,8 +172,8 @@ function App() {
           {/* Shared Modules */}
           <Route path="announcements">
             <Route index element={<AnnouncementsIndexRedirect />} />
-            <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageAnnouncementsPage /></ProtectedRoute>} />
-            <Route path="create-announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
+            <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><ManageAnnouncementsPage /></ProtectedRoute>} />
+            <Route path="create-announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><CreateAnnouncementPage /></ProtectedRoute>} />
             <Route path="view-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><AnnouncementsFeedPage /></ProtectedRoute>} />
           </Route>
 
