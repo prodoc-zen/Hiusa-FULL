@@ -18,6 +18,7 @@ use App\Models\Organization;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -414,6 +415,64 @@ class UseCaseComplianceTest extends TestCase
 
         $this->authenticate($admin);
         $this->putJson("/api/elections/{$election->id}", ['title' => 'Unsafe Rename'])->assertConflict();
+    }
+
+    public function test_admin_can_delete_election_before_votes_are_cast(): void
+    {
+        $admin = $this->user('ADMIN');
+
+        $this->authenticate($admin);
+        $electionId = $this->postJson('/api/elections', [
+            'title' => 'Disposable Election',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+        ])->assertCreated()->json('id');
+
+        $this->assertDatabaseHas('approval_requests', [
+            'entity_type' => 'election',
+            'entity_id' => $electionId,
+        ]);
+
+        $this->deleteJson("/api/elections/{$electionId}")->assertOk();
+
+        $this->assertDatabaseMissing('elections', ['id' => $electionId]);
+        $this->assertDatabaseMissing('approval_requests', [
+            'entity_type' => 'election',
+            'entity_id' => $electionId,
+        ]);
+    }
+
+    public function test_admin_cannot_delete_election_after_votes_are_cast(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $candidateUser = $this->user('STUDENT', $admin->organization_id);
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Locked Election',
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+            'status' => 'active',
+            'approved_at' => now(),
+        ]);
+        $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $candidate = Candidate::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'user_id' => $candidateUser->school_id,
+        ]);
+        Vote::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'candidate_id' => $candidate->id,
+            'voter_id' => $student->school_id,
+            'vote_hash' => 'locked-delete-test',
+        ]);
+
+        $this->authenticate($admin);
+        $this->deleteJson("/api/elections/{$election->id}")->assertConflict();
+
+        $this->assertDatabaseHas('elections', ['id' => $election->id]);
     }
 
     public function test_merchandise_payment_requires_officer_submission_and_admin_approval(): void

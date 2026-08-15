@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine } from 'lucide-react';
-import { createElection, getElections, updateElection } from '../../../services/electionService';
+import { Plus, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine, Trash2 } from 'lucide-react';
+import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
+import ConfirmModal from '../../../components/ConfirmModal';
 
 const statusStyles = {
   pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -81,6 +82,8 @@ export default function ElectionPickerPage({ onSelect }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleting, setDeleting] = useState(false);
   const [form, setForm] = useState({
     title: '',
     start_time: '',
@@ -185,6 +188,23 @@ export default function ElectionPickerPage({ onSelect }) {
       );
     } catch (updateError) {
       setError(updateError?.response?.data?.message || 'Unable to update election status.');
+    }
+  };
+
+  const handleDelete = async () => {
+    if (!deleteTarget || deleting) return;
+
+    setDeleting(true);
+    setError('');
+    try {
+      await deleteElection(deleteTarget.id);
+      setElections((current) => current.filter((item) => item.id !== deleteTarget.id));
+      setDeleteTarget(null);
+      setFeedback({ open: true, type: 'success', message: 'Election deleted.' });
+    } catch (deleteError) {
+      setError(deleteError?.response?.data?.message || 'Unable to delete election.');
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -445,6 +465,17 @@ export default function ElectionPickerPage({ onSelect }) {
                       </button>
                     )}
 
+                    {canManageElections && (
+                      <button
+                        type="button"
+                        onClick={() => setDeleteTarget(el)}
+                        className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
+                        aria-label="Delete election"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    )}
+
                     {canManageElections && el.status === 'pending_approval' && (
                       <span className="inline-flex h-10 items-center rounded-md border border-amber-200 bg-amber-50 px-3 text-xs font-semibold text-amber-700">
                         Awaiting Department Head approval
@@ -574,6 +605,18 @@ export default function ElectionPickerPage({ onSelect }) {
 
           </form>
       </Modal>
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete Election"
+        message="This will delete the election setup, positions, candidates, and its approval request. Elections with existing votes cannot be deleted."
+        recordName={deleteTarget?.title || ''}
+        confirmText="Delete"
+        variant="danger"
+        busy={deleting}
+        onCancel={() => !deleting && setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

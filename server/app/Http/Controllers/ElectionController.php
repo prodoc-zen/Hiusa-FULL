@@ -249,6 +249,11 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Cannot delete an election that already has votes cast.'], 409);
         }
 
+        ApprovalRequest::where('organization_id', $election->organization_id)
+            ->where('entity_type', 'election')
+            ->where('entity_id', $election->id)
+            ->delete();
+
         $election->delete();
 
         return response()->json(['message' => 'Election deleted successfully']);
