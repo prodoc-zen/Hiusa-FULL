@@ -77,7 +77,7 @@ export default function DepartmentHeadHomePage() {
               <p className="text-sm text-amber-700">Events, budgets, and elections need your sign-off before they go live.</p>
             </div>
           </div>
-          <span className="shrink-0 text-sm font-bold text-amber-700">Review →</span>
+          <span className="shrink-0 text-sm font-bold text-amber-700">Review</span>
         </NavLink>
       )}
 
@@ -155,7 +155,7 @@ export default function DepartmentHeadHomePage() {
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-[#0F172A]">{ev.title}</p>
-                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` · ${ev.location}` : ''}</p>
+                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
                     </div>
                     <span className="shrink-0 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#0B8ED0]">{ev.status}</span>
                   </div>

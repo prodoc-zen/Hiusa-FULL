@@ -22,7 +22,7 @@ class ApprovalWorkflowTest extends TestCase
     {
         $login = $this->postJson('/api/login', [
             'organization_id' => $user->organization_id,
-            'email' => $user->email,
+            'school_id' => $user->school_id,
             'password' => 'password123',
         ]);
 

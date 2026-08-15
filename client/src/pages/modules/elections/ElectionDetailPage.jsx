@@ -1,6 +1,9 @@
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Trash2 } from 'lucide-react';
+import { CirclePlus, Trash2 } from 'lucide-react';
+import ConfirmModal from '../../../components/ConfirmModal';
+import FeedbackToast from '../../../components/FeedbackToast';
+import Modal from '../../../components/Modal';
 import { createElectionPosition, deleteElectionPosition } from '../../../services/electionService';
 
 export default function ElectionDetailPage() {
@@ -9,6 +12,11 @@ export default function ElectionDetailPage() {
   const [newPositionMaxWinners, setNewPositionMaxWinners] = useState(1);
   const [localPositions, setLocalPositions] = useState(() => election?.positions || []);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
+  const [showAddPosition, setShowAddPosition] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [busy, setBusy] = useState(false);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
 
   useEffect(() => {
     setLocalPositions(election?.positions || []);
@@ -27,9 +35,23 @@ export default function ElectionDetailPage() {
     candidates: candidates.filter((candidate) => candidate.position_id === position.id),
   }));
 
+  const openAddPosition = () => {
+    setNewPositionTitle('');
+    setNewPositionMaxWinners(1);
+    setModalError('');
+    setShowAddPosition(true);
+  };
+
+  const closeAddPosition = () => {
+    if (busy) return;
+    setShowAddPosition(false);
+    setModalError('');
+  };
+
   const handleAddPosition = async (event) => {
     event.preventDefault();
-    setError('');
+    setModalError('');
+    setBusy(true);
 
     try {
       const created = await createElectionPosition(election.id, {
@@ -37,28 +59,41 @@ export default function ElectionDetailPage() {
         max_winners: newPositionMaxWinners,
       });
       setLocalPositions((current) => [...current, created]);
+      setShowAddPosition(false);
       setNewPositionTitle('');
       setNewPositionMaxWinners(1);
       await refreshElection();
+      setFeedback({ open: true, type: 'success', message: 'Election position added.' });
     } catch (createError) {
-      setError(createError?.response?.data?.message || 'Unable to create election position.');
+      setModalError(createError?.response?.data?.message || 'Unable to create election position.');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleRemovePosition = async (positionId) => {
+  const handleRemovePosition = async () => {
+    if (!deleteTarget) return;
+
     setError('');
+    setBusy(true);
 
     try {
-      await deleteElectionPosition(election.id, positionId);
-      setLocalPositions((current) => current.filter((position) => position.id !== positionId));
+      await deleteElectionPosition(election.id, deleteTarget.id);
+      setLocalPositions((current) => current.filter((position) => position.id !== deleteTarget.id));
+      setFeedback({ open: true, type: 'success', message: `${deleteTarget.title} removed.` });
+      setDeleteTarget(null);
       await refreshElection();
     } catch (deleteError) {
       setError(deleteError?.response?.data?.message || 'Unable to remove election position.');
+    } finally {
+      setBusy(false);
     }
   };
 
   return (
     <div className="space-y-6">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -66,17 +101,14 @@ export default function ElectionDetailPage() {
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">{election.title}</h2>
             <p className="mt-1 text-sm font-medium text-slate-500">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
           </div>
-          <form onSubmit={handleAddPosition} className="flex flex-col gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 sm:flex-row sm:items-end">
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">New position</label>
-              <input value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" placeholder="e.g. Treasurer" />
-            </div>
-            <div>
-              <label className="block text-[11px] font-bold uppercase tracking-wider text-slate-500">Max winners</label>
-              <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} className="mt-1 h-10 w-28 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
-            </div>
-            <button type="submit" className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7]">Add Position</button>
-          </form>
+          <button
+            type="button"
+            onClick={openAddPosition}
+            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition hover:bg-[#0878B7]"
+          >
+            <CirclePlus size={15} />
+            Add Position
+          </button>
         </div>
       </section>
 
@@ -96,7 +128,7 @@ export default function ElectionDetailPage() {
                 <span className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0B8ED0]">{positionCandidates.length} candidates</span>
                 <button
                   type="button"
-                  onClick={() => handleRemovePosition(position.id)}
+                  onClick={() => setDeleteTarget(position)}
                   className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100"
                 >
                   <Trash2 size={12} />
@@ -122,6 +154,47 @@ export default function ElectionDetailPage() {
           </div>
         ))}
       </div>
+
+      <Modal
+        open={showAddPosition}
+        title="Add Election Position"
+        description="Create a new position for this election ballot."
+        onClose={closeAddPosition}
+        closeOnBackdrop={!busy}
+        closeOnEscape={!busy}
+        maxWidth="max-w-lg"
+        footer={(
+          <>
+            <button type="button" onClick={closeAddPosition} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button type="submit" form="add-position-form" disabled={busy || !newPositionTitle.trim()} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Adding...' : 'Add Position'}</button>
+          </>
+        )}
+      >
+        <form id="add-position-form" onSubmit={handleAddPosition} className="space-y-4">
+          <label className="block">
+            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position Title</span>
+            <input value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" placeholder="e.g. Treasurer" />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Max Winners</span>
+            <input type="number" min="1" value={newPositionMaxWinners} onChange={(event) => setNewPositionMaxWinners(Number(event.target.value))} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+          </label>
+          {modalError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{modalError}</div>
+          )}
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Remove Election Position"
+        message="This removes the position from the ballot configuration."
+        recordName={deleteTarget?.title}
+        confirmText="Remove"
+        busy={busy}
+        onCancel={() => !busy && setDeleteTarget(null)}
+        onConfirm={handleRemovePosition}
+      />
     </div>
   );
 }

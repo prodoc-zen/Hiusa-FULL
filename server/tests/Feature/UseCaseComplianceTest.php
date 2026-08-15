@@ -60,8 +60,20 @@ class UseCaseComplianceTest extends TestCase
         $created->assertJsonPath('organization_id', $admin->organization_id);
         $this->putJson("/api/users/{$created->json('school_id')}", [
             'organization_id' => $otherOrganization->id,
+            'school_id' => 12345678,
             'first_name' => 'Still Scoped',
-        ])->assertOk()->assertJsonPath('organization_id', $admin->organization_id);
+        ])->assertOk()
+            ->assertJsonPath('organization_id', $admin->organization_id)
+            ->assertJsonPath('school_id', 87654321);
+
+        $this->assertDatabaseMissing('users', ['school_id' => 12345678]);
+
+        $this->postJson("/api/users/{$created->json('school_id')}/disable")->assertOk();
+        $this->assertDatabaseHas('users', ['school_id' => 87654321, 'account_status' => 'disabled']);
+
+        $this->postJson("/api/users/{$created->json('school_id')}/reactivate")
+            ->assertOk()
+            ->assertJsonPath('account_status', 'active');
 
         $this->putJson("/api/users/{$admin->school_id}", ['account_status' => 'disabled'])
             ->assertUnprocessable();
@@ -71,6 +83,11 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseHas('audit_logs', [
             'module' => 'users',
             'action' => 'created',
+            'record_id' => $created->json('school_id'),
+        ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'module' => 'users',
+            'action' => 'reactivated',
             'record_id' => $created->json('school_id'),
         ]);
     }
@@ -174,6 +191,36 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'remaining_amount' => 100, 'overspending_risk' => 'low']);
     }
 
+    public function test_approved_budget_changes_reopen_approval_before_more_spending(): void
+    {
+        $admin = $this->user('ADMIN');
+        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
+        $this->authenticate($admin);
+
+        $budgetId = $this->postJson('/api/budgets', [
+            'title' => 'Conference Budget',
+            'allocated_amount' => 500,
+            'warning_threshold' => 100,
+        ])->assertCreated()->json('id');
+
+        $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
+        $this->authenticate($departmentHead);
+        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+
+        $this->authenticate($admin);
+        $this->putJson("/api/budgets/{$budgetId}", ['allocated_amount' => 750])->assertOk();
+        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'pending']);
+
+        $this->postJson('/api/transactions', [
+            'budget_id' => $budgetId,
+            'type' => 'expense',
+            'amount' => 25,
+            'category' => 'Operations',
+            'description' => 'Reopened budget spend',
+            'transaction_date' => now()->toDateString(),
+        ])->assertUnprocessable();
+    }
+
     public function test_ols_forecast_is_generated_from_monthly_transactions(): void
     {
         $admin = $this->user('ADMIN');
@@ -272,6 +319,31 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseHas('ai_outputs', ['reference_type' => FinancialReport::class, 'reference_id' => $report->id]);
     }
 
+    public function test_approved_event_changes_reopen_department_head_approval(): void
+    {
+        $admin = $this->user('ADMIN');
+        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
+
+        $this->authenticate($admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'Approved Event',
+            'start_time' => now()->addWeek(),
+            'end_time' => now()->addWeek()->addHours(2),
+        ])->assertCreated()->json('id');
+
+        $approval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->firstOrFail();
+        $this->authenticate($departmentHead);
+        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+
+        $this->authenticate($admin);
+        $this->putJson("/api/events/{$eventId}", ['location' => 'New Auditorium'])
+            ->assertOk()
+            ->assertJsonPath('status', 'planning')
+            ->assertJsonPath('approved_at', null);
+
+        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'pending']);
+    }
+
     public function test_election_enforces_voting_period_and_prevents_duplicate_ballots(): void
     {
         $student = $this->user('STUDENT');
@@ -297,6 +369,51 @@ class UseCaseComplianceTest extends TestCase
         $election->update(['start_time' => now()->subHour(), 'end_time' => now()->addHour()]);
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertOk();
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertUnprocessable();
+    }
+
+    public function test_approved_election_changes_reopen_approval_and_votes_lock_details(): void
+    {
+        $admin = $this->user('ADMIN');
+        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $candidateUser = $this->user('STUDENT', $admin->organization_id);
+
+        $this->authenticate($admin);
+        $electionId = $this->postJson('/api/elections', [
+            'title' => 'Approved Election',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+        ])->assertCreated()->json('id');
+
+        $approval = ApprovalRequest::where('entity_type', 'election')->where('entity_id', $electionId)->firstOrFail();
+        $this->authenticate($departmentHead);
+        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+
+        $this->authenticate($admin);
+        $this->putJson("/api/elections/{$electionId}", ['title' => 'Revised Election'])
+            ->assertOk()
+            ->assertJsonPath('status', 'pending_approval')
+            ->assertJsonPath('approved_at', null);
+        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'pending']);
+
+        $this->authenticate($departmentHead);
+        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+        $election = Election::findOrFail($electionId);
+        $election->update(['status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHour()]);
+        $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $candidate = Candidate::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'user_id' => $candidateUser->school_id,
+        ]);
+
+        $this->authenticate($student);
+        $this->postJson("/api/elections/{$election->id}/vote", [
+            'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+        ])->assertOk();
+
+        $this->authenticate($admin);
+        $this->putJson("/api/elections/{$election->id}", ['title' => 'Unsafe Rename'])->assertConflict();
     }
 
     public function test_merchandise_payment_requires_officer_submission_and_admin_approval(): void

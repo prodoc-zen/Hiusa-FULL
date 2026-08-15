@@ -8,8 +8,10 @@ import {
   Search,
   Send,
   Trash2,
-  X,
 } from 'lucide-react';
+import ConfirmModal from '../../../components/ConfirmModal';
+import FeedbackToast from '../../../components/FeedbackToast';
+import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import {
   getAnnouncements,
@@ -51,6 +53,9 @@ export default function AnnouncementsPage() {
   const [formError, setFormError] = useState(null);
 
   const [error, setError] = useState(null);
+  const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
 
   function load() {
     setLoading(true);
@@ -74,6 +79,7 @@ export default function AnnouncementsPage() {
       setFormTitle('');
       setFormBody('');
       setFormRole('all');
+      setFeedback({ open: true, type: 'success', message: 'Announcement draft created.' });
       load();
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to post. Try again.');
@@ -86,18 +92,25 @@ export default function AnnouncementsPage() {
     try {
       const res = await togglePublish(id);
       setItems((prev) => prev.map((a) => (a.id === id ? res.data : a)));
+      setFeedback({ open: true, type: 'success', message: 'Announcement status updated.' });
     } catch {
-      alert('Failed to update. Try again.');
+      setFeedback({ open: true, type: 'error', message: 'Failed to update. Try again.' });
     }
   }
 
-  async function handleDelete(id) {
-    if (!window.confirm('Delete this announcement?')) return;
+  async function handleDelete() {
+    if (!deleteTarget) return;
+    setDeleteBusy(true);
+
     try {
-      await deleteAnnouncement(id);
-      setItems((prev) => prev.filter((a) => a.id !== id));
+      await deleteAnnouncement(deleteTarget.id);
+      setItems((prev) => prev.filter((a) => a.id !== deleteTarget.id));
+      setFeedback({ open: true, type: 'success', message: 'Announcement deleted.' });
+      setDeleteTarget(null);
     } catch {
-      alert('Failed to delete. Try again.');
+      setFeedback({ open: true, type: 'error', message: 'Failed to delete. Try again.' });
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -116,6 +129,8 @@ export default function AnnouncementsPage() {
 
   return (
     <div className="space-y-6">
+      <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+
       {error && (
         <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>
@@ -212,7 +227,7 @@ export default function AnnouncementsPage() {
                     <button onClick={() => handleToggle(a.id)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
                       <Eye size={15} />
                     </button>
-                    <button onClick={() => handleDelete(a.id)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-500">
+                    <button onClick={() => setDeleteTarget(a)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-500">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -230,14 +245,30 @@ export default function AnnouncementsPage() {
         </section>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">Post Announcement</h2>
-              <button onClick={() => setShowForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
-            </div>
-            <form className="space-y-4" onSubmit={handleCreate}>
+      <Modal
+        open={showForm}
+        title="Post Announcement"
+        description="Create a draft announcement for the selected audience."
+        onClose={() => !formSubmitting && setShowForm(false)}
+        closeOnBackdrop={!formSubmitting}
+        closeOnEscape={!formSubmitting}
+        maxWidth="max-w-lg"
+        footer={(
+          <>
+            <button type="button" onClick={() => setShowForm(false)} disabled={formSubmitting} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
+            <button
+              type="submit"
+              form="announcement-create-form"
+              disabled={formSubmitting || !formTitle.trim() || !formBody.trim()}
+              className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+            >
+              <Send size={15} />
+              {formSubmitting ? 'Posting...' : 'Post as Draft'}
+            </button>
+          </>
+        )}
+      >
+            <form id="announcement-create-form" className="space-y-4" onSubmit={handleCreate}>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">Title</label>
                 <input
@@ -271,21 +302,19 @@ export default function AnnouncementsPage() {
                 </select>
               </div>
               {formError && <p className="text-xs text-red-600">{formError}</p>}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting || !formTitle.trim() || !formBody.trim()}
-                  className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
-                >
-                  <Send size={15} />
-                  {formSubmitting ? 'Posting...' : 'Post as Draft'}
-                </button>
-              </div>
             </form>
-          </div>
-        </div>
-      )}
+      </Modal>
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete Announcement"
+        message="This announcement will be permanently removed from the feed."
+        recordName={deleteTarget?.title}
+        confirmText="Delete"
+        busy={deleteBusy}
+        onCancel={() => !deleteBusy && setDeleteTarget(null)}
+        onConfirm={handleDelete}
+      />
     </div>
   );
 }

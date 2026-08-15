@@ -20,6 +20,15 @@ return new class extends Migration
         Schema::dropIfExists('financial_reports');
         Schema::dropIfExists('ai_outputs');
 
+        $this->dropForeignKeys('attendance', ['recorded_by']);
+        $this->dropForeignKeys('orders', ['claim_verified_by', 'transaction_id']);
+        $this->dropForeignKeys('financial_forecasts', ['generated_by']);
+        $this->dropForeignKeys('transactions', ['event_id', 'payer_id']);
+        $this->dropForeignKeys('announcements', ['reviewed_by']);
+        $this->dropIndexes('transactions', ['transactions_event_receipt_unique']);
+        $this->dropIndexes('announcements', ['announcements_reviewed_by_index']);
+        $this->dropIndexes('approval_requests', ['approval_status_role_index', 'approval_entity_index']);
+
         $this->dropColumns('attendance', ['check_out_time', 'recorded_by', 'remarks']);
         $this->dropColumns('notifications', ['notification_type', 'reference_type', 'reference_id', 'scheduled_at', 'sent_at']);
         $this->dropColumns('elections', ['results_visible', 'approved_at']);
@@ -327,6 +336,44 @@ return new class extends Migration
                 $table->foreign('user_id')->references('school_id')->on('users')->nullOnDelete();
             });
         }
+    }
+
+    private function dropForeignKeys(string $tableName, array $columns): void
+    {
+        if (! Schema::hasTable($tableName)) {
+            return;
+        }
+
+        $existing = array_values(array_filter($columns, fn (string $column) => Schema::hasColumn($tableName, $column)));
+
+        if ($existing === []) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) use ($existing) {
+            foreach ($existing as $column) {
+                $table->dropForeign([$column]);
+            }
+        });
+    }
+
+    private function dropIndexes(string $tableName, array $indexes): void
+    {
+        if (! Schema::hasTable($tableName)) {
+            return;
+        }
+
+        $existing = array_values(array_filter($indexes, fn (string $index) => Schema::hasIndex($tableName, $index)));
+
+        if ($existing === []) {
+            return;
+        }
+
+        Schema::table($tableName, function (Blueprint $table) use ($existing) {
+            foreach ($existing as $index) {
+                $table->dropIndex($index);
+            }
+        });
     }
 
     private function dropColumns(string $tableName, array $columns): void

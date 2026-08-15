@@ -72,7 +72,7 @@ class TaskSeeder extends Seeder
                 'event_id'    => $sportsFest?->id,
             ],
             [
-                'title'       => 'Update official member roster for 2024–2025',
+                'title'       => 'Update official member roster for 2024-2025',
                 'description' => 'Cross-check paid members list with registration records. Remove inactive members from the roster.',
                 'status'      => 'overdue',
                 'deadline'    => now()->subDays(5),

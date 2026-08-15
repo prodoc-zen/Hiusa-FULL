@@ -99,11 +99,12 @@ export default function TasksPage({ initialTab = 'board' }) {
   }
 
   async function handleStatusChange(id, newStatus) {
+    setError(null);
     try {
       const res = await updateTaskStatus(id, newStatus);
       setTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
-    } catch {
-      alert('Failed to update task status.');
+    } catch (err) {
+      setError(err.response?.data?.message ?? 'Failed to update task status.');
     }
   }
 
@@ -307,8 +308,8 @@ export default function TasksPage({ initialTab = 'board' }) {
                     <div key={entry.user.id} className="rounded-lg border border-violet-100 bg-violet-50/50 p-4">
                       <p className="text-sm font-bold text-[#0F172A]">Next task suggestion</p>
                       <p className="mt-1 text-xs font-medium text-slate-500">
-                        <span className="font-bold text-violet-600">→ {entry.user.first_name} {entry.user.last_name}</span>
-                        {' '}· {entry.total} tasks assigned, {entry.completed} completed
+                        <span className="font-bold text-violet-600">Suggested: {entry.user.first_name} {entry.user.last_name}</span>
+                        {' '} - {entry.total} tasks assigned, {entry.completed} completed
                       </p>
                     </div>
                   ))}

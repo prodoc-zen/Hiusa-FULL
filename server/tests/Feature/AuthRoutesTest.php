@@ -46,12 +46,13 @@ class AuthRoutesTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'student@example.com',
+            'school_id' => 10020030,
             'password_hash' => 'password123',
         ]);
 
         $login = $this->postJson('/api/login', [
             'organization_id' => $user->organization_id,
-            'email' => 'student@example.com',
+            'school_id' => 10020030,
             'password' => 'password123',
         ]);
 
@@ -65,17 +66,36 @@ class AuthRoutesTest extends TestCase
             ->assertJsonPath('email', 'student@example.com');
     }
 
+    public function test_login_infers_role_from_school_id(): void
+    {
+        $admin = User::factory()->create([
+            'role' => 'ADMIN',
+            'school_id' => 99887766,
+            'password_hash' => 'password123',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $admin->organization_id,
+            'school_id' => 99887766,
+            'password' => 'password123',
+        ])
+            ->assertOk()
+            ->assertJsonPath('user.role', 'ADMIN')
+            ->assertJsonStructure(['access_token', 'token_type', 'user']);
+    }
+
     public function test_inactive_user_cannot_login(): void
     {
         $user = User::factory()->create([
             'email' => 'inactive@example.com',
+            'school_id' => 11002200,
             'password_hash' => 'password123',
             'account_status' => 'disabled',
         ]);
 
         $this->postJson('/api/login', [
             'organization_id' => $user->organization_id,
-            'email' => 'inactive@example.com',
+            'school_id' => 11002200,
             'password' => 'password123',
         ])
             ->assertForbidden()
@@ -134,7 +154,7 @@ class AuthRoutesTest extends TestCase
 
         $this->postJson('/api/login', [
             'organization_id' => $user->organization_id,
-            'email' => 'recover@example.com',
+            'school_id' => $user->school_id,
             'password' => 'new-password',
         ])->assertOk();
 
@@ -221,7 +241,7 @@ class AuthRoutesTest extends TestCase
 
             $this->postJson('/api/login', [
                 'organization_id' => $user->organization_id,
-                'email' => $user->email,
+                'school_id' => $user->school_id,
                 'password' => 'updated-password',
             ])->assertOk();
 
@@ -235,12 +255,13 @@ class AuthRoutesTest extends TestCase
     {
         $user = User::factory()->create([
             'email' => 'alias@example.com',
+            'school_id' => 44332211,
             'password_hash' => 'password123',
         ]);
 
         $this->postJson('/login', [
             'organization_id' => $user->organization_id,
-            'email' => 'alias@example.com',
+            'school_id' => 44332211,
             'password' => 'password123',
         ])
             ->assertOk()

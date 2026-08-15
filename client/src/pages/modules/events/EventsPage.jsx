@@ -541,7 +541,7 @@ export default function EventsPage({ initialTab = 'events' }) {
             <p className="p-8 text-center text-sm text-slate-400">No events yet.</p>
           ) : (
             <div className="flex min-h-[400px]">
-              {/* Left panel — event list */}
+              {/* Left panel - event list */}
               <div className={`border-r border-[#DDE7EF] lg:flex lg:w-72 lg:shrink-0 lg:flex-col ${selectedAttEventId ? 'hidden' : 'flex w-full flex-col'}`}>
                 <div className="border-b border-[#DDE7EF] px-4 py-3">
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Event</p>
@@ -566,7 +566,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                 </div>
               </div>
 
-              {/* Right panel — detail */}
+              {/* Right panel - detail */}
               <div className={`min-w-0 flex-1 flex-col ${selectedAttEventId ? 'flex' : 'hidden lg:flex'}`}>
                 {!selectedAttEventId ? (
                   <div className="flex flex-1 items-center justify-center p-10 text-center">
@@ -604,7 +604,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                       </div>
                     </div>
 
-                    {/* Check-in form — officer only */}
+                    {/* Check-in form - officer only */}
                     {canManageAttendance ? (
                       <div className="border-b border-[#DDE7EF] p-5">
                         <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Check-In</p>

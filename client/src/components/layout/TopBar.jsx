@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu, ShoppingCart, User } from 'lucide-react';
+import ConfirmModal from '../ConfirmModal';
 import { logout } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 
@@ -42,6 +43,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const [notifications, setNotifications] = useState([]);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [logoutBusy, setLogoutBusy] = useState(false);
   const profileRef = useRef(null);
   const notifRef = useRef(null);
   const cartRef = useRef(null);
@@ -134,6 +137,17 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     setSelectedNotification({ ...notification, is_read: true });
   }
 
+  async function handleLogout() {
+    setLogoutBusy(true);
+    try {
+      await logout();
+    } finally {
+      setLogoutBusy(false);
+      setLogoutConfirmOpen(false);
+      navigate('/login');
+    }
+  }
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
@@ -165,7 +179,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         {/* Page title */}
         <div className="min-w-0 flex-1">
           <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
-            HIUSA{parentLabel ? ` · ${parentLabel}` : ''}
+            HIUSA{parentLabel ? ` - ${parentLabel}` : ''}
           </p>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
         </div>
@@ -208,7 +222,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                       <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-[#EEF2F7] px-4 py-3 last:border-b-0">
                         <div className="min-w-0">
                           <p className="truncate text-[13px] font-semibold text-[#0F172A]">{row.item?.name || 'Item'}</p>
-                          <p className="text-[11px] text-slate-500">Qty: {row.quantity || 0} · {formatMoney(row.item?.price || 0)}</p>
+                          <p className="text-[11px] text-slate-500">Qty: {row.quantity || 0} - {formatMoney(row.item?.price || 0)}</p>
                         </div>
                         <p className="text-xs font-black text-[#0F172A]">{formatMoney((row.item?.price || 0) * (row.quantity || 0))}</p>
                       </div>
@@ -367,9 +381,9 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
               <div className="my-1.5 border-t border-[#DDE7EF]" />
               <button
                 type="button"
-                onClick={async () => {
+                onClick={() => {
                   setProfileOpen(false);
-                  try { await logout(); } finally { navigate('/login'); }
+                  setLogoutConfirmOpen(true);
                 }}
                 className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-red-500 transition hover:bg-red-50"
               >
@@ -380,6 +394,15 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           )}
         </div>
       </div>
+      <ConfirmModal
+        open={logoutConfirmOpen}
+        title="Log Out"
+        message="You will need to sign in again to access your dashboard."
+        confirmText="Log Out"
+        busy={logoutBusy}
+        onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
+        onConfirm={handleLogout}
+      />
     </header>
   );
 }

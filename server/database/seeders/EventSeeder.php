@@ -42,7 +42,7 @@ class EventSeeder extends Seeder
             ],
             [
                 'title'       => 'Induction and Recognition Ceremony',
-                'description' => 'Formal induction of newly elected HIUSA officers and recognition of outstanding members for the academic year 2024–2025.',
+                'description' => 'Formal induction of newly elected HIUSA officers and recognition of outstanding members for the academic year 2024-2025.',
                 'start_time'  => now()->addMonth()->setTime(17, 0),
                 'end_time'    => now()->addMonth()->setTime(21, 0),
                 'location'    => 'University Convention Center',

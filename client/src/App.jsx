@@ -217,7 +217,7 @@ function App() {
           <Route path="organization" element={<Navigate to="/dashboard/profile" replace />} />
           <Route path="settings" element={<Navigate to="/dashboard/profile" replace />} />
 
-          {/* Election module — nested routes */}
+          {/* Election module - nested routes */}
           <Route path="elections" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><ElectionsHub /></ProtectedRoute>}>
             <Route index element={<ElectionsIndexRedirect />} />
             <Route path="manage-elections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionDetailPage /></ProtectedRoute>} />

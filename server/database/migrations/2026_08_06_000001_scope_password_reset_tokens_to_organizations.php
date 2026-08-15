@@ -46,8 +46,9 @@ return new class extends Migration
     {
         if (Schema::hasColumn('password_reset_tokens', 'organization_id')) {
             Schema::table('password_reset_tokens', function (Blueprint $table) {
+                $table->dropForeign(['organization_id']);
                 $table->dropIndex('password_reset_tokens_org_email_index');
-                $table->dropConstrainedForeignId('organization_id');
+                $table->dropColumn('organization_id');
             });
         }
     }

@@ -1,22 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Building2, Eye, EyeOff, Lock, Mail, Hash } from 'lucide-react';
+import { ArrowRight, Building2, Eye, EyeOff, Hash, Lock } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { login } from '../../services/authService';
-
-const ROLES = [
-  { key: 'STUDENT', label: 'Student' },
-  { key: 'SBO_OFFICER', label: 'Officer' },
-  { key: 'DEPARTMENT_HEAD', label: 'Department Head' },
-  { key: 'ADMIN', label: 'Admin' },
-];
-
-const ROLE_CONFIG = {
-  STUDENT: { idField: 'school_id', label: 'Student ID', placeholder: 'e.g. 2400142', icon: Hash },
-  SBO_OFFICER: { idField: 'email', label: 'Email Address', placeholder: 'officer@university.edu', icon: Mail },
-  DEPARTMENT_HEAD: { idField: 'email', label: 'Email Address', placeholder: 'dean@university.edu', icon: Mail },
-  ADMIN:   { idField: 'email', label: 'Email Address', placeholder: 'admin@university.edu', icon: Mail },
-};
 
 const BrandingPanel = () => (
   <aside className="relative flex overflow-hidden bg-[#0b1831] px-6 py-5 text-white sm:min-h-[410px] sm:px-10 sm:py-8 lg:min-h-[620px] lg:w-[47%] lg:px-11 lg:py-10">
@@ -43,10 +29,9 @@ const BrandingPanel = () => (
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [activeRole, setActiveRole] = useState('STUDENT');
   const [showPassword, setShowPassword] = useState(false);
   const [selectedOrganization, setSelectedOrganization] = useState(null);
-  const [identifier, setIdentifier] = useState('');
+  const [schoolId, setSchoolId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -67,29 +52,19 @@ export default function LoginPage() {
     }
   }, [navigate]);
 
-  const config = ROLE_CONFIG[activeRole];
-  const IdIcon = config.icon;
-
-  function handleRoleSwitch(role) {
-    setActiveRole(role);
-    setIdentifier('');
-    setError(null);
-  }
-
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
     setLoading(true);
 
     const credentials = {
-      [config.idField]: identifier.trim(),
       organization_id: selectedOrganization?.id,
+      school_id: schoolId.trim(),
       password,
-      role: activeRole,
     };
 
     if (!credentials.organization_id) {
-      setError('Select your student organization before signing in.');
+      setError('Select your organization before signing in.');
       setLoading(false);
       navigate('/select-organization', { replace: true });
       return;
@@ -107,11 +82,13 @@ export default function LoginPage() {
         DEPARTMENT_HEAD: '/dashboard/department-head',
         STUDENT: '/dashboard/student',
       };
+
       navigate(redirects[role] || '/dashboard');
     } catch (err) {
       const status = err.response?.status;
+
       if (status === 403) {
-        setError(err.response?.data?.message || 'Role mismatch: please select the correct role for this account.');
+        setError(err.response?.data?.message || 'This account cannot sign in right now.');
       } else if (status === 422) {
         const msgs = err.response?.data?.errors;
         const first = msgs ? Object.values(msgs).flat()[0] : null;
@@ -160,46 +137,26 @@ export default function LoginPage() {
               </div>
             )}
 
-            {/* Role Tabs */}
-            <div className="mb-6 flex rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-1 gap-0.5">
-              {ROLES.map((r) => (
-                <button
-                  key={r.key}
-                  type="button"
-                  onClick={() => handleRoleSwitch(r.key)}
-                  className={`flex-1 rounded-md py-2 text-[12px] font-bold transition ${
-                    activeRole === r.key
-                      ? 'bg-[#0B8ED0] text-white shadow-sm'
-                      : 'text-[#64748B] hover:text-[#0F172A]'
-                  }`}
-                >
-                  {r.label}
-                </button>
-              ))}
-            </div>
-
             <form className="space-y-4" onSubmit={handleSubmit}>
-              {/* Identifier field */}
               <div className="space-y-1.5">
-                <label className="block text-[13px] font-semibold text-slate-800">{config.label}</label>
+                <label className="block text-[13px] font-semibold text-slate-800">School ID</label>
                 <div className="group relative">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 transition-colors group-focus-within:text-[#0b8ed0]">
-                    <IdIcon size={17} />
+                    <Hash size={17} />
                   </div>
                   <input
-                    type={activeRole === 'STUDENT' ? 'number' : 'email'}
-                    min={activeRole === 'STUDENT' ? 1 : undefined}
-                    max={activeRole === 'STUDENT' ? 99999999 : undefined}
-                    value={identifier}
-                    onChange={(e) => setIdentifier(e.target.value)}
-                    placeholder={config.placeholder}
+                    type="number"
+                    min={1}
+                    max={99999999}
+                    value={schoolId}
+                    onChange={(e) => setSchoolId(e.target.value)}
+                    placeholder="Enter your school ID"
                     required
                     className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0b8ed0] focus:ring-4 focus:ring-[#16c7f3]/15"
                   />
                 </div>
               </div>
 
-              {/* Password field */}
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-semibold text-slate-800">Password</label>
                 <div className="group relative">
@@ -243,7 +200,7 @@ export default function LoginPage() {
                   disabled={loading}
                   className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0b8ed0] px-4 text-sm font-bold text-white shadow-lg shadow-[#0b8ed0]/25 transition hover:bg-[#0878b7] active:scale-[0.99] disabled:opacity-60"
                 >
-                  {loading ? 'Signing in…' : `Sign in as ${ROLES.find((r) => r.key === activeRole)?.label}`}
+                  {loading ? 'Signing in...' : 'Sign in'}
                   {!loading && <ArrowRight size={17} />}
                 </button>
               </div>

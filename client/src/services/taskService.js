@@ -12,5 +12,8 @@ export const updateTask = (id, data) =>
 export const deleteTask = (id) =>
   api.delete(`/tasks/${id}`);
 
-export const updateTaskStatus = (id, status) =>
-  api.patch(`/tasks/${id}/status`, { status });
+export const updateTaskStatus = (id, statusOrPayload) =>
+  api.patch(
+    `/tasks/${id}/status`,
+    typeof statusOrPayload === 'string' ? { status: statusOrPayload } : statusOrPayload
+  );
