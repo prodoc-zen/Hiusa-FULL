@@ -10,25 +10,33 @@ class NotificationController extends Controller
 {
     public function index(Request $request)
     {
-        $notifications = Notification::where('user_id', $request->user()->id)
+        $query = Notification::where('user_id', $request->user()->id)
             ->where('organization_id', $request->user()->organization_id)
             ->where(function ($query) {
                 $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
-            })
+            });
+
+        $unreadCount = (clone $query)->where('is_read', false)->count();
+        $notifications = $query
             ->orderByRaw('COALESCE(sent_at, created_at) DESC')
+            ->limit(100)
             ->get();
 
         return response()->json([
             'notifications' => $notifications,
-            'unread_count' => $notifications->where('is_read', false)->count(),
+            'unread_count' => $unreadCount,
         ]);
     }
 
     public function markRead(Request $request, $id)
     {
-        $notification = Notification::where('organization_id', $request->user()->organization_id)->find($id);
+        $notification = Notification::where('organization_id', $request->user()->organization_id)
+            ->where(function ($query) {
+                $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
+            })
+            ->find($id);
 
-        if (!$notification) {
+        if (! $notification) {
             return response()->json(['message' => 'Notification not found.'], 404);
         }
 
@@ -46,6 +54,9 @@ class NotificationController extends Controller
         Notification::where('user_id', $request->user()->id)
             ->where('organization_id', $request->user()->organization_id)
             ->where('is_read', false)
+            ->where(function ($query) {
+                $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
+            })
             ->update(['is_read' => true]);
 
         return response()->json(['message' => 'All notifications marked as read.']);
@@ -64,13 +75,14 @@ class NotificationController extends Controller
             'scheduled_at' => ['nullable', 'date'],
         ]);
 
-        if (!empty($data['user_id'])) {
+        if (! empty($data['user_id'])) {
             $recipientBelongsToOrganization = User::where('organization_id', $request->user()->organization_id)
                 ->where('school_id', $data['user_id'])
+                ->where('account_status', 'active')
                 ->exists();
 
-            if (!$recipientBelongsToOrganization) {
-                return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
+            if (! $recipientBelongsToOrganization) {
+                return response()->json(['message' => 'Select an active user from this organization.'], 422);
             }
 
             $notification = Notification::create($this->payload($data, $request->user()->organization_id, $data['user_id']));
@@ -78,9 +90,10 @@ class NotificationController extends Controller
             return response()->json($notification, 201);
         }
 
-        if (!empty($data['target_role'])) {
+        if (! empty($data['target_role'])) {
             $userIds = User::where('organization_id', $request->user()->organization_id)
                 ->where('role', $data['target_role'])
+                ->where('account_status', 'active')
                 ->pluck('school_id');
 
             Notification::insert(

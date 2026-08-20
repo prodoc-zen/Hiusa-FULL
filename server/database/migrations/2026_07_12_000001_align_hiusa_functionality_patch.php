@@ -50,7 +50,7 @@ return new class extends Migration
         }
 
         if (DB::getDriverName() === 'mysql') {
-            DB::statement("ALTER TABLE `approval_requests` MODIFY `entity_type` VARCHAR(40) NOT NULL");
+            DB::statement('ALTER TABLE `approval_requests` MODIFY `entity_type` VARCHAR(40) NOT NULL');
         }
 
         if (! Schema::hasColumn('approval_requests', 'required_role')) {

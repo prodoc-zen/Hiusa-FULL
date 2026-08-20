@@ -24,6 +24,6 @@
 - **Role Access:** Admin and SBO Officer can access event operations and full attendance management.
 - **Select Event:** `EventsPage` provides an event selector in the attendance workspace.
 - **Load Attendance List:** managers receive the full attendance record list from `GET /events/{id}/attendance`.
-- **Record Manual Attendance:** managers can search users, select a participant, and save a manual check-in.
-- **Record Biometric Attendance:** the schema/API can store `biometric` as the attendance method; hardware capture and biometric-template matching are not implemented in this web client.
-- **View Attendance Summary:** attendance count and detailed records are shown after selecting an event.
+- **Record Manual Attendance:** managers can search users, select a participant, mark them present, late, excused, or absent, and save the record.
+- **Record Biometric Attendance:** the UI and API expose a scanner-adapter readiness contract, but reject unverifiable biometric submissions until capture and matching hardware is connected.
+- **View Attendance Summary:** total attendance, per-status totals, and detailed records are shown after selecting an event.

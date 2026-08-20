@@ -16,4 +16,4 @@
 - **Load Election Results:** `GET /elections/{id}/results` loads positions, candidates, partylist names, and vote counts.
 - **Display Vote Tally:** `ElectionResultsPage` renders vote totals and percentage bars per position.
 - **Display Winning Candidates:** candidates are sorted by vote count and winners are highlighted according to `max_winners`.
-- **Filter Results by Position:** result data is grouped by position, matching the documented position-filter extension point.
+- **Filter Results by Position:** the results page provides an All Positions/individual position selector.

@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
-use App\Models\ApprovalRequest;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -15,6 +15,16 @@ class TransactionController extends Controller
 {
     public function index(Request $request)
     {
+        $filters = $request->validate([
+            'budget_id' => ['nullable', 'integer'],
+            'event_id' => ['nullable', 'integer'],
+            'type' => ['nullable', 'in:income,expense'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = Transaction::with([
             'budget:id,title',
             'event:id,title',
@@ -24,28 +34,27 @@ class TransactionController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('transaction_date', 'desc');
 
-        if ($request->filled('budget_id')) {
-            $query->where('budget_id', $request->budget_id);
+        if (! empty($filters['budget_id'])) {
+            $query->where('budget_id', $filters['budget_id']);
         }
 
-        if ($request->filled('event_id')) {
-            $query->where('event_id', $request->event_id);
+        if (! empty($filters['event_id'])) {
+            $query->where('event_id', $filters['event_id']);
         }
 
-        if ($request->filled('type')) {
-            $query->where('type', $request->type);
+        if (! empty($filters['type'])) {
+            $query->where('type', $filters['type']);
         }
 
-        if ($request->filled('from')) {
-            $query->whereDate('transaction_date', '>=', $request->from);
+        if (! empty($filters['from'])) {
+            $query->whereDate('transaction_date', '>=', $filters['from']);
         }
 
-        if ($request->filled('to')) {
-            $query->whereDate('transaction_date', '<=', $request->to);
+        if (! empty($filters['to'])) {
+            $query->whereDate('transaction_date', '<=', $filters['to']);
         }
 
-        $perPage = min((int) $request->get('per_page', 20), 1000);
-        return response()->json($query->paginate($perPage));
+        return response()->json($query->paginate($filters['per_page'] ?? 20));
     }
 
     public function summary(Request $request)
@@ -102,7 +111,7 @@ class TransactionController extends Controller
         }
 
         return DB::transaction(function () use ($data, $request) {
-            if (!empty($data['event_id']) && empty($data['receipt_number'])) {
+            if (! empty($data['event_id']) && empty($data['receipt_number'])) {
                 $data['receipt_number'] = ((int) Transaction::where('organization_id', $request->user()->organization_id)
                     ->where('event_id', $data['event_id'])
                     ->lockForUpdate()
@@ -130,7 +139,7 @@ class TransactionController extends Controller
     {
         $transaction = Transaction::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$transaction) {
+        if (! $transaction) {
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
@@ -184,7 +193,7 @@ class TransactionController extends Controller
     {
         $transaction = Transaction::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$transaction) {
+        if (! $transaction) {
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
@@ -204,7 +213,7 @@ class TransactionController extends Controller
     {
         $organizationId = $request->user()->organization_id;
 
-        if (!empty($data['budget_id'])) {
+        if (! empty($data['budget_id'])) {
             $budgetExists = Budget::where('organization_id', $organizationId)
                 ->where('id', $data['budget_id'])
                 ->exists();
@@ -219,11 +228,11 @@ class TransactionController extends Controller
             }
         }
 
-        if (!empty($data['event_id']) && !Event::where('organization_id', $organizationId)->where('id', $data['event_id'])->exists()) {
+        if (! empty($data['event_id']) && ! Event::where('organization_id', $organizationId)->where('id', $data['event_id'])->exists()) {
             return false;
         }
 
-        if (!empty($data['payer_id']) && !User::where('organization_id', $organizationId)->where('school_id', $data['payer_id'])->exists()) {
+        if (! empty($data['payer_id']) && ! User::where('organization_id', $organizationId)->where('school_id', $data['payer_id'])->exists()) {
             return false;
         }
 
@@ -264,13 +273,13 @@ class TransactionController extends Controller
 
     private function applyBudgetMovement(Transaction $transaction, int $direction): void
     {
-        if (!$transaction->budget_id) {
+        if (! $transaction->budget_id) {
             return;
         }
 
         $budget = Budget::lockForUpdate()->find($transaction->budget_id);
 
-        if (!$budget) {
+        if (! $budget) {
             return;
         }
 

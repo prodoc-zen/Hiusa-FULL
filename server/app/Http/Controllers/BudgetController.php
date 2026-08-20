@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class BudgetController extends Controller
 {
@@ -59,7 +60,7 @@ class BudgetController extends Controller
     {
         $budget = Budget::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$budget) {
+        if (! $budget) {
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
@@ -102,7 +103,7 @@ class BudgetController extends Controller
     {
         $budget = Budget::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$budget) {
+        if (! $budget) {
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
@@ -112,7 +113,13 @@ class BudgetController extends Controller
             ], 409);
         }
 
-        $budget->delete();
+        DB::transaction(function () use ($budget) {
+            ApprovalRequest::where('organization_id', $budget->organization_id)
+                ->where('entity_type', 'budget')
+                ->where('entity_id', $budget->id)
+                ->delete();
+            $budget->delete();
+        });
 
         return response()->json(['message' => 'Budget deleted successfully.']);
     }
@@ -171,14 +178,9 @@ class BudgetController extends Controller
             ->where('organization_id', $budget->organization_id)
             ->latest('id')
             ->first()
-            ?->update([
-                'status' => 'pending',
-                'requested_by' => $request->user()->id,
-                'required_role' => $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD',
-                'reviewed_by' => null,
-                'reviewed_at' => null,
-                'remarks' => null,
-                'requested_at' => now(),
-            ]);
+            ?->reopen(
+                $request->user()->id,
+                $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD'
+            );
     }
 }

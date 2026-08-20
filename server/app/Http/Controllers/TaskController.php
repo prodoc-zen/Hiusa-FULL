@@ -51,7 +51,7 @@ class TaskController extends Controller
     {
         $data = $request->validate($this->rules());
 
-        if (!$this->validOrganizationLinks($request, $data)) {
+        if (! $this->validOrganizationLinks($request, $data)) {
             return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
         }
 
@@ -85,7 +85,7 @@ class TaskController extends Controller
     {
         $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$task) {
+        if (! $task) {
             return response()->json(['message' => 'Task not found.'], 404);
         }
 
@@ -95,7 +95,7 @@ class TaskController extends Controller
 
         $data = $request->validate($this->rules(true));
 
-        if (!$this->validOrganizationLinks($request, $data)) {
+        if (! $this->validOrganizationLinks($request, $data)) {
             return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
         }
 
@@ -127,7 +127,7 @@ class TaskController extends Controller
     {
         $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$task) {
+        if (! $task) {
             return response()->json(['message' => 'Task not found.'], 404);
         }
 
@@ -144,7 +144,7 @@ class TaskController extends Controller
     {
         $task = Task::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$task) {
+        if (! $task) {
             return response()->json(['message' => 'Task not found.'], 404);
         }
 
@@ -153,7 +153,7 @@ class TaskController extends Controller
         $isAssignee = $task->assigned_to === $userId;
         $isAdmin = $request->user()->role === 'ADMIN';
 
-        if (!$isCreator && !$isAssignee && !$isAdmin) {
+        if (! $isCreator && ! $isAssignee && ! $isAdmin) {
             return response()->json(['message' => 'You are not authorized to update this task.'], 403);
         }
 
@@ -194,7 +194,7 @@ class TaskController extends Controller
     {
         $status = $data['status'] ?? $task?->status;
 
-        if (($data['task_type'] ?? null) === null && !$task) {
+        if (($data['task_type'] ?? null) === null && ! $task) {
             $data['task_type'] = 'regular';
         }
 
@@ -211,19 +211,19 @@ class TaskController extends Controller
 
     private function validOrganizationLinks(Request $request, array $data): bool
     {
-        if (!empty($data['assigned_to'])) {
+        if (! empty($data['assigned_to'])) {
             $validAssignee = User::where('organization_id', $request->user()->organization_id)
                 ->where('school_id', $data['assigned_to'])
                 ->where('role', 'SBO_OFFICER')
                 ->where('account_status', 'active')
                 ->exists();
 
-            if (!$validAssignee) {
+            if (! $validAssignee) {
                 return false;
             }
         }
 
-        if (!empty($data['event_id'])) {
+        if (! empty($data['event_id'])) {
             return Event::where('organization_id', $request->user()->organization_id)
                 ->where('id', $data['event_id'])
                 ->exists();
@@ -298,7 +298,7 @@ class TaskController extends Controller
                     'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
                     'messages' => [
                         ['role' => 'system', 'content' => 'Explain a student-organization task assignment in one concise sentence. Preserve the supplied scores.'],
-                        ['role' => 'user', 'content' => "Task: ".($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}."],
+                        ['role' => 'user', 'content' => 'Task: '.($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}."],
                     ],
                     'temperature' => 0.2,
                     'max_tokens' => 120,
@@ -330,7 +330,7 @@ class TaskController extends Controller
                 'organization_id' => $request->user()->organization_id,
                 'user_id' => $admin->school_id,
                 'title' => 'Task Updated',
-                'message' => "Task \"{$task->title}\" was updated to " . str_replace('_', ' ', $task->status) . '.',
+                'message' => "Task \"{$task->title}\" was updated to ".str_replace('_', ' ', $task->status).'.',
                 'notification_type' => 'task',
                 'reference_type' => Task::class,
                 'reference_id' => $task->id,

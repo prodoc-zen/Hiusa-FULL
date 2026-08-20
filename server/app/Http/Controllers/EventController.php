@@ -2,12 +2,14 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
-use App\Models\AiOutput;
 use App\Models\Event;
 use App\Models\Task;
 use App\Models\User;
+use Carbon\Carbon;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
@@ -24,7 +26,7 @@ class EventController extends Controller
             ->withCount('attendanceRecords')
             ->orderBy('start_time', 'asc');
 
-        if (in_array($user->role, ['STUDENT', 'DEPARTMENT_HEAD'], true)) {
+        if ($user->role !== 'ADMIN') {
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
         }
 
@@ -69,11 +71,11 @@ class EventController extends Controller
             ->withCount('attendanceRecords')
             ->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        if (in_array($request->user()->role, ['STUDENT', 'DEPARTMENT_HEAD'], true) && !in_array($event->status, ['approved', 'ongoing', 'completed'], true)) {
+        if ($request->user()->role !== 'ADMIN' && ! in_array($event->status, ['approved', 'ongoing', 'completed'], true)) {
             return response()->json(['message' => 'Event not available.'], 403);
         }
 
@@ -91,7 +93,10 @@ class EventController extends Controller
             'end_time' => ['required', 'date', 'after:start_time'],
             'location' => ['nullable', 'string', 'max:255'],
             'requires_budget' => ['boolean'],
-            'planning_details' => ['nullable'],
+            'planning_details' => ['nullable', 'array'],
+            'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
+            'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
+            'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
         ]);
 
         $event = Event::create([
@@ -117,7 +122,7 @@ class EventController extends Controller
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
@@ -133,11 +138,14 @@ class EventController extends Controller
             'location' => ['nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'required', 'in:planning,approved,ongoing,completed,cancelled'],
             'requires_budget' => ['boolean'],
-            'planning_details' => ['nullable'],
+            'planning_details' => ['nullable', 'array'],
+            'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
+            'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
+            'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
         ]);
 
-        $endTime = isset($data['end_time']) ? \Carbon\Carbon::parse($data['end_time']) : $event->end_time;
-        $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $event->start_time;
+        $endTime = isset($data['end_time']) ? Carbon::parse($data['end_time']) : $event->end_time;
+        $startTime = isset($data['start_time']) ? Carbon::parse($data['start_time']) : $event->start_time;
 
         if ($endTime->lte($startTime)) {
             return response()->json(['message' => 'End time must be after start time.'], 422);
@@ -149,6 +157,14 @@ class EventController extends Controller
 
         if (in_array($data['status'] ?? null, ['ongoing', 'completed'], true) && ! $event->approved_at) {
             return response()->json(['message' => 'Only approved events can be started or completed.'], 422);
+        }
+
+        if (! empty($data['status']) && ! $this->validStatusTransition($event->status, $data['status'])) {
+            return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
+        }
+
+        if ($this->hasMaterialEventChange($data) && ($event->status === 'completed' || $event->attendanceRecords()->exists())) {
+            return response()->json(['message' => 'Event details cannot be changed after attendance has been recorded or the event is completed.'], 409);
         }
 
         if ($event->approved_at && $this->hasMaterialEventChange($data)) {
@@ -186,6 +202,19 @@ class EventController extends Controller
         ])) > 0;
     }
 
+    private function validStatusTransition(string $currentStatus, string $nextStatus): bool
+    {
+        $allowed = [
+            'planning' => ['planning', 'cancelled'],
+            'approved' => ['approved', 'ongoing', 'completed', 'cancelled'],
+            'ongoing' => ['ongoing', 'completed', 'cancelled'],
+            'completed' => ['completed'],
+            'cancelled' => ['cancelled'],
+        ];
+
+        return in_array($nextStatus, $allowed[$currentStatus] ?? [], true);
+    }
+
     private function reopenApproval(Event $event, Request $request): void
     {
         ApprovalRequest::where('entity_type', 'event')
@@ -193,22 +222,14 @@ class EventController extends Controller
             ->where('organization_id', $event->organization_id)
             ->latest('id')
             ->first()
-            ?->update([
-                'status' => 'pending',
-                'requested_by' => $request->user()->id,
-                'required_role' => 'DEPARTMENT_HEAD',
-                'reviewed_by' => null,
-                'reviewed_at' => null,
-                'remarks' => null,
-                'requested_at' => now(),
-            ]);
+            ?->reopen($request->user()->id, 'DEPARTMENT_HEAD');
     }
 
     public function destroy(Request $request, $id)
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
@@ -216,7 +237,13 @@ class EventController extends Controller
             return response()->json(['message' => 'You are not authorized to delete this event.'], 403);
         }
 
-        $event->delete();
+        DB::transaction(function () use ($event) {
+            ApprovalRequest::where('organization_id', $event->organization_id)
+                ->where('entity_type', 'event')
+                ->where('entity_id', $event->id)
+                ->delete();
+            $event->delete();
+        });
 
         return response()->json(['message' => 'Event deleted successfully.']);
     }
@@ -225,7 +252,7 @@ class EventController extends Controller
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
@@ -245,6 +272,10 @@ class EventController extends Controller
             return response()->json(['message' => 'Only approved events can be started or completed.'], 422);
         }
 
+        if (! $this->validStatusTransition($event->status, $data['status'])) {
+            return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
+        }
+
         $event->update($data);
 
         return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
@@ -254,7 +285,7 @@ class EventController extends Controller
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
@@ -265,7 +296,7 @@ class EventController extends Controller
         ]);
 
         $model = $data['model'] ?? 'llama-3.1-8b-instant';
-        $prompt = "Event: {$event->title}\nSchedule: {$event->start_time} to {$event->end_time}\nLocation: " . ($event->location ?: 'TBD') . "\nRequirements: {$data['requirements']}";
+        $prompt = "Event: {$event->title}\nSchedule: {$event->start_time} to {$event->end_time}\nLocation: ".($event->location ?: 'TBD')."\nRequirements: {$data['requirements']}";
         $output = $this->generateEventPlanWithGroq($prompt, $model);
 
         return DB::transaction(function () use ($request, $event, $data, $prompt, $output, $model) {
@@ -318,7 +349,7 @@ class EventController extends Controller
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
@@ -330,17 +361,24 @@ class EventController extends Controller
             ->orderBy('check_in_time', 'asc');
 
         $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
-        if (!$canManageAttendance) {
+        if (! $canManageAttendance) {
             $recordsQuery->where('user_id', $request->user()->id);
         }
 
         $records = $recordsQuery->get();
+        $summary = collect(['present', 'late', 'excused', 'absent'])
+            ->mapWithKeys(fn (string $status) => [$status => $records->where('status', $status)->count()]);
 
         return response()->json([
-            'event' => $event->only(['id', 'title', 'start_time', 'end_time']),
+            'event' => $event->only(['id', 'title', 'start_time', 'end_time', 'status']),
             'count' => $records->count(),
+            'summary' => $summary,
             'records' => $records,
             'can_manage_attendance' => $canManageAttendance,
+            'biometric_adapter' => [
+                'configured' => false,
+                'message' => 'Fingerprint capture and matching will be enabled when scanner hardware is connected.',
+            ],
         ]);
     }
 
@@ -348,29 +386,44 @@ class EventController extends Controller
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$event) {
+        if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
         $data = $request->validate([
             'user_id' => ['nullable', 'exists:users,school_id'],
             'method' => ['required', 'in:biometric,manual'],
+            'status' => ['nullable', 'in:present,late,excused,absent'],
             'check_out_time' => ['nullable', 'date'],
             'remarks' => ['nullable', 'string', 'max:255'],
         ]);
 
-        if (!in_array($event->status, ['approved', 'ongoing'], true)) {
+        if (! in_array($event->status, ['approved', 'ongoing'], true)) {
             return response()->json(['message' => 'Only approved or ongoing events can accept attendance.'], 422);
         }
 
         $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
         $data['user_id'] = $canManageAttendance ? ($data['user_id'] ?? $request->user()->id) : $request->user()->id;
 
+        if (! $canManageAttendance && (now()->lt($event->start_time) || now()->gt($event->end_time))) {
+            return response()->json(['message' => 'Self check-in is only available during the scheduled event period.'], 422);
+        }
+
+        if (! $canManageAttendance && (($data['status'] ?? 'present') !== 'present' || $data['method'] !== 'manual')) {
+            return response()->json(['message' => 'Self check-in can only be recorded as present using manual check-in.'], 403);
+        }
+
+        if ($data['method'] === 'biometric') {
+            return response()->json([
+                'message' => 'Biometric attendance is prepared but unavailable until fingerprint scanner verification is connected.',
+            ], 501);
+        }
+
         $attendeeBelongsToOrganization = User::where('organization_id', $request->user()->organization_id)
             ->where('school_id', $data['user_id'])
             ->exists();
 
-        if (!$attendeeBelongsToOrganization) {
+        if (! $attendeeBelongsToOrganization) {
             return response()->json(['message' => 'Selected user does not belong to this organization.'], 422);
         }
 
@@ -387,12 +440,13 @@ class EventController extends Controller
                 'event_id' => $id,
                 'user_id' => $data['user_id'],
                 'method' => $data['method'],
+                'status' => $data['status'] ?? 'present',
                 'check_in_time' => now(),
                 'check_out_time' => $data['check_out_time'] ?? null,
                 'recorded_by' => $request->user()->id,
                 'remarks' => $data['remarks'] ?? null,
             ]);
-        } catch (\Illuminate\Database\UniqueConstraintViolationException $e) {
+        } catch (UniqueConstraintViolationException $e) {
             return response()->json(['message' => 'This member is already checked in for this event.'], 409);
         }
 
@@ -406,7 +460,7 @@ class EventController extends Controller
     {
         $apiKey = env('GROQ_API_KEY');
 
-        if (!$apiKey) {
+        if (! $apiKey) {
             return $this->fallbackEventPlan($prompt);
         }
 

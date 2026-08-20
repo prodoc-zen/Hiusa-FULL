@@ -58,20 +58,24 @@ export default function AdminHomePage() {
         <div className="mb-4 flex items-center justify-between">
           <div>
             <h3 className="text-base font-bold text-[#0F172A]">Users by Role</h3>
-            <p className="text-xs font-medium text-slate-400">{users.length} total accounts</p>
+            {loading
+              ? <div className="mt-1 h-3 w-24 animate-pulse rounded bg-slate-100" aria-hidden="true" />
+              : <p className="text-xs font-medium text-slate-400">{users.length} total accounts</p>}
           </div>
           <NavLink to="/dashboard/admin/users" className="text-xs font-bold text-[#0B8ED0] hover:underline">Manage Users</NavLink>
         </div>
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {ROLE_CONFIG.map((rc) => {
-            const count = loading ? '-' : countByRole(rc.key);
+            const count = countByRole(rc.key);
             const Icon = rc.icon;
             return (
               <div key={rc.key} className={`flex items-center gap-3 rounded-lg border p-3.5 ${rc.color}`}>
                 <Icon size={18} className="shrink-0" />
                 <div>
                   <p className="text-[11px] font-bold uppercase tracking-wide opacity-70">{rc.label}</p>
-                  <p className="text-xl font-black tabular-nums">{count}</p>
+                  {loading
+                    ? <div className="mt-1 h-6 w-10 animate-pulse rounded bg-current opacity-15" aria-hidden="true" />
+                    : <p className="text-xl font-black tabular-nums">{count}</p>}
                 </div>
               </div>
             );
@@ -82,16 +86,18 @@ export default function AdminHomePage() {
       {/* Announcement summary */}
       <section className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         {[
-          { label: 'Published Announcements', value: loading ? '-' : published, icon: Megaphone, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
-          { label: 'Draft Announcements', value: loading ? '-' : drafts, icon: FileText, color: 'bg-amber-50 text-amber-700' },
-          { label: 'Total Announcements', value: loading ? '-' : published + drafts, icon: ShieldCheck, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
+          { label: 'Published Announcements', value: published, icon: Megaphone, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
+          { label: 'Draft Announcements', value: drafts, icon: FileText, color: 'bg-amber-50 text-amber-700' },
+          { label: 'Total Announcements', value: published + drafts, icon: ShieldCheck, color: 'bg-[#E6F6FD] text-[#0B8ED0]' },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className={`mb-4 grid h-11 w-11 place-items-center rounded-lg ${item.color}`}>
               <item.icon size={20} />
             </div>
             <p className="text-sm font-semibold text-slate-500">{item.label}</p>
-            <p className="mt-1 text-2xl font-black text-[#0F172A] tabular-nums">{item.value}</p>
+            {loading
+              ? <div className="mt-2 h-7 w-14 animate-pulse rounded bg-slate-100" aria-hidden="true" />
+              : <p className="mt-1 text-2xl font-black text-[#0F172A] tabular-nums">{item.value}</p>}
           </article>
         ))}
       </section>

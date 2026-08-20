@@ -66,6 +66,7 @@ function firstError(error) {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [error, setError] = useState('');
@@ -95,6 +96,8 @@ export default function AdminUsersPage() {
         if (!cancelled) {
           setError('Unable to load users.');
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -361,7 +364,16 @@ export default function AdminUsersPage() {
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EDF3] text-sm">
-              {pagedUsers.map((user) => (
+              {loading && Array.from({ length: 6 }, (_, index) => (
+                <tr key={`user-skeleton-${index}`} aria-hidden="true">
+                  {Array.from({ length: 7 }, (__, cellIndex) => (
+                    <td key={cellIndex} className="px-4 py-4">
+                      <div className="h-4 animate-pulse rounded bg-slate-100" />
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {!loading && pagedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
@@ -397,7 +409,7 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ))}
-              {filtered.length === 0 && (
+              {!loading && filtered.length === 0 && (
                 <tr>
                   <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#94A3B8]">No users found.</td>
                 </tr>

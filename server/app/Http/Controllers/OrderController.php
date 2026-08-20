@@ -15,9 +15,7 @@ use Illuminate\Support\Str;
 
 class OrderController extends Controller
 {
-    public function __construct(private readonly OrderFulfillmentService $fulfillmentService)
-    {
-    }
+    public function __construct(private readonly OrderFulfillmentService $fulfillmentService) {}
 
     public function index(Request $request)
     {
@@ -34,7 +32,7 @@ class OrderController extends Controller
             ->where('organization_id', $user->organization_id)
             ->orderBy('created_at', 'desc');
 
-        $personalView = $user->role === 'STUDENT' || $request->boolean('mine');
+        $personalView = ! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || $request->boolean('mine');
 
         if ($personalView) {
             $query->where('student_id', $user->id);
@@ -64,16 +62,11 @@ class OrderController extends Controller
             'quantity' => ['required', 'integer', 'min:1'],
             'payment_method' => ['nullable', 'in:cash,gcash,other'],
             'payment_reference' => ['nullable', 'string', 'max:150', 'required_if:payment_method,gcash'],
-            'payment_proof_url' => ['nullable', 'string', 'max:500'],
             'payment_proof' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
-        if (($data['payment_method'] ?? null) === 'gcash' && ! $request->hasFile('payment_proof') && empty($data['payment_proof_url'])) {
+        if (($data['payment_method'] ?? null) === 'gcash' && ! $request->hasFile('payment_proof')) {
             return response()->json(['message' => 'GCash orders require an uploaded payment proof.'], 422);
-        }
-
-        if ($request->hasFile('payment_proof')) {
-            $data['payment_proof_url'] = $this->storePaymentProof($request);
         }
 
         unset($data['payment_proof']);
@@ -83,11 +76,11 @@ class OrderController extends Controller
                 ->lockForUpdate()
                 ->find($data['merchandise_id']);
 
-            if (!$item) {
+            if (! $item) {
                 return response()->json(['message' => 'Item is no longer available.'], 422);
             }
 
-            if (!$item->is_active) {
+            if (! $item->is_active) {
                 return response()->json(['message' => 'This item is no longer available.'], 422);
             }
 
@@ -99,22 +92,29 @@ class OrderController extends Controller
 
             $item->decrement('stock_quantity', $data['quantity']);
 
-            $order = Order::create([
-                'student_id' => $request->user()->id,
-                'merchandise_id' => $item->id,
-                'quantity' => $data['quantity'],
-                'total_price' => $item->price * $data['quantity'],
-                'payment_method' => $data['payment_method'] ?? null,
-                'payment_reference' => $data['payment_reference'] ?? null,
-                'payment_proof_url' => $data['payment_proof_url'] ?? null,
-                'officer_review_status' => 'pending',
-                'admin_review_status' => 'pending',
-                'status' => 'pending',
-                'claim_token' => strtoupper(Str::random(8)),
-                'organization_id' => $request->user()->organization_id,
-            ]);
+            $paymentProofUrl = $request->hasFile('payment_proof') ? $this->storePaymentProof($request) : null;
 
-            $this->notifyFulfillmentTeam($order);
+            try {
+                $order = Order::create([
+                    'student_id' => $request->user()->id,
+                    'merchandise_id' => $item->id,
+                    'quantity' => $data['quantity'],
+                    'total_price' => $item->price * $data['quantity'],
+                    'payment_method' => $data['payment_method'] ?? null,
+                    'payment_reference' => $data['payment_reference'] ?? null,
+                    'payment_proof_url' => $paymentProofUrl,
+                    'officer_review_status' => 'pending',
+                    'admin_review_status' => 'pending',
+                    'status' => 'pending',
+                    'claim_token' => strtoupper(Str::random(16)),
+                    'organization_id' => $request->user()->organization_id,
+                ]);
+
+                $this->notifyFulfillmentTeam($order);
+            } catch (\Throwable $exception) {
+                $this->deletePaymentProof($paymentProofUrl);
+                throw $exception;
+            }
 
             $order->load('merchandise:id,name,price,image_url');
             $order->setAttribute('claim_token', null);
@@ -127,7 +127,7 @@ class OrderController extends Controller
     {
         $order = Order::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['message' => 'Order not found.'], 404);
         }
 
@@ -136,10 +136,27 @@ class OrderController extends Controller
             'review_remarks' => ['nullable', 'string', 'required_if:status,cancelled'],
         ]);
 
+        $pendingApproval = ApprovalRequest::where('organization_id', $order->organization_id)
+            ->where('entity_type', 'payment')
+            ->where('entity_id', $order->id)
+            ->where('status', 'pending')
+            ->exists();
+
+        if ($data['status'] === 'paid' && $order->status !== 'pending') {
+            return response()->json(['message' => "Only pending orders can be reviewed. Current status: {$order->status}."], 422);
+        }
+
         try {
             if ($data['status'] === 'cancelled') {
+                if ($pendingApproval) {
+                    return response()->json(['message' => 'Review this payment from the Approvals module.'], 422);
+                }
                 $order = $this->fulfillmentService->rejectPayment($order, $request->user(), $data['review_remarks']);
             } elseif ($request->user()->role === 'SBO_OFFICER') {
+                if ($order->officer_review_status === 'approved' || $pendingApproval) {
+                    return response()->json(['message' => 'This payment has already been submitted for admin approval.'], 409);
+                }
+
                 $order->update([
                     'officer_review_status' => 'approved',
                     'processed_by' => $request->user()->id,
@@ -160,17 +177,11 @@ class OrderController extends Controller
                 );
                 $order = $order->fresh();
             } else {
-                $pendingApproval = ApprovalRequest::where('organization_id', $order->organization_id)
-                    ->where('entity_type', 'payment')
-                    ->where('entity_id', $order->id)
-                    ->where('status', 'pending')
-                    ->exists();
-
                 if ($pendingApproval) {
                     return response()->json(['message' => 'Review this payment from the Approvals module.'], 422);
                 }
 
-                $order = $this->fulfillmentService->approvePayment($order, $request->user());
+                return response()->json(['message' => 'An SBO Officer must verify and submit this payment before admin approval.'], 422);
             }
         } catch (DomainException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
@@ -195,7 +206,7 @@ class OrderController extends Controller
             ->where('claim_token', strtoupper($data['claim_token']))
             ->first();
 
-        if (!$order) {
+        if (! $order) {
             return response()->json(['message' => 'Invalid claim token.'], 404);
         }
 
@@ -238,6 +249,18 @@ class OrderController extends Controller
         $file->move($directory, $filename);
 
         return '/uploads/payments/'.$filename;
+    }
+
+    private function deletePaymentProof(?string $paymentProofUrl): void
+    {
+        if (! $paymentProofUrl || ! str_starts_with($paymentProofUrl, '/uploads/payments/')) {
+            return;
+        }
+
+        $path = public_path(ltrim($paymentProofUrl, '/'));
+        if (is_file($path)) {
+            @unlink($path);
+        }
     }
 
     private function notifyFulfillmentTeam(Order $order): void

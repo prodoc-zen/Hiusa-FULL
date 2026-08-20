@@ -6,7 +6,7 @@ export const getElections = async () => unwrap(await api.get('/elections'));
 export const getElectionDetails = async (id) => unwrap(await api.get(`/elections/${id}`));
 export const createElection = async (payload) => unwrap(await api.post('/elections', payload));
 export const updateElection = async (id, payload) => unwrap(await api.put(`/elections/${id}`, payload));
-export const deleteElection = async (id) => unwrap(await api.delete(`/elections/${id}`));
+export const deleteElection = async (id, options = {}) => unwrap(await api.delete(`/elections/${id}`, { params: options }));
 
 export const getElectionPositions = async (id) => unwrap(await api.get(`/elections/${id}/positions`));
 export const createElectionPosition = async (id, payload) => unwrap(await api.post(`/elections/${id}/positions`, payload));
@@ -54,7 +54,7 @@ export const updatePartylist = async (id, payload) => {
 };
 export const deletePartylist = async (id) => unwrap(await api.delete(`/partylists/${id}`));
 
-export const getUsers = async () => unwrap(await api.get('/users'));
+export const getUsers = async (params) => unwrap(await api.get('/users', { params }));
 
 export const castVotes = async (electionId, votesData) => unwrap(await api.post(`/elections/${electionId}/vote`, { votes: votesData }));
 export const getElectionResults = async (id) => unwrap(await api.get(`/elections/${id}/results`));

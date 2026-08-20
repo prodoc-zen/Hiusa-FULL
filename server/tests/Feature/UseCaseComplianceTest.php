@@ -2,10 +2,9 @@
 
 namespace Tests\Feature;
 
-use App\Models\ApprovalRequest;
 use App\Models\Announcement;
+use App\Models\ApprovalRequest;
 use App\Models\Attendance;
-use App\Models\Budget;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
@@ -20,6 +19,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -75,10 +75,17 @@ class UseCaseComplianceTest extends TestCase
         $this->postJson("/api/users/{$created->json('school_id')}/reactivate")
             ->assertOk()
             ->assertJsonPath('account_status', 'active');
+        $reactivatedUser = User::findOrFail($created->json('school_id'));
+        $this->assertTrue(Hash::check('password123', $reactivatedUser->password_hash));
 
         $this->putJson("/api/users/{$admin->school_id}", ['account_status' => 'disabled'])
             ->assertUnprocessable();
         $this->postJson("/api/users/{$admin->school_id}/disable")
+            ->assertUnprocessable();
+
+        $disabledAdmin = $this->user('ADMIN', $admin->organization_id);
+        $disabledAdmin->update(['account_status' => 'disabled']);
+        $this->putJson("/api/users/{$admin->school_id}", ['role' => 'STUDENT'])
             ->assertUnprocessable();
 
         $this->assertDatabaseHas('audit_logs', [
@@ -106,11 +113,20 @@ class UseCaseComplianceTest extends TestCase
                 'is_read' => false,
             ]);
         }
+        $futureNotification = Notification::create([
+            'organization_id' => $student->organization_id,
+            'user_id' => $student->school_id,
+            'title' => 'Future notice',
+            'message' => 'Do not mark this before delivery.',
+            'scheduled_at' => now()->addDay(),
+            'is_read' => false,
+        ]);
 
         $this->authenticate($student);
         $this->patchJson('/api/notifications/read-all')->assertOk();
 
-        $this->assertSame(0, Notification::where('user_id', $student->school_id)->where('is_read', false)->count());
+        $this->assertSame(1, Notification::where('user_id', $student->school_id)->where('is_read', false)->count());
+        $this->assertFalse($futureNotification->fresh()->is_read);
         $this->assertSame(1, Notification::where('user_id', $other->school_id)->where('is_read', false)->count());
     }
 
@@ -138,6 +154,11 @@ class UseCaseComplianceTest extends TestCase
 
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
         $this->assertDatabaseHas('audit_logs', ['module' => 'approvals', 'action' => 'reviewed_approved']);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $student->school_id,
+            'notification_type' => 'event',
+            'reference_id' => $eventId,
+        ]);
 
         Task::create([
             'organization_id' => $admin->organization_id,
@@ -366,10 +387,39 @@ class UseCaseComplianceTest extends TestCase
         $ballot = ['votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]]];
 
         $this->authenticate($student);
-        $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertUnprocessable();
+        $this->postJson("/api/elections/{$election->id}/vote", $ballot)
+            ->assertUnprocessable()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Voting period has not started yet.'));
         $election->update(['start_time' => now()->subHour(), 'end_time' => now()->addHour()]);
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertOk();
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertUnprocessable();
+    }
+
+    public function test_admin_gets_clear_error_when_opening_election_outside_voting_period(): void
+    {
+        $admin = $this->user('ADMIN');
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Future Election',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+            'status' => 'upcoming',
+            'approved_at' => now(),
+        ]);
+
+        $this->authenticate($admin);
+        $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', fn (string $message) => str_contains($message, 'Voting period has not started yet.'));
+
+        $election->update([
+            'start_time' => now()->subDays(2),
+            'end_time' => now()->subDay(),
+        ]);
+
+        $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Voting period has already ended. Update the end time before reopening this election.');
     }
 
     public function test_approved_election_changes_reopen_approval_and_votes_lock_details(): void
@@ -417,6 +467,214 @@ class UseCaseComplianceTest extends TestCase
         $this->putJson("/api/elections/{$election->id}", ['title' => 'Unsafe Rename'])->assertConflict();
     }
 
+    public function test_pending_approval_election_can_be_edited_without_bypassing_approval(): void
+    {
+        $admin = $this->user('ADMIN');
+
+        $this->authenticate($admin);
+        $electionId = $this->postJson('/api/elections', [
+            'title' => 'Pending Election',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+        ])->assertCreated()->assertJsonPath('status', 'pending_approval')->json('id');
+
+        $this->putJson("/api/elections/{$electionId}", [
+            'title' => 'Updated Pending Election',
+            'start_time' => now()->addDays(2),
+            'end_time' => now()->addDays(3),
+            'status' => 'pending_approval',
+        ])->assertOk()
+            ->assertJsonPath('title', 'Updated Pending Election')
+            ->assertJsonPath('status', 'pending_approval')
+            ->assertJsonPath('approved_at', null);
+
+        $this->assertDatabaseHas('approval_requests', [
+            'entity_type' => 'election',
+            'entity_id' => $electionId,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_election_creation_can_save_positions_with_the_approval_request(): void
+    {
+        $admin = $this->user('ADMIN');
+
+        $this->authenticate($admin);
+        $electionId = $this->postJson('/api/elections', [
+            'title' => 'Complete Ballot Setup',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+            'positions' => [
+                ['title' => 'President', 'max_winners' => 1],
+                ['title' => 'Board Member', 'max_winners' => 3],
+            ],
+        ])->assertCreated()
+            ->assertJsonCount(2, 'positions')
+            ->assertJsonPath('positions.1.max_winners', 3)
+            ->json('id');
+
+        $this->assertDatabaseHas('election_positions', [
+            'election_id' => $electionId,
+            'title' => 'President',
+        ]);
+        $this->assertDatabaseHas('approval_requests', [
+            'entity_type' => 'election',
+            'entity_id' => $electionId,
+            'status' => 'pending',
+        ]);
+    }
+
+    public function test_ballot_submission_requires_every_official_position(): void
+    {
+        $student = $this->user('STUDENT');
+        $firstCandidateUser = $this->user('STUDENT', $student->organization_id);
+        $secondCandidateUser = $this->user('STUDENT', $student->organization_id);
+        $election = Election::create([
+            'organization_id' => $student->organization_id,
+            'title' => 'Complete Ballot Validation',
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+            'status' => 'active',
+            'approved_at' => now(),
+        ]);
+        $president = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $treasurer = ElectionPosition::create(['election_id' => $election->id, 'title' => 'Treasurer', 'max_winners' => 1]);
+        $presidentCandidate = Candidate::create(['election_id' => $election->id, 'position_id' => $president->id, 'user_id' => $firstCandidateUser->school_id]);
+        Candidate::create(['election_id' => $election->id, 'position_id' => $treasurer->id, 'user_id' => $secondCandidateUser->school_id]);
+
+        $this->authenticate($student);
+        $this->postJson("/api/elections/{$election->id}/vote", [
+            'votes' => [['position_id' => $president->id, 'candidate_id' => $presidentCandidate->id]],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Please select one candidate for every position on the official ballot.');
+
+        $this->assertDatabaseCount('votes', 0);
+    }
+
+    public function test_manual_attendance_records_status_and_biometric_is_safely_deferred(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+
+        $this->authenticate($admin);
+        $this->postJson("/api/events/{$event->id}/attendance", [
+            'user_id' => $student->school_id,
+            'method' => 'manual',
+            'status' => 'late',
+            'remarks' => 'Arrived after registration closed.',
+        ])->assertCreated()->assertJsonPath('status', 'late');
+
+        $this->getJson("/api/events/{$event->id}/attendance")
+            ->assertOk()
+            ->assertJsonPath('summary.late', 1)
+            ->assertJsonPath('summary.present', 0)
+            ->assertJsonPath('biometric_adapter.configured', false);
+
+        $otherStudent = $this->user('STUDENT', $admin->organization_id);
+        $this->postJson("/api/events/{$event->id}/attendance", [
+            'user_id' => $otherStudent->school_id,
+            'method' => 'biometric',
+        ])->assertStatus(501);
+    }
+
+    public function test_votes_lock_election_ballot_setup(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $candidateUser = $this->user('STUDENT', $admin->organization_id);
+        $secondCandidateUser = $this->user('STUDENT', $admin->organization_id);
+        $thirdCandidateUser = $this->user('STUDENT', $admin->organization_id);
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Locked Ballot Setup',
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+            'status' => 'active',
+            'approved_at' => now(),
+        ]);
+        $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $candidate = Candidate::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'user_id' => $candidateUser->school_id,
+        ]);
+        $unusedCandidate = Candidate::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'user_id' => $secondCandidateUser->school_id,
+        ]);
+        Vote::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'candidate_id' => $candidate->id,
+            'voter_id' => $student->school_id,
+            'vote_hash' => 'locked-setup-test',
+        ]);
+
+        $this->authenticate($admin);
+
+        $this->postJson("/api/elections/{$election->id}/positions", [
+            'title' => 'Vice President',
+            'max_winners' => 1,
+        ])->assertConflict();
+        $this->putJson("/api/elections/{$election->id}/positions/{$position->id}", ['title' => 'President Updated'])->assertConflict();
+        $this->deleteJson("/api/elections/{$election->id}/positions/{$position->id}")->assertConflict();
+
+        $this->postJson("/api/elections/{$election->id}/candidates", [
+            'user_id' => $thirdCandidateUser->school_id,
+            'position_id' => $position->id,
+        ])->assertConflict();
+        $this->putJson("/api/elections/{$election->id}/candidates/{$unusedCandidate->id}", [
+            'platform' => 'Updated after votes',
+        ])->assertConflict();
+        $this->deleteJson("/api/elections/{$election->id}/candidates/{$unusedCandidate->id}")->assertConflict();
+    }
+
+    public function test_candidate_create_and_update_return_student_details(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $replacementStudent = $this->user('STUDENT', $admin->organization_id);
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Candidate Details Election',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+            'status' => 'upcoming',
+            'approved_at' => now(),
+        ]);
+        $president = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $treasurer = ElectionPosition::create(['election_id' => $election->id, 'title' => 'Treasurer', 'max_winners' => 1]);
+
+        $this->authenticate($admin);
+
+        $candidateId = $this->postJson("/api/elections/{$election->id}/candidates", [
+            'user_id' => $student->school_id,
+            'position_id' => $president->id,
+            'platform' => 'Serve the students.',
+        ])->assertCreated()
+            ->assertJsonPath('user.school_id', $student->school_id)
+            ->assertJsonPath('user.first_name', $student->first_name)
+            ->assertJsonPath('position.title', 'President')
+            ->json('id');
+
+        $this->putJson("/api/elections/{$election->id}/candidates/{$candidateId}", [
+            'user_id' => $replacementStudent->school_id,
+            'position_id' => $treasurer->id,
+            'platform' => 'Updated platform.',
+        ])->assertOk()
+            ->assertJsonPath('user.school_id', $replacementStudent->school_id)
+            ->assertJsonPath('user.first_name', $replacementStudent->first_name)
+            ->assertJsonPath('position.title', 'Treasurer')
+            ->assertJsonPath('platform', 'Updated platform.');
+    }
+
     public function test_admin_can_delete_election_before_votes_are_cast(): void
     {
         $admin = $this->user('ADMIN');
@@ -442,7 +700,7 @@ class UseCaseComplianceTest extends TestCase
         ]);
     }
 
-    public function test_admin_cannot_delete_election_after_votes_are_cast(): void
+    public function test_admin_can_delete_election_after_votes_are_cast(): void
     {
         $admin = $this->user('ADMIN');
         $student = $this->user('STUDENT', $admin->organization_id);
@@ -470,9 +728,15 @@ class UseCaseComplianceTest extends TestCase
         ]);
 
         $this->authenticate($admin);
-        $this->deleteJson("/api/elections/{$election->id}")->assertConflict();
+        $this->deleteJson("/api/elections/{$election->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', 'This election already has cast votes. Confirm deletion to permanently remove the election and all associated votes.');
+        $this->deleteJson("/api/elections/{$election->id}?confirmed=1")->assertOk();
 
-        $this->assertDatabaseHas('elections', ['id' => $election->id]);
+        $this->assertDatabaseMissing('elections', ['id' => $election->id]);
+        $this->assertDatabaseMissing('election_positions', ['id' => $position->id]);
+        $this->assertDatabaseMissing('candidates', ['id' => $candidate->id]);
+        $this->assertDatabaseMissing('votes', ['vote_hash' => 'locked-delete-test']);
     }
 
     public function test_merchandise_payment_requires_officer_submission_and_admin_approval(): void
@@ -550,32 +814,312 @@ class UseCaseComplianceTest extends TestCase
         ]);
     }
 
-    public function test_department_head_announcements_bypass_approval(): void
+    public function test_department_head_can_only_view_published_targeted_announcements(): void
     {
         $departmentHead = $this->user('DEPARTMENT_HEAD');
-        $student = $this->user('STUDENT', $departmentHead->organization_id);
+        $admin = $this->user('ADMIN', $departmentHead->organization_id);
+
+        $published = Announcement::create([
+            'organization_id' => $departmentHead->organization_id,
+            'created_by' => $admin->school_id,
+            'title' => 'Published Department Notice',
+            'body' => 'Visible to department heads.',
+            'target_role' => 'DEPARTMENT_HEAD',
+            'category' => 'general',
+            'approval_status' => 'approved',
+            'is_published' => true,
+            'published_at' => now(),
+        ]);
+        Announcement::create([
+            'organization_id' => $departmentHead->organization_id,
+            'created_by' => $admin->school_id,
+            'title' => 'Private Draft',
+            'body' => 'Not yet published.',
+            'target_role' => 'all',
+            'category' => 'general',
+            'approval_status' => 'draft',
+            'is_published' => false,
+        ]);
 
         $this->authenticate($departmentHead);
-        $announcementId = $this->postJson('/api/announcements', [
+        $this->postJson('/api/announcements', [
             'title' => 'Department Notice',
-            'body' => 'This announcement is posted directly by the Department Head.',
+            'body' => 'Department heads do not manage announcement records.',
             'target_role' => 'all',
             'category' => 'general',
             'is_published' => true,
-        ])
-            ->assertCreated()
-            ->assertJsonPath('approval_status', 'approved')
-            ->assertJsonPath('is_published', true)
-            ->json('id');
+        ])->assertForbidden();
 
-        $this->assertDatabaseMissing('approval_requests', [
+        $this->getJson('/api/announcements')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $published->id);
+    }
+
+    public function test_department_head_order_history_is_personal_and_catalog_hides_inactive_items(): void
+    {
+        $departmentHead = $this->user('DEPARTMENT_HEAD');
+        $otherBuyer = $this->user('STUDENT', $departmentHead->organization_id);
+        $activeItem = Merchandise::create([
+            'organization_id' => $departmentHead->organization_id,
+            'name' => 'Active Item',
+            'price' => 100,
+            'stock_quantity' => 5,
+            'is_active' => true,
+        ]);
+        $inactiveItem = Merchandise::create([
+            'organization_id' => $departmentHead->organization_id,
+            'name' => 'Inactive Item',
+            'price' => 100,
+            'stock_quantity' => 5,
+            'is_active' => false,
+        ]);
+        $ownOrder = Order::create([
+            'organization_id' => $departmentHead->organization_id,
+            'student_id' => $departmentHead->school_id,
+            'merchandise_id' => $activeItem->id,
+            'quantity' => 1,
+            'total_price' => 100,
+            'status' => 'pending',
+            'claim_token' => 'OWNORDER',
+        ]);
+        Order::create([
+            'organization_id' => $departmentHead->organization_id,
+            'student_id' => $otherBuyer->school_id,
+            'merchandise_id' => $activeItem->id,
+            'quantity' => 1,
+            'total_price' => 100,
+            'status' => 'pending',
+            'claim_token' => 'OTHERORD',
+        ]);
+
+        $this->authenticate($departmentHead);
+        $this->getJson('/api/orders')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $ownOrder->id)
+            ->assertJsonPath('data.0.claim_token', null);
+        $this->getJson('/api/merchandise')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $activeItem->id);
+
+        $this->assertDatabaseHas('merchandise', ['id' => $inactiveItem->id, 'is_active' => false]);
+    }
+
+    public function test_self_check_in_requires_the_active_event_period(): void
+    {
+        $student = $this->user('STUDENT');
+        $event = Event::factory()->create([
+            'organization_id' => $student->organization_id,
+            'status' => 'approved',
+            'approved_at' => now(),
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDay()->addHours(2),
+        ]);
+
+        $this->authenticate($student);
+        $this->postJson("/api/events/{$event->id}/attendance", [
+            'method' => 'manual',
+            'status' => 'present',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Self check-in is only available during the scheduled event period.');
+
+        $this->assertDatabaseMissing('attendance', [
+            'event_id' => $event->id,
+            'user_id' => $student->school_id,
+        ]);
+    }
+
+    public function test_user_lookup_filters_candidate_and_assignment_lists_server_side(): void
+    {
+        $admin = $this->user('ADMIN');
+        $activeStudent = $this->user('STUDENT', $admin->organization_id);
+        $this->user('SBO_OFFICER', $admin->organization_id);
+        $inactiveStudent = $this->user('STUDENT', $admin->organization_id);
+        $inactiveStudent->update(['account_status' => 'disabled']);
+
+        $this->authenticate($admin);
+        $this->getJson('/api/users?role=STUDENT&account_status=active')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.school_id', $activeStudent->school_id);
+    }
+
+    public function test_sbo_calendar_cannot_read_unapproved_event_plans(): void
+    {
+        $admin = $this->user('ADMIN');
+        $officer = $this->user('SBO_OFFICER', $admin->organization_id);
+        $planning = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'planning',
+        ]);
+        $approved = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+
+        $this->authenticate($officer);
+        $this->getJson('/api/events')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $approved->id);
+        $this->getJson("/api/events/{$planning->id}")->assertForbidden();
+    }
+
+    public function test_ballot_details_never_expose_voter_identity_or_live_results_to_students(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $otherVoter = $this->user('STUDENT', $admin->organization_id);
+        $candidateUser = $this->user('STUDENT', $admin->organization_id);
+        $election = Election::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'status' => 'active',
+            'approved_at' => now(),
+            'results_visible' => true,
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+        ]);
+        $position = ElectionPosition::factory()->create(['election_id' => $election->id]);
+        $candidate = Candidate::factory()->create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'user_id' => $candidateUser->school_id,
+        ]);
+        Vote::factory()->create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'candidate_id' => $candidate->id,
+            'voter_id' => $otherVoter->school_id,
+        ]);
+
+        $this->authenticate($admin);
+        $this->getJson("/api/elections/{$election->id}")
+            ->assertOk()
+            ->assertJsonMissingPath('votes');
+        $this->getJson("/api/elections/{$election->id}/results")->assertForbidden();
+
+        $this->authenticate($student);
+        $this->getJson("/api/elections/{$election->id}")
+            ->assertOk()
+            ->assertJsonMissingPath('vote_counts')
+            ->assertJsonMissingPath('votes');
+        $this->getJson("/api/elections/{$election->id}/results")
+            ->assertForbidden();
+
+        $election->update(['status' => 'closed']);
+        $this->getJson("/api/elections/{$election->id}/results")
+            ->assertOk()
+            ->assertJsonPath('0.candidates.0.votes', 1)
+            ->assertJsonMissingPath('0.candidates.0.voter_id');
+    }
+
+    public function test_sbo_edit_of_published_announcement_reopens_admin_approval(): void
+    {
+        $officer = $this->user('SBO_OFFICER');
+        $admin = $this->user('ADMIN', $officer->organization_id);
+        $announcement = Announcement::create([
+            'organization_id' => $officer->organization_id,
+            'created_by' => $officer->school_id,
+            'title' => 'Approved Notice',
+            'body' => 'Original approved content.',
+            'target_role' => 'all',
+            'category' => 'general',
+            'approval_status' => 'approved',
+            'is_published' => true,
+            'published_at' => now(),
+        ]);
+        $approval = ApprovalRequest::create([
+            'organization_id' => $officer->organization_id,
             'entity_type' => 'announcement',
-            'entity_id' => $announcementId,
+            'entity_id' => $announcement->id,
+            'requested_by' => $officer->school_id,
+            'required_role' => 'ADMIN',
+            'status' => 'approved',
+            'reviewed_by' => $admin->school_id,
+            'reviewed_at' => now(),
+        ]);
+        Notification::query()->delete();
+
+        $this->authenticate($officer);
+        $this->putJson("/api/announcements/{$announcement->id}", [
+            'body' => 'Materially changed content.',
+        ])->assertOk()
+            ->assertJsonPath('approval_status', 'pending')
+            ->assertJsonPath('is_published', false);
+
+        $this->assertDatabaseHas('approval_requests', [
+            'id' => $approval->id,
+            'status' => 'pending',
+            'requested_by' => $officer->school_id,
+            'required_role' => 'ADMIN',
         ]);
         $this->assertDatabaseHas('notifications', [
-            'user_id' => $student->school_id,
-            'reference_type' => 'announcement',
-            'reference_id' => $announcementId,
+            'user_id' => $admin->school_id,
+            'title' => 'Approval Request Submitted',
+            'reference_id' => $approval->id,
         ]);
+        $this->assertDatabaseHas('audit_logs', [
+            'module' => 'approvals',
+            'action' => 'resubmitted',
+            'record_id' => $approval->id,
+        ]);
+    }
+
+    public function test_merchandise_payment_cannot_bypass_upload_or_staged_approval(): void
+    {
+        $student = $this->user('STUDENT');
+        $admin = $this->user('ADMIN', $student->organization_id);
+        $officer = $this->user('SBO_OFFICER', $student->organization_id);
+        $item = Merchandise::create([
+            'organization_id' => $student->organization_id,
+            'name' => 'Secure Payment Item',
+            'price' => 200,
+            'stock_quantity' => 4,
+            'is_active' => true,
+        ]);
+
+        $this->authenticate($student);
+        $this->postJson('/api/orders', [
+            'merchandise_id' => $item->id,
+            'quantity' => 1,
+            'payment_method' => 'gcash',
+            'payment_reference' => 'REF-123',
+            'payment_proof_url' => 'https://attacker.example/fake.png',
+        ])->assertUnprocessable();
+
+        $orderId = $this->postJson('/api/orders', [
+            'merchandise_id' => $item->id,
+            'quantity' => 1,
+            'payment_method' => 'cash',
+        ])->assertCreated()->json('id');
+
+        $this->authenticate($admin);
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'An SBO Officer must verify and submit this payment before admin approval.');
+
+        $this->authenticate($officer);
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])->assertOk();
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])->assertConflict();
+        $this->patchJson("/api/orders/{$orderId}/status", [
+            'status' => 'cancelled',
+            'review_remarks' => 'Trying to bypass the admin queue.',
+        ])->assertUnprocessable();
+    }
+
+    public function test_transaction_list_rejects_invalid_filters_instead_of_crashing(): void
+    {
+        $admin = $this->user('ADMIN');
+        $this->authenticate($admin);
+
+        $this->getJson('/api/transactions?per_page=0')->assertUnprocessable();
+        $this->getJson('/api/transactions?per_page=1001')->assertUnprocessable();
+        $this->getJson('/api/transactions?type=invalid')->assertUnprocessable();
+        $this->getJson('/api/transactions?from=2026-08-20&to=2026-08-19')->assertUnprocessable();
     }
 }

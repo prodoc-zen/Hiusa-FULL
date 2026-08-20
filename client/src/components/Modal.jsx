@@ -13,6 +13,16 @@ export default function Modal({
   maxWidth = 'max-w-2xl',
 }) {
   const panelRef = useRef(null);
+  const onCloseRef = useRef(onClose);
+  const closeOnEscapeRef = useRef(closeOnEscape);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    closeOnEscapeRef.current = closeOnEscape;
+  }, [closeOnEscape]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -20,14 +30,20 @@ export default function Modal({
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
 
-    const focusable = panelRef.current?.querySelector(
-      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    const preferredFocus = panelRef.current?.querySelector(
+      '[data-autofocus], input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
     );
-    focusable?.focus?.();
+    const firstFocus = panelRef.current?.querySelector(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+    );
+    preferredFocus?.focus?.();
+    if (!preferredFocus) {
+      firstFocus?.focus?.();
+    }
 
     function handleKeyDown(event) {
-      if (event.key === 'Escape' && closeOnEscape) {
-        onClose?.();
+      if (event.key === 'Escape' && closeOnEscapeRef.current) {
+        onCloseRef.current?.();
       }
 
       if (event.key !== 'Tab') {
@@ -61,7 +77,7 @@ export default function Modal({
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [closeOnEscape, onClose, open]);
+  }, [open]);
 
   if (!open) {
     return null;

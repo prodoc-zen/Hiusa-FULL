@@ -102,6 +102,22 @@ class AuthRoutesTest extends TestCase
             ->assertJsonPath('account_status', 'disabled');
     }
 
+    public function test_inactive_organization_cannot_be_used_for_authentication(): void
+    {
+        $organization = Organization::factory()->create(['is_active' => false]);
+        $user = User::factory()->create([
+            'organization_id' => $organization->id,
+            'school_id' => 11002201,
+            'password_hash' => 'password123',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $organization->id,
+            'school_id' => $user->school_id,
+            'password' => 'password123',
+        ])->assertUnprocessable();
+    }
+
     public function test_user_can_recover_account_and_set_new_password(): void
     {
         Mail::fake();
@@ -191,6 +207,20 @@ class AuthRoutesTest extends TestCase
         ])
             ->assertUnprocessable()
             ->assertJsonPath('message', 'Password reset token is invalid or expired.');
+    }
+
+    public function test_password_recovery_does_not_reveal_whether_an_account_exists(): void
+    {
+        Mail::fake();
+        $organization = Organization::factory()->create();
+
+        $this->postJson('/api/password/forgot', [
+            'organization_id' => $organization->id,
+            'email' => 'missing@example.com',
+        ])->assertOk()
+            ->assertJsonStructure(['message']);
+
+        Mail::assertNothingSent();
     }
 
     public function test_all_roles_can_update_their_own_profile(): void

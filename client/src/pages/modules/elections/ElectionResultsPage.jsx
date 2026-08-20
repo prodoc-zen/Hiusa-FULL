@@ -1,5 +1,7 @@
+import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Vote, Award, Users, Trophy } from 'lucide-react';
+import { Vote, Award, Users, Trophy, SlidersHorizontal } from 'lucide-react';
+import { getElectionResults } from '../../../services/electionService';
 
 function Avatar({ name, size = 'sm' }) {
   const safeName = name || '?';
@@ -28,7 +30,37 @@ function Avatar({ name, size = 'sm' }) {
 
 export default function ElectionResultsPage() {
   const { election } = useOutletContext();
+  const [positionFilter, setPositionFilter] = useState('all');
+  const [results, setResults] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const electionIsClosed = election?.status === 'closed';
+
+  useEffect(() => {
+    let cancelled = false;
+
+    if (!election?.id || !electionIsClosed) {
+      setResults([]);
+      setLoading(false);
+      setError('');
+      return () => { cancelled = true; };
+    }
+
+    setLoading(true);
+    setError('');
+    getElectionResults(election.id)
+      .then((data) => {
+        if (!cancelled) setResults(Array.isArray(data) ? data : []);
+      })
+      .catch((requestError) => {
+        if (!cancelled) setError(requestError.response?.data?.message || 'Unable to load election results.');
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => { cancelled = true; };
+  }, [election?.id, electionIsClosed]);
 
   if (!election) {
     return (
@@ -38,43 +70,58 @@ export default function ElectionResultsPage() {
     );
   }
 
-  const positions = election.positions || [];
-  const allCandidates = election.candidates || [];
+  if (!electionIsClosed) {
+    return (
+      <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
+        <Trophy size={32} className="mx-auto mb-3 text-amber-500" />
+        <p className="font-bold text-amber-900">Results are sealed while voting is open.</p>
+        <p className="mt-1 text-sm font-medium text-amber-700">Final tallies and winners become available after the election closes.</p>
+      </div>
+    );
+  }
 
-  // Student view: backend sends vote_counts (aggregated) instead of raw votes array
-  const voteCounts = election.vote_counts || null;
-  const allVotes = election.votes || [];
+  if (loading) {
+    return (
+      <div className="space-y-4" role="status" aria-label="Loading election results">
+        <div className="h-24 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />
+        {[1, 2, 3].map((item) => <div key={item} className="h-44 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}
+        <span className="sr-only">Loading election results...</span>
+      </div>
+    );
+  }
 
-  const getVoteCount = (candidateId) =>
-    voteCounts ? (voteCounts[candidateId] || 0) : allVotes.filter((v) => v.candidate_id === candidateId).length;
+  if (error) {
+    return <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div>;
+  }
 
-  const totalVotesCast = voteCounts
-    ? Object.values(voteCounts).reduce((s, c) => s + c, 0)
-    : allVotes.length;
-
-  const uniqueVoters = voteCounts ? null : new Set(allVotes.map((v) => v.voter_id)).size;
-
-  const positionResults = positions.map((position) => {
-    const positionCandidates = allCandidates
-      .filter((candidate) => candidate.position_id === position.id)
-      .map((candidate) => ({
-        ...candidate,
-        name: `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim(),
-        partylist: candidate.partylist?.name || 'Independent',
-        votes: getVoteCount(candidate.id),
-      }))
-      .sort((a, b) => b.votes - a.votes);
-
-    const totalVotes = positionCandidates.reduce((sum, candidate) => sum + candidate.votes, 0);
-    return { position, candidates: positionCandidates, totalVotes };
-  });
+  const positions = results.map((result) => result.position);
+  const allCandidates = results.flatMap((result) => result.candidates || []);
+  const totalVotesCast = results.reduce((sum, result) => sum + Number(result.totalVotes || 0), 0);
+  const uniqueVoters = results.reduce((highest, result) => Math.max(highest, Number(result.totalVotes || 0)), 0);
+  const positionResults = results.filter(({ position }) => positionFilter === 'all' || String(position.id) === positionFilter);
 
   return (
     <div className="space-y-5">
+      <section className="flex flex-col gap-3 rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Official Results</p>
+          <h2 className="mt-1 text-xl font-black text-[#0F172A]">{election.title}</h2>
+          <p className="mt-1 text-xs font-medium text-[#64748B]">Final winners based on recorded ballots.</p>
+        </div>
+        <label className="flex min-w-56 items-center gap-2">
+          <SlidersHorizontal size={15} className="text-[#64748B]" />
+          <span className="sr-only">Filter results by position</span>
+          <select value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="h-10 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+            <option value="all">All positions</option>
+            {positions.map((position) => <option key={position.id} value={String(position.id)}>{position.title}</option>)}
+          </select>
+        </label>
+      </section>
+
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: 'Total Votes Cast', value: totalVotesCast, sub: uniqueVoters != null ? `${uniqueVoters} unique voters` : undefined, icon: Vote, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
-          { label: 'Voter Turnout', value: uniqueVoters ?? totalVotesCast, sub: 'Unique voters participated', icon: Award, color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' } },
+          { label: 'Total Selections', value: totalVotesCast, sub: `${uniqueVoters} complete ballots`, icon: Vote, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
+          { label: 'Voter Turnout', value: uniqueVoters, sub: 'Unique voters participated', icon: Award, color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' } },
           { label: 'Positions', value: positions.length, icon: Award, color: { bg: 'bg-purple-50', icon: 'text-purple-600', border: 'border-purple-200' } },
           { label: 'Candidates', value: allCandidates.length, icon: Users, color: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200' } },
         ].map((stat) => (
@@ -139,7 +186,7 @@ export default function ElectionResultsPage() {
                           {isWinner && (
                             <span className="flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
                               <Trophy size={9} />
-                              {electionIsClosed ? 'WINNER' : 'LEADING'}
+                              WINNER
                             </span>
                           )}
                         </div>
@@ -162,6 +209,11 @@ export default function ElectionResultsPage() {
             </div>
           );
         })}
+        {positionResults.length === 0 && (
+          <div className="rounded-xl border border-dashed border-[#DDE7EF] bg-white p-8 text-center text-sm font-medium text-[#64748B]">
+            No result data is available for this position yet.
+          </div>
+        )}
       </div>
     </div>
   );

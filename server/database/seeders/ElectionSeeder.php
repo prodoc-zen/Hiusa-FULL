@@ -14,33 +14,33 @@ class ElectionSeeder extends Seeder
     public function run(): void
     {
         $election = Election::create([
-            'title'      => 'HIUSA Student Council Election 2024-2025',
+            'title' => 'HIUSA Student Council Election 2024-2025',
             'start_time' => now()->subDay(),
-            'end_time'   => now()->addDays(7),
-            'status'     => 'active',
+            'end_time' => now()->addDays(7),
+            'status' => 'active',
         ]);
 
         $president = ElectionPosition::create([
             'election_id' => $election->id,
-            'title'       => 'President',
+            'title' => 'President',
             'max_winners' => 1,
         ]);
 
         $vicePresident = ElectionPosition::create([
             'election_id' => $election->id,
-            'title'       => 'Vice President',
+            'title' => 'Vice President',
             'max_winners' => 1,
         ]);
 
         $unity = Partylist::create([
-            'name'        => 'Unity Party',
-            'acronym'     => 'UP',
+            'name' => 'Unity Party',
+            'acronym' => 'UP',
             'description' => 'Committed to inclusive governance, transparency, and student welfare.',
         ]);
 
         $progress = Partylist::create([
-            'name'        => 'Progress Alliance',
-            'acronym'     => 'PA',
+            'name' => 'Progress Alliance',
+            'acronym' => 'PA',
             'description' => 'Focused on modernizing HIUSA operations and digital student services.',
         ]);
 
@@ -58,34 +58,34 @@ class ElectionSeeder extends Seeder
 
         Candidate::create([
             'election_id' => $election->id,
-            'user_id'     => $student1->id,
+            'user_id' => $student1->id,
             'position_id' => $president->id,
-            'partylist_id'=> $unity->id,
-            'platform'    => 'I will push for better student services, transparent finances, and stronger industry partnerships for HIUSA members.',
+            'partylist_id' => $unity->id,
+            'platform' => 'I will push for better student services, transparent finances, and stronger industry partnerships for HIUSA members.',
         ]);
 
         Candidate::create([
             'election_id' => $election->id,
-            'user_id'     => $student2->id,
+            'user_id' => $student2->id,
             'position_id' => $president->id,
-            'partylist_id'=> $progress->id,
-            'platform'    => 'My platform focuses on digitalizing HIUSA processes, reducing paperwork, and making governance accessible to every student.',
+            'partylist_id' => $progress->id,
+            'platform' => 'My platform focuses on digitalizing HIUSA processes, reducing paperwork, and making governance accessible to every student.',
         ]);
 
         Candidate::create([
             'election_id' => $election->id,
-            'user_id'     => $student3->id,
+            'user_id' => $student3->id,
             'position_id' => $vicePresident->id,
-            'partylist_id'=> $unity->id,
-            'platform'    => 'I will support the president in event coordination, member welfare, and maintaining strong adviser relations.',
+            'partylist_id' => $unity->id,
+            'platform' => 'I will support the president in event coordination, member welfare, and maintaining strong adviser relations.',
         ]);
 
         Candidate::create([
             'election_id' => $election->id,
-            'user_id'     => $student4->id,
+            'user_id' => $student4->id,
             'position_id' => $vicePresident->id,
-            'partylist_id'=> $progress->id,
-            'platform'    => 'As VP, I will champion new student initiatives, mentorship programs, and better communication between officers and students.',
+            'partylist_id' => $progress->id,
+            'platform' => 'As VP, I will champion new student initiatives, mentorship programs, and better communication between officers and students.',
         ]);
     }
 }

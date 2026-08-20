@@ -44,8 +44,16 @@ class ApprovalRequest extends Model
             return;
         }
 
+        $this->reopen((int) $this->requested_by, (string) $this->required_role);
+    }
+
+    public function reopen(int $requestedBy, string $requiredRole): void
+    {
+
         $oldValues = [
             'status' => $this->status,
+            'requested_by' => $this->requested_by,
+            'required_role' => $this->required_role,
             'reviewed_by' => $this->reviewed_by,
             'reviewed_at' => $this->reviewed_at,
             'remarks' => $this->remarks,
@@ -53,6 +61,8 @@ class ApprovalRequest extends Model
 
         $this->update([
             'status' => 'pending',
+            'requested_by' => $requestedBy,
+            'required_role' => $requiredRole,
             'reviewed_by' => null,
             'reviewed_at' => null,
             'remarks' => null,

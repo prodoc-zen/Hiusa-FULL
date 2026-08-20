@@ -1,33 +1,46 @@
+import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
-import LoginPage from './pages/auth/LoginPage';
-import OrganizationSelectPage from './pages/auth/OrganizationSelectPage';
-import RecoverAccountPage from './pages/auth/RecoverAccountPage';
-import ResetPasswordPage from './pages/auth/ResetPasswordPage';
 import DashboardLayout from './components/layout/DashboardLayout';
-import DashboardPage from './pages/roles/officer/DashboardPage';
-import AdminHomePage from './pages/roles/admin/AdminHomePage';
-import DepartmentHeadHomePage from './pages/roles/department-head/DepartmentHeadHomePage';
-import DepartmentHeadApprovalsPage from './pages/roles/department-head/DepartmentHeadApprovalsPage';
-import StudentHomePage from './pages/roles/student/StudentHomePage';
-import AdminUsersPage from './pages/roles/admin/AdminUsersPage';
-import FinancePage from './pages/modules/finance/FinancePage';
-import EventsPage from './pages/modules/events/EventsPage';
-import TasksPage from './pages/modules/tasks/TasksPage';
-import MerchandisePage from './pages/modules/merchandise/MerchandisePage';
-import ManageAnnouncementsPage from './pages/modules/announcements/ManageAnnouncementsPage';
-import CreateAnnouncementPage from './pages/modules/announcements/CreateAnnouncementPage';
-import AnnouncementsFeedPage from './pages/modules/announcements/AnnouncementsFeedPage';
-import SettingsPage from './pages/modules/settings/SettingsPage';
 import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
 
-import ElectionsHub from './pages/modules/elections/ElectionsHub';
-import ElectionDetailPage from './pages/modules/elections/ElectionDetailPage';
-import ManageCandidatesPage from './pages/modules/elections/ManageCandidatesPage';
-import ManagePartylistsPage from './pages/modules/elections/ManagePartylistsPage';
-import ManageVotersPage from './pages/modules/elections/ManageVotersPage';
-import ElectionResultsPage from './pages/modules/elections/ElectionResultsPage';
-import CastVotePage from './pages/modules/elections/CastVotePage';
+const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const OrganizationSelectPage = lazy(() => import('./pages/auth/OrganizationSelectPage'));
+const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
+const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
+const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
+const DepartmentHeadHomePage = lazy(() => import('./pages/roles/department-head/DepartmentHeadHomePage'));
+const DepartmentHeadApprovalsPage = lazy(() => import('./pages/roles/department-head/DepartmentHeadApprovalsPage'));
+const StudentHomePage = lazy(() => import('./pages/roles/student/StudentHomePage'));
+const AdminUsersPage = lazy(() => import('./pages/roles/admin/AdminUsersPage'));
+const FinancePage = lazy(() => import('./pages/modules/finance/FinancePage'));
+const EventsPage = lazy(() => import('./pages/modules/events/EventsPage'));
+const TasksPage = lazy(() => import('./pages/modules/tasks/TasksPage'));
+const MerchandisePage = lazy(() => import('./pages/modules/merchandise/MerchandisePage'));
+const ManageAnnouncementsPage = lazy(() => import('./pages/modules/announcements/ManageAnnouncementsPage'));
+const CreateAnnouncementPage = lazy(() => import('./pages/modules/announcements/CreateAnnouncementPage'));
+const AnnouncementsFeedPage = lazy(() => import('./pages/modules/announcements/AnnouncementsFeedPage'));
+const SettingsPage = lazy(() => import('./pages/modules/settings/SettingsPage'));
+const ElectionsHub = lazy(() => import('./pages/modules/elections/ElectionsHub'));
+const ElectionDetailPage = lazy(() => import('./pages/modules/elections/ElectionDetailPage'));
+const ManageCandidatesPage = lazy(() => import('./pages/modules/elections/ManageCandidatesPage'));
+const ManagePartylistsPage = lazy(() => import('./pages/modules/elections/ManagePartylistsPage'));
+const ManageVotersPage = lazy(() => import('./pages/modules/elections/ManageVotersPage'));
+const ElectionResultsPage = lazy(() => import('./pages/modules/elections/ElectionResultsPage'));
+const CastVotePage = lazy(() => import('./pages/modules/elections/CastVotePage'));
+
+function RouteLoadingFallback() {
+  return (
+    <div className="space-y-4 p-1" role="status" aria-label="Loading page">
+      <div className="h-28 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}
+      </div>
+      <span className="sr-only">Loading page...</span>
+    </div>
+  );
+}
 
 function getStoredRole() {
   const storedUser = localStorage.getItem('user');
@@ -136,16 +149,21 @@ function MerchandiseIndexRedirect() {
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
-  if (role === 'STUDENT' || role === 'ADMIN') {
-    return <Navigate to="view-announcements" replace />;
+  if (role === 'ADMIN' || role === 'SBO_OFFICER') {
+    return <Navigate to="manage-announcements" replace />;
   }
 
-  return <Navigate to="manage-announcements" replace />;
+  return <Navigate to="view-announcements" replace />;
+}
+
+function NotFoundRedirect() {
+  return <Navigate to={localStorage.getItem('auth_token') ? '/dashboard' : '/select-organization'} replace />;
 }
 
 function App() {
   return (
-    <Routes>
+    <Suspense fallback={<RouteLoadingFallback />}>
+      <Routes>
       {/* Authentication */}
       <Route path="/" element={<Navigate to="/select-organization" replace />} />
       <Route element={<LoggedInRoute />}>
@@ -172,8 +190,8 @@ function App() {
           {/* Shared Modules */}
           <Route path="announcements">
             <Route index element={<AnnouncementsIndexRedirect />} />
-            <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><ManageAnnouncementsPage /></ProtectedRoute>} />
-            <Route path="create-announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><CreateAnnouncementPage /></ProtectedRoute>} />
+            <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageAnnouncementsPage /></ProtectedRoute>} />
+            <Route path="create-announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
             <Route path="view-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><AnnouncementsFeedPage /></ProtectedRoute>} />
           </Route>
 
@@ -237,7 +255,9 @@ function App() {
 
         </Route>
       </Route>
-    </Routes>
+      <Route path="*" element={<NotFoundRedirect />} />
+      </Routes>
+    </Suspense>
   );
 }
 

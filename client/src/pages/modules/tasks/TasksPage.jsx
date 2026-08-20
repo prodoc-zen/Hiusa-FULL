@@ -55,7 +55,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   function load() {
     setLoading(true);
     setError(null);
-    const usersRequest = canManageTasks ? getUsers() : Promise.resolve([]);
+    const usersRequest = canManageTasks ? getUsers({ role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
     const eventsRequest = canManageTasks ? getEvents() : Promise.resolve({ data: [] });
     Promise.all([getTasks(), usersRequest, eventsRequest])
       .then(([taskRes, userRes, eventRes]) => {

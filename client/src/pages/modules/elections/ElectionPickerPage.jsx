@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Search, CalendarDays, ChevronDown, ChevronRight, PencilLine, Trash2 } from 'lucide-react';
+import { Plus, Search, CalendarDays, ChevronDown, ChevronRight, LoaderCircle, PencilLine, Power, PowerOff, Trash2 } from 'lucide-react';
 import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import ConfirmModal from '../../../components/ConfirmModal';
+import { getApiErrorMessage } from '../../../utils/apiError';
 
 const statusStyles = {
   pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -65,6 +66,30 @@ function formatTimeline(status, startTime, endTime) {
   return `Ended ${daysSinceEnd} day${daysSinceEnd === 1 ? '' : 's'} ago`;
 }
 
+function getVotingPeriodError(startTime, endTime) {
+  if (!startTime || !endTime) {
+    return 'Set both the voting start and end time.';
+  }
+
+  const start = new Date(startTime).getTime();
+  const end = new Date(endTime).getTime();
+
+  if (!Number.isFinite(start) || !Number.isFinite(end)) {
+    return 'Use a valid voting start and end time.';
+  }
+
+  if (end <= start) {
+    return 'Voting end time must be after the start time.';
+  }
+
+  return '';
+}
+
+function getElectionVoteCount(election) {
+  const count = Number(election?.votes_count ?? election?.votes?.length ?? 0);
+  return Number.isFinite(count) ? count : 0;
+}
+
 export default function ElectionPickerPage({ onSelect }) {
   const navigate = useNavigate();
   let currentUser = null;
@@ -81,14 +106,17 @@ export default function ElectionPickerPage({ onSelect }) {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [formError, setFormError] = useState('');
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [statusBusy, setStatusBusy] = useState({ id: null, target: '' });
   const [form, setForm] = useState({
     title: '',
     start_time: '',
     end_time: '',
     status: 'pending_approval',
+    positions: [{ title: '', max_winners: 1 }],
   });
   const [editForm, setEditForm] = useState({
     id: null,
@@ -129,22 +157,46 @@ export default function ElectionPickerPage({ onSelect }) {
   const handleCreate = async (e) => {
     e.preventDefault();
     if (submitting) return;
+    const periodError = getVotingPeriodError(form.start_time, form.end_time);
+    if (periodError) {
+      setFormError(periodError);
+      return;
+    }
+
+    const normalizedPositions = form.positions
+      .map((position) => ({ title: position.title.trim(), max_winners: Number(position.max_winners) }))
+      .filter((position) => position.title);
+    if (normalizedPositions.length === 0) {
+      setFormError('Add at least one election position before submitting for approval.');
+      return;
+    }
+
+    const uniquePositionTitles = new Set(normalizedPositions.map((position) => position.title.toLowerCase()));
+    if (uniquePositionTitles.size !== normalizedPositions.length) {
+      setFormError('Election position titles must be unique.');
+      return;
+    }
+
     setSubmitting(true);
+    setError('');
+    setFormError('');
     try {
-      const created = await createElection(form);
+      const created = await createElection({ ...form, title: form.title.trim(), positions: normalizedPositions });
       setElections((current) => [created, ...current]);
       setShowCreate(false);
-      setForm({ title: '', start_time: '', end_time: '', status: 'pending_approval' });
+      setForm({ title: '', start_time: '', end_time: '', status: 'pending_approval', positions: [{ title: '', max_winners: 1 }] });
       setError('');
       setFeedback({ open: true, type: 'success', message: 'Election submitted for approval.' });
     } catch (createError) {
-      setError(createError?.response?.data?.message || 'Unable to create election.');
+      setFormError(getApiErrorMessage(createError, 'Unable to create election.'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleOpenEdit = (election) => {
+    setError('');
+    setFormError('');
     setEditForm({
       id: election.id,
       title: election.title,
@@ -158,7 +210,15 @@ export default function ElectionPickerPage({ onSelect }) {
   const handleEdit = async (event) => {
     event.preventDefault();
     if (submitting) return;
+    const periodError = getVotingPeriodError(editForm.start_time, editForm.end_time);
+    if (periodError) {
+      setFormError(periodError);
+      return;
+    }
+
     setSubmitting(true);
+    setError('');
+    setFormError('');
     try {
       const updated = await updateElection(editForm.id, {
         title: editForm.title,
@@ -174,20 +234,31 @@ export default function ElectionPickerPage({ onSelect }) {
       setError('');
       setFeedback({ open: true, type: 'success', message: 'Election updated.' });
     } catch (updateError) {
-      setError(updateError?.response?.data?.message || 'Unable to update election.');
+      setFormError(getApiErrorMessage(updateError, 'Unable to update election.'));
     } finally {
       setSubmitting(false);
     }
   };
 
   const handleStatusChange = async (id, status) => {
+    if (statusBusy.id) return;
+
+    setStatusBusy({ id, target: status });
+    setError('');
     try {
       const updated = await updateElection(id, { status });
       setElections((current) =>
         current.map((item) => (item.id === updated.id ? { ...item, ...updated } : item))
       );
+      setFeedback({
+        open: true,
+        type: 'success',
+        message: status === 'active' ? 'Election opened for voting.' : 'Election closed.',
+      });
     } catch (updateError) {
-      setError(updateError?.response?.data?.message || 'Unable to update election status.');
+      setError(getApiErrorMessage(updateError, 'Unable to update election status.'));
+    } finally {
+      setStatusBusy({ id: null, target: '' });
     }
   };
 
@@ -197,12 +268,12 @@ export default function ElectionPickerPage({ onSelect }) {
     setDeleting(true);
     setError('');
     try {
-      await deleteElection(deleteTarget.id);
+      await deleteElection(deleteTarget.id, { confirmed: 1 });
       setElections((current) => current.filter((item) => item.id !== deleteTarget.id));
       setDeleteTarget(null);
       setFeedback({ open: true, type: 'success', message: 'Election deleted.' });
     } catch (deleteError) {
-      setError(deleteError?.response?.data?.message || 'Unable to delete election.');
+      setError(getApiErrorMessage(deleteError, 'Unable to delete election.'));
     } finally {
       setDeleting(false);
     }
@@ -263,7 +334,11 @@ export default function ElectionPickerPage({ onSelect }) {
             {canManageElections && (
               <button
                 type="button"
-                onClick={() => setShowCreate(true)}
+                onClick={() => {
+                  setError('');
+                  setFormError('');
+                  setShowCreate(true);
+                }}
                 className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition-colors hover:bg-[#0878B7]"
               >
                 <Plus size={15} />
@@ -273,6 +348,12 @@ export default function ElectionPickerPage({ onSelect }) {
           </div>
         </div>
       </section>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+          {error}
+        </div>
+      )}
 
       <Modal
         open={showCreate && canManageElections}
@@ -285,7 +366,7 @@ export default function ElectionPickerPage({ onSelect }) {
         footer={(
           <>
             <button type="button" onClick={() => setShowCreate(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="create-election-form" disabled={submitting || !form.title || !form.start_time || !form.end_time} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Election'}</button>
+            <button type="submit" form="create-election-form" disabled={submitting || !form.title.trim() || !form.start_time || !form.end_time || !form.positions.some((position) => position.title.trim())} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit Election'}</button>
           </>
         )}
       >
@@ -295,6 +376,7 @@ export default function ElectionPickerPage({ onSelect }) {
                 Election Title *
               </label>
               <input
+                data-autofocus
                 value={form.title}
                 onChange={(e) => setForm({ ...form, title: e.target.value })}
                 placeholder="e.g. HIUSA General Elections 2026"
@@ -330,9 +412,32 @@ export default function ElectionPickerPage({ onSelect }) {
               </div>
             </div>
 
-            {error && (
+            <fieldset className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <legend className="text-[13px] font-bold text-[#0F172A]">Election Positions *</legend>
+                  <p className="mt-0.5 text-xs text-[#64748B]">Configure the official ballot before approval.</p>
+                </div>
+                <button type="button" onClick={() => setForm((current) => ({ ...current, positions: [...current.positions, { title: '', max_winners: 1 }] }))} className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-[#0B8ED0]/30 bg-white px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]">
+                  <Plus size={13} /> Add Position
+                </button>
+              </div>
+              <div className="mt-3 space-y-2">
+                {form.positions.map((position, index) => (
+                  <div key={index} className="grid grid-cols-[minmax(0,1fr)_100px_40px] gap-2">
+                    <input value={position.title} maxLength={100} onChange={(event) => setForm((current) => ({ ...current, positions: current.positions.map((item, itemIndex) => itemIndex === index ? { ...item, title: event.target.value } : item) }))} aria-label={`Position ${index + 1} title`} placeholder={index === 0 ? 'e.g. President' : 'Position title'} className="h-10 min-w-0 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                    <input type="number" min="1" max="20" value={position.max_winners} onChange={(event) => setForm((current) => ({ ...current, positions: current.positions.map((item, itemIndex) => itemIndex === index ? { ...item, max_winners: event.target.value } : item) }))} aria-label={`Position ${index + 1} maximum winners`} title="Maximum winners" className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                    <button type="button" aria-label={`Remove position ${index + 1}`} disabled={form.positions.length === 1} onClick={() => setForm((current) => ({ ...current, positions: current.positions.filter((_, itemIndex) => itemIndex !== index) }))} className="grid h-10 w-10 place-items-center rounded-lg border border-red-200 bg-white text-red-500 hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-30">
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </fieldset>
+
+            {formError && (
               <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
-                {error}
+                {formError}
               </div>
             )}
             <div>
@@ -355,8 +460,15 @@ export default function ElectionPickerPage({ onSelect }) {
 
       <section className="space-y-3">
         {loading && (
-          <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 text-sm font-medium text-slate-500 shadow-sm">
-            Loading elections...
+          <div className="space-y-3" role="status" aria-label="Loading elections">
+            {[1, 2, 3].map((item) => (
+              <div key={item} className="animate-pulse rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+                <div className="flex justify-between gap-6"><div className="h-7 w-1/2 rounded bg-slate-200" /><div className="h-9 w-16 rounded bg-slate-200" /></div>
+                <div className="mt-4 h-16 rounded-lg bg-slate-100" />
+                <div className="mt-4 h-10 w-2/3 rounded bg-slate-100" />
+              </div>
+            ))}
+            <span className="sr-only">Loading elections...</span>
           </div>
         )}
 
@@ -375,9 +487,10 @@ export default function ElectionPickerPage({ onSelect }) {
         {!loading && pagedElections.map((el) => {
           const positions = el.positions_count ?? 0;
           const candidates = el.candidates_count ?? 0;
-          const votes = el.votes_count ?? 0;
+          const votes = getElectionVoteCount(el);
           const turnout = Number(el.turnout_percentage);
           const timeline = formatTimeline(el.status, el.start_time, el.end_time);
+          const isStatusBusy = statusBusy.id === el.id;
 
           return (
             <article
@@ -485,20 +598,32 @@ export default function ElectionPickerPage({ onSelect }) {
                     {canManageElections && el.status !== 'active' && el.status !== 'pending_approval' && (
                       <button
                         type="button"
+                        disabled={Boolean(statusBusy.id)}
                         onClick={() => handleStatusChange(el.id, 'active')}
-                        className="inline-flex h-10 items-center rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-semibold text-emerald-700"
+                        className="inline-flex h-10 items-center gap-1.5 rounded-md border border-emerald-300 bg-emerald-600 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-emerald-700 disabled:cursor-wait disabled:opacity-70"
                       >
-                        Open Election
+                        {isStatusBusy && statusBusy.target === 'active' ? (
+                          <LoaderCircle size={13} className="animate-spin" />
+                        ) : (
+                          <Power size={13} />
+                        )}
+                        {isStatusBusy && statusBusy.target === 'active' ? 'Opening...' : 'Open Election'}
                       </button>
                     )}
 
                     {canManageElections && el.status === 'active' && (
                       <button
                         type="button"
+                        disabled={Boolean(statusBusy.id)}
                         onClick={() => handleStatusChange(el.id, 'closed')}
-                        className="inline-flex h-10 items-center rounded-md border border-slate-200 bg-slate-100 px-3 text-xs font-semibold text-slate-700"
+                        className="inline-flex h-10 items-center gap-1.5 rounded-md border border-slate-300 bg-slate-800 px-3 text-xs font-bold text-white shadow-sm transition hover:bg-slate-950 disabled:cursor-wait disabled:opacity-70"
                       >
-                        Close Election
+                        {isStatusBusy && statusBusy.target === 'closed' ? (
+                          <LoaderCircle size={13} className="animate-spin" />
+                        ) : (
+                          <PowerOff size={13} />
+                        )}
+                        {isStatusBusy && statusBusy.target === 'closed' ? 'Closing...' : 'Close Election'}
                       </button>
                     )}
                   </div>
@@ -560,6 +685,7 @@ export default function ElectionPickerPage({ onSelect }) {
             <div>
               <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Election Title *</label>
               <input
+                data-autofocus
                 value={editForm.title}
                 onChange={(event) => setEditForm({ ...editForm, title: event.target.value })}
                 className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
@@ -593,8 +719,12 @@ export default function ElectionPickerPage({ onSelect }) {
                 <select
                   value={editForm.status}
                   onChange={(event) => setEditForm({ ...editForm, status: event.target.value })}
-                  className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  disabled={editForm.status === 'pending_approval'}
+                  className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-[#F8FBFD] disabled:text-[#64748B]"
                 >
+                  {editForm.status === 'pending_approval' && (
+                    <option value="pending_approval">Pending Approval</option>
+                  )}
                   <option value="upcoming">Upcoming</option>
                   <option value="active">Active</option>
                   <option value="closed">Closed</option>
@@ -603,15 +733,24 @@ export default function ElectionPickerPage({ onSelect }) {
               </div>
             </div>
 
+            {formError && (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                {formError}
+              </div>
+            )}
+
           </form>
       </Modal>
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Delete Election"
-        message="This will delete the election setup, positions, candidates, and its approval request. Elections with existing votes cannot be deleted."
+        message={getElectionVoteCount(deleteTarget) > 0
+          ? `This will permanently delete the election setup, positions, candidates, approval request, and ${getElectionVoteCount(deleteTarget)} cast vote${getElectionVoteCount(deleteTarget) === 1 ? '' : 's'}.`
+          : 'This will permanently delete the election setup, positions, candidates, and its approval request.'
+        }
         recordName={deleteTarget?.title || ''}
-        confirmText="Delete"
+        confirmText={getElectionVoteCount(deleteTarget) > 0 ? 'Delete Anyway' : 'Delete'}
         variant="danger"
         busy={deleting}
         onCancel={() => !deleting && setDeleteTarget(null)}

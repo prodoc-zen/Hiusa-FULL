@@ -21,11 +21,11 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::post('/register', [UserController::class, 'register']);
-Route::post('/login', [UserController::class, 'login']);
-Route::post('/password/forgot', [UserController::class, 'requestPasswordReset']);
-Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken']);
-Route::post('/password/reset', [UserController::class, 'resetPassword']);
+Route::post('/register', [UserController::class, 'register'])->middleware('throttle:10,1');
+Route::post('/login', [UserController::class, 'login'])->middleware('throttle:10,1');
+Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])->middleware('throttle:5,1');
+Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:10,1');
+Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:5,1');
 Route::get('/organizations', [OrganizationController::class, 'index']);
 
 Route::middleware('auth:sanctum')->group(function () {
@@ -45,11 +45,11 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
-    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
-    Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
-    Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
-    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
-    Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:ADMIN,SBO_OFFICER');
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');

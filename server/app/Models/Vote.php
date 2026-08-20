@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\VoteFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Vote extends Model
 {
-    /** @use HasFactory<\Database\Factories\VoteFactory> */
+    /** @use HasFactory<VoteFactory> */
     use HasFactory;
 
     public const CREATED_AT = 'cast_at';
@@ -41,6 +42,6 @@ class Vote extends Model
 
     public function voter(): BelongsTo
     {
-        return $this->belongsTo(User::class, 'voter_id');
+        return $this->belongsTo(User::class, 'voter_id', 'school_id');
     }
 }

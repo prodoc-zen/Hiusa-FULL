@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { AlertCircle, Check, CheckCircle, ChevronLeft, ChevronRight, Eye, ShieldCheck, Vote } from 'lucide-react';
 import { castVotes } from '../../../services/electionService';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 function Avatar({ name, size = 'sm' }) {
@@ -17,6 +18,54 @@ function Avatar({ name, size = 'sm' }) {
   const sizeClass = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
 
   return <div className={`rounded-full flex items-center justify-center text-white font-bold shrink-0 ${sizeClass} ${bg}`}>{initials}</div>;
+}
+
+function formatVotingDateTime(value) {
+  if (!value) {
+    return '';
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return '';
+  }
+
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getVotingPeriodRestriction(election) {
+  const start = new Date(election.start_time).getTime();
+  const end = new Date(election.end_time).getTime();
+  const now = Date.now();
+
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return {
+      title: 'Voting Period Needs Attention',
+      message: 'The configured voting period is invalid. Please contact an election administrator.',
+    };
+  }
+
+  if (now < start) {
+    return {
+      title: 'Voting Opens Soon',
+      message: `Voting starts ${formatVotingDateTime(election.start_time)}.`,
+    };
+  }
+
+  if (now > end) {
+    return {
+      title: 'Voting Period Ended',
+      message: `Voting ended ${formatVotingDateTime(election.end_time)}.`,
+    };
+  }
+
+  return null;
 }
 
 export default function CastVotePage() {
@@ -49,12 +98,22 @@ export default function CastVotePage() {
   const currentUserVotes = election.my_votes || (election.votes || []).filter((vote) => vote.voter_id === currentUser?.id);
   const hasVoted = currentUserVotes.length > 0;
   const allSelected = groupedPositions.length > 0 && groupedPositions.every((entry) => votes[entry.position.id]);
+  const votingPeriodRestriction = getVotingPeriodRestriction(election);
 
   if (election.status !== 'active') {
     return (
       <div className="mx-auto max-w-2xl rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm text-center">
         <h2 className="text-xl font-black text-slate-900">Voting Is Closed</h2>
         <p className="text-sm text-slate-500 mt-2">This election is currently not accepting votes.</p>
+      </div>
+    );
+  }
+
+  if (!hasVoted && votingPeriodRestriction) {
+    return (
+      <div className="mx-auto max-w-2xl rounded-xl border border-amber-200 bg-amber-50 p-6 text-center shadow-sm">
+        <h2 className="text-xl font-black text-amber-900">{votingPeriodRestriction.title}</h2>
+        <p className="mt-2 text-sm font-medium text-amber-800">{votingPeriodRestriction.message}</p>
       </div>
     );
   }
@@ -226,11 +285,11 @@ export default function CastVotePage() {
                 setPhase('submitted');
                 refreshElection().catch(() => {});
               } catch (error) {
-                const backendMessage = String(error?.response?.data?.message || '');
+                const backendMessage = String(getApiErrorMessage(error, 'Unable to submit ballot.'));
                 if (/already voted/i.test(backendMessage)) {
                   setSubmitError("You've already voted for this position.");
                 } else {
-                  setSubmitError(backendMessage || 'Unable to submit ballot.');
+                  setSubmitError(backendMessage);
                 }
               } finally {
                 setSubmitting(false);

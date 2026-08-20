@@ -6,11 +6,12 @@ use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
 use App\Models\User;
+use App\Models\Vote;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
 /**
- * @extends Factory<\App\Models\Vote>
+ * @extends Factory<Vote>
  */
 class VoteFactory extends Factory
 {

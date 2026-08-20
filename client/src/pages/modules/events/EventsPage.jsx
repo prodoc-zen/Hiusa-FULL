@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   Clock,
   Eye,
+  Fingerprint,
   MapPin,
   Pencil,
   Plus,
@@ -78,9 +79,11 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [checkInSearch, setCheckInSearch] = useState('');
   const [checkInUserId, setCheckInUserId] = useState(null);
+  const [checkInStatus, setCheckInStatus] = useState('present');
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [checkInError, setCheckInError] = useState(null);
   const [checkInSuccess, setCheckInSuccess] = useState(null);
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   let currentUser = {};
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
@@ -109,8 +112,13 @@ export default function EventsPage({ initialTab = 'events' }) {
   }, [initialTab]);
 
   useEffect(() => {
+    const timer = window.setInterval(() => setCurrentTime(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
     if (activeTab === 'attendance' && canManageAttendance && !usersLoaded) {
-      getUsers()
+      getUsers({ account_status: 'active' })
         .then((data) => {
           setAllUsers(Array.isArray(data) ? data : []);
           setUsersLoaded(true);
@@ -125,6 +133,7 @@ export default function EventsPage({ initialTab = 'events' }) {
     setAttendanceLoading(true);
     setCheckInSearch('');
     setCheckInUserId(null);
+    setCheckInStatus('present');
     setCheckInError(null);
     setCheckInSuccess(null);
     try {
@@ -143,7 +152,11 @@ export default function EventsPage({ initialTab = 'events' }) {
     setCheckInError(null);
     setCheckInSuccess(null);
     try {
-      await recordAttendance(selectedAttEventId, { user_id: canManageAttendance ? checkInUserId : currentUser.id, method: 'manual' });
+      await recordAttendance(selectedAttEventId, {
+        user_id: canManageAttendance ? checkInUserId : currentUser.id,
+        method: 'manual',
+        status: canManageAttendance ? checkInStatus : 'present',
+      });
       setCheckInUserId(null);
       setCheckInSearch('');
       setCheckInSuccess('Check-in recorded.');
@@ -158,7 +171,7 @@ export default function EventsPage({ initialTab = 'events' }) {
 
   async function handleSaveEvent(e) {
     e.preventDefault();
-    if (!form.title || !form.date || !form.startTime || !form.endDate || !form.endTime) return;
+    if (!form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime) return;
     setFormSubmitting(true);
     setFormError(null);
     try {
@@ -169,8 +182,13 @@ export default function EventsPage({ initialTab = 'events' }) {
         setFormSubmitting(false);
         return;
       }
+      if (form.requires_budget && !form.budget_notes.trim()) {
+        setFormError('Add the expected expenses or funding notes for this event budget.');
+        setFormSubmitting(false);
+        return;
+      }
       const payload = {
-        title: form.title,
+        title: form.title.trim(),
         start_time,
         end_time,
         location: form.location,
@@ -273,6 +291,12 @@ export default function EventsPage({ initialTab = 'events' }) {
   const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
+  const attendanceEvents = events.filter((event) => {
+    if (canManageAttendance) return ['approved', 'ongoing', 'completed'].includes(event.status);
+    const start = new Date(event.start_time).getTime();
+    const end = new Date(event.end_time).getTime();
+    return ['approved', 'ongoing'].includes(event.status) && Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime <= end;
+  });
   const filteredCheckInUsers = allUsers
     .filter(
       (u) =>
@@ -537,8 +561,8 @@ export default function EventsPage({ initialTab = 'events' }) {
             <div className="space-y-2 p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
-          ) : events.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No events yet.</p>
+          ) : attendanceEvents.length === 0 ? (
+            <p className="p-8 text-center text-sm text-slate-400">{canManageAttendance ? 'No approved events are available for attendance.' : 'No event is currently open for check-in.'}</p>
           ) : (
             <div className="flex min-h-[400px]">
               {/* Left panel - event list */}
@@ -547,7 +571,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Event</p>
                 </div>
                 <div className="flex-1 overflow-y-auto">
-                  {events.map((evt) => (
+                  {attendanceEvents.map((evt) => (
                     <button
                       key={evt.id}
                       type="button"
@@ -602,13 +626,28 @@ export default function EventsPage({ initialTab = 'events' }) {
                         <UserCheck size={12} />
                         {attendanceData?.count ?? 0} checked in
                       </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {['present', 'late', 'excused', 'absent'].map((status) => (
+                          <span key={status} className="rounded-md border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-[11px] font-bold text-[#64748B]">
+                            {capitalize(status)}: {attendanceData?.summary?.[status] ?? 0}
+                          </span>
+                        ))}
+                      </div>
                     </div>
 
                     {/* Check-in form - officer only */}
-                    {canManageAttendance ? (
+                    {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
                       <div className="border-b border-[#DDE7EF] p-5">
-                        <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Check-In</p>
-                        <div className="flex gap-2">
+                        <div className="mb-4 flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 p-3">
+                          <Fingerprint size={20} className="mt-0.5 shrink-0 text-violet-600" />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-bold text-violet-900">Biometric scanner integration</p>
+                            <p className="mt-0.5 text-xs font-medium text-violet-700">{attendanceData?.biometric_adapter?.message || 'Fingerprint capture and matching are prepared for a future scanner adapter.'}</p>
+                          </div>
+                          <button type="button" disabled title="Scanner hardware is not connected" className="h-9 shrink-0 rounded-lg bg-violet-200 px-3 text-xs font-bold text-violet-700 opacity-70">Scanner pending</button>
+                        </div>
+                        <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Manual Attendance</p>
+                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_130px_auto]">
                           <div className="relative flex-1">
                             <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
                             <input
@@ -619,6 +658,12 @@ export default function EventsPage({ initialTab = 'events' }) {
                               className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                             />
                           </div>
+                          <select value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} aria-label="Attendance status" className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+                            <option value="present">Present</option>
+                            <option value="late">Late</option>
+                            <option value="excused">Excused</option>
+                            <option value="absent">Absent</option>
+                          </select>
                           <button
                             type="button"
                             onClick={handleCheckIn}
@@ -658,6 +703,10 @@ export default function EventsPage({ initialTab = 'events' }) {
                         {checkInError && <p className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
                         {checkInSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
                       </div>
+                    ) : canManageAttendance ? (
+                      <div className="border-b border-[#DDE7EF] bg-slate-50 p-5 text-sm font-medium text-slate-500">
+                        This event is closed for new attendance records. Its attendance summary remains available above.
+                      </div>
                     ) : (
                       <div className="border-b border-[#DDE7EF] p-5">
                         <button
@@ -685,6 +734,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                               <th className="px-5 py-3">Member</th>
                               <th className="px-5 py-3">School ID</th>
                               <th className="px-5 py-3">Method</th>
+                              <th className="px-5 py-3">Status</th>
                               <th className="px-5 py-3">Time</th>
                             </tr>
                           </thead>
@@ -699,6 +749,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${rec.method === 'biometric' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                     {capitalize(rec.method)}
                                   </span>
+                                </td>
+                                <td className="px-5 py-3.5">
+                                  <span className="rounded-full bg-[#EEF6FB] px-2.5 py-0.5 text-[11px] font-bold text-[#0B8ED0]">{capitalize(rec.status || 'present')}</span>
                                 </td>
                                 <td className="px-5 py-3.5 font-medium text-slate-600">{formatDateTime(rec.check_in_time)}</td>
                               </tr>
@@ -752,6 +805,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                 <input
                   type="text"
                   value={form.title}
+                  maxLength={255}
                   onChange={(e) => setForm({ ...form, title: e.target.value })}
                   placeholder="e.g. Annual General Assembly"
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -861,7 +915,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                 <button type="button" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
                 <button
                   type="submit"
-                  disabled={formSubmitting || !form.title || !form.date || !form.startTime || !form.endDate || !form.endTime}
+                  disabled={formSubmitting || !form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || (form.requires_budget && !form.budget_notes.trim())}
                   className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
                 >
                   {formSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Create Event'}
