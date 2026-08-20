@@ -22,6 +22,7 @@ function getInitials(name) {
 export default function ManagePartylistsPage() {
   const { election, refreshElection } = useOutletContext();
   const [partylistRows, setPartylistRows] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [form, setForm] = useState({ name: '', acronym: '', description: '' });
   const [bannerFile, setBannerFile] = useState(null);
@@ -40,6 +41,7 @@ export default function ManagePartylistsPage() {
     let cancelled = false;
 
     async function load() {
+      setLoading(true);
       try {
         const partylistData = await getPartylists();
         if (!cancelled) {
@@ -49,7 +51,10 @@ export default function ManagePartylistsPage() {
       } catch {
         if (!cancelled) {
           setPartylistRows([]);
+          setError('Unable to load partylists. Please try again.');
         }
+      } finally {
+        if (!cancelled) setLoading(false);
       }
     }
 
@@ -238,11 +243,11 @@ export default function ManagePartylistsPage() {
               </div>
               <div>
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Acronym</label>
-                <input value={form.acronym} onChange={(e) => setForm({ ...form, acronym: e.target.value })} placeholder="e.g. ALAB" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0]" />
+                <input value={form.acronym} maxLength={30} onChange={(e) => setForm({ ...form, acronym: e.target.value.toUpperCase() })} placeholder="e.g. ALAB" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0]" />
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Description</label>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Party description or tagline..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <textarea value={form.description} maxLength={2000} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Party description or tagline..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
@@ -259,6 +264,9 @@ export default function ManagePartylistsPage() {
                     onChange={(e) => {
                       const f = e.target.files[0];
                       if (!f) return;
+                      const imageError = partylistImageError(f);
+                      if (imageError) { setError(imageError); e.target.value = ''; return; }
+                      setError('');
                       setBannerFile(f);
                       setBannerPreview(URL.createObjectURL(f));
                     }}
@@ -362,7 +370,8 @@ export default function ManagePartylistsPage() {
                       <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Acronym / Abbreviation</label>
                       <input
                         value={editing.acronym || ''}
-                        onChange={(event) => setEditing({ ...editing, acronym: event.target.value })}
+                        maxLength={30}
+                        onChange={(event) => setEditing({ ...editing, acronym: event.target.value.toUpperCase() })}
                         className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
                       />
                     </div>
@@ -370,6 +379,7 @@ export default function ManagePartylistsPage() {
                       <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Mission Statement</label>
                       <textarea
                         value={editing.description || ''}
+                        maxLength={2000}
                         onChange={(event) => setEditing({ ...editing, description: event.target.value })}
                         rows={4}
                         className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0]"
@@ -393,6 +403,9 @@ export default function ManagePartylistsPage() {
                           onChange={(e) => {
                             const f = e.target.files[0];
                             if (!f) return;
+                            const imageError = partylistImageError(f);
+                            if (imageError) { setError(imageError); e.target.value = ''; return; }
+                            setError('');
                             setEditBannerFile(f);
                             setEditBannerPreview(URL.createObjectURL(f));
                           }}
@@ -496,7 +509,14 @@ export default function ManagePartylistsPage() {
         </div>
       )}
 
-      {partylistRows.length === 0 ? (
+      {loading ? (
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2" role="status" aria-label="Loading partylists">
+          {[1, 2, 3, 4].map((item) => (
+            <div key={item} className="h-64 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />
+          ))}
+          <span className="sr-only">Loading partylists...</span>
+        </div>
+      ) : partylistRows.length === 0 ? (
         <div className="rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
           <Flag size={36} className="mx-auto mb-3 text-[#DDE7EF]" />
           <p className="text-sm text-[#64748B]">No partylists registered for this election.</p>
@@ -620,4 +640,10 @@ export default function ManagePartylistsPage() {
       />
     </div>
   );
+}
+
+function partylistImageError(file) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Party banner must be a JPEG, PNG, or WebP image.';
+  if (file.size > 5 * 1024 * 1024) return 'Party banner must be 5 MB or smaller.';
+  return '';
 }

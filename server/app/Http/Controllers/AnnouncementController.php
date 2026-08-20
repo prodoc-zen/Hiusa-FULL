@@ -27,8 +27,8 @@ class AnnouncementController extends Controller
         $prompt = "Write a concise school organization announcement.\n"
             ."Title: {$data['title']}\n"
             ."Audience: {$data['target_role']}\n"
-            ."Category: ".($data['category'] ?? 'general')."\n"
-            ."Details: ".($data['details'] ?? 'Use a clear, formal, student-friendly tone.')."\n";
+            .'Category: '.($data['category'] ?? 'general')."\n"
+            .'Details: '.($data['details'] ?? 'Use a clear, formal, student-friendly tone.')."\n";
 
         $model = env('GROQ_MODEL', 'llama-3.1-8b-instant');
         $output = $this->generateAnnouncementTextWithGroq($prompt, $model);
@@ -79,16 +79,18 @@ class AnnouncementController extends Controller
 
         $publishedOnly = $request->boolean('published_only');
 
-        if ($publishedOnly || $user->role === 'STUDENT') {
+        $canManageAnnouncements = in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true);
+
+        if ($publishedOnly || ! $canManageAnnouncements) {
             $query->where('is_published', true)
                 ->where('approval_status', 'approved');
         }
 
-        if ($user->role === 'STUDENT' || ($publishedOnly && $user->role === 'DEPARTMENT_HEAD')) {
+        if (! $canManageAnnouncements || $publishedOnly) {
             $query->where(function ($q) use ($user) {
-                    $q->where('target_role', 'all')
-                        ->orWhere('target_role', $user->role);
-                });
+                $q->where('target_role', 'all')
+                    ->orWhere('target_role', $user->role);
+            });
         }
 
         return response()->json($query->get());
@@ -105,7 +107,7 @@ class AnnouncementController extends Controller
         ]);
 
         $user = $request->user();
-        $canPublishWithoutApproval = in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true);
+        $canPublishWithoutApproval = $user->role === 'ADMIN';
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
 
         $announcement = Announcement::create([
@@ -147,7 +149,7 @@ class AnnouncementController extends Controller
     {
         $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$announcement) {
+        if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
         }
 
@@ -166,23 +168,48 @@ class AnnouncementController extends Controller
         ]);
 
         $oldValues = $this->auditableAnnouncementValues($announcement);
+        $hasMaterialChange = count(array_intersect(array_keys($data), [
+            'title',
+            'body',
+            'target_role',
+            'category',
+        ])) > 0;
 
         unset($data['is_published']);
         $announcement->update($data);
 
-        if ($announcement->approval_status === 'rejected') {
+        if ($user->role === 'SBO_OFFICER' && $hasMaterialChange && $announcement->approval_status !== 'pending') {
             $announcement->update([
-                'approval_status' => $user->role === 'ADMIN' ? 'draft' : 'pending',
+                'approval_status' => 'pending',
+                'is_published' => false,
+                'published_at' => null,
                 'reviewed_by' => null,
                 'review_remarks' => null,
             ]);
 
-            ApprovalRequest::where('entity_type', 'announcement')
+            $approval = ApprovalRequest::where('entity_type', 'announcement')
                 ->where('entity_id', $announcement->id)
-                ->where('status', 'rejected')
                 ->where('organization_id', $announcement->organization_id)
-                ->get()
-                ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
+                ->latest('id')
+                ->first();
+
+            if ($approval) {
+                $approval->reopen($user->id, 'ADMIN');
+            } else {
+                ApprovalRequest::create([
+                    'organization_id' => $announcement->organization_id,
+                    'entity_type' => 'announcement',
+                    'entity_id' => $announcement->id,
+                    'requested_by' => $user->id,
+                    'required_role' => 'ADMIN',
+                ]);
+            }
+        } elseif ($user->role === 'ADMIN' && $announcement->approval_status === 'rejected') {
+            $announcement->update([
+                'approval_status' => 'draft',
+                'reviewed_by' => null,
+                'review_remarks' => null,
+            ]);
         }
 
         $freshAnnouncement = $announcement->fresh();
@@ -198,7 +225,7 @@ class AnnouncementController extends Controller
     {
         $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$announcement) {
+        if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
         }
 
@@ -209,7 +236,13 @@ class AnnouncementController extends Controller
         }
 
         $oldValues = $this->auditableAnnouncementValues($announcement);
-        $announcement->delete();
+        DB::transaction(function () use ($announcement) {
+            ApprovalRequest::where('organization_id', $announcement->organization_id)
+                ->where('entity_type', 'announcement')
+                ->where('entity_id', $announcement->id)
+                ->delete();
+            $announcement->delete();
+        });
         $this->recordAnnouncementAudit($request, 'deleted', $announcement, $oldValues, null);
 
         return response()->json(['message' => 'Announcement deleted successfully.']);
@@ -219,21 +252,17 @@ class AnnouncementController extends Controller
     {
         $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$announcement) {
+        if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
         }
 
         $user = $request->user();
 
-        if (! in_array($user->role, ['ADMIN', 'DEPARTMENT_HEAD'], true)) {
+        if ($user->role !== 'ADMIN') {
             return response()->json(['message' => 'Announcements from SBO officers require admin approval before publishing.'], 403);
         }
 
         $wasPublished = (bool) $announcement->is_published;
-
-        if ($user->role === 'DEPARTMENT_HEAD' && $announcement->created_by !== $user->id) {
-            return response()->json(['message' => 'You can only publish or unpublish your own announcements.'], 403);
-        }
 
         if (! $wasPublished && $announcement->approval_status === 'pending') {
             if ($user->role !== 'ADMIN') {
@@ -304,13 +333,13 @@ class AnnouncementController extends Controller
         $oldValues = $this->auditableAnnouncementValues($announcement);
 
         $announcement->update([
-            'is_published' => !$wasPublished,
+            'is_published' => ! $wasPublished,
             'approval_status' => $wasPublished ? 'draft' : 'approved',
             'reviewed_by' => $wasPublished ? null : $user->id,
             'published_at' => $wasPublished ? null : now(),
         ]);
 
-        if (!$wasPublished) {
+        if (! $wasPublished) {
             $this->dispatchAnnouncementNotifications($announcement->fresh());
         }
 
@@ -333,6 +362,7 @@ class AnnouncementController extends Controller
     {
         $query = User::query()
             ->where('organization_id', $announcement->organization_id)
+            ->where('account_status', 'active')
             ->where('school_id', '!=', $announcement->created_by);
 
         if ($announcement->target_role !== 'all') {
@@ -347,7 +377,7 @@ class AnnouncementController extends Controller
 
         $now = now();
         $message = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $announcement->body))), 180);
-        $title = 'New Announcement: ' . Str::limit($announcement->title, 230);
+        $title = 'New Announcement: '.Str::limit($announcement->title, 230);
 
         foreach ($userIds->chunk(100) as $chunk) {
             Notification::insert(
@@ -372,7 +402,7 @@ class AnnouncementController extends Controller
     {
         $apiKey = env('GROQ_API_KEY');
 
-        if (!$apiKey) {
+        if (! $apiKey) {
             return $this->fallbackAnnouncementDraft($prompt);
         }
 

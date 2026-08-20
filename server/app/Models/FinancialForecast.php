@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\FinancialForecastFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FinancialForecast extends Model
 {
-    /** @use HasFactory<\Database\Factories\FinancialForecastFactory> */
+    /** @use HasFactory<FinancialForecastFactory> */
     use HasFactory;
 
     protected $guarded = [];

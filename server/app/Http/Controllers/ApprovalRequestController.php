@@ -19,9 +19,7 @@ use Illuminate\Support\Str;
 
 class ApprovalRequestController extends Controller
 {
-    public function __construct(private readonly OrderFulfillmentService $fulfillmentService)
-    {
-    }
+    public function __construct(private readonly OrderFulfillmentService $fulfillmentService) {}
 
     public function index(Request $request)
     {
@@ -50,7 +48,7 @@ class ApprovalRequestController extends Controller
     {
         $approval = ApprovalRequest::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$approval) {
+        if (! $approval) {
             return response()->json(['message' => 'Approval request not found.'], 404);
         }
 
@@ -77,6 +75,14 @@ class ApprovalRequestController extends Controller
 
         try {
             $freshApproval = DB::transaction(function () use ($approval, $data, $request) {
+                $approval = ApprovalRequest::where('organization_id', $request->user()->organization_id)
+                    ->lockForUpdate()
+                    ->findOrFail($approval->id);
+
+                if ($approval->status !== 'pending') {
+                    throw new DomainException('This request has already been reviewed.');
+                }
+
                 $approval->update([
                     'status' => $data['status'],
                     'remarks' => $data['remarks'] ?? null,
@@ -97,7 +103,9 @@ class ApprovalRequestController extends Controller
                 return $fresh;
             });
         } catch (DomainException $exception) {
-            return response()->json(['message' => $exception->getMessage()], 422);
+            $status = $exception->getMessage() === 'This request has already been reviewed.' ? 409 : 422;
+
+            return response()->json(['message' => $exception->getMessage()], $status);
         }
 
         $freshApproval->load([
@@ -121,10 +129,7 @@ class ApprovalRequestController extends Controller
     private function applyApproval(ApprovalRequest $approval, Request $request): void
     {
         match ($approval->entity_type) {
-            'event' => Event::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
-                'status' => 'approved',
-                'approved_at' => now(),
-            ]),
+            'event' => $this->approveEvent($approval),
             'budget' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
                 'remaining_amount' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->value('allocated_amount'),
             ]),
@@ -144,7 +149,7 @@ class ApprovalRequestController extends Controller
             ->where('id', $approval->entity_id)
             ->first();
 
-        if (!$election) {
+        if (! $election) {
             return;
         }
 
@@ -152,6 +157,44 @@ class ApprovalRequestController extends Controller
             'status' => $this->approvedElectionStatus($election),
             'approved_at' => now(),
         ]);
+    }
+
+    private function approveEvent(ApprovalRequest $approval): void
+    {
+        $event = Event::where('organization_id', $approval->organization_id)
+            ->where('id', $approval->entity_id)
+            ->first();
+
+        if (! $event) {
+            return;
+        }
+
+        $event->update([
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+
+        $recipientIds = User::where('organization_id', $approval->organization_id)
+            ->where('account_status', 'active')
+            ->where('school_id', '!=', $approval->requested_by)
+            ->pluck('school_id');
+        $now = now();
+
+        foreach ($recipientIds->chunk(100) as $chunk) {
+            Notification::insert($chunk->map(fn ($userId) => [
+                'organization_id' => $approval->organization_id,
+                'user_id' => $userId,
+                'title' => 'Event Approved: '.Str::limit($event->title, 230),
+                'message' => 'A new approved event is now available in the activity calendar.',
+                'notification_type' => 'event',
+                'reference_type' => Event::class,
+                'reference_id' => $event->id,
+                'is_read' => false,
+                'sent_at' => $now,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])->all());
+        }
     }
 
     private function approvedElectionStatus(Election $election): string
@@ -211,7 +254,7 @@ class ApprovalRequestController extends Controller
 
     private function entityTitle(ApprovalRequest $approval, mixed $entity): string
     {
-        if (!$entity) {
+        if (! $entity) {
             return Str::headline($approval->entity_type).' Request #'.$approval->entity_id;
         }
 
@@ -223,7 +266,7 @@ class ApprovalRequestController extends Controller
 
     private function entitySummary(ApprovalRequest $approval, mixed $entity): ?array
     {
-        if (!$entity) {
+        if (! $entity) {
             return null;
         }
 
@@ -267,7 +310,7 @@ class ApprovalRequestController extends Controller
     {
         $announcement = Announcement::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->first();
 
-        if (!$announcement) {
+        if (! $announcement) {
             return;
         }
 
@@ -286,6 +329,7 @@ class ApprovalRequestController extends Controller
     {
         $query = User::query()
             ->where('organization_id', $announcement->organization_id)
+            ->where('account_status', 'active')
             ->where('school_id', '!=', $announcement->created_by);
 
         if ($announcement->target_role !== 'all') {
@@ -300,7 +344,7 @@ class ApprovalRequestController extends Controller
 
         $now = now();
         $message = Str::limit(trim(preg_replace('/\s+/', ' ', strip_tags((string) $announcement->body))), 180);
-        $title = 'New Announcement: ' . Str::limit($announcement->title, 230);
+        $title = 'New Announcement: '.Str::limit($announcement->title, 230);
 
         foreach ($userIds->chunk(100) as $chunk) {
             Notification::insert(

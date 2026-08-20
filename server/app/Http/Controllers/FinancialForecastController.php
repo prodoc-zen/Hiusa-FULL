@@ -124,7 +124,7 @@ class FinancialForecastController extends Controller
     {
         $forecast = FinancialForecast::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$forecast) {
+        if (! $forecast) {
             return response()->json(['message' => 'Forecast not found.'], 404);
         }
 
@@ -138,7 +138,7 @@ class FinancialForecastController extends Controller
     {
         $forecast = FinancialForecast::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$forecast) {
+        if (! $forecast) {
             return response()->json(['message' => 'Forecast not found.'], 404);
         }
 
@@ -158,7 +158,7 @@ class FinancialForecastController extends Controller
             'predicted_balance' => ['nullable', 'numeric'],
             'safe_spending_limit' => ['nullable', 'numeric', 'min:0'],
             'confidence_note' => ['nullable', 'string'],
-            'model_details' => ['nullable'],
+            'model_details' => ['nullable', 'array'],
         ];
     }
 
@@ -203,7 +203,7 @@ class FinancialForecastController extends Controller
     {
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
-            : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).", expected expenses are PHP ".number_format($expense, 2).", and the safe spending limit is PHP ".number_format($safeLimit, 2).'.';
+            : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
         $apiKey = env('GROQ_API_KEY');
         $model = env('GROQ_MODEL', 'llama-3.1-8b-instant');
 

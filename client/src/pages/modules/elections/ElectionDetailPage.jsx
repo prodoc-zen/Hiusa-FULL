@@ -29,6 +29,7 @@ export default function ElectionDetailPage() {
   const positions = localPositions;
   const candidates = election.candidates || [];
   const votes = election.votes || [];
+  const ballotLocked = votes.length > 0;
 
   const groupedCandidates = positions.map((position) => ({
     position,
@@ -101,16 +102,24 @@ export default function ElectionDetailPage() {
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">{election.title}</h2>
             <p className="mt-1 text-sm font-medium text-slate-500">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
           </div>
-          <button
-            type="button"
-            onClick={openAddPosition}
-            className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition hover:bg-[#0878B7]"
-          >
-            <CirclePlus size={15} />
-            Add Position
-          </button>
+          {!ballotLocked && (
+            <button
+              type="button"
+              onClick={openAddPosition}
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition hover:bg-[#0878B7]"
+            >
+              <CirclePlus size={15} />
+              Add Position
+            </button>
+          )}
         </div>
       </section>
+
+      {ballotLocked && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          Position setup is locked because votes have already been cast.
+        </div>
+      )}
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
@@ -126,14 +135,16 @@ export default function ElectionDetailPage() {
               </div>
               <div className="flex items-center gap-2">
                 <span className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0B8ED0]">{positionCandidates.length} candidates</span>
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(position)}
-                  className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100"
-                >
-                  <Trash2 size={12} />
-                  Remove
-                </button>
+                {!ballotLocked && (
+                  <button
+                    type="button"
+                    onClick={() => setDeleteTarget(position)}
+                    className="inline-flex items-center gap-1 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-600 transition hover:bg-red-100"
+                  >
+                    <Trash2 size={12} />
+                    Remove
+                  </button>
+                )}
               </div>
             </div>
             <div className="space-y-2">
@@ -173,7 +184,7 @@ export default function ElectionDetailPage() {
         <form id="add-position-form" onSubmit={handleAddPosition} className="space-y-4">
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position Title</span>
-            <input value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" placeholder="e.g. Treasurer" />
+            <input data-autofocus value={newPositionTitle} onChange={(event) => setNewPositionTitle(event.target.value)} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" placeholder="e.g. Treasurer" />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Max Winners</span>

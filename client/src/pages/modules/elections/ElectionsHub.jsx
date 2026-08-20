@@ -76,8 +76,15 @@ export default function ElectionsHub() {
 
   if (loading) {
     return (
-      <div className="rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-sm">
-        <p className="text-sm font-medium text-slate-500">Loading election workspace...</p>
+      <div className="space-y-4" role="status" aria-label="Loading election workspace">
+        <div className="animate-pulse rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div className="h-4 w-44 rounded bg-slate-200" />
+          <div className="mt-3 h-8 w-2/3 rounded bg-slate-200" />
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          {[1, 2, 3, 4].map((item) => <div key={item} className="h-40 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}
+        </div>
+        <span className="sr-only">Loading election workspace...</span>
       </div>
     );
   }

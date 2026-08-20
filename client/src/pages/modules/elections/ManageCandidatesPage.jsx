@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useId, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Award, ChevronDown, ImagePlus, Pencil, Plus, Trash2, X } from 'lucide-react';
+import { Award, ChevronDown, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
 import {
   createElectionCandidate,
   deleteElectionCandidate,
@@ -49,6 +49,124 @@ function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onCon
   );
 }
 
+function studentLabel(user) {
+  const name = `${user.first_name || ''} ${user.last_name || ''}`.trim() || user.email || 'Unnamed Student';
+  return `${name} (${user.school_id || 'No ID'})`;
+}
+
+function studentKey(user) {
+  return String(user.school_id ?? user.id);
+}
+
+function candidateImageError(file) {
+  if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) return 'Candidate photo must be a JPEG, PNG, or WebP image.';
+  if (file.size > 2 * 1024 * 1024) return 'Candidate photo must be 2 MB or smaller.';
+  return '';
+}
+
+function StudentSearchDropdown({ users, value, onChange }) {
+  const listboxId = useId();
+  const selectedUser = useMemo(
+    () => users.find((user) => studentKey(user) === String(value)),
+    [users, value]
+  );
+  const selectedLabel = selectedUser ? studentLabel(selectedUser) : '';
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState(selectedLabel);
+
+  useEffect(() => {
+    if (!open) {
+      setQuery(selectedLabel);
+    }
+  }, [open, selectedLabel]);
+
+  const filteredUsers = useMemo(() => {
+    const normalizedQuery = query.trim().toLowerCase();
+
+    if (!normalizedQuery) {
+      return users;
+    }
+
+    return users.filter((user) => {
+      const searchable = [
+        user.first_name,
+        user.last_name,
+        user.school_id,
+        user.email,
+        studentLabel(user),
+      ].filter(Boolean).join(' ').toLowerCase();
+
+      return searchable.includes(normalizedQuery);
+    });
+  }, [query, users]);
+
+  const selectUser = (user) => {
+    onChange(studentKey(user));
+    setQuery(studentLabel(user));
+    setOpen(false);
+  };
+
+  return (
+    <div className="relative">
+      <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+      <input
+        type="text"
+        role="combobox"
+        aria-expanded={open}
+        aria-controls={listboxId}
+        aria-autocomplete="list"
+        value={query}
+        onFocus={() => setOpen(true)}
+        onBlur={() => {
+          setTimeout(() => {
+            setOpen(false);
+            setQuery(selectedLabel);
+          }, 120);
+        }}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setOpen(true);
+          if (value) {
+            onChange('');
+          }
+        }}
+        placeholder="Search student..."
+        className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-9 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+      />
+      <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
+
+      {open && (
+        <div
+          id={listboxId}
+          role="listbox"
+          className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 max-h-64 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white py-1 shadow-xl shadow-[#0B1831]/10"
+        >
+          {filteredUsers.length === 0 ? (
+            <div className="px-3 py-3 text-sm font-medium text-slate-500">No students found.</div>
+          ) : (
+            filteredUsers.map((user) => (
+              <button
+                key={studentKey(user)}
+                type="button"
+                role="option"
+                aria-selected={studentKey(user) === String(value)}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectUser(user)}
+                className={`flex w-full flex-col items-start px-3 py-2 text-left transition hover:bg-[#EEF6FB] ${
+                  studentKey(user) === String(value) ? 'bg-[#E6F6FD]' : ''
+                }`}
+              >
+                <span className="text-sm font-bold text-[#0F172A]">{studentLabel(user)}</span>
+                {user.email && <span className="text-xs font-medium text-[#64748B]">{user.email}</span>}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CandidateForm({
   title,
   submitLabel,
@@ -74,19 +192,11 @@ function CandidateForm({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Student *</label>
-            <div className="relative">
-              <select
-                value={form.user_id}
-                onChange={(event) => setForm({ ...form, user_id: event.target.value })}
-                className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-              >
-                <option value="">Select a student...</option>
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>{user.first_name} {user.last_name} ({user.school_id || 'No ID'})</option>
-                ))}
-              </select>
-              <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            </div>
+            <StudentSearchDropdown
+              users={users}
+              value={form.user_id}
+              onChange={(userId) => setForm({ ...form, user_id: userId })}
+            />
           </div>
 
           <div>
@@ -139,6 +249,7 @@ function CandidateForm({
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Platform Statement</label>
             <textarea
               value={form.platform}
+              maxLength={2000}
               onChange={(event) => setForm({ ...form, platform: event.target.value })}
               rows={3}
               placeholder="Candidate's platform and vision..."
@@ -169,6 +280,7 @@ export default function ManageCandidatesPage() {
 
   const [users, setUsers] = useState([]);
   const [partylists, setPartylists] = useState([]);
+  const [resourcesLoading, setResourcesLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [editId, setEditId] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -187,8 +299,9 @@ export default function ManageCandidatesPage() {
     let cancelled = false;
 
     async function load() {
+      setResourcesLoading(true);
       try {
-        const [userData, partylistData] = await Promise.all([getUsers(), getPartylists()]);
+        const [userData, partylistData] = await Promise.all([getUsers({ role: 'STUDENT', account_status: 'active' }), getPartylists()]);
         if (!cancelled) {
           const allUsers = Array.isArray(userData) ? userData : [];
           setUsers(allUsers.filter((user) => user.role === 'STUDENT'));
@@ -198,7 +311,10 @@ export default function ManageCandidatesPage() {
         if (!cancelled) {
           setUsers([]);
           setPartylists([]);
+          setError('Unable to load candidate form options. Please try again.');
         }
+      } finally {
+        if (!cancelled) setResourcesLoading(false);
       }
     }
 
@@ -211,6 +327,7 @@ export default function ManageCandidatesPage() {
 
   const positions = useMemo(() => election?.positions || [], [election?.positions]);
   const candidates = useMemo(() => election?.candidates || [], [election?.candidates]);
+  const ballotLocked = (election?.votes || []).length > 0;
 
   const assignedUserIds = useMemo(() => new Set(candidates.map((candidate) => candidate.user_id)), [candidates]);
 
@@ -218,8 +335,8 @@ export default function ManageCandidatesPage() {
     posFilter === 'All' ? candidates : candidates.filter((candidate) => candidate.position_id === Number(posFilter))
   ), [candidates, posFilter]);
 
-  const availableAddUsers = users.filter((user) => !assignedUserIds.has(user.id));
-  const availableEditUsers = users.filter((user) => user.id === Number(editForm.user_id) || !assignedUserIds.has(user.id));
+  const availableAddUsers = users.filter((user) => !assignedUserIds.has(Number(studentKey(user))));
+  const availableEditUsers = users.filter((user) => studentKey(user) === String(editForm.user_id) || !assignedUserIds.has(Number(studentKey(user))));
 
   if (!election) {
     return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
@@ -333,13 +450,19 @@ export default function ManageCandidatesPage() {
             ))}
           </div>
         </div>
-        {election.status !== 'closed' && (
-          <button onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex items-center gap-1.5 bg-[#0B8ED0] text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-[#0878B7] transition-colors">
+        {election.status !== 'closed' && !ballotLocked && (
+          <button disabled={resourcesLoading} onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex items-center gap-1.5 bg-[#0B8ED0] text-white text-sm font-bold px-4 py-2.5 rounded-lg hover:bg-[#0878B7] transition-colors disabled:cursor-wait disabled:opacity-50">
             <Plus size={15} />
             Add Candidate
           </button>
         )}
       </div>
+
+      {ballotLocked && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+          Candidate setup is locked because votes have already been cast.
+        </div>
+      )}
 
       <Modal
         open={showAdd}
@@ -360,6 +483,9 @@ export default function ManageCandidatesPage() {
             onImageChange={(event) => {
               const file = event.target.files[0];
               if (!file) return;
+              const imageError = candidateImageError(file);
+              if (imageError) { setError(imageError); event.target.value = ''; return; }
+              setError('');
               setImageFile(file);
               setImagePreview(URL.createObjectURL(file));
             }}
@@ -389,6 +515,9 @@ export default function ManageCandidatesPage() {
             onImageChange={(event) => {
               const file = event.target.files[0];
               if (!file) return;
+              const imageError = candidateImageError(file);
+              if (imageError) { setError(imageError); event.target.value = ''; return; }
+              setError('');
               setEditImageFile(file);
               setEditImagePreview(URL.createObjectURL(file));
             }}
@@ -405,7 +534,14 @@ export default function ManageCandidatesPage() {
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {resourcesLoading && (
+        <div className="grid grid-cols-1 gap-4 xl:grid-cols-2" role="status" aria-label="Loading candidate options">
+          {[1, 2].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}
+          <span className="sr-only">Loading candidate options...</span>
+        </div>
+      )}
+
+      {!resourcesLoading && (filtered.length === 0 ? (
         <div className="rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
           <Award size={36} className="text-[#DDE7EF] mx-auto mb-3" />
           <p className="text-sm text-[#64748B]">No candidates yet for this election.</p>
@@ -413,7 +549,8 @@ export default function ManageCandidatesPage() {
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {filtered.map((candidate) => {
-            const name = `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim();
+            const candidateUser = candidate.user || users.find((user) => studentKey(user) === String(candidate.user_id));
+            const name = `${candidateUser?.first_name || ''} ${candidateUser?.last_name || ''}`.trim();
             const position = positions.find((value) => value.id === candidate.position_id)?.title || 'Unknown';
             const partylist = candidate.partylist?.name || 'Independent';
 
@@ -434,7 +571,7 @@ export default function ManageCandidatesPage() {
                         {candidate.platform && <p className="mt-2 text-sm text-slate-600">{candidate.platform}</p>}
                       </div>
                     </div>
-                    {election.status !== 'closed' && (
+                    {election.status !== 'closed' && !ballotLocked && (
                       <div className="flex items-center gap-2">
                         <button
                           type="button"
@@ -461,7 +598,7 @@ export default function ManageCandidatesPage() {
             );
           })}
         </div>
-      )}
+      ))}
 
       <ConfirmModal
         open={Boolean(confirmDeleteId)}

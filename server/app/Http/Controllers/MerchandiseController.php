@@ -14,26 +14,27 @@ class MerchandiseController extends Controller
     {
         $file = $request->file('image');
         $ext = strtolower($file->extension() ?: 'jpg');
-        $filename = Str::uuid()->toString() . '.' . $ext;
+        $filename = Str::uuid()->toString().'.'.$ext;
         $destDir = public_path('uploads/merchandise');
 
-        if (!is_dir($destDir)) {
+        if (! is_dir($destDir)) {
             mkdir($destDir, 0755, true);
         }
 
         $file->move($destDir, $filename);
 
-        return '/uploads/merchandise/' . $filename;
+        return '/uploads/merchandise/'.$filename;
     }
 
     private function deleteMerchandiseImage(?string $imageUrl): void
     {
-        if (!$imageUrl) {
+        if (! $imageUrl) {
             return;
         }
 
         if (str_starts_with($imageUrl, '/storage/')) {
-            Storage::delete('public/' . ltrim(str_replace('/storage/', '', $imageUrl), '/'));
+            Storage::delete('public/'.ltrim(str_replace('/storage/', '', $imageUrl), '/'));
+
             return;
         }
 
@@ -51,7 +52,7 @@ class MerchandiseController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('name', 'asc');
 
-        if (in_array($request->user()->role, ['STUDENT', 'DEPARTMENT_HEAD'], true)) {
+        if ($request->user()->role !== 'ADMIN') {
             $query->where('is_active', true);
         }
 
@@ -61,13 +62,13 @@ class MerchandiseController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'name'           => ['required', 'string', 'max:255'],
-            'category'       => ['nullable', 'string', 'max:100'],
-            'description'    => ['nullable', 'string'],
-            'price'          => ['required', 'numeric', 'min:0'],
+            'name' => ['required', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'description' => ['nullable', 'string'],
+            'price' => ['required', 'numeric', 'min:0'],
             'stock_quantity' => ['required', 'integer', 'min:0'],
-            'is_active'      => ['boolean'],
-            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'is_active' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
         if ($request->hasFile('image')) {
@@ -75,10 +76,15 @@ class MerchandiseController extends Controller
         }
         unset($data['image']);
 
-        $item = Merchandise::create([
-            ...$data,
-            'organization_id' => $request->user()->organization_id,
-        ]);
+        try {
+            $item = Merchandise::create([
+                ...$data,
+                'organization_id' => $request->user()->organization_id,
+            ]);
+        } catch (\Throwable $exception) {
+            $this->deleteMerchandiseImage($data['image_url'] ?? null);
+            throw $exception;
+        }
 
         return response()->json($item, 201);
     }
@@ -87,27 +93,37 @@ class MerchandiseController extends Controller
     {
         $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$item) {
+        if (! $item) {
             return response()->json(['message' => 'Item not found.'], 404);
         }
 
         $data = $request->validate([
-            'name'           => ['sometimes', 'required', 'string', 'max:255'],
-            'category'       => ['nullable', 'string', 'max:100'],
-            'description'    => ['nullable', 'string'],
-            'price'          => ['sometimes', 'required', 'numeric', 'min:0'],
+            'name' => ['sometimes', 'required', 'string', 'max:255'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'description' => ['nullable', 'string'],
+            'price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'stock_quantity' => ['sometimes', 'required', 'integer', 'min:0'],
-            'is_active'      => ['boolean'],
-            'image'          => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'is_active' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
         ]);
 
-        if ($request->hasFile('image')) {
-            $this->deleteMerchandiseImage($item->image_url);
-            $data['image_url'] = $this->storeMerchandiseImage($request);
+        $oldImageUrl = $item->image_url;
+        $newImageUrl = $request->hasFile('image') ? $this->storeMerchandiseImage($request) : null;
+        if ($newImageUrl) {
+            $data['image_url'] = $newImageUrl;
         }
         unset($data['image']);
 
-        $item->update($data);
+        try {
+            $item->update($data);
+        } catch (\Throwable $exception) {
+            $this->deleteMerchandiseImage($newImageUrl);
+            throw $exception;
+        }
+
+        if ($newImageUrl) {
+            $this->deleteMerchandiseImage($oldImageUrl);
+        }
 
         return response()->json($item->fresh());
     }
@@ -116,7 +132,7 @@ class MerchandiseController extends Controller
     {
         $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$item) {
+        if (! $item) {
             return response()->json(['message' => 'Item not found.'], 404);
         }
 
@@ -138,7 +154,7 @@ class MerchandiseController extends Controller
     {
         $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
 
-        if (!$item) {
+        if (! $item) {
             return response()->json(['message' => 'Item not found.'], 404);
         }
 

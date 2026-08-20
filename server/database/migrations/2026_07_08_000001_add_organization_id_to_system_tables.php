@@ -39,7 +39,7 @@ return new class extends Migration
                     $column->constrained('organizations')->restrictOnDelete();
                 }
 
-                $table->index('organization_id', $tableName . '_organization_id_index');
+                $table->index('organization_id', $tableName.'_organization_id_index');
             });
         }
 
@@ -67,7 +67,7 @@ return new class extends Migration
                 $table->dropUnique('users_organization_email_unique');
             }
 
-            if (!Schema::hasIndex('users', 'users_email_unique')) {
+            if (! Schema::hasIndex('users', 'users_email_unique')) {
                 $table->unique('email', 'users_email_unique');
             }
         });
@@ -76,7 +76,7 @@ return new class extends Migration
             Schema::table($tableName, function (Blueprint $table) use ($tableName) {
                 if (Schema::hasColumn($tableName, 'organization_id')) {
                     $table->dropForeign(['organization_id']);
-                    $table->dropIndex($tableName . '_organization_id_index');
+                    $table->dropIndex($tableName.'_organization_id_index');
                     $table->dropColumn('organization_id');
                 }
             });

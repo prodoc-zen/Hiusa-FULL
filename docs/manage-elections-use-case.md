@@ -21,7 +21,7 @@
 
 - **Create Election:** Admin creates an election and submits it for approval.
 - **Set Voting Period:** create and edit forms capture start and end date/time.
-- **Configure Election Positions:** Admin manages positions in the election workspace.
+- **Configure Election Positions:** Admin configures one or more unique ballot positions during creation and can manage them later in the election workspace until voting begins.
 - **Edit Election:** Admin can open existing election details, update election information, and save changes.
 - **Submit Election for Approval:** new elections are stored with `pending_approval` and an approval request for Department Head review.
 - **Review Approval Request:** Department Head review is handled by the approval workflow.

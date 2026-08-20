@@ -2,10 +2,11 @@
 
 namespace Database\Factories;
 
+use App\Models\FinancialForecast;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * @extends Factory<\App\Models\FinancialForecast>
+ * @extends Factory<FinancialForecast>
  */
 class FinancialForecastFactory extends Factory
 {

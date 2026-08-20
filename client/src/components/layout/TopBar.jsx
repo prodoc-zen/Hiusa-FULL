@@ -41,6 +41,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const [notifOpen, setNotifOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -79,6 +80,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
       const res = await getNotifications();
       const data = res?.data?.notifications ?? (Array.isArray(res?.data) ? res.data : []);
       setNotifications(data.slice(0, 10));
+      setUnreadCount(Number(res?.data?.unread_count ?? data.filter((notification) => !notification.is_read).length));
     } catch {
       // notifications are non-critical; fail silently
     }
@@ -119,9 +121,11 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   }, [canOrderMerchandise, loadCart]);
 
   async function handleMarkRead(id) {
+    const wasUnread = notifications.some((notification) => notification.id === id && !notification.is_read);
     try {
       await markRead(id);
       setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)));
+      if (wasUnread) setUnreadCount((count) => Math.max(0, count - 1));
     } catch {}
   }
 
@@ -129,6 +133,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     try {
       await markAllRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
     } catch {}
   }
 
@@ -158,7 +163,6 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const unreadCount = notifications.filter((n) => !n.is_read).length;
   const recent5 = notifications.slice(0, 5);
   const cartTypeCount = cartItems.length;
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);

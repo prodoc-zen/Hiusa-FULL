@@ -19,13 +19,36 @@ class UserController extends Controller
 {
     public function index(Request $request)
     {
-        $users = User::query()
+        $filters = $request->validate([
+            'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'account_status' => ['nullable', 'in:active,inactive,disabled'],
+            'search' => ['nullable', 'string', 'max:100'],
+        ]);
+
+        $query = User::query()
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->get();
+            ->orderBy('first_name');
 
-        return response()->json($users);
+        if (! empty($filters['role'])) {
+            $query->where('role', $filters['role']);
+        }
+
+        if (! empty($filters['account_status'])) {
+            $query->where('account_status', $filters['account_status']);
+        }
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($userQuery) use ($search) {
+                $userQuery->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('school_id', 'like', "%{$search}%");
+            });
+        }
+
+        return response()->json($query->get());
     }
 
     public function store(Request $request)
@@ -111,7 +134,8 @@ class UserController extends Controller
             array_key_exists('role', $validatedData) &&
             $validatedData['role'] !== 'ADMIN' &&
             $user->role === 'ADMIN' &&
-            User::where('role', 'ADMIN')->where('organization_id', $user->organization_id)->count() <= 1
+            $user->account_status === 'active' &&
+            User::where('role', 'ADMIN')->where('account_status', 'active')->where('organization_id', $user->organization_id)->count() <= 1
         ) {
             return response()->json(['message' => 'Cannot change the role of the last admin account.'], 422);
         }
@@ -166,7 +190,6 @@ class UserController extends Controller
 
         $user->forceFill([
             'account_status' => 'disabled',
-            'password_hash' => Str::random(40),
         ])->save();
 
         $user->tokens()->delete();
@@ -229,7 +252,7 @@ class UserController extends Controller
     public function register(Request $request)
     {
         $validatedData = $request->validate([
-            'organization_id' => ['required', 'exists:organizations,id'],
+            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
             'school_id' => [
                 'required',
                 'integer',
@@ -274,7 +297,7 @@ class UserController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'organization_id' => 'required|exists:organizations,id',
+            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
             'school_id' => 'required|integer|min:1|max:99999999',
             'password' => 'required|string',
         ]);
@@ -306,7 +329,7 @@ class UserController extends Controller
     public function requestPasswordReset(Request $request)
     {
         $validated = $request->validate([
-            'organization_id' => ['required', 'exists:organizations,id'],
+            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
             'email' => ['required', 'email'],
         ]);
 
@@ -315,9 +338,7 @@ class UserController extends Controller
             ->first();
 
         if (! $user) {
-            throw ValidationException::withMessages([
-                'email' => ['No account was found for that organization and email address.'],
-            ]);
+            return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
         }
 
         if ($user->account_status !== 'active') {
@@ -351,7 +372,7 @@ class UserController extends Controller
     public function validatePasswordResetToken(Request $request)
     {
         $validated = $request->validate([
-            'organization_id' => ['required', 'exists:organizations,id'],
+            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
             'email' => ['required', 'email'],
             'token' => ['required', 'string'],
         ]);
@@ -370,7 +391,7 @@ class UserController extends Controller
     public function resetPassword(Request $request)
     {
         $validated = $request->validate([
-            'organization_id' => ['required', 'exists:organizations,id'],
+            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
             'email' => ['required', 'email'],
             'token' => ['required', 'string'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],

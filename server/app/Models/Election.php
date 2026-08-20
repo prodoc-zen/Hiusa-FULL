@@ -2,13 +2,14 @@
 
 namespace App\Models;
 
+use Database\Factories\ElectionFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Election extends Model
 {
-    /** @use HasFactory<\Database\Factories\ElectionFactory> */
+    /** @use HasFactory<ElectionFactory> */
     use HasFactory;
 
     protected $guarded = [];
@@ -23,7 +24,7 @@ class Election extends Model
 
     public function positions(): HasMany
     {
-        return $this->hasMany(ElectionPosition::class);
+        return $this->hasMany(ElectionPosition::class)->orderBy('id');
     }
 
     public function candidates(): HasMany

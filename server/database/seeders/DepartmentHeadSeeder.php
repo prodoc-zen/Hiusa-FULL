@@ -25,7 +25,7 @@ class DepartmentHeadSeeder extends Seeder
         foreach ($departmentHeads as $head) {
             $organizationId = Organization::where('acronym', $head['acronym'])->value('id');
 
-            if (!$organizationId) {
+            if (! $organizationId) {
                 continue;
             }
 

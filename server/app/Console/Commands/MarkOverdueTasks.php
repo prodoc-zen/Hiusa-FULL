@@ -8,6 +8,7 @@ use Illuminate\Console\Command;
 class MarkOverdueTasks extends Command
 {
     protected $signature = 'tasks:mark-overdue';
+
     protected $description = 'Set status=overdue on any task whose deadline has passed and is still pending or in_progress';
 
     public function handle(): int
