@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\Transaction;
@@ -106,14 +107,18 @@ class TransactionController extends Controller
     {
         $data = $request->validate($this->rules($request));
 
-        if (! $this->linksBelongToOrganization($request, $data)) {
-            return response()->json(['message' => 'Selected transaction links must belong to this organization.'], 422);
+        if ($message = $this->validateAndNormalizeLinks($request, $data)) {
+            return response()->json(['message' => $message], 422);
         }
 
         return DB::transaction(function () use ($data, $request) {
-            if (! empty($data['event_id']) && empty($data['receipt_number'])) {
+            if (empty($data['receipt_number'])) {
                 $data['receipt_number'] = ((int) Transaction::where('organization_id', $request->user()->organization_id)
-                    ->where('event_id', $data['event_id'])
+                    ->when(
+                        ! empty($data['event_id']),
+                        fn ($query) => $query->where('event_id', $data['event_id']),
+                        fn ($query) => $query->whereNull('event_id'),
+                    )
                     ->lockForUpdate()
                     ->max('receipt_number')) + 1;
             }
@@ -124,7 +129,14 @@ class TransactionController extends Controller
                 'organization_id' => $request->user()->organization_id,
             ]);
 
+            if (empty($transaction->receipt_reference)) {
+                $transaction->update([
+                    'receipt_reference' => 'HIUSA-'.$request->user()->organization_id.'-'.str_pad((string) $transaction->id, 8, '0', STR_PAD_LEFT),
+                ]);
+            }
+
             $this->applyBudgetMovement($transaction, 1);
+            $this->recordFinancialAudit($request, 'created', $transaction, null, $this->auditableValues($transaction->fresh()));
 
             return response()->json($transaction->load([
                 'budget:id,title',
@@ -145,14 +157,16 @@ class TransactionController extends Controller
 
         $data = $request->validate($this->rules($request, true, $transaction));
 
-        if (! $this->linksBelongToOrganization($request, $data)) {
-            return response()->json(['message' => 'Selected transaction links must belong to this organization.'], 422);
+        if ($message = $this->validateAndNormalizeLinks($request, $data, $transaction)) {
+            return response()->json(['message' => $message], 422);
         }
 
-        return DB::transaction(function () use ($transaction, $data) {
+        return DB::transaction(function () use ($transaction, $data, $request) {
+            $oldValues = $this->auditableValues($transaction);
             $this->applyBudgetMovement($transaction, -1);
             $transaction->update($data);
             $this->applyBudgetMovement($transaction->fresh(), 1);
+            $this->recordFinancialAudit($request, 'updated', $transaction, $oldValues, $this->auditableValues($transaction->fresh()));
 
             return response()->json($transaction->fresh()->load([
                 'budget:id,title',
@@ -201,42 +215,55 @@ class TransactionController extends Controller
             return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
         }
 
-        DB::transaction(function () use ($transaction) {
+        DB::transaction(function () use ($transaction, $request) {
+            $oldValues = $this->auditableValues($transaction);
             $this->applyBudgetMovement($transaction, -1);
             $transaction->delete();
+            $this->recordFinancialAudit($request, 'deleted', $transaction, $oldValues, null);
         });
 
         return response()->json(['message' => 'Transaction deleted successfully.']);
     }
 
-    private function linksBelongToOrganization(Request $request, array $data): bool
+    private function validateAndNormalizeLinks(Request $request, array &$data, ?Transaction $transaction = null): ?string
     {
         $organizationId = $request->user()->organization_id;
+        $budgetId = array_key_exists('budget_id', $data) ? $data['budget_id'] : $transaction?->budget_id;
+        $eventId = array_key_exists('event_id', $data) ? $data['event_id'] : $transaction?->event_id;
 
-        if (! empty($data['budget_id'])) {
-            $budgetExists = Budget::where('organization_id', $organizationId)
-                ->where('id', $data['budget_id'])
-                ->exists();
+        if (! empty($budgetId)) {
+            $budget = Budget::where('organization_id', $organizationId)
+                ->where('id', $budgetId)
+                ->first();
             $latestApproval = ApprovalRequest::where('organization_id', $organizationId)
                 ->where('entity_type', 'budget')
-                ->where('entity_id', $data['budget_id'])
+                ->where('entity_id', $budgetId)
                 ->latest('id')
                 ->first();
 
-            if (! $budgetExists || $latestApproval?->status !== 'approved') {
-                return false;
+            if (! $budget || $latestApproval?->status !== 'approved') {
+                return 'The selected budget must belong to this organization and be approved.';
+            }
+
+            if ($budget->event_id) {
+                if ($eventId && (int) $eventId !== (int) $budget->event_id) {
+                    return 'The selected budget is linked to a different event.';
+                }
+
+                $eventId = $budget->event_id;
+                $data['event_id'] = $budget->event_id;
             }
         }
 
-        if (! empty($data['event_id']) && ! Event::where('organization_id', $organizationId)->where('id', $data['event_id'])->exists()) {
-            return false;
+        if (! empty($eventId) && ! Event::where('organization_id', $organizationId)->where('id', $eventId)->exists()) {
+            return 'The selected event does not belong to this organization.';
         }
 
         if (! empty($data['payer_id']) && ! User::where('organization_id', $organizationId)->where('school_id', $data['payer_id'])->exists()) {
-            return false;
+            return 'The selected payer does not belong to this organization.';
         }
 
-        return true;
+        return null;
     }
 
     private function rules(Request $request, bool $partial = false, ?Transaction $transaction = null): array
@@ -300,5 +327,38 @@ class TransactionController extends Controller
         }
 
         return $remainingAmount <= $warningThreshold ? 'medium' : 'low';
+    }
+
+    private function auditableValues(Transaction $transaction): array
+    {
+        return $transaction->only([
+            'id',
+            'budget_id',
+            'event_id',
+            'payer_id',
+            'type',
+            'category',
+            'amount',
+            'description',
+            'receipt_reference',
+            'receipt_number',
+            'transaction_date',
+        ]);
+    }
+
+    private function recordFinancialAudit(Request $request, string $action, Transaction $transaction, ?array $oldValues, ?array $newValues): void
+    {
+        AuditLog::create([
+            'organization_id' => $request->user()->organization_id,
+            'user_id' => $request->user()->school_id,
+            'module' => 'financial_ledger',
+            'action' => $action,
+            'record_type' => Transaction::class,
+            'record_id' => $transaction->id,
+            'old_values' => $oldValues,
+            'new_values' => $newValues,
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
     }
 }

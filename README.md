@@ -16,6 +16,7 @@ Install these if you don't have them. Check by running the version commands in a
 | Node.js | 18 or higher | `node --version` | https://nodejs.org (LTS) |
 | npm | 9 or higher | `npm --version` | Comes with Node |
 | MySQL | 5.7 / 8.0 | `mysql --version` | Via XAMPP or MySQL Installer |
+| Python | 3.11 or higher | `python --version` | https://www.python.org/downloads/ |
 
 > **PHP on Windows:** The easiest way is to install [XAMPP](https://www.apachefriends.org). It gives you PHP, MySQL, and phpMyAdmin in one installer. After installing, add `C:\xampp\php` to your system PATH.
 
@@ -35,6 +36,22 @@ cd Hiusa-FULL
 ---
 
 ## Step 2 — Set Up the Backend (Laravel)
+
+### Fast environment setup on Windows
+
+From the project root, this creates all three local environment files, generates one matching Laravel/Python service key, and generates the Laravel application key:
+
+```powershell
+.\scripts\setup-env.ps1
+```
+
+For access from other PCs on the same trusted network, pass the host PC's current IPv4 address once:
+
+```powershell
+.\scripts\setup-env.ps1 -HostAddress 192.168.1.50 -PromptForGroqKey
+```
+
+The script preserves existing `.env` files by default. Use `-Force` only on a new installation or when you intentionally want to replace all local environment files. `-PromptForGroqKey` accepts the Groq key through hidden input so it does not appear in terminal history. After it finishes, configure the chosen database.
 
 All commands in this section run from the `server/` folder.
 
@@ -172,23 +189,61 @@ npm install
 
 This reads `package.json` and downloads all React packages into `node_modules/`. It will take a minute.
 
-### 3B — Verify the environment file
+### 3B — Create the environment file
 
-The file `client/.env` should already exist with this content:
+Copy the portable frontend template:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+The resulting `client/.env` contains:
 
 ```env
 VITE_API_URL=http://localhost:8000/api
 ```
 
-If the file is missing, create it manually with the line above.
+The localhost value also works when another PC opens HIUSA through the host PC's LAN address because the frontend automatically substitutes the browser's current hostname.
 
 ---
 
-## Step 4 — Run Both Servers
+## Step 4 — Set Up the Python AI Service
 
-You need **two terminal windows open at the same time** — one for the backend, one for the frontend.
+Open a new terminal from the project root:
 
-### Terminal 1 — Backend (Laravel)
+```powershell
+cd ai-service
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+if (-not (Test-Path .env)) { Copy-Item .env.example .env }
+# Set the same HIUSA_AI_SERVICE_KEY in ai-service/.env and server/.env.
+python run.py
+```
+
+Keep this terminal open. The health check is `http://127.0.0.1:8001/health` and interactive API documentation is at `http://127.0.0.1:8001/docs`.
+
+Make sure the matching values exist in `server/.env`:
+
+```env
+HIUSA_AI_SERVICE_ENABLED=true
+HIUSA_AI_SERVICE_URL=http://127.0.0.1:8001
+HIUSA_AI_SERVICE_KEY=the-same-long-random-key-used-by-python
+```
+
+Groq belongs only in `server/.env`:
+
+```env
+GROQ_API_KEY=your-groq-key
+GROQ_API_URL=https://api.groq.com/openai/v1/responses
+GROQ_MODEL=openai/gpt-oss-20b
+```
+
+## Step 5 — Run the Laravel and Frontend Servers
+
+You need **three terminal windows open at the same time** — Python AI, Laravel, and the frontend.
+
+### Terminal 2 — Backend (Laravel)
 
 ```bash
 cd server
@@ -202,7 +257,7 @@ INFO  Server running on [http://127.0.0.1:8000].
 
 Keep this window open. Do not close it.
 
-### Terminal 2 — Frontend (React + Vite)
+### Terminal 3 — Frontend (React + Vite)
 
 ```bash
 cd client
@@ -319,9 +374,9 @@ php artisan migrate:fresh --seed
 ### Port 8000 already in use
 Another process is using port 8000. Either stop it, or run Laravel on a different port:
 ```bash
-php artisan serve --port=8001
+php artisan serve --port=8002
 ```
-Then update `client/.env` to `VITE_API_URL=http://localhost:8001/api` and restart the Vite dev server.
+Then update `client/.env` to `VITE_API_URL=http://localhost:8002/api` and restart the Vite dev server. Port 8001 is reserved for the Python AI service.
 
 ### Port 5173 already in use
 Vite will automatically try 5174, 5175, etc. Check the terminal output for the actual URL and use that in the browser.

@@ -26,6 +26,7 @@ import {
   generateForecast,
   getBudgets,
   createBudget,
+  generateBudgetAdvice,
   getFinancialReports,
   generateFinancialReport,
 } from '../../../services/financeService';
@@ -117,6 +118,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
   const [budgetFormError, setBudgetFormError] = useState(null);
   const [budgetFormSubmitting, setBudgetFormSubmitting] = useState(false);
+  const [budgetAdviceGenerating, setBudgetAdviceGenerating] = useState(null);
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
@@ -170,15 +172,15 @@ export default function FinancePage({ initialTab = 'transactions' }) {
 
   async function handleCreateBudget(e) {
     e.preventDefault();
-    if (!budgetForm.title || !budgetForm.allocated_amount || !budgetForm.warning_threshold) {
+    if (!budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === '') {
       const message = 'Complete the required budget fields before submitting.';
       setBudgetFormError(message);
       showFeedback('error', message);
       return;
     }
 
-    if (Number(budgetForm.allocated_amount) < 0 || Number(budgetForm.warning_threshold) < 0) {
-      const message = 'Budget amounts cannot be negative.';
+    if (Number(budgetForm.allocated_amount) <= 0 || Number(budgetForm.warning_threshold) < 0 || Number(budgetForm.warning_threshold) > Number(budgetForm.allocated_amount)) {
+      const message = 'The allocation must be greater than zero and the warning threshold cannot exceed it.';
       setBudgetFormError(message);
       showFeedback('error', message);
       return;
@@ -259,6 +261,22 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     }
   }
 
+  async function handleGenerateBudgetAdvice(budgetId) {
+    setBudgetAdviceGenerating(budgetId);
+    try {
+      const response = await generateBudgetAdvice(budgetId);
+      const updatedBudget = response.data?.budget;
+      if (updatedBudget) {
+        setBudgets((current) => current.map((budget) => (budget.id === updatedBudget.id ? updatedBudget : budget)));
+      }
+      showFeedback('success', 'Budget advice generated from the latest forecast and available funds.');
+    } catch (err) {
+      showFeedback('error', getApiErrorMessage(err, 'Failed to generate budget advice.'));
+    } finally {
+      setBudgetAdviceGenerating(null);
+    }
+  }
+
   async function handleGenerateForecast() {
     setForecastGenerating(true);
     try {
@@ -303,20 +321,64 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   }
 
   function exportGeneratedReport(format) {
-    const rows = (generatedReport?.transactions || []).map((transaction) => ({
-      Date: String(transaction.transaction_date || '').slice(0, 10),
-      Description: transaction.description,
-      Category: transaction.category,
-      Type: transaction.type,
-      'Amount (PHP)': Number(transaction.amount).toFixed(2),
-    }));
+    const rows = [
+      {
+        Section: 'AI financial summary',
+        Item: generatedReport?.report?.title,
+        Details: generatedReport?.report?.summary_text,
+        'Amount (PHP)': '',
+        Date: '',
+      },
+      ...['income', 'expense', 'balance'].map((item) => ({
+        Section: 'Income statement',
+        Item: item,
+        Details: '',
+        'Amount (PHP)': Number(generatedReport?.totals?.[item] || 0).toFixed(2),
+        Date: '',
+      })),
+      ...(generatedReport?.by_category || []).map((row) => ({
+        Section: 'Category summary',
+        Item: `${row.category} (${row.type})`,
+        Details: '',
+        'Amount (PHP)': Number(row.total || 0).toFixed(2),
+        Date: '',
+      })),
+      ...(generatedReport?.latest_ols_forecast ? [{
+        Section: 'OLS forecast',
+        Item: generatedReport.latest_ols_forecast.forecast_period,
+        Details: `Income ${fmt(generatedReport.latest_ols_forecast.predicted_income)}; expense ${fmt(generatedReport.latest_ols_forecast.predicted_expense)}; balance ${fmt(generatedReport.latest_ols_forecast.predicted_balance)}; safe spending ${fmt(generatedReport.latest_ols_forecast.safe_spending_limit)}`,
+        'Amount (PHP)': '',
+        Date: '',
+      }] : []),
+      ...(generatedReport?.budget_advisories || []).map((budget) => ({
+        Section: 'Budget advisory',
+        Item: budget.title,
+        Details: `Recommended ${fmt(budget.recommended_allocation)}; safe ceiling ${fmt(budget.safe_spending_limit)}; risk ${budget.overspending_risk || 'not set'}; ${budget.advisory_note || ''}`,
+        'Amount (PHP)': Number(budget.remaining_amount || 0).toFixed(2),
+        Date: String(budget.advice_generated_at || '').slice(0, 10),
+      })),
+      ...(generatedReport?.audit_logs || []).map((log) => ({
+        Section: 'Audit log',
+        Item: `${log.module}.${log.action}`,
+        Details: `${log.record_type || 'record'} #${log.record_id || ''}`,
+        'Amount (PHP)': '',
+        Date: String(log.created_at || '').slice(0, 10),
+      })),
+      ...(generatedReport?.transactions || []).map((transaction) => ({
+        Section: 'Ledger transaction',
+        Item: `${transaction.category} (${transaction.type})`,
+        Details: transaction.description,
+        'Amount (PHP)': Number(transaction.amount).toFixed(2),
+        Date: String(transaction.transaction_date || '').slice(0, 10),
+      })),
+    ];
     const title = generatedReport?.report?.title || 'Financial Report';
     const exported = format === 'excel'
       ? downloadExcel(rows, `hiusa-financial-report-${generatedReport?.report?.id || 'new'}.xls`, title)
       : printReport(rows, title);
     showFeedback(exported ? 'success' : 'info', exported
       ? (format === 'excel' ? 'Excel report exported.' : 'Print-ready report opened. Choose Save as PDF in the print dialog.')
-      : 'This report has no transaction rows to export.');
+      : 'This report has no rows to export.');
   }
 
   async function handleExport(type, format = 'excel') {
@@ -633,20 +695,42 @@ export default function FinancePage({ initialTab = 'transactions' }) {
           ) : (
             <div className="divide-y divide-[#E5EDF3]">
               {budgets.map((b) => (
-                <div key={b.id} className="flex flex-col gap-2 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div key={b.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <p className="font-bold text-[#0F172A]">{b.title}</p>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${budgetStatusBadge[b.status] || 'bg-slate-100 text-slate-500'}`}>
-                        {b.status || 'pending'}
+                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${budgetStatusBadge[b.approval_status] || 'bg-slate-100 text-slate-500'}`}>
+                        {b.approval_status || 'pending'}
                       </span>
                     </div>
                     <p className="mt-1 text-xs text-slate-400">
-                      Allocated {fmt(b.allocated_amount)} - Warning threshold {fmt(b.warning_threshold)}
+                      Allocated {fmt(b.allocated_amount)} - Remaining {fmt(b.remaining_amount)} - Warning threshold {fmt(b.warning_threshold)}
                       {b.event ? ` - ${b.event.title}` : ''}
                     </p>
+                    {b.overspending_risk && (
+                      <p className={`mt-2 text-xs font-bold capitalize ${b.overspending_risk === 'high' ? 'text-red-600' : b.overspending_risk === 'medium' ? 'text-amber-600' : 'text-emerald-600'}`}>
+                        {b.overspending_risk} overspending risk
+                      </p>
+                    )}
+                    {b.recommended_allocation != null && (
+                      <p className="mt-1 text-xs font-semibold text-violet-700">
+                        AI recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
+                      </p>
+                    )}
+                    {b.advisory_note && <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">{b.advisory_note}</p>}
                   </div>
-                  <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</p>
+                    <button
+                      type="button"
+                      onClick={() => handleGenerateBudgetAdvice(b.id)}
+                      disabled={budgetAdviceGenerating === b.id}
+                      className="flex h-9 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+                    >
+                      <Sparkles size={14} />
+                      {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
+                    </button>
+                  </div>
                 </div>
               ))}
             </div>
@@ -798,6 +882,10 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   <p className="text-slate-500">Expenses <strong className="block text-red-600">{fmt(generatedReport.totals.expense)}</strong></p>
                   <p className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(generatedReport.totals.balance)}</strong></p>
                 </div>
+                <p className="mt-3 text-xs text-slate-500">
+                  Includes {(generatedReport.transactions || []).length} ledger entries, {(generatedReport.audit_logs || []).length} audit entries,
+                  {' '}{(generatedReport.budget_advisories || []).length} budget advisories, and {generatedReport.latest_ols_forecast ? 'the latest OLS forecast' : 'no available OLS forecast'}.
+                </p>
               </div>
             )}
           </section>
@@ -973,12 +1061,18 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   <label className="text-[13px] font-semibold text-[#0F172A]">Linked Budget</label>
                   <select
                     value={form.budget_id}
-                    onChange={(e) => setForm({ ...form, budget_id: e.target.value })}
+                    onChange={(e) => {
+                      const budgetId = e.target.value;
+                      const linkedBudget = budgets.find((budget) => String(budget.id) === String(budgetId));
+                      setForm({ ...form, budget_id: budgetId, event_id: linkedBudget?.event_id || form.event_id });
+                    }}
                     className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                   >
                     <option value="">No linked budget</option>
                     {budgets.map((budget) => (
-                      <option key={budget.id} value={budget.id}>{budget.title}</option>
+                      <option key={budget.id} value={budget.id} disabled={budget.approval_status !== 'approved'}>
+                        {budget.title}{budget.approval_status !== 'approved' ? ` (${budget.approval_status || 'pending'})` : ''}
+                      </option>
                     ))}
                   </select>
                 </div>
@@ -1087,7 +1181,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                 <button type="button" onClick={() => setShowBudgetForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
                 <button
                   type="submit"
-                  disabled={budgetFormSubmitting || !budgetForm.title || !budgetForm.allocated_amount || !budgetForm.warning_threshold}
+                  disabled={budgetFormSubmitting || !budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === ''}
                   className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
                 >
                   {budgetFormSubmitting ? 'Submitting...' : 'Submit for Approval'}

@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useNavigate, useOutletContext } from 'react-router-dom';
 import { AlertCircle, Check, CheckCircle, ChevronLeft, ChevronRight, Eye, ShieldCheck, Vote } from 'lucide-react';
+import Modal from '../../../components/Modal';
 import { castVotes } from '../../../services/electionService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -70,6 +71,7 @@ function getVotingPeriodRestriction(election) {
 
 export default function CastVotePage() {
   const { election, refreshElection } = useOutletContext();
+  const navigate = useNavigate();
   const [phase, setPhase] = useState('preview');
   const [votes, setVotes] = useState({});
   const [positionIndex, setPositionIndex] = useState(0);
@@ -77,6 +79,7 @@ export default function CastVotePage() {
   const [submitError, setSubmitError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState('');
+  const [alreadyVotedDetected, setAlreadyVotedDetected] = useState(false);
 
   const currentUser = useMemo(() => {
     try { return JSON.parse(localStorage.getItem('user')); } catch { return null; }
@@ -99,6 +102,15 @@ export default function CastVotePage() {
   const hasVoted = currentUserVotes.length > 0;
   const allSelected = groupedPositions.length > 0 && groupedPositions.every((entry) => votes[entry.position.id]);
   const votingPeriodRestriction = getVotingPeriodRestriction(election);
+  const returnToPreviousPage = () => {
+    setAlreadyVotedDetected(false);
+    if (Number(window.history.state?.idx) > 0) {
+      navigate(-1);
+      return;
+    }
+
+    navigate('/dashboard/elections', { replace: true });
+  };
 
   if (election.status !== 'active') {
     return (
@@ -118,10 +130,42 @@ export default function CastVotePage() {
     );
   }
 
-  if (hasVoted || phase === 'submitted') {
+  if ((hasVoted && phase !== 'submitted') || alreadyVotedDetected) {
+    return (
+      <Modal
+        open
+        title="Vote Already Recorded"
+        description="You have already submitted a ballot for this election. Each voter can vote only once."
+        onClose={returnToPreviousPage}
+        closeOnBackdrop
+        closeOnEscape
+        maxWidth="max-w-md"
+        footer={(
+          <button
+            type="button"
+            data-autofocus
+            onClick={returnToPreviousPage}
+            className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7]"
+          >
+            Go Back
+          </button>
+        )}
+      >
+        <div className="flex items-start gap-3 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+          <CheckCircle className="mt-0.5 shrink-0 text-emerald-600" size={22} />
+          <p className="text-sm font-medium leading-6 text-emerald-900">
+            Your previous vote remains securely recorded. No additional ballot was submitted.
+          </p>
+        </div>
+      </Modal>
+    );
+  }
+
+  if (phase === 'submitted') {
     const selectedByPosition = (election.positions || []).map((position) => {
       const vote = currentUserVotes.find((entry) => entry.position_id === position.id);
-      const candidate = (election.candidates || []).find((entry) => entry.id === vote?.candidate_id);
+      const candidateId = vote?.candidate_id ?? votes[position.id];
+      const candidate = (election.candidates || []).find((entry) => entry.id === candidateId);
       return {
         position: position.title,
         candidateName: candidate ? `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() : 'Abstained',
@@ -159,7 +203,7 @@ export default function CastVotePage() {
       <div className="max-w-2xl mx-auto space-y-5 px-4 sm:px-0">
         <div className="bg-white rounded-xl border border-[#DDE7EF] shadow-sm p-6">
           <h2 className="text-base font-extrabold text-slate-800">Live Standings</h2>
-          <p className="text-xs text-slate-500 mt-1">{Object.values(election.vote_counts || {}).reduce((s, c) => s + c, 0) || (election.votes || []).length} votes counted - {groupedPositions.length} positions</p>
+          <p className="text-xs text-slate-500 mt-1">{Number(election.voters_count || 0)} ballot{Number(election.voters_count || 0) === 1 ? '' : 's'} counted - {groupedPositions.length} positions</p>
         </div>
 
         {groupedPositions.map((entry) => {
@@ -287,7 +331,7 @@ export default function CastVotePage() {
               } catch (error) {
                 const backendMessage = String(getApiErrorMessage(error, 'Unable to submit ballot.'));
                 if (/already voted/i.test(backendMessage)) {
-                  setSubmitError("You've already voted for this position.");
+                  setAlreadyVotedDetected(true);
                 } else {
                   setSubmitError(backendMessage);
                 }

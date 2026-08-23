@@ -3,16 +3,21 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
+use App\Models\AuditLog;
+use App\Models\Budget;
 use App\Models\Event;
+use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
 use App\Models\Transaction;
+use App\Services\GroqResponsesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 
 class FinancialReportController extends Controller
 {
+    public function __construct(private readonly GroqResponsesService $groq) {}
+
     public function index(Request $request)
     {
         return response()->json(
@@ -58,15 +63,59 @@ class FinancialReportController extends Controller
         $expense = (float) $transactions->where('type', 'expense')->sum('amount');
         $balance = $income - $expense;
         $title = $this->title($data['report_type'], $start, $end, $event);
-        $summary = $this->summary($title, $income, $expense, $balance, $transactions->count());
+        $byCategory = $transactions
+            ->groupBy(fn (Transaction $transaction) => $transaction->category.'|'.$transaction->type)
+            ->map(fn ($rows) => [
+                'category' => $rows->first()->category,
+                'type' => $rows->first()->type,
+                'total' => round((float) $rows->sum('amount'), 2),
+            ])->values();
+        $latestForecast = FinancialForecast::where('organization_id', $organizationId)
+            ->orderByDesc('forecast_period')
+            ->first();
+        $budgets = Budget::where('organization_id', $organizationId)
+            ->when($event, fn ($query) => $query->where('event_id', $event->id))
+            ->whereNotNull('advice_generated_at')
+            ->get([
+                'id', 'event_id', 'title', 'allocated_amount', 'remaining_amount',
+                'recommended_allocation', 'safe_spending_limit', 'overspending_risk',
+                'advisory_note', 'advice_generated_at',
+            ]);
+        $auditLogs = AuditLog::where('organization_id', $organizationId)
+            ->whereIn('module', ['financial_ledger', 'budgets', 'financial_reports'])
+            ->whereDate('created_at', '>=', $start)
+            ->whereDate('created_at', '<=', $end)
+            ->latest('created_at')
+            ->limit(100)
+            ->get(['id', 'user_id', 'module', 'action', 'record_type', 'record_id', 'created_at']);
+        $reportContext = [
+            'report_title' => $title,
+            'income_statement' => [
+                'record_count' => $transactions->count(),
+                'total_income' => round($income, 2),
+                'total_expense' => round($expense, 2),
+                'net_balance' => round($balance, 2),
+            ],
+            'expense_and_income_by_category' => $byCategory->all(),
+            'latest_ols_forecast' => $latestForecast?->only([
+                'forecast_period', 'predicted_income', 'predicted_expense', 'predicted_balance',
+                'safe_spending_limit', 'confidence_note', 'model_details',
+            ]),
+            'budget_advisories' => $budgets->toArray(),
+            'audit_log_summary' => [
+                'entry_count' => $auditLogs->count(),
+                'actions' => $auditLogs->countBy(fn (AuditLog $log) => $log->module.'.'.$log->action)->all(),
+            ],
+        ];
+        $summary = $this->summary($reportContext);
 
-        $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $organizationId) {
+        $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext) {
             $aiOutput = AiOutput::create([
                 'organization_id' => $organizationId,
                 'feature_type' => 'financial_summary',
                 'reference_type' => FinancialReport::class,
                 'reference_id' => null,
-                'prompt_text' => "{$title}; income: {$income}; expenses: {$expense}; balance: {$balance}; records: {$transactions->count()}.",
+                'prompt_text' => json_encode($reportContext, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
                 'output_text' => $summary['text'],
                 'model_name' => $summary['model'],
                 'requested_by' => $request->user()->school_id,
@@ -89,6 +138,26 @@ class FinancialReportController extends Controller
 
             $aiOutput->update(['reference_id' => $report->id]);
 
+            AuditLog::create([
+                'organization_id' => $organizationId,
+                'user_id' => $request->user()->school_id,
+                'module' => 'financial_reports',
+                'action' => 'generated',
+                'record_type' => FinancialReport::class,
+                'record_id' => $report->id,
+                'new_values' => [
+                    'title' => $title,
+                    'report_type' => $data['report_type'],
+                    'period_start' => $start,
+                    'period_end' => $end,
+                    'transaction_count' => $transactions->count(),
+                    'audit_entry_count' => $auditLogs->count(),
+                    'forecast_id' => $latestForecast?->id,
+                ],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
             return [
                 'report' => $report->load(['event:id,title', 'generator:school_id,first_name,last_name']),
                 'totals' => [
@@ -96,13 +165,10 @@ class FinancialReportController extends Controller
                     'expense' => round($expense, 2),
                     'balance' => round($balance, 2),
                 ],
-                'by_category' => $transactions
-                    ->groupBy(fn (Transaction $transaction) => $transaction->category.'|'.$transaction->type)
-                    ->map(fn ($rows) => [
-                        'category' => $rows->first()->category,
-                        'type' => $rows->first()->type,
-                        'total' => round((float) $rows->sum('amount'), 2),
-                    ])->values(),
+                'by_category' => $byCategory,
+                'latest_ols_forecast' => $latestForecast,
+                'budget_advisories' => $budgets,
+                'audit_logs' => $auditLogs,
                 'transactions' => $transactions,
             ];
         });
@@ -130,34 +196,17 @@ class FinancialReportController extends Controller
         };
     }
 
-    private function summary(string $title, float $income, float $expense, float $balance, int $count): array
+    private function summary(array $context): array
     {
-        $fallback = "{$title} includes {$count} ledger record(s). Total income is PHP ".number_format($income, 2).', total expenses are PHP '.number_format($expense, 2).', and net balance is PHP '.number_format($balance, 2).'.';
-        $apiKey = env('GROQ_API_KEY');
-        $model = env('GROQ_MODEL', 'llama-3.1-8b-instant');
+        $title = $context['report_title'];
+        $statement = $context['income_statement'];
+        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is PHP ".number_format($statement['total_income'], 2).', total expenses are PHP '.number_format($statement['total_expense'], 2).', and net balance is PHP '.number_format($statement['net_balance'], 2).'. The report also includes the latest available OLS forecast, budget-advisory outputs, and '.$context['audit_log_summary']['entry_count'].' financial audit log entry or entries.';
 
-        if (! $apiKey) {
-            return ['text' => $fallback, 'model' => 'deterministic-fallback'];
-        }
-
-        try {
-            $response = Http::withToken($apiKey)->timeout(25)->post('https://api.groq.com/openai/v1/chat/completions', [
-                'model' => $model,
-                'messages' => [
-                    ['role' => 'system', 'content' => 'Summarize this student-organization financial report concisely. Preserve every supplied figure.'],
-                    ['role' => 'user', 'content' => "{$title}; records: {$count}; income: {$income}; expenses: {$expense}; balance: {$balance}."],
-                ],
-                'temperature' => 0.2,
-                'max_tokens' => 220,
-            ]);
-            $text = trim((string) data_get($response->json(), 'choices.0.message.content'));
-            if ($response->successful() && $text !== '') {
-                return ['text' => $text, 'model' => $model];
-            }
-        } catch (\Throwable) {
-            // Keep report generation available when Groq cannot be reached.
-        }
-
-        return ['text' => $fallback, 'model' => 'deterministic-fallback'];
+        return $this->groq->generate(
+            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, latest OLS forecast when available, budget-advisory results, and audit-log summary. Preserve every figure and risk label. Clearly say when an input section has no data.',
+            json_encode($context, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+            650,
+            0.2,
+        ) ?? ['text' => $fallback, 'model' => 'deterministic-fallback'];
     }
 }

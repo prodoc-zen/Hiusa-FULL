@@ -72,6 +72,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Finance Routes - Budgets
     Route::get('/budgets', [BudgetController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
     Route::post('/budgets', [BudgetController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/budgets/{id}/advice', [BudgetController::class, 'advice'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
     Route::put('/budgets/{id}', [BudgetController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
     Route::delete('/budgets/{id}', [BudgetController::class, 'destroy'])->middleware('role:ADMIN');
 

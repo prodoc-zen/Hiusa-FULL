@@ -8,13 +8,15 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\GroqResponsesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
 {
+    public function __construct(private readonly GroqResponsesService $groq) {}
+
     public function generateDraft(Request $request)
     {
         $data = $request->validate([
@@ -30,8 +32,15 @@ class AnnouncementController extends Controller
             .'Category: '.($data['category'] ?? 'general')."\n"
             .'Details: '.($data['details'] ?? 'Use a clear, formal, student-friendly tone.')."\n";
 
-        $model = env('GROQ_MODEL', 'llama-3.1-8b-instant');
-        $output = $this->generateAnnouncementTextWithGroq($prompt, $model);
+        $model = (string) config('services.groq.model');
+        $generated = $this->groq->generate(
+            'Draft a polished, concise school-organization announcement. Return only the announcement body.',
+            $prompt,
+            450,
+            0.4,
+        );
+        $output = $generated['text'] ?? $this->fallbackAnnouncementDraft($prompt);
+        $model = $generated['model'] ?? 'deterministic-fallback';
 
         $aiOutput = AiOutput::create([
             'organization_id' => $request->user()->organization_id,
@@ -396,40 +405,6 @@ class AnnouncementController extends Controller
                 ])->all()
             );
         }
-    }
-
-    private function generateAnnouncementTextWithGroq(string $prompt, string $model): string
-    {
-        $apiKey = env('GROQ_API_KEY');
-
-        if (! $apiKey) {
-            return $this->fallbackAnnouncementDraft($prompt);
-        }
-
-        try {
-            $response = Http::withToken($apiKey)
-                ->timeout(20)
-                ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'You draft polished, concise school organization announcements. Return only the announcement body.'],
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                    'temperature' => 0.4,
-                    'max_tokens' => 450,
-                ]);
-
-            if ($response->successful()) {
-                $content = trim((string) data_get($response->json(), 'choices.0.message.content'));
-                if ($content !== '') {
-                    return $content;
-                }
-            }
-        } catch (\Throwable) {
-            return $this->fallbackAnnouncementDraft($prompt);
-        }
-
-        return $this->fallbackAnnouncementDraft($prompt);
     }
 
     private function fallbackAnnouncementDraft(string $prompt): string

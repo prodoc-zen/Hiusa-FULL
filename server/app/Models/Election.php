@@ -19,6 +19,8 @@ class Election extends Model
         return [
             'start_time' => 'datetime',
             'end_time' => 'datetime',
+            'approved_at' => 'datetime',
+            'results_visible' => 'boolean',
         ];
     }
 

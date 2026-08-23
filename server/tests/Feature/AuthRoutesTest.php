@@ -13,6 +13,13 @@ use Tests\TestCase;
 
 class AuthRoutesTest extends TestCase
 {
+    public function test_unauthenticated_api_requests_return_json_even_without_accept_header(): void
+    {
+        $this->get('/api/events')
+            ->assertUnauthorized()
+            ->assertJsonPath('message', 'Unauthenticated.');
+    }
+
     use RefreshDatabase;
 
     public function test_user_can_register_without_explicit_role(): void

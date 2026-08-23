@@ -85,6 +85,7 @@ export default function ElectionDetailPage() {
       setDeleteTarget(null);
       await refreshElection();
     } catch (deleteError) {
+      setDeleteTarget(null);
       setError(deleteError?.response?.data?.message || 'Unable to remove election position.');
     } finally {
       setBusy(false);

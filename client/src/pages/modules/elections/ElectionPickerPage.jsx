@@ -7,6 +7,7 @@ import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import ConfirmModal from '../../../components/ConfirmModal';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 
 const statusStyles = {
   pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -29,15 +30,18 @@ const statusLabels = {
   closed: 'Closed',
 };
 
-function formatDate(dt) {
+function formatDateTime(dt) {
   if (!dt) {
     return '-';
   }
 
-  return new Date(dt).toLocaleDateString('en-US', {
+  return new Date(dt).toLocaleString('en-US', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
   });
 }
 
@@ -181,7 +185,13 @@ export default function ElectionPickerPage({ onSelect }) {
     setError('');
     setFormError('');
     try {
-      const created = await createElection({ ...form, title: form.title.trim(), positions: normalizedPositions });
+      const created = await createElection({
+        ...form,
+        title: form.title.trim(),
+        start_time: localDateTimeToIso(form.start_time),
+        end_time: localDateTimeToIso(form.end_time),
+        positions: normalizedPositions,
+      });
       setElections((current) => [created, ...current]);
       setShowCreate(false);
       setForm({ title: '', start_time: '', end_time: '', status: 'pending_approval', positions: [{ title: '', max_winners: 1 }] });
@@ -200,8 +210,8 @@ export default function ElectionPickerPage({ onSelect }) {
     setEditForm({
       id: election.id,
       title: election.title,
-      start_time: election.start_time?.slice(0, 16) || '',
-      end_time: election.end_time?.slice(0, 16) || '',
+      start_time: isoToLocalDateTimeInput(election.start_time),
+      end_time: isoToLocalDateTimeInput(election.end_time),
       status: election.status,
     });
     setShowEdit(true);
@@ -222,8 +232,8 @@ export default function ElectionPickerPage({ onSelect }) {
     try {
       const updated = await updateElection(editForm.id, {
         title: editForm.title,
-        start_time: editForm.start_time,
-        end_time: editForm.end_time,
+        start_time: localDateTimeToIso(editForm.start_time),
+        end_time: localDateTimeToIso(editForm.end_time),
         status: editForm.status,
       });
 
@@ -273,6 +283,7 @@ export default function ElectionPickerPage({ onSelect }) {
       setDeleteTarget(null);
       setFeedback({ open: true, type: 'success', message: 'Election deleted.' });
     } catch (deleteError) {
+      setDeleteTarget(null);
       setError(getApiErrorMessage(deleteError, 'Unable to delete election.'));
     } finally {
       setDeleting(false);
@@ -411,6 +422,7 @@ export default function ElectionPickerPage({ onSelect }) {
                 />
               </div>
             </div>
+            <p className="text-xs text-[#64748B]">Voting times use this device's local timezone and are saved as an exact instant.</p>
 
             <fieldset className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4">
               <div className="flex items-center justify-between gap-3">
@@ -515,7 +527,7 @@ export default function ElectionPickerPage({ onSelect }) {
                     <div className="mt-2 flex flex-wrap items-center gap-4 text-xs text-[#64748B]">
                       <span className="flex items-center gap-1">
                         <CalendarDays size={12} />
-                        {formatDate(el.start_time)} - {formatDate(el.end_time)}
+                        {formatDateTime(el.start_time)} - {formatDateTime(el.end_time)}
                       </span>
                       <span>{timeline}</span>
                     </div>
@@ -557,7 +569,7 @@ export default function ElectionPickerPage({ onSelect }) {
                       </button>
                     )}
 
-                    {(role !== 'STUDENT' || el.status === 'closed' || el.results_visible) && (
+                    {el.status === 'closed' && (role === 'ADMIN' || el.results_visible) && (
                       <button
                         type="button"
                         onClick={() => openElectionAndGo(el.id, '/dashboard/elections/election-results')}
@@ -712,6 +724,7 @@ export default function ElectionPickerPage({ onSelect }) {
                 />
               </div>
             </div>
+            <p className="text-xs text-[#64748B]">Voting times use this device's local timezone and are saved as an exact instant.</p>
 
             <div>
               <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Status</label>

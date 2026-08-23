@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
+use App\Models\Budget;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
@@ -182,6 +183,77 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonMissingPath('attendance_records');
     }
 
+    public function test_admin_can_monitor_attendance_and_linked_budget_status_per_event(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'approved',
+            'approved_at' => now(),
+            'requires_budget' => true,
+        ]);
+        $otherEvent = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'approved',
+            'approved_at' => now(),
+        ]);
+        $linkedBudget = Budget::create([
+            'organization_id' => $admin->organization_id,
+            'event_id' => $event->id,
+            'title' => 'Linked Event Budget',
+            'allocated_amount' => 1000,
+            'remaining_amount' => 750,
+            'warning_threshold' => 200,
+        ]);
+        Budget::create([
+            'organization_id' => $admin->organization_id,
+            'event_id' => $otherEvent->id,
+            'title' => 'Other Event Budget',
+            'allocated_amount' => 500,
+            'remaining_amount' => 500,
+            'warning_threshold' => 100,
+        ]);
+        ApprovalRequest::create([
+            'organization_id' => $admin->organization_id,
+            'entity_type' => 'budget',
+            'entity_id' => $linkedBudget->id,
+            'requested_by' => $admin->school_id,
+            'required_role' => 'DEPARTMENT_HEAD',
+            'status' => 'approved',
+        ]);
+        Attendance::create([
+            'event_id' => $event->id,
+            'user_id' => $student->school_id,
+            'recorded_by' => $admin->school_id,
+            'method' => 'manual',
+            'status' => 'present',
+            'check_in_time' => now(),
+        ]);
+
+        $this->authenticate($admin);
+        $this->getJson('/api/events')
+            ->assertOk()
+            ->assertJsonFragment([
+                'id' => $linkedBudget->id,
+                'approval_status' => 'approved',
+            ]);
+        $this->getJson("/api/events/{$event->id}")
+            ->assertOk()
+            ->assertJsonCount(1, 'budgets')
+            ->assertJsonPath('budgets.0.id', $linkedBudget->id)
+            ->assertJsonPath('budgets.0.approval_status', 'approved')
+            ->assertJsonPath('attendance_summary.present', 1);
+
+        $this->authenticate($student);
+        $this->getJson("/api/events/{$event->id}")
+            ->assertOk()
+            ->assertJsonMissingPath('budgets')
+            ->assertJsonMissingPath('attendance_summary');
+    }
+
     public function test_only_approved_budgets_are_spendable_and_overspending_is_reversible(): void
     {
         $admin = $this->user('ADMIN');
@@ -211,6 +283,52 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'remaining_amount' => -50, 'overspending_risk' => 'high']);
         $this->deleteJson("/api/transactions/{$transactionId}")->assertOk();
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'remaining_amount' => 100, 'overspending_risk' => 'low']);
+    }
+
+    public function test_transaction_event_must_match_its_linked_budget(): void
+    {
+        $admin = $this->user('ADMIN');
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+        ]);
+        $otherEvent = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+        ]);
+        $budget = Budget::create([
+            'organization_id' => $admin->organization_id,
+            'event_id' => $event->id,
+            'title' => 'Event-specific Budget',
+            'allocated_amount' => 1000,
+            'remaining_amount' => 1000,
+            'warning_threshold' => 100,
+        ]);
+        ApprovalRequest::create([
+            'organization_id' => $admin->organization_id,
+            'entity_type' => 'budget',
+            'entity_id' => $budget->id,
+            'requested_by' => $admin->school_id,
+            'required_role' => 'DEPARTMENT_HEAD',
+            'status' => 'approved',
+        ]);
+        $this->authenticate($admin);
+        $transaction = [
+            'budget_id' => $budget->id,
+            'type' => 'expense',
+            'amount' => 50,
+            'category' => 'Events',
+            'description' => 'Venue supplies',
+            'transaction_date' => now()->toDateString(),
+        ];
+
+        $this->postJson('/api/transactions', [...$transaction, 'event_id' => $otherEvent->id])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'The selected budget is linked to a different event.');
+
+        $this->postJson('/api/transactions', $transaction)
+            ->assertCreated()
+            ->assertJsonPath('event_id', $event->id);
     }
 
     public function test_approved_budget_changes_reopen_approval_before_more_spending(): void
@@ -395,6 +513,48 @@ class UseCaseComplianceTest extends TestCase
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertUnprocessable();
     }
 
+    public function test_approved_elections_follow_their_scheduled_opening_and_closing_times(): void
+    {
+        $student = $this->user('STUDENT');
+        $scheduledToOpen = Election::create([
+            'organization_id' => $student->organization_id,
+            'title' => 'Scheduled to Open',
+            'start_time' => now()->subMinute(),
+            'end_time' => now()->addHour(),
+            'status' => 'upcoming',
+            'approved_at' => now()->subDay(),
+            'results_visible' => true,
+        ]);
+        $scheduledToClose = Election::create([
+            'organization_id' => $student->organization_id,
+            'title' => 'Scheduled to Close',
+            'start_time' => now()->subHours(2),
+            'end_time' => now()->subMinute(),
+            'status' => 'active',
+            'approved_at' => now()->subDay(),
+            'results_visible' => true,
+        ]);
+        $manuallyClosed = Election::create([
+            'organization_id' => $student->organization_id,
+            'title' => 'Manually Closed',
+            'start_time' => now()->subMinute(),
+            'end_time' => now()->addHour(),
+            'status' => 'closed',
+            'approved_at' => now()->subDay(),
+            'results_visible' => true,
+        ]);
+
+        $this->authenticate($student);
+        $this->getJson('/api/elections')
+            ->assertOk()
+            ->assertJsonFragment(['id' => $scheduledToOpen->id, 'status' => 'active'])
+            ->assertJsonFragment(['id' => $scheduledToClose->id, 'status' => 'closed']);
+
+        $this->assertDatabaseHas('elections', ['id' => $scheduledToOpen->id, 'status' => 'active']);
+        $this->assertDatabaseHas('elections', ['id' => $scheduledToClose->id, 'status' => 'closed']);
+        $this->assertDatabaseHas('elections', ['id' => $manuallyClosed->id, 'status' => 'closed']);
+    }
+
     public function test_admin_gets_clear_error_when_opening_election_outside_voting_period(): void
     {
         $admin = $this->user('ADMIN');
@@ -420,6 +580,33 @@ class UseCaseComplianceTest extends TestCase
         $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])
             ->assertUnprocessable()
             ->assertJsonPath('message', 'Voting period has already ended. Update the end time before reopening this election.');
+    }
+
+    public function test_admin_can_reopen_a_manually_closed_election_during_its_voting_period(): void
+    {
+        $admin = $this->user('ADMIN');
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Reopenable Election',
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+            'status' => 'closed',
+            'approved_at' => now()->subDay(),
+        ]);
+
+        $this->authenticate($admin);
+        $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])
+            ->assertOk()
+            ->assertJsonPath('status', 'active');
+
+        $this->assertDatabaseHas('audit_logs', [
+            'organization_id' => $admin->organization_id,
+            'user_id' => $admin->school_id,
+            'module' => 'elections',
+            'action' => 'status_changed',
+            'record_type' => Election::class,
+            'record_id' => $election->id,
+        ]);
     }
 
     public function test_approved_election_changes_reopen_approval_and_votes_lock_details(): void
@@ -673,6 +860,37 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonPath('user.first_name', $replacementStudent->first_name)
             ->assertJsonPath('position.title', 'Treasurer')
             ->assertJsonPath('platform', 'Updated platform.');
+    }
+
+    public function test_partylist_changes_are_recorded_in_the_election_audit_log(): void
+    {
+        $admin = $this->user('ADMIN');
+        $this->authenticate($admin);
+
+        $partylistId = $this->postJson('/api/partylists', [
+            'name' => 'Audit Party',
+            'acronym' => 'AP',
+            'description' => 'Initial platform',
+        ])->assertCreated()->json('id');
+
+        $this->putJson("/api/partylists/{$partylistId}", [
+            'name' => 'Audit Party Updated',
+            'acronym' => 'APU',
+            'description' => 'Updated platform',
+        ])->assertOk();
+
+        $this->deleteJson("/api/partylists/{$partylistId}")->assertOk();
+
+        foreach (['partylist_added', 'partylist_updated', 'partylist_removed'] as $action) {
+            $this->assertDatabaseHas('audit_logs', [
+                'organization_id' => $admin->organization_id,
+                'user_id' => $admin->school_id,
+                'module' => 'elections',
+                'action' => $action,
+                'record_type' => \App\Models\Partylist::class,
+                'record_id' => $partylistId,
+            ]);
+        }
     }
 
     public function test_admin_can_delete_election_before_votes_are_cast(): void
@@ -970,7 +1188,7 @@ class UseCaseComplianceTest extends TestCase
         $this->getJson("/api/events/{$planning->id}")->assertForbidden();
     }
 
-    public function test_ballot_details_never_expose_voter_identity_or_live_results_to_students(): void
+    public function test_live_standings_are_anonymous_while_official_results_wait_for_closure(): void
     {
         $admin = $this->user('ADMIN');
         $student = $this->user('STUDENT', $admin->organization_id);
@@ -1006,10 +1224,10 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($student);
         $this->getJson("/api/elections/{$election->id}")
             ->assertOk()
-            ->assertJsonMissingPath('vote_counts')
+            ->assertJsonPath("vote_counts.{$candidate->id}", 1)
+            ->assertJsonPath('voters_count', 1)
             ->assertJsonMissingPath('votes');
-        $this->getJson("/api/elections/{$election->id}/results")
-            ->assertForbidden();
+        $this->getJson("/api/elections/{$election->id}/results")->assertForbidden();
 
         $election->update(['status' => 'closed']);
         $this->getJson("/api/elections/{$election->id}/results")

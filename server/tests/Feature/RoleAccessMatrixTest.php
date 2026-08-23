@@ -39,6 +39,7 @@ class RoleAccessMatrixTest extends TestCase
             ['POST', '/api/events/999/generate-plan', ['ADMIN']],
             ['POST', '/api/transactions', ['ADMIN']],
             ['POST', '/api/budgets', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD']],
+            ['POST', '/api/budgets/999/advice', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD']],
             ['POST', '/api/financial-reports/generate', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD']],
             ['POST', '/api/forecasts/generate', ['ADMIN', 'SBO_OFFICER']],
             ['GET', '/api/transactions/personal-receipts', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']],
