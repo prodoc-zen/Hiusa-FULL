@@ -74,8 +74,8 @@ export default function ElectionResultsPage() {
     return (
       <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
         <Trophy size={32} className="mx-auto mb-3 text-amber-500" />
-        <p className="font-bold text-amber-900">Results are sealed while voting is open.</p>
-        <p className="mt-1 text-sm font-medium text-amber-700">Final tallies and winners become available after the election closes.</p>
+        <p className="font-bold text-amber-900">Official results are not available yet.</p>
+        <p className="mt-1 text-sm font-medium text-amber-700">Live standings remain available in Cast Vote. Final results appear after the election closes.</p>
       </div>
     );
   }

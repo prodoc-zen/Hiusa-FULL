@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Calendar,
   CheckCircle2,
@@ -12,9 +13,10 @@ import {
   Search,
   UserCheck,
   Users,
+  Wallet,
   X,
 } from 'lucide-react';
-import { getEvents, getEvent, createEvent, updateEvent, generateEventPlan, getAttendance, recordAttendance } from '../../../services/eventService';
+import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
@@ -39,6 +41,20 @@ const taskStatusBadge = {
   overdue: 'bg-red-50 text-red-700',
 };
 
+const budgetStatusBadge = {
+  pending: 'bg-amber-50 text-amber-700',
+  approved: 'bg-emerald-50 text-emerald-700',
+  rejected: 'bg-red-50 text-red-700',
+};
+
+const allowedStatusTransitions = {
+  planning: ['cancelled'],
+  approved: ['ongoing', 'completed', 'cancelled'],
+  ongoing: ['completed', 'cancelled'],
+  completed: [],
+  cancelled: [],
+};
+
 function formatDateTime(iso) {
   if (!iso) return '-';
   return new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
@@ -48,7 +64,23 @@ function capitalize(s) {
   return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
 }
 
+function formatCurrency(value) {
+  return `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function getEventBudgetStatus(event) {
+  if (!event.budgets?.length) {
+    return event.requires_budget
+      ? { label: 'Not linked', tone: 'bg-red-50 text-red-700' }
+      : { label: 'Not required', tone: 'bg-slate-100 text-slate-500' };
+  }
+  if (event.budgets.some((budget) => budget.approval_status === 'rejected')) return { label: 'Rejected', tone: budgetStatusBadge.rejected };
+  if (event.budgets.some((budget) => budget.approval_status === 'pending' || !budget.approval_status)) return { label: 'Pending', tone: budgetStatusBadge.pending };
+  return { label: 'Approved', tone: budgetStatusBadge.approved };
+}
+
 export default function EventsPage({ initialTab = 'events' }) {
+  const navigate = useNavigate();
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [events, setEvents] = useState([]);
@@ -59,6 +91,8 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [dateFilter, setDateFilter] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState(false);
+  const [statusError, setStatusError] = useState(null);
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventsPage, setEventsPage] = useState(1);
   const [tasksPage, setTasksPage] = useState(1);
@@ -247,6 +281,7 @@ export default function EventsPage({ initialTab = 'events' }) {
   async function openEventDetails(event) {
     setSelectedEvent(event);
     setDetailsLoading(true);
+    setStatusError(null);
     try {
       const response = await getEvent(event.id);
       setSelectedEvent(response.data);
@@ -254,6 +289,22 @@ export default function EventsPage({ initialTab = 'events' }) {
       setSelectedEvent(event);
     } finally {
       setDetailsLoading(false);
+    }
+  }
+
+  async function handleStatusUpdate(status) {
+    if (!selectedEvent || !status) return;
+    setStatusUpdating(true);
+    setStatusError(null);
+    try {
+      await updateEventStatus(selectedEvent.id, status);
+      const response = await getEvent(selectedEvent.id);
+      setSelectedEvent(response.data);
+      setEvents((current) => current.map((event) => event.id === response.data.id ? response.data : event));
+    } catch (err) {
+      setStatusError(err.response?.data?.message ?? 'Failed to update event status.');
+    } finally {
+      setStatusUpdating(false);
     }
   }
 
@@ -391,6 +442,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                     <th className="px-5 py-3">Start Time</th>
                     <th className="hidden md:table-cell px-5 py-3">Location</th>
                     <th className="px-5 py-3">Status</th>
+                    {canCreateEvents && <th className="px-5 py-3">Budget Status</th>}
                     <th className="px-5 py-3 text-right">Actions</th>
                   </tr>
                 </thead>
@@ -420,6 +472,17 @@ export default function EventsPage({ initialTab = 'events' }) {
                           </p>
                         )}
                       </td>
+                      {canCreateEvents && (() => {
+                        const budgetStatus = getEventBudgetStatus(evt);
+                        return (
+                          <td className="px-5 py-4">
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${budgetStatus.tone}`}>
+                              {budgetStatus.label}
+                            </span>
+                            {evt.budgets?.length > 0 && <p className="mt-1 text-[11px] text-slate-400">{evt.budgets.length} linked</p>}
+                          </td>
+                        );
+                      })()}
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-1">
                           <button type="button" title="View event details" aria-label={`View ${evt.title}`} onClick={() => openEventDetails(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
@@ -770,7 +833,7 @@ export default function EventsPage({ initialTab = 'events' }) {
 
       {selectedEvent && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-lg rounded-lg bg-white p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[selectedEvent.status] || capitalize(selectedEvent.status)}</span>
@@ -785,6 +848,76 @@ export default function EventsPage({ initialTab = 'events' }) {
                 <p><span className="font-bold text-[#0F172A]">Schedule:</span> {formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</p>
                 <p><span className="font-bold text-[#0F172A]">Location:</span> {selectedEvent.location || 'Not specified'}</p>
                 <p className="whitespace-pre-wrap"><span className="font-bold text-[#0F172A]">Description:</span> {selectedEvent.description || 'No description provided.'}</p>
+                <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Attendance Summary</p>
+                    <p className="mt-1 font-bold text-[#0F172A]">{selectedEvent.attendance_records_count ?? 0} recorded</p>
+                    {selectedEvent.attendance_summary && (
+                      <p className="mt-1 text-xs text-slate-500">
+                        Present {selectedEvent.attendance_summary.present ?? 0} · Late {selectedEvent.attendance_summary.late ?? 0} · Excused {selectedEvent.attendance_summary.excused ?? 0} · Absent {selectedEvent.attendance_summary.absent ?? 0}
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-400">Approval Status</p>
+                    <p className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedEvent.approval_status || selectedEvent.status)}</p>
+                  </div>
+                </div>
+                {(selectedEvent.planning_details?.budget_notes || selectedEvent.planning_details?.vendor_deadlines || selectedEvent.planning_details?.logistics_checklist) && (
+                  <div className="space-y-2 rounded-lg border border-[#DDE7EF] p-4">
+                    <p className="font-bold text-[#0F172A]">Planning Details</p>
+                    {selectedEvent.planning_details?.budget_notes && <p className="whitespace-pre-wrap"><span className="font-semibold">Budget requirements:</span> {selectedEvent.planning_details.budget_notes}</p>}
+                    {selectedEvent.planning_details?.vendor_deadlines && <p className="whitespace-pre-wrap"><span className="font-semibold">Vendor deadlines:</span> {selectedEvent.planning_details.vendor_deadlines}</p>}
+                    {selectedEvent.planning_details?.logistics_checklist && <p className="whitespace-pre-wrap"><span className="font-semibold">Logistics checklist:</span> {selectedEvent.planning_details.logistics_checklist}</p>}
+                  </div>
+                )}
+                {canCreateEvents && (
+                  <div className="rounded-lg border border-[#DDE7EF] p-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="flex items-center gap-2 font-bold text-[#0F172A]"><Wallet size={16} /> Linked Budget Status</p>
+                        <p className="mt-1 text-xs text-slate-500">Only budgets explicitly linked to this event are included.</p>
+                      </div>
+                      <button type="button" onClick={() => navigate('/dashboard/finance/budget-allocation')} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]">
+                        Manage Budgets
+                      </button>
+                    </div>
+                    {selectedEvent.budgets?.length ? (
+                      <div className="mt-3 space-y-2">
+                        {selectedEvent.budgets.map((budget) => (
+                          <div key={budget.id} className="rounded-lg bg-[#F8FBFD] p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="font-bold text-[#0F172A]">{budget.title}</p>
+                              <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${budgetStatusBadge[budget.approval_status] || budgetStatusBadge.pending}`}>
+                                {capitalize(budget.approval_status || 'pending')}
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs text-slate-500">Allocated {formatCurrency(budget.allocated_amount)} · Remaining {formatCurrency(budget.remaining_amount)} · {budget.transactions_count ?? 0} transaction(s)</p>
+                            {budget.approval_remarks && <p className="mt-1 text-xs text-red-600">Remarks: {budget.approval_remarks}</p>}
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className={`mt-3 rounded-lg p-3 text-xs font-semibold ${selectedEvent.requires_budget ? 'bg-red-50 text-red-700' : 'bg-slate-50 text-slate-500'}`}>
+                        {selectedEvent.requires_budget ? 'This event requires funding, but no budget allocation is linked yet.' : 'This event does not require a budget allocation.'}
+                      </p>
+                    )}
+                  </div>
+                )}
+                {canCreateEvents && (allowedStatusTransitions[selectedEvent.status]?.length ?? 0) > 0 && (
+                  <div className="rounded-lg border border-[#DDE7EF] p-4">
+                    <p className="font-bold text-[#0F172A]">Update Event Status</p>
+                    <p className="mt-1 text-xs text-slate-500">Approval can only be granted through the approval workflow.</p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {allowedStatusTransitions[selectedEvent.status].map((status) => (
+                        <button key={status} type="button" disabled={statusUpdating} onClick={() => handleStatusUpdate(status)} className="rounded-lg bg-[#0B8ED0] px-3 py-2 text-xs font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">
+                          {statusUpdating ? 'Updating...' : `Mark ${capitalize(status)}`}
+                        </button>
+                      ))}
+                    </div>
+                    {statusError && <p className="mt-2 text-xs text-red-600">{statusError}</p>}
+                  </div>
+                )}
                 {selectedEvent.approval_remarks && <p className="rounded-lg bg-red-50 p-3 text-red-700"><span className="font-bold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
               </div>
             )}
@@ -881,7 +1014,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                 Requires budget allocation
               </label>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Budget Details</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]">Budget Requirements / Notes</label>
                 <textarea
                   rows={2}
                   value={form.budget_notes}
@@ -890,6 +1023,11 @@ export default function EventsPage({ initialTab = 'events' }) {
                   className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
+              {form.requires_budget && (
+                <p className="rounded-lg bg-[#EEF6FB] p-3 text-xs font-medium text-[#0878B7]">
+                  These notes describe the event's funding needs. The actual allocation is proposed and linked to this event in Finance → Budget Allocation.
+                </p>
+              )}
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">Vendor Deadlines</label>
                 <textarea
@@ -918,7 +1056,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   disabled={formSubmitting || !form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || (form.requires_budget && !form.budget_notes.trim())}
                   className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
                 >
-                  {formSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Create Event'}
+                  {formSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Submit for Approval'}
                 </button>
               </div>
             </form>

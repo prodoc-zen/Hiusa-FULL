@@ -1,0 +1,62 @@
+<?php
+
+namespace Tests\Feature;
+
+use App\Services\GroqResponsesService;
+use Illuminate\Http\Client\Request;
+use Illuminate\Support\Facades\Http;
+use Tests\TestCase;
+
+class GroqResponsesServiceTest extends TestCase
+{
+    public function test_it_uses_the_groq_responses_api_and_extracts_output_text(): void
+    {
+        config()->set('services.groq', [
+            'key' => 'test-groq-key',
+            'url' => 'https://api.groq.com/openai/v1/responses',
+            'model' => 'openai/gpt-oss-20b',
+            'timeout' => 25,
+        ]);
+        Http::fake([
+            'api.groq.com/*' => Http::response([
+                'id' => 'resp_test_123',
+                'model' => 'openai/gpt-oss-20b',
+                'output' => [[
+                    'type' => 'message',
+                    'content' => [[
+                        'type' => 'output_text',
+                        'text' => 'Generated explanation.',
+                    ]],
+                ]],
+            ]),
+        ]);
+
+        $result = app(GroqResponsesService::class)->generate(
+            'Preserve the supplied figures.',
+            'Income: 1000; expense: 400.',
+            220,
+            0.2,
+        );
+
+        $this->assertSame('Generated explanation.', $result['text']);
+        $this->assertSame('openai/gpt-oss-20b', $result['model']);
+        $this->assertSame('resp_test_123', $result['response_id']);
+
+        Http::assertSent(function (Request $request): bool {
+            return $request->url() === 'https://api.groq.com/openai/v1/responses'
+                && $request->hasHeader('Authorization', 'Bearer test-groq-key')
+                && $request['model'] === 'openai/gpt-oss-20b'
+                && $request['instructions'] === 'Preserve the supplied figures.'
+                && $request['input'] === 'Income: 1000; expense: 400.'
+                && $request['max_output_tokens'] === 220;
+        });
+    }
+
+    public function test_it_returns_null_when_no_key_is_configured(): void
+    {
+        config()->set('services.groq.key', '');
+
+        $this->assertNull(app(GroqResponsesService::class)->generate('Instructions', 'Input'));
+        Http::assertNothingSent();
+    }
+}

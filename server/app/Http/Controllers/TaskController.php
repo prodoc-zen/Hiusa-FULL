@@ -6,11 +6,21 @@ use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\GroqResponsesService;
+use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 
 class TaskController extends Controller
 {
+    private array $aiAssignmentScores = [];
+
+    private array $aiAssignmentExplanations = [];
+
+    public function __construct(
+        private readonly HiusaAiService $aiService,
+        private readonly GroqResponsesService $groq,
+    ) {}
+
     public function index(Request $request)
     {
         $query = Task::with([
@@ -239,11 +249,31 @@ class TaskController extends Controller
         return [
             ...$data,
             ...$scores,
-            'ai_recommendation_note' => $this->assignmentExplanation($data, $assignee, $scores),
+            'ai_recommendation_note' => $this->aiAssignmentExplanations[$assignee->school_id]
+                ?? $this->assignmentExplanation($data, $assignee, $scores),
         ];
     }
 
     private function assignmentScores(User $assignee, Request $request): array
+    {
+        if (isset($this->aiAssignmentScores[$assignee->school_id])) {
+            return $this->aiAssignmentScores[$assignee->school_id];
+        }
+
+        $result = $this->aiService->taskDelegation(
+            (string) $request->input('title', 'Untitled task'),
+            [$this->officerPayload($assignee, $request)]
+        );
+        $this->rememberAiRankings($result);
+
+        if (isset($this->aiAssignmentScores[$assignee->school_id])) {
+            return $this->aiAssignmentScores[$assignee->school_id];
+        }
+
+        return $this->localAssignmentScores($assignee, $request);
+    }
+
+    private function localAssignmentScores(User $assignee, Request $request): array
     {
         $activeTasks = Task::where('organization_id', $request->user()->organization_id)
             ->where('assigned_to', $assignee->id)
@@ -274,45 +304,92 @@ class TaskController extends Controller
 
     private function recommendOfficer(Request $request): ?User
     {
-        return User::where('organization_id', $request->user()->organization_id)
+        $officers = User::where('organization_id', $request->user()->organization_id)
             ->where('role', 'SBO_OFFICER')
             ->where('account_status', 'active')
-            ->get()
-            ->sortByDesc(fn (User $officer) => $this->assignmentScores($officer, $request)['final_score'])
+            ->get();
+
+        if ($officers->isEmpty()) {
+            return null;
+        }
+
+        $result = $this->aiService->taskDelegation(
+            (string) $request->input('title', 'Untitled task'),
+            $officers->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all()
+        );
+        $this->rememberAiRankings($result);
+        $recommendedId = $result['recommended_officer_id'] ?? null;
+
+        if ($recommendedId !== null) {
+            $recommended = $officers->firstWhere('school_id', (int) $recommendedId);
+
+            if ($recommended) {
+                return $recommended;
+            }
+        }
+
+        return $officers
+            ->filter(fn (User $officer) => $this->officerPayload($officer, $request)['is_available'])
+            ->sortByDesc(fn (User $officer) => $this->localAssignmentScores($officer, $request)['final_score'])
             ->first();
+    }
+
+    private function officerPayload(User $officer, Request $request): array
+    {
+        $baseQuery = Task::where('organization_id', $request->user()->organization_id)
+            ->where('assigned_to', $officer->school_id);
+        $activeTasks = (clone $baseQuery)->whereIn('status', ['pending', 'in_progress', 'overdue'])->count();
+
+        return [
+            'officer_id' => $officer->school_id,
+            'name' => trim("{$officer->first_name} {$officer->last_name}"),
+            'role' => $officer->role,
+            'account_status' => $officer->account_status,
+            'is_available' => $activeTasks < (int) config('services.hiusa_ai.task_max_active_tasks', 5),
+            'policy_eligible' => true,
+            'active_tasks' => $activeTasks,
+            'completed_tasks' => (clone $baseQuery)->where('status', 'completed')->count(),
+            'overdue_tasks' => (clone $baseQuery)->where('status', 'overdue')->count(),
+        ];
+    }
+
+    private function rememberAiRankings(?array $result): void
+    {
+        foreach ($result['rankings'] ?? [] as $ranking) {
+            $officerId = $ranking['officer_id'] ?? null;
+
+            if ($officerId === null
+                || ! is_numeric($ranking['role_score'] ?? null)
+                || ! is_numeric($ranking['workload_score'] ?? null)
+                || ! is_numeric($ranking['performance_score'] ?? null)
+                || ! is_numeric($ranking['final_score'] ?? null)) {
+                continue;
+            }
+
+            $this->aiAssignmentScores[(int) $officerId] = [
+                'role_score' => round((float) $ranking['role_score'], 2),
+                'workload_score' => round((float) $ranking['workload_score'], 2),
+                'performance_score' => round((float) $ranking['performance_score'], 2),
+                'final_score' => round((float) $ranking['final_score'], 2),
+            ];
+
+            if (is_string($ranking['explanation'] ?? null) && trim($ranking['explanation']) !== '') {
+                $this->aiAssignmentExplanations[(int) $officerId] = trim($ranking['explanation']);
+            }
+        }
     }
 
     private function assignmentExplanation(array $taskData, User $assignee, array $scores): string
     {
         $fallback = "Recommended {$assignee->first_name} {$assignee->last_name} with a weighted fit score of {$scores['final_score']} (role {$scores['role_score']}, workload {$scores['workload_score']}, performance {$scores['performance_score']}).";
-        $apiKey = env('GROQ_API_KEY');
+        $generated = $this->groq->generate(
+            'Explain a student-organization task assignment in one concise sentence. Preserve every supplied score.',
+            'Task: '.($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}.",
+            120,
+            0.2,
+        );
 
-        if (! $apiKey) {
-            return $fallback;
-        }
-
-        try {
-            $response = Http::withToken($apiKey)
-                ->timeout(20)
-                ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => env('GROQ_MODEL', 'llama-3.1-8b-instant'),
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Explain a student-organization task assignment in one concise sentence. Preserve the supplied scores.'],
-                        ['role' => 'user', 'content' => 'Task: '.($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}."],
-                    ],
-                    'temperature' => 0.2,
-                    'max_tokens' => 120,
-                ]);
-            $text = trim((string) data_get($response->json(), 'choices.0.message.content'));
-
-            if ($response->successful() && $text !== '') {
-                return $text;
-            }
-        } catch (\Throwable) {
-            // Keep the deterministic explanation if Groq is unavailable.
-        }
-
-        return $fallback;
+        return $generated['text'] ?? $fallback;
     }
 
     private function notifyAdminsOfTaskUpdate(Request $request, Task $task): void

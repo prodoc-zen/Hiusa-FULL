@@ -21,6 +21,9 @@ class Budget extends Model
             'allocated_amount' => 'decimal:2',
             'remaining_amount' => 'decimal:2',
             'warning_threshold' => 'decimal:2',
+            'recommended_allocation' => 'decimal:2',
+            'safe_spending_limit' => 'decimal:2',
+            'advice_generated_at' => 'datetime',
         ];
     }
 

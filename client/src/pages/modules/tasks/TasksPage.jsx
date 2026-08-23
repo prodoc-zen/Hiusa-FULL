@@ -127,6 +127,10 @@ export default function TasksPage({ initialTab = 'board' }) {
     if (t.status === 'completed') acc[key].completed += 1;
     return acc;
   }, {});
+  const scoredAssignments = tasks
+    .filter((task) => task.assignee && Number.isFinite(Number(task.final_score)))
+    .sort((a, b) => Number(b.final_score) - Number(a.final_score))
+    .slice(0, 5);
 
   return (
     <div className="space-y-6">
@@ -294,23 +298,32 @@ export default function TasksPage({ initialTab = 'board' }) {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">AI Task Suggestions</h2>
-                <p className="text-sm font-medium text-slate-500">Smart delegation based on officer workload</p>
+                <p className="text-sm font-medium text-slate-500">Python-powered weighted officer recommendations</p>
               </div>
             </div>
-            {Object.values(workloadByAssignee).length === 0 ? (
-              <p className="text-sm text-slate-400">Assign tasks to officers to see delegation suggestions.</p>
+            {scoredAssignments.length === 0 ? (
+              <p className="text-sm text-slate-400">Create a task to generate an eligible officer recommendation and score breakdown.</p>
             ) : (
               <div className="space-y-3">
-                {Object.values(workloadByAssignee)
-                  .sort((a, b) => a.total - b.total)
-                  .slice(0, 3)
-                  .map((entry) => (
-                    <div key={entry.user.id} className="rounded-lg border border-violet-100 bg-violet-50/50 p-4">
-                      <p className="text-sm font-bold text-[#0F172A]">Next task suggestion</p>
-                      <p className="mt-1 text-xs font-medium text-slate-500">
-                        <span className="font-bold text-violet-600">Suggested: {entry.user.first_name} {entry.user.last_name}</span>
-                        {' '} - {entry.total} tasks assigned, {entry.completed} completed
-                      </p>
+                {scoredAssignments.map((task) => (
+                    <div key={task.id} className="rounded-lg border border-violet-100 bg-violet-50/50 p-4">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div>
+                          <p className="text-sm font-bold text-[#0F172A]">{task.title}</p>
+                          <p className="mt-1 text-xs font-bold text-violet-700">
+                            Recommended: {task.assignee.first_name} {task.assignee.last_name}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-black text-violet-700">
+                          {Number(task.final_score).toFixed(2)} fit
+                        </span>
+                      </div>
+                      <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+                        <span>Role <strong className="block text-slate-700">{Number(task.role_score).toFixed(2)}</strong></span>
+                        <span>Workload <strong className="block text-slate-700">{Number(task.workload_score).toFixed(2)}</strong></span>
+                        <span>Performance <strong className="block text-slate-700">{Number(task.performance_score).toFixed(2)}</strong></span>
+                      </div>
+                      {task.ai_recommendation_note && <p className="mt-3 text-xs leading-5 text-slate-500">{task.ai_recommendation_note}</p>}
                     </div>
                   ))}
               </div>
@@ -321,10 +334,10 @@ export default function TasksPage({ initialTab = 'board' }) {
             <h3 className="text-base font-bold text-[#0F172A]">How AI Delegation Works</h3>
             <div className="mt-4 space-y-3">
               {[
-                'Analyzes each officer\'s current workload and active tasks',
-                'Considers past performance on similar task types',
-                'Balances distribution to prevent officer burnout',
-                'Prioritizes by deadline urgency and task dependencies',
+                'Filters candidates to active SBO Officers only',
+                'Weights role eligibility at 40%',
+                'Weights current workload at 35%',
+                'Weights completed-versus-overdue performance at 25%',
               ].map((item, i) => (
                 <div key={i} className="flex items-start gap-3 text-sm font-medium text-slate-600">
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-violet-600" />

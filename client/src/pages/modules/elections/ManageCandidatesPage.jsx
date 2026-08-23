@@ -430,6 +430,7 @@ export default function ManageCandidatesPage() {
       await refreshElection();
       setConfirmDeleteId(null);
     } catch (deleteError) {
+      setConfirmDeleteId(null);
       setError(deleteError?.response?.data?.message || 'Unable to remove candidate.');
     } finally {
       setWorkingId(null);

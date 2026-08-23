@@ -35,4 +35,20 @@ return [
         ],
     ],
 
+    'hiusa_ai' => [
+        'enabled' => env('HIUSA_AI_SERVICE_ENABLED', true),
+        'url' => env('HIUSA_AI_SERVICE_URL', 'http://127.0.0.1:8001'),
+        'key' => env('HIUSA_AI_SERVICE_KEY'),
+        'connect_timeout' => env('HIUSA_AI_SERVICE_CONNECT_TIMEOUT', 1),
+        'timeout' => env('HIUSA_AI_SERVICE_TIMEOUT', 3),
+        'task_max_active_tasks' => env('HIUSA_TASK_MAX_ACTIVE_TASKS', 5),
+    ],
+
+    'groq' => [
+        'key' => env('GROQ_API_KEY'),
+        'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1/responses'),
+        'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
+        'timeout' => env('GROQ_TIMEOUT', 25),
+    ],
+
 ];

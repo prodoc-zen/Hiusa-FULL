@@ -8,15 +8,17 @@ use App\Models\Attendance;
 use App\Models\Event;
 use App\Models\Task;
 use App\Models\User;
+use App\Services\GroqResponsesService;
 use Carbon\Carbon;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
+    public function __construct(private readonly GroqResponsesService $groq) {}
+
     public function index(Request $request)
     {
         $user = $request->user();
@@ -32,6 +34,10 @@ class EventController extends Controller
 
         $events = $query->get();
         $this->attachApprovalInfo($events);
+
+        if ($user->role === 'ADMIN') {
+            $this->loadLinkedBudgets($events);
+        }
 
         return response()->json($events);
     }
@@ -81,7 +87,46 @@ class EventController extends Controller
 
         $this->attachApprovalInfo($event);
 
+        if ($request->user()->role === 'ADMIN') {
+            $this->loadLinkedBudgets($event);
+            $event->attendance_summary = collect(['present', 'late', 'excused', 'absent'])
+                ->mapWithKeys(fn (string $status) => [
+                    $status => $event->attendanceRecords()->where('status', $status)->count(),
+                ]);
+        }
+
         return response()->json($event);
+    }
+
+    private function loadLinkedBudgets($events): void
+    {
+        $events = $events instanceof Event
+            ? new \Illuminate\Database\Eloquent\Collection([$events])
+            : $events;
+
+        $events->load([
+            'budgets' => fn ($query) => $query
+                ->withCount('transactions')
+                ->orderBy('created_at', 'desc'),
+        ]);
+
+        $budgets = $events->flatMap(fn (Event $event) => $event->budgets);
+
+        if ($budgets->isEmpty()) {
+            return;
+        }
+
+        $approvals = ApprovalRequest::where('entity_type', 'budget')
+            ->whereIn('entity_id', $budgets->pluck('id'))
+            ->orderBy('id')
+            ->get()
+            ->keyBy('entity_id');
+
+        foreach ($budgets as $budget) {
+            $approval = $approvals->get($budget->id);
+            $budget->approval_status = $approval?->status;
+            $budget->approval_remarks = $approval?->remarks;
+        }
     }
 
     public function store(Request $request)
@@ -295,9 +340,15 @@ class EventController extends Controller
             'model' => ['nullable', 'string', 'max:100'],
         ]);
 
-        $model = $data['model'] ?? 'llama-3.1-8b-instant';
         $prompt = "Event: {$event->title}\nSchedule: {$event->start_time} to {$event->end_time}\nLocation: ".($event->location ?: 'TBD')."\nRequirements: {$data['requirements']}";
-        $output = $this->generateEventPlanWithGroq($prompt, $model);
+        $generated = $this->groq->generate(
+            'Create a concise student-organization event plan. Include a timeline, required resources, a checklist, and possible delays or schedule conflicts.',
+            $prompt,
+            700,
+            0.35,
+        );
+        $output = $generated['text'] ?? $this->fallbackEventPlan($prompt);
+        $model = $generated['model'] ?? 'deterministic-fallback';
 
         return DB::transaction(function () use ($request, $event, $data, $prompt, $output, $model) {
             $aiOutput = AiOutput::create([
@@ -314,6 +365,7 @@ class EventController extends Controller
 
             $event->update([
                 'planning_details' => [
+                    ...($event->planning_details ?? []),
                     'requirements' => $data['requirements'],
                     'generated_plan' => $output,
                     'ai_output_id' => $aiOutput->id,
@@ -454,40 +506,6 @@ class EventController extends Controller
             'user:school_id,first_name,last_name',
             'recorder:school_id,first_name,last_name',
         ]), 201);
-    }
-
-    private function generateEventPlanWithGroq(string $prompt, string $model): string
-    {
-        $apiKey = env('GROQ_API_KEY');
-
-        if (! $apiKey) {
-            return $this->fallbackEventPlan($prompt);
-        }
-
-        try {
-            $response = Http::withToken($apiKey)
-                ->timeout(25)
-                ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Create concise student-organization event plans. Include timeline, resource checklist, and possible delays or conflicts.'],
-                        ['role' => 'user', 'content' => $prompt],
-                    ],
-                    'temperature' => 0.35,
-                    'max_tokens' => 700,
-                ]);
-
-            if ($response->successful()) {
-                $content = trim((string) data_get($response->json(), 'choices.0.message.content'));
-                if ($content !== '') {
-                    return $content;
-                }
-            }
-        } catch (\Throwable) {
-            return $this->fallbackEventPlan($prompt);
-        }
-
-        return $this->fallbackEventPlan($prompt);
     }
 
     private function fallbackEventPlan(string $prompt): string

@@ -59,6 +59,8 @@ class ElectionController extends Controller
 
     public function index(Request $request)
     {
+        $this->synchronizeScheduledStatuses($request->user()->organization_id);
+
         $query = Election::withCount(['votes', 'positions', 'candidates'])
             ->where('organization_id', $request->user()->organization_id);
 
@@ -84,6 +86,7 @@ class ElectionController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
+        $this->synchronizeScheduledStatuses($user->organization_id, $id);
         $with = [
             'positions.candidates.user',
             'positions.candidates.partylist',
@@ -113,6 +116,13 @@ class ElectionController extends Controller
 
             $data = $election->toArray();
             $data['my_votes'] = $myVotes;
+            $data['vote_counts'] = Vote::where('election_id', $id)
+                ->selectRaw('candidate_id, COUNT(*) as vote_count')
+                ->groupBy('candidate_id')
+                ->pluck('vote_count', 'candidate_id');
+            $data['voters_count'] = Vote::where('election_id', $id)
+                ->distinct('voter_id')
+                ->count('voter_id');
 
             return response()->json($data);
         }
@@ -161,7 +171,17 @@ class ElectionController extends Controller
             return $election;
         });
 
-        return response()->json($election->load('positions'), 201);
+        $election->load('positions');
+        $this->recordElectionAudit(
+            $request,
+            'created',
+            Election::class,
+            $election->id,
+            null,
+            $this->auditableElectionValues($election)
+        );
+
+        return response()->json($election, 201);
     }
 
     public function update(Request $request, $id)
@@ -179,6 +199,8 @@ class ElectionController extends Controller
             'status' => ['sometimes', 'required', 'in:upcoming,active,closed,pending_approval'],
             'results_visible' => ['boolean'],
         ]);
+        $requestedFields = array_keys($data);
+        $oldValues = $this->auditableElectionValues($election);
 
         $endTime = isset($data['end_time']) ? \Carbon\Carbon::parse($data['end_time']) : $election->end_time;
         $startTime = isset($data['start_time']) ? \Carbon\Carbon::parse($data['start_time']) : $election->start_time;
@@ -224,7 +246,17 @@ class ElectionController extends Controller
             ->get()
             ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
 
-        return response()->json($election->fresh());
+        $freshElection = $election->fresh();
+        $this->recordElectionAudit(
+            $request,
+            $requestedFields === ['status'] ? 'status_changed' : 'updated',
+            Election::class,
+            $election->id,
+            $oldValues,
+            $this->auditableElectionValues($freshElection)
+        );
+
+        return response()->json($freshElection);
     }
 
     private function hasMaterialElectionChange(array $data): bool
@@ -242,7 +274,7 @@ class ElectionController extends Controller
             'pending_approval' => ['pending_approval'],
             'upcoming' => ['upcoming', 'active', 'closed'],
             'active' => ['active', 'closed'],
-            'closed' => ['closed'],
+            'closed' => ['closed', 'active'],
         ];
 
         return in_array($nextStatus, $allowed[$currentStatus] ?? [], true);
@@ -290,6 +322,34 @@ class ElectionController extends Controller
         return null;
     }
 
+    private function synchronizeScheduledStatuses(int $organizationId, ?int $electionId = null): void
+    {
+        $now = now();
+        $baseQuery = fn () => Election::query()
+            ->where('organization_id', $organizationId)
+            ->whereNotNull('approved_at')
+            ->when($electionId, fn ($query) => $query->whereKey($electionId));
+
+        // Keep the persisted workflow status aligned with the approved voting
+        // schedule. Closed elections remain closed so an administrator can
+        // still end voting early without the scheduler reopening them.
+        $baseQuery()
+            ->where('status', 'upcoming')
+            ->where('end_time', '<', $now)
+            ->update(['status' => 'closed']);
+
+        $baseQuery()
+            ->where('status', 'upcoming')
+            ->where('start_time', '<=', $now)
+            ->where('end_time', '>=', $now)
+            ->update(['status' => 'active']);
+
+        $baseQuery()
+            ->where('status', 'active')
+            ->where('end_time', '<', $now)
+            ->update(['status' => 'closed']);
+    }
+
     public function destroy(Request $request, $id)
     {
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
@@ -304,12 +364,16 @@ class ElectionController extends Controller
             ], 409);
         }
 
+        $oldValues = $this->auditableElectionValues($election);
+        $electionId = $election->id;
+
         ApprovalRequest::where('organization_id', $election->organization_id)
             ->where('entity_type', 'election')
             ->where('entity_id', $election->id)
             ->delete();
 
         $election->delete();
+        $this->recordElectionAudit($request, 'deleted', Election::class, $electionId, $oldValues, null);
 
         return response()->json(['message' => 'Election deleted successfully']);
     }
@@ -356,6 +420,15 @@ class ElectionController extends Controller
             return response()->json(['message' => 'This position already exists in the election.'], 422);
         }
 
+        $this->recordElectionAudit(
+            $request,
+            'position_added',
+            ElectionPosition::class,
+            $position->id,
+            null,
+            $this->auditablePositionValues($position)
+        );
+
         return response()->json($position, 201);
     }
 
@@ -377,6 +450,8 @@ class ElectionController extends Controller
             return $locked;
         }
 
+        $oldValues = $this->auditablePositionValues($position);
+
         $data = $request->validate([
             'title' => [
                 'sometimes',
@@ -396,7 +471,17 @@ class ElectionController extends Controller
 
         $position->update($data);
 
-        return response()->json($position->fresh());
+        $freshPosition = $position->fresh();
+        $this->recordElectionAudit(
+            $request,
+            'position_updated',
+            ElectionPosition::class,
+            $position->id,
+            $oldValues,
+            $this->auditablePositionValues($freshPosition)
+        );
+
+        return response()->json($freshPosition);
     }
 
     public function positionsDestroy(Request $request, $id, $positionId)
@@ -421,7 +506,9 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Cannot delete a position that already has votes cast.'], 409);
         }
 
+        $oldValues = $this->auditablePositionValues($position);
         $position->delete();
+        $this->recordElectionAudit($request, 'position_removed', ElectionPosition::class, $position->id, $oldValues, null);
 
         return response()->json(['message' => 'Position deleted successfully']);
     }
@@ -508,7 +595,17 @@ class ElectionController extends Controller
             return response()->json(['message' => 'This student is already assigned as a candidate in this election.'], 422);
         }
 
-        return response()->json($candidate->load(['user', 'partylist', 'position']), 201);
+        $candidate->load(['user', 'partylist', 'position']);
+        $this->recordElectionAudit(
+            $request,
+            'candidate_added',
+            Candidate::class,
+            $candidate->id,
+            null,
+            $this->auditableCandidateValues($candidate)
+        );
+
+        return response()->json($candidate, 201);
     }
 
     public function candidatesUpdate(Request $request, $id, $candidateId)
@@ -528,6 +625,8 @@ class ElectionController extends Controller
         if ($locked = $this->ballotIsLockedResponse($election)) {
             return $locked;
         }
+
+        $oldValues = $this->auditableCandidateValues($candidate);
 
         $data = $request->validate([
             'user_id' => ['sometimes', 'required', 'exists:users,school_id'],
@@ -588,7 +687,17 @@ class ElectionController extends Controller
             Storage::delete('public/'.ltrim(str_replace('/storage/', '', $oldImageUrl), '/'));
         }
 
-        return response()->json($candidate->fresh()->load(['user', 'partylist', 'position']));
+        $freshCandidate = $candidate->fresh()->load(['user', 'partylist', 'position']);
+        $this->recordElectionAudit(
+            $request,
+            'candidate_updated',
+            Candidate::class,
+            $candidate->id,
+            $oldValues,
+            $this->auditableCandidateValues($freshCandidate)
+        );
+
+        return response()->json($freshCandidate);
     }
 
     public function candidatesDestroy(Request $request, $id, $candidateId)
@@ -667,6 +776,15 @@ class ElectionController extends Controller
             return response()->json(['message' => 'A partylist with this name already exists.'], 422);
         }
 
+        $this->recordElectionAudit(
+            $request,
+            'partylist_added',
+            Partylist::class,
+            $partylist->id,
+            null,
+            $this->auditablePartylistValues($partylist)
+        );
+
         return response()->json($partylist, 201);
     }
 
@@ -677,6 +795,8 @@ class ElectionController extends Controller
         if (! $partylist) {
             return response()->json(['message' => 'Partylist not found'], 404);
         }
+
+        $oldValues = $this->auditablePartylistValues($partylist);
 
         $data = $request->validate([
             'name' => [
@@ -715,7 +835,17 @@ class ElectionController extends Controller
             $this->deletePartylistBanner($oldBannerUrl);
         }
 
-        return response()->json($partylist->fresh());
+        $freshPartylist = $partylist->fresh();
+        $this->recordElectionAudit(
+            $request,
+            'partylist_updated',
+            Partylist::class,
+            $partylist->id,
+            $oldValues,
+            $this->auditablePartylistValues($freshPartylist)
+        );
+
+        return response()->json($freshPartylist);
     }
 
     public function partylistsDestroy(Request $request, $id)
@@ -741,6 +871,7 @@ class ElectionController extends Controller
 
     public function vote(Request $request, $id)
     {
+        $this->synchronizeScheduledStatuses($request->user()->organization_id, (int) $id);
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -866,6 +997,7 @@ class ElectionController extends Controller
 
     public function results(Request $request, $id)
     {
+        $this->synchronizeScheduledStatuses($request->user()->organization_id, (int) $id);
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -919,6 +1051,30 @@ class ElectionController extends Controller
             'partylist_id' => $candidate->partylist_id,
             'platform' => $candidate->platform,
             'image_url' => $candidate->image_url,
+        ];
+    }
+
+    private function auditableElectionValues(Election $election): array
+    {
+        return [
+            'id' => $election->id,
+            'organization_id' => $election->organization_id,
+            'title' => $election->title,
+            'start_time' => $election->start_time?->toISOString(),
+            'end_time' => $election->end_time?->toISOString(),
+            'status' => $election->status,
+            'results_visible' => (bool) $election->results_visible,
+            'approved_at' => $election->approved_at?->toISOString(),
+        ];
+    }
+
+    private function auditablePositionValues(ElectionPosition $position): array
+    {
+        return [
+            'id' => $position->id,
+            'election_id' => $position->election_id,
+            'title' => $position->title,
+            'max_winners' => $position->max_winners,
         ];
     }
 

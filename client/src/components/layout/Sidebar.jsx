@@ -103,6 +103,7 @@ const NAV_STRUCTURE = [
       { id: 'create-task', label: 'Create Task', path: '/dashboard/tasks/create-task', roles: ['ADMIN'] },
       { id: 'assigned-tasks', label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', roles: ['SBO_OFFICER'] },
       { id: 'task-progress', label: 'Monitor Progress', path: '/dashboard/tasks/task-progress', roles: ['ADMIN'] },
+      { id: 'ai-delegation', label: 'AI Delegation', path: '/dashboard/tasks/ai-delegation', roles: ['SBO_OFFICER', 'ADMIN'] },
     ],
   },
   {

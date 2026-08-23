@@ -7,6 +7,9 @@ export const getBudgets = () =>
 export const createBudget = (data) =>
   api.post('/budgets', data);
 
+export const generateBudgetAdvice = (id) =>
+  api.post(`/budgets/${id}/advice`);
+
 export const updateBudget = (id, data) =>
   api.put(`/budgets/${id}`, data);
 

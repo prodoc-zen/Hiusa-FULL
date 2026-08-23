@@ -5,12 +5,18 @@ namespace App\Http\Controllers;
 use App\Models\AiOutput;
 use App\Models\FinancialForecast;
 use App\Models\Transaction;
+use App\Services\GroqResponsesService;
+use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
-use Illuminate\Support\Facades\Http;
 
 class FinancialForecastController extends Controller
 {
+    public function __construct(
+        private readonly HiusaAiService $aiService,
+        private readonly GroqResponsesService $groq,
+    ) {}
+
     public function index(Request $request)
     {
         return response()->json(
@@ -64,20 +70,29 @@ class FinancialForecastController extends Controller
             ], 422);
         }
 
-        $firstPeriod = Carbon::createFromFormat('Y-m', $monthly->first()['period'])->startOfMonth();
-        $points = $monthly->map(fn (array $month) => [
-            ...$month,
-            'x' => $firstPeriod->diffInMonths(Carbon::createFromFormat('Y-m', $month['period'])->startOfMonth()),
+        $analysis = $this->pythonForecast($monthly->all()) ?? $this->localForecast($monthly->all());
+        $nextPeriod = Carbon::createFromFormat('Y-m', $analysis['forecast_period'])->startOfMonth();
+        $predictedIncome = $analysis['predicted_income'];
+        $predictedExpense = $analysis['predicted_expense'];
+        $predictedBalance = $analysis['predicted_balance'];
+        $advice = $this->aiService->budgetAdvice([
+            'predicted_income' => $predictedIncome,
+            'predicted_expense' => $predictedExpense,
+            'current_available_budget' => 0,
+            'committed_expenses' => 0,
+            'warning_threshold' => 0,
+            'safety_ratio' => 0.8,
         ]);
-        $nextPeriod = Carbon::createFromFormat('Y-m', $monthly->last()['period'])->startOfMonth()->addMonth();
-        $nextX = $firstPeriod->diffInMonths($nextPeriod);
-        $incomeModel = $this->ols($points->pluck('x')->all(), $points->pluck('income')->all());
-        $expenseModel = $this->ols($points->pluck('x')->all(), $points->pluck('expense')->all());
-        $predictedIncome = round(max(0, $incomeModel['intercept'] + ($incomeModel['slope'] * $nextX)), 2);
-        $predictedExpense = round(max(0, $expenseModel['intercept'] + ($expenseModel['slope'] * $nextX)), 2);
-        $predictedBalance = round($predictedIncome - $predictedExpense, 2);
-        $safeSpendingLimit = round(max(0, $predictedBalance * 0.8), 2);
-        $risk = $predictedBalance < 0 ? 'deficit' : ($predictedExpense > $predictedIncome * 0.9 ? 'overspending' : 'stable');
+        $adviceEngine = 'python-fastapi';
+
+        if (! $this->validBudgetAdvice($advice)) {
+            $advice = $this->localBudgetAdvice($predictedIncome, $predictedExpense, 0, 0);
+            $adviceEngine = 'php-fallback';
+        }
+
+        $advice['engine'] = $adviceEngine;
+        $safeSpendingLimit = round((float) $advice['safe_spending_limit'], 2);
+        $risk = (string) $advice['forecast_risk'];
         $summary = $this->financialSummary($nextPeriod->format('F Y'), $predictedIncome, $predictedExpense, $predictedBalance, $safeSpendingLimit, $risk);
 
         $aiOutput = AiOutput::create([
@@ -106,9 +121,11 @@ class FinancialForecastController extends Controller
                 'model_details' => [
                     'algorithm' => 'ordinary_least_squares',
                     'sample_months' => $monthly->count(),
-                    'income' => $incomeModel,
-                    'expense' => $expenseModel,
+                    'engine' => $analysis['engine'],
+                    'income' => $analysis['income_model'],
+                    'expense' => $analysis['expense_model'],
                     'risk' => $risk,
+                    'budget_advice' => $advice,
                     'ai_output_id' => $aiOutput->id,
                 ],
                 'generated_by' => $request->user()->id,
@@ -199,39 +216,91 @@ class FinancialForecastController extends Controller
         ];
     }
 
+    private function pythonForecast(array $monthly): ?array
+    {
+        $result = $this->aiService->financialForecast($monthly);
+
+        if (! is_array($result)
+            || ! Carbon::hasFormat((string) ($result['forecast_period'] ?? ''), 'Y-m')
+            || ! isset($result['income_model'], $result['expense_model'])
+            || ! is_numeric($result['predicted_income'] ?? null)
+            || ! is_numeric($result['predicted_expense'] ?? null)
+            || ! is_numeric($result['predicted_balance'] ?? null)) {
+            return null;
+        }
+
+        return [
+            ...$result,
+            'predicted_income' => round(max(0, (float) $result['predicted_income']), 2),
+            'predicted_expense' => round(max(0, (float) $result['predicted_expense']), 2),
+            'predicted_balance' => round((float) $result['predicted_balance'], 2),
+            'engine' => 'python-fastapi',
+        ];
+    }
+
+    private function localForecast(array $monthly): array
+    {
+        $firstPeriod = Carbon::createFromFormat('Y-m', $monthly[0]['period'])->startOfMonth();
+        $points = collect($monthly)->map(fn (array $month) => [
+            ...$month,
+            'x' => $firstPeriod->diffInMonths(Carbon::createFromFormat('Y-m', $month['period'])->startOfMonth()),
+        ]);
+        $nextPeriod = Carbon::createFromFormat('Y-m', $monthly[array_key_last($monthly)]['period'])->startOfMonth()->addMonth();
+        $nextX = $firstPeriod->diffInMonths($nextPeriod);
+        $incomeModel = $this->ols($points->pluck('x')->all(), $points->pluck('income')->all());
+        $expenseModel = $this->ols($points->pluck('x')->all(), $points->pluck('expense')->all());
+        $predictedIncome = round(max(0, $incomeModel['intercept'] + ($incomeModel['slope'] * $nextX)), 2);
+        $predictedExpense = round(max(0, $expenseModel['intercept'] + ($expenseModel['slope'] * $nextX)), 2);
+
+        return [
+            'forecast_period' => $nextPeriod->format('Y-m'),
+            'predicted_income' => $predictedIncome,
+            'predicted_expense' => $predictedExpense,
+            'predicted_balance' => round($predictedIncome - $predictedExpense, 2),
+            'income_model' => $incomeModel,
+            'expense_model' => $expenseModel,
+            'engine' => 'php-fallback',
+        ];
+    }
+
+    private function localBudgetAdvice(float $income, float $expense, float $currentAvailable, float $warningThreshold): array
+    {
+        $available = round($currentAvailable + $income - $expense, 2);
+        $ratio = $income > 0 ? round($expense / $income, 4) : null;
+        $forecastRisk = $available < 0 ? 'deficit' : (($expense > $income || ($ratio !== null && $ratio >= 0.9) || ($warningThreshold > 0 && $available <= $warningThreshold)) ? 'overspending' : 'stable');
+        $overspendingRisk = $forecastRisk === 'stable' ? 'low' : ($forecastRisk === 'deficit' || $expense > $income ? 'high' : 'medium');
+
+        return [
+            'estimated_available_budget' => $available,
+            'safe_spending_limit' => round(max(0, $available) * 0.8, 2),
+            'overspending_risk' => $overspendingRisk,
+            'forecast_risk' => $forecastRisk,
+            'possible_deficit' => $available < 0,
+            'expense_to_income_ratio' => $ratio,
+            'advice' => $forecastRisk === 'deficit'
+                ? 'A deficit is projected. Pause discretionary spending and secure additional income before approving new expenses.'
+                : 'Keep new commitments within the safe spending limit and continue monitoring actual income and expenses.',
+            'rules_applied' => ['Laravel deterministic fallback'],
+        ];
+    }
+
+    private function validBudgetAdvice(?array $advice): bool
+    {
+        return is_array($advice)
+            && is_numeric($advice['safe_spending_limit'] ?? null)
+            && in_array($advice['forecast_risk'] ?? null, ['stable', 'overspending', 'deficit'], true);
+    }
+
     private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk): array
     {
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
             : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
-        $apiKey = env('GROQ_API_KEY');
-        $model = env('GROQ_MODEL', 'llama-3.1-8b-instant');
-
-        if (! $apiKey) {
-            return ['text' => $fallback, 'model' => 'deterministic-fallback'];
-        }
-
-        try {
-            $response = Http::withToken($apiKey)
-                ->timeout(25)
-                ->post('https://api.groq.com/openai/v1/chat/completions', [
-                    'model' => $model,
-                    'messages' => [
-                        ['role' => 'system', 'content' => 'Provide a concise, practical budget summary for a student organization. Do not change the supplied figures.'],
-                        ['role' => 'user', 'content' => "Period: {$period}; income: {$income}; expense: {$expense}; balance: {$balance}; safe limit: {$safeLimit}; risk: {$risk}."],
-                    ],
-                    'temperature' => 0.2,
-                    'max_tokens' => 220,
-                ]);
-            $text = trim((string) data_get($response->json(), 'choices.0.message.content'));
-
-            if ($response->successful() && $text !== '') {
-                return ['text' => $text, 'model' => $model];
-            }
-        } catch (\Throwable) {
-            // Use the deterministic summary when Groq is unavailable.
-        }
-
-        return ['text' => $fallback, 'model' => 'deterministic-fallback'];
+        return $this->groq->generate(
+            'Provide a concise, practical budget summary for a student organization. Do not alter any supplied figures.',
+            "Period: {$period}; income: {$income}; expense: {$expense}; balance: {$balance}; safe limit: {$safeLimit}; risk: {$risk}.",
+            220,
+            0.2,
+        ) ?? ['text' => $fallback, 'model' => 'deterministic-fallback'];
     }
 }
