@@ -38,6 +38,11 @@ class User extends Authenticatable
         'is_member',
         'biometric_template',
         'notification_preferences',
+        'department',
+        'program',
+        'year_level',
+        'major',
+        'section',
     ];
 
     protected $with = ['organization:id,name,slug,college,acronym'];

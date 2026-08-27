@@ -28,3 +28,5 @@
 - **Validate Transaction Entry:** server validation enforces positive amounts and organization-scoped budget/event/payer links.
 - **Generate Receipt:** event-linked transactions can receive generated receipt numbers and manual receipt references.
 - **Update Financial Balance:** transaction create/update/delete applies budget movement to remaining funds.
+- **Student Financial Accounts:** Admin has a paginated accountability workspace with search, academic filters, clearance/overdue status, invoice and merchandise balances, detailed account history, charge creation, and payment recording.
+- **Financial Privacy:** organization-wide student balances are Admin-only; other authenticated roles can retrieve only their own invoice records.

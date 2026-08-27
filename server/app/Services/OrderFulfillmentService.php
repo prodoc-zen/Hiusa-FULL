@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\Notification;
+use App\Models\AuditLog;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
@@ -35,6 +36,7 @@ class OrderFulfillmentService
             ]);
 
             $this->ensureReceipt($lockedOrder->fresh(), $approver);
+            $this->audit($lockedOrder->fresh(), $approver, 'payment_approved');
 
             if (! $wasPaid) {
                 $this->notifyBuyer(
@@ -70,6 +72,7 @@ class OrderFulfillmentService
             ]);
             $lockedOrder->merchandise()->increment('stock_quantity', $lockedOrder->quantity);
             $this->notifyBuyer($lockedOrder, 'Payment Rejected', $remarks);
+            $this->audit($lockedOrder->fresh(), $reviewer, 'payment_rejected');
 
             return $lockedOrder->fresh();
         });
@@ -119,5 +122,10 @@ class OrderFulfillmentService
             'is_read' => false,
             'sent_at' => now(),
         ]);
+    }
+
+    private function audit(Order $order, User $actor, string $action): void
+    {
+        AuditLog::create(['organization_id'=>$order->organization_id, 'user_id'=>$actor->school_id, 'module'=>'orders', 'action'=>$action, 'record_type'=>Order::class, 'record_id'=>$order->id, 'new_values'=>$order->only(['status','transaction_id','approved_by','processed_by']), 'created_at'=>now()]);
     }
 }

@@ -27,10 +27,13 @@ const NAV_STRUCTURE = [
   },
   {
     id: 'users',
-    label: 'Manage Users',
+    label: 'Users & Positions',
     icon: Users,
-    path: '/dashboard/admin/users',
     roles: ['ADMIN'],
+    children: [
+      { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['ADMIN'] },
+      { id: 'manage-sbo-positions', label: 'Manage SBO Positions', path: '/dashboard/admin/sbo-positions', roles: ['ADMIN'] },
+    ],
   },
   {
     id: 'approvals',
@@ -42,6 +45,7 @@ const NAV_STRUCTURE = [
     },
     roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
+  { id: 'audit-logs', label: 'General Audit Log', icon: ClipboardCheck, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
   {
     id: 'announcements',
     label: 'Announcements',
@@ -87,10 +91,12 @@ const NAV_STRUCTURE = [
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
       { id: 'financial-ledger', label: 'Digital Ledger', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN'] },
+      { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
       { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
       { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['SBO_OFFICER', 'ADMIN'] },
       { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
       { id: 'personal-receipts', label: 'My Receipts', path: '/dashboard/finance/personal-receipts', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'statement-of-account', label: 'Statement of Account', path: '/dashboard/finance/statement-of-account', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
   {
@@ -113,6 +119,7 @@ const NAV_STRUCTURE = [
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
       { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
+      { id: 'gcash-payment', label: 'GCash Payment QR', path: '/dashboard/merchandise/gcash-payment', roles: ['ADMIN'] },
       { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'claim-tokens', label: 'Validate Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },

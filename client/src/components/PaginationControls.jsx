@@ -24,6 +24,7 @@ export default function PaginationControls({
       <div className="flex items-center gap-1">
         <button
           type="button"
+          aria-label={`Previous page of ${label}`}
           onClick={() => onPageChange(currentPage - 1)}
           disabled={currentPage === 1}
           className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
@@ -35,6 +36,7 @@ export default function PaginationControls({
         </span>
         <button
           type="button"
+          aria-label={`Next page of ${label}`}
           onClick={() => onPageChange(currentPage + 1)}
           disabled={currentPage === totalPages}
           className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"

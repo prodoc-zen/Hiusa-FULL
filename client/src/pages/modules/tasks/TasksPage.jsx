@@ -4,6 +4,7 @@ import {
   Bot,
   CheckCircle2,
   Clock,
+  Eye,
   ListChecks,
   Plus,
   Search,
@@ -40,6 +41,10 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(1);
+  const [selectedTask, setSelectedTask] = useState(null);
+  const [progressForm, setProgressForm] = useState({ progress_percent: 0, progress_note: '' });
+  const [progressSaving, setProgressSaving] = useState(false);
+  const [completionTask, setCompletionTask] = useState(null);
   const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
@@ -98,13 +103,36 @@ export default function TasksPage({ initialTab = 'board' }) {
     }
   }
 
-  async function handleStatusChange(id, newStatus) {
+  async function handleStatusChange(id, newStatus, progressNote = null, progressPercent = null) {
     setError(null);
     try {
-      const res = await updateTaskStatus(id, newStatus);
+      const res = await updateTaskStatus(id, {
+        status: newStatus,
+        ...(progressNote?.trim() ? { progress_note: progressNote.trim() } : {}),
+        ...(progressPercent !== null ? { progress_percent: Number(progressPercent) } : {}),
+      });
       setTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
+      setSelectedTask((current) => (current?.id === id ? res.data : current));
+      return res.data;
     } catch (err) {
       setError(err.response?.data?.message ?? 'Failed to update task status.');
+      throw err;
+    }
+  }
+
+  function openTaskDetails(task) {
+    setSelectedTask(task);
+    setProgressForm({ progress_percent: task.progress_percent ?? 0, progress_note: '' });
+  }
+
+  async function saveProgressUpdate() {
+    if (!selectedTask) return;
+    setProgressSaving(true);
+    try {
+      const updated = await handleStatusChange(selectedTask.id, selectedTask.status, progressForm.progress_note, progressForm.progress_percent);
+      setProgressForm({ progress_percent: updated.progress_percent ?? 0, progress_note: '' });
+    } finally {
+      setProgressSaving(false);
     }
   }
 
@@ -121,7 +149,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   const workloadByAssignee = tasks.reduce((acc, t) => {
     if (!t.assignee) return acc;
-    const key = t.assignee.id;
+    const key = t.assignee.school_id ?? t.assignee.id;
     if (!acc[key]) acc[key] = { user: t.assignee, total: 0, completed: 0 };
     acc[key].total += 1;
     if (t.status === 'completed') acc[key].completed += 1;
@@ -218,22 +246,27 @@ export default function TasksPage({ initialTab = 'board' }) {
                         </span>
                       </td>
                       <td className="px-5 py-4">
-                        {(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && (
-                          <button
-                            onClick={() => handleStatusChange(t.id, 'in_progress')}
-                            className="rounded-md bg-[#E6F6FD] px-2.5 py-1 text-xs font-bold text-[#0B8ED0] hover:bg-[#d2eef9] transition"
-                          >
-                            Start
+                        <div className="flex flex-wrap gap-2">
+                          <button type="button" onClick={() => openTaskDetails(t)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]">
+                            <Eye size={12} /> View
                           </button>
-                        )}
-                        {(canManageTasks || canUpdateAssignedTasks) && t.status === 'in_progress' && (
-                          <button
-                            onClick={() => handleStatusChange(t.id, 'completed')}
-                            className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
-                          >
-                            Complete
-                          </button>
-                        )}
+                          {(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && (
+                            <button
+                              onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))}
+                              className="rounded-md bg-[#E6F6FD] px-2.5 py-1 text-xs font-bold text-[#0B8ED0] hover:bg-[#d2eef9] transition"
+                            >
+                              Start
+                            </button>
+                          )}
+                          {(canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && (
+                            <button
+                              onClick={() => setCompletionTask(t)}
+                              className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
+                            >
+                              Complete
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -264,7 +297,7 @@ export default function TasksPage({ initialTab = 'board' }) {
           ) : (
             <div className="space-y-4">
               {Object.values(workloadByAssignee).map((entry) => (
-                <div key={entry.user.id} className="flex items-center gap-4 rounded-lg bg-[#F8FBFD] p-4">
+                <div key={entry.user.school_id ?? entry.user.id} className="flex items-center gap-4 rounded-lg bg-[#F8FBFD] p-4">
                   <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
                     {entry.user.first_name?.[0]}{entry.user.last_name?.[0]}
                   </div>
@@ -347,6 +380,80 @@ export default function TasksPage({ initialTab = 'board' }) {
             </div>
           </div>
         </section>
+      )}
+
+      {selectedTask && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-[#0F172A]">{selectedTask.title}</h2>
+                <p className="mt-1 text-sm text-slate-500">Due {formatDate(selectedTask.deadline)} · {capitalize(selectedTask.status)}</p>
+              </div>
+              <button type="button" aria-label="Close task details" onClick={() => setSelectedTask(null)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+            </div>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-lg border border-[#DDE7EF] p-4">
+                <p className="text-xs font-bold uppercase text-slate-400">Description</p>
+                <p className="mt-2 text-sm leading-6 text-slate-700">{selectedTask.description || 'No description provided.'}</p>
+              </div>
+              <div className="rounded-lg border border-[#DDE7EF] p-4">
+                <p className="text-xs font-bold uppercase text-slate-400">Related Event</p>
+                <p className="mt-2 text-sm font-semibold text-[#0F172A]">{selectedTask.event?.title || 'No linked event'}</p>
+                {selectedTask.ai_recommendation_note && <p className="mt-3 text-xs leading-5 text-slate-500">{selectedTask.ai_recommendation_note}</p>}
+              </div>
+            </div>
+
+            {(canManageTasks || canUpdateAssignedTasks) && selectedTask.status !== 'completed' && (
+              <div className="mt-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+                <h3 className="text-sm font-bold text-[#0F172A]">Add Progress Update</h3>
+                <div className="mt-3 grid gap-3 sm:grid-cols-[140px_1fr]">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600">Progress (%)</label>
+                    <input type="number" min="0" max="99" value={progressForm.progress_percent} onChange={(e) => setProgressForm((current) => ({ ...current, progress_percent: e.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600">Update note</label>
+                    <input value={progressForm.progress_note} onChange={(e) => setProgressForm((current) => ({ ...current, progress_note: e.target.value }))} placeholder="Describe what changed..." className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                  </div>
+                </div>
+                <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="mt-3 h-10 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
+              </div>
+            )}
+
+            <div className="mt-5">
+              <h3 className="text-sm font-bold text-[#0F172A]">Progress History</h3>
+              {selectedTask.progress_updates?.length ? (
+                <div className="mt-3 space-y-3">
+                  {selectedTask.progress_updates.map((update) => (
+                    <div key={update.id} className="border-l-2 border-[#0B8ED0] pl-3">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-bold text-[#0F172A]">{capitalize(update.status)} · {update.progress_percent}%</p>
+                        <p className="text-[11px] text-slate-400">{new Date(update.created_at).toLocaleString('en-PH')}</p>
+                      </div>
+                      <p className="mt-1 text-xs text-slate-600">{update.note || 'Status updated.'}</p>
+                      {update.author && <p className="mt-1 text-[11px] text-slate-400">By {update.author.first_name} {update.author.last_name}</p>}
+                    </div>
+                  ))}
+                </div>
+              ) : <p className="mt-3 text-sm text-slate-400">No progress updates yet.</p>}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {completionTask && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-xl bg-white p-6 shadow-2xl">
+            <h2 className="text-lg font-bold text-[#0F172A]">Confirm Task Completion</h2>
+            <p className="mt-2 text-sm text-slate-500">Mark “{completionTask.title}” as completed? Progress will be saved at 100% and the Admin will be notified.</p>
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setCompletionTask(null)} className="h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600">Cancel</button>
+              <button type="button" onClick={async () => { await handleStatusChange(completionTask.id, 'completed', 'Task marked as completed.', 100); setCompletionTask(null); }} className="h-11 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700">Confirm Completion</button>
+            </div>
+          </div>
+        </div>
       )}
 
       {showForm && (

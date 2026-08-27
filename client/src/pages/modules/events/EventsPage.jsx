@@ -320,8 +320,15 @@ export default function EventsPage({ initialTab = 'events' }) {
         create_workflow: planForm.create_workflow,
       });
       setPlanResult(res.data?.plan || '');
+      const generatedTasks = Array.isArray(res.data?.tasks) ? res.data.tasks : [];
+      if (generatedTasks.length > 0) {
+        setTasks((currentTasks) => [
+          ...generatedTasks,
+          ...currentTasks.filter((task) => !generatedTasks.some((generatedTask) => generatedTask.id === task.id)),
+        ]);
+        setTasksPage(1);
+      }
       setPlanForm({ event_id: planForm.event_id, requirements: '', create_workflow: true });
-      load();
     } catch (err) {
       setPlanError(err.response?.data?.message ?? 'Failed to generate event plan.');
     } finally {
@@ -517,6 +524,7 @@ export default function EventsPage({ initialTab = 'events' }) {
             <h2 className="text-lg font-bold text-[#0F172A]">Generate Event Plan</h2>
             <form className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr_auto]" onSubmit={handleGeneratePlan}>
               <select
+                aria-label="Event to plan"
                 value={planForm.event_id}
                 onChange={(e) => setPlanForm({ ...planForm, event_id: e.target.value })}
                 className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
@@ -527,6 +535,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                 ))}
               </select>
               <textarea
+                aria-label="Event planning requirements"
                 rows={2}
                 value={planForm.requirements}
                 onChange={(e) => setPlanForm({ ...planForm, requirements: e.target.value })}
@@ -930,12 +939,13 @@ export default function EventsPage({ initialTab = 'events' }) {
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">{editingEventId ? 'Edit Event' : 'Create Event'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingEventId(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+              <button type="button" aria-label="Close event form" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
             </div>
             <form className="space-y-4" onSubmit={handleSaveEvent}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Event Name *</label>
+                <label htmlFor="event-title" className="text-[13px] font-semibold text-[#0F172A]">Event Name *</label>
                 <input
+                  id="event-title"
                   type="text"
                   value={form.title}
                   maxLength={255}
@@ -946,8 +956,9 @@ export default function EventsPage({ initialTab = 'events' }) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Start Date *</label>
+                  <label htmlFor="event-start-date" className="text-[13px] font-semibold text-[#0F172A]">Start Date *</label>
                   <input
+                    id="event-start-date"
                     type="date"
                     value={form.date}
                     onChange={(e) => setForm({ ...form, date: e.target.value })}
@@ -955,8 +966,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Start Time *</label>
+                  <label htmlFor="event-start-time" className="text-[13px] font-semibold text-[#0F172A]">Start Time *</label>
                   <input
+                    id="event-start-time"
                     type="time"
                     value={form.startTime}
                     onChange={(e) => setForm({ ...form, startTime: e.target.value })}
@@ -966,8 +978,9 @@ export default function EventsPage({ initialTab = 'events' }) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">End Date</label>
+                  <label htmlFor="event-end-date" className="text-[13px] font-semibold text-[#0F172A]">End Date</label>
                   <input
+                    id="event-end-date"
                     type="date"
                     value={form.endDate}
                     onChange={(e) => setForm({ ...form, endDate: e.target.value })}
@@ -975,8 +988,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">End Time</label>
+                  <label htmlFor="event-end-time" className="text-[13px] font-semibold text-[#0F172A]">End Time</label>
                   <input
+                    id="event-end-time"
                     type="time"
                     value={form.endTime}
                     onChange={(e) => setForm({ ...form, endTime: e.target.value })}
@@ -985,8 +999,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Location</label>
+                <label htmlFor="event-location" className="text-[13px] font-semibold text-[#0F172A]">Location</label>
                 <input
+                  id="event-location"
                   type="text"
                   value={form.location}
                   onChange={(e) => setForm({ ...form, location: e.target.value })}
@@ -995,8 +1010,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Description</label>
+                <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]">Description</label>
                 <textarea
+                  id="event-description"
                   rows={3}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
@@ -1014,8 +1030,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                 Requires budget allocation
               </label>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Budget Requirements / Notes</label>
+                <label htmlFor="event-budget-notes" className="text-[13px] font-semibold text-[#0F172A]">Budget Requirements / Notes</label>
                 <textarea
+                  id="event-budget-notes"
                   rows={2}
                   value={form.budget_notes}
                   onChange={(e) => setForm({ ...form, budget_notes: e.target.value })}
@@ -1029,8 +1046,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                 </p>
               )}
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Vendor Deadlines</label>
+                <label htmlFor="event-vendor-deadlines" className="text-[13px] font-semibold text-[#0F172A]">Vendor Deadlines</label>
                 <textarea
+                  id="event-vendor-deadlines"
                   rows={2}
                   value={form.vendor_deadlines}
                   onChange={(e) => setForm({ ...form, vendor_deadlines: e.target.value })}
@@ -1039,8 +1057,9 @@ export default function EventsPage({ initialTab = 'events' }) {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Logistics Checklist</label>
+                <label htmlFor="event-logistics-checklist" className="text-[13px] font-semibold text-[#0F172A]">Logistics Checklist</label>
                 <textarea
+                  id="event-logistics-checklist"
                   rows={2}
                   value={form.logistics_checklist}
                   onChange={(e) => setForm({ ...form, logistics_checklist: e.target.value })}

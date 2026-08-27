@@ -44,7 +44,10 @@ class UserController extends Controller
                 $userQuery->where('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('school_id', 'like', "%{$search}%");
+                    ->orWhere('school_id', 'like', "%{$search}%")
+                    ->orWhere('department', 'like', "%{$search}%")
+                    ->orWhere('program', 'like', "%{$search}%")
+                    ->orWhere('year_level', 'like', "%{$search}%");
             });
         }
 
@@ -79,6 +82,11 @@ class UserController extends Controller
             'account_status' => ['sometimes', 'in:active,inactive,disabled'],
             'position_title' => ['nullable', 'string', 'max:100'],
             'notification_preferences' => ['nullable', 'array'],
+            'department' => ['nullable', 'string', 'max:120'],
+            'program' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'string', 'max:30'],
+            'major' => ['nullable', 'string', 'max:120'],
+            'section' => ['nullable', 'string', 'max:60'],
         ]);
 
         $user = User::create([
@@ -93,6 +101,11 @@ class UserController extends Controller
             'is_member' => true,
             'position_title' => $validatedData['role'] === 'SBO_OFFICER' ? ($validatedData['position_title'] ?? null) : null,
             'notification_preferences' => $validatedData['notification_preferences'] ?? null,
+            'department' => $validatedData['department'] ?? null,
+            'program' => $validatedData['program'] ?? null,
+            'year_level' => $validatedData['year_level'] ?? null,
+            'major' => $validatedData['major'] ?? null,
+            'section' => $validatedData['section'] ?? null,
         ]);
 
         $this->recordUserAudit($request, 'created', $user, null, $this->auditableUserValues($user));
@@ -127,6 +140,11 @@ class UserController extends Controller
             'account_status' => ['sometimes', 'required', 'in:active,inactive,disabled'],
             'position_title' => ['nullable', 'string', 'max:100'],
             'notification_preferences' => ['nullable', 'array'],
+            'department' => ['nullable', 'string', 'max:120'],
+            'program' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'string', 'max:30'],
+            'major' => ['nullable', 'string', 'max:120'],
+            'section' => ['nullable', 'string', 'max:60'],
             'password' => 'sometimes|required|string|min:8',
         ]);
 
@@ -272,6 +290,9 @@ class UserController extends Controller
             'password' => 'required|string|min:8|confirmed',
             'role' => 'sometimes|in:STUDENT',
             'notification_preferences' => ['nullable', 'array'],
+            'department' => ['nullable', 'string', 'max:120'],
+            'program' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'string', 'max:30'],
         ]);
 
         $user = User::create([
@@ -509,6 +530,11 @@ class UserController extends Controller
             'email' => $user->email,
             'role' => $user->role,
             'position_title' => $user->position_title,
+            'department' => $user->department,
+            'program' => $user->program,
+            'year_level' => $user->year_level,
+            'major' => $user->major,
+            'section' => $user->section,
             'account_status' => $user->account_status,
         ];
     }

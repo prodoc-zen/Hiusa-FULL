@@ -85,6 +85,7 @@ class ApprovalRequestController extends Controller
 
                 $approval->update([
                     'status' => $data['status'],
+                    'active_key' => null,
                     'remarks' => $data['remarks'] ?? null,
                     'reviewed_by' => $request->user()->id,
                     'reviewed_at' => now(),

@@ -980,7 +980,7 @@ class UseCaseComplianceTest extends TestCase
         $this->assertSame(2, Notification::where('title', 'New Merchandise Order')->count());
 
         $this->authenticate($officer);
-        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid', 'verified_amount' => 500])
             ->assertOk()
             ->assertJsonPath('status', 'pending');
         $approval = ApprovalRequest::where('entity_type', 'payment')->where('entity_id', $orderId)->firstOrFail();
@@ -1322,8 +1322,8 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonPath('message', 'An SBO Officer must verify and submit this payment before admin approval.');
 
         $this->authenticate($officer);
-        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])->assertOk();
-        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])->assertConflict();
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid', 'verified_amount' => 200])->assertOk();
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid', 'verified_amount' => 200])->assertConflict();
         $this->patchJson("/api/orders/{$orderId}/status", [
             'status' => 'cancelled',
             'review_remarks' => 'Trying to bypass the admin queue.',

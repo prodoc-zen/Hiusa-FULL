@@ -22,6 +22,8 @@ import {
   createTransaction,
   updateTransaction,
   getPersonalReceipts,
+  getInvoices,
+  getAuditLogs,
   getForecasts,
   generateForecast,
   getBudgets,
@@ -41,7 +43,16 @@ const budgetStatusBadge = {
 };
 
 function fmt(n) {
-  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
+  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function ForecastLineGraph({ forecasts }) {
+  const points = forecasts.map((forecast) => ({ label: String(forecast.forecast_period || '').slice(0, 7), income: Number(forecast.predicted_income || 0), expense: Number(forecast.predicted_expense || 0), balance: Number(forecast.predicted_balance || 0) }));
+  if (!points.length) return null;
+  const width = 760; const height = 280; const pad = { top: 18, right: 20, bottom: 42, left: 70 }; const values = points.flatMap((point) => [point.income, point.expense, point.balance]); const min = Math.min(0, ...values); const max = Math.max(1, ...values); const range = max - min || 1;
+  const x = (index) => pad.left + (points.length === 1 ? (width - pad.left - pad.right) / 2 : index * (width - pad.left - pad.right) / (points.length - 1)); const y = (value) => pad.top + (max - value) * (height - pad.top - pad.bottom) / range;
+  const path = (key) => points.map((point, index) => `${index ? 'L' : 'M'} ${x(index)} ${y(point[key])}`).join(' '); const series = [{ key: 'income', label: 'Predicted income', color: '#16A34A' }, { key: 'expense', label: 'Predicted expenses', color: '#DC2626' }, { key: 'balance', label: 'Projected balance', color: '#0B8ED0' }];
+  return <div className="mt-5" aria-label="Forecast line graph"><div className="mb-3 flex flex-wrap gap-4 text-xs font-semibold text-slate-600">{series.map((item) => <span key={item.key} className="inline-flex items-center gap-1.5"><i className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: item.color }} />{item.label}</span>)}</div><svg viewBox={`0 0 ${width} ${height}`} className="h-auto w-full" role="img" aria-label="Line graph comparing predicted income, expenses, and balance by forecast period"><title>Financial forecast line graph</title>{[0, .25, .5, .75, 1].map((step) => { const value = max - range * step; const lineY = y(value); return <g key={step}><line x1={pad.left} x2={width - pad.right} y1={lineY} y2={lineY} stroke="#DDE7EF" /><text x={pad.left - 8} y={lineY + 4} textAnchor="end" className="fill-slate-400 text-[10px]">{fmt(value)}</text></g>; })}{series.map((item) => <path key={item.key} d={path(item.key)} fill="none" stroke={item.color} strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />)}{points.map((point,index) => <g key={point.label || index}>{series.map((item) => <circle key={item.key} cx={x(index)} cy={y(point[item.key])} r="4" fill={item.color}><title>{`${point.label}: ${item.label} ${fmt(point[item.key])}`}</title></circle>)}<text x={x(index)} y={height - 16} textAnchor="middle" className="fill-slate-500 text-[10px]">{point.label}</text></g>)}</svg><div className="sr-only"><table><caption>Financial forecast data</caption><thead><tr><th>Period</th><th>Income</th><th>Expenses</th><th>Balance</th></tr></thead><tbody>{points.map((point) => <tr key={point.label}><td>{point.label}</td><td>{fmt(point.income)}</td><td>{fmt(point.expense)}</td><td>{fmt(point.balance)}</td></tr>)}</tbody></table></div></div>;
 }
 
 function escapeHtml(value) {
@@ -93,6 +104,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [transactions, setTransactions] = useState([]);
   const [personalReceipts, setPersonalReceipts] = useState([]);
+  const [invoices, setInvoices] = useState([]);
+  const [auditLogs, setAuditLogs] = useState([]);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -135,20 +148,22 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     setFeedback({ open: true, type, message });
   }, []);
 
-  function load(page = 1, filters = txFilters) {
+  function load(page = 1, filters = txFilters, searchTerm = search) {
     setLoading(true);
     setError(null);
     const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''));
     Promise.all([
-      canViewTransactions ? getTransactions({ page, ...activeFilters }) : Promise.resolve({ data: { data: [] } }),
+      canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? getTransactionSummary(activeFilters) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
       canViewForecasts ? getForecasts() : Promise.resolve({ data: [] }),
       canViewBudgets ? getBudgets() : Promise.resolve({ data: [] }),
       canViewBudgets || canManageLedger ? getEvents() : Promise.resolve({ data: [] }),
       getPersonalReceipts(),
+      getInvoices(),
+      currentUserRole === 'ADMIN' ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? getFinancialReports() : Promise.resolve({ data: [] }),
     ])
-      .then(([txRes, sumRes, fcRes, budgetRes, eventsRes, receiptRes, reportRes]) => {
+      .then(([txRes, sumRes, fcRes, budgetRes, eventsRes, receiptRes, invoiceRes, auditRes, reportRes]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -164,6 +179,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
         setBudgets(Array.isArray(budgetRes.data) ? budgetRes.data : []);
         setEvents(Array.isArray(eventsRes.data) ? eventsRes.data : []);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
+        setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
+        setAuditLogs(Array.isArray(auditRes.data?.data) ? auditRes.data.data : []);
         setReports(Array.isArray(reportRes.data) ? reportRes.data : []);
       })
       .catch(() => setError('Failed to load financial data.'))
@@ -469,11 +486,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     setShowForm(true);
   }
 
-  const filtered = transactions.filter((tx) =>
-    (tx.description ?? '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = transactions;
 
-  const maxForecast = forecasts.length > 0 ? Math.max(...forecasts.map((f) => f.predicted_expense)) : 1;
   const txFrom = (txMeta.current_page - 1) * txMeta.per_page + 1;
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
 
@@ -524,6 +538,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') load(1, txFilters, search); }}
                   type="text"
                   placeholder="Search transactions..."
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[160px]"
@@ -579,7 +594,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                 onClick={() => {
                   const cleared = { type: '', event_id: '', from: '', to: '' };
                   setTxFilters(cleared);
-                  load(1, cleared);
+                  setSearch('');
+                  load(1, cleared, '');
                 }}
                 className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-xs font-bold text-slate-600 hover:bg-slate-50"
               >
@@ -764,18 +780,10 @@ export default function FinancePage({ initialTab = 'transactions' }) {
               <p className="py-6 text-center text-sm text-slate-400">No forecasts recorded yet.</p>
             ) : (
               <div className="space-y-3">
+                <ForecastLineGraph forecasts={forecasts} />
                 {forecasts.map((f) => (
                   <div key={f.id} className="rounded-lg border border-[#DDE7EF] p-4">
-                    <div className="flex items-center gap-4">
-                      <span className="w-24 truncate text-sm font-bold text-slate-600">{f.forecast_period}</span>
-                      <div className="h-8 flex-1 overflow-hidden rounded-lg bg-[#F8FBFD]">
-                        <div
-                          className="h-full rounded-lg bg-[#0B8ED0] transition-all duration-500"
-                          style={{ width: `${Math.max(2, (f.predicted_expense / maxForecast) * 100)}%` }}
-                        />
-                      </div>
-                      <span className="w-24 text-right text-sm font-bold tabular-nums text-[#0F172A]">{fmt(f.predicted_expense)}</span>
-                    </div>
+                    <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-slate-700">Forecast for {f.forecast_period}</span><span className="text-sm font-bold tabular-nums text-[#0F172A]">Balance {fmt(f.predicted_balance)}</span></div>
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                       <span className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(f.predicted_income)}</strong></span>
                       <span className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(f.predicted_balance)}</strong></span>
@@ -987,6 +995,30 @@ export default function FinancePage({ initialTab = 'transactions' }) {
               ))}
             </div>
           )}
+        </section>
+      )}
+
+      {activeTab === 'invoices' && (
+        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="border-b border-[#DDE7EF] p-5">
+            <h2 className="text-lg font-bold text-[#0F172A]">Statement of Account & Financial Clearance</h2>
+            <p className="mt-1 text-sm text-slate-500">Approved payments are reflected in your balance.</p>
+          </div>
+          {invoices.length === 0 ? <p className="p-8 text-center text-sm text-emerald-700">Financially cleared — no outstanding invoices.</p> : (
+            <div className="divide-y divide-[#E5EDF3]">{invoices.map((invoice) => (
+              <div key={invoice.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <div><p className="font-bold text-[#0F172A]">{invoice.description}</p><p className="mt-1 text-xs text-slate-500">{invoice.reference} · Due {invoice.due_date || 'Not set'} · {String(invoice.status).replace('_', ' ')}</p></div>
+                <div className="grid grid-cols-3 gap-4 text-right text-xs text-slate-500"><span>Due<strong className="block text-sm text-[#0F172A]">{fmt(invoice.amount_due)}</strong></span><span>Paid<strong className="block text-sm text-emerald-700">{fmt(invoice.amount_paid)}</strong></span><span>Balance<strong className="block text-sm text-red-600">{fmt(invoice.remaining_balance)}</strong></span></div>
+              </div>
+            ))}</div>
+          )}
+        </section>
+      )}
+
+      {activeTab === 'audit' && currentUserRole === 'ADMIN' && (
+        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="border-b border-[#DDE7EF] p-5"><h2 className="text-lg font-bold text-[#0F172A]">Admin Audit Logs</h2><p className="mt-1 text-sm text-slate-500">Read-only activity history across financial, approval, order, and system modules.</p></div>
+          {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-400">No audit activity recorded.</p> : <div className="divide-y divide-[#E5EDF3]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0B8ED0]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-400">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {log.actor?.name || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {log.affected_user.name} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
         </section>
       )}
 

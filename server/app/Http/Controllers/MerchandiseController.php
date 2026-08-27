@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Merchandise;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -114,6 +115,8 @@ class MerchandiseController extends Controller
         }
         unset($data['image']);
 
+        $oldValues = $this->auditableMerchandiseValues($item);
+
         try {
             $item->update($data);
         } catch (\Throwable $exception) {
@@ -124,6 +127,11 @@ class MerchandiseController extends Controller
         if ($newImageUrl) {
             $this->deleteMerchandiseImage($oldImageUrl);
         }
+
+        $action = array_key_exists('is_active', $data) && $oldValues['is_active'] !== (bool) $data['is_active']
+            ? ($data['is_active'] ? 'reactivated' : 'deactivated')
+            : 'updated';
+        $this->recordMerchandiseAudit($request, $action, $item, $oldValues, $this->auditableMerchandiseValues($item->fresh()));
 
         return response()->json($item->fresh());
     }
@@ -152,17 +160,30 @@ class MerchandiseController extends Controller
 
     public function adjustStock(Request $request, $id)
     {
-        $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
+        $data = $request->validate([
+            'stock_delta' => ['required', 'integer', 'min:1', 'max:1000000'],
+        ]);
+
+        $item = DB::transaction(function () use ($request, $id, $data) {
+            $item = Merchandise::where('organization_id', $request->user()->organization_id)
+                ->lockForUpdate()
+                ->find($id);
+
+            if (! $item) {
+                return null;
+            }
+
+            $oldValues = $this->auditableMerchandiseValues($item);
+            $item->increment('stock_quantity', $data['stock_delta']);
+            $item->refresh();
+            $this->recordMerchandiseAudit($request, 'stock_adjusted', $item, $oldValues, $this->auditableMerchandiseValues($item->fresh()));
+
+            return $item;
+        });
 
         if (! $item) {
             return response()->json(['message' => 'Item not found.'], 404);
         }
-
-        $data = $request->validate([
-            'stock_quantity' => ['required', 'integer', 'min:0'],
-        ]);
-
-        $item->update($data);
 
         return response()->json($item->fresh());
     }

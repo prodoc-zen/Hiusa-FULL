@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Tests: Frontend Unit",
+      "type": "shell",
+      "command": "npm run test:unit",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests: Frontend Watch",
+      "type": "shell",
+      "command": "npm run test:unit:watch",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "isBackground": true,
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests: Laravel",
+      "type": "shell",
+      "command": "php artisan test --stop-on-failure",
+      "options": { "cwd": "${workspaceFolder}/server" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests: FastAPI",
+      "type": "shell",
+      "command": ".\\.venv\\Scripts\\python.exe -m pytest",
+      "options": { "cwd": "${workspaceFolder}/ai-service" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests: E2E",
+      "type": "shell",
+      "command": "npm run test:e2e",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Tests: E2E UI",
+      "type": "shell",
+      "command": "npm run test:e2e:ui",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "problemMatcher": []
+    },
+    {
+      "label": "Check: Frontend Lint and Build",
+      "type": "shell",
+      "command": "npm run lint; if ($LASTEXITCODE -eq 0) { npm run build }",
+      "options": { "cwd": "${workspaceFolder}/client" },
+      "problemMatcher": []
+    }
+  ]
+}
