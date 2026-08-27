@@ -1,0 +1,18 @@
+{
+  "description": "Run lightweight deterministic project checks before Codex finishes.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"$(git rev-parse --show-toplevel)/.codex/hooks/qa-gate.mjs\"",
+            "commandWindows": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"$projectRoot = git rev-parse --show-toplevel; node (Join-Path $projectRoot '.codex/hooks/qa-gate.mjs')\"",
+            "timeout": 240,
+            "statusMessage": "Running HIUSA project QA checks"
+          }
+        ]
+      }
+    ]
+  }
+}

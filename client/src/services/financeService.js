@@ -35,6 +35,14 @@ export const deleteTransaction = (id) =>
 export const getPersonalReceipts = () =>
   api.get('/transactions/personal-receipts');
 
+export const getInvoices = () => api.get('/invoices');
+export const getFinancialDashboard = () => api.get('/financial-dashboard');
+export const getCollections = (params) => api.get('/collections', { params });
+export const getStudentDebts = (params) => api.get('/student-debts', { params });
+export const createInvoice = (data) => api.post('/invoices', data);
+export const recordInvoicePayment = (invoiceId, data) => api.post(`/invoices/${invoiceId}/payments`, data);
+export const getAuditLogs = (params) => api.get('/audit-logs', { params });
+
 // Forecasts
 export const getForecasts = () =>
   api.get('/forecasts');

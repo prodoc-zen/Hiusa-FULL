@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
-import { PencilLine, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Eye, PencilLine, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import { createUser, disableUser, getUsers, reactivateUser, updateUser } from '../../../services/userService';
+import { createUser, disableUser, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
+import { getStudentDebts } from '../../../services/financeService';
 
 const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const ROLE_LABELS = {
@@ -14,17 +15,6 @@ const ROLE_LABELS = {
   DEPARTMENT_HEAD: 'Department Head',
 };
 
-const SBO_POSITIONS = [
-  'President',
-  'Vice President',
-  'Secretary',
-  'Treasurer',
-  'Auditor',
-  'Public Information Officer',
-  'Business Manager',
-  'Representative',
-];
-
 const emptyCreateForm = {
   school_id: '',
   first_name: '',
@@ -32,6 +22,10 @@ const emptyCreateForm = {
   email: '',
   role: 'STUDENT',
   position_title: '',
+  department: '',
+  program: '',
+  year_level: '',
+  major: '', section: '',
   password: '',
   password_confirmation: '',
 };
@@ -43,6 +37,10 @@ const emptyEditForm = {
   email: '',
   role: 'STUDENT',
   position_title: '',
+  department: '',
+  program: '',
+  year_level: '',
+  major: '', section: '',
 };
 
 function Field({ label, children, error }) {
@@ -73,11 +71,17 @@ export default function AdminUsersPage() {
   const [modalError, setModalError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [profileUser, setProfileUser] = useState(null);
+  const [profileDebt, setProfileDebt] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const profileRequestRef = useRef(0);
   const [disableTarget, setDisableTarget] = useState(null);
   const [reactivateTarget, setReactivateTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [page, setPage] = useState(1);
+  const [sboPositions, setSboPositions] = useState([]);
   const pageSize = 10;
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
@@ -88,9 +92,10 @@ export default function AdminUsersPage() {
 
     async function load() {
       try {
-        const rows = await getUsers();
+        const [rows, positions] = await Promise.all([getUsers(), getSboPositions()]);
         if (!cancelled) {
           setUsers(Array.isArray(rows) ? rows : []);
+          setSboPositions(Array.isArray(positions) ? positions : []);
         }
       } catch {
         if (!cancelled) {
@@ -115,7 +120,10 @@ export default function AdminUsersPage() {
       const matchesSearch =
         fullName.includes(query) ||
         String(user.school_id ?? '').toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query);
+        user.email.toLowerCase().includes(query) ||
+        (user.department || '').toLowerCase().includes(query) ||
+        (user.program || '').toLowerCase().includes(query) ||
+        (user.year_level || '').toLowerCase().includes(query);
       const matchesRole = roleFilter === 'all' || user.role === roleFilter;
       return matchesSearch && matchesRole;
     });
@@ -131,9 +139,11 @@ export default function AdminUsersPage() {
   }, [search, roleFilter]);
 
   const refreshUsers = async () => {
-    const rows = await getUsers();
+    const [rows, positions] = await Promise.all([getUsers(), getSboPositions()]);
     setUsers(Array.isArray(rows) ? rows : []);
+    setSboPositions(Array.isArray(positions) ? positions : []);
   };
+
 
   const openCreate = () => {
     setCreateForm(emptyCreateForm);
@@ -156,6 +166,10 @@ export default function AdminUsersPage() {
       email: user.email,
       role: user.role,
       position_title: user.position_title || '',
+      department: user.department || '',
+      program: user.program || '',
+      year_level: user.year_level || '',
+      major: user.major || '', section: user.section || '',
     });
     setModalError('');
   };
@@ -164,6 +178,29 @@ export default function AdminUsersPage() {
     if (busy) return;
     setSelectedUser(null);
     setModalError('');
+  };
+
+  const openProfile = async (user) => {
+    const requestId = ++profileRequestRef.current;
+    setProfileUser(user);
+    setProfileDebt(null);
+    setProfileError('');
+    if (user.role !== 'STUDENT') { setProfileLoading(false); return; }
+    setProfileLoading(true);
+    try {
+      const response = await getStudentDebts({ student_id: user.school_id });
+      const debts = response.data ?? response;
+      if (profileRequestRef.current === requestId) setProfileDebt(Array.isArray(debts) ? debts[0] ?? null : null);
+    } catch {
+      if (profileRequestRef.current === requestId) setProfileError('The student profile opened, but the live debt summary could not be loaded.');
+    } finally { if (profileRequestRef.current === requestId) setProfileLoading(false); }
+  };
+
+  const closeProfile = () => {
+    profileRequestRef.current += 1;
+    setProfileUser(null);
+    setProfileDebt(null);
+    setProfileError('');
   };
 
   const handleCreate = async (event) => {
@@ -285,11 +322,22 @@ export default function AdminUsersPage() {
           className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
         >
           <option value="">Assign SBO position</option>
-          {SBO_POSITIONS.map((position) => (
-            <option key={position} value={position}>{position}</option>
+          {sboPositions.filter((position) => position.is_active).map((position) => (
+            <option key={position.id} value={position.title}>{position.title}</option>
           ))}
         </select>
       </Field>
+      <Field label="Department">
+        <input value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} placeholder="e.g. College of Computing" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="Course / Program">
+        <input value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value })} placeholder="e.g. BS Information Technology" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="Year Level">
+        <input value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value })} placeholder="e.g. 3rd Year" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="Major / Specialization"><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
+      <Field label="Section"><input value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} placeholder="Optional section" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
       {mode === 'create' && (
         <>
           <Field label="Password">
@@ -329,7 +377,7 @@ export default function AdminUsersPage() {
           <input
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search by name, school ID, or email"
+            placeholder="Search by name, school ID, department, program, or email"
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
           <select
@@ -351,7 +399,7 @@ export default function AdminUsersPage() {
 
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left">
+          <table className="w-full min-w-[980px] text-left">
             <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-4 py-3">School ID</th>
@@ -359,6 +407,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
                 <th className="px-4 py-3">SBO Position</th>
+                <th className="px-4 py-3">Student Profile</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
@@ -366,7 +415,7 @@ export default function AdminUsersPage() {
             <tbody className="divide-y divide-[#E5EDF3] text-sm">
               {loading && Array.from({ length: 6 }, (_, index) => (
                 <tr key={`user-skeleton-${index}`} aria-hidden="true">
-                  {Array.from({ length: 7 }, (__, cellIndex) => (
+                  {Array.from({ length: 8 }, (__, cellIndex) => (
                     <td key={cellIndex} className="px-4 py-4">
                       <div className="h-4 animate-pulse rounded bg-slate-100" />
                     </td>
@@ -382,6 +431,9 @@ export default function AdminUsersPage() {
                     <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0B8ED0]">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
                   <td className="px-4 py-3.5 text-xs text-[#64748B]">{user.role === 'SBO_OFFICER' ? (user.position_title || '-') : '-'}</td>
+                  <td className="px-4 py-3.5 text-xs text-[#64748B]">
+                    {user.department || user.program || user.year_level ? <div className="space-y-0.5"><p className="font-semibold text-slate-700">{user.department || 'Department not recorded'}</p><p>{user.program || 'Course not recorded'} · {user.major || 'No major'} · {user.year_level || 'Year not recorded'}{user.section ? ` · ${user.section}` : ''}</p></div> : '-'}
+                  </td>
                   <td className="px-4 py-3.5">
                     <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
                       {user.account_status || 'active'}
@@ -392,6 +444,10 @@ export default function AdminUsersPage() {
                       <button onClick={() => openEdit(user)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-[#EEF6FB]">
                         <PencilLine size={13} />
                         Edit
+                      </button>
+                      <button onClick={() => openProfile(user)} className="inline-flex items-center gap-1 rounded-md border border-[#B9D9E9] bg-[#EEF6FB] px-2.5 py-2 text-xs font-semibold text-[#0878B7] hover:bg-[#DDF2FB]">
+                        <Eye size={13} />
+                        View
                       </button>
                       {user.role !== 'ADMIN' && user.account_status !== 'disabled' && (
                         <button onClick={() => setDisableTarget(user)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
@@ -425,6 +481,38 @@ export default function AdminUsersPage() {
           label="users"
         />
       </section>
+
+      <Modal
+        open={Boolean(profileUser)}
+        title="User Profile"
+        description={profileUser ? `${profileUser.first_name} ${profileUser.last_name} - School ID ${profileUser.school_id}` : ''}
+        onClose={closeProfile}
+        maxWidth="max-w-3xl"
+        footer={<button type="button" onClick={closeProfile} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Close</button>}
+      >
+        {profileUser && <div className="space-y-5">
+          <div className="grid gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {[
+              ['Email', profileUser.email], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
+              ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
+              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['SBO position', profileUser.position_title || 'Not assigned'],
+            ].map(([label, value]) => <div key={label}><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></div>)}
+          </div>
+          {profileUser.role === 'STUDENT' && <section>
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Financial standing</p><h3 className="mt-1 text-lg font-black text-[#0F172A]">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
+            {profileLoading && <div className="mt-3 h-24 animate-pulse rounded-xl bg-slate-100" />}
+            {profileError && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{profileError}</p>}
+            {!profileLoading && profileDebt && <>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-xl border border-[#DDE7EF] bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">PHP {Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
+              {profileDebt.total_debt > 0 && <div className="mt-4 space-y-3">
+                {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Unsettled invoices</p>{profileDebt.invoices.map((invoice) => <div key={invoice.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>{invoice.reference}</strong><br /><span className="text-xs text-slate-500">{invoice.description}</span></span><strong>PHP {Number(invoice.remaining_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></div>)}</div>}
+                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{order.merchandise?.name || 'Merchandise item'}</span></span><strong>PHP {Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></div>)}</div>}
+              </div>}
+              {profileDebt.total_debt <= 0 && <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">No current invoices or reserved-merchandise debt found.</p>}
+            </>}
+          </section>}
+        </div>}
+      </Modal>
 
       <Modal
         open={showCreate}

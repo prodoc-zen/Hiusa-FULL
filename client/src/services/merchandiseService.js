@@ -30,5 +30,13 @@ export const updateItem = (id, data) => {
 export const deleteItem = (id) =>
   api.delete(`/merchandise/${id}`);
 
-export const adjustStock = (id, stock_quantity) =>
-  api.patch(`/merchandise/${id}/stock`, { stock_quantity });
+export const adjustStock = (id, stock_delta) =>
+  api.patch(`/merchandise/${id}/stock`, { stock_delta });
+
+export const getGcashSettings = () => api.get('/merchandise/gcash-settings');
+
+export const uploadGcashQr = (file) => {
+  const data = new FormData();
+  data.append('qr_code', file);
+  return api.post('/merchandise/gcash-settings', data);
+};

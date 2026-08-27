@@ -37,4 +37,11 @@ public/build
 public/dist
 *.pem
 *.key
-*.crt   
+*.crt
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/playwright/.cache/
+/playwright/.auth/

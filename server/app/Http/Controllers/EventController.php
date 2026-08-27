@@ -340,15 +340,23 @@ class EventController extends Controller
             'model' => ['nullable', 'string', 'max:100'],
         ]);
 
+        if (($data['create_workflow'] ?? false) && $event->start_time->lte(now()->addMinutes(5))) {
+            return response()->json([
+                'message' => 'Workflow tasks require an event that starts at least five minutes in the future.',
+            ], 422);
+        }
+
         $prompt = "Event: {$event->title}\nSchedule: {$event->start_time} to {$event->end_time}\nLocation: ".($event->location ?: 'TBD')."\nRequirements: {$data['requirements']}";
         $generated = $this->groq->generate(
-            'Create a concise student-organization event plan. Include a timeline, required resources, a checklist, and possible delays or schedule conflicts.',
+            'Create a concise student-organization event plan with clearly labeled Timeline, Resource Checklist, Logistics Checklist, and Possible Delays or Conflicts sections.',
             $prompt,
             700,
             0.35,
         );
-        $output = $generated['text'] ?? $this->fallbackEventPlan($prompt);
-        $model = $generated['model'] ?? 'deterministic-fallback';
+        $generatedText = $generated['text'] ?? null;
+        $hasCompleteGeneratedPlan = is_string($generatedText) && $this->hasRequiredPlanSections($generatedText);
+        $output = $hasCompleteGeneratedPlan ? $generatedText : $this->fallbackEventPlan($prompt);
+        $model = $hasCompleteGeneratedPlan ? $generated['model'] : 'deterministic-fallback';
 
         return DB::transaction(function () use ($request, $event, $data, $prompt, $output, $model) {
             $aiOutput = AiOutput::create([
@@ -512,18 +520,31 @@ class EventController extends Controller
     {
         $eventTitle = trim(Str::before(Str::after($prompt, 'Event: '), "\n")) ?: 'Event';
 
-        return "{$eventTitle} Event Plan\n\nTimeline:\n- Confirm venue, program flow, and responsible officers.\n- Prepare materials, registration, and communication assets.\n- Run final readiness checks before event day.\n\nResource Checklist:\n- Venue setup, attendance materials, logistics supplies, program host, documentation, and contingency contacts.\n\nPossible Delays or Conflicts:\n- Venue availability, supplier lead time, overlapping academic schedules, and late participant confirmations.";
+        return "{$eventTitle} Event Plan\n\nTimeline:\n- Confirm the venue, program flow, owners, and vendor commitments.\n- Prepare registration, communications, resources, and participant coordination.\n- Run final readiness checks before event day.\n\nResource Checklist:\n- Venue and equipment.\n- Registration and attendance materials.\n- Program host, volunteers, documentation team, and emergency contacts.\n\nLogistics Checklist:\n- Confirm room layout, access, utilities, transport, and supplier arrival times.\n- Assign setup, registration, crowd-flow, cleanup, and contingency owners.\n- Verify permits, safety contacts, signage, and backup equipment.\n\nPossible Delays or Conflicts:\n- Venue availability, supplier lead time, overlapping academic schedules, severe weather, and late participant confirmations.";
+    }
+
+    private function hasRequiredPlanSections(string $plan): bool
+    {
+        return collect([
+            'Timeline:',
+            'Resource Checklist:',
+            'Logistics Checklist:',
+            'Possible Delays or Conflicts:',
+        ])->every(fn (string $section) => str_contains($plan, $section));
     }
 
     private function workflowTasksFromPlan(Event $event, string $plan): array
     {
-        $deadline = $event->start_time ?: now()->addDays(7);
+        $eventStart = $event->start_time ?: now()->addDays(7);
+        $planningStart = now();
+        $secondsUntilEvent = $eventStart->getTimestamp() - $planningStart->getTimestamp();
         $baseDescription = Str::limit($plan, 500);
 
         return [
-            ['title' => 'Finalize event timeline', 'description' => $baseDescription, 'deadline' => $deadline],
-            ['title' => 'Prepare resource checklist', 'description' => $baseDescription, 'deadline' => $deadline],
-            ['title' => 'Review risks and contingency actions', 'description' => $baseDescription, 'deadline' => $deadline],
+            ['title' => 'Confirm event scope and vendor commitments', 'description' => $baseDescription, 'deadline' => $planningStart->copy()->addSeconds((int) ($secondsUntilEvent * 0.25))],
+            ['title' => 'Finalize event timeline and resources', 'description' => $baseDescription, 'deadline' => $planningStart->copy()->addSeconds((int) ($secondsUntilEvent * 0.50))],
+            ['title' => 'Complete logistics checklist', 'description' => $baseDescription, 'deadline' => $planningStart->copy()->addSeconds((int) ($secondsUntilEvent * 0.75))],
+            ['title' => 'Review delays, conflicts, and contingencies', 'description' => $baseDescription, 'deadline' => $planningStart->copy()->addSeconds((int) ($secondsUntilEvent * 0.90))],
         ];
     }
 }

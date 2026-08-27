@@ -5,10 +5,12 @@ namespace App\Http\Controllers;
 use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Task;
+use App\Models\TaskProgressUpdate;
 use App\Models\User;
 use App\Services\GroqResponsesService;
 use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class TaskController extends Controller
 {
@@ -27,15 +29,13 @@ class TaskController extends Controller
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
             'event:id,title',
+            'progressUpdates.author:school_id,first_name,last_name',
         ])
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('deadline', 'asc');
 
         if ($request->user()->role === 'SBO_OFFICER') {
-            $query->where(function ($q) use ($request) {
-                $q->where('assigned_to', $request->user()->id)
-                    ->orWhere('created_by', $request->user()->id);
-            });
+            $query->where('assigned_to', $request->user()->id);
         }
 
         if ($request->filled('event_id')) {
@@ -83,11 +83,13 @@ class TaskController extends Controller
             'created_by' => $request->user()->id,
             'organization_id' => $request->user()->organization_id,
         ]);
+        $this->recordProgressUpdate($task, $request, 'Task assigned.');
 
         return response()->json($task->load([
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
             'event:id,title',
+            'progressUpdates.author:school_id,first_name,last_name',
         ]), 201);
     }
 
@@ -170,15 +172,36 @@ class TaskController extends Controller
         $data = $request->validate([
             'status' => ['required', 'in:pending,in_progress,completed,overdue'],
             'progress_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
+            'progress_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        $task->update($this->normalizeCompletionFields($data, $task));
-        $this->notifyAdminsOfTaskUpdate($request, $task->fresh());
+        if (! $this->canTransition($task->status, $data['status'])) {
+            return response()->json([
+                'message' => 'Invalid task transition from '.str_replace('_', ' ', $task->status).' to '.str_replace('_', ' ', $data['status']).'.',
+            ], 422);
+        }
+
+        $progressNote = $data['progress_note'] ?? null;
+        unset($data['progress_note']);
+        $task = DB::transaction(function () use ($task, $data, $request, $progressNote) {
+            $lockedTask = Task::whereKey($task->id)->lockForUpdate()->firstOrFail();
+
+            if (! $this->canTransition($lockedTask->status, $data['status'])) {
+                abort(422, 'The task status changed before this update was saved. Refresh and try again.');
+            }
+
+            $lockedTask->update($this->normalizeCompletionFields($data, $lockedTask));
+            $this->recordProgressUpdate($lockedTask, $request, $progressNote);
+
+            return $lockedTask->fresh();
+        });
+        $this->notifyAdminsOfTaskUpdate($request, $task);
 
         return response()->json($task->fresh()->load([
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
             'event:id,title',
+            'progressUpdates.author:school_id,first_name,last_name',
         ]));
     }
 
@@ -189,7 +212,7 @@ class TaskController extends Controller
         return [
             'title' => [$required, 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'deadline' => [$required, 'date'],
+            'deadline' => [$required, 'date', 'after_or_equal:today'],
             'status' => [$required, 'in:pending,in_progress,completed,overdue'],
             'assigned_to' => ['nullable', 'exists:users,school_id'],
             'event_id' => ['nullable', 'exists:events,id'],
@@ -217,6 +240,33 @@ class TaskController extends Controller
         }
 
         return $data;
+    }
+
+    private function canTransition(string $current, string $next): bool
+    {
+        if ($current === $next) {
+            return true;
+        }
+
+        return in_array($next, match ($current) {
+            'pending' => ['in_progress', 'overdue'],
+            'in_progress' => ['completed', 'overdue'],
+            'overdue' => ['in_progress', 'completed'],
+            'completed' => [],
+            default => [],
+        }, true);
+    }
+
+    private function recordProgressUpdate(Task $task, Request $request, ?string $note): void
+    {
+        TaskProgressUpdate::create([
+            'task_id' => $task->id,
+            'organization_id' => $task->organization_id,
+            'updated_by' => $request->user()->school_id,
+            'status' => $task->status,
+            'progress_percent' => (int) ($task->progress_percent ?? 0),
+            'note' => $note,
+        ]);
     }
 
     private function validOrganizationLinks(Request $request, array $data): bool

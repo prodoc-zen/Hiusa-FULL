@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
+use App\Models\ApprovalRequest;
+use App\Models\Budget;
 use App\Models\FinancialForecast;
 use App\Models\Transaction;
 use App\Services\GroqResponsesService;
@@ -54,7 +56,7 @@ class FinancialForecastController extends Controller
             ->orderBy('transaction_date')
             ->get(['id', 'type', 'amount', 'transaction_date']);
 
-        $monthly = $rows
+        $populatedMonthly = $rows
             ->groupBy(fn (Transaction $transaction) => Carbon::parse($transaction->transaction_date)->format('Y-m'))
             ->map(fn ($transactions, string $period) => [
                 'period' => $period,
@@ -64,10 +66,24 @@ class FinancialForecastController extends Controller
             ->sortBy('period')
             ->values();
 
-        if ($monthly->count() < 2) {
+        if ($populatedMonthly->count() < 2) {
             return response()->json([
                 'message' => 'At least two months of transaction history are required to generate an OLS forecast.',
             ], 422);
+        }
+
+        $firstPeriod = Carbon::createFromFormat('Y-m', $populatedMonthly->first()['period'])->startOfMonth();
+        $lastPeriod = Carbon::createFromFormat('Y-m', $populatedMonthly->last()['period'])->startOfMonth();
+        $monthlyByPeriod = $populatedMonthly->keyBy('period');
+        $monthly = collect();
+
+        for ($period = $firstPeriod->copy(); $period->lte($lastPeriod); $period->addMonth()) {
+            $key = $period->format('Y-m');
+            $monthly->push($monthlyByPeriod->get($key, [
+                'period' => $key,
+                'income' => 0.0,
+                'expense' => 0.0,
+            ]));
         }
 
         $analysis = $this->pythonForecast($monthly->all()) ?? $this->localForecast($monthly->all());
@@ -75,18 +91,28 @@ class FinancialForecastController extends Controller
         $predictedIncome = $analysis['predicted_income'];
         $predictedExpense = $analysis['predicted_expense'];
         $predictedBalance = $analysis['predicted_balance'];
+        $approvedBudgetIds = ApprovalRequest::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->where('entity_type', 'budget')
+            ->where('status', 'approved')
+            ->pluck('entity_id');
+        $approvedBudgets = Budget::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('id', $approvedBudgetIds);
+        $currentAvailableBudget = (float) (clone $approvedBudgets)->sum('remaining_amount');
+        $warningThreshold = (float) (clone $approvedBudgets)->sum('warning_threshold');
         $advice = $this->aiService->budgetAdvice([
             'predicted_income' => $predictedIncome,
             'predicted_expense' => $predictedExpense,
-            'current_available_budget' => 0,
+            'current_available_budget' => $currentAvailableBudget,
             'committed_expenses' => 0,
-            'warning_threshold' => 0,
+            'warning_threshold' => $warningThreshold,
             'safety_ratio' => 0.8,
         ]);
         $adviceEngine = 'python-fastapi';
 
         if (! $this->validBudgetAdvice($advice)) {
-            $advice = $this->localBudgetAdvice($predictedIncome, $predictedExpense, 0, 0);
+            $advice = $this->localBudgetAdvice($predictedIncome, $predictedExpense, $currentAvailableBudget, $warningThreshold);
             $adviceEngine = 'php-fallback';
         }
 
@@ -121,6 +147,9 @@ class FinancialForecastController extends Controller
                 'model_details' => [
                     'algorithm' => 'ordinary_least_squares',
                     'sample_months' => $monthly->count(),
+                    'populated_months' => $populatedMonthly->count(),
+                    'current_available_budget' => round($currentAvailableBudget, 2),
+                    'warning_threshold' => round($warningThreshold, 2),
                     'engine' => $analysis['engine'],
                     'income' => $analysis['income_model'],
                     'expense' => $analysis['expense_model'],
@@ -296,6 +325,7 @@ class FinancialForecastController extends Controller
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
             : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
+
         return $this->groq->generate(
             'Provide a concise, practical budget summary for a student organization. Do not alter any supplied figures.',
             "Period: {$period}; income: {$income}; expense: {$expense}; balance: {$balance}; safe limit: {$safeLimit}; risk: {$risk}.",

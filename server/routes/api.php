@@ -6,12 +6,15 @@ use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FinancialForecastController;
+use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\TaskController;
+use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
@@ -42,6 +45,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware('role:ADMIN');
     Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware('role:ADMIN');
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('role:ADMIN');
+    Route::get('/sbo-positions', [SboPositionController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::post('/sbo-positions', [SboPositionController::class, 'store'])->middleware('role:ADMIN');
+    Route::put('/sbo-positions/{position}', [SboPositionController::class, 'update'])->middleware('role:ADMIN');
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
@@ -84,6 +90,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/transactions/{id}', [TransactionController::class, 'update'])->middleware('role:ADMIN');
     Route::delete('/transactions/{id}', [TransactionController::class, 'destroy'])->middleware('role:ADMIN');
 
+    // Financial accountability: collections are ledgered only after verification; remittances are custody movements.
+    Route::get('/financial-dashboard', [FinancialAccountabilityController::class, 'dashboard'])->middleware('role:ADMIN,DEPARTMENT_HEAD');
+    Route::get('/collections', [FinancialAccountabilityController::class, 'collections'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/collections', [FinancialAccountabilityController::class, 'storeCollection'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::patch('/collections/{collection}/verify', [FinancialAccountabilityController::class, 'verifyCollection'])->middleware('role:ADMIN,DEPARTMENT_HEAD');
+    Route::post('/collections/{collection}/remittances', [FinancialAccountabilityController::class, 'storeRemittance'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::get('/cash-advances', [FinancialAccountabilityController::class, 'advances'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/cash-advances', [FinancialAccountabilityController::class, 'storeAdvance'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::patch('/cash-advances/{advance}/approve', [FinancialAccountabilityController::class, 'approveAdvance'])->middleware('role:ADMIN,DEPARTMENT_HEAD');
+    Route::patch('/cash-advances/{advance}/release', [FinancialAccountabilityController::class, 'releaseAdvance'])->middleware('role:ADMIN');
+    Route::post('/cash-advances/{advance}/repayments', [FinancialAccountabilityController::class, 'repayAdvance'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::get('/invoices', [FinancialAccountabilityController::class, 'invoices'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
+    Route::get('/student-debts', [FinancialAccountabilityController::class, 'studentDebts'])->middleware('role:ADMIN,STUDENT');
+    Route::post('/invoices', [FinancialAccountabilityController::class, 'storeInvoice'])->middleware('role:ADMIN');
+    Route::post('/invoices/{invoice}/payments', [FinancialAccountabilityController::class, 'recordInvoicePayment'])->middleware('role:ADMIN');
+    Route::get('/audit-logs', [FinancialAccountabilityController::class, 'auditLogs'])->middleware('role:ADMIN');
+
     // Finance Routes - Forecasts
     Route::get('/forecasts', [FinancialForecastController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/forecasts/generate', [FinancialForecastController::class, 'generate'])->middleware('role:ADMIN,SBO_OFFICER');
@@ -101,11 +124,15 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/merchandise/{id}', [MerchandiseController::class, 'update'])->middleware('role:ADMIN');
     Route::delete('/merchandise/{id}', [MerchandiseController::class, 'destroy'])->middleware('role:ADMIN');
     Route::patch('/merchandise/{id}/stock', [MerchandiseController::class, 'adjustStock'])->middleware('role:ADMIN');
+    Route::get('/merchandise/gcash-settings', [GcashSettingsController::class, 'show'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
+    Route::post('/merchandise/gcash-settings', [GcashSettingsController::class, 'update'])->middleware('role:ADMIN');
 
     // Order Routes
     Route::get('/orders', [OrderController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
+    Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::get('/orders/{id}/audit-logs', [OrderController::class, 'auditHistory'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/orders/claim', [OrderController::class, 'claimByToken'])->middleware('role:ADMIN,SBO_OFFICER');
 
     // Election Module Routes

@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
+use App\Models\Notification;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -24,13 +25,14 @@ class TransactionController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'search' => ['nullable', 'string', 'max:150'],
         ]);
 
         $query = Transaction::with([
             'budget:id,title',
             'event:id,title',
             'recorder:school_id,first_name,last_name',
-            'payer:school_id,first_name,last_name',
+            'payer:school_id,first_name,last_name,department,program,year_level',
         ])
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('transaction_date', 'desc');
@@ -53,6 +55,23 @@ class TransactionController extends Controller
 
         if (! empty($filters['to'])) {
             $query->whereDate('transaction_date', '<=', $filters['to']);
+        }
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($nested) use ($search) {
+                $nested->where('description', 'like', "%{$search}%")
+                    ->orWhere('category', 'like', "%{$search}%")
+                    ->orWhere('receipt_reference', 'like', "%{$search}%")
+                    ->orWhereHas('event', fn ($event) => $event->where('title', 'like', "%{$search}%"))
+                    ->orWhereHas('budget', fn ($budget) => $budget->where('title', 'like', "%{$search}%"));
+
+                $nested->orWhereHas('payer', fn ($payer) => $payer->where('school_id', 'like', "%{$search}%")->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%")->orWhere('department', 'like', "%{$search}%")->orWhere('program', 'like', "%{$search}%")->orWhere('year_level', 'like', "%{$search}%"));
+
+                if (ctype_digit($search)) {
+                    $nested->orWhere('receipt_number', (int) $search);
+                }
+            });
         }
 
         return response()->json($query->paginate($filters['per_page'] ?? 20));
@@ -137,6 +156,7 @@ class TransactionController extends Controller
 
             $this->applyBudgetMovement($transaction, 1);
             $this->recordFinancialAudit($request, 'created', $transaction, null, $this->auditableValues($transaction->fresh()));
+            $this->notifyReceiptOwner($transaction);
 
             return response()->json($transaction->load([
                 'budget:id,title',
@@ -359,6 +379,25 @@ class TransactionController extends Controller
             'new_values' => $newValues,
             'ip_address' => $request->ip(),
             'created_at' => now(),
+        ]);
+    }
+
+    private function notifyReceiptOwner(Transaction $transaction): void
+    {
+        if (! $transaction->payer_id || $transaction->payer_id === $transaction->recorded_by) {
+            return;
+        }
+
+        Notification::create([
+            'organization_id' => $transaction->organization_id,
+            'user_id' => $transaction->payer_id,
+            'title' => 'Receipt Available',
+            'message' => 'Receipt '.$transaction->receipt_reference.' is now available in My Receipts.',
+            'notification_type' => 'financial',
+            'reference_type' => Transaction::class,
+            'reference_id' => $transaction->id,
+            'is_read' => false,
+            'sent_at' => now(),
         ]);
     }
 }

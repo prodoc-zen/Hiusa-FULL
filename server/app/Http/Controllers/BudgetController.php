@@ -48,21 +48,25 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
         }
 
-        $budget = Budget::create([
-            ...$data,
-            'remaining_amount' => $data['allocated_amount'],
-            'organization_id' => $request->user()->organization_id,
-        ]);
+        $budget = DB::transaction(function () use ($data, $request) {
+            $budget = Budget::create([
+                ...$data,
+                'remaining_amount' => $data['allocated_amount'],
+                'organization_id' => $request->user()->organization_id,
+            ]);
 
-        ApprovalRequest::create([
-            'organization_id' => $request->user()->organization_id,
-            'entity_type' => 'budget',
-            'entity_id' => $budget->id,
-            'requested_by' => $request->user()->id,
-            'required_role' => $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD',
-        ]);
+            ApprovalRequest::create([
+                'organization_id' => $request->user()->organization_id,
+                'entity_type' => 'budget',
+                'entity_id' => $budget->id,
+                'requested_by' => $request->user()->id,
+                'required_role' => $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD',
+            ]);
 
-        $this->recordBudgetAudit($request, 'created', $budget, null, $this->auditableValues($budget));
+            $this->recordBudgetAudit($request, 'created', $budget, null, $this->auditableValues($budget));
+
+            return $budget;
+        });
 
         return response()->json($budget->load('event:id,title'), 201);
     }

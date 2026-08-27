@@ -21,8 +21,8 @@ import {
   Trash2,
   X,
 } from 'lucide-react';
-import { getMerchandise, createItem, updateItem, adjustStock, deleteItem } from '../../../services/merchandiseService';
-import { getOrders, placeOrder, updateOrderStatus, claimByToken } from '../../../services/orderService';
+import { getGcashSettings, getMerchandise, createItem, updateItem, adjustStock, deleteItem } from '../../../services/merchandiseService';
+import { getOrders, placeOrder, submitOrderPayment, updateOrderStatus, claimByToken } from '../../../services/orderService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
@@ -60,7 +60,7 @@ function toNumber(value) {
   const parsed = Number.parseFloat(String(value ?? '').replace(/,/g, ''));
   return Number.isFinite(parsed) ? parsed : 0;
 }
-function fmt(n) { return `₱${toNumber(n).toLocaleString('en-PH')}`; }
+function fmt(n) { return `₱${toNumber(n).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`; }
 function fmtDate(d) {
   if (!d) return '-';
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
@@ -189,6 +189,9 @@ export default function MerchandisePage({ initialTab }) {
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [checkoutSubmitting, setCheckoutSubmitting] = useState(false);
   const [checkoutPayment, setCheckoutPayment] = useState({ method: 'cash', reference: '', proof_file: null });
+  const [gcashSettings, setGcashSettings] = useState(null);
+  const [paymentModal, setPaymentModal] = useState({ open: false, order: null, reference: '', proof_file: null, busy: false, error: '' });
+  const [verificationModal, setVerificationModal] = useState({ open: false, order: null, amount: '', busy: false, error: '' });
   const [rejectionModal, setRejectionModal] = useState({ open: false, order: null, remarks: '', busy: false });
   const [studentTokenSearch, setStudentTokenSearch] = useState('');
 
@@ -204,13 +207,14 @@ export default function MerchandisePage({ initialTab }) {
     setLoading(true);
     setError(null);
     const calls = isPersonalShoppingView
-      ? [getMerchandise(), getOrders({ mine: 1 })]
+      ? [getMerchandise(), getOrders({ mine: 1 }), getGcashSettings()]
       : [getMerchandise(), getOrders({ page: 1 })];
     Promise.all(calls)
-      .then(([mRes, oRes]) => {
+      .then(([mRes, oRes, gcashRes]) => {
         const merch = Array.isArray(mRes.data?.data) ? mRes.data.data : (Array.isArray(mRes.data) ? mRes.data : []);
         setItems(merch);
         extractOrders(oRes);
+        if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
       })
       .catch(() => setError('Failed to load merchandise data.'))
       .finally(() => setLoading(false));
@@ -403,15 +407,47 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
-  async function handleStatusChange(id, status, remarks = null) {
+  async function handleStatusChange(id, status, remarks = null, verifiedAmount = null) {
     try {
-      const res = await updateOrderStatus(id, status, remarks);
+      const res = await updateOrderStatus(id, status, remarks, verifiedAmount);
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
       setTransactionMessage(role === 'SBO_OFFICER' && status === 'paid'
         ? `Order ORD-${id} submitted for Admin approval.`
         : `Order ORD-${id} marked as ${capitalize(status)}.`);
+      return res;
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update order status.');
+      throw err;
+    }
+  }
+
+  async function handlePaymentSubmission() {
+    const { order, reference, proof_file: proofFile } = paymentModal;
+    if (!order || !/^\d{13}$/.test(reference.trim()) || !proofFile) {
+      setPaymentModal((current) => ({ ...current, error: 'Enter the 13-digit GCash reference and attach the payment proof.' }));
+      return;
+    }
+
+    setPaymentModal((current) => ({ ...current, busy: true, error: '' }));
+    try {
+      const res = await submitOrderPayment(order.id, { payment_reference: reference.trim(), payment_proof: proofFile });
+      setOrders((current) => current.map((row) => (row.id === order.id ? { ...row, ...res.data } : row)));
+      setPaymentModal({ open: false, order: null, reference: '', proof_file: null, busy: false, error: '' });
+      setTransactionMessage(`Payment proof for ORD-${order.id} was submitted for verification.`);
+    } catch (err) {
+      setPaymentModal((current) => ({ ...current, busy: false, error: err.response?.data?.message ?? 'Failed to submit payment proof.' }));
+    }
+  }
+
+  async function handlePaymentVerification() {
+    const { order, amount } = verificationModal;
+    if (!order || !amount) return;
+    setVerificationModal((current) => ({ ...current, busy: true, error: '' }));
+    try {
+      await handleStatusChange(order.id, 'paid', null, Number(amount));
+      setVerificationModal({ open: false, order: null, amount: '', busy: false, error: '' });
+    } catch {
+      setVerificationModal((current) => ({ ...current, busy: false }));
     }
   }
 
@@ -424,15 +460,6 @@ export default function MerchandisePage({ initialTab }) {
       load();
     } catch (err) { setClaimError(err.response?.data?.message ?? 'Invalid or already used token.'); }
     finally { setClaiming(false); }
-  }
-
-  function confirmStatusChange(order, nextStatus) {
-    openConfirm({
-      title: 'Confirm Status Update',
-      message: `Set order ORD-${order.id} to ${capitalize(nextStatus)}?`,
-      confirmText: `Mark ${capitalize(nextStatus)}`,
-      action: async () => handleStatusChange(order.id, nextStatus),
-    });
   }
 
   function confirmSellingToggle(item) {
@@ -493,7 +520,7 @@ export default function MerchandisePage({ initialTab }) {
       message: `Add ${addAmount} unit(s) to ${item.name}? New stock will be ${nextStock}.`,
       confirmText: 'Add Stock',
       action: async () => {
-        const res = await adjustStock(item.id, nextStock);
+        const res = await adjustStock(item.id, addAmount);
         const updated = res.data;
         setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, ...updated } : row)));
         setTransactionMessage(`${addAmount} unit(s) added to ${item.name}.`);
@@ -506,8 +533,8 @@ export default function MerchandisePage({ initialTab }) {
     const token = claimToken.trim().toUpperCase();
     if (!token) return;
 
-    if (!/^[A-Z0-9]{8}$/.test(token)) {
-      setClaimError('Token must be 8 letters/numbers.');
+    if (!/^[A-Z0-9]{16}$/.test(token)) {
+      setClaimError('Token must be 16 letters/numbers.');
       return;
     }
 
@@ -600,8 +627,14 @@ export default function MerchandisePage({ initialTab }) {
     setCheckoutSubmitting(true);
     setCartError(null);
 
-    if (checkoutPayment.method === 'gcash' && (!checkoutPayment.reference.trim() || !checkoutPayment.proof_file)) {
-      setCartError('GCash checkout requires both a reference number and an uploaded payment proof.');
+    if (checkoutPayment.method === 'gcash' && cart.length > 1) {
+      setCartError('GCash proof is verified per order. Checkout one item at a time, or reserve this cart with cash and submit proof for each order from My Orders.');
+      setCheckoutSubmitting(false);
+      return;
+    }
+
+    if (checkoutPayment.method === 'gcash' && (!/^\d{13}$/.test(checkoutPayment.reference.trim()) || !checkoutPayment.proof_file)) {
+      setCartError('GCash checkout requires a 13-digit reference number and an uploaded payment proof.');
       setCheckoutSubmitting(false);
       return;
     }
@@ -894,6 +927,20 @@ export default function MerchandisePage({ initialTab }) {
                         <p className="text-[12px] font-semibold text-amber-700">Payment confirmed! Show your token again to collect your item.</p>
                       </div>
                     )}
+                    {o.status === 'pending' && (
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#EEF6FB] px-3 py-2">
+                        <p className="text-[12px] font-semibold text-[#0B1831]">
+                          {o.payment_proof_url ? 'Payment proof submitted and awaiting officer verification.' : gcashSettings?.gcash_qr_url ? 'You can submit GCash proof now or pay cash on pickup.' : 'Pay cash on pickup. GCash is unavailable until the official QR code is configured.'}
+                        </p>
+                        {gcashSettings?.gcash_qr_url && <button
+                          type="button"
+                          onClick={() => setPaymentModal({ open: true, order: o, reference: o.payment_reference || '', proof_file: null, busy: false, error: '' })}
+                          className="h-9 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white hover:bg-[#0878B7]"
+                        >
+                          {o.payment_proof_url ? 'Replace Proof' : 'Submit GCash Proof'}
+                        </button>}
+                      </div>
+                    )}
                     {o.status === 'claimed' && (
                       <div className="mt-3 flex items-center gap-2 rounded-lg bg-emerald-50 px-3 py-2">
                         <CheckCircle size={14} className="text-emerald-600 shrink-0" />
@@ -998,14 +1045,17 @@ export default function MerchandisePage({ initialTab }) {
                   <label className="text-[13px] font-semibold text-[#0F172A]">Payment Method</label>
                   <select value={checkoutPayment.method} onChange={(e) => setCheckoutPayment((current) => ({ ...current, method: e.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]">
                     <option value="cash">Cash on pickup</option>
-                    <option value="gcash">GCash</option>
+                    <option value="gcash" disabled={cart.length > 1 || !gcashSettings?.gcash_qr_url}>GCash (single order only){!gcashSettings?.gcash_qr_url ? ' - unavailable' : ''}</option>
                   </select>
+                  {cart.length > 1 && <p className="mt-1 text-xs text-slate-500">For GCash, checkout one product at a time so every order has its own reference and proof.</p>}
+                  {!gcashSettings?.gcash_qr_url && <p className="mt-1 text-xs font-medium text-amber-700">GCash is unavailable until an administrator uploads the official payment QR code.</p>}
                 </div>
                 {checkoutPayment.method === 'gcash' && (
                   <div className="grid gap-3 sm:grid-cols-2">
+                    {gcashSettings?.gcash_qr_url && <div className="rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-3 text-center sm:col-span-2"><p className="mb-2 text-xs font-bold text-[#0F172A]">Scan the official HIUSA GCash QR code</p><img src={resolveAssetUrl(gcashSettings.gcash_qr_url)} alt="Official GCash payment QR code" className="mx-auto max-h-52 max-w-full rounded-md object-contain" /></div>}
                     <div className="space-y-1.5">
                       <label className="text-[13px] font-semibold text-[#0F172A]">GCash Reference *</label>
-                      <input value={checkoutPayment.reference} onChange={(e) => setCheckoutPayment((current) => ({ ...current, reference: e.target.value }))} placeholder="Reference number" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                      <input inputMode="numeric" maxLength={13} value={checkoutPayment.reference} onChange={(e) => setCheckoutPayment((current) => ({ ...current, reference: e.target.value.replace(/\D/g, '') }))} placeholder="13-digit reference" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
                     </div>
                     <div className="space-y-1.5">
                       <label className="text-[13px] font-semibold text-[#0F172A]">Payment Proof *</label>
@@ -1021,6 +1071,31 @@ export default function MerchandisePage({ initialTab }) {
                 <button type="button" onClick={submitCartOrders} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50" disabled={checkoutSubmitting}>
                   {checkoutSubmitting ? 'Submitting...' : 'Confirm & Submit'}
                 </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {paymentModal.open && (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+              <h2 className="text-lg font-bold text-[#0F172A]">Submit GCash Payment</h2>
+              <p className="mt-1 text-sm text-slate-500">Order ORD-{paymentModal.order?.id} · {fmt(paymentModal.order?.total_price)}</p>
+              <div className="mt-4 space-y-3">
+                {gcashSettings?.gcash_qr_url && <div className="rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-3 text-center"><p className="mb-2 text-xs font-bold text-[#0F172A]">Pay using the official HIUSA GCash QR code</p><img src={resolveAssetUrl(gcashSettings.gcash_qr_url)} alt="Official GCash payment QR code" className="mx-auto max-h-44 max-w-full rounded-md object-contain" /></div>}
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#0F172A]">13-digit GCash Reference</label>
+                  <input inputMode="numeric" maxLength={13} value={paymentModal.reference} onChange={(e) => setPaymentModal((current) => ({ ...current, reference: e.target.value.replace(/\D/g, ''), error: '' }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[13px] font-semibold text-[#0F172A]">Payment Proof</label>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => setPaymentModal((current) => ({ ...current, proof_file: e.target.files?.[0] || null, error: '' }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" />
+                </div>
+                {paymentModal.error && <p className="text-xs font-semibold text-red-600">{paymentModal.error}</p>}
+              </div>
+              <div className="mt-5 flex justify-end gap-3">
+                <button type="button" disabled={paymentModal.busy} onClick={() => setPaymentModal({ open: false, order: null, reference: '', proof_file: null, busy: false, error: '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600">Cancel</button>
+                <button type="button" disabled={paymentModal.busy} onClick={handlePaymentSubmission} className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white disabled:opacity-50">{paymentModal.busy ? 'Submitting...' : 'Submit Payment'}</button>
               </div>
             </div>
           </div>
@@ -1203,9 +1278,13 @@ export default function MerchandisePage({ initialTab }) {
                       <td className="px-5 py-4">
                         {o.status === 'pending' && (
                           <div className="flex flex-wrap gap-2">
-                            <button onClick={() => confirmStatusChange(o, 'paid')} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
-                              {role === 'SBO_OFFICER' ? 'Submit Approval' : 'Approve Payment'} <ArrowRight size={12} />
-                            </button>
+                            {role === 'SBO_OFFICER' ? (
+                              <button onClick={() => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' })} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
+                                Verify & Submit <ArrowRight size={12} />
+                              </button>
+                            ) : (
+                              <span className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500">Awaiting officer review</span>
+                            )}
                             <button onClick={() => setRejectionModal({ open: true, order: o, remarks: '', busy: false })} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100">Reject</button>
                             {o.payment_proof_url && <a href={resolveAssetUrl(o.payment_proof_url)} target="_blank" rel="noreferrer" title="View payment proof" className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"><Eye size={14} /></a>}
                           </div>
@@ -1239,7 +1318,7 @@ export default function MerchandisePage({ initialTab }) {
             <h2 className="mb-1 text-lg font-bold text-[#0F172A]">Claim by Token</h2>
             <p className="mb-4 text-sm font-medium text-slate-500">Enter the claim token from a paid order to mark it as claimed</p>
             <form onSubmit={handleClaim} className="flex gap-3">
-              <input value={claimToken} onChange={(e) => { setClaimToken(e.target.value.toUpperCase()); setClaimError(null); }} placeholder="e.g. A1B2C3D4" className="h-11 flex-1 rounded-lg border border-[#DDE7EF] px-3 font-mono text-sm uppercase outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              <input maxLength={16} value={claimToken} onChange={(e) => { setClaimToken(e.target.value.replace(/[^a-z0-9]/gi, '').toUpperCase()); setClaimError(null); }} placeholder="16-character token" className="h-11 flex-1 rounded-lg border border-[#DDE7EF] px-3 font-mono text-sm uppercase outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               <button type="submit" disabled={claiming || !claimToken.trim()} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50">
                 <Ticket size={16} />{claiming ? 'Processing...' : 'Claim'}
               </button>
@@ -1399,6 +1478,29 @@ export default function MerchandisePage({ initialTab }) {
                 <button type="submit" disabled={formSubmitting || !editForm.name || !editForm.unit_price || !editForm.stock_quantity} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50">{formSubmitting ? 'Saving...' : 'Save Changes'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {verificationModal.open && verificationModal.order && (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
+            <h3 className="text-lg font-extrabold text-[#0F172A]">Verify Payment Amount</h3>
+            <p className="mt-1 text-sm text-slate-500">Compare the proof for ORD-{verificationModal.order.id} with the required total of {fmt(verificationModal.order.total_price)}.</p>
+            {verificationModal.order.payment_proof_url ? (
+              <a href={resolveAssetUrl(verificationModal.order.payment_proof_url)} target="_blank" rel="noreferrer" className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Eye size={14} /> View Payment Proof</a>
+            ) : (
+              <p className="mt-3 text-xs font-semibold text-red-600">No payment proof is attached.</p>
+            )}
+            <div className="mt-4 space-y-1.5">
+              <label className="text-[13px] font-semibold text-[#0F172A]">Amount shown on proof</label>
+              <input type="number" min="0.01" step="0.01" value={verificationModal.amount} onChange={(e) => setVerificationModal((current) => ({ ...current, amount: e.target.value, error: '' }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+            </div>
+            {verificationModal.error && <p className="mt-2 text-xs font-semibold text-red-600">{verificationModal.error}</p>}
+            <div className="mt-5 flex justify-end gap-3">
+              <button type="button" onClick={() => setVerificationModal({ open: false, order: null, amount: '', busy: false, error: '' })} disabled={verificationModal.busy} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600">Cancel</button>
+              <button type="button" onClick={handlePaymentVerification} disabled={verificationModal.busy || !verificationModal.order.payment_proof_url} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white disabled:opacity-50">{verificationModal.busy ? 'Submitting...' : 'Verify & Submit'}</button>
+            </div>
           </div>
         </div>
       )}
