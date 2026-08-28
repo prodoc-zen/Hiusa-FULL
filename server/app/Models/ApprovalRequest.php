@@ -2,9 +2,9 @@
 
 namespace App\Models;
 
+use App\Jobs\NotifyApproversJob;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Support\Str;
 
 class ApprovalRequest extends Model
 {
@@ -75,25 +75,7 @@ class ApprovalRequest extends Model
 
     private function notifyApprovers(): void
     {
-        $approvers = User::query()
-            ->where('organization_id', $this->organization_id)
-            ->where('role', $this->required_role)
-            ->where('account_status', 'active')
-            ->get(['school_id']);
-
-        foreach ($approvers as $approver) {
-            Notification::create([
-                'organization_id' => $this->organization_id,
-                'user_id' => $approver->school_id,
-                'title' => 'Approval Request Submitted',
-                'message' => Str::headline($this->entity_type).' request #'.$this->entity_id.' requires your review.',
-                'notification_type' => 'general',
-                'reference_type' => 'approval_request',
-                'reference_id' => $this->id,
-                'is_read' => false,
-                'sent_at' => now(),
-            ]);
-        }
+        NotifyApproversJob::dispatch($this);
     }
 
     private function recordSubmissionAudit(string $action = 'submitted', ?array $oldValues = null): void
