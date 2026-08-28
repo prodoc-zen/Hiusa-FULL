@@ -4,11 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
 use App\Models\Announcement;
+use App\Models\AnnouncementView;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\User;
 use App\Services\GroqResponsesService;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -102,7 +104,46 @@ class AnnouncementController extends Controller
             });
         }
 
-        return response()->json($query->get());
+        $announcements = $query->get();
+
+        // Reach is officer/admin-facing reporting data, not something other
+        // students should see next to a bulletin they're reading.
+        if (! $canManageAnnouncements) {
+            $announcements->each->makeHidden('views_count');
+        }
+
+        return response()->json($announcements);
+    }
+
+    public function recordView(Request $request, $id)
+    {
+        $user = $request->user();
+
+        $announcement = Announcement::where('organization_id', $user->organization_id)
+            ->where('is_published', true)
+            ->where('approval_status', 'approved')
+            ->where(function ($q) use ($user) {
+                $q->where('target_role', 'all')->orWhere('target_role', $user->role);
+            })
+            ->find($id);
+
+        if (! $announcement) {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
+
+        try {
+            AnnouncementView::create([
+                'announcement_id' => $announcement->id,
+                'user_id' => $user->id,
+                'viewed_at' => now(),
+            ]);
+        } catch (UniqueConstraintViolationException) {
+            return response()->json(['message' => 'View already recorded.', 'already_viewed' => true]);
+        }
+
+        $announcement->increment('views_count');
+
+        return response()->json(['message' => 'View recorded.', 'already_viewed' => false]);
     }
 
     public function store(Request $request)

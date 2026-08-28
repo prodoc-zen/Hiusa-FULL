@@ -5,16 +5,16 @@ use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
-use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialAccountabilityController;
+use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationController;
-use App\Http\Controllers\TaskController;
 use App\Http\Controllers\SboPositionController;
+use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
 use Illuminate\Http\Request;
@@ -56,6 +56,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::post('/announcements/{id}/view', [AnnouncementController::class, 'recordView'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
