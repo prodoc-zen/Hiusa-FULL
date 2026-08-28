@@ -58,4 +58,4 @@ export const getUsers = async (params) => unwrap(await api.get('/users', { param
 
 export const castVotes = async (electionId, votesData) => unwrap(await api.post(`/elections/${electionId}/vote`, { votes: votesData }));
 export const getElectionResults = async (id) => unwrap(await api.get(`/elections/${id}/results`));
-export const getElectionVoters = async (id) => unwrap(await api.get(`/elections/${id}/voters`));
+export const getElectionVoters = async (id, params = {}) => unwrap(await api.get(`/elections/${id}/voters`, { params }));

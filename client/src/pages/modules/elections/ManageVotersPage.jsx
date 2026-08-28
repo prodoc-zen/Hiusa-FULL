@@ -2,15 +2,25 @@ import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Users, Search, CheckCircle, Clock } from 'lucide-react';
 import { getElectionVoters } from '../../../services/electionService';
+import PaginationControls from '../../../components/PaginationControls';
+
+const EMPTY_SUMMARY = { eligible_total: 0, voted_count: 0, turnout_percent: 0 };
 
 export default function ManageVotersPage() {
   const { election } = useOutletContext();
   const [voters, setVoters] = useState([]);
+  const [summary, setSummary] = useState(EMPTY_SUMMARY);
+  const [page, setPage] = useState(1);
+  const [perPage, setPerPage] = useState(20);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('All');
   const [retryKey, setRetryKey] = useState(0);
+
+  useEffect(() => {
+    setPage(1);
+  }, [election]);
 
   useEffect(() => {
     if (!election) return;
@@ -20,10 +30,21 @@ export default function ManageVotersPage() {
       setLoading(true);
       setError(null);
       try {
-        const data = await getElectionVoters(election.id);
-        if (!cancelled) setVoters(Array.isArray(data) ? data : []);
+        // The endpoint is paginated, so it answers with a Laravel paginator
+        // envelope ({ data, total, per_page, ... }) plus an organization-wide
+        // `summary`. The rows live under `data`; the headline counts must come
+        // from `summary` because this page holds only one page of voters.
+        const payload = await getElectionVoters(election.id, { page });
+        if (cancelled) return;
+        setVoters(Array.isArray(payload?.data) ? payload.data : []);
+        setSummary({ ...EMPTY_SUMMARY, ...(payload?.summary ?? {}) });
+        setPerPage(Number(payload?.per_page) || 20);
       } catch {
-        if (!cancelled) setError('Failed to load voters.');
+        if (!cancelled) {
+          setVoters([]);
+          setSummary(EMPTY_SUMMARY);
+          setError('Failed to load voters.');
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -31,7 +52,7 @@ export default function ManageVotersPage() {
 
     load();
     return () => { cancelled = true; };
-  }, [election, retryKey]);
+  }, [election, page, retryKey]);
 
   if (!election) {
     return (
@@ -51,18 +72,19 @@ export default function ManageVotersPage() {
     return matchesSearch && matchesFilter;
   });
 
-  const votedCount = voters.filter((v) => v.has_voted).length;
-  const notVotedCount = voters.length - votedCount;
+  const eligibleTotal = summary.eligible_total;
+  const votedCount = summary.voted_count;
+  const notVotedCount = Math.max(0, eligibleTotal - votedCount);
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         {[
-          { label: 'Total Voters', value: voters.length, icon: Users, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
+          { label: 'Total Voters', value: eligibleTotal, icon: Users, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
           {
             label: 'Voted',
             value: votedCount,
-            sub: `${voters.length > 0 ? Math.round((votedCount / voters.length) * 100) : 0}% turnout`,
+            sub: `${summary.turnout_percent}% turnout`,
             icon: CheckCircle,
             color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' },
           },
@@ -98,7 +120,10 @@ export default function ManageVotersPage() {
         <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-base font-bold text-[#0F172A]">Voters: {election.title}</h3>
-            <p className="text-sm font-medium text-[#64748B]">{voters.length} registered voters for this election</p>
+            <p className="text-sm font-medium text-[#64748B]">
+              {eligibleTotal} eligible {eligibleTotal === 1 ? 'voter' : 'voters'} for this election
+              {eligibleTotal > perPage && ` · showing ${voters.length} on this page`}
+            </p>
           </div>
         </div>
 
@@ -151,7 +176,7 @@ export default function ManageVotersPage() {
               </thead>
               <tbody className="divide-y divide-[#E5EDF3] text-sm">
                 {filtered.map((voter) => (
-                  <tr key={voter.id} className="transition hover:bg-[#F8FBFD]">
+                  <tr key={voter.school_id} className="transition hover:bg-[#F8FBFD]">
                     <td className="max-w-[200px] px-4 py-3.5">
                       <div className="flex min-w-0 items-center gap-2.5">
                         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-[10px] font-black text-white">
@@ -179,7 +204,11 @@ export default function ManageVotersPage() {
                 {filtered.length === 0 && (
                   <tr>
                     <td colSpan={4} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
-                      No voters match your search.
+                      {eligibleTotal === 0
+                        ? 'No students are registered in this organization yet.'
+                        : eligibleTotal > perPage
+                          ? 'No voters on this page match your search. Search and filters apply to the current page.'
+                          : 'No voters match your search.'}
                     </td>
                   </tr>
                 )}
@@ -187,6 +216,16 @@ export default function ManageVotersPage() {
             </table>
           )}
         </div>
+
+        {!loading && !error && (
+          <PaginationControls
+            currentPage={page}
+            totalItems={eligibleTotal}
+            pageSize={perPage}
+            onPageChange={setPage}
+            label="voters"
+          />
+        )}
       </div>
     </div>
   );
