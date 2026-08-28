@@ -2,6 +2,12 @@
 
 This guide is for team members cloning the project to run it locally for the demo. Follow every step in order. Do not skip steps.
 
+> **Deploying this somewhere real, or operating an already-running instance?** This
+> guide is for local development only. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+> for going live (build steps, the seeder trap below, HTTPS, and a go-live checklist)
+> and [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for running and troubleshooting a
+> live instance day to day (health checks, logs, the queue worker, common failures).
+
 ---
 
 ## What You Need Before Starting
@@ -280,6 +286,14 @@ Go to **http://localhost:5173** in your browser.
 ---
 
 ## Demo Accounts
+
+> ⚠️ **Development only. Never seed these into a real installation.** These
+> credentials are created by `php artisan db:seed` and are published here, in
+> version control, in plain text. That is fine for a local demo database only you
+> and your team can reach. It is a real security hole on any installation other
+> people can actually use — see the seeder-trap section of
+> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) before running seeders anywhere but a
+> disposable local database.
 
 All passwords are shown below. The **Login** field differs by role.
 

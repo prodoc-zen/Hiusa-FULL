@@ -1,0 +1,263 @@
+# Operations Runbook
+
+Written for whoever runs HIUSA next, not for whoever built it. If you inherited this
+system and need to start it, tell whether it's actually working, find a problem, or
+undo a bad change, start here.
+
+For how to stand this up on a real server for the first time, see
+[`docs/DEPLOYMENT.md`](DEPLOYMENT.md). This document assumes the three services are
+already installed somewhere (a laptop, a lab PC, or a deployed server) and covers
+running and operating them day to day.
+
+The real, measured numbers referenced below (test counts, table counts, route counts)
+come from `docs/devlog/Completion_Pass_2026-08-28.md` and
+`docs/use-case-compliance-audit.md` — re-check those two files if a number here looks
+stale; they are the source of truth, this document is not.
+
+---
+
+## 1. The three services
+
+HIUSA is three independent processes. All three must be running for the app to work
+end to end; the frontend and Laravel degrade in specific, checkable ways when the
+others are down (see §2 and §7).
+
+| # | Service | What it is | Default address |
+|---|---|---|---|
+| 1 | **Laravel API** | PHP 8.2 / Laravel 12, the system of record | `http://127.0.0.1:8000` |
+| 2 | **Python AI service** | FastAPI, deterministic OLS forecasting + budget rules + task-delegation scoring | `http://127.0.0.1:8001` |
+| 3 | **Frontend** | React 19 / Vite | `http://localhost:5173` (dev) |
+
+### Starting each service
+
+```powershell
+# Terminal 1 - Laravel API
+cd server
+php artisan serve
+
+# Terminal 2 - Python AI service
+cd ai-service
+.\.venv\Scripts\Activate.ps1
+python run.py
+
+# Terminal 3 - Frontend
+cd client
+npm run dev
+```
+
+Order does not matter for startup — each one waits for the others rather than
+crashing when they are absent — but Laravel calling the AI service before it is up
+will simply fall back (see §7).
+
+### A queue worker is also required, not optional
+
+Password-reset email (`PasswordResetMail`) and approval-request notification fan-out
+(`NotifyApproversJob`) are both queued jobs. `QUEUE_CONNECTION=database` is the
+default in `server/.env.example`, which means those jobs land in the `jobs` table and
+sit there **until something processes them**. Nobody receives the password-reset
+email and no approver gets notified until a worker runs:
+
+```powershell
+cd server
+php artisan queue:work
+```
+
+If nobody runs this, the symptom is silent: the API call that dispatched the job
+still returns success (creating the approval request, or requesting the password
+reset, succeeded), but the follow-on effect never happens. Check for a stuck queue
+with:
+
+```bash
+php artisan queue:monitor database:default
+# or, for a quick look:
+php artisan tinker --execute="echo DB::table('jobs')->count();"
+```
+
+A non-zero and growing `jobs` count with no worker running is exactly this failure
+mode. Use `queue:work` for a running deployment (add `--tries=3` if you want failed
+jobs retried before landing in `failed_jobs`); `queue:listen` is fine for local
+development because it picks up code changes without a restart, but it is slower and
+not meant for production.
+
+### Scheduled work that must be running
+
+`server/routes/console.php` registers two scheduled commands:
+
+```php
+Schedule::command(MarkOverdueTasks::class)->dailyAt('00:05');
+Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping();
+```
+
+Nothing runs these automatically unless the Laravel scheduler itself is running.
+Locally, confirm they exist and see what would fire next with:
+
+```bash
+php artisan schedule:list
+```
+
+For a real deployment, either add a single OS-level cron entry that calls Laravel's
+scheduler every minute (the standard Laravel approach):
+
+```
+* * * * * cd /path-to/server && php artisan schedule:run >> /dev/null 2>&1
+```
+
+or run `php artisan schedule:work` in a persistent terminal/service for a
+Windows/manual deployment without cron. If neither is running, tasks never
+auto-flip to `overdue` and nobody gets an hourly event reminder — the system will
+look otherwise healthy, so this is easy to miss. Verify it is actually firing by
+checking `storage/logs/laravel.log` after the scheduled time, or by watching the
+`tasks.status` / `notifications` tables for the expected changes.
+
+---
+
+## 2. Health checks — proving each service is actually up
+
+Don't assume a service is healthy because its terminal didn't print an error. Check:
+
+| Service | Check | What "healthy" looks like |
+|---|---|---|
+| Laravel | `GET /up` (e.g. `curl http://127.0.0.1:8000/up`) | `200 OK` — this is Laravel's built-in health route, registered in `server/bootstrap/app.php` (`health: '/up'`) |
+| Python AI service | `GET /health` (e.g. `curl http://127.0.0.1:8001/health`) | `200 OK` with JSON body; **read the body, not just the status code** — see below |
+| Frontend | Load `http://localhost:5173` (dev) or the built site | Page renders and can reach the API — a blank page or "Failed to fetch" toast means Laravel is unreachable, not that the frontend itself is broken |
+
+### Reading the AI service's `/health` response, not just its status code
+
+`/health` returns `200` even when authentication is effectively off. The field that
+matters is `authentication`:
+
+```json
+{ "authentication": "api-key" }   // healthy: HIUSA_AI_SERVICE_KEY is set and enforced
+{ "authentication": "disabled" }  // the service accepts ANY request with no key check
+```
+
+`"disabled"` means `HIUSA_AI_SERVICE_KEY` is blank in `ai-service/.env` — the service
+**fails open**, not closed. That is an acceptable state only when the service is
+bound to `127.0.0.1` with no other host able to reach it. On anything reachable by
+more than the operator's own machine, treat `"disabled"` as a live finding, not a
+passive fact — set a real key in both `ai-service/.env` and `server/.env`
+(`HIUSA_AI_SERVICE_KEY` must match exactly in both files).
+
+---
+
+## 3. Which engine actually served an AI result
+
+Every AI-backed response (financial forecasts, budget advice, task-delegation
+scoring) carries an `engine` field:
+
+- `"python-fastapi"` — the Python service answered.
+- `"php-fallback"` — the Python service did not answer (down, timed out, rejected the
+  request, or `HIUSA_AI_SERVICE_ENABLED=false`), and Laravel computed the same
+  calculation itself, locally, in PHP.
+
+**This is the most likely production surprise**: the app keeps working either way,
+the numbers are the same algorithm re-implemented in both languages (verified
+identical by `AiFallbackParityTest`), and nothing in the UI shouts "the Python
+service is down." A demo or a real session can run entirely on `php-fallback` and
+look completely normal. If you need to know which engine is actually running,
+inspect the `engine` field in the API response (visible in the client's "How this
+was calculated" disclosure on forecast/task-delegation views), or check the log —
+every fallback logs a specific line (§4).
+
+Groq narration for announcements/event-plan generation degrades independently the
+same way: if `GROQ_API_KEY` is blank or the Groq call fails, Laravel returns a
+deterministic local summary instead of AI-generated prose. Neither fallback is an
+error state — both are designed behavior — but an operator should know which one is
+actually in effect rather than assume the AI service is doing the work.
+
+### Why the Groq call is synchronous, not queued
+
+*(Short note pending a fuller write-up from whoever owns the AI-integration slice —
+reconcile with that material if it lands with more detail than this.)*
+
+`GroqResponsesService::generate()` (`server/app/Services/GroqResponsesService.php`)
+makes its `Http::post()` call inline, inside the request/response cycle, not through
+a queued job. That is why announcement drafting and event-plan generation take
+visibly longer than a normal API call (`GROQ_TIMEOUT` bounds it, default 30s) — the
+caller is waiting on the HTTP round trip to Groq before the response returns.
+
+This is deliberate for now because the feature is synchronous-shaped: the user asked
+for a *draft* right on that screen and is waiting to see and edit it immediately —
+there is nothing useful to show before the text comes back, so queuing it would only
+add a second round trip (submit job, then poll or get notified, then fetch the
+result) for no gain. It would need to change if Groq calls started blocking request
+throughput under real concurrent load, or if the UI moved to a "generate in the
+background, notify me when ready" pattern — neither is true today.
+
+---
+
+## 4. Where logs are, and what to grep for
+
+Default log location (per `server/.env.example`, `LOG_CHANNEL=stack` /
+`LOG_STACK=single`):
+
+```
+server/storage/logs/laravel.log
+```
+
+Useful greps:
+
+| Symptom | Grep |
+|---|---|
+| AI service degraded to fallback | `grep "HIUSA AI service is unavailable" server/storage/logs/laravel.log` |
+| AI service reachable but rejected a request (bad payload, wrong key) | `grep "HIUSA AI service rejected a request" server/storage/logs/laravel.log` |
+| Groq unreachable or timed out | `grep "Groq Responses API is unavailable" server/storage/logs/laravel.log` |
+| Groq reachable but returned an error or empty text | `grep "Groq Responses API request failed\|Groq Responses API returned no output text" server/storage/logs/laravel.log` |
+| Queued job failures | check the `failed_jobs` table: `php artisan queue:failed` |
+
+The Python AI service logs to its own process's stdout (uvicorn's access/error log);
+when running it as a background service, redirect that to a file, e.g.
+`python run.py >> ai-service.log 2>&1`, so it survives after the terminal closes.
+
+---
+
+## 5. Common failure modes seen in this project
+
+These are recorded, not hypothetical — each was hit during actual development
+sessions on this codebase.
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| Laravel can't connect to the database; migrations fail with a connection error | MariaDB/MySQL is listening on a different port than `DB_PORT`. On this project's primary dev machine, a standalone MySQL 8 install occupies port 3306, so XAMPP's MariaDB was moved to 3307 — `DB_PORT=3306` in the tracked `.env.example` is a sane *default*, not this machine's actual value. | Check what port the running MySQL/MariaDB actually listens on (XAMPP Control Panel → MySQL → Config → `my.ini`, or `netstat -ano \| findstr 3306` / `3307`) and set `DB_PORT` to match. Don't assume the example file's value is correct on a new machine. |
+| `FinancialAccountabilityTest` (or any GCash QR / candidate photo upload) fails, or image uploads silently fail | The `gd` PHP extension is disabled. | Enable it in `php.ini` (`extension=gd`, uncomment/add the line) and restart PHP/the dev server. Confirm with `php -m \| findstr gd`. |
+| AI-backed features (forecasts, task delegation, announcement drafts) quietly use the local/fallback calculation with no visible error | One or more of the AI-related env vars is missing or wrong: `HIUSA_AI_SERVICE_ENABLED`, `HIUSA_AI_SERVICE_URL`, `HIUSA_AI_SERVICE_KEY` (must match `ai-service/.env` exactly), or `GROQ_API_KEY`. This degrades silently by design (see §3) rather than erroring, which makes a misconfigured install look correct. | Confirm `/health` on the Python service reports `"authentication": "api-key"`, confirm `server/.env` has all five `HIUSA_AI_SERVICE_*` vars and the four `GROQ_*` vars set, and grep the log per §4 to see which fallback is firing. |
+| Candidate photos, partylist images, merchandise images, or GCash QR images return 404 even though the upload appeared to succeed | The `storage` symlink is missing — Laravel serves `public/storage` as a symlink into `storage/app/public`, and a fresh clone or a fresh deployment does not create it automatically. | `cd server && php artisan storage:link` |
+| Password reset / approval-notification changes don't appear to have any effect | No queue worker is running (§1). Jobs sit in the `jobs` table until one runs. | Start `php artisan queue:work` (or verify whatever process supervisor is meant to be running it, actually is). |
+| Client dev dependencies (`vitest`, `playwright`, testing-library, `jsdom`) appear missing after a clone or a `node_modules` change | These are devDependencies in `client/package.json`; a partial/interrupted `npm install` or a stale `node_modules` can leave them out. | `cd client && npm install` (or `npm ci` for a clean, lockfile-exact install). |
+| CORS errors in the browser console | `FRONTEND_URL` / `FRONTEND_URLS` in `server/.env` don't include the origin the browser is actually loading from. | Add the exact origin (scheme + host + port) to `FRONTEND_URLS`, restart `php artisan serve`. See `docs/DEPLOYMENT.md` for the production-origin version of this. |
+
+---
+
+## 6. Rollback procedure
+
+HIUSA has no automated deploy pipeline (by design — see `docs/DEPLOYMENT.md` for why
+no specific host is prescribed), so rollback is a manual, ordered procedure. Do the
+steps in this order — code first, database last, and only if the database actually
+needs it:
+
+1. **Stop the running services** (Laravel, the AI service, and the queue
+   worker/scheduler if applicable) so nothing writes to the database mid-rollback.
+2. **Roll back the code.** `git checkout` (or redeploy) the previous known-good
+   commit/tag for all three of `server/`, `client/`, `ai-service/` together — they
+   are versioned in one repo, but don't assume a partial rollback of just one service
+   is safe if the change spanned more than one.
+3. **Reinstall dependencies for the rolled-back code**, since `composer.lock` /
+   `package-lock.json` / `requirements*.txt` may differ from what's currently
+   installed:
+   ```bash
+   cd server && composer install
+   cd client && npm ci
+   cd ai-service && pip install -r requirements.txt
+   ```
+4. **Only if the bad change included a migration**, restore the database from the
+   verified backup taken *before* that migration ran (see `scripts/restore-database.ps1`
+   and the backup procedure in `docs/DEPLOYMENT.md`'s pre-migration checklist).
+   Do **not** restore the database if the rollback is code-only — that would also
+   discard every real row written since the backup for no reason.
+5. **Rebuild the frontend** if `client/` changed: `cd client && npm run build`, and
+   redeploy the new `dist/` output to wherever it's served from.
+6. **Restart all services**, then re-run the health checks in §2 and the smoke test
+   in `docs/DEPLOYMENT.md` before declaring the rollback complete.
+7. **Re-run the queue worker and scheduler** (§1) — a rollback that stops and
+   restarts services can leave a queue worker not restarted, which reproduces the
+   "silent no notifications" failure mode from §5 for an unrelated reason.
