@@ -35,6 +35,13 @@ class ForecastResponse(BaseModel):
     predicted_income: float
     predicted_expense: float
     predicted_balance: float
+    raw_predicted_income: float
+    raw_predicted_expense: float
+    income_clamped: bool
+    expense_clamped: bool
+    fit_quality: Literal["strong", "moderate", "weak", "insufficient_data"]
+    is_reliable: bool
+    confidence_note: str
     income_model: RegressionModel
     expense_model: RegressionModel
 
@@ -66,6 +73,7 @@ class OfficerCandidate(BaseModel):
     officer_id: int
     name: str
     role: str
+    position_title: str | None = None
     account_status: str
     is_available: bool = True
     policy_eligible: bool = True
@@ -76,6 +84,7 @@ class OfficerCandidate(BaseModel):
 
 class TaskDelegationRequest(BaseModel):
     task_title: str = Field(min_length=1, max_length=255)
+    task_type: str | None = Field(default=None, max_length=100)
     officers: list[OfficerCandidate] = Field(min_length=1, max_length=500)
     max_active_tasks: int = Field(default=5, ge=1, le=100)
 
@@ -83,6 +92,8 @@ class TaskDelegationRequest(BaseModel):
 class OfficerRanking(BaseModel):
     officer_id: int
     name: str
+    position_title: str | None
+    position_tier: Literal["primary", "secondary", "unrelated", "unknown"]
     role_score: float
     workload_score: float
     performance_score: float
@@ -93,6 +104,7 @@ class OfficerRanking(BaseModel):
 class TaskDelegationResponse(BaseModel):
     algorithm: Literal["rule_based_weighted_scoring"]
     weights: dict[str, float]
+    task_area: str
     eligibility_rules: list[str]
     recommended_officer_id: int
     rankings: list[OfficerRanking]

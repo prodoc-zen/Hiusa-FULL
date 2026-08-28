@@ -20,10 +20,11 @@ class HiusaAiService
         return $this->post('/api/v1/budget-advice', $financials);
     }
 
-    public function taskDelegation(string $taskTitle, array $officers): ?array
+    public function taskDelegation(string $taskTitle, array $officers, ?string $taskType = null): ?array
     {
         return $this->post('/api/v1/task-delegation', [
             'task_title' => $taskTitle,
+            'task_type' => $taskType,
             'officers' => $officers,
             'max_active_tasks' => (int) config('services.hiusa_ai.task_max_active_tasks', 5),
         ]);

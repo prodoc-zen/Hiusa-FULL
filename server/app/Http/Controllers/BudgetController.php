@@ -309,9 +309,11 @@ class BudgetController extends Controller
 
         $advice['recommended_allocation'] ??= $recommendedAllocation;
         $advice['reserve_amount'] ??= round(max(0, $currentFunds - (float) $advice['recommended_allocation']), 2);
+        // Status reflects actual financial risk, not merely whether the safety reserve
+        // is being held back (holding a reserve during a stable forecast is normal).
         $advice['allocation_status'] ??= (float) $advice['recommended_allocation'] <= 0
             ? 'no_funds'
-            : ((float) $advice['recommended_allocation'] < $currentFunds ? 'reduce_allocation' : 'within_limit');
+            : (in_array($advice['forecast_risk'] ?? null, ['deficit', 'overspending'], true) ? 'reduce_allocation' : 'within_limit');
 
         return $advice;
     }
@@ -338,14 +340,18 @@ class BudgetController extends Controller
         $currentFunds = max(0, $payload['current_available_budget']);
         $recommendedAllocation = round(min($currentFunds, $safeSpendingLimit), 2);
 
+        // Status reflects actual financial risk, not merely whether the safety reserve
+        // is being held back (holding a reserve during a stable forecast is normal).
+        $allocationStatus = $recommendedAllocation <= 0
+            ? 'no_funds'
+            : (in_array($forecastRisk, ['deficit', 'overspending'], true) ? 'reduce_allocation' : 'within_limit');
+
         return [
             'estimated_available_budget' => $available,
             'safe_spending_limit' => $safeSpendingLimit,
             'recommended_allocation' => $recommendedAllocation,
             'reserve_amount' => round(max(0, $currentFunds - $recommendedAllocation), 2),
-            'allocation_status' => $recommendedAllocation <= 0
-                ? 'no_funds'
-                : ($recommendedAllocation < $currentFunds ? 'reduce_allocation' : 'within_limit'),
+            'allocation_status' => $allocationStatus,
             'overspending_risk' => $overspendingRisk,
             'forecast_risk' => $forecastRisk,
             'possible_deficit' => $possibleDeficit,

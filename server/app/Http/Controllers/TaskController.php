@@ -18,6 +18,63 @@ class TaskController extends Controller
 
     private array $aiAssignmentExplanations = [];
 
+    // Mirrors ai-service/app/engines/task_delegation.py WEIGHTS - keep these in sync.
+    private const WEIGHTS = ['position' => 0.40, 'workload' => 0.35, 'performance' => 0.25];
+
+    // Mirrors ai-service/app/engines/task_delegation.py POSITION_RELEVANCE_MAP.
+    // Position names must match the seeded sbo_positions.title values.
+    private const POSITION_RELEVANCE_MAP = [
+        'finance' => [
+            'keywords' => ['budget', 'financ', 'liquidat', 'receipt', 'audit', 'funds', 'funding', 'fundraising', 'expense', 'payment', 'treasury', 'reimburse', 'collection'],
+            'primary' => ['Treasurer', 'Auditor'],
+            'secondary' => ['President', 'Business Manager'],
+        ],
+        'publicity' => [
+            'keywords' => ['publicity', 'announce', 'social media', 'poster', 'promot', 'marketing', 'campaign', 'press release', 'media'],
+            'primary' => ['Public Relations Officer'],
+            'secondary' => ['Secretary', 'Vice President'],
+        ],
+        'documentation' => [
+            'keywords' => ['document', 'minutes', 'attendance record', 'report', 'record', 'memo', 'correspondence', 'certificate', 'letter'],
+            'primary' => ['Secretary'],
+            'secondary' => ['Auditor', 'Vice President'],
+        ],
+        'logistics' => [
+            'keywords' => ['logistic', 'venue', 'equipment', 'setup', 'supplies', 'materials', 'booth', 'layout', 'transport', 'inventory'],
+            'primary' => ['Business Manager'],
+            'secondary' => ['Vice President', 'President'],
+        ],
+        'coordination' => [
+            'keywords' => ['coordinat', 'overall', 'program', 'hosting', 'host', 'emcee', 'planning', 'organize', 'oversee', 'lead'],
+            'primary' => ['President', 'Vice President'],
+            'secondary' => ['Business Manager', 'Secretary'],
+        ],
+    ];
+
+    private const DEFAULT_TASK_AREA = 'coordination';
+
+    private const PRIMARY_POSITION_MATCH_SCORE = 100.0;
+
+    private const RELATED_POSITION_MATCH_SCORE = 70.0;
+
+    private const UNRELATED_POSITION_SCORE = 40.0;
+
+    private const UNKNOWN_POSITION_SCORE = 55.0;
+
+    // Neutral prior for officers with no completed/overdue task history - neither
+    // punishes new officers nor lets them outscore officers with a proven record.
+    private const NEUTRAL_PERFORMANCE_SCORE = 70.0;
+
+    // Mirrors ai-service/app/engines/task_delegation.py _TIER_PHRASE.
+    private const TIER_PHRASE = [
+        'primary' => 'a primary match',
+        'secondary' => 'a related match',
+        'unrelated' => 'not closely related',
+        'unknown' => 'unspecified, so a neutral score was applied',
+    ];
+
+    private ?array $lastDelegation = null;
+
     public function __construct(
         private readonly HiusaAiService $aiService,
         private readonly GroqResponsesService $groq,
@@ -66,10 +123,14 @@ class TaskController extends Controller
         }
 
         $assignee = ! empty($data['assigned_to'])
-            ? User::where('organization_id', $request->user()->organization_id)->where('school_id', $data['assigned_to'])->first()
+            ? User::where('organization_id', $request->user()->organization_id)
+                ->where('school_id', $data['assigned_to'])
+                ->where('role', 'SBO_OFFICER')
+                ->where('account_status', 'active')
+                ->first()
             : $this->recommendOfficer($request);
 
-        if (! $assignee || $assignee->role !== 'SBO_OFFICER') {
+        if (! $assignee) {
             return response()->json(['message' => 'An active SBO Officer is required for task assignment.'], 422);
         }
 
@@ -85,12 +146,15 @@ class TaskController extends Controller
         ]);
         $this->recordProgressUpdate($task, $request, 'Task assigned.');
 
-        return response()->json($task->load([
+        $response = $task->load([
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
             'event:id,title',
             'progressUpdates.author:school_id,first_name,last_name',
-        ]), 201);
+        ])->toArray();
+        $response['delegation'] = $this->lastDelegation;
+
+        return response()->json($response, 201);
     }
 
     public function update(Request $request, $id)
@@ -298,7 +362,10 @@ class TaskController extends Controller
 
         return [
             ...$data,
-            ...$scores,
+            'role_score' => $scores['role_score'],
+            'workload_score' => $scores['workload_score'],
+            'performance_score' => $scores['performance_score'],
+            'final_score' => $scores['final_score'],
             'ai_recommendation_note' => $this->aiAssignmentExplanations[$assignee->school_id]
                 ?? $this->assignmentExplanation($data, $assignee, $scores),
         ];
@@ -310,19 +377,128 @@ class TaskController extends Controller
             return $this->aiAssignmentScores[$assignee->school_id];
         }
 
-        $result = $this->aiService->taskDelegation(
-            (string) $request->input('title', 'Untitled task'),
-            [$this->officerPayload($assignee, $request)]
-        );
-        $this->rememberAiRankings($result);
+        $payload = $this->officerPayload($assignee, $request);
+        $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
 
-        if (isset($this->aiAssignmentScores[$assignee->school_id])) {
-            return $this->aiAssignmentScores[$assignee->school_id];
+        // A single officer who is already at capacity or unavailable is not
+        // eligible by the engine's own rules - calling it would only raise a
+        // 422 the caller ignores and log a spurious warning. Skip straight to
+        // the deterministic local fallback in that case.
+        if ($payload['is_available'] && $payload['policy_eligible']) {
+            $result = $this->aiService->taskDelegation(
+                (string) $request->input('title', 'Untitled task'),
+                [$payload],
+                $request->input('task_type')
+            );
+            $this->rememberAiRankings($result);
+
+            if (isset($this->aiAssignmentScores[$assignee->school_id])) {
+                $this->lastDelegation = $this->delegationFromAiResult($result, $maxActiveTasks, $assignee->school_id);
+
+                return $this->aiAssignmentScores[$assignee->school_id];
+            }
         }
 
-        return $this->localAssignmentScores($assignee, $request);
+        $local = $this->localAssignmentScores($assignee, $request);
+        $this->lastDelegation = [
+            'algorithm' => 'rule_based_weighted_scoring',
+            'weights' => self::WEIGHTS,
+            'task_area' => $local['task_area'],
+            'eligibility_rules' => $this->eligibilityRules($local['max_active_tasks']),
+            'recommended_officer_id' => $assignee->school_id,
+            'rankings' => [$local],
+            'engine' => 'php-fallback',
+        ];
+
+        return $local;
     }
 
+    private function eligibilityRules(int $maxActiveTasks): array
+    {
+        return [
+            'role must be SBO_OFFICER',
+            'account status must be active',
+            'officer must be marked available',
+            'officer must satisfy organization policy',
+            "active task count must be below {$maxActiveTasks}",
+        ];
+    }
+
+    // Normalizes a raw HiusaAiService::taskDelegation() result into the same
+    // shape as a PHP-fallback delegation payload, so store()'s response can
+    // carry either engine's output through the same 'delegation' key.
+    private function delegationFromAiResult(?array $result, int $maxActiveTasks, int $fallbackRecommendedId): array
+    {
+        return [
+            'algorithm' => $result['algorithm'] ?? 'rule_based_weighted_scoring',
+            'weights' => $result['weights'] ?? self::WEIGHTS,
+            'task_area' => $result['task_area'] ?? self::DEFAULT_TASK_AREA,
+            'eligibility_rules' => $result['eligibility_rules'] ?? $this->eligibilityRules($maxActiveTasks),
+            'recommended_officer_id' => $result['recommended_officer_id'] ?? $fallbackRecommendedId,
+            'rankings' => $result['rankings'] ?? [],
+            'engine' => 'python-fastapi',
+        ];
+    }
+
+    private function inferTaskArea(string $taskTitle, ?string $taskType): string
+    {
+        $haystack = strtolower($taskTitle.' '.($taskType ?? ''));
+
+        foreach (self::POSITION_RELEVANCE_MAP as $area => $spec) {
+            foreach ($spec['keywords'] as $keyword) {
+                // Anchored at the START of a word only (never the end): the
+                // keyword list deliberately uses stem prefixes ("financ",
+                // "promot", "coordinat", "logistic", "document", "publicity")
+                // that must still match inflected forms ("financial",
+                // "coordinating"). Collision-prone keywords ("fund" as a
+                // prefix of "fundamental") are spelled out to their
+                // least-ambiguous form instead of relying on the boundary
+                // alone - see ai-service/app/engines/task_delegation.py.
+                if (preg_match('/\b'.preg_quote($keyword, '/').'/', $haystack) === 1) {
+                    return $area;
+                }
+            }
+        }
+
+        return self::DEFAULT_TASK_AREA;
+    }
+
+    /**
+     * @return array{0: float, 1: string} [score, tier]
+     */
+    private function positionRelevance(?string $positionTitle, string $area): array
+    {
+        $normalized = $positionTitle !== null ? trim($positionTitle) : '';
+
+        if ($normalized === '') {
+            return [self::UNKNOWN_POSITION_SCORE, 'unknown'];
+        }
+
+        $spec = self::POSITION_RELEVANCE_MAP[$area];
+
+        if (in_array($normalized, $spec['primary'], true)) {
+            return [self::PRIMARY_POSITION_MATCH_SCORE, 'primary'];
+        }
+
+        if (in_array($normalized, $spec['secondary'], true)) {
+            return [self::RELATED_POSITION_MATCH_SCORE, 'secondary'];
+        }
+
+        return [self::UNRELATED_POSITION_SCORE, 'unrelated'];
+    }
+
+    private function workloadScore(int $activeTasks, int $maxActiveTasks): float
+    {
+        $utilization = $maxActiveTasks > 0 ? $activeTasks / $maxActiveTasks : 1.0;
+
+        return round(max(0.0, 100.0 * (1 - $utilization)), 2);
+    }
+
+    /**
+     * Full local scoring breakdown for one officer - mirrors the shape of one
+     * entry in ai-service/app/engines/task_delegation.py's `rankings`, plus
+     * the raw active/max task counts the explanation sentence quotes.
+     */
     private function localAssignmentScores(User $assignee, Request $request): array
     {
         $activeTasks = Task::where('organization_id', $request->user()->organization_id)
@@ -339,16 +515,63 @@ class TaskController extends Controller
             ->whereIn('status', ['completed', 'overdue'])
             ->count();
 
-        $roleScore = 100;
-        $workloadScore = max(20, 100 - ($activeTasks * 15));
-        $performanceScore = $historicalTasks > 0 ? round(($completedTasks / $historicalTasks) * 100, 2) : 70;
-        $finalScore = round(($roleScore * 0.4) + ($workloadScore * 0.35) + ($performanceScore * 0.25), 2);
+        $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
+        $area = $this->inferTaskArea((string) $request->input('title', 'Untitled task'), $request->input('task_type'));
+        [$roleScore, $tier] = $this->positionRelevance($assignee->position_title, $area);
+        $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
+        $hasHistory = $historicalTasks > 0;
+        $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
+        $finalScore = round(($roleScore * self::WEIGHTS['position']) + ($workloadScore * self::WEIGHTS['workload']) + ($performanceScore * self::WEIGHTS['performance']), 2);
+        $name = trim("{$assignee->first_name} {$assignee->last_name}");
+        $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
+        $performanceNote = $hasHistory ? '' : sprintf(' (no task history yet, so the neutral baseline of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE);
 
         return [
+            'officer_id' => $assignee->school_id,
+            'name' => $name,
+            'position_title' => $assignee->position_title,
+            'position_tier' => $tier,
+            'task_area' => $area,
             'role_score' => $roleScore,
             'workload_score' => $workloadScore,
             'performance_score' => $performanceScore,
             'final_score' => $finalScore,
+            'active_tasks' => $activeTasks,
+            'max_active_tasks' => $maxActiveTasks,
+            'explanation' => sprintf(
+                "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%d/%d active tasks), and past performance %.2f%s.",
+                $name,
+                $finalScore,
+                $area,
+                $positionLabel,
+                self::TIER_PHRASE[$tier],
+                $roleScore,
+                $workloadScore,
+                $activeTasks,
+                $maxActiveTasks,
+                $performanceScore,
+                $performanceNote
+            ),
+        ];
+    }
+
+    // Local-fallback delegation payload across a full officer pool - mirrors
+    // ai-service/app/engines/task_delegation.py's delegate_task() response shape.
+    private function buildLocalDelegation(array $officers, Request $request, int $maxActiveTasks): array
+    {
+        $rankings = array_map(fn (User $officer) => $this->localAssignmentScores($officer, $request), $officers);
+        usort($rankings, fn (array $a, array $b) => $a['final_score'] === $b['final_score']
+            ? $a['officer_id'] <=> $b['officer_id']
+            : $b['final_score'] <=> $a['final_score']);
+
+        return [
+            'algorithm' => 'rule_based_weighted_scoring',
+            'weights' => self::WEIGHTS,
+            'task_area' => $rankings[0]['task_area'] ?? self::DEFAULT_TASK_AREA,
+            'eligibility_rules' => $this->eligibilityRules($maxActiveTasks),
+            'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
+            'rankings' => $rankings,
+            'engine' => 'php-fallback',
         ];
     }
 
@@ -363,25 +586,37 @@ class TaskController extends Controller
             return null;
         }
 
+        $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
         $result = $this->aiService->taskDelegation(
             (string) $request->input('title', 'Untitled task'),
-            $officers->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all()
+            $officers->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all(),
+            $request->input('task_type')
         );
         $this->rememberAiRankings($result);
         $recommendedId = $result['recommended_officer_id'] ?? null;
 
-        if ($recommendedId !== null) {
+        if ($recommendedId !== null && is_array($result['rankings'] ?? null)) {
             $recommended = $officers->firstWhere('school_id', (int) $recommendedId);
 
             if ($recommended) {
+                $this->lastDelegation = $this->delegationFromAiResult($result, $maxActiveTasks, $recommended->school_id);
+
                 return $recommended;
             }
         }
 
-        return $officers
+        $eligible = $officers
             ->filter(fn (User $officer) => $this->officerPayload($officer, $request)['is_available'])
-            ->sortByDesc(fn (User $officer) => $this->localAssignmentScores($officer, $request)['final_score'])
-            ->first();
+            ->values();
+
+        if ($eligible->isEmpty()) {
+            return null;
+        }
+
+        $this->lastDelegation = $this->buildLocalDelegation($eligible->all(), $request, $maxActiveTasks);
+        $recommendedOfficerId = $this->lastDelegation['recommended_officer_id'];
+
+        return $eligible->firstWhere('school_id', $recommendedOfficerId);
     }
 
     private function officerPayload(User $officer, Request $request): array
@@ -394,6 +629,7 @@ class TaskController extends Controller
             'officer_id' => $officer->school_id,
             'name' => trim("{$officer->first_name} {$officer->last_name}"),
             'role' => $officer->role,
+            'position_title' => $officer->position_title,
             'account_status' => $officer->account_status,
             'is_available' => $activeTasks < (int) config('services.hiusa_ai.task_max_active_tasks', 5),
             'policy_eligible' => true,
@@ -405,6 +641,8 @@ class TaskController extends Controller
 
     private function rememberAiRankings(?array $result): void
     {
+        $taskArea = is_string($result['task_area'] ?? null) ? $result['task_area'] : null;
+
         foreach ($result['rankings'] ?? [] as $ranking) {
             $officerId = $ranking['officer_id'] ?? null;
 
@@ -421,6 +659,8 @@ class TaskController extends Controller
                 'workload_score' => round((float) $ranking['workload_score'], 2),
                 'performance_score' => round((float) $ranking['performance_score'], 2),
                 'final_score' => round((float) $ranking['final_score'], 2),
+                'task_area' => $taskArea,
+                'position_tier' => is_string($ranking['position_tier'] ?? null) ? $ranking['position_tier'] : null,
             ];
 
             if (is_string($ranking['explanation'] ?? null) && trim($ranking['explanation']) !== '') {
@@ -429,12 +669,36 @@ class TaskController extends Controller
         }
     }
 
+    // Reached only when the AI service is unreachable/invalid for this officer
+    // (local fallback, $scores already carries a fully-formed 'explanation'
+    // mirroring task_delegation.py:140-145), or when it returned valid scores
+    // but no usable explanation string for this officer (rare: area/tier are
+    // then recomputed deterministically from the task title and position,
+    // since both engines derive them the same way regardless of which one
+    // produced the numeric scores).
     private function assignmentExplanation(array $taskData, User $assignee, array $scores): string
     {
-        $fallback = "Recommended {$assignee->first_name} {$assignee->last_name} with a weighted fit score of {$scores['final_score']} (role {$scores['role_score']}, workload {$scores['workload_score']}, performance {$scores['performance_score']}).";
+        $area = $scores['task_area'] ?? $this->inferTaskArea((string) ($taskData['title'] ?? 'Untitled task'), $taskData['task_type'] ?? null);
+        $tier = $scores['position_tier'] ?? $this->positionRelevance($assignee->position_title, $area)[1];
+        $tierPhrase = self::TIER_PHRASE[$tier] ?? $tier;
+        $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
+
+        $fallback = $scores['explanation'] ?? sprintf(
+            "%s %s scored %s for a task inferred as '%s': position '%s' is %s for this area (%s pts), workload %s, and past performance %s.",
+            $assignee->first_name,
+            $assignee->last_name,
+            $scores['final_score'],
+            $area,
+            $positionLabel,
+            $tierPhrase,
+            $scores['role_score'],
+            $scores['workload_score'],
+            $scores['performance_score']
+        );
+
         $generated = $this->groq->generate(
-            'Explain a student-organization task assignment in one concise sentence. Preserve every supplied score.',
-            'Task: '.($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}.",
+            'Explain a student-organization task assignment in one concise sentence. Preserve every supplied score, the inferred task area, and the position match tier exactly as given.',
+            'Task: '.($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; inferred task area: {$area}; position match: {$tierPhrase}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}.",
             120,
             0.2,
         );
