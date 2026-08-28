@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowDownRight,
   ArrowUpRight,
   ChevronLeft,
@@ -34,6 +35,8 @@ import {
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
 import FeedbackToast from '../../../components/FeedbackToast';
+import EngineBadge from '../../../components/ai/EngineBadge';
+import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
 const budgetStatusBadge = {
@@ -41,6 +44,62 @@ const budgetStatusBadge = {
   approved: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-700',
 };
+
+const allocationStatusLabel = {
+  within_limit: 'Within limit',
+  reduce_allocation: 'Reduced allocation',
+  no_funds: 'No funds available',
+};
+
+const allocationStatusTone = {
+  within_limit: 'bg-emerald-50 text-emerald-700',
+  reduce_allocation: 'bg-amber-50 text-amber-700',
+  no_funds: 'bg-red-50 text-red-700',
+};
+
+function getForecastReliability(forecast) {
+  const details = forecast.model_details || {};
+
+  if (typeof details.is_reliable === 'boolean') {
+    return { isReliable: details.is_reliable, quality: details.fit_quality || null, reason: details.confidence_note || null };
+  }
+
+  const r2Values = [details.income?.r_squared, details.expense?.r_squared]
+    .map(Number)
+    .filter((value) => Number.isFinite(value));
+  const avgR2 = r2Values.length ? r2Values.reduce((sum, value) => sum + value, 0) / r2Values.length : null;
+  const sampleMonths = Number(details.sample_months);
+  const lowSample = Number.isFinite(sampleMonths) && sampleMonths < 3;
+  const weakFit = avgR2 !== null && avgR2 < 0.5;
+  const isReliable = !(lowSample || weakFit);
+
+  let reason = null;
+  if (!isReliable) {
+    if (lowSample && weakFit) {
+      reason = `Based on only ${sampleMonths} month(s) of data with a weak statistical fit (avg R² ${avgR2.toFixed(2)}). Treat this projection as directional only.`;
+    } else if (lowSample) {
+      reason = `Based on only ${sampleMonths} month(s) of transaction history. Record more months to improve accuracy.`;
+    } else {
+      reason = `The trend line explains only ${(avgR2 * 100).toFixed(0)}% of month-to-month variance (R² ${avgR2.toFixed(2)}). Treat this projection as directional only.`;
+    }
+  }
+
+  return { isReliable, quality: details.fit_quality || null, reason };
+}
+
+function getClampNotice(forecast) {
+  const details = forecast.model_details || {};
+  const incomeClamped = details.income_clamped === true
+    || (Number.isFinite(Number(details.raw_predicted_income)) && Number(details.raw_predicted_income) < 0);
+  const expenseClamped = details.expense_clamped === true
+    || (Number.isFinite(Number(details.raw_predicted_expense)) && Number(details.raw_predicted_expense) < 0);
+
+  if (!incomeClamped && !expenseClamped) return null;
+  if (incomeClamped && expenseClamped) return 'The raw projected income and expense were both negative and have been clamped to ₱0.00 for display.';
+  return incomeClamped
+    ? 'The raw projected income was negative and has been clamped to ₱0.00 for display.'
+    : 'The raw projected expense was negative and has been clamped to ₱0.00 for display.';
+}
 
 function fmt(n) {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -132,6 +191,9 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const [budgetFormError, setBudgetFormError] = useState(null);
   const [budgetFormSubmitting, setBudgetFormSubmitting] = useState(false);
   const [budgetAdviceGenerating, setBudgetAdviceGenerating] = useState(null);
+  const [budgetAdviceDetails, setBudgetAdviceDetails] = useState({});
+  const [budgetAdviceErrors, setBudgetAdviceErrors] = useState({});
+  const [forecastGenError, setForecastGenError] = useState(null);
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
@@ -286,9 +348,20 @@ export default function FinancePage({ initialTab = 'transactions' }) {
       if (updatedBudget) {
         setBudgets((current) => current.map((budget) => (budget.id === updatedBudget.id ? updatedBudget : budget)));
       }
+      setBudgetAdviceDetails((current) => ({
+        ...current,
+        [budgetId]: { engine: response.data?.engine ?? null, advice: response.data?.advice ?? null },
+      }));
+      setBudgetAdviceErrors((current) => {
+        const next = { ...current };
+        delete next[budgetId];
+        return next;
+      });
       showFeedback('success', 'Budget advice generated from the latest forecast and available funds.');
     } catch (err) {
-      showFeedback('error', getApiErrorMessage(err, 'Failed to generate budget advice.'));
+      const message = getApiErrorMessage(err, 'Failed to generate budget advice.');
+      setBudgetAdviceErrors((current) => ({ ...current, [budgetId]: message }));
+      showFeedback('error', message);
     } finally {
       setBudgetAdviceGenerating(null);
     }
@@ -296,12 +369,17 @@ export default function FinancePage({ initialTab = 'transactions' }) {
 
   async function handleGenerateForecast() {
     setForecastGenerating(true);
+    setForecastGenError(null);
     try {
       await generateForecast({ months: 12 });
       showFeedback('success', 'OLS forecast generated from the available transaction history.');
       load(txMeta.current_page);
     } catch (err) {
-      showFeedback('error', getApiErrorMessage(err, 'Failed to generate the forecast.'));
+      const message = err?.response?.status === 422
+        ? 'At least two different calendar months of recorded transactions are needed to generate a forecast. Record transactions in another month, then try again.'
+        : getApiErrorMessage(err, 'Failed to generate the forecast.');
+      setForecastGenError(message);
+      showFeedback('error', message);
     } finally {
       setForecastGenerating(false);
     }
@@ -734,6 +812,44 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                       </p>
                     )}
                     {b.advisory_note && <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">{b.advisory_note}</p>}
+                    {budgetAdviceErrors[b.id] && (
+                      <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                        <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{budgetAdviceErrors[b.id]}</span>
+                        <button type="button" onClick={() => handleGenerateBudgetAdvice(b.id)} className="shrink-0 font-bold underline">Retry</button>
+                      </div>
+                    )}
+                    {budgetAdviceDetails[b.id]?.advice && (
+                      <div className="mt-3 max-w-3xl rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <EngineBadge engine={budgetAdviceDetails[b.id].engine} />
+                          {budgetAdviceDetails[b.id].advice.allocation_status && (
+                            <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${allocationStatusTone[budgetAdviceDetails[b.id].advice.allocation_status] || 'bg-slate-100 text-slate-600'}`}>
+                              {allocationStatusLabel[budgetAdviceDetails[b.id].advice.allocation_status] || budgetAdviceDetails[b.id].advice.allocation_status}
+                            </span>
+                          )}
+                          {budgetAdviceDetails[b.id].advice.xai_model && (
+                            <span className="text-[11px] font-semibold text-slate-400">Explained by {budgetAdviceDetails[b.id].advice.xai_model}</span>
+                          )}
+                        </div>
+                        <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
+                          {budgetAdviceDetails[b.id].advice.reserve_amount != null && (
+                            <span className="text-slate-500">Reserve <strong className="block text-[#0F172A]">{fmt(budgetAdviceDetails[b.id].advice.reserve_amount)}</strong></span>
+                          )}
+                          {budgetAdviceDetails[b.id].advice.expense_to_income_ratio != null && (
+                            <span className="text-slate-500">Expense/income ratio <strong className="block text-[#0F172A]">{(Number(budgetAdviceDetails[b.id].advice.expense_to_income_ratio) * 100).toFixed(1)}%</strong></span>
+                          )}
+                        </div>
+                        <RulesDisclosure
+                          label="How this was calculated"
+                          items={[
+                            ...(budgetAdviceDetails[b.id].advice.deterministic_advice
+                              ? [`Deterministic advice before AI rewrite: "${budgetAdviceDetails[b.id].advice.deterministic_advice}"`]
+                              : []),
+                            ...(Array.isArray(budgetAdviceDetails[b.id].advice.rules_applied) ? budgetAdviceDetails[b.id].advice.rules_applied : []),
+                          ]}
+                        />
+                      </div>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</p>
@@ -772,6 +888,12 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                 {forecastGenerating ? 'Generating...' : 'Generate Forecast'}
               </button>
             </div>
+            {forecastGenError && (
+              <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-semibold text-red-700">
+                <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{forecastGenError}</span>
+                <button type="button" onClick={handleGenerateForecast} className="shrink-0 font-bold underline">Retry</button>
+              </div>
+            )}
             {loading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
@@ -781,18 +903,56 @@ export default function FinancePage({ initialTab = 'transactions' }) {
             ) : (
               <div className="space-y-3">
                 <ForecastLineGraph forecasts={forecasts} />
-                {forecasts.map((f) => (
-                  <div key={f.id} className="rounded-lg border border-[#DDE7EF] p-4">
-                    <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-slate-700">Forecast for {f.forecast_period}</span><span className="text-sm font-bold tabular-nums text-[#0F172A]">Balance {fmt(f.predicted_balance)}</span></div>
-                    <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
-                      <span className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(f.predicted_income)}</strong></span>
-                      <span className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(f.predicted_balance)}</strong></span>
-                      <span className="text-slate-500">Safe spend <strong className="block text-[#0B8ED0]">{fmt(f.safe_spending_limit)}</strong></span>
-                      <span className="text-slate-500">Risk <strong className="block capitalize text-[#0F172A]">{f.model_details?.risk || 'Not set'}</strong></span>
+                {forecasts.map((f) => {
+                  const reliability = getForecastReliability(f);
+                  const clampNotice = getClampNotice(f);
+                  const sampleMonths = f.model_details?.sample_months;
+                  const populatedMonths = f.model_details?.populated_months;
+                  const incomeR2 = f.model_details?.income?.r_squared;
+                  const expenseR2 = f.model_details?.expense?.r_squared;
+                  return (
+                    <div key={f.id} className="rounded-lg border border-[#DDE7EF] p-4">
+                      <div className="flex items-center justify-between gap-3"><span className="text-sm font-bold text-slate-700">Forecast for {f.forecast_period}</span><span className="text-sm font-bold tabular-nums text-[#0F172A]">Balance {fmt(f.predicted_balance)}</span></div>
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                        <span className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(f.predicted_income)}</strong></span>
+                        <span className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(f.predicted_balance)}</strong></span>
+                        <span className="text-slate-500">Safe spend <strong className="block text-[#0B8ED0]">{fmt(f.safe_spending_limit)}</strong></span>
+                        <span className="text-slate-500">Risk <strong className="block capitalize text-[#0F172A]">{f.model_details?.risk || 'Not set'}</strong></span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <EngineBadge engine={f.model_details?.engine} />
+                        {Number.isFinite(Number(sampleMonths)) && (
+                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">{sampleMonths} sample month{Number(sampleMonths) === 1 ? '' : 's'}</span>
+                        )}
+                        {Number.isFinite(Number(populatedMonths)) && (
+                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">{populatedMonths} with recorded transactions</span>
+                        )}
+                        {Number.isFinite(Number(incomeR2)) && (
+                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Income fit R² {Number(incomeR2).toFixed(2)}</span>
+                        )}
+                        {Number.isFinite(Number(expenseR2)) && (
+                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold text-slate-600">Expense fit R² {Number(expenseR2).toFixed(2)}</span>
+                        )}
+                        {reliability.quality && (
+                          <span className="rounded-full border border-[#DDE7EF] px-2.5 py-0.5 text-[11px] font-bold capitalize text-slate-600">Fit quality: {String(reliability.quality).replace(/_/g, ' ')}</span>
+                        )}
+                      </div>
+                      {!reliability.isReliable && (
+                        <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2.5 text-[11px] font-semibold text-amber-700">
+                          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                          {reliability.reason || 'Weak confidence in this projection. Treat the figures as directional only.'}
+                        </p>
+                      )}
+                      {clampNotice && (
+                        <p className="mt-2 flex items-start gap-1.5 rounded-lg bg-red-50 p-2.5 text-[11px] font-semibold text-red-700">
+                          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+                          {clampNotice}
+                        </p>
+                      )}
+                      {f.confidence_note && <p className="mt-3 text-xs leading-5 text-slate-500">{f.confidence_note}</p>}
                     </div>
-                    {f.confidence_note && <p className="mt-3 text-xs leading-5 text-slate-500">{f.confidence_note}</p>}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

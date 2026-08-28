@@ -3,6 +3,7 @@ import {
   AlertCircle,
   Bot,
   CheckCircle2,
+  ChevronDown,
   Clock,
   Eye,
   ListChecks,
@@ -14,6 +15,26 @@ import { getTasks, createTask, updateTaskStatus } from '../../../services/taskSe
 import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
 import PaginationControls from '../../../components/PaginationControls';
+import EngineBadge from '../../../components/ai/EngineBadge';
+
+function getDelegationDetail(source) {
+  if (!source || typeof source !== 'object') return null;
+  const container = source.delegation && typeof source.delegation === 'object' ? source.delegation : source;
+  const rankings = Array.isArray(container.rankings) ? container.rankings : null;
+  const weights = container.weights && typeof container.weights === 'object' ? container.weights : null;
+  const eligibilityRules = Array.isArray(container.eligibility_rules) ? container.eligibility_rules : null;
+  const taskArea = container.task_area ?? container.inferred_task_area ?? null;
+  const engine = container.engine ?? container.delegation_engine ?? null;
+  const recommendedOfficerId = container.recommended_officer_id ?? null;
+
+  if (!rankings && !weights && !eligibilityRules && !taskArea && !engine) return null;
+
+  return { rankings, weights, eligibilityRules, taskArea, engine, recommendedOfficerId };
+}
+
+function formatWeightLabel(key) {
+  return key.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
 
 const statusBadge = {
   in_progress: 'bg-[#E6F6FD] text-[#0B8ED0]',
@@ -45,6 +66,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [progressForm, setProgressForm] = useState({ progress_percent: 0, progress_note: '' });
   const [progressSaving, setProgressSaving] = useState(false);
   const [completionTask, setCompletionTask] = useState(null);
+  const [lastDelegation, setLastDelegation] = useState(null);
+  const [rankingOpen, setRankingOpen] = useState(false);
   const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
@@ -85,7 +108,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     setFormSubmitting(true);
     setFormError(null);
     try {
-      await createTask({
+      const res = await createTask({
         title: form.title,
         description: form.description,
         assigned_to: form.assigned_to || null,
@@ -93,6 +116,8 @@ export default function TasksPage({ initialTab = 'board' }) {
         deadline: form.deadline,
         status: form.status,
       });
+      const detail = getDelegationDetail(res.data);
+      if (detail) setLastDelegation({ taskId: res.data.id, ...detail });
       setShowForm(false);
       setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       load();
@@ -331,9 +356,68 @@ export default function TasksPage({ initialTab = 'board' }) {
               </div>
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">AI Task Suggestions</h2>
-                <p className="text-sm font-medium text-slate-500">Python-powered weighted officer recommendations</p>
+                <p className="text-sm font-medium text-slate-500">Weighted officer fit scoring, per task</p>
               </div>
             </div>
+
+            {lastDelegation?.rankings?.length > 0 && (
+              <div className="mb-5">
+                <button
+                  type="button"
+                  onClick={() => setRankingOpen((current) => !current)}
+                  aria-expanded={rankingOpen}
+                  className="flex w-full flex-wrap items-center justify-between gap-2 text-left"
+                >
+                  <span className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-violet-700">
+                    <ChevronDown size={14} className={`transition-transform ${rankingOpen ? 'rotate-180' : ''}`} />
+                    Full officer ranking
+                  </span>
+                  <EngineBadge engine={lastDelegation.engine} />
+                </button>
+                {rankingOpen && (
+                  <div className="mt-3">
+                    {lastDelegation.taskArea && (
+                      <p className="text-xs font-semibold text-slate-600">Inferred task area: <span className="text-[#0F172A]">{lastDelegation.taskArea}</span></p>
+                    )}
+                    <div className="mt-3 divide-y divide-[#E5EDF3]">
+                      {lastDelegation.rankings.map((ranking) => {
+                        const isRecommended = lastDelegation.recommendedOfficerId != null
+                          && String(ranking.officer_id) === String(lastDelegation.recommendedOfficerId);
+                        const positionScore = ranking.position_score ?? ranking.role_score;
+                        const positionTier = ranking.position_tier ?? ranking.position_relevance_tier ?? ranking.relevance_tier ?? null;
+                        return (
+                          <div key={ranking.officer_id} className="py-3 first:pt-0">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <p className="text-sm font-bold text-[#0F172A]">
+                                {ranking.name}
+                                {isRecommended && <span className="ml-2 rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black uppercase text-violet-700">Recommended</span>}
+                                {positionTier && <span className="ml-2 rounded-full border border-[#DDE7EF] px-2 py-0.5 text-[10px] font-bold text-slate-500">{positionTier}</span>}
+                              </p>
+                              {Number.isFinite(Number(ranking.final_score)) && (
+                                <span className="rounded-full bg-violet-100 px-2.5 py-1 text-xs font-black text-violet-700">{Number(ranking.final_score).toFixed(2)} fit</span>
+                              )}
+                            </div>
+                            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+                              {positionScore != null && (
+                                <span>Position <strong className="block text-slate-700">{Number(positionScore).toFixed(2)}{lastDelegation.weights?.role != null && ` (×${(lastDelegation.weights.role * 100).toFixed(0)}%)`}{lastDelegation.weights?.position != null && ` (×${(lastDelegation.weights.position * 100).toFixed(0)}%)`}</strong></span>
+                              )}
+                              {ranking.workload_score != null && (
+                                <span>Workload <strong className="block text-slate-700">{Number(ranking.workload_score).toFixed(2)}{lastDelegation.weights?.workload != null && ` (×${(lastDelegation.weights.workload * 100).toFixed(0)}%)`}</strong></span>
+                              )}
+                              {ranking.performance_score != null && (
+                                <span>Performance <strong className="block text-slate-700">{Number(ranking.performance_score).toFixed(2)}{lastDelegation.weights?.performance != null && ` (×${(lastDelegation.weights.performance * 100).toFixed(0)}%)`}</strong></span>
+                              )}
+                            </div>
+                            {ranking.explanation && <p className="mt-2 text-xs leading-5 text-slate-500">{ranking.explanation}</p>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
             {scoredAssignments.length === 0 ? (
               <p className="text-sm text-slate-400">Create a task to generate an eligible officer recommendation and score breakdown.</p>
             ) : (
@@ -351,6 +435,9 @@ export default function TasksPage({ initialTab = 'board' }) {
                           {Number(task.final_score).toFixed(2)} fit
                         </span>
                       </div>
+                      <div className="mt-3 flex flex-wrap items-center gap-2">
+                        <EngineBadge engine={task.id === lastDelegation?.taskId ? lastDelegation.engine : null} />
+                      </div>
                       <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
                         <span>Role <strong className="block text-slate-700">{Number(task.role_score).toFixed(2)}</strong></span>
                         <span>Workload <strong className="block text-slate-700">{Number(task.workload_score).toFixed(2)}</strong></span>
@@ -366,18 +453,31 @@ export default function TasksPage({ initialTab = 'board' }) {
           <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-[#0F172A]">How AI Delegation Works</h3>
             <div className="mt-4 space-y-3">
-              {[
-                'Filters candidates to active SBO Officers only',
-                'Weights role eligibility at 40%',
-                'Weights current workload at 35%',
-                'Weights completed-versus-overdue performance at 25%',
-              ].map((item, i) => (
+              {(lastDelegation?.weights
+                ? [
+                  'Filters candidates to active, policy-eligible SBO Officers',
+                  ...Object.entries(lastDelegation.weights).map(([key, value]) => `Weighs ${formatWeightLabel(key)} at ${(Number(value) * 100).toFixed(0)}%`),
+                ]
+                : [
+                  'Filters candidates to active, policy-eligible SBO Officers',
+                  'Scores by position fit, current workload, and completed-versus-overdue performance',
+                  'Recommends the officer with the highest weighted fit score',
+                ]
+              ).map((item, i) => (
                 <div key={i} className="flex items-start gap-3 text-sm font-medium text-slate-600">
                   <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-violet-600" />
                   {item}
                 </div>
               ))}
             </div>
+            {lastDelegation?.eligibilityRules?.length > 0 && (
+              <div className="mt-5 border-t border-[#DDE7EF] pt-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Eligibility rules for the latest request</p>
+                <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">
+                  {lastDelegation.eligibilityRules.map((rule, i) => <li key={i}>{rule}</li>)}
+                </ul>
+              </div>
+            )}
           </div>
         </section>
       )}
