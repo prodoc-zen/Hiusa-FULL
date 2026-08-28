@@ -11,6 +11,9 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
+const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', payment: 'Merchandise Orders' };
+const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'payment'];
+
 export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
   const [loading, setLoading] = useState(true);
@@ -54,6 +57,11 @@ export default function DepartmentHeadHomePage() {
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).slice(0, 3);
 
   const stat = (val) => loading ? '-' : val;
+
+  const totalPendingApprovals = data.pendingApprovals.length;
+  const approvalsByType = APPROVAL_TYPE_ORDER
+    .map((type) => ({ type, count: data.pendingApprovals.filter((r) => r.entity_type === type).length }))
+    .filter((row) => row.count > 0);
 
   return (
     <div className="space-y-6">
@@ -166,6 +174,38 @@ export default function DepartmentHeadHomePage() {
         </div>
 
         <div className="space-y-6">
+          {/* Pending Approvals by Type */}
+          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
+              <h3 className="text-base font-bold text-[#0F172A]">Pending Approvals by Type</h3>
+              <NavLink to="/dashboard/department-head/approvals" className="text-xs font-bold text-[#0B8ED0] hover:underline">Review</NavLink>
+            </div>
+            <div className="p-5">
+              {loading ? (
+                <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}</div>
+              ) : totalPendingApprovals === 0 ? (
+                <p className="py-4 text-center text-sm text-slate-400">Nothing awaiting your review.</p>
+              ) : (
+                <div className="space-y-3">
+                  {approvalsByType.map((row) => {
+                    const pct = Math.round((row.count / totalPendingApprovals) * 100);
+                    return (
+                      <div key={row.type}>
+                        <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                          <span className="text-[#0F172A]">{APPROVAL_TYPE_LABEL[row.type] || row.type}</span>
+                          <span className="tabular-nums text-slate-500">{row.count} ({pct}%)</span>
+                        </div>
+                        <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
+                          <div className="h-2 rounded-full bg-[#0B8ED0] transition-all" style={{ width: `${pct}%` }} />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </section>
+
           {/* Recent Announcements */}
           <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">

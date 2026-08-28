@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { getTasks } from '../../../services/taskService';
 import { getEvents } from '../../../services/eventService';
-import { getTransactionSummary } from '../../../services/financeService';
+import { getTransactionSummary, getBudgets } from '../../../services/financeService';
 import { getOrders } from '../../../services/orderService';
 
 const STATUS_BADGE = {
@@ -22,6 +22,15 @@ const STATUS_BADGE = {
   completed:   'bg-emerald-50 text-emerald-700',
   overdue:     'bg-red-50 text-red-700',
 };
+
+const TASK_STATUS_COLOR = {
+  pending:     '#F59E0B',
+  in_progress: '#0B8ED0',
+  completed:   '#16A34A',
+  overdue:     '#DC2626',
+};
+
+const TASK_STATUS_ORDER = ['pending', 'in_progress', 'completed', 'overdue'];
 
 function fmt(n) {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -34,7 +43,9 @@ function capitalize(s) {
 export default function DashboardPage() {
   const [stats, setStats] = useState({ openTasks: 0, upcomingEvents: 0, budgetBalance: 0, pendingOrders: 0 });
   const [urgentTasks, setUrgentTasks] = useState([]);
+  const [allTasks, setAllTasks] = useState([]);
   const [expensesByCategory, setExpensesByCategory] = useState([]);
+  const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -42,11 +53,12 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const [tasksRes, eventsRes, summaryRes, ordersRes] = await Promise.all([
+        const [tasksRes, eventsRes, summaryRes, ordersRes, budgetsRes] = await Promise.all([
           getTasks(),
           getEvents(),
           getTransactionSummary(),
           getOrders(),
+          getBudgets(),
         ]);
 
         if (cancelled) return;
@@ -56,6 +68,7 @@ export default function DashboardPage() {
         const summary = summaryRes?.data ?? summaryRes ?? {};
         const ordersRaw = ordersRes?.data;
         const orders = Array.isArray(ordersRaw?.data) ? ordersRaw.data : (Array.isArray(ordersRaw) ? ordersRaw : []);
+        const budgetsList = Array.isArray(budgetsRes?.data) ? budgetsRes.data : (Array.isArray(budgetsRes) ? budgetsRes : []);
 
         const openTasks = tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress');
 
@@ -71,11 +84,13 @@ export default function DashboardPage() {
             .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
             .slice(0, 4)
         );
+        setAllTasks(tasks);
 
         const byCategory = Array.isArray(summary.by_category) ? summary.by_category : [];
         setExpensesByCategory(
           byCategory.filter((c) => c.type === 'expense').slice(0, 5)
         );
+        setBudgets(budgetsList);
       } catch {
         if (!cancelled) setStats({ openTasks: 0, upcomingEvents: 0, budgetBalance: 0, pendingOrders: 0 });
       } finally {
@@ -88,6 +103,32 @@ export default function DashboardPage() {
   }, []);
 
   const maxExpense = Math.max(...expensesByCategory.map((c) => Number(c.total)), 1);
+
+  const budgetUtilization = budgets
+    .filter((b) => b.approval_status === 'approved')
+    .map((b) => {
+      const allocated = Number(b.allocated_amount || 0);
+      const remaining = b.remaining_amount != null ? Number(b.remaining_amount) : allocated;
+      const transacted = Number(b.transactions_sum_amount || 0);
+      // remaining = allocated + income - expense, transacted = income + expense,
+      // so (allocated + transacted - remaining) / 2 isolates expense (actual spend).
+      const spent = Math.max(0, (allocated + transacted - remaining) / 2);
+      return {
+        id: b.id,
+        title: b.title,
+        allocated,
+        spent,
+        warning: Number(b.warning_threshold || 0),
+      };
+    })
+    .sort((a, b) => b.allocated - a.allocated)
+    .slice(0, 6);
+
+  const taskStatusCounts = TASK_STATUS_ORDER.map((status) => ({
+    status,
+    count: allTasks.filter((t) => t.status === status).length,
+  }));
+  const totalTasksCount = allTasks.length;
 
   const statCards = [
     { label: 'Open Tasks', value: loading ? '-' : stats.openTasks, helper: 'Pending & in-progress', icon: ClipboardList, trend: 'Active' },
@@ -196,8 +237,68 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Budget Utilization + Quick Actions */}
+        {/* Budget Utilization + Task Status + Quick Actions */}
         <div className="space-y-6">
+          <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-[#0F172A]">Budget Utilization</h2>
+              <NavLink to="/dashboard/finance/budget-allocation" className="text-xs font-bold text-[#0B8ED0] hover:underline">View</NavLink>
+            </div>
+            {loading ? (
+              <div className="space-y-3">
+                {[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
+              </div>
+            ) : budgetUtilization.length === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-400">No approved budgets yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {budgetUtilization.map((b) => {
+                  const pct = b.allocated > 0 ? Math.min(100, Math.round((b.spent / b.allocated) * 100)) : 0;
+                  const barColor = b.spent >= b.allocated ? '#DC2626' : (b.warning > 0 && b.spent >= b.warning) ? '#F59E0B' : '#0B8ED0';
+                  return (
+                    <div key={b.id}>
+                      <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                        <span className="truncate text-[#0F172A]">{b.title}</span>
+                        <span className="ml-2 shrink-0 tabular-nums text-slate-500">{fmt(b.spent)} / {fmt(b.allocated)} ({pct}%)</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
+                        <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+            <h2 className="mb-4 text-base font-bold text-[#0F172A]">Task Status Distribution</h2>
+            {loading ? (
+              <div className="space-y-3">
+                {[...Array(4)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
+              </div>
+            ) : totalTasksCount === 0 ? (
+              <p className="py-6 text-center text-sm text-slate-400">No tasks recorded yet.</p>
+            ) : (
+              <div className="space-y-3">
+                {taskStatusCounts.map((item) => {
+                  const pct = totalTasksCount ? Math.round((item.count / totalTasksCount) * 100) : 0;
+                  return (
+                    <div key={item.status}>
+                      <div className="mb-1 flex items-center justify-between text-xs font-semibold">
+                        <span className="text-[#0F172A]">{capitalize(item.status)}</span>
+                        <span className="tabular-nums text-slate-500">{item.count} ({pct}%)</span>
+                      </div>
+                      <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
+                        <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: TASK_STATUS_COLOR[item.status] }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
           <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-[#0F172A]">Expenses by Category</h2>
