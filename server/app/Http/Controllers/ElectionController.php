@@ -976,7 +976,8 @@ class ElectionController extends Controller
 
     public function voters(Request $request, $id)
     {
-        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+        $organizationId = $request->user()->organization_id;
+        $election = Election::where('organization_id', $organizationId)->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
         }
@@ -985,14 +986,28 @@ class ElectionController extends Controller
             ->distinct()
             ->pluck('voter_id');
 
-        $students = User::where('role', 'STUDENT')
-            ->where('organization_id', $request->user()->organization_id)
+        $studentsQuery = User::where('role', 'STUDENT')
+            ->where('organization_id', $organizationId);
+
+        $eligibleTotal = (clone $studentsQuery)->count();
+        $votedCount = (clone $studentsQuery)->whereIn('school_id', $voterIds)->count();
+
+        $paginated = $studentsQuery
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->get(['school_id', 'first_name', 'last_name', 'email'])
-            ->map(fn ($s) => array_merge($s->toArray(), ['has_voted' => $voterIds->contains($s->id)]));
+            ->select(['school_id', 'first_name', 'last_name', 'email'])
+            ->paginate(20)
+            ->through(fn ($student) => array_merge($student->toArray(), [
+                'has_voted' => $voterIds->contains($student->school_id),
+            ]));
 
-        return response()->json($students);
+        return response()->json(array_merge($paginated->toArray(), [
+            'summary' => [
+                'eligible_total' => $eligibleTotal,
+                'voted_count' => $votedCount,
+                'turnout_percent' => $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0,
+            ],
+        ]));
     }
 
     public function results(Request $request, $id)
