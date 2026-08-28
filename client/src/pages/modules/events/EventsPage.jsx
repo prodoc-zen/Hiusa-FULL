@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Calendar,
   CheckCircle2,
@@ -7,6 +7,7 @@ import {
   Clock,
   Eye,
   Fingerprint,
+  List,
   MapPin,
   Pencil,
   Plus,
@@ -20,6 +21,7 @@ import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, gener
 import { getTasks } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
+import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
@@ -81,8 +83,10 @@ function getEventBudgetStatus(event) {
 
 export default function EventsPage({ initialTab = 'events' }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
+  const [eventsView, setEventsView] = useState(() => (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list'));
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -144,6 +148,10 @@ export default function EventsPage({ initialTab = 'events' }) {
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    setEventsView(location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list');
+  }, [location.pathname]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 30000);
@@ -401,30 +409,54 @@ export default function EventsPage({ initialTab = 'events' }) {
       )}
 
       {activeTab === 'events' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">All Events</h2>
               <p className="text-sm font-medium text-slate-500">Create, manage, and monitor events</p>
             </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-              <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
-                <Search size={15} className="text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  type="text"
-                  placeholder="Search events..."
-                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
-                />
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
+              <div role="group" aria-label="Switch events view" className="flex h-11 shrink-0 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-1">
+                <button
+                  type="button"
+                  aria-label="List view"
+                  aria-pressed={eventsView === 'list'}
+                  onClick={() => setEventsView('list')}
+                  className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'list' ? 'bg-white text-[#0B8ED0] shadow-sm' : 'text-slate-500'}`}
+                >
+                  <List size={15} /> <span className="hidden sm:inline">List</span>
+                </button>
+                <button
+                  type="button"
+                  aria-label="Calendar view"
+                  aria-pressed={eventsView === 'calendar'}
+                  onClick={() => setEventsView('calendar')}
+                  className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'calendar' ? 'bg-white text-[#0B8ED0] shadow-sm' : 'text-slate-500'}`}
+                >
+                  <Calendar size={15} /> <span className="hidden sm:inline">Calendar</span>
+                </button>
               </div>
-              <input
-                type="date"
-                aria-label="Filter events by date"
-                value={dateFilter}
-                onChange={(event) => setDateFilter(event.target.value)}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] outline-none focus:border-[#0B8ED0]"
-              />
+              {eventsView === 'list' && (
+                <>
+                  <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
+                    <Search size={15} className="text-slate-400" />
+                    <input
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                      type="text"
+                      placeholder="Search events..."
+                      className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
+                    />
+                  </div>
+                  <input
+                    type="date"
+                    aria-label="Filter events by date"
+                    value={dateFilter}
+                    onChange={(event) => setDateFilter(event.target.value)}
+                    className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] outline-none focus:border-[#0B8ED0]"
+                  />
+                </>
+              )}
               {canCreateEvents && (
                 <button onClick={openCreateForm} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                   <Plus size={16} />
@@ -434,87 +466,97 @@ export default function EventsPage({ initialTab = 'events' }) {
             </div>
           </div>
 
-          {loading ? (
-            <div className="space-y-2 p-5">
-              {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
-            </div>
-          ) : filteredEvents.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No events found.</p>
+          {eventsView === 'calendar' ? (
+            <ActivityCalendar
+              events={events}
+              loading={loading}
+              onSelectEvent={openEventDetails}
+            />
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[460px] md:min-w-[700px] text-left">
-                <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
-                  <tr>
-                    <th className="px-5 py-3">Event</th>
-                    <th className="px-5 py-3">Start Time</th>
-                    <th className="hidden md:table-cell px-5 py-3">Location</th>
-                    <th className="px-5 py-3">Status</th>
-                    {canCreateEvents && <th className="px-5 py-3">Budget Status</th>}
-                    <th className="px-5 py-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {pagedEvents.map((evt) => (
-                    <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-bold text-[#0F172A]">{evt.title}</td>
-                      <td className="px-5 py-4 font-medium text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <Clock size={13} className="text-slate-400" />
-                          {formatDateTime(evt.start_time)}
-                        </div>
-                      </td>
-                      <td className="hidden md:table-cell px-5 py-4 font-medium text-slate-600">
-                        <div className="flex items-center gap-1.5">
-                          <MapPin size={13} className="text-slate-400" />
-                          {evt.location || '-'}
-                        </div>
-                      </td>
-                      <td className="px-5 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
-                          {statusLabel[evt.status] || capitalize(evt.status)}
-                        </span>
-                        {evt.approval_status === 'rejected' && evt.approval_remarks && (
-                          <p className="mt-1 max-w-[220px] text-[11px] text-red-600">
-                            <span className="font-semibold">Rejected:</span> {evt.approval_remarks}
-                          </p>
-                        )}
-                      </td>
-                      {canCreateEvents && (() => {
-                        const budgetStatus = getEventBudgetStatus(evt);
-                        return (
-                          <td className="px-5 py-4">
-                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${budgetStatus.tone}`}>
-                              {budgetStatus.label}
-                            </span>
-                            {evt.budgets?.length > 0 && <p className="mt-1 text-[11px] text-slate-400">{evt.budgets.length} linked</p>}
+            <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+              {loading ? (
+                <div className="space-y-2 p-5">
+                  {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
+                </div>
+              ) : filteredEvents.length === 0 ? (
+                <p className="p-8 text-center text-sm text-slate-400">No events found.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[460px] md:min-w-[700px] text-left">
+                    <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                      <tr>
+                        <th className="px-5 py-3">Event</th>
+                        <th className="px-5 py-3">Start Time</th>
+                        <th className="hidden md:table-cell px-5 py-3">Location</th>
+                        <th className="px-5 py-3">Status</th>
+                        {canCreateEvents && <th className="px-5 py-3">Budget Status</th>}
+                        <th className="px-5 py-3 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                      {pagedEvents.map((evt) => (
+                        <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
+                          <td className="px-5 py-4 font-bold text-[#0F172A]">{evt.title}</td>
+                          <td className="px-5 py-4 font-medium text-slate-600">
+                            <div className="flex items-center gap-1.5">
+                              <Clock size={13} className="text-slate-400" />
+                              {formatDateTime(evt.start_time)}
+                            </div>
                           </td>
-                        );
-                      })()}
-                      <td className="px-5 py-4">
-                        <div className="flex justify-end gap-1">
-                          <button type="button" title="View event details" aria-label={`View ${evt.title}`} onClick={() => openEventDetails(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
-                            <Eye size={15} />
-                          </button>
-                          {canCreateEvents && (
-                            <button type="button" title="Edit event" aria-label={`Edit ${evt.title}`} onClick={() => openEditForm(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
-                              <Pencil size={15} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                          <td className="hidden md:table-cell px-5 py-4 font-medium text-slate-600">
+                            <div className="flex items-center gap-1.5">
+                              <MapPin size={13} className="text-slate-400" />
+                              {evt.location || '-'}
+                            </div>
+                          </td>
+                          <td className="px-5 py-4">
+                            <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
+                              {statusLabel[evt.status] || capitalize(evt.status)}
+                            </span>
+                            {evt.approval_status === 'rejected' && evt.approval_remarks && (
+                              <p className="mt-1 max-w-[220px] text-[11px] text-red-600">
+                                <span className="font-semibold">Rejected:</span> {evt.approval_remarks}
+                              </p>
+                            )}
+                          </td>
+                          {canCreateEvents && (() => {
+                            const budgetStatus = getEventBudgetStatus(evt);
+                            return (
+                              <td className="px-5 py-4">
+                                <span className={`rounded-full px-3 py-1 text-xs font-bold ${budgetStatus.tone}`}>
+                                  {budgetStatus.label}
+                                </span>
+                                {evt.budgets?.length > 0 && <p className="mt-1 text-[11px] text-slate-400">{evt.budgets.length} linked</p>}
+                              </td>
+                            );
+                          })()}
+                          <td className="px-5 py-4">
+                            <div className="flex justify-end gap-1">
+                              <button type="button" title="View event details" aria-label={`View ${evt.title}`} onClick={() => openEventDetails(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
+                                <Eye size={15} />
+                              </button>
+                              {canCreateEvents && (
+                                <button type="button" title="Edit event" aria-label={`Edit ${evt.title}`} onClick={() => openEditForm(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
+                                  <Pencil size={15} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              <PaginationControls
+                currentPage={eventsPage}
+                totalItems={filteredEvents.length}
+                pageSize={pageSize}
+                onPageChange={setEventsPage}
+                label="events"
+              />
             </div>
           )}
-          <PaginationControls
-            currentPage={eventsPage}
-            totalItems={filteredEvents.length}
-            pageSize={pageSize}
-            onPageChange={setEventsPage}
-            label="events"
-          />
         </section>
       )}
 
