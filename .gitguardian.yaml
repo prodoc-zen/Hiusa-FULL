@@ -1,0 +1,51 @@
+# GitGuardian / ggshield configuration for HIUSA.
+#
+# Why this file exists
+# --------------------
+# On 2026-08-28 GitGuardian raised a "Generic High Entropy Secret" finding against
+# this repository. It was a false positive, and this records the reasoning so the
+# next person does not have to re-derive it or assume a secret is being hidden.
+#
+# The trigger is docs/diagrams/use-case-diagram-master.html line 142, which embeds
+# the HIUSA logo directly in the SVG as a data URI:
+#
+#     <image ... href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUg...">
+#
+# That is a 15,532-character base64 payload. It decodes to a valid PNG (magic bytes
+# 89 50 4E 47), and "Generic High Entropy Secret" is GitGuardian's catch-all
+# detector for long random-looking strings, so a large inlined image trips it.
+#
+# The inlining is deliberate, not an accident: it keeps the use-case diagram a
+# single self-contained HTML file that opens correctly anywhere and can be emailed
+# or submitted without broken images. Extracting the logo to a separate asset would
+# silence the detector but break that property, so the file stays as it is.
+#
+# Verified at the time this was written, so it is on record:
+#   - No .env file has ever been tracked in this repository's history. Only the
+#     three .env.example templates are tracked.
+#   - The live APP_KEY and HIUSA_AI_SERVICE_KEY values were searched against all of
+#     git history with `git log --all -S <value>` and appear in no commit.
+#   - GROQ_API_KEY was unset, so there was nothing to expose.
+#   - No credential was rotated, because none had leaked.
+#
+# Scope
+# -----
+# The exclusion is deliberately limited to the single offending path. The
+# "Generic High Entropy Secret" detector is NOT disabled repository-wide, because
+# it is the detector most likely to catch a real leak in a project that handles
+# GCash references, Sanctum tokens and a Groq API key.
+#
+# Note on what this file does and does not control
+# -----------------------------------------------
+# This config is read by ggshield (CLI and CI). The alert email that prompted it
+# came from GitGuardian's repository monitoring, which is configured in the
+# GitGuardian dashboard, not from this file. Dismissing that specific occurrence,
+# and any future ones from dashboard monitoring, is done in the dashboard.
+
+version: 2
+
+secret:
+  show_secrets: false
+  ignored_paths:
+    # Self-contained use-case diagram with a base64-inlined PNG logo. See above.
+    - "docs/diagrams/use-case-diagram-master.html"
