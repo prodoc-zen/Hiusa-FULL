@@ -1,6 +1,6 @@
 # Use Case Compliance Audit
 
-**Audit date:** 2026-08-20
+**Audit date:** 2026-08-28 (supersedes the 2026-08-20 pass; re-measured after commits `08294a4` AI integration and `2e67be8` GCash QR/financial accountability/SBO positions/Playwright)
 
 ## Scope and Method
 
@@ -34,7 +34,7 @@ Status meanings:
 | View Financial Reports and Transaction History | Admin, SBO Officer, Department Head | Verified | persisted monthly/semester/custom/event reports, Groq/fallback summary, history, Excel and print/PDF |
 | View Personal Receipts | All roles | Verified | ownership-scoped receipt API and print action |
 | Manage Merchandise Inventory | Admin | Verified | image/item CRUD, stock adjustment, deactivation audit |
-| Order Merchandise and Claim Items | All roles | Verified | reservation, GCash image proof, personal tracking, post-approval token release test |
+| Order Merchandise and Claim Items | All roles | Verified | reservation, GCash image proof, personal tracking, post-approval token release test, admin-gated GCash QR precondition |
 | Manage Merchandise Orders and Fulfillment | Admin, SBO Officer | Verified | officer submission, Admin approval, receipt, notifications, rejection/restock, one-use claim test |
 | Submit Requests for Approval | Admin, SBO Officer | Verified | pending request persistence, approver notifications, submission/resubmission audits |
 | Review and Decide Approval Requests | Admin, Department Head | Verified | required-role and self-review checks, rejection reason, transactional entity updates |
@@ -74,16 +74,44 @@ Status meanings:
 
 ## Verification Results
 
-- Laravel: **52 tests, 387 assertions passed**, including the four-role API access matrix and additional privacy, approval, payment, notification, authentication, and validation regressions.
+Numbers below were re-measured on 2026-08-28 on this machine. The 2026-08-20 figures are superseded; where a prior claim could not be re-checked this pass, it is labelled as such rather than repeated.
+
+- Laravel: **106 tests, 824 assertions passed, 0 failed** (`php artisan test`, 15 feature test files), including the four-role API access matrix, the financial-accountability suite, the GCash QR precondition tests, the new AI fallback-parity suite, the new demo-data integrity suite, and the merchandise/payment/notification/authentication/validation regressions. This includes a fix landed this pass: `RequestedWorkflowCompletionTest`'s GCash workflow test now configures an organization QR via a new `OrganizationFactory::withGcashQr()` state before submitting payment proof, so it no longer collides with the unconditional QR gate added in `2e67be8`.
+- Python AI service: **15 pytest tests passing** (`ai-service/.venv`, `pytest -q`), now including coverage for position-relevance variance, weak-fit detection on noisy data, negative-trend clamping, the workload tie that used to occur at 6+ active tasks, and word-boundary keyword matching.
+- Client unit tests: **vitest, 9 tests passing across 3 files** (`npm run test:unit`) — `FinancePage`, `PaginationControls`, and the new `ManageVotersPage` suite that guards the paginated-envelope regression.
+- Client e2e: **5 Playwright spec files exist** under `client/e2e` (`ai-decision-support-live`, `events-live`, `example`, `finance-live`, `financial-accounts`); the "live" specs are gated behind env flags and have never been run on this machine. Not counted as passing evidence.
 - Frontend: **ESLint passed with zero warnings/errors**.
-- Frontend: **Vite production build passed** with route-level chunks and no bundle-size warning; the entry bundle is **272.44 kB (83.58 kB gzip)**.
-- Database: all **35 migrations are applied**, including attendance status and election-integrity constraints.
-- Routes: all **98 application routes** load successfully, and Laravel's production optimization/cache command succeeds.
-- Runtime smoke test: **63 real HTTP checks passed** across the four roles, including allowed routes, forbidden boundaries, frontend delivery, health, and CORS preflight.
-- Dependency security: Composer and npm report **zero known vulnerabilities** after dependency updates.
-- PHP quality: all project PHP files passed syntax validation and Laravel Pint passes with no outstanding formatting violations.
+- Frontend: **Vite production build passed** with route-level chunks and no bundle-size warning; the entry bundle is **275.10 kB (84.14 kB gzip)**.
+- Database: **46 migration files, all 46 applied**, **39 tables** in `hiusa_db` (MariaDB, 127.0.0.1:3307), including the 2026-08-27 financial-accountability and SBO-position tables.
+- Routes: **112 API routes** (`php artisan route:list --path=api`) load successfully, and `route:cache` / `route:clear` succeed without error.
+- Runtime smoke test: **not re-run this pass** — the prior "63 real HTTP checks" figure from 2026-08-20 was not reproduced and should not be treated as current evidence.
+- Dependency security: `npm audit` reports **0 vulnerabilities**, and `composer audit` now reports **"No security vulnerability advisories found."** The 14 advisories across 3 packages found earlier in this pass were all in transitive dependencies — `guzzlehttp/guzzle` (7, one high), `guzzlehttp/psr7` (1), `league/commonmark` (6, four high) — and were newly-disclosed advisories rather than a new dependency. They were remediated with a targeted `composer update guzzlehttp/guzzle guzzlehttp/psr7 league/commonmark` (patch/minor bumps within the same majors, no framework upgrade), and the suite still reports 106 passed / 824 assertions afterwards. Practical exposure had been low regardless: HIUSA's Guzzle usage is two fixed trusted endpoints (the local AI service and the Groq API) with no user-controlled URLs or cookies, and it does not render user-supplied Markdown. Teammates must run `composer install` after pulling, since `composer.lock` changed.
+- PHP quality: all project PHP files pass syntax validation (`php -l`), and Laravel Pint (`vendor/bin/pint --test`) now reports **`"result":"passed"`, 0 files failing**. The 19-file violation set found earlier in this pass (`FinancialAccountabilityController`, `GcashSettingsController`, `SboPositionController`, the six financial-accountability models, `SboPosition`, `OrderFulfillmentService`, `EventController`, `OrderController`, `routes/api.php`, two test files, and the three 2026-08-27 migrations) was pre-existing debt introduced by commit `2e67be8`, not by this pass. It has now been auto-fixed with `vendor/bin/pint`; the changes are whitespace, brace position, import ordering and one unused import, and the full suite still reports 106 passed / 824 assertions afterwards.
 - Static patch check: `git diff --check` passed.
-- Live browser interaction: unavailable in this workspace session (the in-app browser reported no available browser targets), so no browser screenshots were produced.
+- Live browser interaction: not attempted this pass; the 2026-08-20 note (no available browser targets in that session) is not re-confirmed either way.
+
+## Demo Readiness of the Seeded Database
+
+A use case being implemented and a use case being demonstrable are different claims. Verified on 2026-08-28 against `hiusa_db`: before this pass, `approval_requests` held **0 rows**, which meant three headline use cases refused to run on a freshly seeded install even though their code was correct:
+
+| Use case | Was blocked by | Gate |
+|---|---|---|
+| Cast Vote | election `approved_at` NULL | `ElectionController.php:211` — 422 "Election must be approved before it can be opened." |
+| Manage Events and Scheduling | all events `approved_at` NULL | `EventController.php:312,316` — 422 "Only approved events can be started or completed." |
+| Manage Financial Transactions | no approved `ApprovalRequest` for any budget | `TransactionController.php:258-266` — 422 "The selected budget must belong to this organization and be approved." |
+| View Announcements | all rows `approval_status='draft'`, and `target_role` seeded lowercase (`student`, `officer`, `adviser`) against an uppercase `users.role` | `AnnouncementController.php:93-104` — a STUDENT saw **zero** announcements |
+| Order Merchandise | all organizations `gcash_qr_url` NULL | `OrderController.php:90,166` — 422 until an admin uploads the official QR |
+
+The seeders now produce a demonstrable state, measured after `migrate:fresh --seed`: **8 approval requests**, 3 approved events, 1 approved election, 1 organization with a GCash QR, 8 officers carrying distinct `position_title` values, 18 votes, 9 attendance rows, 5 unread notifications. No announcement targets the retired `adviser` value. `DemoDataIntegrityTest` now asserts all of this, and because the suite runs on SQLite it also guards the case-sensitivity bug that MySQL's collation was masking in `ElectionSeeder`.
+
+Records left deliberately unapproved or incomplete, so the approval and voting workflows have something real to demonstrate rather than an all-green database:
+
+- Event "Induction and Recognition Ceremony" — `planning`, approval request pending.
+- Budget "Sports Fest 2024 Budget" — approval request pending.
+- Order #1 (Rafael Aquino, 2 shirts) — pending payment, for the officer verification flow.
+- Student Alyssa Domingo (`2400093`) — has not voted, for the live cast-vote and double-vote rejection demos.
+
+Budget `remaining_amount` is also now populated by the seeder using the server's own definition (`allocated + income - expense`). It was previously NULL, because `Budget::create()` bypasses `BudgetController`, which is the only code that maintains it; every running-balance reader then fell back to `allocated_amount`, and the officer dashboard consequently reported roughly half the transacted total as spend. Post-fix its derived spend matches recorded expense exactly (₱13,500 / ₱3,800 / ₱12,500).
 
 ## Remaining Decisions
 

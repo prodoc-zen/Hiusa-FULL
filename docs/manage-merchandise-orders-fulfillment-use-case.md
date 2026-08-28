@@ -25,6 +25,10 @@
 |-- <<include>> Release Merchandise Item
 `-- <<include>> Update Order Status
 
+## Preconditions
+
+- **GCash payment requires an admin-configured QR code.** Fulfillment staff cannot expect GCash proof or references until an ADMIN uploads the organization's official QR code at `/dashboard/merchandise/gcash-payment` (`POST /api/merchandise/gcash-settings`). Until that upload exists, buyers are blocked from paying by GCash: `POST /api/orders` with `payment_method: gcash` and `POST /api/orders/{id}/payment` both return 422 with the message "GCash payment is unavailable until an administrator uploads the official QR code." Cash orders reach the fulfillment queue normally regardless of this precondition.
+
 ## Implementation Coverage
 
 - **Role Access:** Admin and SBO Officer can access order fulfillment and token validation.

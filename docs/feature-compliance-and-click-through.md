@@ -1,6 +1,6 @@
 # HIUSA Feature Compliance and Click-Through Verification
 
-Audit date: August 23, 2026
+Audit date: August 28, 2026 (supersedes the August 23, 2026 pass; re-verified against commit `2e67be8` behaviour)
 
 ## Architecture rule for AI outputs
 
@@ -30,7 +30,7 @@ Audit date: August 23, 2026
 | Events | Attendance | Partially implemented | Manual/self check-in, statuses, duplicate prevention, summaries, and event-window enforcement work. Biometric mode intentionally returns 501 until scanner hardware and its vendor SDK are connected. |
 | Merchandise | Tokenized Queue | Implemented | A digital token is generated for an order and released for claim after payment approval. |
 | Merchandise | Hybrid Payment | Implemented | Cash and e-wallet/other payment flows are supported; e-wallet proof follows officer/admin approval. |
-| Merchandise | Inventory | Implemented | Stock is shown, adjusted, deducted on fulfillment, and protected from invalid release. |
+| Merchandise | Inventory | Implemented | Stock is shown, adjusted, deducted at order creation, restored on payment rejection, and protected from invalid release. |
 | Merchandise | Order Tracking | Implemented | Students see pending, paid, claimed, and cancelled order states. |
 | Merchandise | Fulfillment Verification | Implemented | Officers validate claim tokens; repeated/invalid claims are blocked. |
 | Voting | Secure Online Voting | Implemented | Voting is restricted to the approved time window, with database uniqueness and transactional duplicate-vote protection. |
@@ -40,6 +40,12 @@ Audit date: August 23, 2026
 | Voting | Results Dashboard | Implemented | Official results require a closed election. Admins can inspect them; other roles see them when results are released. New elections default to results released after closure. |
 
 ## Exact manual click-through verification
+
+### 0. Prerequisite: configure the GCash QR code
+
+1. Sign in as Admin and open **Merchandise → GCash Payment** (`/dashboard/merchandise/gcash-payment`).
+2. Upload the organization's official QR code image and save.
+3. Until this is done, `POST /api/orders` with an e-wallet payment method and `POST /api/orders/{id}/payment` (submitting GCash proof) both return 422 with "GCash payment is unavailable until an administrator uploads the official QR code." Do this before Section 6, or the e-wallet order step will fail on stage.
 
 ### 1. Open and sign in
 
@@ -107,7 +113,7 @@ Audit date: August 23, 2026
 3. Open **My Orders** and confirm status tracking.
 4. Sign in as Officer/Admin and approve payment through the required stages.
 5. Confirm a claim token becomes visible.
-6. Open **Validate Tokens**, validate it once, and confirm the order becomes claimed and stock decreases.
+6. Open **Validate Tokens**, validate it once, and confirm the order becomes claimed (stock was already decremented at order creation in step 2, not at claim).
 7. Try the same token again and confirm the system blocks reuse.
 
 ### 7. Verify voting

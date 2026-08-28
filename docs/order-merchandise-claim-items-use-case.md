@@ -19,6 +19,10 @@
 |-- <<extend>> Receive Claim Token
 `-- <<extend>> Present Claim Token for Validation
 
+## Preconditions
+
+- **GCash payment requires an admin-configured QR code.** Before any student can pay with GCash, an ADMIN must upload the organization's official QR code at `/dashboard/merchandise/gcash-payment` (`POST /api/merchandise/gcash-settings`). Until that upload exists, `POST /api/orders` with `payment_method: gcash` returns 422, and `POST /api/orders/{id}/payment` (Submit GCash Payment Proof) returns 422 for every order regardless of its payment method, with the message "GCash payment is unavailable until an administrator uploads the official QR code." Cash orders are unaffected by this precondition.
+
 ## Implementation Coverage
 
 - **Role Access:** all four documented roles can browse, order, view personal orders, and view claim tokens.
