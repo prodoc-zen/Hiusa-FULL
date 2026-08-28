@@ -28,4 +28,11 @@ class OrganizationFactory extends Factory
             'is_active' => true,
         ];
     }
+
+    public function withGcashQr(): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'gcash_qr_url' => '/uploads/gcash/'.Str::random(20).'.png',
+        ]);
+    }
 }
