@@ -14,6 +14,13 @@ use Illuminate\Support\Carbon;
 
 class FinancialForecastController extends Controller
 {
+    // Mirrors ai-service/app/engines/financial_forecasting.py thresholds - keep in sync.
+    private const MIN_SAMPLE_MONTHS_FOR_FIT_ASSESSMENT = 4;
+
+    private const STRONG_FIT_R_SQUARED = 0.7;
+
+    private const MODERATE_FIT_R_SQUARED = 0.4;
+
     public function __construct(
         private readonly HiusaAiService $aiService,
         private readonly GroqResponsesService $groq,
@@ -101,18 +108,19 @@ class FinancialForecastController extends Controller
             ->whereIn('id', $approvedBudgetIds);
         $currentAvailableBudget = (float) (clone $approvedBudgets)->sum('remaining_amount');
         $warningThreshold = (float) (clone $approvedBudgets)->sum('warning_threshold');
-        $advice = $this->aiService->budgetAdvice([
+        $budgetAdvicePayload = [
             'predicted_income' => $predictedIncome,
             'predicted_expense' => $predictedExpense,
             'current_available_budget' => $currentAvailableBudget,
             'committed_expenses' => 0,
             'warning_threshold' => $warningThreshold,
             'safety_ratio' => 0.8,
-        ]);
+        ];
+        $advice = $this->aiService->budgetAdvice($budgetAdvicePayload);
         $adviceEngine = 'python-fastapi';
 
         if (! $this->validBudgetAdvice($advice)) {
-            $advice = $this->localBudgetAdvice($predictedIncome, $predictedExpense, $currentAvailableBudget, $warningThreshold);
+            $advice = $this->localBudgetAdvice($budgetAdvicePayload);
             $adviceEngine = 'php-fallback';
         }
 
@@ -153,6 +161,13 @@ class FinancialForecastController extends Controller
                     'engine' => $analysis['engine'],
                     'income' => $analysis['income_model'],
                     'expense' => $analysis['expense_model'],
+                    'raw_predicted_income' => $analysis['raw_predicted_income'] ?? $predictedIncome,
+                    'raw_predicted_expense' => $analysis['raw_predicted_expense'] ?? $predictedExpense,
+                    'income_clamped' => $analysis['income_clamped'] ?? false,
+                    'expense_clamped' => $analysis['expense_clamped'] ?? false,
+                    'fit_quality' => $analysis['fit_quality'] ?? null,
+                    'is_reliable' => $analysis['is_reliable'] ?? null,
+                    'confidence_note' => $analysis['confidence_note'] ?? null,
                     'risk' => $risk,
                     'budget_advice' => $advice,
                     'ai_output_id' => $aiOutput->id,
@@ -238,10 +253,60 @@ class FinancialForecastController extends Controller
         }
 
         $slope = $denominator > 0 ? $numerator / $denominator : 0.0;
+        $intercept = $meanY - ($slope * $meanX);
+
+        $residualSum = 0.0;
+        $totalSum = 0.0;
+
+        foreach ($xValues as $index => $x) {
+            $residualSum += ($yValues[$index] - ($intercept + $slope * $x)) ** 2;
+            $totalSum += ($yValues[$index] - $meanY) ** 2;
+        }
+
+        $rSquared = ($totalSum === 0.0 && $residualSum === 0.0)
+            ? 1.0
+            : ($totalSum > 0 ? 1 - ($residualSum / $totalSum) : 0.0);
 
         return [
             'slope' => round($slope, 6),
-            'intercept' => round($meanY - ($slope * $meanX), 6),
+            'intercept' => round($intercept, 6),
+            'r_squared' => round(max(0.0, min(1.0, $rSquared)), 6),
+        ];
+    }
+
+    private function assessFitQuality(int $sampleMonths, float $incomeRSquared, float $expenseRSquared): array
+    {
+        if ($sampleMonths < self::MIN_SAMPLE_MONTHS_FOR_FIT_ASSESSMENT) {
+            return [
+                'fit_quality' => 'insufficient_data',
+                'is_reliable' => false,
+                'confidence_note' => "Only {$sampleMonths} month(s) of history were used. At least ".self::MIN_SAMPLE_MONTHS_FOR_FIT_ASSESSMENT.' months are needed before R'."\u{b2}".' is a meaningful signal, so treat this forecast as a rough estimate.',
+            ];
+        }
+
+        $weakestFit = min($incomeRSquared, $expenseRSquared);
+        $summary = "Based on {$sampleMonths} months of history with income R"."\u{b2} ".number_format($incomeRSquared, 3).' and expense R'."\u{b2} ".number_format($expenseRSquared, 3);
+
+        if ($weakestFit >= self::STRONG_FIT_R_SQUARED) {
+            return [
+                'fit_quality' => 'strong',
+                'is_reliable' => true,
+                'confidence_note' => "{$summary}, the linear trend fits the data well.",
+            ];
+        }
+
+        if ($weakestFit >= self::MODERATE_FIT_R_SQUARED) {
+            return [
+                'fit_quality' => 'moderate',
+                'is_reliable' => true,
+                'confidence_note' => "{$summary}, the trend is a fair but not tight fit; treat the projection as a general direction.",
+            ];
+        }
+
+        return [
+            'fit_quality' => 'weak',
+            'is_reliable' => false,
+            'confidence_note' => "{$summary}, actual figures vary widely from the linear trend; treat this projection with caution.",
         ];
     }
 
@@ -278,37 +343,71 @@ class FinancialForecastController extends Controller
         $nextX = $firstPeriod->diffInMonths($nextPeriod);
         $incomeModel = $this->ols($points->pluck('x')->all(), $points->pluck('income')->all());
         $expenseModel = $this->ols($points->pluck('x')->all(), $points->pluck('expense')->all());
-        $predictedIncome = round(max(0, $incomeModel['intercept'] + ($incomeModel['slope'] * $nextX)), 2);
-        $predictedExpense = round(max(0, $expenseModel['intercept'] + ($expenseModel['slope'] * $nextX)), 2);
+        $rawPredictedIncome = round($incomeModel['intercept'] + ($incomeModel['slope'] * $nextX), 2);
+        $rawPredictedExpense = round($expenseModel['intercept'] + ($expenseModel['slope'] * $nextX), 2);
+        $predictedIncome = max(0.0, $rawPredictedIncome);
+        $predictedExpense = max(0.0, $rawPredictedExpense);
+        $fitAssessment = $this->assessFitQuality(count($monthly), $incomeModel['r_squared'], $expenseModel['r_squared']);
 
         return [
             'forecast_period' => $nextPeriod->format('Y-m'),
+            'sample_months' => count($monthly),
             'predicted_income' => $predictedIncome,
             'predicted_expense' => $predictedExpense,
             'predicted_balance' => round($predictedIncome - $predictedExpense, 2),
+            'raw_predicted_income' => $rawPredictedIncome,
+            'raw_predicted_expense' => $rawPredictedExpense,
+            'income_clamped' => $rawPredictedIncome < 0,
+            'expense_clamped' => $rawPredictedExpense < 0,
             'income_model' => $incomeModel,
             'expense_model' => $expenseModel,
             'engine' => 'php-fallback',
+            ...$fitAssessment,
         ];
     }
 
-    private function localBudgetAdvice(float $income, float $expense, float $currentAvailable, float $warningThreshold): array
+    private function localBudgetAdvice(array $payload): array
     {
-        $available = round($currentAvailable + $income - $expense, 2);
+        $income = (float) $payload['predicted_income'];
+        $expense = (float) $payload['predicted_expense'];
+        $currentAvailable = (float) $payload['current_available_budget'];
+        $committed = (float) ($payload['committed_expenses'] ?? 0);
+        $warningThreshold = (float) ($payload['warning_threshold'] ?? 0);
+        $safetyRatio = (float) ($payload['safety_ratio'] ?? 0.8);
+
+        $available = round($currentAvailable + $income - $expense - $committed, 2);
+        $safeLimit = round(max(0, $available) * $safetyRatio, 2);
+        $currentFunds = max(0, $currentAvailable);
+        $recommendedAllocation = round(min($currentFunds, $safeLimit), 2);
+        $reserveAmount = round(max(0, $currentFunds - $recommendedAllocation), 2);
         $ratio = $income > 0 ? round($expense / $income, 4) : null;
-        $forecastRisk = $available < 0 ? 'deficit' : (($expense > $income || ($ratio !== null && $ratio >= 0.9) || ($warningThreshold > 0 && $available <= $warningThreshold)) ? 'overspending' : 'stable');
+        $possibleDeficit = $available < 0;
+        $forecastRisk = $possibleDeficit
+            ? 'deficit'
+            : (($expense > $income || ($ratio !== null && $ratio >= 0.9) || ($warningThreshold > 0 && $available <= $warningThreshold)) ? 'overspending' : 'stable');
         $overspendingRisk = $forecastRisk === 'stable' ? 'low' : ($forecastRisk === 'deficit' || $expense > $income ? 'high' : 'medium');
+
+        // Status reflects actual financial risk, not merely whether the safety reserve
+        // is being held back (holding a reserve during a stable forecast is normal).
+        $allocationStatus = $recommendedAllocation <= 0
+            ? 'no_funds'
+            : (in_array($forecastRisk, ['deficit', 'overspending'], true) ? 'reduce_allocation' : 'within_limit');
 
         return [
             'estimated_available_budget' => $available,
-            'safe_spending_limit' => round(max(0, $available) * 0.8, 2),
+            'safe_spending_limit' => $safeLimit,
+            'recommended_allocation' => $recommendedAllocation,
+            'reserve_amount' => $reserveAmount,
+            'allocation_status' => $allocationStatus,
             'overspending_risk' => $overspendingRisk,
             'forecast_risk' => $forecastRisk,
-            'possible_deficit' => $available < 0,
+            'possible_deficit' => $possibleDeficit,
             'expense_to_income_ratio' => $ratio,
-            'advice' => $forecastRisk === 'deficit'
-                ? 'A deficit is projected. Pause discretionary spending and secure additional income before approving new expenses.'
-                : 'Keep new commitments within the safe spending limit and continue monitoring actual income and expenses.',
+            'advice' => $possibleDeficit
+                ? 'A deficit is projected. Pause discretionary spending, review committed costs, and secure additional income before approving new expenses.'
+                : ($forecastRisk === 'overspending'
+                    ? 'Spending risk is elevated. Keep new commitments below the safe spending limit and reduce nonessential expenses.'
+                    : 'The projection is stable. Keep new spending within the safe spending limit while preserving the safety reserve.'),
             'rules_applied' => ['Laravel deterministic fallback'],
         ];
     }

@@ -22,13 +22,6 @@ def advise_budget(request: BudgetAdviceRequest) -> dict:
     )
     possible_deficit = projected < 0
 
-    if recommended_allocation <= 0:
-        allocation_status = "no_funds"
-    elif recommended_allocation < current_funds:
-        allocation_status = "reduce_allocation"
-    else:
-        allocation_status = "within_limit"
-
     if possible_deficit:
         risk = "high"
         forecast_risk = "deficit"
@@ -60,6 +53,15 @@ def advise_budget(request: BudgetAdviceRequest) -> dict:
             "spending limit while preserving the configured safety reserve."
         )
 
+    # Status reflects actual financial risk, not merely whether the safety reserve
+    # is being held back (holding a reserve during a stable forecast is normal).
+    if recommended_allocation <= 0:
+        allocation_status = "no_funds"
+    elif forecast_risk in ("deficit", "overspending"):
+        allocation_status = "reduce_allocation"
+    else:
+        allocation_status = "within_limit"
+
     return {
         "estimated_available_budget": projected,
         "safe_spending_limit": safe_limit,
@@ -77,5 +79,8 @@ def advise_budget(request: BudgetAdviceRequest) -> dict:
             "recommended allocation = min(current available funds, safe spending limit)",
             "deficit when available is below zero",
             "overspending when expenses exceed income, reach 90% of income, or available funds reach the warning threshold",
+            "allocation status reflects forecast risk: no_funds when nothing is left to allocate, "
+            "reduce_allocation during deficit or overspending, within_limit otherwise even if a "
+            "safety reserve is held back",
         ],
     }

@@ -13,6 +13,14 @@ class OlsModel:
     r_squared: float
 
 
+# Below this many months, R-squared is a sample-size artifact rather than a
+# quality signal (two points always fit a line perfectly). n=2 is explicitly
+# treated as insufficient_data regardless of its r_squared value.
+MIN_SAMPLE_MONTHS_FOR_FIT_ASSESSMENT = 4
+STRONG_FIT_R_SQUARED = 0.7
+MODERATE_FIT_R_SQUARED = 0.4
+
+
 def _month_number(period: str) -> int:
     year, month = (int(value) for value in period.split("-"))
     return year * 12 + month - 1
@@ -48,6 +56,45 @@ def _ols(x_values: list[float], y_values: list[float]) -> OlsModel:
     )
 
 
+def _assess_fit_quality(sample_months: int, income_r_squared: float, expense_r_squared: float) -> dict:
+    if sample_months < MIN_SAMPLE_MONTHS_FOR_FIT_ASSESSMENT:
+        return {
+            "fit_quality": "insufficient_data",
+            "is_reliable": False,
+            "confidence_note": (
+                f"Only {sample_months} month(s) of history were used. At least "
+                f"{MIN_SAMPLE_MONTHS_FOR_FIT_ASSESSMENT} months are needed before R² is a "
+                "meaningful signal, so treat this forecast as a rough estimate."
+            ),
+        }
+
+    weakest_fit = min(income_r_squared, expense_r_squared)
+    fit_summary = (
+        f"Based on {sample_months} months of history with income R² {income_r_squared:.3f} "
+        f"and expense R² {expense_r_squared:.3f}"
+    )
+
+    if weakest_fit >= STRONG_FIT_R_SQUARED:
+        return {
+            "fit_quality": "strong",
+            "is_reliable": True,
+            "confidence_note": f"{fit_summary}, the linear trend fits the data well.",
+        }
+
+    if weakest_fit >= MODERATE_FIT_R_SQUARED:
+        return {
+            "fit_quality": "moderate",
+            "is_reliable": True,
+            "confidence_note": f"{fit_summary}, the trend is a fair but not tight fit; treat the projection as a general direction.",
+        }
+
+    return {
+        "fit_quality": "weak",
+        "is_reliable": False,
+        "confidence_note": f"{fit_summary}, actual figures vary widely from the linear trend; treat this projection with caution.",
+    }
+
+
 def forecast_finances(request: ForecastRequest) -> dict:
     records = sorted(request.monthly_records, key=lambda record: record.period)
     first_month = _month_number(records[0].period)
@@ -56,8 +103,11 @@ def forecast_finances(request: ForecastRequest) -> dict:
     expense_model = _ols(x_values, [record.expense for record in records])
     next_month_number = _month_number(records[-1].period) + 1
     next_x = float(next_month_number - first_month)
-    predicted_income = round(max(0.0, income_model.intercept + income_model.slope * next_x), 2)
-    predicted_expense = round(max(0.0, expense_model.intercept + expense_model.slope * next_x), 2)
+    raw_predicted_income = round(income_model.intercept + income_model.slope * next_x, 2)
+    raw_predicted_expense = round(expense_model.intercept + expense_model.slope * next_x, 2)
+    predicted_income = max(0.0, raw_predicted_income)
+    predicted_expense = max(0.0, raw_predicted_expense)
+    fit_assessment = _assess_fit_quality(len(records), income_model.r_squared, expense_model.r_squared)
 
     return {
         "algorithm": "ordinary_least_squares",
@@ -66,6 +116,11 @@ def forecast_finances(request: ForecastRequest) -> dict:
         "predicted_income": predicted_income,
         "predicted_expense": predicted_expense,
         "predicted_balance": round(predicted_income - predicted_expense, 2),
+        "raw_predicted_income": raw_predicted_income,
+        "raw_predicted_expense": raw_predicted_expense,
+        "income_clamped": raw_predicted_income < 0,
+        "expense_clamped": raw_predicted_expense < 0,
         "income_model": income_model.__dict__,
         "expense_model": expense_model.__dict__,
+        **fit_assessment,
     }
