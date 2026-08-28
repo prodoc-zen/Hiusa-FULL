@@ -24,7 +24,10 @@ class OrganizationSeeder extends Seeder
                 // FinancialAccountabilityTest::test_gcash_order_is_rejected_until_an_official_qr_is_configured
                 // depends on a factory-made org having none, so this must stay
                 // seeder-only and never move into OrganizationFactory.
-                'gcash_qr_url' => '/uploads/gcash/378e6878-a7e0-44b8-b77e-90f5b4892058.png',
+                // Must be a tracked demo-* asset: real uploads are gitignored, so
+                // pointing at one would leave a fresh clone with a stored URL that
+                // 404s while organizationHasGcashQr() still reports it configured.
+                'gcash_qr_url' => '/uploads/gcash/demo-gcash-qr.png',
             ],
             [
                 'name' => 'Junior Philippine Institute of Accountants - College of Business Education',
