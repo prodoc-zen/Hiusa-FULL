@@ -95,7 +95,8 @@ class RequestedWorkflowCompletionTest extends TestCase
 
     public function test_buyer_can_submit_gcash_proof_and_payment_and_claim_checks_are_enforced(): void
     {
-        $buyer = $this->user('STUDENT');
+        $organization = Organization::factory()->withGcashQr()->create();
+        $buyer = $this->user('STUDENT', $organization->id);
         $officer = $this->user('SBO_OFFICER', $buyer->organization_id);
         $admin = $this->user('ADMIN', $buyer->organization_id);
         $item = Merchandise::create([
