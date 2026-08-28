@@ -23,3 +23,6 @@ server/public/uploads/*
 !server/public/uploads/*/
 server/public/uploads/*/*
 !server/public/uploads/*/.gitkeep
+# demo-* assets ARE tracked: the seeders reference them by path, so a fresh
+# clone needs them present or the app stores a URL that 404s.
+!server/public/uploads/*/demo-*
