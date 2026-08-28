@@ -5,3 +5,21 @@ HIUSA - FINAL PAPER (1).txt
 rrl-instructions.md
 rrl.txt
 HIUSA-EXCESS
+
+# Logs and captured shell output - never source of truth, machine-specific
+*.log
+
+# Word/Office owner-lock temp files
+~$*
+
+# Raw DB dumps - the 44 migrations under server/database/migrations are the
+# source of truth for schema; a dump goes stale the moment a migration lands.
+*.sql
+
+# User-uploaded financial/media artifacts (GCash QR, payment proof, partylist
+# and merchandise images) - runtime data, not source. Keep the directories so
+# the app has somewhere to write and serve /uploads/... from on a fresh clone.
+server/public/uploads/*
+!server/public/uploads/*/
+server/public/uploads/*/*
+!server/public/uploads/*/.gitkeep
