@@ -135,8 +135,8 @@ class OrderController extends Controller
                     'organization_id' => $request->user()->organization_id,
                 ]);
 
-            $this->notifyFulfillmentTeam($order);
-            $this->audit($request, 'created', $order);
+                $this->notifyFulfillmentTeam($order);
+                $this->audit($request, 'created', $order);
             } catch (\Throwable $exception) {
                 $this->deletePaymentProof($paymentProofUrl);
                 throw $exception;
@@ -318,7 +318,10 @@ class OrderController extends Controller
     public function auditHistory(Request $request, $id)
     {
         $order = Order::where('organization_id', $request->user()->organization_id)->find($id);
-        if (! $order) return response()->json(['message' => 'Order not found.'], 404);
+        if (! $order) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
         return response()->json(AuditLog::with('user:school_id,first_name,last_name,role')
             ->where('organization_id', $order->organization_id)->where('record_type', Order::class)->where('record_id', $order->id)->latest('created_at')->get());
     }
@@ -433,6 +436,6 @@ class OrderController extends Controller
 
     private function audit(Request $request, string $action, Order $order): void
     {
-        AuditLog::create(['organization_id'=>$order->organization_id, 'user_id'=>$request->user()->school_id, 'module'=>'orders', 'action'=>$action, 'record_type'=>Order::class, 'record_id'=>$order->id, 'new_values'=>$order->only(['status','total_price','student_id','transaction_id']), 'ip_address'=>$request->ip(), 'created_at'=>now()]);
+        AuditLog::create(['organization_id' => $order->organization_id, 'user_id' => $request->user()->school_id, 'module' => 'orders', 'action' => $action, 'record_type' => Order::class, 'record_id' => $order->id, 'new_values' => $order->only(['status', 'total_price', 'student_id', 'transaction_id']), 'ip_address' => $request->ip(), 'created_at' => now()]);
     }
 }

@@ -2,8 +2,8 @@
 
 namespace App\Services;
 
-use App\Models\Notification;
 use App\Models\AuditLog;
+use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
@@ -126,6 +126,6 @@ class OrderFulfillmentService
 
     private function audit(Order $order, User $actor, string $action): void
     {
-        AuditLog::create(['organization_id'=>$order->organization_id, 'user_id'=>$actor->school_id, 'module'=>'orders', 'action'=>$action, 'record_type'=>Order::class, 'record_id'=>$order->id, 'new_values'=>$order->only(['status','transaction_id','approved_by','processed_by']), 'created_at'=>now()]);
+        AuditLog::create(['organization_id' => $order->organization_id, 'user_id' => $actor->school_id, 'module' => 'orders', 'action' => $action, 'record_type' => Order::class, 'record_id' => $order->id, 'new_values' => $order->only(['status', 'transaction_id', 'approved_by', 'processed_by']), 'created_at' => now()]);
     }
 }

@@ -36,7 +36,9 @@ class GcashSettingsController extends Controller
 
         if ($oldUrl && str_starts_with($oldUrl, '/uploads/gcash/')) {
             $oldPath = public_path(ltrim($oldUrl, '/'));
-            if (is_file($oldPath)) @unlink($oldPath);
+            if (is_file($oldPath)) {
+                @unlink($oldPath);
+            }
         }
 
         AuditLog::create([

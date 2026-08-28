@@ -10,6 +10,7 @@ use App\Models\Task;
 use App\Models\User;
 use App\Services\GroqResponsesService;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -101,7 +102,7 @@ class EventController extends Controller
     private function loadLinkedBudgets($events): void
     {
         $events = $events instanceof Event
-            ? new \Illuminate\Database\Eloquent\Collection([$events])
+            ? new Collection([$events])
             : $events;
 
         $events->load([
