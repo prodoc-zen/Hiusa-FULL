@@ -15,6 +15,7 @@ use App\Models\Merchandise;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\Partylist;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
@@ -887,7 +888,7 @@ class UseCaseComplianceTest extends TestCase
                 'user_id' => $admin->school_id,
                 'module' => 'elections',
                 'action' => $action,
-                'record_type' => \App\Models\Partylist::class,
+                'record_type' => Partylist::class,
                 'record_id' => $partylistId,
             ]);
         }
