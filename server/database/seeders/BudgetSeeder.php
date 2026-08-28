@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
@@ -37,6 +38,41 @@ class BudgetSeeder extends Seeder
             'warning_threshold' => 8000.00,
             'event_id' => null,
         ]);
+
+        // Budgets have no approved_at column of their own - TransactionController
+        // gates new postings solely on the latest ApprovalRequest for the budget
+        // being 'approved'. The Sports Fest budget is left deliberately pending
+        // (unapproved) so the Department Head Approvals screen has a real budget
+        // to sign off on live, distinct from the event approval demo.
+        $deptHead = User::where('organization_id', $officer1->organization_id)
+            ->where('role', 'DEPARTMENT_HEAD')
+            ->first();
+
+        foreach ([
+            ['budget' => $generalFund, 'approved' => true],
+            ['budget' => $merchandiseFund, 'approved' => true],
+            ['budget' => $sportsBudget, 'approved' => false],
+        ] as $entry) {
+            $approved = $entry['approved'];
+            $budget = $entry['budget'];
+
+            // withoutEvents() suppresses ApprovalRequest::booted()'s
+            // notifyApprovers() and recordSubmissionAudit(), which would
+            // otherwise fan out bogus notifications/audit rows during seeding.
+            ApprovalRequest::withoutEvents(function () use ($budget, $officer1, $deptHead, $approved) {
+                ApprovalRequest::create([
+                    'organization_id' => $officer1->organization_id,
+                    'entity_type' => 'budget',
+                    'entity_id' => $budget->id,
+                    'requested_by' => $officer1->school_id,
+                    'required_role' => 'DEPARTMENT_HEAD',
+                    'status' => $approved ? 'approved' : 'pending',
+                    'reviewed_by' => $approved ? $deptHead?->school_id : null,
+                    'requested_at' => $approved ? now()->subWeeks(3) : now()->subDays(2),
+                    'reviewed_at' => $approved ? now()->subWeeks(3)->addHours(6) : null,
+                ]);
+            });
+        }
 
         $transactions = [
             // Income entries
@@ -135,6 +171,25 @@ class BudgetSeeder extends Seeder
 
         foreach ($transactions as $t) {
             Transaction::create($t);
+        }
+
+        // Budget::create() bypasses BudgetController, which is the only place that
+        // maintains remaining_amount. Left null, every running-balance reader falls
+        // back to allocated_amount and reports the wrong spend (the officer
+        // dashboard derives spend from allocated/remaining/transacted, so a null
+        // remaining made it show half the transacted total). Recompute with the
+        // server's own definition from BudgetController: allocated + income - expense.
+        foreach ([$generalFund, $sportsBudget, $merchandiseFund] as $budget) {
+            $totals = Transaction::where('budget_id', $budget->id)
+                ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) AS income")
+                ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) AS expense")
+                ->first();
+
+            $budget->update([
+                'remaining_amount' => (float) $budget->allocated_amount
+                    + (float) $totals->income
+                    - (float) $totals->expense,
+            ]);
         }
 
         $forecasts = [

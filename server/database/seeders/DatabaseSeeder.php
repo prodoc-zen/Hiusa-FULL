@@ -21,12 +21,16 @@ class DatabaseSeeder extends Seeder
             AdministratorSeeder::class,
             UserSeeder::class,
             DepartmentHeadSeeder::class,
+            SboPositionSeeder::class,
             AnnouncementSeeder::class,
             EventSeeder::class,
+            AttendanceSeeder::class,
             TaskSeeder::class,
             BudgetSeeder::class,
             MerchandiseSeeder::class,
+            OrderSeeder::class,
             ElectionSeeder::class,
+            NotificationSeeder::class,
         ]);
 
         $defaultOrganizationId = Organization::where('acronym', 'PSITS-CCS')->value('id');

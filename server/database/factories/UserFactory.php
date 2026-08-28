@@ -49,6 +49,11 @@ class UserFactory extends Factory
         return $this->state(fn () => ['role' => 'ADMIN', 'position_title' => 'Adviser']);
     }
 
+    public function position(string $title): static
+    {
+        return $this->state(fn () => ['position_title' => $title]);
+    }
+
     public function departmentHead(): static
     {
         return $this->state(fn () => ['role' => 'DEPARTMENT_HEAD']);
