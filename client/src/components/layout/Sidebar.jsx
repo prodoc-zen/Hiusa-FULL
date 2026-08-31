@@ -33,6 +33,7 @@ const NAV_STRUCTURE = [
     children: [
       { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['ADMIN'] },
       { id: 'manage-sbo-positions', label: 'Manage SBO Positions', path: '/dashboard/admin/sbo-positions', roles: ['ADMIN'] },
+      { id: 'manage-programs-sections', label: 'Programs & Sections', path: '/dashboard/admin/programs-sections', roles: ['ADMIN'] },
     ],
   },
   {

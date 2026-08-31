@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicStructureController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
@@ -48,6 +49,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sbo-positions', [SboPositionController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/sbo-positions', [SboPositionController::class, 'store'])->middleware('role:ADMIN');
     Route::put('/sbo-positions/{position}', [SboPositionController::class, 'update'])->middleware('role:ADMIN');
+    Route::get('/academic-structure', [AcademicStructureController::class, 'index'])->middleware('role:ADMIN');
+    Route::post('/academic-structure/programs', [AcademicStructureController::class, 'store'])->middleware('role:ADMIN');
+    Route::put('/academic-structure/programs/{program}', [AcademicStructureController::class, 'update'])->middleware('role:ADMIN');
+    Route::delete('/academic-structure/programs/{program}', [AcademicStructureController::class, 'destroy'])->middleware('role:ADMIN');
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
@@ -130,6 +135,8 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Order Routes
     Route::get('/orders', [OrderController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
+    Route::get('/orders/analytics/users', [OrderController::class, 'analyticsUsers'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::get('/orders/export', [OrderController::class, 'export'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware('role:ADMIN,SBO_OFFICER');

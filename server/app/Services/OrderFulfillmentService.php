@@ -12,7 +12,7 @@ use Illuminate\Support\Facades\DB;
 
 class OrderFulfillmentService
 {
-    public function approvePayment(Order $order, User $approver): Order
+    public function approvePayment(Order $order, User $approver, bool $bypassOfficerReview = false): Order
     {
         if ($order->status === 'cancelled') {
             throw new DomainException('Cancelled orders cannot be approved.');
@@ -22,12 +22,12 @@ class OrderFulfillmentService
             throw new DomainException('Claimed orders cannot be reviewed again.');
         }
 
-        return DB::transaction(function () use ($order, $approver) {
+        return DB::transaction(function () use ($order, $approver, $bypassOfficerReview) {
             $lockedOrder = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $wasPaid = $lockedOrder->status === 'paid';
 
             $lockedOrder->update([
-                'officer_review_status' => 'approved',
+                'officer_review_status' => $bypassOfficerReview ? 'bypassed' : 'approved',
                 'admin_review_status' => 'approved',
                 'approved_by' => $approver->school_id,
                 'processed_by' => $approver->school_id,
@@ -36,7 +36,7 @@ class OrderFulfillmentService
             ]);
 
             $this->ensureReceipt($lockedOrder->fresh(), $approver);
-            $this->audit($lockedOrder->fresh(), $approver, 'payment_approved');
+            $this->audit($lockedOrder->fresh(), $approver, $bypassOfficerReview ? 'payment_approved_admin_bypass' : 'payment_approved');
 
             if (! $wasPaid) {
                 $this->notifyBuyer(

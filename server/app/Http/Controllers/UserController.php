@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Mail\PasswordResetMail;
+use App\Models\AcademicProgram;
+use App\Models\AcademicSection;
 use App\Models\AuditLog;
 use App\Models\User;
 use Illuminate\Database\QueryException;
@@ -23,6 +25,10 @@ class UserController extends Controller
             'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'account_status' => ['nullable', 'in:active,inactive,disabled'],
             'search' => ['nullable', 'string', 'max:100'],
+            'department' => ['nullable', 'string', 'max:120'],
+            'program' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'],
+            'section' => ['nullable', 'string', 'max:60'],
         ]);
 
         $query = User::query()
@@ -38,16 +44,25 @@ class UserController extends Controller
             $query->where('account_status', $filters['account_status']);
         }
 
+        foreach (['department', 'program', 'year_level', 'section'] as $field) {
+            if (! empty($filters[$field])) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+
         if (! empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function ($userQuery) use ($search) {
                 $userQuery->where('first_name', 'like', "%{$search}%")
                     ->orWhere('last_name', 'like', "%{$search}%")
                     ->orWhere('email', 'like', "%{$search}%")
+                    ->orWhere('contact_number', 'like', "%{$search}%")
                     ->orWhere('school_id', 'like', "%{$search}%")
                     ->orWhere('department', 'like', "%{$search}%")
                     ->orWhere('program', 'like', "%{$search}%")
-                    ->orWhere('year_level', 'like', "%{$search}%");
+                    ->orWhere('year_level', 'like', "%{$search}%")
+                    ->orWhere('section', 'like', "%{$search}%")
+                    ->orWhere('major', 'like', "%{$search}%");
             });
         }
 
@@ -78,6 +93,7 @@ class UserController extends Controller
                     ->where(fn ($query) => $query->where('organization_id', $organizationId)),
             ],
             'password' => 'required|string|min:8|confirmed',
+            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'role' => 'required|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
             'account_status' => ['sometimes', 'in:active,inactive,disabled'],
             'position_title' => ['nullable', 'string', 'max:100'],
@@ -89,12 +105,15 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
+        $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
+
         $user = User::create([
             'organization_id' => $organizationId,
             'school_id' => $validatedData['school_id'],
             'first_name' => $validatedData['first_name'],
             'last_name' => $validatedData['last_name'],
             'email' => $validatedData['email'],
+            'contact_number' => $validatedData['contact_number'] ?? null,
             'password_hash' => $validatedData['password'],
             'role' => $validatedData['role'],
             'account_status' => $validatedData['account_status'] ?? 'active',
@@ -137,6 +156,7 @@ class UserController extends Controller
                     ->ignore($user->school_id, 'school_id'),
             ],
             'role' => 'sometimes|required|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
+            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'account_status' => ['sometimes', 'required', 'in:active,inactive,disabled'],
             'position_title' => ['nullable', 'string', 'max:100'],
             'notification_preferences' => ['nullable', 'array'],
@@ -165,6 +185,8 @@ class UserController extends Controller
         ) {
             return response()->json(['message' => 'Cannot deactivate the last active admin account.'], 422);
         }
+
+        $validatedData = $this->normalizeAcademicPayload($validatedData, $request->user(), $user);
 
         if (array_key_exists('password', $validatedData)) {
             $validatedData['password_hash'] = $validatedData['password'];
@@ -254,6 +276,7 @@ class UserController extends Controller
             return response()->json(['message' => 'Admin accounts cannot be deleted using this endpoint.'], 422);
         }
 
+        $oldValues = $this->auditableUserValues($user);
         $user->tokens()->delete();
 
         try {
@@ -263,6 +286,8 @@ class UserController extends Controller
                 'message' => 'Cannot delete this user - they have existing records (transactions, tasks, etc.) linked to their account.',
             ], 409);
         }
+
+        $this->recordUserAudit($request, 'deleted', $user, $oldValues, []);
 
         return response()->json(['message' => 'User deleted successfully.']);
     }
@@ -288,6 +313,7 @@ class UserController extends Controller
                 Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $request->organization_id)),
             ],
             'password' => 'required|string|min:8|confirmed',
+            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'role' => 'sometimes|in:STUDENT',
             'notification_preferences' => ['nullable', 'array'],
             'department' => ['nullable', 'string', 'max:120'],
@@ -301,6 +327,7 @@ class UserController extends Controller
             'first_name' => $validatedData['first_name'],
             'last_name' => $validatedData['last_name'],
             'email' => $validatedData['email'],
+            'contact_number' => $validatedData['contact_number'] ?? null,
             'password_hash' => $validatedData['password'],
             'role' => $validatedData['role'] ?? 'STUDENT',
             'account_status' => 'active',
@@ -528,6 +555,7 @@ class UserController extends Controller
             'first_name' => $user->first_name,
             'last_name' => $user->last_name,
             'email' => $user->email,
+            'contact_number' => $user->contact_number,
             'role' => $user->role,
             'position_title' => $user->position_title,
             'department' => $user->department,
@@ -545,6 +573,65 @@ class UserController extends Controller
 
         if ($role !== 'SBO_OFFICER') {
             $data['position_title'] = null;
+        }
+
+        return $data;
+    }
+
+    private function normalizeAcademicPayload(array $data, User $actor, ?User $existingUser = null): array
+    {
+        $organization = $actor->organization;
+        $department = $organization?->college ?: 'College of Computer Studies';
+        $program = $data['program'] ?? $existingUser?->program;
+        $yearLevel = $data['year_level'] ?? $existingUser?->year_level;
+        $section = $data['section'] ?? $existingUser?->section;
+
+        $data['department'] = $department;
+
+        if (
+            $existingUser &&
+            $program === $existingUser->program &&
+            $yearLevel === $existingUser->year_level &&
+            $section === $existingUser->section
+        ) {
+            return $data;
+        }
+
+        if ($program === null || $program === '') {
+            if (! empty($section)) {
+                throw ValidationException::withMessages(['section' => ['Choose a course/program before selecting a section.']]);
+            }
+
+            return $data;
+        }
+
+        $configuredProgram = AcademicProgram::where('organization_id', $actor->organization_id)
+            ->where('name', $program)
+            ->first();
+
+        if (! $configuredProgram) {
+            throw ValidationException::withMessages(['program' => ['Choose a course/program configured for this organization.']]);
+        }
+
+        if ($section && ! $yearLevel) {
+            throw ValidationException::withMessages(['year_level' => ['Choose a year level before selecting a section.']]);
+        }
+
+        if ($section) {
+            $yearNumber = match ($yearLevel) {
+                '1st Year' => 1,
+                '2nd Year' => 2,
+                '3rd Year' => 3,
+                '4th Year' => 4,
+                default => null,
+            };
+            $validSection = $yearNumber && AcademicSection::where('academic_program_id', $configuredProgram->id)
+                ->where('year_level', $yearNumber)
+                ->where('name', $section)
+                ->exists();
+            if (! $validSection) {
+                throw ValidationException::withMessages(['section' => ['Choose a section that matches the selected program and year level.']]);
+            }
         }
 
         return $data;

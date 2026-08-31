@@ -24,9 +24,13 @@ class EventController extends Controller
     {
         $user = $request->user();
 
-        $query = Event::with('creator:school_id,first_name,last_name')
+        $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
             ->where('organization_id', $user->organization_id)
-            ->withCount('attendanceRecords')
+            ->withCount([
+                'attendanceRecords',
+                'tasks',
+                'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
+            ])
             ->orderBy('start_time', 'asc');
 
         if ($user->role !== 'ADMIN') {
@@ -415,8 +419,8 @@ class EventController extends Controller
         }
 
         $recordsQuery = Attendance::with([
-            'user:school_id,first_name,last_name,role',
-            'recorder:school_id,first_name,last_name,role',
+            'user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section',
+            'recorder:school_id,first_name,last_name,email,role,position_title',
         ])
             ->where('event_id', $id)
             ->orderBy('check_in_time', 'asc');

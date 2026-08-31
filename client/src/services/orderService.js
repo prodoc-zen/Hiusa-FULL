@@ -3,6 +3,12 @@ import api from './api';
 export const getOrders = (params) =>
   api.get('/orders', { params });
 
+export const getOrderAnalyticsUsers = (params) =>
+  api.get('/orders/analytics/users', { params });
+
+export const exportOrders = (params) =>
+  api.get('/orders/export', { params, responseType: 'blob' });
+
 export const placeOrder = (data) => {
   const formData = new FormData();
   Object.entries(data).forEach(([key, value]) => {

@@ -83,8 +83,8 @@ class TaskController extends Controller
     public function index(Request $request)
     {
         $query = Task::with([
-            'assignee:school_id,first_name,last_name',
-            'creator:school_id,first_name,last_name',
+            'assignee:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section',
+            'creator:school_id,first_name,last_name,role,position_title',
             'event:id,title',
             'progressUpdates.author:school_id,first_name,last_name',
         ])
