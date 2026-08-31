@@ -8,6 +8,7 @@ import {
   ChevronRight,
   Circle,
   DollarSign,
+  Download,
   Eye,
   ImagePlus,
   Info,
@@ -16,16 +17,18 @@ import {
   Pencil,
   Plus,
   Search,
+  SlidersHorizontal,
   ShoppingBag,
   Ticket,
   Trash2,
   X,
 } from 'lucide-react';
 import { getGcashSettings, getMerchandise, createItem, updateItem, adjustStock, deleteItem } from '../../../services/merchandiseService';
-import { getOrders, placeOrder, submitOrderPayment, updateOrderStatus, claimByToken } from '../../../services/orderService';
+import { exportOrders, getOrderAnalyticsUsers, getOrders, placeOrder, submitOrderPayment, updateOrderStatus, claimByToken } from '../../../services/orderService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
+const EMPTY_ORDER_FILTERS = { search: '', department: '', program: '', major: '', year_level: '', section: '', role: '', position_title: '', status: '', payment_status: '', payment_method: '', merchandise_id: '', ordered_from: '', ordered_to: '', paid_from: '', paid_to: '', claimed_from: '', claimed_to: '', sort: 'newest', per_page: 20 };
 
 function readStudentCart() {
   try {
@@ -156,7 +159,13 @@ export default function MerchandisePage({ initialTab }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [inventorySearch, setInventorySearch] = useState('');
-  const [officerOrderSearch, setOfficerOrderSearch] = useState('');
+  const [orderFilters, setOrderFilters] = useState(EMPTY_ORDER_FILTERS);
+  const [orderSummary, setOrderSummary] = useState(null);
+  const [orderFilterOptions, setOrderFilterOptions] = useState({ departments: [], programs: [], majors: [], roles: [], positions: [], merchandise: [], statuses: [], payment_statuses: [], payment_methods: [] });
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [analyticsModal, setAnalyticsModal] = useState({ open: false, title: '', loading: false, users: [], error: '' });
+  const [orderDetails, setOrderDetails] = useState(null);
+  const [exportingOrders, setExportingOrders] = useState(false);
   const [studentItemSearch, setStudentItemSearch] = useState('');
   const [studentOrderSearch, setStudentOrderSearch] = useState('');
   const [ordersMeta, setOrdersMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 20 });
@@ -201,6 +210,8 @@ export default function MerchandisePage({ initialTab }) {
     if (oRes.data?.current_page !== undefined) {
       setOrdersMeta({ current_page: oRes.data.current_page, last_page: oRes.data.last_page, total: oRes.data.total, per_page: oRes.data.per_page });
     }
+    if (oRes.data?.summary) setOrderSummary(oRes.data.summary);
+    if (oRes.data?.filter_options) setOrderFilterOptions(oRes.data.filter_options);
   }
 
   function load() {
@@ -208,7 +219,7 @@ export default function MerchandisePage({ initialTab }) {
     setError(null);
     const calls = isPersonalShoppingView
       ? [getMerchandise(), getOrders({ mine: 1 }), getGcashSettings()]
-      : [getMerchandise(), getOrders({ page: 1 })];
+      : [getMerchandise(), getOrders({ page: 1, ...EMPTY_ORDER_FILTERS })];
     Promise.all(calls)
       .then(([mRes, oRes, gcashRes]) => {
         const merch = Array.isArray(mRes.data?.data) ? mRes.data.data : (Array.isArray(mRes.data) ? mRes.data : []);
@@ -220,15 +231,30 @@ export default function MerchandisePage({ initialTab }) {
       .finally(() => setLoading(false));
   }
 
-  async function loadOrders(page) {
+  async function loadOrders(page, filters = orderFilters) {
     setLoading(true);
-    try { const oRes = await getOrders({ page }); extractOrders(oRes); }
+    try { const oRes = await getOrders({ page, ...filters }); extractOrders(oRes); }
     catch { setError('Failed to load orders.'); }
     finally { setLoading(false); }
   }
 
   useEffect(load, [isPersonalShoppingView]);
   useEffect(() => { if (initialTab) setActiveTab(initialTab); }, [initialTab]);
+  useEffect(() => {
+    if (isPersonalShoppingView || activeTab !== 'orders') return undefined;
+    const timer = window.setTimeout(async () => {
+      setLoading(true);
+      try {
+        const response = await getOrders({ page: 1, ...orderFilters });
+        extractOrders(response);
+      } catch {
+        setError('Failed to load orders.');
+      } finally {
+        setLoading(false);
+      }
+    }, 250);
+    return () => window.clearTimeout(timer);
+  }, [orderFilters, activeTab, isPersonalShoppingView]);
   useEffect(() => {
     if (isPersonalShoppingView && location.state?.openCartAt) {
       setActiveTab('cart');
@@ -413,6 +439,8 @@ export default function MerchandisePage({ initialTab }) {
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
       setTransactionMessage(role === 'SBO_OFFICER' && status === 'paid'
         ? `Order ORD-${id} submitted for Admin approval.`
+        : role === 'ADMIN' && status === 'paid'
+          ? `Order ORD-${id} was directly approved and its receipt is ready.`
         : `Order ORD-${id} marked as ${capitalize(status)}.`);
       return res;
     } catch (err) {
@@ -668,11 +696,41 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
+  async function openOrderAnalytics(group, title) {
+    setAnalyticsModal({ open: true, title, loading: true, users: [], error: '' });
+    try {
+      const response = await getOrderAnalyticsUsers({ ...orderFilters, group, per_page: 100 });
+      setAnalyticsModal({ open: true, title, loading: false, users: response.data?.data || [], error: '' });
+    } catch {
+      setAnalyticsModal({ open: true, title, loading: false, users: [], error: 'Unable to load the selected users.' });
+    }
+  }
+
+  async function handleOrderExport() {
+    setExportingOrders(true);
+    try {
+      const response = await exportOrders(orderFilters);
+      const url = URL.createObjectURL(response.data);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `merchandise-orders-${new Date().toISOString().slice(0, 10)}.csv`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      URL.revokeObjectURL(url);
+      setFeedback({ open: true, type: 'success', message: 'Filtered merchandise orders exported.' });
+    } catch {
+      setFeedback({ open: true, type: 'error', message: 'Unable to export merchandise orders.' });
+    } finally {
+      setExportingOrders(false);
+    }
+  }
+
   // Derived data
-  const totalRevenue = orders
+  const totalRevenue = orderSummary?.total_collected ?? orders
     .filter((o) => ['paid', 'claimed'].includes(o.status))
     .reduce((sum, o) => sum + toNumber(o.total_price), 0);
-  const activeOrders = orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
+  const activeOrders = orderSummary ? orderSummary.pending_orders + orderSummary.unclaimed_orders : orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
   const lowStock = items.filter((i) => i.stock_quantity > 0 && i.stock_quantity < 10).length;
   const paidOrders = orders.filter((o) => o.status === 'paid');
   const availableItems = items.filter((i) => i.is_active && i.stock_quantity > 0);
@@ -706,18 +764,10 @@ export default function MerchandisePage({ initialTab }) {
       );
     });
 
-  const filteredOfficerOrders = orders.filter((o) => {
-    const q = officerOrderSearch.toLowerCase().trim();
-    if (!q) return true;
-    const studentName = `${o.student?.first_name ?? ''} ${o.student?.last_name ?? ''}`.toLowerCase();
-    return (
-      `ord-${o.id}`.toLowerCase().includes(q)
-      || (o.claim_token ?? '').toLowerCase().includes(q)
-      || (o.merchandise?.name ?? '').toLowerCase().includes(q)
-      || studentName.includes(q)
-      || (o.status ?? '').toLowerCase().includes(q)
-    );
-  });
+  const filteredOfficerOrders = orders;
+  const selectedProgram = orderFilterOptions.programs?.find((program) => program.name === orderFilters.program);
+  const availableSections = selectedProgram?.sections?.filter((section) => !orderFilters.year_level || Number(section.year_level) === ['1st Year', '2nd Year', '3rd Year', '4th Year'].indexOf(orderFilters.year_level) + 1) || [];
+  const activeOrderFilterCount = Object.entries(orderFilters).filter(([key, value]) => !['sort', 'per_page'].includes(key) && value).length;
 
   const ordFrom = (ordersMeta.current_page - 1) * ordersMeta.per_page + 1;
   const ordTo = Math.min(ordersMeta.current_page * ordersMeta.per_page, ordersMeta.total);
@@ -1233,58 +1283,89 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {activeTab === 'orders' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
+        <section className="space-y-4">
+          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">Orders</h2>
-              <p className="text-sm font-medium text-slate-500">Process and track student merchandise orders</p>
+              <h2 className="text-lg font-bold text-[#0F172A]">Merchandise Order Intelligence</h2>
+              <p className="text-sm font-medium text-slate-500">Filter cohorts, monitor payments and claims, and drill into the users behind each result.</p>
             </div>
-            <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3">
-              <Search size={15} className="text-slate-400" />
-              <input value={officerOrderSearch} onChange={(e) => setOfficerOrderSearch(e.target.value)} type="text" placeholder="Search order or token..." className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400" />
+            <div className="flex flex-wrap gap-2">
+              <button type="button" onClick={() => setShowAdvancedFilters((value) => !value)} className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"><SlidersHorizontal size={15} />Filters{activeOrderFilterCount > 0 && <span className="rounded-full bg-[#0B8ED0] px-1.5 py-0.5 text-[10px] text-white">{activeOrderFilterCount}</span>}</button>
+              <button type="button" onClick={handleOrderExport} disabled={exportingOrders} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"><Download size={15} />{exportingOrders ? 'Exporting...' : 'Export CSV'}</button>
             </div>
           </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-[minmax(240px,1fr)_repeat(3,minmax(140px,190px))]">
+            <label className="relative"><span className="sr-only">Search merchandise orders</span><Search size={15} className="absolute left-3 top-3.5 text-slate-400" /><input value={orderFilters.search} onChange={(event) => setOrderFilters({ ...orderFilters, search: event.target.value })} placeholder="Search order, student, item, reference..." className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
+            <select aria-label="Order status" value={orderFilters.status} onChange={(event) => setOrderFilters({ ...orderFilters, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All order statuses</option>{orderFilterOptions.statuses?.map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</select>
+            <select aria-label="Merchandise item" value={orderFilters.merchandise_id} onChange={(event) => setOrderFilters({ ...orderFilters, merchandise_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All merchandise</option>{orderFilterOptions.merchandise?.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select>
+            <select aria-label="Sort orders" value={orderFilters.sort} onChange={(event) => setOrderFilters({ ...orderFilters, sort: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="amount_high">Highest amount</option><option value="amount_low">Lowest amount</option><option value="student">Student name</option><option value="item">Merchandise item</option><option value="status">Order status</option></select>
+          </div>
+          {showAdvancedFilters && <div className="mt-4 border-t border-[#E5EDF3] pt-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
+            <select aria-label="Department" value={orderFilters.department} onChange={(event) => setOrderFilters({ ...orderFilters, department: event.target.value, program: '', year_level: '', section: '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All departments</option>{orderFilterOptions.departments?.map((value) => <option key={value}>{value}</option>)}</select>
+            <select aria-label="Program or course" value={orderFilters.program} onChange={(event) => setOrderFilters({ ...orderFilters, program: event.target.value, year_level: '', section: '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All programs</option>{orderFilterOptions.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
+            <select aria-label="Major or specialization" value={orderFilters.major} onChange={(event) => setOrderFilters({ ...orderFilters, major: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All majors</option>{orderFilterOptions.majors?.map((value) => <option key={value}>{value}</option>)}</select>
+            <select aria-label="Year level" value={orderFilters.year_level} disabled={!orderFilters.program} onChange={(event) => setOrderFilters({ ...orderFilters, year_level: event.target.value, section: '' })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm disabled:bg-slate-100"><option value="">All year levels</option>{['1st Year', '2nd Year', '3rd Year', '4th Year'].map((year) => <option key={year}>{year}</option>)}</select>
+            <select aria-label="Section" value={orderFilters.section} disabled={!orderFilters.program || !orderFilters.year_level} onChange={(event) => setOrderFilters({ ...orderFilters, section: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm disabled:bg-slate-100"><option value="">All sections</option>{availableSections.map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
+            <select aria-label="User role" value={orderFilters.role} onChange={(event) => setOrderFilters({ ...orderFilters, role: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All user roles</option>{orderFilterOptions.roles?.map((value) => <option key={value} value={value}>{value.replaceAll('_', ' ')}</option>)}</select>
+            <select aria-label="SBO position" value={orderFilters.position_title} onChange={(event) => setOrderFilters({ ...orderFilters, position_title: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All SBO positions</option>{orderFilterOptions.positions?.map((value) => <option key={value}>{value}</option>)}</select>
+            <select aria-label="Payment status" value={orderFilters.payment_status} onChange={(event) => setOrderFilters({ ...orderFilters, payment_status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All payment statuses</option>{orderFilterOptions.payment_statuses?.map((value) => <option key={value}>{capitalize(value)}</option>)}</select>
+            <select aria-label="Payment method" value={orderFilters.payment_method} onChange={(event) => setOrderFilters({ ...orderFilters, payment_method: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All payment methods</option>{orderFilterOptions.payment_methods?.map((value) => <option key={value}>{value.toUpperCase()}</option>)}</select>
+            <select aria-label="Rows per page" value={orderFilters.per_page} onChange={(event) => setOrderFilters({ ...orderFilters, per_page: Number(event.target.value) })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">{[10, 20, 50, 100].map((value) => <option key={value} value={value}>{value} rows</option>)}</select>
+            {[['ordered_from', 'Ordered from'], ['ordered_to', 'Ordered to'], ['paid_from', 'Paid from'], ['paid_to', 'Paid to'], ['claimed_from', 'Claimed from'], ['claimed_to', 'Claimed to']].map(([key, label]) => <label key={key} className="text-[11px] font-bold text-slate-500">{label}<input type="date" value={orderFilters[key]} onChange={(event) => setOrderFilters({ ...orderFilters, [key]: event.target.value })} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-xs" /></label>)}
+          </div><button type="button" onClick={() => setOrderFilters(EMPTY_ORDER_FILTERS)} className="mt-3 text-xs font-bold text-[#0B8ED0] hover:text-[#0878B7]">Clear all filters</button></div>}
+          </div>
+          {orderSummary && <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">{[
+            ['Total Users', orderSummary.total_users, null, 'Active users in cohort'],
+            ['Purchased', orderSummary.purchased_users, 'purchased', `${orderSummary.purchase_rate}% participation`],
+            ['Did Not Purchase', orderSummary.not_purchased_users, 'not_purchased', 'Users without matching orders'],
+            ['Paid Orders', orderSummary.paid_orders, 'paid', fmt(orderSummary.total_collected)],
+            ['Pending Payment', orderSummary.pending_orders, 'pending', `${fmt(orderSummary.outstanding_balance)} outstanding`],
+            ['Claimed', orderSummary.claimed_orders, 'claimed', `${orderSummary.unclaimed_orders} still unclaimed`],
+          ].map(([label, value, group, helper]) => <button type="button" disabled={!group} onClick={() => group && openOrderAnalytics(group, label)} key={label} className="rounded-xl border border-[#DDE7EF] bg-white p-4 text-left shadow-sm transition enabled:hover:border-[#0B8ED0] enabled:hover:bg-[#F8FBFD]"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-2xl font-black text-[#0F172A]">{value}</p><p className="mt-1 text-[10px] font-semibold text-slate-400">{helper}</p></button>)}</div>}
+          {orderSummary?.breakdown?.length > 0 && <div className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Merchandise breakdown</p><div className="mt-3 flex flex-wrap gap-2">{orderSummary.breakdown.map((item) => <span key={item.id} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 text-xs"><strong className="text-[#0F172A]">{item.name}</strong> · {item.quantity} units · {item.orders_count} orders · {fmt(item.collected)}</span>)}</div></div>}
+          <div className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="border-b border-[#DDE7EF] px-5 py-4"><h3 className="font-bold text-[#0F172A]">Filtered Orders</h3><p className="text-xs text-slate-500">Showing operational, payment, academic, and fulfillment details.</p></div>
           {loading ? (
             <div className="space-y-2 p-5">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
           ) : filteredOfficerOrders.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-400">No orders yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[540px] text-left md:min-w-[850px]">
+              <table className="w-full min-w-[1720px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
-                    <th className="hidden px-5 py-3 md:table-cell">Order</th>
-                    <th className="px-5 py-3">Token</th>
-                    <th className="px-5 py-3">Student</th>
+                    <th className="px-4 py-3">Order / Reference</th>
+                    <th className="px-4 py-3">Student / User</th>
+                    <th className="px-4 py-3">Academic Profile</th>
                     <th className="px-5 py-3">Item</th>
-                    <th className="hidden px-5 py-3 md:table-cell">Qty</th>
-                    <th className="px-5 py-3">Total</th>
-                    <th className="px-5 py-3">Status</th>
-                    <th className="px-5 py-3">Action</th>
+                    <th className="px-4 py-3">Quantity / Amount</th>
+                    <th className="px-4 py-3">Payment</th>
+                    <th className="px-4 py-3">Review Trail</th>
+                    <th className="px-4 py-3">Fulfillment</th>
+                    <th className="px-4 py-3">Dates</th>
+                    <th className="px-4 py-3">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {filteredOfficerOrders.map((o) => (
                     <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="hidden px-5 py-4 font-mono text-xs font-bold text-slate-500 md:table-cell">#{o.id}</td>
-                      <td className="px-5 py-4 font-mono text-xs font-black text-[#0B8ED0]">{o.claim_token || '-'}</td>
-                      <td className="px-5 py-4 font-semibold text-[#0F172A]">{o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}</td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{o.merchandise?.name ?? '-'}</td>
-                      <td className="hidden px-5 py-4 font-bold tabular-nums text-[#0F172A] md:table-cell">{o.quantity}</td>
-                      <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">{fmt(o.total_price)}</td>
-                      <td className="px-5 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(o.status)}</span>
-                      </td>
-                      <td className="px-5 py-4">
+                      <td className="px-4 py-4"><p className="font-mono text-xs font-black text-[#0B8ED0]">ORD-{o.id}</p><p className="mt-1 text-[10px] text-slate-400">{o.transaction?.receipt_reference || o.payment_reference || 'No payment reference'}</p></td>
+                      <td className="px-4 py-4"><button type="button" onClick={() => setOrderDetails(o)} className="text-left font-semibold text-[#0F172A] hover:text-[#0B8ED0]">{o.student ? `${o.student.first_name} ${o.student.last_name}` : '-'}</button><p className="mt-0.5 font-mono text-[10px] text-slate-400">{o.student?.school_id} · {(o.student?.role || '').replaceAll('_', ' ')}</p>{o.student?.position_title && <p className="text-[10px] font-semibold text-[#0B8ED0]">{o.student.position_title}</p>}</td>
+                      <td className="px-4 py-4 text-xs"><p className="font-semibold text-slate-700">{o.student?.program || 'Program not recorded'}</p><p className="mt-0.5 text-slate-400">{[o.student?.major, o.student?.year_level, o.student?.section].filter(Boolean).join(' · ') || 'No year/section'}</p><p className="text-[10px] text-slate-400">{o.student?.department || 'Department not recorded'}</p></td>
+                      <td className="px-4 py-4"><p className="font-semibold text-slate-700">{o.merchandise?.name ?? '-'}</p><p className="text-[10px] text-slate-400">{o.merchandise?.category || 'Uncategorized'} · {fmt(o.merchandise?.price)} each</p></td>
+                      <td className="px-4 py-4"><p className="font-bold tabular-nums text-[#0F172A]">{o.quantity} × {fmt(o.merchandise?.price)}</p><p className="text-xs font-black text-[#0B8ED0]">{fmt(o.total_price)}</p></td>
+                      <td className="px-4 py-4 text-xs"><p className="font-bold uppercase text-slate-600">{o.payment_method || 'Not selected'}</p><p className="mt-1 text-slate-400">{o.payment_reference || 'No reference'}</p><span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${['paid', 'claimed'].includes(o.status) ? 'bg-emerald-50 text-emerald-700' : o.status === 'cancelled' ? 'bg-red-50 text-red-700' : 'bg-amber-50 text-amber-700'}`}>{['paid', 'claimed'].includes(o.status) ? 'Paid' : o.status === 'cancelled' ? 'Cancelled' : 'Pending'}</span></td>
+                      <td className="px-4 py-4 text-[10px] text-slate-500"><p><strong>Officer:</strong> {capitalize(o.officer_review_status)}</p><p><strong>Admin:</strong> {capitalize(o.admin_review_status)}</p><p className="mt-1"><strong>Processed:</strong> {o.processor ? `${o.processor.first_name} ${o.processor.last_name}` : '-'}</p><p><strong>Approved:</strong> {o.approver ? `${o.approver.first_name} ${o.approver.last_name}` : '-'}</p></td>
+                      <td className="px-4 py-4"><span className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(o.status)}</span><p className="mt-2 text-[10px] text-slate-400">Released by {o.claim_verifier ? `${o.claim_verifier.first_name} ${o.claim_verifier.last_name}` : '-'}</p></td>
+                      <td className="px-4 py-4 text-[10px] text-slate-500"><p><strong>Ordered:</strong> {fmtDate(o.created_at)}</p><p><strong>Paid:</strong> {fmtDate(o.transaction?.transaction_date)}</p><p><strong>Claimed:</strong> {fmtDate(o.claimed_at)}</p></td>
+                      <td className="px-4 py-4">
+                        <button type="button" onClick={() => setOrderDetails(o)} className="mb-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1.5 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Eye size={13} />Details</button>
                         {o.status === 'pending' && (
                           <div className="flex flex-wrap gap-2">
-                            {role === 'SBO_OFFICER' ? (
-                              <button onClick={() => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' })} className="flex items-center gap-1 rounded-md bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 transition hover:bg-amber-100">
-                                Verify & Submit <ArrowRight size={12} />
-                              </button>
-                            ) : (
-                              <span className="rounded-md bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-500">Awaiting officer review</span>
-                            )}
+                            <button onClick={() => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' })} className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-bold transition ${role === 'ADMIN' ? 'bg-[#0B8ED0] text-white hover:bg-[#0878B7]' : 'bg-amber-50 text-amber-700 hover:bg-amber-100'}`}>
+                              {role === 'ADMIN' ? 'Approve Directly' : 'Verify & Submit'} <ArrowRight size={12} />
+                            </button>
                             <button onClick={() => setRejectionModal({ open: true, order: o, remarks: '', busy: false })} className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100">Reject</button>
                             {o.payment_proof_url && <a href={resolveAssetUrl(o.payment_proof_url)} target="_blank" rel="noreferrer" title="View payment proof" className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"><Eye size={14} /></a>}
                           </div>
@@ -1309,8 +1390,26 @@ export default function MerchandisePage({ initialTab }) {
               </div>
             </div>
           )}
+          </div>
         </section>
       )}
+
+      {analyticsModal.open && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm"><div className="max-h-[90vh] w-full max-w-7xl overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-2xl"><div className="flex items-start justify-between border-b border-[#DDE7EF] p-5"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Merchandise drill-down</p><h2 className="mt-1 text-xl font-black text-[#0F172A]">{analyticsModal.title}</h2><p className="mt-1 text-xs text-slate-500">Users and matching orders for the active cohort filters.</p></div><button type="button" aria-label="Close drill-down" onClick={() => setAnalyticsModal({ open: false, title: '', loading: false, users: [], error: '' })} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button></div><div className="max-h-[72vh] overflow-auto">{analyticsModal.loading ? <div className="space-y-3 p-5">{[1, 2, 3, 4].map((row) => <div key={row} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}</div> : analyticsModal.error ? <p className="m-5 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{analyticsModal.error}</p> : analyticsModal.users.length === 0 ? <p className="p-12 text-center text-sm text-slate-400">No users match this drill-down.</p> : <table className="w-full min-w-[1680px] text-left text-xs"><thead className="sticky top-0 bg-[#F8FBFD] text-[10px] font-bold uppercase text-slate-500"><tr>{['Student ID', 'Full Name', 'Department', 'Program / Major', 'Year / Section', 'Role / Position', 'Item', 'Qty', 'Unit Price', 'Total', 'Payment', 'Order', 'Ordered', 'Paid', 'Claimed', 'Approved / Released By', 'Reference'].map((label) => <th key={label} className="px-3 py-3">{label}</th>)}</tr></thead><tbody className="divide-y divide-[#E5EDF3]">{analyticsModal.users.flatMap((user) => user.orders?.length ? user.orders.map((order) => ({ user, order })) : [{ user, order: null }]).map(({ user, order }, index) => <tr key={`${user.school_id}-${order?.id || index}`} className="hover:bg-[#F8FBFD]"><td className="px-3 py-3 font-mono">{user.school_id}</td><td className="px-3 py-3 font-bold text-[#0F172A]">{user.first_name} {user.last_name}<p className="font-normal text-slate-400">{user.email}</p></td><td className="px-3 py-3">{user.department || '-'}</td><td className="px-3 py-3">{user.program || '-'}<p className="text-slate-400">{user.major || 'No major'}</p></td><td className="px-3 py-3">{user.year_level || '-'} · {user.section || '-'}</td><td className="px-3 py-3">{(user.role || '').replaceAll('_', ' ')}<p className="text-[#0B8ED0]">{user.position_title || '-'}</p></td><td className="px-3 py-3 font-semibold">{order?.merchandise?.name || 'Did not purchase'}</td><td className="px-3 py-3">{order?.quantity ?? '-'}</td><td className="px-3 py-3">{order ? fmt(order.merchandise?.price) : '-'}</td><td className="px-3 py-3 font-bold">{order ? fmt(order.total_price) : '-'}</td><td className="px-3 py-3">{order?.payment_method || '-'}<p className="text-slate-400">{order?.payment_reference || '-'}</p></td><td className="px-3 py-3">{capitalize(order?.status)}</td><td className="px-3 py-3">{fmtDate(order?.created_at)}</td><td className="px-3 py-3">{fmtDate(order?.transaction?.transaction_date)}</td><td className="px-3 py-3">{fmtDate(order?.claimed_at)}</td><td className="px-3 py-3">{order?.approver ? `${order.approver.first_name} ${order.approver.last_name}` : '-'}<p className="text-slate-400">{order?.claim_verifier ? `${order.claim_verifier.first_name} ${order.claim_verifier.last_name}` : '-'}</p></td><td className="px-3 py-3 font-mono">{order?.transaction?.receipt_reference || order?.payment_reference || '-'}</td></tr>)}</tbody></table>}</div></div></div>}
+
+      {orderDetails && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm"><div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Order record</p><h2 className="mt-1 text-xl font-black text-[#0F172A]">ORD-{orderDetails.id} · {orderDetails.merchandise?.name}</h2><p className="mt-1 text-xs text-slate-500">Complete user, payment, approval, and fulfillment information.</p></div><button type="button" aria-label="Close order details" onClick={() => setOrderDetails(null)} className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button></div><div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[
+        ['Student / User', `${orderDetails.student?.first_name || ''} ${orderDetails.student?.last_name || ''}`, orderDetails.student?.school_id],
+        ['Contact', orderDetails.student?.email, orderDetails.student?.account_status],
+        ['Academic Profile', [orderDetails.student?.department, orderDetails.student?.program, orderDetails.student?.major, orderDetails.student?.year_level, orderDetails.student?.section].filter(Boolean).join(' · '), orderDetails.student?.role?.replaceAll('_', ' ')],
+        ['Item & Quantity', `${orderDetails.merchandise?.name} × ${orderDetails.quantity}`, `${fmt(orderDetails.merchandise?.price)} each · ${fmt(orderDetails.total_price)} total`],
+        ['Payment', orderDetails.payment_method || 'Not selected', orderDetails.payment_reference || 'No reference'],
+        ['Receipt', orderDetails.transaction?.receipt_reference || 'Not generated', orderDetails.transaction?.receipt_number ? `Receipt #${orderDetails.transaction.receipt_number}` : 'Awaiting approval'],
+        ['Review Status', `Officer: ${capitalize(orderDetails.officer_review_status)} · Admin: ${capitalize(orderDetails.admin_review_status)}`, orderDetails.review_remarks || 'No remarks'],
+        ['Processed / Approved', orderDetails.processor ? `${orderDetails.processor.first_name} ${orderDetails.processor.last_name}` : 'Not processed', orderDetails.approver ? `Approved by ${orderDetails.approver.first_name} ${orderDetails.approver.last_name}` : 'Not approved'],
+        ['Fulfillment', capitalize(orderDetails.status), orderDetails.claim_verifier ? `Released by ${orderDetails.claim_verifier.first_name} ${orderDetails.claim_verifier.last_name}` : 'Not released'],
+        ['Order Date', fmtDate(orderDetails.created_at), orderDetails.updated_at ? `Updated ${fmtDate(orderDetails.updated_at)}` : null],
+        ['Payment Date', fmtDate(orderDetails.transaction?.transaction_date), null],
+        ['Claimed / Released Date', fmtDate(orderDetails.claimed_at), null],
+      ].map(([label, value, helper]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-bold text-[#0F172A]">{value || '-'}</p>{helper && <p className="mt-1 break-words text-xs text-slate-500">{helper}</p>}</div>)}</div>{orderDetails.payment_proof_url && <a href={resolveAssetUrl(orderDetails.payment_proof_url)} target="_blank" rel="noreferrer" className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0]"><Eye size={14} />View payment proof</a>}</div></div>}
 
       {activeTab === 'tokens' && isFulfillmentRole && (
         <section className="space-y-4">
@@ -1485,8 +1584,8 @@ export default function MerchandisePage({ initialTab }) {
       {verificationModal.open && verificationModal.order && (
         <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-extrabold text-[#0F172A]">Verify Payment Amount</h3>
-            <p className="mt-1 text-sm text-slate-500">Compare the proof for ORD-{verificationModal.order.id} with the required total of {fmt(verificationModal.order.total_price)}.</p>
+            <h3 className="text-lg font-extrabold text-[#0F172A]">{role === 'ADMIN' ? 'Approve Payment Directly' : 'Verify Payment Amount'}</h3>
+            <p className="mt-1 text-sm text-slate-500">{role === 'ADMIN' ? 'Approve this order without waiting for an SBO Officer review. ' : ''}Confirm the payment for ORD-{verificationModal.order.id} matches {fmt(verificationModal.order.total_price)}.</p>
             {verificationModal.order.payment_proof_url ? (
               <a href={resolveAssetUrl(verificationModal.order.payment_proof_url)} target="_blank" rel="noreferrer" className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Eye size={14} /> View Payment Proof</a>
             ) : (
@@ -1499,7 +1598,7 @@ export default function MerchandisePage({ initialTab }) {
             {verificationModal.error && <p className="mt-2 text-xs font-semibold text-red-600">{verificationModal.error}</p>}
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setVerificationModal({ open: false, order: null, amount: '', busy: false, error: '' })} disabled={verificationModal.busy} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600">Cancel</button>
-              <button type="button" onClick={handlePaymentVerification} disabled={verificationModal.busy || !verificationModal.order.payment_proof_url} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white disabled:opacity-50">{verificationModal.busy ? 'Submitting...' : 'Verify & Submit'}</button>
+              <button type="button" onClick={handlePaymentVerification} disabled={verificationModal.busy || (verificationModal.order.payment_method === 'gcash' && !verificationModal.order.payment_proof_url)} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white disabled:opacity-50">{verificationModal.busy ? 'Submitting...' : role === 'ADMIN' ? 'Approve Payment' : 'Verify & Submit'}</button>
             </div>
           </div>
         </div>

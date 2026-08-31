@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { CalendarDays, Check, Clock, Coins, Megaphone, Package, Vote, X } from 'lucide-react';
+import { useCallback, useEffect, useState } from 'react';
+import { CalendarDays, Check, Clock, Coins, Download, Eye, Megaphone, Package, Search, Vote, X } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 
 const ENTITY_ICON = {
@@ -27,6 +27,19 @@ const STATUS_BADGE = {
 function formatDate(iso) {
   if (!iso) return '-';
   return new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function formatDateTime(iso) {
+  if (!iso) return '-';
+  return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function downloadCsv(rows) {
+  const headers = ['Request ID', 'Type', 'Title', 'Status', 'Requester ID', 'Requester', 'Role', 'Position', 'Department', 'Program', 'Year Level', 'Section', 'Requested At', 'Reviewer', 'Reviewed At', 'Remarks'];
+  const values = rows.map((item) => [item.id, item.entity_type, item.title, item.status, item.requester?.school_id, `${item.requester?.first_name || ''} ${item.requester?.last_name || ''}`.trim(), item.requester?.role, item.requester?.position_title, item.requester?.department, item.requester?.program, item.requester?.year_level, item.requester?.section, item.requested_at, `${item.reviewer?.first_name || ''} ${item.reviewer?.last_name || ''}`.trim(), item.reviewed_at, item.remarks]);
+  const csv = [headers, ...values].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+  const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+  const link = document.createElement('a'); link.href = url; link.download = `approval-register-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
 }
 
 function summaryLine(entityType, summary) {
@@ -130,19 +143,28 @@ export default function DepartmentHeadApprovalsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [entityFilter, setEntityFilter] = useState('all');
+  const [search, setSearch] = useState('');
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
+  const [sort, setSort] = useState('newest');
+  const [details, setDetails] = useState(null);
   const [modalState, setModalState] = useState({ open: false, request: null, action: null });
   const [submitting, setSubmitting] = useState(false);
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    getApprovalRequests({ status: statusFilter })
+    getApprovalRequests({ status: statusFilter, entity_type: entityFilter === 'all' ? undefined : entityFilter, search: search || undefined, from: from || undefined, to: to || undefined, sort })
       .then((res) => setRequests(Array.isArray(res.data) ? res.data : []))
       .catch(() => setError('Failed to load approval requests.'))
       .finally(() => setLoading(false));
-  }
+  }, [statusFilter, entityFilter, search, from, to, sort]);
 
-  useEffect(load, [statusFilter]);
+  useEffect(() => {
+    const timer = setTimeout(load, 250);
+    return () => clearTimeout(timer);
+  }, [load]);
 
   async function handleReview(remarks) {
     const { request, action } = modalState;
@@ -183,6 +205,28 @@ export default function DepartmentHeadApprovalsPage() {
           </button>
         ))}
       </div>
+
+      <section className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <label className="relative xl:col-span-2">
+            <Search size={15} className="absolute left-3 top-3.5 text-slate-400" />
+            <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks..." className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" />
+          </label>
+          <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
+            <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </select>
+          <input type="date" aria-label="Requested from" value={from} onChange={(event) => setFrom(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+          <input type="date" aria-label="Requested to" value={to} onChange={(event) => setTo(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+          <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>
+        </div>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs font-semibold text-slate-500">{requests.length} matching request{requests.length === 1 ? '' : 's'} · {requests.filter((item) => item.status === 'pending').length} awaiting action</p>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => { setSearch(''); setEntityFilter('all'); setFrom(''); setTo(''); setSort('newest'); }} className="h-9 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Reset</button>
+            <button type="button" onClick={() => downloadCsv(requests)} disabled={!requests.length} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> Export CSV</button>
+          </div>
+        </div>
+      </section>
 
       {error && (
         <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
@@ -226,8 +270,9 @@ export default function DepartmentHeadApprovalsPage() {
                         <p className="mt-1 text-xs text-slate-400">{summaryLine(request.entity_type, request.summary)}</p>
                       )}
                       <p className="mt-1 text-xs text-slate-400">
-                        Requested by {request.requester ? `${request.requester.first_name} ${request.requester.last_name}` : 'Unknown'} | {formatDate(request.requested_at)}
+                        Requested by {request.requester ? `${request.requester.first_name} ${request.requester.last_name}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
                       </p>
+                      <p className="mt-1 text-xs text-slate-400">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
                       {request.status !== 'pending' && request.remarks && (
                         <p className="mt-1.5 rounded-md bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">
                           <span className="font-semibold">Remarks:</span> {request.remarks}
@@ -238,6 +283,7 @@ export default function DepartmentHeadApprovalsPage() {
 
                   {request.status === 'pending' && (
                     <div className="flex shrink-0 gap-2">
+                      <button onClick={() => setDetails(request)} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Eye size={13} /> Details</button>
                       <button
                         onClick={() => setModalState({ open: true, request, action: 'approved' })}
                         className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
@@ -252,6 +298,7 @@ export default function DepartmentHeadApprovalsPage() {
                       </button>
                     </div>
                   )}
+                  {request.status !== 'pending' && <button onClick={() => setDetails(request)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Eye size={13} /> Details</button>}
                 </div>
               );
             })}
@@ -267,6 +314,24 @@ export default function DepartmentHeadApprovalsPage() {
         onCancel={() => setModalState({ open: false, request: null, action: null })}
         onConfirm={handleReview}
       />
+
+      {details && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm" onMouseDown={() => setDetails(null)}>
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Request #{details.id} · {ENTITY_LABEL[details.entity_type]}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{details.title}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X size={18} /></button></div>
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ['Status', details.status], ['Required Role', details.required_role], ['Requested At', formatDateTime(details.requested_at)],
+                ['Requester', `${details.requester?.first_name || ''} ${details.requester?.last_name || ''}`.trim() || '-'], ['School ID', details.requester?.school_id], ['Email', details.requester?.email],
+                ['Role / Position', [details.requester?.role, details.requester?.position_title].filter(Boolean).join(' · ')], ['Department', details.requester?.department], ['Academic Profile', [details.requester?.program, details.requester?.year_level, details.requester?.section].filter(Boolean).join(' · ')],
+                ['Reviewer', `${details.reviewer?.first_name || ''} ${details.reviewer?.last_name || ''}`.trim() || '-'], ['Reviewed At', formatDateTime(details.reviewed_at)], ['Entity ID', details.entity_id],
+              ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value || '-'}</p></div>)}
+            </div>
+            <div className="mt-4 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Record summary</p><p className="mt-2 text-sm text-slate-600">{summaryLine(details.entity_type, details.summary) || 'No additional summary available.'}</p></div>
+            <div className="mt-3 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Review remarks</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{details.remarks || 'No remarks recorded.'}</p></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

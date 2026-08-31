@@ -2,19 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicProgram;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Merchandise;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\OrderFulfillmentService;
 use DomainException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class OrderController extends Controller
 {
@@ -24,33 +28,30 @@ class OrderController extends Controller
     {
         $user = $request->user();
 
+        $filters = $this->validateOrderFilters($request);
+
         $query = Order::with([
-            'merchandise:id,name,price,image_url',
-            'student:school_id,first_name,last_name,department,program,year_level',
-            'processor:school_id,first_name,last_name',
-            'approver:school_id,first_name,last_name',
-            'claimVerifier:school_id,first_name,last_name',
-            'transaction:id,receipt_reference,receipt_number',
+            'merchandise:id,name,category,price,image_url',
+            'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title,account_status',
+            'processor:school_id,first_name,last_name,role,position_title',
+            'approver:school_id,first_name,last_name,role,position_title',
+            'claimVerifier:school_id,first_name,last_name,role,position_title',
+            'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
         ])
-            ->where('organization_id', $user->organization_id)
-            ->orderBy('created_at', 'desc');
+            ->where('organization_id', $user->organization_id);
 
         $personalView = ! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || $request->boolean('mine');
 
         if ($personalView) {
             $query->where('student_id', $user->id);
+        } else {
+            $this->applyOrderFilters($query, $filters);
         }
 
-        if ($request->filled('status')) {
-            $query->where('status', $request->status);
-        }
-        if ($request->filled('search') && ! $personalView) {
-            $search = trim($request->search);
-            $query->where(fn ($q) => $q->where('id', 'like', "%{$search}%")
-                ->orWhereHas('student', fn ($student) => $student->where('school_id', 'like', "%{$search}%")->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%")->orWhere('department', 'like', "%{$search}%")->orWhere('program', 'like', "%{$search}%")->orWhere('year_level', 'like', "%{$search}%")));
-        }
+        $this->applyOrderSort($query, $filters['sort'] ?? 'newest');
 
-        $orders = $query->paginate(20);
+        $summary = $personalView ? null : $this->orderSummary($request, $filters);
+        $orders = $query->paginate($filters['per_page'] ?? 20)->withQueryString();
 
         if ($personalView) {
             $orders->getCollection()->each(function (Order $order) {
@@ -62,7 +63,276 @@ class OrderController extends Controller
             $orders->getCollection()->each(fn (Order $order) => $order->setAttribute('claim_token', null));
         }
 
-        return response()->json($orders);
+        return response()->json([
+            ...$orders->toArray(),
+            'summary' => $summary,
+            'filter_options' => $personalView ? null : $this->orderFilterOptions($request),
+            'active_filters' => array_filter($filters, fn ($value) => $value !== null && $value !== ''),
+        ]);
+    }
+
+    public function analyticsUsers(Request $request)
+    {
+        $filters = $this->validateOrderFilters($request);
+        $group = $request->validate(['group' => ['required', 'in:purchased,not_purchased,paid,pending,claimed,unclaimed']])['group'];
+
+        $users = User::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->where('account_status', 'active');
+        $this->applyUserFilters($users, $filters);
+
+        $orderConstraint = function ($query) use ($request, $filters, $group) {
+            $query->where('organization_id', $request->user()->organization_id);
+            $this->applyOrderRecordFilters($query, $filters);
+            match ($group) {
+                'paid' => $query->whereIn('status', ['paid', 'claimed']),
+                'pending' => $query->where('status', 'pending'),
+                'claimed' => $query->where('status', 'claimed'),
+                'unclaimed' => $query->where('status', 'paid'),
+                default => null,
+            };
+        };
+
+        if ($group === 'not_purchased') {
+            $users->whereDoesntHave('orders', $orderConstraint);
+        } else {
+            $users->whereHas('orders', $orderConstraint);
+        }
+
+        $users->with(['orders' => function ($query) use ($orderConstraint) {
+            $orderConstraint($query);
+            $query->with([
+                'merchandise:id,name,category,price',
+                'processor:school_id,first_name,last_name',
+                'approver:school_id,first_name,last_name',
+                'claimVerifier:school_id,first_name,last_name',
+                'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
+            ])->latest('created_at');
+        }]);
+
+        return response()->json($users->orderBy('last_name')->orderBy('first_name')->paginate($filters['per_page'] ?? 20));
+    }
+
+    public function export(Request $request): StreamedResponse
+    {
+        $filters = $this->validateOrderFilters($request);
+        $query = Order::with([
+            'merchandise:id,name,category,price',
+            'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title',
+            'processor:school_id,first_name,last_name',
+            'approver:school_id,first_name,last_name',
+            'claimVerifier:school_id,first_name,last_name',
+            'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
+        ])->where('organization_id', $request->user()->organization_id);
+        $this->applyOrderFilters($query, $filters);
+        $this->applyOrderSort($query, $filters['sort'] ?? 'newest');
+
+        return response()->streamDownload(function () use ($query) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, ['Order ID', 'Student ID', 'Full Name', 'Email', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Role', 'SBO Position', 'Item', 'Category', 'Quantity', 'Unit Price', 'Total Amount', 'Payment Method', 'Payment Reference', 'Payment Status', 'Order Status', 'Officer Review', 'Admin Review', 'Order Date', 'Payment Date', 'Claimed Date', 'Processed By', 'Approved By', 'Released By', 'Receipt Reference', 'Remarks']);
+            $query->chunk(250, function ($orders) use ($handle) {
+                foreach ($orders as $order) {
+                    fputcsv($handle, [
+                        'ORD-'.$order->id, $order->student_id, trim(($order->student?->first_name ?? '').' '.($order->student?->last_name ?? '')), $order->student?->email,
+                        $order->student?->department, $order->student?->program, $order->student?->major, $order->student?->year_level, $order->student?->section,
+                        $order->student?->role, $order->student?->position_title, $order->merchandise?->name, $order->merchandise?->category, $order->quantity,
+                        $order->merchandise?->price, $order->total_price, $order->payment_method, $order->payment_reference,
+                        in_array($order->status, ['paid', 'claimed'], true) ? 'paid' : ($order->status === 'cancelled' ? 'cancelled' : 'pending'),
+                        $order->status, $order->officer_review_status, $order->admin_review_status, $order->created_at?->toDateTimeString(),
+                        $order->transaction?->transaction_date?->toDateTimeString(), $order->claimed_at?->toDateTimeString(),
+                        $order->processor ? trim($order->processor->first_name.' '.$order->processor->last_name) : null,
+                        $order->approver ? trim($order->approver->first_name.' '.$order->approver->last_name) : null,
+                        $order->claimVerifier ? trim($order->claimVerifier->first_name.' '.$order->claimVerifier->last_name) : null,
+                        $order->transaction?->receipt_reference, $order->review_remarks,
+                    ]);
+                }
+            });
+            fclose($handle);
+        }, 'merchandise-orders-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    private function validateOrderFilters(Request $request): array
+    {
+        return $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'department' => ['nullable', 'string', 'max:120'],
+            'program' => ['nullable', 'string', 'max:120'],
+            'major' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'],
+            'section' => ['nullable', 'string', 'max:60'],
+            'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'position_title' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:pending,paid,claimed,cancelled'],
+            'payment_status' => ['nullable', 'in:pending,paid,cancelled'],
+            'payment_method' => ['nullable', 'in:cash,gcash,other'],
+            'merchandise_id' => ['nullable', 'integer'],
+            'ordered_from' => ['nullable', 'date'],
+            'ordered_to' => ['nullable', 'date', 'after_or_equal:ordered_from'],
+            'paid_from' => ['nullable', 'date'],
+            'paid_to' => ['nullable', 'date', 'after_or_equal:paid_from'],
+            'claimed_from' => ['nullable', 'date'],
+            'claimed_to' => ['nullable', 'date', 'after_or_equal:claimed_from'],
+            'sort' => ['nullable', 'in:newest,oldest,amount_high,amount_low,student,item,status'],
+            'per_page' => ['nullable', 'integer', 'in:10,20,50,100'],
+        ]);
+    }
+
+    private function applyOrderFilters(Builder $query, array $filters): void
+    {
+        $this->applyOrderRecordFilters($query, $filters);
+        $query->whereHas('student', function (Builder $student) use ($filters) {
+            $this->applyUserFilters($student, $filters);
+        });
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function (Builder $nested) use ($search) {
+                $nested->where('orders.id', 'like', "%{$search}%")
+                    ->orWhere('orders.payment_reference', 'like', "%{$search}%")
+                    ->orWhere('orders.review_remarks', 'like', "%{$search}%")
+                    ->orWhereHas('merchandise', fn (Builder $item) => $item->where('name', 'like', "%{$search}%")->orWhere('category', 'like', "%{$search}%"))
+                    ->orWhereHas('student', function (Builder $student) use ($search) {
+                        $student->where('school_id', 'like', "%{$search}%")
+                            ->orWhere('first_name', 'like', "%{$search}%")
+                            ->orWhere('last_name', 'like', "%{$search}%")
+                            ->orWhere('email', 'like', "%{$search}%")
+                            ->orWhere('department', 'like', "%{$search}%")
+                            ->orWhere('program', 'like', "%{$search}%")
+                            ->orWhere('major', 'like', "%{$search}%")
+                            ->orWhere('year_level', 'like', "%{$search}%")
+                            ->orWhere('section', 'like', "%{$search}%")
+                            ->orWhere('position_title', 'like', "%{$search}%");
+                    });
+            });
+        }
+    }
+
+    private function applyOrderRecordFilters($query, array $filters): void
+    {
+        if (! empty($filters['status'])) {
+            $query->where('orders.status', $filters['status']);
+        }
+        if (! empty($filters['payment_status'])) {
+            match ($filters['payment_status']) {
+                'paid' => $query->whereIn('orders.status', ['paid', 'claimed']),
+                'cancelled' => $query->where('orders.status', 'cancelled'),
+                default => $query->where('orders.status', 'pending'),
+            };
+        }
+        if (! empty($filters['payment_method'])) {
+            $query->where('orders.payment_method', $filters['payment_method']);
+        }
+        if (! empty($filters['merchandise_id'])) {
+            $query->where('orders.merchandise_id', $filters['merchandise_id']);
+        }
+        if (! empty($filters['ordered_from'])) {
+            $query->whereDate('orders.created_at', '>=', $filters['ordered_from']);
+        }
+        if (! empty($filters['ordered_to'])) {
+            $query->whereDate('orders.created_at', '<=', $filters['ordered_to']);
+        }
+        if (! empty($filters['claimed_from'])) {
+            $query->whereDate('orders.claimed_at', '>=', $filters['claimed_from']);
+        }
+        if (! empty($filters['claimed_to'])) {
+            $query->whereDate('orders.claimed_at', '<=', $filters['claimed_to']);
+        }
+        if (! empty($filters['paid_from']) || ! empty($filters['paid_to'])) {
+            $query->whereHas('transaction', function (Builder $transaction) use ($filters) {
+                if (! empty($filters['paid_from'])) {
+                    $transaction->whereDate('transaction_date', '>=', $filters['paid_from']);
+                }
+                if (! empty($filters['paid_to'])) {
+                    $transaction->whereDate('transaction_date', '<=', $filters['paid_to']);
+                }
+            });
+        }
+    }
+
+    private function applyUserFilters(Builder $query, array $filters): void
+    {
+        foreach (['department', 'program', 'major', 'year_level', 'section', 'role', 'position_title'] as $field) {
+            if (! empty($filters[$field])) {
+                $query->where($field, $filters[$field]);
+            }
+        }
+    }
+
+    private function applyOrderSort(Builder $query, string $sort): void
+    {
+        match ($sort) {
+            'oldest' => $query->orderBy('orders.created_at'),
+            'amount_high' => $query->orderByDesc('orders.total_price'),
+            'amount_low' => $query->orderBy('orders.total_price'),
+            'status' => $query->orderBy('orders.status')->orderByDesc('orders.created_at'),
+            'student' => $query->orderBy(
+                User::select('last_name')->whereColumn('users.school_id', 'orders.student_id')->limit(1)
+            )->orderByDesc('orders.created_at'),
+            'item' => $query->orderBy(
+                Merchandise::select('name')->whereColumn('merchandise.id', 'orders.merchandise_id')->limit(1)
+            )->orderByDesc('orders.created_at'),
+            default => $query->orderByDesc('orders.created_at'),
+        };
+    }
+
+    private function orderSummary(Request $request, array $filters): array
+    {
+        $orders = Order::query()->where('orders.organization_id', $request->user()->organization_id);
+        $this->applyOrderFilters($orders, $filters);
+
+        $cohort = User::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->where('account_status', 'active');
+        $this->applyUserFilters($cohort, $filters);
+
+        $totalUsers = (clone $cohort)->count();
+        $purchaserIds = (clone $orders)->distinct()->pluck('student_id');
+        $purchasedUsers = (clone $cohort)->whereIn('school_id', $purchaserIds)->count();
+        $totalOrders = (clone $orders)->count();
+        $paidOrders = (clone $orders)->whereIn('status', ['paid', 'claimed'])->count();
+        $claimedOrders = (clone $orders)->where('status', 'claimed')->count();
+
+        $breakdown = (clone $orders)
+            ->join('merchandise', 'merchandise.id', '=', 'orders.merchandise_id')
+            ->selectRaw('merchandise.id, merchandise.name, SUM(orders.quantity) as quantity, COUNT(orders.id) as orders_count, SUM(CASE WHEN orders.status IN (?, ?) THEN orders.total_price ELSE 0 END) as collected', ['paid', 'claimed'])
+            ->groupBy('merchandise.id', 'merchandise.name')
+            ->orderByDesc('quantity')
+            ->get();
+
+        return [
+            'total_users' => $totalUsers,
+            'purchased_users' => $purchasedUsers,
+            'not_purchased_users' => max(0, $totalUsers - $purchasedUsers),
+            'purchase_rate' => $totalUsers > 0 ? round(($purchasedUsers / $totalUsers) * 100, 2) : 0,
+            'total_orders' => $totalOrders,
+            'paid_orders' => $paidOrders,
+            'pending_orders' => (clone $orders)->where('status', 'pending')->count(),
+            'claimed_orders' => $claimedOrders,
+            'unclaimed_orders' => (clone $orders)->where('status', 'paid')->count(),
+            'cancelled_orders' => (clone $orders)->where('status', 'cancelled')->count(),
+            'total_quantity' => (int) (clone $orders)->sum('quantity'),
+            'total_collected' => (float) (clone $orders)->whereIn('status', ['paid', 'claimed'])->sum('total_price'),
+            'outstanding_balance' => (float) (clone $orders)->where('status', 'pending')->sum('total_price'),
+            'breakdown' => $breakdown,
+        ];
+    }
+
+    private function orderFilterOptions(Request $request): array
+    {
+        $organizationId = $request->user()->organization_id;
+        $organization = $request->user()->organization;
+
+        return [
+            'departments' => array_values(array_filter([$organization?->college ?: 'College of Computer Studies'])),
+            'programs' => AcademicProgram::where('organization_id', $organizationId)->with('sections')->orderBy('name')->get(),
+            'majors' => User::where('organization_id', $organizationId)->whereNotNull('major')->where('major', '!=', '')->distinct()->orderBy('major')->pluck('major'),
+            'roles' => ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'],
+            'positions' => SboPosition::where('organization_id', $organizationId)->where('is_active', true)->orderBy('title')->pluck('title'),
+            'merchandise' => Merchandise::where('organization_id', $organizationId)->orderBy('name')->get(['id', 'name', 'category', 'price']),
+            'statuses' => ['pending', 'paid', 'claimed', 'cancelled'],
+            'payment_statuses' => ['pending', 'paid', 'cancelled'],
+            'payment_methods' => ['cash', 'gcash', 'other'],
+        ];
     }
 
     public function store(Request $request)
@@ -256,10 +526,17 @@ class OrderController extends Controller
 
         try {
             if ($data['status'] === 'cancelled') {
-                if ($pendingApproval) {
+                if ($pendingApproval && $request->user()->role !== 'ADMIN') {
                     return response()->json(['message' => 'Review this payment from the Approvals module.'], 422);
                 }
-                $order = $this->fulfillmentService->rejectPayment($order, $request->user(), $data['review_remarks']);
+                $order = DB::transaction(function () use ($order, $request, $data) {
+                    $rejected = $this->fulfillmentService->rejectPayment($order, $request->user(), $data['review_remarks']);
+                    if ($request->user()->role === 'ADMIN') {
+                        $this->resolvePaymentApproval($rejected, $request, 'rejected', $data['review_remarks']);
+                    }
+
+                    return $rejected;
+                });
             } elseif ($request->user()->role === 'SBO_OFFICER') {
                 $order = DB::transaction(function () use ($request, $order) {
                     $lockedOrder = Order::where('organization_id', $request->user()->organization_id)
@@ -294,11 +571,13 @@ class OrderController extends Controller
                     return $lockedOrder->fresh();
                 });
             } else {
-                if ($pendingApproval) {
-                    return response()->json(['message' => 'Review this payment from the Approvals module.'], 422);
-                }
+                $order = DB::transaction(function () use ($order, $request) {
+                    $bypassOfficerReview = $order->officer_review_status !== 'approved';
+                    $approved = $this->fulfillmentService->approvePayment($order, $request->user(), $bypassOfficerReview);
+                    $this->resolvePaymentApproval($approved, $request, 'approved', $bypassOfficerReview ? 'Approved directly from order management.' : null);
 
-                return response()->json(['message' => 'An SBO Officer must verify and submit this payment before admin approval.'], 422);
+                    return $approved;
+                });
             }
         } catch (DomainException $exception) {
             $status = str_contains($exception->getMessage(), 'already been submitted') ? 409 : 422;
@@ -313,6 +592,38 @@ class OrderController extends Controller
             'approver:school_id,first_name,last_name',
             'transaction:id,receipt_reference,receipt_number',
         ]));
+    }
+
+    private function resolvePaymentApproval(Order $order, Request $request, string $status, ?string $remarks): void
+    {
+        $approvals = ApprovalRequest::where('organization_id', $order->organization_id)
+            ->where('entity_type', 'payment')
+            ->where('entity_id', $order->id)
+            ->where('status', 'pending')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($approvals as $approval) {
+            $approval->update([
+                'status' => $status,
+                'active_key' => null,
+                'remarks' => $remarks,
+                'reviewed_by' => $request->user()->school_id,
+                'reviewed_at' => now(),
+            ]);
+
+            AuditLog::create([
+                'organization_id' => $order->organization_id,
+                'user_id' => $request->user()->school_id,
+                'module' => 'approvals',
+                'action' => 'payment_'.$status.'_from_order_management',
+                'record_type' => ApprovalRequest::class,
+                'record_id' => $approval->id,
+                'new_values' => ['entity_type' => 'payment', 'entity_id' => $order->id, 'status' => $status, 'remarks' => $remarks],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        }
     }
 
     public function auditHistory(Request $request, $id)

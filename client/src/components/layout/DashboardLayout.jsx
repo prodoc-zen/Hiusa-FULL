@@ -8,6 +8,7 @@ const pageTitles = {
   '/dashboard/admin': 'Admin Dashboard',
   '/dashboard/admin/users': 'User Management',
   '/dashboard/admin/sbo-positions': 'Manage SBO Positions',
+  '/dashboard/admin/programs-sections': 'Programs & Sections',
   '/dashboard/approvals': 'Approvals',
   '/dashboard/officer': 'Officer Dashboard',
   '/dashboard/department-head': 'Department Head Dashboard',

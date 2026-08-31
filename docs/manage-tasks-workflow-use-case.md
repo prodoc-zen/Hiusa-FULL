@@ -25,7 +25,7 @@
 ## Implementation Coverage
 
 - **Role Access:** Admin-only task board/create/task-progress routes and task create/update/delete APIs.
-- **Create Task:** `TasksPage` captures task title, description, assignee, related event, deadline, and status.
+- **Create Task:** `/dashboard/tasks/create-task` is a dedicated creation workspace that captures title, description, assignee, related event, deadline, and status, with assignment-readiness guidance. It is intentionally separate from the filterable operational Task Board.
 - **Link Task to Event:** task creation supports optional `event_id` and validates organization ownership.
 - **Evaluate Officer Eligibility:** `TaskController` validates assignees are SBO Officers and checks their active/completed task counts.
 - **Rule-Based Weighted Scoring:** role, workload, performance, and final scores are calculated when assigning a task.

@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronDown,
   Clock,
+  Download,
   Eye,
   ListChecks,
   Plus,
@@ -61,6 +62,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
+  const [taskFilters, setTaskFilters] = useState({ status: '', assignee: '', event: '', type: '' });
   const [page, setPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState(null);
   const [progressForm, setProgressForm] = useState({ progress_percent: 0, progress_note: '' });
@@ -72,6 +74,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   const [form, setForm] = useState({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
   const [formError, setFormError] = useState(null);
+  const [createSuccess, setCreateSuccess] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
   const currentUserRole = (() => {
     try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; }
@@ -107,6 +110,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     if (!form.title || !form.deadline) return;
     setFormSubmitting(true);
     setFormError(null);
+    setCreateSuccess('');
     try {
       const res = await createTask({
         title: form.title,
@@ -119,6 +123,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       const detail = getDelegationDetail(res.data);
       if (detail) setLastDelegation({ taskId: res.data.id, ...detail });
       setShowForm(false);
+      setCreateSuccess(`Task “${res.data.title}” was created${res.data.assignee ? ` and assigned to ${res.data.assignee.first_name} ${res.data.assignee.last_name}` : ''}.`);
       setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       load();
     } catch (err) {
@@ -163,14 +168,28 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   const counts = tasks.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
 
-  const filteredTasks = tasks.filter((t) =>
-    t.title?.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredTasks = tasks.filter((t) => {
+    const query = search.toLowerCase();
+    const searchable = [t.title, t.description, t.assignee?.first_name, t.assignee?.last_name, t.assignee?.position_title, t.event?.title].filter(Boolean).join(' ').toLowerCase();
+    return searchable.includes(query)
+      && (!taskFilters.status || t.status === taskFilters.status)
+      && (!taskFilters.assignee || String(t.assigned_to) === taskFilters.assignee)
+      && (!taskFilters.event || String(t.event_id) === taskFilters.event)
+      && (!taskFilters.type || t.task_type === taskFilters.type);
+  });
   const pagedTasks = filteredTasks.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [search, tasks.length]);
+  }, [search, tasks.length, taskFilters]);
+
+  function exportVisibleTasks() {
+    const header = ['Task ID', 'Title', 'Description', 'Type', 'Assignee', 'Role', 'Position', 'Department', 'Program', 'Year Level', 'Section', 'Related Event', 'Status', 'Progress Percent', 'Deadline', 'Completed At', 'Assigned By', 'Created At', 'Updated At'];
+    const rows = filteredTasks.map((task) => [task.id, task.title, task.description, task.task_type, task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : '', task.assignee?.role, task.assignee?.position_title, task.assignee?.department, task.assignee?.program, task.assignee?.year_level, task.assignee?.section, task.event?.title, task.status, task.progress_percent, task.deadline, task.completed_at, task.creator ? `${task.creator.first_name} ${task.creator.last_name}` : '', task.created_at, task.updated_at]);
+    const csv = [header, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const anchor = document.createElement('a'); anchor.href = url; anchor.download = `tasks-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url);
+  }
 
   const workloadByAssignee = tasks.reduce((acc, t) => {
     if (!t.assignee) return acc;
@@ -187,7 +206,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {activeTab !== 'create' && <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Tasks', value: tasks.length, helper: 'All time', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
@@ -203,13 +222,44 @@ export default function TasksPage({ initialTab = 'board' }) {
             <p className="mt-1 text-xs font-medium text-slate-400">{stat.helper}</p>
           </article>
         ))}
-      </section>
+      </section>}
 
       {error && (
         <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>
           <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
         </div>
+      )}
+
+      {activeTab === 'create' && canManageTasks && (
+        <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
+          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
+            <div className="border-b border-[#DDE7EF] pb-5">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Task assignment</p>
+              <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Create a New Task</h2>
+              <p className="mt-1 text-sm text-slate-500">Define one actionable assignment, connect it to an event when relevant, and select an officer or let the scoring engine recommend one.</p>
+            </div>
+            {createSuccess && <div className="mt-5 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{createSuccess}</div>}
+            <form className="mt-5 space-y-5" onSubmit={handleCreate}>
+              <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-[#0F172A]">Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
+              <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-[#0F172A]">Description</label><textarea id="create-task-description" rows={5} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the expected result, required materials, and completion criteria..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5"><label htmlFor="create-task-assignee" className="text-[13px] font-semibold text-[#0F172A]">Assign To</label><select id="create-task-assignee" value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Recommend best-fit officer</option>{officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.first_name} {officer.last_name}{officer.position_title ? ` · ${officer.position_title}` : ''}</option>)}</select><p className="text-xs text-slate-400">Leaving this blank enables weighted officer recommendation.</p></div>
+                <div className="space-y-1.5"><label htmlFor="create-task-event" className="text-[13px] font-semibold text-[#0F172A]">Related Event</label><select id="create-task-event" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">General organization task</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select></div>
+                <div className="space-y-1.5"><label htmlFor="create-task-deadline" className="text-[13px] font-semibold text-[#0F172A]">Deadline *</label><input id="create-task-deadline" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
+                <div className="space-y-1.5"><label htmlFor="create-task-status" className="text-[13px] font-semibold text-[#0F172A]">Initial Status</label><select id="create-task-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pending">Pending</option><option value="in_progress">In Progress</option></select></div>
+              </div>
+              {formError && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{formError}</p>}
+              <div className="flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Clear Form</button><button type="submit" disabled={formSubmitting || !form.title || !form.deadline} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
+            </form>
+          </div>
+
+          <aside className="space-y-4">
+            <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm"><h3 className="font-bold text-[#0F172A]">Assignment readiness</h3><div className="mt-4 space-y-3">{[['Active SBO officers', officers.length], ['Available events', events.length], ['Current open tasks', tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length]].map(([label, value]) => <div key={label} className="flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5"><span className="text-xs font-semibold text-slate-500">{label}</span><strong className="text-lg text-[#0F172A]">{value}</strong></div>)}</div></div>
+            <div className="rounded-xl border border-[#B9D9E9] bg-[#EEF6FB] p-5"><Bot size={20} className="text-[#0B8ED0]" /><h3 className="mt-3 font-bold text-[#0F172A]">Best-fit recommendation</h3><p className="mt-2 text-sm leading-6 text-slate-600">If no officer is chosen, the system evaluates active SBO officers using role fit, current workload, and prior completion performance. The result and explanation remain visible in AI Delegation.</p></div>
+            <div className="rounded-xl border border-[#DDE7EF] bg-white p-5"><h3 className="font-bold text-[#0F172A]">Before creating</h3><ul className="mt-3 space-y-2 text-xs leading-5 text-slate-500"><li>• Use a specific, outcome-based title.</li><li>• Include completion criteria in the description.</li><li>• Set a realistic deadline before its linked event.</li><li>• Review assignments later from Task Board.</li></ul></div>
+          </aside>
+        </section>
       )}
 
       {activeTab === 'board' && (
@@ -219,7 +269,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <h2 className="text-lg font-bold text-[#0F172A]">{canManageTasks ? 'All Tasks' : 'Assigned Tasks'}</h2>
               <p className="text-sm font-medium text-slate-500">{canManageTasks ? 'Create and manage officer tasks' : 'View and update your assignments'}</p>
             </div>
-            <div className="flex w-full gap-2 sm:w-auto">
+            <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-400" />
                 <input
@@ -230,6 +280,10 @@ export default function TasksPage({ initialTab = 'board' }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
                 />
               </div>
+              <select aria-label="Filter tasks by status" value={taskFilters.status} onChange={(event) => setTaskFilters({ ...taskFilters, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">All statuses</option>{['pending', 'in_progress', 'completed', 'overdue'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select>
+              {canManageTasks && <select aria-label="Filter tasks by assignee" value={taskFilters.assignee} onChange={(event) => setTaskFilters({ ...taskFilters, assignee: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">All assignees</option>{officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{officer.first_name} {officer.last_name}</option>)}</select>}
+              <select aria-label="Filter tasks by event" value={taskFilters.event} onChange={(event) => setTaskFilters({ ...taskFilters, event: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select>
+              <button type="button" onClick={exportVisibleTasks} className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Download size={14} />Export</button>
               {canManageTasks && (
                 <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                   <Plus size={16} />
@@ -247,29 +301,35 @@ export default function TasksPage({ initialTab = 'board' }) {
             <p className="p-8 text-center text-sm text-slate-400">No tasks found.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[580px] sm:min-w-[780px] text-left">
+              <table className="w-full min-w-[1380px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Task</th>
-                    <th className="hidden sm:table-cell px-5 py-3">Assignee</th>
+                    <th className="px-5 py-3">Assignee / Position</th>
+                    <th className="px-5 py-3">Academic Profile</th>
+                    <th className="px-5 py-3">Related Event</th>
+                    <th className="px-5 py-3">Type / Progress</th>
                     <th className="px-5 py-3">Deadline</th>
                     <th className="px-5 py-3">Status</th>
+                    <th className="px-5 py-3">Assigned By / Dates</th>
                     <th className="px-5 py-3">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
                   {pagedTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
-                      <td className="hidden sm:table-cell px-5 py-4 font-medium text-slate-600">
-                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
-                      </td>
+                      <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{t.title}</p><p className="mt-1 line-clamp-2 text-[10px] text-slate-400">{t.description || 'No description'}</p></td>
+                      <td className="px-5 py-4 font-medium text-slate-600">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}<p className="text-[10px] font-semibold text-[#0B8ED0]">{t.assignee?.position_title || t.assignee?.role?.replaceAll('_', ' ') || '-'}</p></td>
+                      <td className="px-5 py-4 text-xs text-slate-600"><p>{t.assignee?.program || 'Program not recorded'}</p><p className="text-[10px] text-slate-400">{[t.assignee?.year_level, t.assignee?.section].filter(Boolean).join(' · ') || 'No year/section'}</p></td>
+                      <td className="px-5 py-4 text-xs font-semibold text-slate-600">{t.event?.title || 'General organization task'}</td>
+                      <td className="px-5 py-4 text-xs"><p className="font-semibold text-slate-600">{capitalize(t.task_type || 'regular')}</p><div className="mt-1 h-1.5 w-24 rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0B8ED0]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-[10px] text-slate-400">{t.progress_percent || 0}% complete</p></td>
                       <td className="px-5 py-4 font-medium text-slate-600">{formatDate(t.deadline)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(t.status)}
                         </span>
                       </td>
+                      <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${t.creator.first_name} ${t.creator.last_name}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
                       <td className="px-5 py-4">
                         <div className="flex flex-wrap gap-2">
                           <button type="button" onClick={() => openTaskDetails(t)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]">

@@ -35,7 +35,7 @@
 - **Load Pending Orders:** `GET /orders` loads organization orders for fulfillment roles.
 - **View Order Details:** order rows include buyer, item, quantity, total, review status, payment reference, proof, and claim token for fulfillment staff.
 - **Verify Payment Submission:** order records store payment method, payment reference, and payment proof URL.
-- **Approve Payment:** an SBO Officer submits the payment review to Admin; Admin approval creates/links a receipt transaction, releases the claim token, and notifies the buyer.
+- **Approve Payment:** an SBO Officer may submit payment review to Admin through the approval queue. An Admin may also approve or reject directly from Manage Orders, bypassing the officer review. Direct Admin approval remains amount/proof validated, audit logged, resolves any pending payment approval request, creates/links the receipt transaction, releases the claim token, and notifies the buyer.
 - **Reject Payment:** cancelling an order stores review remarks, restores stock when needed, and notifies the buyer.
 - **Validate Claim Token:** `POST /orders/claim` rejects invalid, unpaid, or already claimed tokens.
 - **Release Merchandise Item:** successful claim marks the order as claimed and records verifier/timestamp.
