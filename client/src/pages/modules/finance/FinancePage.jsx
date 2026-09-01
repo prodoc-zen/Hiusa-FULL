@@ -171,7 +171,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
-  const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 20 });
+  const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [forecastGenerating, setForecastGenerating] = useState(false);
   const [reports, setReports] = useState([]);
@@ -209,6 +209,21 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const showFeedback = useCallback((type, message) => {
     setFeedback({ open: true, type, message });
   }, []);
+
+  async function fetchAllTransactionsForExport() {
+    const rows = [];
+    let page = 1;
+    let lastPage;
+    do {
+      const response = await getTransactions({ page, per_page: 10 });
+      const payload = response.data;
+      rows.push(...(Array.isArray(payload?.data) ? payload.data : []));
+      lastPage = Number(payload?.last_page || 1);
+      page += 1;
+    } while (page <= lastPage);
+
+    return rows;
+  }
 
   function load(page = 1, filters = txFilters, searchTerm = search) {
     setLoading(true);
@@ -500,8 +515,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     }
 
     try {
-      const allRes = await getTransactions({ per_page: 1000 });
-      const all = Array.isArray(allRes.data?.data) ? allRes.data.data : (Array.isArray(allRes.data) ? allRes.data : []);
+      const all = await fetchAllTransactionsForExport();
 
       const toRow = (tx) => ({
         Date: tx.transaction_date,

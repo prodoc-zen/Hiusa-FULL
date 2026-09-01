@@ -11,7 +11,7 @@ export default function ManageVotersPage() {
   const [voters, setVoters] = useState([]);
   const [summary, setSummary] = useState(EMPTY_SUMMARY);
   const [page, setPage] = useState(1);
-  const [perPage, setPerPage] = useState(20);
+  const [perPage, setPerPage] = useState(10);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
@@ -38,7 +38,7 @@ export default function ManageVotersPage() {
         if (cancelled) return;
         setVoters(Array.isArray(payload?.data) ? payload.data : []);
         setSummary({ ...EMPTY_SUMMARY, ...(payload?.summary ?? {}) });
-        setPerPage(Number(payload?.per_page) || 20);
+        setPerPage(Number(payload?.per_page) || 10);
       } catch {
         if (!cancelled) {
           setVoters([]);

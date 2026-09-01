@@ -79,8 +79,8 @@ class FinancialForecastController extends Controller
             ], 422);
         }
 
-        $firstPeriod = Carbon::createFromFormat('Y-m', $populatedMonthly->first()['period'])->startOfMonth();
-        $lastPeriod = Carbon::createFromFormat('Y-m', $populatedMonthly->last()['period'])->startOfMonth();
+        $firstPeriod = $this->periodStart($populatedMonthly->first()['period']);
+        $lastPeriod = $this->periodStart($populatedMonthly->last()['period']);
         $monthlyByPeriod = $populatedMonthly->keyBy('period');
         $monthly = collect();
 
@@ -94,7 +94,7 @@ class FinancialForecastController extends Controller
         }
 
         $analysis = $this->pythonForecast($monthly->all()) ?? $this->localForecast($monthly->all());
-        $nextPeriod = Carbon::createFromFormat('Y-m', $analysis['forecast_period'])->startOfMonth();
+        $nextPeriod = $this->periodStart($analysis['forecast_period']);
         $predictedIncome = $analysis['predicted_income'];
         $predictedExpense = $analysis['predicted_expense'];
         $predictedBalance = $analysis['predicted_balance'];
@@ -334,12 +334,12 @@ class FinancialForecastController extends Controller
 
     private function localForecast(array $monthly): array
     {
-        $firstPeriod = Carbon::createFromFormat('Y-m', $monthly[0]['period'])->startOfMonth();
+        $firstPeriod = $this->periodStart($monthly[0]['period']);
         $points = collect($monthly)->map(fn (array $month) => [
             ...$month,
-            'x' => $firstPeriod->diffInMonths(Carbon::createFromFormat('Y-m', $month['period'])->startOfMonth()),
+            'x' => $firstPeriod->diffInMonths($this->periodStart($month['period'])),
         ]);
-        $nextPeriod = Carbon::createFromFormat('Y-m', $monthly[array_key_last($monthly)]['period'])->startOfMonth()->addMonth();
+        $nextPeriod = $this->periodStart($monthly[array_key_last($monthly)]['period'])->addMonth();
         $nextX = $firstPeriod->diffInMonths($nextPeriod);
         $incomeModel = $this->ols($points->pluck('x')->all(), $points->pluck('income')->all());
         $expenseModel = $this->ols($points->pluck('x')->all(), $points->pluck('expense')->all());
@@ -364,6 +364,14 @@ class FinancialForecastController extends Controller
             'engine' => 'php-fallback',
             ...$fitAssessment,
         ];
+    }
+
+    private function periodStart(string $period): Carbon
+    {
+        // Parsing only Y-m inherits today's day number in Carbon. On the 29th,
+        // 30th, or 31st that can overflow shorter months before startOfMonth()
+        // runs, shifting the forecast series. Pin the day explicitly.
+        return Carbon::createFromFormat('Y-m-d', $period.'-01')->startOfDay();
     }
 
     private function localBudgetAdvice(array $payload): array

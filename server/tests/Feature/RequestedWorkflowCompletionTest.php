@@ -7,6 +7,7 @@ use App\Models\Budget;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,11 +21,17 @@ class RequestedWorkflowCompletionTest extends TestCase
 
     private function user(string $role, ?int $organizationId = null): User
     {
-        return User::factory()->create([
+        $user = User::factory()->create([
             'role' => $role,
+            'position_title' => $role === 'SBO_OFFICER' ? 'President' : null,
             'organization_id' => $organizationId ?? Organization::factory(),
             'account_status' => 'active',
         ]);
+        if ($role === 'SBO_OFFICER') {
+            SboPosition::updateOrCreate(['organization_id' => $user->organization_id, 'role' => $role, 'title' => 'President'], ['is_active' => true]);
+        }
+
+        return $user;
     }
 
     public function test_transaction_search_runs_server_side_across_the_organization_ledger(): void
@@ -48,7 +55,7 @@ class RequestedWorkflowCompletionTest extends TestCase
         }
 
         Sanctum::actingAs($admin);
-        $this->getJson('/api/transactions?search=leadership&per_page=1')
+        $this->getJson('/api/transactions?search=leadership&per_page=10')
             ->assertOk()
             ->assertJsonPath('total', 1)
             ->assertJsonPath('data.0.description', 'Leadership summit venue');
@@ -73,7 +80,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'status' => 'approved',
         ]);
 
-        foreach ([now()->subMonths(2)->startOfMonth(), now()->startOfMonth()] as $date) {
+        foreach ([now()->startOfMonth()->subMonths(2), now()->startOfMonth()] as $date) {
             Transaction::create([
                 'organization_id' => $admin->organization_id,
                 'recorded_by' => $admin->school_id,

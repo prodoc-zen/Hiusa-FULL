@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Download, Eye, Search, Trash2, X } from 'lucide-react';
 import { Badge, SectionHeader, StatusBadge } from './announcementShared.jsx';
+import PaginationControls from '../../../components/PaginationControls';
 import {
   getAnnouncements,
   updateAnnouncement,
@@ -18,6 +19,7 @@ const CATEGORY_OPTIONS = [
   { label: 'Events', value: 'events' },
   { label: 'Merchandise', value: 'merchandise' },
 ];
+const PAGE_SIZE = 10;
 
 function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onConfirm }) {
   if (!open) return null;
@@ -88,6 +90,7 @@ export default function ManageAnnouncementsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('newest');
+  const [page, setPage] = useState(1);
   const [details, setDetails] = useState(null);
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
@@ -119,6 +122,12 @@ export default function ManageAnnouncementsPage() {
     const timer = setTimeout(loadAnnouncements, 250);
     return () => clearTimeout(timer);
   }, [loadAnnouncements]);
+
+  useEffect(() => { setPage(1); }, [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
+  useEffect(() => {
+    setPage((current) => Math.min(current, Math.max(1, Math.ceil(items.length / PAGE_SIZE))));
+  }, [items.length]);
+  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   async function handleToggle(id) {
     try {
@@ -215,7 +224,7 @@ export default function ManageAnnouncementsPage() {
               </tr>
             </thead>
             <tbody>
-              {items.map((a) => {
+              {pagedItems.map((a) => {
                 const canModify = currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId);
                 const canPublishOwnDraft = canModify && ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentRole);
 
@@ -315,6 +324,7 @@ export default function ManageAnnouncementsPage() {
           </table>
         </div>
       )}
+      <PaginationControls currentPage={page} totalItems={items.length} pageSize={PAGE_SIZE} onPageChange={setPage} label="announcements" />
 
       <ConfirmModal
         open={confirmState.open}

@@ -23,7 +23,7 @@ class TransactionController extends Controller
             'type' => ['nullable', 'in:income,expense'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
-            'per_page' => ['nullable', 'integer', 'min:1', 'max:1000'],
+            'per_page' => ['nullable', 'integer', 'in:10'],
             'page' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:150'],
         ]);
@@ -74,7 +74,7 @@ class TransactionController extends Controller
             });
         }
 
-        return response()->json($query->paginate($filters['per_page'] ?? 20));
+        return response()->json($query->paginate(10));
     }
 
     public function summary(Request $request)

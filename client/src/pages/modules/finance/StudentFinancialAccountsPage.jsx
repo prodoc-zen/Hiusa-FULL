@@ -18,9 +18,9 @@ export default function StudentFinancialAccountsPage() {
   const [rows, setRows] = useState([]);
   const [summary, setSummary] = useState({});
   const [options, setOptions] = useState({ departments: [], programs: [], year_levels: [] });
-  const [filters, setFilters] = useState({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 15 });
+  const [filters, setFilters] = useState({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 });
   const [page, setPage] = useState(1);
-  const [meta, setMeta] = useState({ total: 0, per_page: 15, current_page: 1 });
+  const [meta, setMeta] = useState({ total: 0, per_page: 10, current_page: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [selected, setSelected] = useState(null);
@@ -43,7 +43,7 @@ export default function StudentFinancialAccountsPage() {
 
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
   const updateFilter = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); };
-  const clearFilters = () => { setFilters({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 15 }); setPage(1); };
+  const clearFilters = () => { setFilters({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 }); setPage(1); };
   const refreshAndReselect = async (schoolId) => { await load(); if (schoolId) { const response = await getStudentDebts({ student_id: schoolId }); setSelected(response.data?.[0] || null); } };
 
   const submitCharge = async (event) => {
@@ -80,7 +80,7 @@ export default function StudentFinancialAccountsPage() {
         <select aria-label="Year level" value={filters.year_level} onChange={(event) => updateFilter('year_level', event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">All year levels</option>{(options.year_levels || []).map((value) => <option key={value}>{value}</option>)}</select>
         <select aria-label="Sort accounts" value={filters.sort} onChange={(event) => updateFilter('sort', event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="highest_debt">Highest debt first</option><option value="name">Student name</option><option value="recent">Recent activity</option></select>
       </div>
-      <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={clearFilters} className="text-xs font-bold text-[#0B8ED0] hover:underline">Clear all filters</button><label className="flex items-center gap-2 text-xs font-semibold text-slate-500">Rows per page<select value={filters.per_page} onChange={(event) => updateFilter('per_page', Number(event.target.value))} className="h-9 rounded-lg border border-[#DDE7EF] px-2 text-sm text-[#0F172A]"><option value={15}>15</option><option value={25}>25</option><option value={50}>50</option></select></label></div>
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2"><button type="button" onClick={clearFilters} className="text-xs font-bold text-[#0B8ED0] hover:underline">Clear all filters</button><span className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 text-xs font-semibold text-slate-500">10 rows per page</span></div>
     </section>
 
     {error && <p className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</p>}

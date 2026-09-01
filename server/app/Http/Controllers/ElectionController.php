@@ -996,7 +996,7 @@ class ElectionController extends Controller
             ->orderBy('last_name')
             ->orderBy('first_name')
             ->select(['school_id', 'first_name', 'last_name', 'email'])
-            ->paginate(20)
+            ->paginate(10)
             ->through(fn ($student) => array_merge($student->toArray(), [
                 'has_voted' => $voterIds->contains($student->school_id),
             ]));

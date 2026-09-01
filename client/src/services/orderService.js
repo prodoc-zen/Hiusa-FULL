@@ -6,6 +6,9 @@ export const getOrders = (params) =>
 export const getOrderAnalyticsUsers = (params) =>
   api.get('/orders/analytics/users', { params });
 
+export const getOrderAuditLogs = (id) =>
+  api.get(`/orders/${id}/audit-logs`);
+
 export const exportOrders = (params) =>
   api.get('/orders/export', { params, responseType: 'blob' });
 

@@ -6,6 +6,7 @@ use App\Mail\PasswordResetMail;
 use App\Models\AcademicProgram;
 use App\Models\AcademicSection;
 use App\Models\AuditLog;
+use App\Models\SboPosition;
 use App\Models\User;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -106,6 +107,7 @@ class UserController extends Controller
         ]);
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
+        $validatedData = $this->normalizePositionPayload($validatedData, $actor);
 
         $user = User::create([
             'organization_id' => $organizationId,
@@ -118,7 +120,7 @@ class UserController extends Controller
             'role' => $validatedData['role'],
             'account_status' => $validatedData['account_status'] ?? 'active',
             'is_member' => true,
-            'position_title' => $validatedData['role'] === 'SBO_OFFICER' ? ($validatedData['position_title'] ?? null) : null,
+            'position_title' => $validatedData['position_title'] ?? null,
             'notification_preferences' => $validatedData['notification_preferences'] ?? null,
             'department' => $validatedData['department'] ?? null,
             'program' => $validatedData['program'] ?? null,
@@ -187,6 +189,7 @@ class UserController extends Controller
         }
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $request->user(), $user);
+        $validatedData = $this->normalizePositionPayload($validatedData, $request->user(), $user);
 
         if (array_key_exists('password', $validatedData)) {
             $validatedData['password_hash'] = $validatedData['password'];
@@ -571,9 +574,60 @@ class UserController extends Controller
     {
         $role = $data['role'] ?? $user->role;
 
-        if ($role !== 'SBO_OFFICER') {
+        if (! in_array($role, ['ADMIN', 'SBO_OFFICER'], true)) {
             $data['position_title'] = null;
         }
+
+        return $data;
+    }
+
+    private function normalizePositionPayload(array $data, User $actor, ?User $existingUser = null): array
+    {
+        $role = $data['role'] ?? $existingUser?->role;
+        $positionWasSubmitted = array_key_exists('position_title', $data);
+        $positionTitle = $positionWasSubmitted ? trim((string) ($data['position_title'] ?? '')) : null;
+
+        if (! in_array($role, ['ADMIN', 'SBO_OFFICER'], true)) {
+            if ($positionWasSubmitted && $positionTitle !== '') {
+                throw ValidationException::withMessages([
+                    'position_title' => ['Only Admin and SBO Officer accounts can be assigned an organization position.'],
+                ]);
+            }
+
+            $data['position_title'] = null;
+
+            return $data;
+        }
+
+        if ($existingUser && array_key_exists('role', $data) && $role !== $existingUser->role && ! $positionWasSubmitted) {
+            $data['position_title'] = null;
+
+            return $data;
+        }
+
+        if (! $positionWasSubmitted) {
+            return $data;
+        }
+
+        if ($positionTitle === '') {
+            $data['position_title'] = null;
+
+            return $data;
+        }
+
+        $validPosition = SboPosition::where('organization_id', $actor->organization_id)
+            ->where('role', $role)
+            ->where('title', $positionTitle)
+            ->where('is_active', true)
+            ->exists();
+
+        if (! $validPosition) {
+            throw ValidationException::withMessages([
+                'position_title' => ['Choose an active position configured for the selected account role.'],
+            ]);
+        }
+
+        $data['position_title'] = $positionTitle;
 
         return $data;
     }

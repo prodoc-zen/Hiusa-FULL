@@ -49,6 +49,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sbo-positions', [SboPositionController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/sbo-positions', [SboPositionController::class, 'store'])->middleware('role:ADMIN');
     Route::put('/sbo-positions/{position}', [SboPositionController::class, 'update'])->middleware('role:ADMIN');
+    Route::delete('/sbo-positions/{position}', [SboPositionController::class, 'destroy'])->middleware('role:ADMIN');
     Route::get('/academic-structure', [AcademicStructureController::class, 'index'])->middleware('role:ADMIN');
     Route::post('/academic-structure/programs', [AcademicStructureController::class, 'store'])->middleware('role:ADMIN');
     Route::put('/academic-structure/programs/{program}', [AcademicStructureController::class, 'update'])->middleware('role:ADMIN');

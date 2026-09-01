@@ -16,6 +16,7 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Organization;
 use App\Models\Partylist;
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
@@ -31,11 +32,17 @@ class UseCaseComplianceTest extends TestCase
 
     private function user(string $role, ?int $organizationId = null): User
     {
-        return User::factory()->create([
+        $user = User::factory()->create([
             'role' => $role,
+            'position_title' => $role === 'SBO_OFFICER' ? 'President' : null,
             'organization_id' => $organizationId ?? Organization::factory(),
             'account_status' => 'active',
         ]);
+        if ($role === 'SBO_OFFICER') {
+            SboPosition::updateOrCreate(['organization_id' => $user->organization_id, 'role' => $role, 'title' => 'President'], ['is_active' => true]);
+        }
+
+        return $user;
     }
 
     private function authenticate(User $user): void
@@ -366,8 +373,8 @@ class UseCaseComplianceTest extends TestCase
     {
         $admin = $this->user('ADMIN');
         foreach ([
-            ['date' => now()->subMonth()->startOfMonth(), 'type' => 'income', 'amount' => 1000],
-            ['date' => now()->subMonth()->startOfMonth(), 'type' => 'expense', 'amount' => 600],
+            ['date' => now()->startOfMonth()->subMonth(), 'type' => 'income', 'amount' => 1000],
+            ['date' => now()->startOfMonth()->subMonth(), 'type' => 'expense', 'amount' => 600],
             ['date' => now()->startOfMonth(), 'type' => 'income', 'amount' => 1200],
             ['date' => now()->startOfMonth(), 'type' => 'expense', 'amount' => 700],
         ] as $row) {
@@ -418,6 +425,21 @@ class UseCaseComplianceTest extends TestCase
         $response->assertJsonPath('assigned_to', $availableOfficer->school_id);
         $this->assertGreaterThan(0, (float) $response->json('final_score'));
         $this->assertNotEmpty($response->json('ai_recommendation_note'));
+    }
+
+    public function test_task_delegation_requires_an_assigned_officer_position(): void
+    {
+        $admin = $this->user('ADMIN');
+        $officer = $this->user('SBO_OFFICER', $admin->organization_id);
+        $officer->update(['position_title' => null]);
+
+        $this->authenticate($admin);
+        $this->postJson('/api/tasks', [
+            'title' => 'Task without a configured officer position',
+            'deadline' => now()->addWeek(),
+            'status' => 'pending',
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Assign an active SBO position to at least one officer before using task delegation.');
     }
 
     public function test_event_financial_report_is_computed_summarized_and_saved(): void
@@ -1325,6 +1347,14 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonPath('admin_review_status', 'approved');
         $this->assertDatabaseHas('orders', ['id' => $orderId, 'status' => 'paid', 'approved_by' => $admin->school_id]);
         $this->assertDatabaseHas('audit_logs', ['module' => 'orders', 'action' => 'payment_approved_admin_bypass', 'record_id' => $orderId]);
+        $this->getJson("/api/orders/{$orderId}/audit-logs")
+            ->assertOk()
+            ->assertJsonFragment(['action' => 'payment_approved_admin_bypass'])
+            ->assertJsonFragment(['action' => 'created']);
+
+        $otherAdmin = $this->user('ADMIN');
+        $this->authenticate($otherAdmin);
+        $this->getJson("/api/orders/{$orderId}/audit-logs")->assertNotFound();
 
         $this->authenticate($student);
         $stagedOrderId = $this->postJson('/api/orders', [

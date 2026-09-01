@@ -163,6 +163,7 @@ def delegate_task(request: TaskDelegationRequest) -> dict:
         for officer in request.officers
         if officer.role == "SBO_OFFICER"
         and officer.account_status == "active"
+        and bool(officer.position_title and officer.position_title.strip())
         and officer.is_available
         and officer.policy_eligible
         and officer.active_tasks < request.max_active_tasks
@@ -181,6 +182,7 @@ def delegate_task(request: TaskDelegationRequest) -> dict:
         "eligibility_rules": [
             "role must be SBO_OFFICER",
             "account status must be active",
+            "an SBO position must be assigned",
             "officer must be marked available",
             "officer must satisfy organization policy",
             f"active task count must be below {request.max_active_tasks}",
