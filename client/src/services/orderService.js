@@ -27,6 +27,36 @@ export const submitOrderPayment = (id, data) => {
   return api.post(`/orders/${id}/payment`, formData);
 };
 
+export const openOrderPaymentProof = async (id) => {
+  const preview = window.open('about:blank', '_blank');
+  if (preview) {
+    preview.opener = null;
+    preview.document.title = 'Loading payment proof...';
+    preview.document.body.textContent = 'Loading payment proof...';
+  }
+
+  try {
+    const response = await api.get(`/orders/${id}/payment-proof`, {
+      responseType: 'blob',
+    });
+    const objectUrl = URL.createObjectURL(response.data);
+
+    if (preview) {
+      preview.location.replace(objectUrl);
+    } else {
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `payment-proof-${id}`;
+      link.click();
+    }
+
+    window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  } catch (error) {
+    preview?.close();
+    throw error;
+  }
+};
+
 export const updateOrderStatus = (id, status, review_remarks = null, verified_amount = null) =>
   api.patch(`/orders/${id}/status`, { status, review_remarks, verified_amount });
 

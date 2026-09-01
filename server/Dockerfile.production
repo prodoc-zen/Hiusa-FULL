@@ -1,0 +1,53 @@
+FROM php:8.3-apache
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+        git \
+        libicu-dev \
+        libonig-dev \
+        libzip-dev \
+        unzip \
+    && docker-php-ext-install -j"$(nproc)" \
+        bcmath \
+        intl \
+        mbstring \
+        opcache \
+        pcntl \
+        pdo_mysql \
+        zip \
+    && a2enmod headers rewrite \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
+
+WORKDIR /var/www/html
+
+COPY . .
+
+RUN composer install \
+        --no-dev \
+        --no-interaction \
+        --no-progress \
+        --prefer-dist \
+        --optimize-autoloader \
+    && mkdir -p \
+        storage/app/private \
+        storage/app/public \
+        storage/framework/cache/data \
+        storage/framework/sessions \
+        storage/framework/views \
+        storage/logs \
+        public/uploads/gcash \
+        public/uploads/merchandise \
+        public/uploads/partylists \
+        public/uploads/payments \
+    && rm -rf public/storage \
+    && ln -s /var/www/html/storage/app/public /var/www/html/public/storage \
+    && chown -R www-data:www-data storage bootstrap/cache public/uploads
+
+COPY docker/apache.production.conf /etc/apache2/sites-available/000-default.conf
+COPY docker/php.production.ini /usr/local/etc/php/conf.d/production.ini
+
+EXPOSE 80
+
+CMD ["apache2-foreground"]

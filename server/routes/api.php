@@ -140,6 +140,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/orders/export', [OrderController::class, 'export'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/orders', [OrderController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
+    Route::get('/orders/{id}/payment-proof', [OrderController::class, 'paymentProof'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::get('/orders/{id}/audit-logs', [OrderController::class, 'auditHistory'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::post('/orders/claim', [OrderController::class, 'claimByToken'])->middleware('role:ADMIN,SBO_OFFICER');
