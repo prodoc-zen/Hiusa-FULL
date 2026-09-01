@@ -189,7 +189,7 @@ class FinancialAccountabilityController extends Controller
             'department' => ['nullable', 'string', 'max:150'], 'program' => ['nullable', 'string', 'max:150'],
             'year_level' => ['nullable', 'string', 'max:50'], 'status' => ['nullable', 'in:all,owing,cleared,overdue,pending_payment'],
             'sort' => ['nullable', 'in:highest_debt,name,recent'], 'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:10', 'max:50'],
+            'per_page' => ['nullable', 'integer', 'in:10'],
         ]);
         $organizationId = $request->user()->organization_id;
         $students = User::where('organization_id', $organizationId)->where('role', 'STUDENT')
@@ -234,7 +234,7 @@ class FinancialAccountabilityController extends Controller
             'name' => $accounts->sortBy('student.name', SORT_NATURAL | SORT_FLAG_CASE), 'recent' => $accounts->sortByDesc('last_activity_at'), default => $accounts->sortByDesc('total_debt'),
         };
         $page = (int) ($filters['page'] ?? 1);
-        $perPage = (int) ($filters['per_page'] ?? 15);
+        $perPage = 10;
         $accounts = $accounts->values();
         $paginator = new LengthAwarePaginator($accounts->forPage($page, $perPage)->values(), $accounts->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
         $payload = $paginator->toArray();
@@ -299,7 +299,7 @@ class FinancialAccountabilityController extends Controller
     public function auditLogs(Request $request)
     {
         $organizationId = $request->user()->organization_id;
-        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'string', 'max:30'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
+        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'string', 'max:30'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
         $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId);
         foreach (['user_id', 'module', 'action'] as $field) {
             if (! empty($filters[$field])) {
@@ -326,7 +326,7 @@ class FinancialAccountabilityController extends Controller
         match ($filters['sort'] ?? 'newest') {
             'oldest' => $query->oldest('created_at'), 'user' => $query->orderBy(User::select('last_name')->whereColumn('users.school_id', 'audit_logs.user_id'))->orderBy(User::select('first_name')->whereColumn('users.school_id', 'audit_logs.user_id')), 'role' => $query->orderBy(User::select('role')->whereColumn('users.school_id', 'audit_logs.user_id')), 'module' => $query->orderBy('module')->orderByDesc('created_at'), 'action','category' => $query->orderBy('action')->orderByDesc('created_at'), default => $query->latest('created_at')
         };
-        $logs = $query->paginate($filters['per_page'] ?? 25);
+        $logs = $query->paginate(10);
         $logs->getCollection()->transform(fn (AuditLog $log) => $this->auditLogData($log, $organizationId));
 
         return response()->json($logs);

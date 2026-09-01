@@ -51,7 +51,7 @@ class OrderController extends Controller
         $this->applyOrderSort($query, $filters['sort'] ?? 'newest');
 
         $summary = $personalView ? null : $this->orderSummary($request, $filters);
-        $orders = $query->paginate($filters['per_page'] ?? 20)->withQueryString();
+        $orders = $query->paginate(10)->withQueryString();
 
         if ($personalView) {
             $orders->getCollection()->each(function (Order $order) {
@@ -110,7 +110,7 @@ class OrderController extends Controller
             ])->latest('created_at');
         }]);
 
-        return response()->json($users->orderBy('last_name')->orderBy('first_name')->paginate($filters['per_page'] ?? 20));
+        return response()->json($users->orderBy('last_name')->orderBy('first_name')->paginate(10));
     }
 
     public function export(Request $request): StreamedResponse
@@ -173,7 +173,7 @@ class OrderController extends Controller
             'claimed_from' => ['nullable', 'date'],
             'claimed_to' => ['nullable', 'date', 'after_or_equal:claimed_from'],
             'sort' => ['nullable', 'in:newest,oldest,amount_high,amount_low,student,item,status'],
-            'per_page' => ['nullable', 'integer', 'in:10,20,50,100'],
+            'per_page' => ['nullable', 'integer', 'in:10'],
         ]);
     }
 
@@ -633,7 +633,7 @@ class OrderController extends Controller
             return response()->json(['message' => 'Order not found.'], 404);
         }
 
-        return response()->json(AuditLog::with('user:school_id,first_name,last_name,role')
+        return response()->json(AuditLog::with('user:school_id,first_name,last_name,role,position_title')
             ->where('organization_id', $order->organization_id)->where('record_type', Order::class)->where('record_id', $order->id)->latest('created_at')->get());
     }
 

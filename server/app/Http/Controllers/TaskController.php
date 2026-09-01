@@ -9,6 +9,7 @@ use App\Models\TaskProgressUpdate;
 use App\Models\User;
 use App\Services\GroqResponsesService;
 use App\Services\HiusaAiService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
@@ -123,15 +124,13 @@ class TaskController extends Controller
         }
 
         $assignee = ! empty($data['assigned_to'])
-            ? User::where('organization_id', $request->user()->organization_id)
+            ? $this->eligibleOfficerQuery($request)
                 ->where('school_id', $data['assigned_to'])
-                ->where('role', 'SBO_OFFICER')
-                ->where('account_status', 'active')
                 ->first()
             : $this->recommendOfficer($request);
 
         if (! $assignee) {
-            return response()->json(['message' => 'An active SBO Officer is required for task assignment.'], 422);
+            return response()->json(['message' => 'Assign an active SBO position to at least one officer before using task delegation.'], 422);
         }
 
         $data['assigned_to'] = $assignee->school_id;
@@ -176,14 +175,12 @@ class TaskController extends Controller
         }
 
         if (! empty($data['assigned_to'])) {
-            $assignee = User::where('organization_id', $request->user()->organization_id)
+            $assignee = $this->eligibleOfficerQuery($request)
                 ->where('school_id', $data['assigned_to'])
-                ->where('role', 'SBO_OFFICER')
-                ->where('account_status', 'active')
                 ->first();
 
             if (! $assignee) {
-                return response()->json(['message' => 'Tasks can only be assigned to active SBO Officers.'], 422);
+                return response()->json(['message' => 'Tasks can only be assigned to active SBO Officers with an assigned position.'], 422);
             }
 
             $data = $this->applyAssignmentScoring($data, $assignee, $request);
@@ -336,10 +333,8 @@ class TaskController extends Controller
     private function validOrganizationLinks(Request $request, array $data): bool
     {
         if (! empty($data['assigned_to'])) {
-            $validAssignee = User::where('organization_id', $request->user()->organization_id)
+            $validAssignee = $this->eligibleOfficerQuery($request)
                 ->where('school_id', $data['assigned_to'])
-                ->where('role', 'SBO_OFFICER')
-                ->where('account_status', 'active')
                 ->exists();
 
             if (! $validAssignee) {
@@ -418,6 +413,7 @@ class TaskController extends Controller
         return [
             'role must be SBO_OFFICER',
             'account status must be active',
+            'an SBO position must be assigned',
             'officer must be marked available',
             'officer must satisfy organization policy',
             "active task count must be below {$maxActiveTasks}",
@@ -577,10 +573,7 @@ class TaskController extends Controller
 
     private function recommendOfficer(Request $request): ?User
     {
-        $officers = User::where('organization_id', $request->user()->organization_id)
-            ->where('role', 'SBO_OFFICER')
-            ->where('account_status', 'active')
-            ->get();
+        $officers = $this->eligibleOfficerQuery($request)->get();
 
         if ($officers->isEmpty()) {
             return null;
@@ -637,6 +630,23 @@ class TaskController extends Controller
             'completed_tasks' => (clone $baseQuery)->where('status', 'completed')->count(),
             'overdue_tasks' => (clone $baseQuery)->where('status', 'overdue')->count(),
         ];
+    }
+
+    private function eligibleOfficerQuery(Request $request): Builder
+    {
+        return User::where('users.organization_id', $request->user()->organization_id)
+            ->where('users.role', 'SBO_OFFICER')
+            ->where('users.account_status', 'active')
+            ->whereNotNull('users.position_title')
+            ->whereRaw("TRIM(users.position_title) <> ''")
+            ->whereExists(function ($query) {
+                $query->selectRaw('1')
+                    ->from('sbo_positions')
+                    ->whereColumn('sbo_positions.organization_id', 'users.organization_id')
+                    ->whereColumn('sbo_positions.title', 'users.position_title')
+                    ->where('sbo_positions.role', 'SBO_OFFICER')
+                    ->where('sbo_positions.is_active', true);
+            });
     }
 
     private function rememberAiRankings(?array $result): void

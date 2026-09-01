@@ -37,7 +37,7 @@ class DepartmentHeadGapsTest extends TestCase
         $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER']);
         $election = Election::factory()->create(['organization_id' => $organization->id, 'status' => 'active']);
 
-        // 25 eligible students in this org so pagination (per_page 20) is exercised.
+        // 25 eligible students in this org so pagination (10 rows per page) is exercised.
         $students = User::factory()->count(25)->create([
             'organization_id' => $organization->id,
             'role' => 'STUDENT',
@@ -65,20 +65,22 @@ class DepartmentHeadGapsTest extends TestCase
         Sanctum::actingAs($officer);
 
         $page1 = $this->getJson("/api/elections/{$election->id}/voters")->assertOk();
-        $page1->assertJsonPath('per_page', 20);
+        $page1->assertJsonPath('per_page', 10);
         $page1->assertJsonPath('total', 25);
-        $page1->assertJsonCount(20, 'data');
+        $page1->assertJsonCount(10, 'data');
         $page1->assertJsonPath('summary.eligible_total', 25);
         $page1->assertJsonPath('summary.voted_count', 1);
         $this->assertEquals(4.0, $page1->json('summary.turnout_percent'));
 
         $page2 = $this->getJson("/api/elections/{$election->id}/voters?page=2")->assertOk();
-        $page2->assertJsonCount(5, 'data');
+        $page2->assertJsonCount(10, 'data');
+        $page3 = $this->getJson("/api/elections/{$election->id}/voters?page=3")->assertOk();
+        $page3->assertJsonCount(5, 'data');
 
         // has_voted correctness is checked across both pages since the
         // alphabetical sort (last_name, first_name) can place either
         // fake()-generated student on either page.
-        $allRows = collect($page1->json('data'))->merge($page2->json('data'));
+        $allRows = collect($page1->json('data'))->merge($page2->json('data'))->merge($page3->json('data'));
 
         $votedRow = $allRows->firstWhere('school_id', $votedStudent->school_id);
         $this->assertNotNull($votedRow);
@@ -201,9 +203,11 @@ class DepartmentHeadGapsTest extends TestCase
         ];
 
         foreach ([$orgA, $orgB] as $organization) {
-            $titles = SboPosition::where('organization_id', $organization->id)->pluck('title')->sort()->values();
-            $this->assertSame(collect($expected)->sort()->values()->all(), $titles->all());
-            $this->assertTrue(SboPosition::where('organization_id', $organization->id)->where('title', 'Adviser')->where('is_active', true)->exists());
+            foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
+                $titles = SboPosition::where('organization_id', $organization->id)->where('role', $role)->pluck('title')->sort()->values();
+                $this->assertSame(collect($expected)->sort()->values()->all(), $titles->all());
+                $this->assertTrue(SboPosition::where('organization_id', $organization->id)->where('role', $role)->where('title', 'Adviser')->where('is_active', true)->exists());
+            }
         }
     }
 

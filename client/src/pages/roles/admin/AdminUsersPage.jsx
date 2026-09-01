@@ -255,7 +255,7 @@ export default function AdminUsersPage() {
     try {
       await createUser({
         ...createForm,
-        position_title: createForm.role === 'SBO_OFFICER' ? createForm.position_title : '',
+        position_title: ['ADMIN', 'SBO_OFFICER'].includes(createForm.role) ? createForm.position_title : '',
       });
       setShowCreate(false);
       setCreateForm(emptyCreateForm);
@@ -280,7 +280,7 @@ export default function AdminUsersPage() {
       delete editableFields.school_id;
       await updateUser(selectedUser.id, {
         ...editableFields,
-        position_title: editForm.role === 'SBO_OFFICER' ? editForm.position_title : '',
+        position_title: ['ADMIN', 'SBO_OFFICER'].includes(editForm.role) ? editForm.position_title : '',
       });
       setSelectedUser(null);
       await refreshUsers();
@@ -369,21 +369,21 @@ export default function AdminUsersPage() {
         <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
       <Field label="Role">
-        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? form.position_title : '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
           {roles.map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
         </select>
       </Field>
-      <Field label="SBO Position">
+      <Field label="Organization Position">
         <select
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
-          disabled={form.role !== 'SBO_OFFICER'}
+          disabled={!['ADMIN', 'SBO_OFFICER'].includes(form.role)}
           className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
         >
-          <option value="">Assign SBO position</option>
-          {sboPositions.filter((position) => position.is_active).map((position) => (
+          <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
+          {sboPositions.filter((position) => position.is_active && position.role === form.role).map((position) => (
             <option key={position.id} value={position.title}>{position.title}</option>
           ))}
         </select>
@@ -546,7 +546,7 @@ export default function AdminUsersPage() {
             {[
               ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
-              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['SBO position', profileUser.position_title || 'Not assigned'],
+              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'],
             ].map(([label, value]) => <div key={label}><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></div>)}
           </div>
           {profileUser.role === 'STUDENT' && <section>

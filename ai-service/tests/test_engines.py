@@ -122,8 +122,8 @@ def test_task_delegation_filters_ineligible_users_and_prefers_lower_workload() -
     result = delegate_task(TaskDelegationRequest.model_validate({
         "task_title": "Prepare event logistics",
         "officers": [
-            {"officer_id": 10, "name": "Busy", "role": "SBO_OFFICER", "account_status": "active", "active_tasks": 3},
-            {"officer_id": 20, "name": "Available", "role": "SBO_OFFICER", "account_status": "active", "active_tasks": 0},
+            {"officer_id": 10, "name": "Busy", "role": "SBO_OFFICER", "position_title": "Business Manager", "account_status": "active", "active_tasks": 3},
+            {"officer_id": 20, "name": "Available", "role": "SBO_OFFICER", "position_title": "Business Manager", "account_status": "active", "active_tasks": 0},
             {"officer_id": 30, "name": "Student", "role": "STUDENT", "account_status": "active", "active_tasks": 0},
         ],
     }))
@@ -137,10 +137,10 @@ def test_task_delegation_applies_availability_and_policy_rules_before_scoring() 
         "task_title": "Policy-aware assignment",
         "max_active_tasks": 5,
         "officers": [
-            {"officer_id": 1, "name": "At Capacity", "role": "SBO_OFFICER", "account_status": "active", "active_tasks": 5},
-            {"officer_id": 2, "name": "Unavailable", "role": "SBO_OFFICER", "account_status": "active", "is_available": False},
-            {"officer_id": 3, "name": "Policy Blocked", "role": "SBO_OFFICER", "account_status": "active", "policy_eligible": False},
-            {"officer_id": 4, "name": "Eligible", "role": "SBO_OFFICER", "account_status": "active", "active_tasks": 2},
+            {"officer_id": 1, "name": "At Capacity", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "active_tasks": 5},
+            {"officer_id": 2, "name": "Unavailable", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "is_available": False},
+            {"officer_id": 3, "name": "Policy Blocked", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "policy_eligible": False},
+            {"officer_id": 4, "name": "Eligible", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "active_tasks": 2},
         ],
     }))
 
@@ -171,8 +171,8 @@ def test_task_delegation_workload_scales_across_the_whole_eligible_range() -> No
         "task_title": "General coordination task",
         "max_active_tasks": 100,
         "officers": [
-            {"officer_id": 1, "name": "Lightly Loaded", "role": "SBO_OFFICER", "account_status": "active", "active_tasks": 6},
-            {"officer_id": 2, "name": "Heavily Loaded", "role": "SBO_OFFICER", "account_status": "active", "active_tasks": 60},
+            {"officer_id": 1, "name": "Lightly Loaded", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "active_tasks": 6},
+            {"officer_id": 2, "name": "Heavily Loaded", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "active_tasks": 60},
         ],
     }))
 
@@ -190,6 +190,19 @@ def test_task_delegation_with_no_eligible_officer_raises() -> None:
             ],
         }))
         assert False, "expected ValueError for no eligible officer"
+    except ValueError:
+        pass
+
+
+def test_task_delegation_rejects_officers_without_an_assigned_position() -> None:
+    try:
+        delegate_task(TaskDelegationRequest.model_validate({
+            "task_title": "Prepare the event plan",
+            "officers": [
+                {"officer_id": 1, "name": "Unconfigured Officer", "role": "SBO_OFFICER", "account_status": "active"},
+            ],
+        }))
+        assert False, "expected ValueError when the officer has no assigned position"
     except ValueError:
         pass
 

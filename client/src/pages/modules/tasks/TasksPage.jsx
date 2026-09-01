@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Bot,
@@ -54,7 +55,7 @@ function formatDate(d) {
 }
 
 export default function TasksPage({ initialTab = 'board' }) {
-  const [showForm, setShowForm] = useState(false);
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [tasks, setTasks] = useState([]);
   const [officers, setOfficers] = useState([]);
@@ -92,7 +93,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       .then(([taskRes, userRes, eventRes]) => {
         setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
         const allUsers = Array.isArray(userRes) ? userRes : (Array.isArray(userRes.data) ? userRes.data : []);
-        setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER'));
+        setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER' && u.position_title?.trim()));
         setEvents(Array.isArray(eventRes.data) ? eventRes.data : []);
       })
       .catch(() => setError('Failed to load tasks.'))
@@ -122,7 +123,6 @@ export default function TasksPage({ initialTab = 'board' }) {
       });
       const detail = getDelegationDetail(res.data);
       if (detail) setLastDelegation({ taskId: res.data.id, ...detail });
-      setShowForm(false);
       setCreateSuccess(`Task “${res.data.title}” was created${res.data.assignee ? ` and assigned to ${res.data.assignee.first_name} ${res.data.assignee.last_name}` : ''}.`);
       setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       load();
@@ -240,6 +240,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <p className="mt-1 text-sm text-slate-500">Define one actionable assignment, connect it to an event when relevant, and select an officer or let the scoring engine recommend one.</p>
             </div>
             {createSuccess && <div className="mt-5 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{createSuccess}</div>}
+            {officers.length === 0 && <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertCircle size={17} className="mt-0.5 shrink-0" /><div><p className="font-bold">Officer positions must be configured first.</p><p className="mt-1 text-xs leading-5">Add SBO positions under Users &amp; Positions, then assign a position to an active SBO officer before creating or delegating a task.</p></div></div>}
             <form className="mt-5 space-y-5" onSubmit={handleCreate}>
               <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-[#0F172A]">Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
               <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-[#0F172A]">Description</label><textarea id="create-task-description" rows={5} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the expected result, required materials, and completion criteria..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
@@ -250,7 +251,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <div className="space-y-1.5"><label htmlFor="create-task-status" className="text-[13px] font-semibold text-[#0F172A]">Initial Status</label><select id="create-task-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pending">Pending</option><option value="in_progress">In Progress</option></select></div>
               </div>
               {formError && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{formError}</p>}
-              <div className="flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Clear Form</button><button type="submit" disabled={formSubmitting || !form.title || !form.deadline} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Clear Form</button><button type="submit" disabled={formSubmitting || officers.length === 0 || !form.title || !form.deadline} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
             </form>
           </div>
 
@@ -285,7 +286,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <select aria-label="Filter tasks by event" value={taskFilters.event} onChange={(event) => setTaskFilters({ ...taskFilters, event: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select>
               <button type="button" onClick={exportVisibleTasks} className="inline-flex h-11 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Download size={14} />Export</button>
               {canManageTasks && (
-                <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+                <button type="button" onClick={() => navigate('/dashboard/tasks/create-task')} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
                   <Plus size={16} />
                   <span className="hidden sm:inline">Create Task</span>
                 </button>
@@ -616,88 +617,6 @@ export default function TasksPage({ initialTab = 'board' }) {
         </div>
       )}
 
-      {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
-            <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">Create Task</h2>
-              <button onClick={() => setShowForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
-            </div>
-            <form className="space-y-4" onSubmit={handleCreate}>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Task Title *</label>
-                <input
-                  type="text"
-                  value={form.title}
-                  onChange={(e) => setForm({ ...form, title: e.target.value })}
-                  placeholder="e.g. Prepare election materials"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Description</label>
-                <textarea
-                  rows={3}
-                  value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  placeholder="Task details..."
-                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Assign To</label>
-                  <select
-                    value={form.assigned_to}
-                    onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                  >
-                    <option value="">Unassigned</option>
-                    {officers.map((u) => (
-                      <option key={u.id} value={u.id}>{u.first_name} {u.last_name}</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Related Event</label>
-                  <select
-                    value={form.event_id}
-                    onChange={(e) => setForm({ ...form, event_id: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                  >
-                    <option value="">No linked event</option>
-                    {events.map((event) => (
-                      <option key={event.id} value={event.id}>{event.title}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Deadline *</label>
-                  <input
-                    type="date"
-                    value={form.deadline}
-                    onChange={(e) => setForm({ ...form, deadline: e.target.value })}
-                    className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
-                  />
-                </div>
-              </div>
-              {formError && <p className="text-xs text-red-600">{formError}</p>}
-              <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
-                <button
-                  type="submit"
-                  disabled={formSubmitting || !form.title || !form.deadline}
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
-                >
-                  {formSubmitting ? 'Creating...' : 'Create Task'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

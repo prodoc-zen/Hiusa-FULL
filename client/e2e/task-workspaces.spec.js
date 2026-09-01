@@ -33,4 +33,7 @@ test('Create Task is a dedicated creation workspace, separate from Task Board', 
   await expect(page.getByRole('heading', { name: 'All Tasks' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Create a New Task' })).toHaveCount(0);
   await expect(page.getByText('Prepare orientation materials')).toBeVisible();
+  await page.getByRole('button', { name: 'Create Task', exact: true }).click();
+  await expect(page).toHaveURL(/\/dashboard\/tasks\/create-task$/);
+  await expect(page.getByRole('heading', { name: 'Create a New Task' })).toBeVisible();
 });

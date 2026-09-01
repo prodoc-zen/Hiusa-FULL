@@ -13,7 +13,10 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
     if (url.includes('/academic-structure')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(structure) });
-    if (url.includes('/sbo-positions')) return route.fulfill({ contentType: 'application/json', body: '[]' });
+    if (url.includes('/sbo-positions')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify([
+      { id: 1, role: 'ADMIN', title: 'President', is_active: true },
+      { id: 2, role: 'SBO_OFFICER', title: 'Secretary', is_active: true },
+    ]) });
     if (url.includes('/users')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify([]) });
     return route.fulfill({ contentType: 'application/json', body: JSON.stringify([]) });
   });
@@ -24,6 +27,13 @@ test('admin user management offers controlled academic dropdowns', async ({ page
   await page.getByRole('button', { name: 'New User' }).click();
   await expect(page.getByRole('textbox', { name: 'Department', exact: true })).toHaveValue('College of Computer Studies');
   const form = page.locator('#create-user-form');
+  const roleSelect = form.locator('select').first();
+  await expect(form.getByLabel('Organization Position')).toBeDisabled();
+  await roleSelect.selectOption('ADMIN');
+  await expect(form.getByLabel('Organization Position')).toBeEnabled();
+  await expect(form.getByLabel('Organization Position').locator('option')).toHaveText(['Choose a position', 'President']);
+  await roleSelect.selectOption('STUDENT');
+  await expect(form.getByLabel('Organization Position')).toBeDisabled();
   await form.getByLabel('Course / Program').selectOption('BS Information Technology');
   await form.getByLabel('Year Level').selectOption('1st Year');
   await expect(form.getByLabel('Section')).toBeEnabled();
@@ -54,7 +64,7 @@ test('user register stays compact and keeps private contact details in View', as
   await expect(page.getByRole('columnheader', { name: 'Email' })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'SBO Position' })).toHaveCount(0);
   await expect(page.getByRole('columnheader', { name: 'Program / Major' })).toBeVisible();
-  await expect(page.getByText('1 - Non Block')).toBeVisible();
+  await expect(page.getByRole('cell', { name: '1 - Non Block', exact: true })).toBeVisible();
   await expect(page.getByText('jamie@example.test')).toHaveCount(0);
   await page.getByRole('button', { name: 'View Jamie Student' }).click();
   await expect(page.getByText('jamie@example.test')).toBeVisible();

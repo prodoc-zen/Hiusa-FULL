@@ -102,6 +102,7 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventsPage, setEventsPage] = useState(1);
   const [tasksPage, setTasksPage] = useState(1);
+  const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
@@ -370,6 +371,7 @@ export default function EventsPage({ initialTab = 'events' }) {
     const haystack = [record.user?.school_id, record.user?.first_name, record.user?.last_name, record.user?.email, record.user?.program, record.user?.year_level, record.user?.section, record.recorder?.first_name, record.recorder?.last_name].filter(Boolean).join(' ').toLowerCase();
     return (!query || haystack.includes(query)) && (attendanceStatusFilter === 'all' || record.status === attendanceStatusFilter);
   });
+  const pagedAttendanceRecords = filteredAttendanceRecords.slice((attendancePage - 1) * pageSize, attendancePage * pageSize);
 
   const exportAttendance = () => {
     const event = attendanceData?.event;
@@ -398,6 +400,8 @@ export default function EventsPage({ initialTab = 'events' }) {
   useEffect(() => {
     setEventsPage(1);
   }, [search, dateFilter, events.length]);
+
+  useEffect(() => { setAttendancePage(1); }, [attendanceSearch, attendanceStatusFilter, selectedAttEventId]);
 
   useEffect(() => {
     setTasksPage(1);
@@ -891,7 +895,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                            {filteredAttendanceRecords.map((rec) => (
+                            {pagedAttendanceRecords.map((rec) => (
                               <tr key={rec.id} className="transition hover:bg-[#F8FBFD]">
                                 <td className="px-5 py-3.5 font-bold text-[#0F172A]">
                                   {rec.user ? `${rec.user.first_name} ${rec.user.last_name}` : '-'}
@@ -914,6 +918,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                           </tbody>
                         </table>
                         </div>
+                        <PaginationControls currentPage={attendancePage} totalItems={filteredAttendanceRecords.length} pageSize={pageSize} onPageChange={setAttendancePage} label="attendance records" />
                       </div>
                     )}
                   </>
