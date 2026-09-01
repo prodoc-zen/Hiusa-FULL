@@ -1,0 +1,153 @@
+name: hiusa
+
+services:
+  frontend:
+    build:
+      context: ./client
+      dockerfile: Dockerfile.production
+      args:
+        VITE_API_URL: /api
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      laravel:
+        condition: service_healthy
+    networks:
+      - edge
+    restart: unless-stopped
+
+  laravel:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.production
+    env_file:
+      - ./server/.env.production
+    volumes:
+      - laravel_storage:/var/www/html/storage
+      - laravel_uploads:/var/www/html/public/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    expose:
+      - "80"
+    networks:
+      - edge
+      - application
+    healthcheck:
+      test:
+        - CMD
+        - php
+        - -r
+        - 'exit(@file_get_contents("http://127.0.0.1/up") === false ? 1 : 0);'
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  scheduler:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.production
+    command: php artisan schedule:work
+    env_file:
+      - ./server/.env.production
+    volumes:
+      - laravel_storage:/var/www/html/storage
+      - laravel_uploads:/var/www/html/public/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    networks:
+      - application
+    restart: unless-stopped
+
+  queue-worker:
+    build:
+      context: ./server
+      dockerfile: Dockerfile.production
+    command: php artisan queue:work --sleep=3 --tries=3 --timeout=120
+    env_file:
+      - ./server/.env.production
+    volumes:
+      - laravel_storage:/var/www/html/storage
+      - laravel_uploads:/var/www/html/public/uploads
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks:
+      - application
+    restart: unless-stopped
+
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    env_file:
+      - ./ai-service/.env.production
+    expose:
+      - "8001"
+    networks:
+      - application
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8001/health", timeout=3)'
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - application
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'mysqladmin ping -h 127.0.0.1 -uroot -p"$$MYSQL_ROOT_PASSWORD" --silent'
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  laravel_storage:
+  laravel_uploads:
+  caddy_data:
+  caddy_config:
+
+networks:
+  edge:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.28.0.0/24
+  application:
+    driver: bridge

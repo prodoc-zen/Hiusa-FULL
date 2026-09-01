@@ -16,6 +16,7 @@ use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -637,6 +638,52 @@ class OrderController extends Controller
             ->where('organization_id', $order->organization_id)->where('record_type', Order::class)->where('record_id', $order->id)->latest('created_at')->get());
     }
 
+    public function paymentProof(Request $request, $id)
+    {
+        $order = Order::where('organization_id', $request->user()->organization_id)->find($id);
+        if (! $order) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
+        $user = $request->user();
+        abort_unless(
+            in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || $order->student_id === $user->school_id,
+            403
+        );
+
+        $storedPath = $order->payment_proof_url;
+        if (! $storedPath) {
+            return response()->json(['message' => 'Payment proof not found.'], 404);
+        }
+
+        if (preg_match('#^payment-proofs/[0-9a-f-]+\.(?:jpe?g|png|webp)$#i', $storedPath)) {
+            $disk = Storage::disk('local');
+            if (! $disk->exists($storedPath)) {
+                return response()->json(['message' => 'Payment proof not found.'], 404);
+            }
+            $path = $disk->path($storedPath);
+        } elseif (preg_match('#^/uploads/payments/[0-9a-f-]+\.(?:jpe?g|png|webp)$#i', $storedPath)) {
+            // Existing installations can read legacy proofs only through this
+            // authorization gate while files transition from public storage.
+            $path = public_path(ltrim($storedPath, '/'));
+            if (! is_file($path)) {
+                return response()->json(['message' => 'Payment proof not found.'], 404);
+            }
+        } else {
+            return response()->json(['message' => 'Payment proof not found.'], 404);
+        }
+
+        $response = response()->file($path, [
+            'Content-Disposition' => 'inline; filename="payment-proof-'.intval($order->id).'.'.pathinfo($path, PATHINFO_EXTENSION).'"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->setPrivate();
+        $response->setMaxAge(0);
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
+    }
+
     public function claimByToken(Request $request)
     {
         $data = $request->validate([
@@ -690,26 +737,28 @@ class OrderController extends Controller
         $file = $request->file('payment_proof');
         $extension = strtolower($file->extension() ?: 'jpg');
         $filename = Str::uuid().'.'.$extension;
-        $directory = public_path('uploads/payments');
+        $path = $file->storeAs('payment-proofs', $filename, 'local');
 
-        if (! is_dir($directory)) {
-            mkdir($directory, 0755, true);
+        if (! $path) {
+            throw new \RuntimeException('Unable to store payment proof.');
         }
 
-        $file->move($directory, $filename);
-
-        return '/uploads/payments/'.$filename;
+        return $path;
     }
 
     private function deletePaymentProof(?string $paymentProofUrl): void
     {
-        if (! $paymentProofUrl || ! str_starts_with($paymentProofUrl, '/uploads/payments/')) {
+        if (! $paymentProofUrl) {
             return;
         }
 
-        $path = public_path(ltrim($paymentProofUrl, '/'));
-        if (is_file($path)) {
-            @unlink($path);
+        if (str_starts_with($paymentProofUrl, 'payment-proofs/')) {
+            Storage::disk('local')->delete($paymentProofUrl);
+        } elseif (str_starts_with($paymentProofUrl, '/uploads/payments/')) {
+            $path = public_path(ltrim($paymentProofUrl, '/'));
+            if (is_file($path)) {
+                @unlink($path);
+            }
         }
     }
 

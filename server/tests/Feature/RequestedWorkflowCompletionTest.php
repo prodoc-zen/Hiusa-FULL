@@ -12,6 +12,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -127,10 +128,26 @@ class RequestedWorkflowCompletionTest extends TestCase
             'payment_reference' => '1234567890123',
             'payment_proof' => $proof,
         ], ['Accept' => 'application/json'])->assertOk();
-        $paymentPath = public_path(ltrim($payment->json('payment_proof_url'), '/'));
+        $paymentPath = $payment->json('payment_proof_url');
+        $this->assertTrue(Storage::disk('local')->exists($paymentPath));
 
         try {
+            $proofResponse = $this->get("/api/orders/{$orderId}/payment-proof")
+                ->assertOk()
+                ->assertHeader('X-Content-Type-Options', 'nosniff');
+            $this->assertStringContainsString('private', $proofResponse->headers->get('Cache-Control'));
+            $this->assertStringContainsString('no-store', $proofResponse->headers->get('Cache-Control'));
+
+            $otherStudent = $this->user('STUDENT', $buyer->organization_id);
+            Sanctum::actingAs($otherStudent);
+            $this->getJson("/api/orders/{$orderId}/payment-proof")->assertForbidden();
+
+            $otherOrganizationStudent = $this->user('STUDENT');
+            Sanctum::actingAs($otherOrganizationStudent);
+            $this->getJson("/api/orders/{$orderId}/payment-proof")->assertNotFound();
+
             Sanctum::actingAs($officer);
+            $this->get("/api/orders/{$orderId}/payment-proof")->assertOk();
             $this->patchJson("/api/orders/{$orderId}/status", [
                 'status' => 'paid',
                 'verified_amount' => 249,
@@ -152,9 +169,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             $this->postJson('/api/orders/claim', ['claim_token' => $token])->assertOk();
             $this->postJson('/api/orders/claim', ['claim_token' => $token])->assertConflict();
         } finally {
-            if (is_file($paymentPath)) {
-                unlink($paymentPath);
-            }
+            Storage::disk('local')->delete($paymentPath);
         }
     }
 

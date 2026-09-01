@@ -36,6 +36,7 @@ import {
   getOrderAnalyticsUsers,
   getOrderAuditLogs,
   getOrders,
+  openOrderPaymentProof,
   placeOrder,
   submitOrderPayment,
   updateOrderStatus,
@@ -535,6 +536,17 @@ export default function MerchandisePage({ initialTab }) {
 
   function showFeedback(type, message) {
     setFeedback({ open: true, type, message });
+  }
+
+  async function handleViewPaymentProof(orderId) {
+    try {
+      await openOrderPaymentProof(orderId);
+    } catch (err) {
+      showFeedback(
+        "error",
+        err.response?.data?.message || "Failed to open payment proof.",
+      );
+    }
   }
 
   useEffect(() => {
@@ -2849,15 +2861,14 @@ export default function MerchandisePage({ initialTab }) {
                                 Reject
                               </button>
                               {o.payment_proof_url && (
-                                <a
-                                  href={resolveAssetUrl(o.payment_proof_url)}
-                                  target="_blank"
-                                  rel="noreferrer"
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewPaymentProof(o.id)}
                                   title="View payment proof"
                                   className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"
                                 >
                                   <Eye size={14} />
-                                </a>
+                                </button>
                               )}
                             </div>
                           )}
@@ -3227,15 +3238,14 @@ export default function MerchandisePage({ initialTab }) {
               ))}
             </div>
             {orderDetails.payment_proof_url && (
-              <a
-                href={resolveAssetUrl(orderDetails.payment_proof_url)}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => handleViewPaymentProof(orderDetails.id)}
                 className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0]"
               >
                 <Eye size={14} />
                 View payment proof
-              </a>
+              </button>
             )}
             <section className="mt-5 border-t border-[#DDE7EF] pt-5">
               <div>
@@ -3756,16 +3766,15 @@ export default function MerchandisePage({ initialTab }) {
               {fmt(verificationModal.order.total_price)}.
             </p>
             {verificationModal.order.payment_proof_url ? (
-              <a
-                href={resolveAssetUrl(
-                  verificationModal.order.payment_proof_url,
-                )}
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() =>
+                  handleViewPaymentProof(verificationModal.order.id)
+                }
                 className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"
               >
                 <Eye size={14} /> View Payment Proof
-              </a>
+              </button>
             ) : (
               <p className="mt-3 text-xs font-semibold text-red-600">
                 No payment proof is attached.

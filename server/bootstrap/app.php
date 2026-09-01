@@ -16,6 +16,12 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        // Production sets this to "*" because the container is reachable only
+        // through Caddy. Local/direct servers trust no proxy by default.
+        if ($trustedProxies = getenv('TRUSTED_PROXIES')) {
+            $middleware->trustProxies(at: $trustedProxies);
+        }
+
         $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/login');
         $middleware->append(LogRequestDetails::class);
 
