@@ -85,7 +85,7 @@ class AcademicStructureSeeder extends Seeder
 
         foreach ($students as $index => $student) {
             $program = $programs[$index % $programs->count()];
-            $year = ($index % 4) + 1;
+            $year = (intdiv($index, $programs->count()) % 4) + 1;
 
             $lettered = $program->sections
                 ->where('year_level', $year)
@@ -93,7 +93,7 @@ class AcademicStructureSeeder extends Seeder
                 ->values();
 
             $section = $lettered->isNotEmpty()
-                ? $lettered[$index % $lettered->count()]
+                ? $lettered[intdiv($index, $programs->count() * 4) % $lettered->count()]
                 : $program->sections->firstWhere('year_level', $year);
 
             $student->forceFill([
