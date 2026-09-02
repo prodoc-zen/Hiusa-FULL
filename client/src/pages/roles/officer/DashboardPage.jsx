@@ -15,6 +15,7 @@ import { getTasks } from '../../../services/taskService';
 import { getEvents } from '../../../services/eventService';
 import { getTransactionSummary, getBudgets } from '../../../services/financeService';
 import { getOrders } from '../../../services/orderService';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 const STATUS_BADGE = {
   pending:     'bg-amber-50 text-amber-700',
@@ -43,7 +44,7 @@ function capitalize(s) {
 export default function DashboardPage() {
   const [stats, setStats] = useState({ openTasks: 0, upcomingEvents: 0, budgetBalance: 0, pendingOrders: 0 });
   const [urgentTasks, setUrgentTasks] = useState([]);
-  const [allTasks, setAllTasks] = useState([]);
+  const [taskStatusTotals, setTaskStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
   const [expensesByCategory, setExpensesByCategory] = useState([]);
   const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -53,38 +54,55 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const [tasksRes, eventsRes, summaryRes, ordersRes, budgetsRes] = await Promise.all([
-          getTasks(),
-          getEvents(),
+        // /tasks and /events are paginated (default 20/page). Task status has a
+        // server-side filter, so each status total is read from its own filtered
+        // response rather than counting a loaded page; "urgent tasks" only needs
+        // the nearest few deadlines, so pending/in_progress are fetched with a
+        // small per_page (already deadline-ascending) and merged. Events has no
+        // status filter at all, so the full org event list is walked once via
+        // fetchAllPages - the same is true for budgets, which also back the
+        // utilization widget below.
+        const [
+          pendingRes, inProgressRes, completedRes, overdueRes,
+          events, summaryRes, pendingOrdersRes, budgetsList,
+        ] = await Promise.all([
+          getTasks({ status: 'pending', per_page: 10 }),
+          getTasks({ status: 'in_progress', per_page: 10 }),
+          getTasks({ status: 'completed', per_page: 1 }),
+          getTasks({ status: 'overdue', per_page: 1 }),
+          fetchAllPages((p) => getEvents(p).then((r) => r.data)),
           getTransactionSummary(),
-          getOrders(),
-          getBudgets(),
+          getOrders({ status: 'pending', per_page: 1 }),
+          fetchAllPages((p) => getBudgets(p).then((r) => r.data)),
         ]);
 
         if (cancelled) return;
 
-        const tasks = Array.isArray(tasksRes?.data) ? tasksRes.data : (Array.isArray(tasksRes) ? tasksRes : []);
-        const events = Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []);
+        const pendingMeta = listMeta(pendingRes?.data);
+        const inProgressMeta = listMeta(inProgressRes?.data);
+        const completedMeta = listMeta(completedRes?.data);
+        const overdueMeta = listMeta(overdueRes?.data);
         const summary = summaryRes?.data ?? summaryRes ?? {};
-        const ordersRaw = ordersRes?.data;
-        const orders = Array.isArray(ordersRaw?.data) ? ordersRaw.data : (Array.isArray(ordersRaw) ? ordersRaw : []);
-        const budgetsList = Array.isArray(budgetsRes?.data) ? budgetsRes.data : (Array.isArray(budgetsRes) ? budgetsRes : []);
-
-        const openTasks = tasks.filter((t) => t.status === 'pending' || t.status === 'in_progress');
+        const pendingOrdersMeta = listMeta(pendingOrdersRes?.data);
 
         setStats({
-          openTasks: openTasks.length,
+          openTasks: pendingMeta.total + inProgressMeta.total,
           upcomingEvents: events.filter((e) => e.status === 'upcoming' || e.status === 'approved').length,
           budgetBalance: Number(summary.net_balance ?? 0),
-          pendingOrders: orders.filter((o) => o.status === 'pending').length,
+          pendingOrders: pendingOrdersMeta.total,
         });
 
         setUrgentTasks(
-          openTasks
+          [...unwrapList(pendingRes?.data), ...unwrapList(inProgressRes?.data)]
             .sort((a, b) => new Date(a.deadline) - new Date(b.deadline))
             .slice(0, 4)
         );
-        setAllTasks(tasks);
+        setTaskStatusTotals({
+          pending: pendingMeta.total,
+          in_progress: inProgressMeta.total,
+          completed: completedMeta.total,
+          overdue: overdueMeta.total,
+        });
 
         const byCategory = Array.isArray(summary.by_category) ? summary.by_category : [];
         setExpensesByCategory(
@@ -126,9 +144,9 @@ export default function DashboardPage() {
 
   const taskStatusCounts = TASK_STATUS_ORDER.map((status) => ({
     status,
-    count: allTasks.filter((t) => t.status === status).length,
+    count: taskStatusTotals[status] ?? 0,
   }));
-  const totalTasksCount = allTasks.length;
+  const totalTasksCount = TASK_STATUS_ORDER.reduce((sum, status) => sum + (taskStatusTotals[status] ?? 0), 0);
 
   const statCards = [
     { label: 'Open Tasks', value: loading ? '-' : stats.openTasks, helper: 'Pending & in-progress', icon: ClipboardList, trend: 'Active' },

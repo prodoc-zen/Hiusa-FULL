@@ -23,12 +23,12 @@ class UserController extends Controller
             'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'account_status' => ['nullable', 'in:active,inactive,disabled'],
             'search' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $query = User::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->where('organization_id', $request->user()->organization_id);
 
         if (! empty($filters['role'])) {
             $query->where('role', $filters['role']);
@@ -51,7 +51,22 @@ class UserController extends Controller
             });
         }
 
-        return response()->json($query->get());
+        // Counted on the filtered-but-unordered clone so an admin dashboard can
+        // show organization-wide role totals without paging through every user.
+        $roleCounts = (clone $query)
+            ->selectRaw('role, count(*) as aggregate')
+            ->groupBy('role')
+            ->pluck('aggregate', 'role');
+
+        $paginated = $query
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->paginate($filters['per_page'] ?? 20);
+
+        return response()->json([
+            ...$paginated->toArray(),
+            'summary' => ['by_role' => $roleCounts],
+        ]);
     }
 
     public function store(Request $request)

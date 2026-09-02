@@ -82,6 +82,11 @@ class TaskController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = Task::with([
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
@@ -111,7 +116,7 @@ class TaskController extends Controller
             $query->where('task_type', $request->task_type);
         }
 
-        return response()->json($query->get());
+        return response()->json($query->paginate($paging['per_page'] ?? 20));
     }
 
     public function store(Request $request)

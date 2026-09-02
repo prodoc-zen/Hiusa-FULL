@@ -19,6 +19,7 @@ import {
   togglePublish,
   deleteAnnouncement,
 } from '../../../services/announcementService';
+import { unwrapList } from '../../../services/pagination';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const AUDIENCE_OPTIONS = [
@@ -61,7 +62,7 @@ export default function AnnouncementsPage() {
     setLoading(true);
     setError(null);
     getAnnouncements()
-      .then((res) => setItems(Array.isArray(res.data) ? res.data : []))
+      .then((res) => setItems(unwrapList(res.data)))
       .catch(() => setError('Failed to load announcements.'))
       .finally(() => setLoading(false));
   }

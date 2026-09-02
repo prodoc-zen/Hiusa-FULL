@@ -16,6 +16,7 @@ import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
 import PaginationControls from '../../../components/PaginationControls';
 import EngineBadge from '../../../components/ai/EngineBadge';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 function getDelegationDetail(source) {
   if (!source || typeof source !== 'object') return null;
@@ -56,6 +57,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [tasks, setTasks] = useState([]);
+  const [tasksMeta, setTasksMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
+  const [allTasks, setAllTasks] = useState([]);
   const [officers, setOfficers] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -83,20 +86,31 @@ export default function TasksPage({ initialTab = 'board' }) {
   function load() {
     setLoading(true);
     setError(null);
-    const usersRequest = canManageTasks ? getUsers({ role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
-    const eventsRequest = canManageTasks ? getEvents() : Promise.resolve({ data: [] });
-    Promise.all([getTasks(), usersRequest, eventsRequest])
-      .then(([taskRes, userRes, eventRes]) => {
-        setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
-        const allUsers = Array.isArray(userRes) ? userRes : (Array.isArray(userRes.data) ? userRes.data : []);
+    const usersRequest = canManageTasks ? fetchAllPages(getUsers, { role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
+    const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]);
+    // The board table pages normally (search only applies within the loaded
+    // page - /tasks has no title-search filter). Stat cards, status counts,
+    // officer workload, and the AI ranking view all need the COMPLETE relevant
+    // task set (every status, not one page of it), so it is fetched once in
+    // full via fetchAllPages and reused across all four.
+    Promise.all([
+      getTasks({ page, per_page: pageSize }),
+      fetchAllPages((p) => getTasks(p).then((r) => r.data)),
+      usersRequest,
+      eventsRequest,
+    ])
+      .then(([taskRes, fullTasks, allUsers, eventList]) => {
+        setTasks(unwrapList(taskRes.data));
+        setTasksMeta(listMeta(taskRes.data));
+        setAllTasks(fullTasks);
         setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER'));
-        setEvents(Array.isArray(eventRes.data) ? eventRes.data : []);
+        setEvents(eventList);
       })
       .catch(() => setError('Failed to load tasks.'))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [canManageTasks]);
+  useEffect(load, [canManageTasks, page]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -137,6 +151,7 @@ export default function TasksPage({ initialTab = 'board' }) {
         ...(progressPercent !== null ? { progress_percent: Number(progressPercent) } : {}),
       });
       setTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
+      setAllTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
       setSelectedTask((current) => (current?.id === id ? res.data : current));
       return res.data;
     } catch (err) {
@@ -161,18 +176,18 @@ export default function TasksPage({ initialTab = 'board' }) {
     }
   }
 
-  const counts = tasks.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
+  // Stat cards, workload, and the AI ranking view read the complete task set
+  // (allTasks), never the loaded board page - /tasks paginates at 20/page by
+  // default, and this org's real task count can exceed that easily.
+  const counts = allTasks.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
 
+  // /tasks has no title-search filter, so search only narrows the page already
+  // on screen rather than reaching across the whole list.
   const filteredTasks = tasks.filter((t) =>
     t.title?.toLowerCase().includes(search.toLowerCase())
   );
-  const pagedTasks = filteredTasks.slice((page - 1) * pageSize, page * pageSize);
 
-  useEffect(() => {
-    setPage(1);
-  }, [search, tasks.length]);
-
-  const workloadByAssignee = tasks.reduce((acc, t) => {
+  const workloadByAssignee = allTasks.reduce((acc, t) => {
     if (!t.assignee) return acc;
     const key = t.assignee.school_id ?? t.assignee.id;
     if (!acc[key]) acc[key] = { user: t.assignee, total: 0, completed: 0 };
@@ -180,7 +195,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     if (t.status === 'completed') acc[key].completed += 1;
     return acc;
   }, {});
-  const scoredAssignments = tasks
+  const scoredAssignments = allTasks
     .filter((task) => task.assignee && Number.isFinite(Number(task.final_score)))
     .sort((a, b) => Number(b.final_score) - Number(a.final_score))
     .slice(0, 5);
@@ -189,7 +204,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     <div className="space-y-6">
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          { label: 'Total Tasks', value: tasks.length, helper: 'All time', icon: ListChecks },
+          { label: 'Total Tasks', value: allTasks.length, helper: 'All time', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },
@@ -244,7 +259,9 @@ export default function TasksPage({ initialTab = 'board' }) {
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : filteredTasks.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No tasks found.</p>
+            <p className="p-8 text-center text-sm text-slate-400">
+              {tasksMeta.total === 0 ? 'No tasks found.' : search.trim() ? 'No tasks on this page match your search.' : 'No tasks on this page.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[580px] sm:min-w-[780px] text-left">
@@ -258,7 +275,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {pagedTasks.map((t) => (
+                  {filteredTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
                       <td className="hidden sm:table-cell px-5 py-4 font-medium text-slate-600">
@@ -300,9 +317,9 @@ export default function TasksPage({ initialTab = 'board' }) {
             </div>
           )}
           <PaginationControls
-            currentPage={page}
-            totalItems={filteredTasks.length}
-            pageSize={pageSize}
+            currentPage={tasksMeta.currentPage}
+            totalItems={tasksMeta.total}
+            pageSize={tasksMeta.perPage}
             onPageChange={setPage}
             label="tasks"
           />

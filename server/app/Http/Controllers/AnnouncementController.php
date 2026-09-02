@@ -74,6 +74,11 @@ class AnnouncementController extends Controller
     {
         $user = $request->user();
 
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $allowedCategories = ['general', 'election', 'training', 'events', 'merchandise'];
         $category = strtolower((string) $request->query('category', ''));
 
@@ -104,12 +109,12 @@ class AnnouncementController extends Controller
             });
         }
 
-        $announcements = $query->get();
+        $announcements = $query->paginate($paging['per_page'] ?? 20);
 
         // Reach is officer/admin-facing reporting data, not something other
         // students should see next to a bulletin they're reading.
         if (! $canManageAnnouncements) {
-            $announcements->each->makeHidden('views_count');
+            $announcements->getCollection()->each->makeHidden('views_count');
         }
 
         return response()->json($announcements);

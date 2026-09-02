@@ -5,6 +5,7 @@ import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getMerchandise } from '../../../services/merchandiseService';
+import { fetchAllPages, unwrapList } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 function formatDate(d) {
@@ -27,20 +28,24 @@ export default function StudentHomePage() {
 
     async function load() {
       try {
-        const [electionsRes, eventsRes, announcementsRes, merchandiseRes] = await Promise.all([
+        // /events and /merchandise have no filter that narrows to "what this
+        // widget needs" (no upcoming/in-stock filter server-side), and /events
+        // orders oldest-first, so both are walked in full via fetchAllPages
+        // rather than trusting page one to contain the relevant rows.
+        const [electionsRes, events, announcementsRes, merchandise] = await Promise.all([
           getElections(),
-          getEvents(),
+          fetchAllPages((p) => getEvents(p).then((r) => r.data)),
           getAnnouncements({ published_only: 1 }),
-          getMerchandise(),
+          fetchAllPages((p) => getMerchandise(p).then((r) => r.data)),
         ]);
 
         if (cancelled) return;
 
         setData({
           elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
-          events: Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []),
-          announcements: Array.isArray(announcementsRes?.data) ? announcementsRes.data : [],
-          merchandise: Array.isArray(merchandiseRes?.data) ? merchandiseRes.data : (Array.isArray(merchandiseRes) ? merchandiseRes : []),
+          events,
+          announcements: unwrapList(announcementsRes?.data),
+          merchandise,
         });
       } catch {
         if (!cancelled) setData({ elections: [], events: [], announcements: [], merchandise: [] });

@@ -1,8 +1,8 @@
 import api from './api';
 
 // Budgets
-export const getBudgets = () =>
-  api.get('/budgets');
+export const getBudgets = (params) =>
+  api.get('/budgets', { params });
 
 export const createBudget = (data) =>
   api.post('/budgets', data);
@@ -44,8 +44,8 @@ export const recordInvoicePayment = (invoiceId, data) => api.post(`/invoices/${i
 export const getAuditLogs = (params) => api.get('/audit-logs', { params });
 
 // Forecasts
-export const getForecasts = () =>
-  api.get('/forecasts');
+export const getForecasts = (params) =>
+  api.get('/forecasts', { params });
 
 export const generateForecast = (data = {}) =>
   api.post('/forecasts/generate', data);
@@ -60,8 +60,8 @@ export const deleteForecast = (id) =>
   api.delete(`/forecasts/${id}`);
 
 // Reports
-export const getFinancialReports = () =>
-  api.get('/financial-reports');
+export const getFinancialReports = (params) =>
+  api.get('/financial-reports', { params });
 
 export const generateFinancialReport = (data) =>
   api.post('/financial-reports/generate', data);

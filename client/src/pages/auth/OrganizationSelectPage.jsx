@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ArrowRight, Building2, ChevronDown, Search } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { getOrganizations } from '../../services/organizationService';
+import { unwrapList } from '../../services/pagination';
 
 const STORAGE_KEY = 'selected_organization';
 
@@ -20,12 +21,16 @@ export default function OrganizationSelectPage() {
     getOrganizations()
       .then((response) => {
         if (!alive) return;
-        setOrganizations(response.data);
+        // /organizations deliberately stays a bare, unpaginated array (a
+        // handful of rows, and it gates the whole app pre-login) - unwrapList
+        // still guards against a shape surprise without changing behavior.
+        const organizationList = unwrapList(response.data);
+        setOrganizations(organizationList);
 
         const stored = localStorage.getItem(STORAGE_KEY);
         const storedOrganization = stored ? JSON.parse(stored) : null;
 
-        if (storedOrganization?.id && response.data.some((org) => org.id === storedOrganization.id)) {
+        if (storedOrganization?.id && organizationList.some((org) => org.id === storedOrganization.id)) {
           setSelectedId(String(storedOrganization.id));
         }
       })

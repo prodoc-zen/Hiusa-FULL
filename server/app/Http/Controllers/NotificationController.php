@@ -10,6 +10,11 @@ class NotificationController extends Controller
 {
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = Notification::where('user_id', $request->user()->id)
             ->where('organization_id', $request->user()->organization_id)
             ->where(function ($query) {
@@ -19,11 +24,10 @@ class NotificationController extends Controller
         $unreadCount = (clone $query)->where('is_read', false)->count();
         $notifications = $query
             ->orderByRaw('COALESCE(sent_at, created_at) DESC')
-            ->limit(100)
-            ->get();
+            ->paginate($paging['per_page'] ?? 20);
 
         return response()->json([
-            'notifications' => $notifications,
+            ...$notifications->toArray(),
             'unread_count' => $unreadCount,
         ]);
     }

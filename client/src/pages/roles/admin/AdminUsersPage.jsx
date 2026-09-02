@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Eye, PencilLine, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -6,6 +6,7 @@ import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { createUser, disableUser, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
+import { listMeta, unwrapList } from '../../../services/pagination';
 
 const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const ROLE_LABELS = {
@@ -64,8 +65,10 @@ function firstError(error) {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
@@ -87,62 +90,40 @@ export default function AdminUsersPage() {
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [editForm, setEditForm] = useState(emptyEditForm);
 
+  // Debounced so typing doesn't fire a request per keystroke - role/search are
+  // now server-side filters (the endpoint paginates), not a client-side scan.
   useEffect(() => {
-    let cancelled = false;
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
 
-    async function load() {
-      try {
-        const [rows, positions] = await Promise.all([getUsers(), getSboPositions()]);
-        if (!cancelled) {
-          setUsers(Array.isArray(rows) ? rows : []);
-          setSboPositions(Array.isArray(positions) ? positions : []);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Unable to load users.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  async function load() {
+    setLoading(true);
+    setError('');
+    try {
+      const [usersRes, positions] = await Promise.all([
+        getUsers({
+          ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
+          ...(debouncedSearch ? { search: debouncedSearch } : {}),
+          page,
+          per_page: pageSize,
+        }),
+        getSboPositions(),
+      ]);
+      setUsers(unwrapList(usersRes));
+      setMeta(listMeta(usersRes));
+      setSboPositions(Array.isArray(positions) ? positions : []);
+    } catch {
+      setError('Unable to load users.');
+    } finally {
+      setLoading(false);
     }
+  }
 
-    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [roleFilter, debouncedSearch, page]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  const filtered = useMemo(() => {
-    return users.filter((user) => {
-      const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
-      const query = search.toLowerCase();
-      const matchesSearch =
-        fullName.includes(query) ||
-        String(user.school_id ?? '').toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query) ||
-        (user.department || '').toLowerCase().includes(query) ||
-        (user.program || '').toLowerCase().includes(query) ||
-        (user.year_level || '').toLowerCase().includes(query);
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-      return matchesSearch && matchesRole;
-    });
-  }, [users, search, roleFilter]);
-
-  const pagedUsers = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page]);
-
-  useEffect(() => {
-    setPage(1);
-  }, [search, roleFilter]);
-
-  const refreshUsers = async () => {
-    const [rows, positions] = await Promise.all([getUsers(), getSboPositions()]);
-    setUsers(Array.isArray(rows) ? rows : []);
-    setSboPositions(Array.isArray(positions) ? positions : []);
-  };
+  const refreshUsers = load;
 
 
   const openCreate = () => {
@@ -376,13 +357,13 @@ export default function AdminUsersPage() {
         <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
             placeholder="Search by name, school ID, department, program, or email"
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
           <select
             value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
+            onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           >
             <option value="all">All roles</option>
@@ -422,7 +403,7 @@ export default function AdminUsersPage() {
                   ))}
                 </tr>
               ))}
-              {!loading && pagedUsers.map((user) => (
+              {!loading && users.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
@@ -465,18 +446,20 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ))}
-              {!loading && filtered.length === 0 && (
+              {!loading && users.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#94A3B8]">No users found.</td>
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
+                    {meta.total === 0 ? 'No users found.' : 'No users on this page.'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
         <PaginationControls
-          currentPage={page}
-          totalItems={filtered.length}
-          pageSize={pageSize}
+          currentPage={meta.currentPage}
+          totalItems={meta.total}
+          pageSize={meta.perPage}
           onPageChange={setPage}
           label="users"
         />

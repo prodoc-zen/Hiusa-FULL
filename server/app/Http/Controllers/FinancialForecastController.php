@@ -28,11 +28,16 @@ class FinancialForecastController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         return response()->json(
             FinancialForecast::with('generator:school_id,first_name,last_name')
                 ->where('organization_id', $request->user()->organization_id)
                 ->orderBy('forecast_period', 'asc')
-                ->get()
+                ->paginate($paging['per_page'] ?? 20)
         );
     }
 
