@@ -72,7 +72,10 @@ export default function DashboardPage() {
           getTasks({ status: 'overdue', per_page: 1 }),
           fetchAllPages((p) => getEvents(p).then((r) => r.data)),
           getTransactionSummary(),
-          getOrders({ status: 'pending', per_page: 1 }),
+          // /orders only accepts per_page=10 (its validation rejects any other
+          // value with a 422); the true pending count still comes from
+          // pendingOrdersMeta.total regardless of the page size requested.
+          getOrders({ status: 'pending', per_page: 10 }),
           fetchAllPages((p) => getBudgets(p).then((r) => r.data)),
         ]);
 

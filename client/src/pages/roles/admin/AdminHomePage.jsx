@@ -26,23 +26,22 @@ export default function AdminHomePage() {
       try {
         // /users and /announcements are both paginated now. /users answers with
         // an org-wide summary.by_role alongside the page, which is exactly what
-        // the role pills need. /announcements has no is_published filter, only
-        // published_only, so the published/draft split comes from two per_page:1
-        // totals (all vs. published-only) rather than counting one loaded page.
-        const [usersRes, totalRes, publishedRes] = await Promise.all([
+        // the role pills need. `published_only` on /announcements narrows to the
+        // requesting user's own target_role, which for an admin silently drops
+        // every announcement aimed at a single other role - use the unfiltered
+        // publication_status split instead, which applies with no such narrowing.
+        const [usersRes, publishedRes, draftRes] = await Promise.all([
           getUsers({ per_page: 1 }),
-          getAnnouncements({ per_page: 1 }),
-          getAnnouncements({ published_only: 1, per_page: 1 }),
+          getAnnouncements({ publication_status: 'published', per_page: 1 }),
+          getAnnouncements({ publication_status: 'draft', per_page: 1 }),
         ]);
 
         if (cancelled) return;
 
         setTotalUsers(Number(usersRes?.total ?? 0));
         setUsersByRole(usersRes?.summary?.by_role ?? {});
-        const totalAnnouncements = listMeta(totalRes?.data).total;
-        const publishedCount = listMeta(publishedRes?.data).total;
-        setPublished(publishedCount);
-        setDrafts(Math.max(0, totalAnnouncements - publishedCount));
+        setPublished(listMeta(publishedRes?.data).total);
+        setDrafts(listMeta(draftRes?.data).total);
       } catch {
         if (!cancelled) { setTotalUsers(0); setUsersByRole({}); setPublished(0); setDrafts(0); }
       } finally {

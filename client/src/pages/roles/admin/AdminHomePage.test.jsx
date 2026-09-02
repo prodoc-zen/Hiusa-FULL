@@ -31,8 +31,11 @@ describe('AdminHomePage role pills', () => {
     });
 
     announcementMocks.getAnnouncements.mockImplementation((params) => {
-      if (params?.published_only) {
+      if (params?.publication_status === 'published') {
         return Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: 30 } });
+      }
+      if (params?.publication_status === 'draft') {
+        return Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: 12 } });
       }
       return Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: 42 } });
     });

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Search } from 'lucide-react';
 import { Avatar } from './announcementShared.jsx';
 import { getAnnouncements } from '../../../services/announcementService';
@@ -31,10 +31,15 @@ export default function AnnouncementsFeedPage() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    const params = { published_only: 1, page, ...(categoryFilter === 'all' ? {} : { category: categoryFilter }) };
+    const params = {
+      published_only: 1,
+      page,
+      search: search || undefined,
+      ...(categoryFilter === 'all' ? {} : { category: categoryFilter }),
+    };
     getAnnouncements(params)
       .then((res) => {
         setAnnouncements(unwrapList(res.data));
@@ -42,16 +47,26 @@ export default function AnnouncementsFeedPage() {
       })
       .catch(() => setError('Failed to load announcements.'))
       .finally(() => setLoading(false));
-  }
+  }, [categoryFilter, search, page]);
 
-  useEffect(load, [categoryFilter, page]);
+  useEffect(() => {
+    const timer = setTimeout(load, 250);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [categoryFilter, search]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function markAnnouncementAlertsAsRead() {
       try {
-        const res = await getNotifications();
+        // /notifications now paginates at 20/page by default; the endpoint's
+        // cap is 100 (NotificationController.php:14), so the sweep asks for
+        // that directly rather than only ever clearing the newest 20.
+        const res = await getNotifications({ per_page: 100 });
         const notifications = unwrapList(res.data);
         const unreadAnnouncementIds = notifications
           .filter((notification) => !notification.is_read && String(notification.title || '').startsWith('New Announcement:'))
@@ -72,9 +87,7 @@ export default function AnnouncementsFeedPage() {
     };
   }, []);
 
-  const filtered = announcements.filter(
-    (a) => a.is_published && a.title.toLowerCase().includes(search.toLowerCase())
-  );
+  const filtered = announcements.filter((a) => a.is_published);
 
   return (
     <div className="max-w-2xl space-y-4">
@@ -113,11 +126,7 @@ export default function AnnouncementsFeedPage() {
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
           <p className="text-sm font-medium text-slate-400">
-            {meta.total === 0
-              ? 'No announcements to show.'
-              : search.trim()
-                ? 'No announcements on this page match your search.'
-                : 'No announcements on this page.'}
+            {meta.total === 0 ? 'No announcements to show.' : 'No announcements on this page.'}
           </p>
         </div>
       )}
