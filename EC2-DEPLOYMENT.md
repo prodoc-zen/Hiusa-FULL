@@ -142,6 +142,12 @@ do not protect against instance or volume loss.
 
 ## 7. Operations
 
+For day-2 operational guidance mapped onto these containers (logs, the queue
+worker, the scheduler, health checks, and common failure modes), see
+[`docs/OPERATIONS.md`](docs/OPERATIONS.md). For the go-live checklist and
+post-deploy smoke test to run against this stack, see
+[`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md).
+
 ```bash
 # Status
 docker compose -f compose.production.yml ps

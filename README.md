@@ -3,9 +3,11 @@
 This guide is for team members cloning the project to run it locally for the demo. Follow every step in order. Do not skip steps.
 
 > **Deploying this somewhere real, or operating an already-running instance?** This
-> guide is for local development only. See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
-> for going live (build steps, the seeder trap below, HTTPS, and a go-live checklist)
-> and [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for running and troubleshooting a
+> guide is for local development only. See [`EC2-DEPLOYMENT.md`](EC2-DEPLOYMENT.md)
+> for the actual deployment procedure (the Docker Compose stack on EC2, and the
+> setup/deploy/backup scripts), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the
+> go-live checklist and post-deploy smoke test that wrap it, and
+> [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for running and troubleshooting a
 > live instance day to day (health checks, logs, the queue worker, common failures).
 
 ---
@@ -293,7 +295,9 @@ Go to **http://localhost:5173** in your browser.
 > and your team can reach. It is a real security hole on any installation other
 > people can actually use — see the seeder-trap section of
 > [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) before running seeders anywhere but a
-> disposable local database.
+> disposable local database. On the real EC2 deployment path
+> ([`EC2-DEPLOYMENT.md`](EC2-DEPLOYMENT.md)), this is enforced by
+> `scripts/setup-ec2.sh`'s opt-in `--seed-demo` flag rather than left to memory.
 
 All passwords are shown below. The **Login** field differs by role.
 

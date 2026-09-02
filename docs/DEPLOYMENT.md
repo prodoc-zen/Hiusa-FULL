@@ -1,229 +1,139 @@
-# Deployment Guide
+# Go-Live Checklist & Smoke Test
 
-How to stand HIUSA up for real use, on infrastructure of your own choosing. No
-specific paid host is prescribed here — none has been chosen for this project — this
-document covers what is true regardless of where it runs: a VPS, a school's own
-server, or any PaaS that can run PHP, Node, and Python processes.
-
-Read `docs/OPERATIONS.md` first if you haven't — this document is about the one-time
-path to going live; that one is about running the thing day to day afterward.
-
-> **Existing partial deploy config found in the repo:** `server/Procfile` and
-> `server/nixpacks.toml` already exist from an earlier deployment attempt (Railway/
-> Heroku-style buildpacks). They currently provision **SQLite** (`touch
-> database/database.sqlite`), which contradicts the MySQL/MariaDB-for-concurrent-users
-> guidance below and in the project's `CLAUDE.md`. They are left as-is here — updating
-> them is outside this document's file set — but do not assume they are the correct
-> production path without reconciling that mismatch first.
+[`EC2-DEPLOYMENT.md`](../EC2-DEPLOYMENT.md) is the deployment procedure: the
+single-instance Docker Compose stack (Caddy, the frontend build, Laravel, the AI
+service, MySQL, a scheduler container, and a queue-worker container), plus
+`scripts/setup-ec2.sh` and `scripts/deploy-ec2.sh`. This document does not repeat
+that procedure. It is the checklist to work through before calling a deployment
+live, the smoke test to run immediately after, and the one trap — seeding real
+data — that a fresh clone makes easy to fall into. For day-to-day operation once
+it's live, see [`docs/OPERATIONS.md`](OPERATIONS.md).
 
 ---
 
-## 1. Build steps per service
+## The seeder trap
 
-### Laravel API (`server/`)
+`scripts/setup-ec2.sh` already enforces the right default: run without
+`--seed-demo`, first-run setup creates the schema with **zero rows** — no demo
+accounts. `--seed-demo` is opt-in, and the script refuses plain HTTP unless
+`--insecure-demo-only` is also passed, which only makes sense for a disposable
+demo on a bare Elastic IP (`EC2-DEPLOYMENT.md` §3).
 
-```bash
-cd server
-composer install --no-dev --optimize-autoloader
-cp .env.example .env          # then edit .env - see the PRODUCTION OVERRIDES
-                               # section at the bottom of .env.example
-php artisan key:generate
-php artisan config:cache
-php artisan route:cache
-php artisan storage:link      # without this, every uploaded image 404s - see OPERATIONS.md §5
-```
-
-Serve `server/public/` behind a real web server (Apache/nginx) or a process manager
-running `php artisan serve --host=0.0.0.0 --port=<port>` behind a reverse proxy (see
-§3). `--no-dev` matters: it excludes `laravel/pail`, `laravel/sail`, and the test
-tooling from the production install.
-
-### Frontend (`client/`)
-
-```bash
-cd client
-npm ci
-# VITE_API_URL must already be set to the real API URL in client/.env
-# BEFORE this build - Vite env vars are compiled in, not read at runtime.
-npm run build
-```
-
-`npm run build` produces static files in `client/dist/`. Serve that directory from
-any static file host or from the same reverse proxy that fronts the API (§3) — there
-is no Node server required at runtime for the built frontend itself.
-
-### Python AI service (`ai-service/`)
-
-```bash
-cd ai-service
-python -m venv .venv
-source .venv/bin/activate     # or .\.venv\Scripts\Activate.ps1 on Windows
-pip install -r requirements.txt
-cp .env.example .env          # set HIUSA_AI_SERVICE_KEY - see PRODUCTION OVERRIDES
-                               # in ai-service/.env.example
-```
-
-Run it with a production ASGI setup rather than the dev `python run.py` reload
-server, e.g.:
-
-```bash
-uvicorn app.main:app --host 127.0.0.1 --port 8001 --workers 2
-```
-
-Bind to `127.0.0.1`, not `0.0.0.0`, unless another host on the network genuinely
-needs direct access to it — Laravel is the only intended caller in the normal
-architecture (see `docs/OPERATIONS.md` §2-3).
-
----
-
-## 2. Migration and seeding — the seeder trap
-
-Run migrations on the real database exactly once, before first use:
-
-```bash
-cd server
-php artisan migrate --force
-```
-
-**Do NOT run `php artisan db:seed` (or `migrate:fresh --seed`) against a real
-installation.** The demo seeders (`AdministratorSeeder`, `UserSeeder`,
-`DepartmentHeadSeeder`, and the rest called from `DatabaseSeeder`) create a full set
-of demo accounts — Admin, officers, department heads, and students — **with fixed,
-published passwords**. Those exact credentials are printed in this project's
-`README.md` for local-demo convenience. Seeding a real installation creates:
+That flag is opt-in for a specific reason: the demo seeders
+(`AdministratorSeeder`, `UserSeeder`, `DepartmentHeadSeeder`, and the rest called
+from `DatabaseSeeder`) create a full set of accounts with fixed, published
+passwords, and every one of those passwords is printed in this repository's
+`README.md`, in plain text, in version control:
 
 - `admin@hiusa.local` / `Admin@123456`
 - Several `*@hiusa.local` officer/department-head accounts on `Demo@12345`
 - A block of student accounts, all on `Demo@12345`
 
-on a database that other people will actually use — with credentials that are
-public, in version control, in this very repository. This is a genuine security
-trap, not a hypothetical one: anyone who has read the README (which is everyone who
-cloned the repo to work on it) can log in as Admin on a seeded real deployment.
-
-For a real deployment:
-
-1. Run `php artisan migrate --force` only — this creates the schema with zero rows.
-2. Create the first real Admin account through whatever path is appropriate (a
-   one-off `php artisan tinker` insert with a freshly generated password, or a
-   dedicated first-run admin-creation step if one exists) — never through the demo
-   seeders.
-3. Every other account (officers, department heads, students) should be created
-   through the running application by that real Admin, with real credentials chosen
-   by their actual owners — not seeded.
-
-If a real installation was accidentally seeded with demo data, treat every one of the
-credentials above as compromised: disable or delete those accounts and re-create real
-ones, don't just change passwords on the demo accounts and keep using them.
+Anyone who has ever cloned this repo to work on it has read those credentials.
+Running `--seed-demo` against anything other than a genuinely disposable
+install means anyone who has read the README can log in as Admin. Never use it
+on a domain with real users, and never combine it with a database that already
+has real data. If a real installation was accidentally seeded, treat every
+credential above as compromised — disable or delete those accounts and create
+real replacements; don't just change passwords on the demo accounts and keep
+using them.
 
 ---
 
-## 3. Reverse proxy and HTTPS
+## Go-live checklist
 
-Nothing in Laravel or FastAPI terminates TLS on its own. The standard shape:
+Each item points at the concrete EC2 step or script that satisfies it.
 
-```
-                          ┌─────────────────────────┐
-Internet ── HTTPS:443 ──▶│  Reverse proxy            │
-                          │  (nginx / Caddy / your    │
-                          │   platform's own LB)      │
-                          └───────────┬───────────────┘
-                                      │ plain HTTP, localhost only
-                        ┌─────────────┼──────────────┐
-                        ▼             ▼              ▼
-                 Laravel :8000   Frontend        AI service
-                 (php-fpm or     static files    :8001
-                  artisan serve)  (client/dist)   (127.0.0.1 only -
-                                                   never exposed directly)
-```
-
-- The reverse proxy holds the TLS certificate (Let's Encrypt via Caddy is the least
-  ceremony; nginx + certbot is the traditional route) and forwards to the Laravel
-  process over plain HTTP on `127.0.0.1`.
-- Route the frontend's static build and the API through the same public domain on
-  different paths (e.g. `/` → `client/dist`, `/api/*` → Laravel) if you want one
-  origin and no CORS configuration at all in production. If you instead serve them
-  from two different domains/subdomains, CORS must be configured correctly (see
-  `FRONTEND_URL` / `FRONTEND_URLS` production guidance in `server/.env.example`).
-- The Python AI service should not be reachable from the public internet at all in
-  the normal architecture — only Laravel calls it, over loopback or an internal
-  network segment.
-- Once HTTPS is live, set `APP_URL` to the `https://` URL, `SESSION_SECURE_COOKIE=true`,
-  and `VITE_API_URL` to the `https://` API URL before building the frontend — see the
-  PRODUCTION OVERRIDES sections added to both `.env.example` files.
-
----
-
-## 4. Go-live checklist
-
-Work through this before calling a deployment live. Every item traces to something
-covered in more detail elsewhere in this document, `docs/OPERATIONS.md`, or the
-`.env.example` files.
-
-- [ ] `server/.env`: `APP_ENV=production`, `APP_DEBUG=false` (verified — hit a
-      deliberately-broken URL and confirm you get a generic error page, not a stack
-      trace)
-- [ ] `APP_URL` set to the real `https://` domain
-- [ ] `SESSION_SECURE_COOKIE=true` (only after HTTPS is actually serving the app)
-- [ ] `FRONTEND_URL` / `FRONTEND_URLS` set to the exact real frontend origin(s);
-      the LAN-pattern `FRONTEND_ORIGIN_PATTERNS` removed
-- [ ] A real `MAIL_MAILER` configured (not `log`) — verify by actually triggering a
-      password-reset email and receiving it
-- [ ] `HIUSA_AI_SERVICE_KEY` set to a real value, identical in `server/.env` and
-      `ai-service/.env` — confirm `GET /health` on the AI service reports
-      `"authentication": "api-key"`, not `"disabled"`
+- [ ] `APP_ENV=production`, `APP_DEBUG=false` in `server/.env.production` (this
+      is what `setup-ec2.sh` writes) — verified by hitting a deliberately-broken
+      URL post-deploy and confirming a generic error page, not a stack trace.
+- [ ] DNS for the real domain already resolves to the instance's Elastic IP
+      **before** running `bash scripts/setup-ec2.sh hiusa.example.com` — Caddy
+      requests the certificate on first boot and needs live DNS to do it
+      (`EC2-DEPLOYMENT.md` §3).
+- [ ] `--insecure-demo-only` was **not** used for this install, unless this is
+      genuinely a disposable demo — a real domain gets HTTPS from Caddy
+      automatically, with no manual certificate handling.
+- [ ] A real `MAIL_MAILER` configured in `server/.env.production` (the default
+      template logs email instead of sending it) — verify by actually
+      triggering a password-reset email and receiving it. `setup-ec2.sh` does
+      not configure a mail provider for you; see `EC2-DEPLOYMENT.md`'s
+      "Production follow-ups".
+- [ ] `HIUSA_AI_SERVICE_KEY` set — `setup-ec2.sh` generates this itself and
+      writes the same value into both `server/.env.production` and
+      `ai-service/.env.production`. Confirm it's enforced, not just present:
+      ```bash
+      docker compose -f compose.production.yml exec ai-service \
+        python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8001/health').read())"
+      ```
+      should print `"authentication": "api-key"`, not `"disabled"`.
 - [ ] `GROQ_API_KEY` set if AI-generated narration (announcement drafts, event
-      plans, financial summaries) is wanted; otherwise the deterministic fallback is
-      fine but should be a known choice, not an oversight
-- [ ] `client/.env` `VITE_API_URL` set to the real API URL, **and the frontend
-      rebuilt** after setting it (Vite bakes it in at build time)
-- [ ] Migrations run (`php artisan migrate --force`); demo seeders **not** run (§2)
-- [ ] A real first Admin account created manually, not from the seeders
-- [ ] `php artisan storage:link` run — otherwise every uploaded image 404s
-- [ ] A queue worker running (`php artisan queue:work` or a supervised equivalent) —
-      otherwise password-reset emails and approval notifications silently never send
-- [ ] The scheduler running (cron calling `schedule:run` every minute, or
-      `schedule:work` as a persistent process) — otherwise overdue-task marking and
-      event reminders never fire
-- [ ] Reverse proxy terminating HTTPS in front of both the frontend and the API
-- [ ] A verified backup taken (see `scripts/backup-database.ps1` and the procedure
-      in `docs/OPERATIONS.md`) before the first production migration and before any
-      migration after that
-- [ ] The smoke test below run once, post-deploy, against the real URL
+      plans, financial summaries) is wanted — `setup-ec2.sh` prompts for it via
+      hidden input. Otherwise the deterministic fallback is fine, but should be
+      a known choice, not an oversight.
+- [ ] Migrations run with zero demo rows — `setup-ec2.sh` does this on first
+      run. Confirm `--seed-demo` was **not** passed unless this is a
+      disposable install (see "The seeder trap" above).
+- [ ] A real first Admin account created manually through the running
+      application or `tinker`, never from the demo seeders.
+- [ ] All six containers running/healthy:
+      `docker compose -f compose.production.yml ps` — `mysql`, `ai-service`,
+      and `laravel` carry health checks; anything stuck restarting or
+      `unhealthy` here means something upstream of this checklist failed. See
+      `docs/OPERATIONS.md`'s Docker mapping section for what each service is
+      and how to read its logs.
+- [ ] A verified backup exists before this deployment's first production
+      migration. `scripts/deploy-ec2.sh` takes a timestamped backup
+      automatically before every update it applies; for a first `setup-ec2.sh`
+      run that's restoring an existing production backup rather than starting
+      from empty, take a backup with `scripts/backup-ec2.sh` first and copy it
+      off-instance before touching anything.
+- [ ] The smoke test below, run once, post-deploy, against the real `https://`
+      domain.
 
 ---
 
-## 5. Post-deploy smoke test
+## Post-deploy smoke test
 
-Run this immediately after any deployment, exercising one real path per module
-rather than trusting that "it built" means "it works." All paths are relative to the
-real deployed frontend/API origin.
+Run this immediately after `setup-ec2.sh` or `deploy-ec2.sh` completes,
+exercising one real path per module rather than trusting that "it built" means
+"it works." Replace `DOMAIN` with the real deployed domain — Caddy is the only
+public entry point, so every path below goes through it on port 443.
 
-1. **Health** — `GET /up` on the API returns `200`; `GET /health` on the AI service
-   returns `200` with `"authentication": "api-key"`.
-2. **Auth** — log in as the real Admin account created in §2 (not a seeded demo
-   account, because there shouldn't be one). Confirm the dashboard loads.
-3. **Announcements** — create one announcement, publish it, confirm it appears on a
-   non-admin account's announcement feed.
-4. **Events** — create one event, submit it through the approval flow, have the
-   Department Head account approve it, confirm it shows in the events calendar.
-5. **Tasks** — create one task, assign it (accept the AI-recommended assignee or
-   assign manually), confirm the assignee sees it and can update its status.
-6. **Finance** — create one budget, submit and approve it, record one transaction
-   against it, confirm the remaining balance updates correctly.
-7. **Merchandise** — create one item, place one cash order as a student account,
-   approve/fulfill it as an officer, confirm the claim token flow completes.
-8. **Elections** — create one election with at least one position and candidate,
-   approve it, cast one vote as a student, confirm the double-vote guard rejects a
-   second attempt with a clear message (not a 500).
-9. **Notifications** — confirm the approver from step 4 (or 6) actually received a
-   notification — this is the queue-worker check from the go-live list, verified
-   end to end rather than just "a worker process is running."
-10. **Password reset** — trigger "Forgot password" for one account and confirm the
-    email actually arrives at a real inbox — this is the `MAIL_MAILER` check,
-    verified end to end.
+1. **Health** — `curl -I https://DOMAIN` returns `200`; `curl https://DOMAIN/up`
+   returns `200` (Laravel, proxied by Caddy). The AI service itself is never
+   public (`EC2-DEPLOYMENT.md`'s runtime layout) — confirm it's healthy via
+   `docker compose -f compose.production.yml ps` instead.
+2. **Auth** — log in as the real Admin account created in the checklist above
+   (not a seeded demo account — there shouldn't be one). Confirm the dashboard
+   loads over `https://DOMAIN`.
+3. **Announcements** — create one announcement, publish it, confirm it appears
+   on a non-admin account's announcement feed.
+4. **Events** — create one event, submit it through the approval flow, have
+   the Department Head account approve it, confirm it shows in the events
+   calendar.
+5. **Tasks** — create one task, assign it (accept the AI-recommended assignee
+   or assign manually), confirm the assignee sees it and can update its
+   status.
+6. **Finance** — create one budget, submit and approve it, record one
+   transaction against it, confirm the remaining balance updates correctly.
+7. **Merchandise** — create one item, place one cash order as a student
+   account, approve/fulfill it as an officer, confirm the claim token flow
+   completes.
+8. **Elections** — create one election with at least one position and
+   candidate, approve it, cast one vote as a student, confirm the double-vote
+   guard rejects a second attempt with a clear message (not a 500).
+9. **Notifications** — confirm the approver from step 4 (or 6) actually
+   received a notification. This exercises the `queue-worker` compose service
+   end to end, not just "the container is running" — see
+   `docs/OPERATIONS.md`'s Docker mapping section for how to confirm it's
+   actually processing jobs.
+10. **Password reset** — trigger "Forgot password" for one account, confirm
+    the email actually arrives at a real inbox — the `MAIL_MAILER` check from
+    the go-live checklist, verified end to end.
+11. **API smoke** — `curl https://DOMAIN/api/organizations` returns `200` with
+    JSON, confirming Caddy's `/api` proxy rule and Laravel are wired together
+    end to end, not just individually healthy.
 
-If any step fails, check `docs/OPERATIONS.md` §5 (common failure modes) before
-assuming it's a new bug — most first-deploy failures on this project have been one
-of: wrong DB port, missing `storage:link`, a queue worker that isn't running, or an
-AI/mail env var that didn't make it into the real `.env`.
+If any step fails, check `docs/OPERATIONS.md`'s failure-modes section before
+assuming it's a new bug.
