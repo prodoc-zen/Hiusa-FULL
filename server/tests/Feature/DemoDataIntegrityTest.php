@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AcademicProgram;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
@@ -48,6 +49,7 @@ class DemoDataIntegrityTest extends TestCase
         $this->assertABudgetIsApprovedAndAcceptsARealTransactionPost();
         $this->assertAnOrganizationHasAGcashQrConfigured();
         $this->assertEverySboOfficerHasAValidPositionTitle();
+        $this->assertAcademicStructureIsSeededAndStudentsArePlaced();
         $this->assertHeadlineScreensAreNotEmpty();
         $this->assertAtLeastOneStudentHasNotVotedYet();
     }
@@ -213,6 +215,46 @@ class DemoDataIntegrityTest extends TestCase
             $officers->pluck('position_title')->unique()->count(),
             'All seeded SBO_OFFICER users share the same position_title - the delegation ranking would not be discriminating.'
         );
+    }
+
+    private function assertAcademicStructureIsSeededAndStudentsArePlaced(): void
+    {
+        foreach (Organization::all() as $organization) {
+            $programs = AcademicProgram::with('sections')->where('organization_id', $organization->id)->get();
+            $this->assertNotEmpty(
+                $programs,
+                "Organization {$organization->acronym} has no academic programs - the admin's Program dropdown would be empty and Section stays disabled."
+            );
+
+            foreach ($programs as $program) {
+                foreach ([1, 2, 3, 4] as $year) {
+                    $this->assertTrue(
+                        $program->sections->contains(fn ($section) => (int) $section->year_level === $year && $section->name === "{$year} - Non Block"),
+                        "Program '{$program->name}' is missing its mandatory '{$year} - Non Block' section."
+                    );
+                }
+            }
+        }
+
+        $students = User::where('role', 'STUDENT')->get();
+        $this->assertNotEmpty($students, 'No STUDENT users were seeded.');
+
+        foreach ($students as $student) {
+            $this->assertNotNull($student->program, "Student {$student->school_id} has no program, so the register's program/section filters would exclude them.");
+
+            $program = AcademicProgram::where('organization_id', $student->organization_id)
+                ->where('name', $student->program)
+                ->first();
+            $this->assertNotNull(
+                $program,
+                "Student {$student->school_id} references program '{$student->program}', which does not exist in their organization."
+            );
+            $this->assertTrue(
+                $program->sections()->where('name', $student->section)->exists(),
+                "Student {$student->school_id} references section '{$student->section}', which does not exist under '{$program->name}'."
+            );
+            $this->assertContains($student->year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year']);
+        }
     }
 
     private function assertHeadlineScreensAreNotEmpty(): void
