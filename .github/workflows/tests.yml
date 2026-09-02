@@ -174,8 +174,16 @@ jobs:
         run: php artisan migrate:fresh --seed --force
 
       # A migration whose down() cannot run against seeded data cannot be rolled
-      # back in production either. Exercise the newest one both ways.
-      - name: Roll the newest migration back and forward again
+      # back in production either. Exercise the newest one both ways. This proves
+      # only that down() and up() do not error against seeded data on this engine
+      # (the failure mode this job exists to catch, e.g. the InnoDB index-drop bug
+      # fixed in commit 5a786bf) - it is NOT a lossless-round-trip check. The
+      # current newest migration (2026_08_31_000004_make_positions_role_aware.php)
+      # is destructive by design: down() deletes every role=ADMIN sbo_positions
+      # row, and up() re-inserts only three titles per organization, so row counts
+      # do not match before and after. Do not read a green run here as proof this
+      # migration's rollback preserves data.
+      - name: Roll the newest migration back and forward again (down()/up() must not error)
         run: |
           php artisan migrate:rollback --step=1 --force
           php artisan migrate --force

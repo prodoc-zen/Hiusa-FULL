@@ -212,9 +212,49 @@ container isn't `Up`, restart it the same way as `queue-worker` above.
 | AI service | `curl http://127.0.0.1:8001/health` | **not reachable through Caddy at all** — `client/Caddyfile.production` only proxies `/api/*`, `/storage/*`, `/uploads/*`, and `/up`; `/health` is deliberately not public, matching `EC2-DEPLOYMENT.md`'s runtime layout (the AI service is never exposed to the internet). Check it with `docker compose -f compose.production.yml ps ai-service` (its healthcheck already probes `/health` internally every 15s), or read the actual response with `docker compose -f compose.production.yml exec ai-service python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8001/health').read())"` |
 | Frontend | load `http://localhost:5173` | load `https://DOMAIN` — served by the `frontend` container's Caddy, not a Vite dev server |
 
-Everything else below (§3's engine field, §4's log greps, §5's failure modes,
-§6's rollback) applies exactly as written — only *how you run the command*
-changes, to `docker compose exec`/`logs`/`ps` against `compose.production.yml`.
+Everything else below (§3's engine field, §4's log greps, §5's failure modes)
+applies exactly as written — only *how you run the command* changes, to
+`docker compose exec`/`logs`/`ps` against `compose.production.yml`. §6's
+rollback procedure does **not** carry over unchanged on this stack — its
+steps assume a bare-metal checkout (`composer install`, `npm ci`, a rebuilt
+`dist/` you redeploy by hand) and PowerShell tooling that doesn't exist on
+Amazon Linux. Use the Compose-specific version below instead.
+
+### Rolling back the Compose stack
+
+§6's steps 3 and 5 have no equivalent here — dependency installation and the
+frontend build both happen at *image-build* time inside the Dockerfile, not
+against a running container, and `npm` isn't even present in the `laravel`
+container. §6's step 2 (`git checkout` to an older commit) also conflicts
+with `scripts/deploy-ec2.sh:26`, which does `git pull --ff-only` on the next
+deploy — a plain `checkout` leaves the working tree detached and the next
+`deploy-ec2.sh` run will fail. Do this instead:
+
+1. **Stop nothing manually** — rebuilding replaces containers in place.
+2. **Roll back the code**: `git checkout <previous-tag-or-commit>` on the EC2
+   instance, in `~/Hiusa-FULL`. If you plan to deploy forward again later,
+   note this leaves the repo in a detached-HEAD-like state that
+   `scripts/deploy-ec2.sh`'s `git pull --ff-only` won't tolerate — reset the
+   branch pointer (`git checkout main && git reset --hard <tag>`, understood
+   as a deliberate history rewrite on this one instance) before the next
+   `deploy-ec2.sh` run.
+3. **Rebuild and redeploy**:
+   ```bash
+   docker compose -f compose.production.yml build
+   docker compose -f compose.production.yml up -d
+   ```
+4. **Only if the bad change included a migration**, restore the database from
+   a `scripts/backup-ec2.sh` archive (§7 below) —
+   `scripts/restore-database.ps1` does not apply here: it's PowerShell
+   defaulting to `127.0.0.1:3307`, Amazon Linux 2023 has no PowerShell, and
+   `compose.production.yml` gives `mysql` no host port mapping to connect to
+   even if it did. Restore into the container instead:
+   ```bash
+   docker compose -f compose.production.yml exec -T mysql \
+     mysql -u root -p"$MYSQL_ROOT_PASSWORD" "$MYSQL_DATABASE" < backup.sql
+   ```
+5. **Re-run the health checks** in this section and the smoke test in
+   `docs/DEPLOYMENT.md` before declaring the rollback complete.
 
 ---
 
@@ -274,20 +314,21 @@ actually in effect rather than assume the AI service is doing the work.
 
 ### Why the Groq call is synchronous, not queued
 
-*(Short note pending a fuller write-up from whoever owns the AI-integration slice —
-reconcile with that material if it lands with more detail than this.)*
-
 `GroqResponsesService::generate()` (`server/app/Services/GroqResponsesService.php`)
 makes its `Http::post()` call inline, inside the request/response cycle, not through
 a queued job. That is why announcement drafting and event-plan generation take
-visibly longer than a normal API call (`GROQ_TIMEOUT` bounds it, default 30s) — the
+visibly longer than a normal API call (`GROQ_TIMEOUT` bounds it: the code default is 25s and the shipped `.env` sets 30s; a
+blank value is clamped to 25s rather than becoming an unbounded wait) — the
 caller is waiting on the HTTP round trip to Groq before the response returns.
 
 This is deliberate for now because the feature is synchronous-shaped: the user asked
 for a *draft* right on that screen and is waiting to see and edit it immediately —
 there is nothing useful to show before the text comes back, so queuing it would only
 add a second round trip (submit job, then poll or get notified, then fetch the
-result) for no gain. It would need to change if Groq calls started blocking request
+result) for no gain. The load profile does not call for it either: only
+low-frequency officer and admin actions (announcement drafting, event planning,
+budget advice, forecasting) call Groq, and no high-concurrency student path (voting,
+feeds, merchandise) touches it at all. It would need to change if Groq calls started blocking request
 throughput under real concurrent load, or if the UI moved to a "generate in the
 background, notify me when ready" pattern — neither is true today.
 
@@ -338,10 +379,11 @@ sessions on this codebase.
 
 ## 6. Rollback procedure
 
-HIUSA has no automated deploy pipeline (by design — see `docs/DEPLOYMENT.md` for why
-no specific host is prescribed), so rollback is a manual, ordered procedure. Do the
-steps in this order — code first, database last, and only if the database actually
-needs it:
+`scripts/deploy-ec2.sh` is HIUSA's deploy pipeline, but it is forward-only — it
+applies migrations and redeploys code, and never rolls either back
+(`EC2-DEPLOYMENT.md` §5). Rollback is therefore a manual, ordered procedure. Do
+the steps in this order — code first, database last, and only if the database
+actually needs it:
 
 1. **Stop the running services** (Laravel, the AI service, and the queue
    worker/scheduler if applicable) so nothing writes to the database mid-rollback.
@@ -358,8 +400,9 @@ needs it:
    cd ai-service && pip install -r requirements.txt
    ```
 4. **Only if the bad change included a migration**, restore the database from the
-   verified backup taken *before* that migration ran (see `scripts/restore-database.ps1`
-   and the backup procedure in `docs/DEPLOYMENT.md`'s pre-migration checklist).
+   verified backup taken *before* that migration ran (see `scripts/restore-database.ps1`,
+   §7 below, and the backup bullet in `docs/DEPLOYMENT.md`'s go-live checklist,
+   lines 85-90, which also covers `scripts/backup-ec2.sh` for the Compose stack).
    Do **not** restore the database if the rollback is code-only — that would also
    discard every real row written since the backup for no reason.
 5. **Rebuild the frontend** if `client/` changed: `cd client && npm run build`, and
@@ -369,3 +412,71 @@ needs it:
 7. **Re-run the queue worker and scheduler** (§1) — a rollback that stops and
    restarts services can leave a queue worker not restarted, which reproduces the
    "silent no notifications" failure mode from §5 for an unrelated reason.
+
+---
+
+## 7. Backup and restore
+
+Two backup paths exist depending on which database you're pointed at, plus a
+restore-verification step neither script can do for you — a script that reads
+a dump file back can't know whether the schema it produced actually matches
+what the application expects.
+
+### Local dev / Windows (MariaDB on `127.0.0.1:3307`)
+
+```powershell
+.\scripts\backup-database.ps1
+```
+
+Writes a timestamped `mysqldump` under `backups\` (run with `-?` for every
+parameter — host, port, user, password, output directory). Restore one with:
+
+```powershell
+.\scripts\restore-database.ps1 -Database hiusa_db -BackupFile <path-to-dump> -Force
+```
+
+`-Force` is required on purpose — omitting it prints what would happen and
+changes nothing. `restore-database.ps1` does not create the target database;
+it must already exist.
+
+### Production (Docker Compose / EC2)
+
+```bash
+bash scripts/backup-ec2.sh
+```
+
+Dumps the `mysql` container's database to a timestamped file on the EC2
+instance. `scripts/deploy-ec2.sh` already runs this automatically before every
+migration it applies (`EC2-DEPLOYMENT.md` §5); run it manually before any
+change that doesn't go through that script, and copy the resulting file off
+the instance — a backup that lives only on the box it's backing up is not a
+backup.
+
+### Verifying a dump is actually restorable
+
+A file that exists and is non-empty (both scripts already check this before
+they'll call it a success) is not the same as a file that restores correctly.
+Before trusting a backup for a real rollback:
+
+1. Create a scratch database and restore into it — never the live one:
+   ```powershell
+   mysql -u root -h 127.0.0.1 -P 3307 -e "CREATE DATABASE hiusa_restore_check;"
+   .\scripts\restore-database.ps1 -Database hiusa_restore_check -BackupFile <path> -Force
+   ```
+2. Compare table and row counts against the source database, one query
+   against each:
+   ```sql
+   SELECT table_name, table_rows FROM information_schema.tables
+   WHERE table_schema = 'hiusa_restore_check'
+   ORDER BY table_name;
+   ```
+   run again with `table_schema = 'hiusa_db'` and diff the two result sets. A
+   missing table or a row-count mismatch means the dump is incomplete or the
+   restore failed partway — don't trust it for a real rollback.
+3. Drop the scratch database once the counts match:
+   `mysql -u root -h 127.0.0.1 -P 3307 -e "DROP DATABASE hiusa_restore_check;"`
+
+This is the check `backup-database.ps1` and `restore-database.ps1` point back
+to this document for, and it's what §6's rollback step 4 and the go-live
+checklist in `docs/DEPLOYMENT.md` (lines 85-90) both assume has already been
+done before a backup is trusted.

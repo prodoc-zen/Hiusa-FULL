@@ -313,12 +313,27 @@ All passwords are shown below. The **Login** field differs by role.
 |---|---|---|
 | Marco Dela Cruz | `officer1@hiusa.local` | `Demo@12345` |
 | Angela Santos | `officer2@hiusa.local` | `Demo@12345` |
+| Bianca Fernandez | `officer3@hiusa.local` | `Demo@12345` |
+| Diego Villanueva | `officer4@hiusa.local` | `Demo@12345` |
+| Ellaine Morales | `officer5@hiusa.local` | `Demo@12345` |
+| Franco Cruz | `officer6@hiusa.local` | `Demo@12345` |
+| Grace Ibanez | `officer7@hiusa.local` | `Demo@12345` |
+| Mika Salcedo | `mika.salcedo@cbe.hiusa.local` | `Demo@12345` |
 
 ### Advisers
 | Name | Email | Password |
 |---|---|---|
 | Ricardo Lim | `adviser1@hiusa.local` | `Demo@12345` |
 | Maria Reyes | `adviser2@hiusa.local` | `Demo@12345` |
+
+### Department Heads
+| Name | Email | School ID | Password |
+|---|---|---|---|
+| Ramon Castillo | `dean.ccs@hiusa.local` | `940001` | `Demo@12345` |
+| Corazon Villareal | `dean.cbe@hiusa.local` | `940002` | `Demo@12345` |
+| Benjamin Torres | `dean.cte@hiusa.local` | `940003` | `Demo@12345` |
+| Marilou Santos | `dean.chs@hiusa.local` | `940004` | `Demo@12345` |
+| Eduardo Ramos | `dean.coe@hiusa.local` | `940005` | `Demo@12345` |
 
 ### Students — login with **School ID**, not email
 | Name | School ID | Password |
@@ -337,6 +352,8 @@ All passwords are shown below. The **Login** field differs by role.
 | Trisha Herrera | `2024-00019` | `Demo@12345` |
 | Jerome Evangelista | `2024-00067` | `Demo@12345` |
 | Alyssa Domingo | `2024-00093` | `Demo@12345` |
+| Nico Valdez | `2024-00118` | `Demo@12345` |
+| Paolo Marquez | `2024-00133` | `Demo@12345` |
 
 ---
 
@@ -378,7 +395,7 @@ ls server/database/database.sqlite
 If missing, run: `php -r "touch('database/database.sqlite');"`
 
 ### Vite shows blank page / "Failed to fetch"
-The Laravel server is not running. Open Terminal 1 and run `php artisan serve` from the `server/` folder.
+The Laravel server is not running. Open Terminal 2 and run `php artisan serve` from the `server/` folder.
 
 ### Migration error: "Table already exists"
 Run a fresh migration:
@@ -422,16 +439,29 @@ Hiusa-FULL/
 
 ## Quick Reference — Daily Workflow
 
-Every time you sit down to work or demo:
+Every time you sit down to work or demo, you need **four** terminals, not two —
+skipping the AI service or the queue worker doesn't error, it just silently
+degrades: AI-backed features fall back to local calculations, and password
+resets / approval notifications never go out (see Troubleshooting and
+`docs/OPERATIONS.md` §1 for both symptoms).
 
 ```bash
-# Terminal 1
+# Terminal 1 - Python AI service
+cd ai-service
+.\.venv\Scripts\Activate.ps1
+python run.py
+
+# Terminal 2 - Laravel API
 cd server
 php artisan serve
 
-# Terminal 2
+# Terminal 3 - Frontend
 cd client
 npm run dev
+
+# Terminal 4 - Queue worker (password resets, approval notifications)
+cd server
+php artisan queue:work
 
 # Open browser
 http://localhost:5173
