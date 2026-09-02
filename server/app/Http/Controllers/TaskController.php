@@ -95,7 +95,8 @@ class TaskController extends Controller
             'progressUpdates.author:school_id,first_name,last_name',
         ])
             ->where('organization_id', $request->user()->organization_id)
-            ->orderBy('deadline', 'asc');
+            ->orderBy('deadline', 'asc')
+            ->orderBy('id');
 
         if ($request->user()->role === 'SBO_OFFICER') {
             $query->where('assigned_to', $request->user()->id);

@@ -75,6 +75,7 @@ class ApprovalRequestController extends Controller
         }
 
         $query->orderBy('requested_at', ($filters['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc');
+        $query->orderBy('id');
 
         $approvals = $query->paginate($paging['per_page'] ?? 20);
         $this->attachEntityDetails($approvals);

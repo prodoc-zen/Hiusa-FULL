@@ -56,7 +56,8 @@ class MerchandiseController extends Controller
 
         $query = Merchandise::withCount('orders')
             ->where('organization_id', $request->user()->organization_id)
-            ->orderBy('name', 'asc');
+            ->orderBy('name', 'asc')
+            ->orderBy('id');
 
         if ($request->user()->role !== 'ADMIN') {
             $query->where('is_active', true);

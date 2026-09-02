@@ -31,6 +31,7 @@ class BudgetController extends Controller
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
             ->orderBy('created_at', 'desc')
+            ->orderBy('id')
             ->paginate($paging['per_page'] ?? 20);
 
         $this->attachApprovalInfo($budgets);

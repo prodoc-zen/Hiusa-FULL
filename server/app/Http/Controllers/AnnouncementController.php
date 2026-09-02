@@ -153,6 +153,7 @@ class AnnouncementController extends Controller
             'most_viewed' => $query->orderByDesc('views_count')->orderByDesc('created_at'),
             default => $query->orderByDesc('created_at'),
         };
+        $query->orderBy('id');
 
         $announcements = $query->paginate($filters['per_page'] ?? 20);
 
