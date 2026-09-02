@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -14,7 +15,7 @@ use Tests\TestCase;
  * (not per-IP) buckets, a tighter ceiling on the AI generation endpoints,
  * a clean 429 instead of a 500, and the security headers on every API
  * response. See app/Providers/AppServiceProvider.php for the limiter
- * definitions and app/Providers/SecurityHeadersMiddleware.php for the headers.
+ * definitions and app/Http/Middleware/SecurityHeadersMiddleware.php for the headers.
  */
 class ApiHardeningTest extends TestCase
 {
@@ -123,6 +124,63 @@ class ApiHardeningTest extends TestCase
         $response->assertHeader('X-Content-Type-Options', 'nosniff');
         $response->assertHeader('X-Frame-Options', 'DENY');
         $response->assertHeader('Referrer-Policy', 'same-origin');
+    }
+
+    public function test_security_headers_are_present_on_a_guest_401(): void
+    {
+        // The headers are registered globally rather than on the api group so
+        // that they still run when auth:sanctum rejects the request before any
+        // route middleware fires - see bootstrap/app.php.
+        $response = $this->getJson('/api/events');
+
+        $response->assertUnauthorized();
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $response->assertHeader('X-Frame-Options', 'DENY');
+        $response->assertHeader('Referrer-Policy', 'same-origin');
+    }
+
+    public function test_security_headers_are_present_on_a_429(): void
+    {
+        $student = $this->student();
+        Sanctum::actingAs($student);
+
+        for ($i = 0; $i < 120; $i++) {
+            $this->getJson('/api/announcements')->assertOk();
+        }
+
+        $response = $this->getJson('/api/announcements');
+
+        $response->assertStatus(429);
+        $response->assertHeader('X-Content-Type-Options', 'nosniff');
+        $response->assertHeader('X-Frame-Options', 'DENY');
+        $response->assertHeader('Referrer-Policy', 'same-origin');
+    }
+
+    public function test_forty_consecutive_check_ins_by_one_officer_all_succeed(): void
+    {
+        // Attendance has its own limiter (120/min) precisely because the shared
+        // api-write bucket (30/min) stalls a check-in desk mid-event - see
+        // app/Providers/AppServiceProvider.php.
+        $admin = $this->admin();
+        Sanctum::actingAs($admin);
+
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'ongoing',
+        ]);
+
+        for ($i = 0; $i < 40; $i++) {
+            $student = User::factory()->create([
+                'organization_id' => $admin->organization_id,
+                'role' => 'STUDENT',
+            ]);
+
+            $this->postJson("/api/events/{$event->id}/attendance", [
+                'user_id' => $student->school_id,
+                'method' => 'manual',
+            ])->assertCreated();
+        }
     }
 
     public function test_app_debug_false_returns_a_generic_error_with_no_stack_trace(): void

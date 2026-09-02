@@ -30,7 +30,7 @@ Route::post('/login', [UserController::class, 'login'])->middleware('throttle:10
 Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])->middleware('throttle:5,1');
 Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:10,1');
 Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:5,1');
-Route::get('/organizations', [OrganizationController::class, 'index']);
+Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:30,1');
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/logout', [UserController::class, 'logout'])->middleware('throttle:api-write');
@@ -73,7 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware(['throttle:ai-generation', 'role:ADMIN']);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 
     // Task Routes
     Route::get('/tasks', [TaskController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
