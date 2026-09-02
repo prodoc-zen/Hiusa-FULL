@@ -21,13 +21,13 @@ demo on a bare Elastic IP (`EC2-DEPLOYMENT.md` §3).
 
 That flag is opt-in for a specific reason: the demo seeders
 (`AdministratorSeeder`, `UserSeeder`, `DepartmentHeadSeeder`, and the rest called
-from `DatabaseSeeder`) create a full set of accounts with fixed, published
-passwords, and every one of those passwords is printed in this repository's
-`README.md`, in plain text, in version control:
-
-- `admin@hiusa.local` / `Admin@123456`
-- Several `*@hiusa.local` officer/department-head accounts on `Demo@12345`
-- A block of student accounts, all on `Demo@12345`
+from `DatabaseSeeder`) create a full set of accounts with fixed passwords —
+`Admin@123456` for the one System Administrator account, `Demo@12345` for
+every officer, adviser, department head, and student account — and those
+passwords are not a secret held anywhere: they are literal strings in the
+seeder source files themselves, in plain text, in version control. Most of
+them are also republished in this repository's `README.md`'s demo-accounts
+section, in plain text.
 
 Anyone who has ever cloned this repo to work on it has read those credentials.
 Running `--seed-demo` against anything other than a genuinely disposable
