@@ -21,6 +21,7 @@ import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, gener
 import { getTasks } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
+import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
 
 const statusBadge = {
@@ -132,12 +133,19 @@ export default function EventsPage({ initialTab = 'events' }) {
   function load() {
     setLoading(true);
     setError(null);
+    // /events has no status/date filter at all (and orders oldest-first), and
+    // this page already re-implements its own client-side pagination over a
+    // fully-loaded array (eventsPage/pagedEvents below) - so the fix is to load
+    // the complete organization event (and task) set via fetchAllPages, the
+    // same shape this page already expected before the server started paginating.
     const canLoadTasks = currentUserRole === 'ADMIN' || currentUserRole === 'SBO_OFFICER';
-    const requests = canLoadTasks ? [getEvents(), getTasks()] : [getEvents(), Promise.resolve({ data: [] })];
+    const requests = canLoadTasks
+      ? [fetchAllPages((p) => getEvents(p).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
+      : [fetchAllPages((p) => getEvents(p).then((r) => r.data)), Promise.resolve([])];
     Promise.all(requests)
-      .then(([evRes, taskRes]) => {
-        setEvents(Array.isArray(evRes.data) ? evRes.data : []);
-        setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
+      .then(([eventList, taskList]) => {
+        setEvents(eventList);
+        setTasks(taskList);
       })
       .catch(() => setError('Failed to load data.'))
       .finally(() => setLoading(false));
@@ -160,9 +168,11 @@ export default function EventsPage({ initialTab = 'events' }) {
 
   useEffect(() => {
     if (activeTab === 'attendance' && canManageAttendance && !usersLoaded) {
-      getUsers({ account_status: 'active' })
+      // /users is paginated - check-in search needs the full active roster,
+      // not just its first page.
+      fetchAllPages(getUsers, { account_status: 'active' })
         .then((data) => {
-          setAllUsers(Array.isArray(data) ? data : []);
+          setAllUsers(data);
           setUsersLoaded(true);
         })
         .catch(() => {});

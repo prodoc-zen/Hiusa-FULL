@@ -49,6 +49,11 @@ class MerchandiseController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = Merchandise::withCount('orders')
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('name', 'asc');
@@ -57,7 +62,7 @@ class MerchandiseController extends Controller
             $query->where('is_active', true);
         }
 
-        return response()->json($query->get());
+        return response()->json($query->paginate($paging['per_page'] ?? 20));
     }
 
     public function store(Request $request)

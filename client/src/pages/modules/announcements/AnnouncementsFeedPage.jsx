@@ -3,6 +3,8 @@ import { Search } from 'lucide-react';
 import { Avatar } from './announcementShared.jsx';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
+import PaginationControls from '../../../components/PaginationControls';
+import { listMeta, unwrapList } from '../../../services/pagination';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -21,6 +23,8 @@ function formatDate(iso) {
 
 export default function AnnouncementsFeedPage() {
   const [announcements, setAnnouncements] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
@@ -30,14 +34,17 @@ export default function AnnouncementsFeedPage() {
   function load() {
     setLoading(true);
     setError(null);
-    const params = { published_only: 1, ...(categoryFilter === 'all' ? {} : { category: categoryFilter }) };
+    const params = { published_only: 1, page, ...(categoryFilter === 'all' ? {} : { category: categoryFilter }) };
     getAnnouncements(params)
-      .then((res) => setAnnouncements(Array.isArray(res.data) ? res.data : []))
+      .then((res) => {
+        setAnnouncements(unwrapList(res.data));
+        setMeta(listMeta(res.data));
+      })
       .catch(() => setError('Failed to load announcements.'))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [categoryFilter]);
+  useEffect(load, [categoryFilter, page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -45,7 +52,7 @@ export default function AnnouncementsFeedPage() {
     async function markAnnouncementAlertsAsRead() {
       try {
         const res = await getNotifications();
-        const notifications = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
+        const notifications = unwrapList(res.data);
         const unreadAnnouncementIds = notifications
           .filter((notification) => !notification.is_read && String(notification.title || '').startsWith('New Announcement:'))
           .map((notification) => notification.id);
@@ -81,7 +88,7 @@ export default function AnnouncementsFeedPage() {
             className="w-full rounded-xl border border-[#DDE7EF] bg-white py-2.5 pl-10 pr-4 text-sm text-slate-700 shadow-sm transition focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30"
           />
         </div>
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-xl border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/30 sm:w-48">
+        <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} className="h-11 rounded-xl border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-slate-600 shadow-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/30 sm:w-48">
           {CATEGORY_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
@@ -105,7 +112,13 @@ export default function AnnouncementsFeedPage() {
 
       {!loading && !error && filtered.length === 0 && (
         <div className="rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
-          <p className="text-sm font-medium text-slate-400">No announcements to show.</p>
+          <p className="text-sm font-medium text-slate-400">
+            {meta.total === 0
+              ? 'No announcements to show.'
+              : search.trim()
+                ? 'No announcements on this page match your search.'
+                : 'No announcements on this page.'}
+          </p>
         </div>
       )}
 
@@ -143,6 +156,16 @@ export default function AnnouncementsFeedPage() {
           </div>
         </div>
       ))}
+
+      {!loading && !error && (
+        <PaginationControls
+          currentPage={meta.currentPage}
+          totalItems={meta.total}
+          pageSize={meta.perPage}
+          onPageChange={setPage}
+          label="announcements"
+        />
+      )}
     </div>
   );
 }

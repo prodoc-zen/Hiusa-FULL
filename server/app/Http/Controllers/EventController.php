@@ -24,6 +24,11 @@ class EventController extends Controller
     {
         $user = $request->user();
 
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = Event::with('creator:school_id,first_name,last_name')
             ->where('organization_id', $user->organization_id)
             ->withCount('attendanceRecords')
@@ -33,7 +38,7 @@ class EventController extends Controller
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
         }
 
-        $events = $query->get();
+        $events = $query->paginate($paging['per_page'] ?? 20);
         $this->attachApprovalInfo($events);
 
         if ($user->role === 'ADMIN') {

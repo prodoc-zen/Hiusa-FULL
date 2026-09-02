@@ -167,7 +167,7 @@ class RequestedWorkflowCompletionTest extends TestCase
         ])->assertCreated()->assertJsonCount(1, 'progress_updates')->json('id');
 
         Sanctum::actingAs($otherOfficer);
-        $this->getJson('/api/tasks')->assertOk()->assertJsonCount(0);
+        $this->getJson('/api/tasks')->assertOk()->assertJsonCount(0, 'data');
         $this->patchJson("/api/tasks/{$taskId}/status", ['status' => 'in_progress'])->assertForbidden();
 
         Sanctum::actingAs($officer);

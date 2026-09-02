@@ -92,7 +92,7 @@ class DemoDataIntegrityTest extends TestCase
         $student = User::where('school_id', 2100142)->firstOrFail();
         Sanctum::actingAs($student);
 
-        $visibleIds = collect($this->getJson('/api/announcements')->assertOk()->json())->pluck('id');
+        $visibleIds = collect($this->getJson('/api/announcements')->assertOk()->json('data'))->pluck('id');
 
         foreach ($visibleToAll as $id) {
             $this->assertTrue(

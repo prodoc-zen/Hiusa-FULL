@@ -21,12 +21,17 @@ class BudgetController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $budgets = Budget::with('event:id,title')
             ->where('organization_id', $request->user()->organization_id)
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
             ->orderBy('created_at', 'desc')
-            ->get();
+            ->paginate($paging['per_page'] ?? 20);
 
         $this->attachApprovalInfo($budgets);
 

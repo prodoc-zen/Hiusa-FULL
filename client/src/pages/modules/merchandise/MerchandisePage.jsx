@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { getGcashSettings, getMerchandise, createItem, updateItem, adjustStock, deleteItem } from '../../../services/merchandiseService';
 import { getOrders, placeOrder, submitOrderPayment, updateOrderStatus, claimByToken } from '../../../services/orderService';
+import { fetchAllPages } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
@@ -153,6 +154,7 @@ export default function MerchandisePage({ initialTab }) {
 
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [allOrders, setAllOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [inventorySearch, setInventorySearch] = useState('');
@@ -206,15 +208,40 @@ export default function MerchandisePage({ initialTab }) {
   function load() {
     setLoading(true);
     setError(null);
-    const calls = isPersonalShoppingView
-      ? [getMerchandise(), getOrders({ mine: 1 }), getGcashSettings()]
-      : [getMerchandise(), getOrders({ page: 1 })];
-    Promise.all(calls)
-      .then(([mRes, oRes, gcashRes]) => {
-        const merch = Array.isArray(mRes.data?.data) ? mRes.data.data : (Array.isArray(mRes.data) ? mRes.data : []);
+    // /merchandise has no filter narrow enough for either view (no in-stock
+    // filter, and the officer inventory grid has no page controls of its own),
+    // so the full catalog is walked via fetchAllPages instead of trusting page
+    // one to hold every product. The personal order history is walked in full
+    // the same way (it has no pagination UI of its own); the officer order
+    // queue keeps its real per-page fetch for the browsable table below, but
+    // "Active Orders" and "Revenue" need the complete order set, not one
+    // page of it, so that is fetched in parallel too.
+    if (isPersonalShoppingView) {
+      Promise.all([
+        fetchAllPages((p) => getMerchandise(p).then((r) => r.data)),
+        fetchAllPages((p) => getOrders(p).then((r) => r.data), { mine: 1 }),
+        getGcashSettings(),
+      ])
+        .then(([merch, myOrders, gcashRes]) => {
+          setItems(merch);
+          setOrders(myOrders);
+          setAllOrders(myOrders);
+          if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
+        })
+        .catch(() => setError('Failed to load merchandise data.'))
+        .finally(() => setLoading(false));
+      return;
+    }
+
+    Promise.all([
+      fetchAllPages((p) => getMerchandise(p).then((r) => r.data)),
+      getOrders({ page: 1 }),
+      fetchAllPages((p) => getOrders(p).then((r) => r.data)),
+    ])
+      .then(([merch, oRes, fullOrders]) => {
         setItems(merch);
         extractOrders(oRes);
-        if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
+        setAllOrders(fullOrders);
       })
       .catch(() => setError('Failed to load merchandise data.'))
       .finally(() => setLoading(false));
@@ -411,6 +438,7 @@ export default function MerchandisePage({ initialTab }) {
     try {
       const res = await updateOrderStatus(id, status, remarks, verifiedAmount);
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
+      setAllOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
       setTransactionMessage(role === 'SBO_OFFICER' && status === 'paid'
         ? `Order ORD-${id} submitted for Admin approval.`
         : `Order ORD-${id} marked as ${capitalize(status)}.`);
@@ -432,6 +460,7 @@ export default function MerchandisePage({ initialTab }) {
     try {
       const res = await submitOrderPayment(order.id, { payment_reference: reference.trim(), payment_proof: proofFile });
       setOrders((current) => current.map((row) => (row.id === order.id ? { ...row, ...res.data } : row)));
+      setAllOrders((current) => current.map((row) => (row.id === order.id ? { ...row, ...res.data } : row)));
       setPaymentModal({ open: false, order: null, reference: '', proof_file: null, busy: false, error: '' });
       setTransactionMessage(`Payment proof for ORD-${order.id} was submitted for verification.`);
     } catch (err) {
@@ -538,7 +567,7 @@ export default function MerchandisePage({ initialTab }) {
       return;
     }
 
-    const match = orders.find((order) => (order.claim_token || '').toUpperCase() === token);
+    const match = allOrders.find((order) => (order.claim_token || '').toUpperCase() === token);
     const studentName = match?.student ? `${match.student.first_name} ${match.student.last_name}` : null;
     const itemName = match?.merchandise?.name || null;
     const quantity = match?.quantity || null;
@@ -668,13 +697,16 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
-  // Derived data
-  const totalRevenue = orders
+  // Derived data - Revenue and Active Orders read the complete order set
+  // (allOrders), not the loaded table page, since /orders paginates.
+  const totalRevenue = allOrders
     .filter((o) => ['paid', 'claimed'].includes(o.status))
     .reduce((sum, o) => sum + toNumber(o.total_price), 0);
-  const activeOrders = orders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
+  const activeOrders = allOrders.filter((o) => ['pending', 'paid'].includes(o.status)).length;
   const lowStock = items.filter((i) => i.stock_quantity > 0 && i.stock_quantity < 10).length;
-  const paidOrders = orders.filter((o) => o.status === 'paid');
+  // Read from the complete order set, not the loaded table page - this list is
+  // how an officer finds any paid order to claim, not just those on page 1.
+  const paidOrders = allOrders.filter((o) => o.status === 'paid');
   const availableItems = items.filter((i) => i.is_active && i.stock_quantity > 0);
   const cartTotal = useMemo(() => cart.reduce((sum, row) => sum + (toNumber(row.item.price) * row.quantity), 0), [cart]);
 
@@ -1247,7 +1279,9 @@ export default function MerchandisePage({ initialTab }) {
           {loading ? (
             <div className="space-y-2 p-5">{[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
           ) : filteredOfficerOrders.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No orders yet.</p>
+            <p className="p-8 text-center text-sm text-slate-400">
+              {ordersMeta.total === 0 ? 'No orders yet.' : officerOrderSearch.trim() ? 'No orders on this page match your search.' : 'No orders on this page.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[540px] text-left md:min-w-[850px]">

@@ -20,6 +20,11 @@ class FinancialReportController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         return response()->json(
             FinancialReport::with([
                 'event:id,title',
@@ -27,7 +32,7 @@ class FinancialReportController extends Controller
             ])
                 ->where('organization_id', $request->user()->organization_id)
                 ->orderByDesc('generated_at')
-                ->get()
+                ->paginate($paging['per_page'] ?? 20)
         );
     }
 

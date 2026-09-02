@@ -9,6 +9,7 @@ import {
   updateElectionCandidate,
 } from '../../../services/electionService';
 import Modal from '../../../components/Modal';
+import { fetchAllPages } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 function Avatar({ name, size = 'sm' }) {
@@ -301,9 +302,13 @@ export default function ManageCandidatesPage() {
     async function load() {
       setResourcesLoading(true);
       try {
-        const [userData, partylistData] = await Promise.all([getUsers({ role: 'STUDENT', account_status: 'active' }), getPartylists()]);
+        // /users is paginated - the candidate-assignment dropdown needs the full
+        // active student roster, not just its first page, so it is walked in full.
+        const [allUsers, partylistData] = await Promise.all([
+          fetchAllPages(getUsers, { role: 'STUDENT', account_status: 'active' }),
+          getPartylists(),
+        ]);
         if (!cancelled) {
-          const allUsers = Array.isArray(userData) ? userData : [];
           setUsers(allUsers.filter((user) => user.role === 'STUDENT'));
           setPartylists(Array.isArray(partylistData) ? partylistData : []);
         }

@@ -23,6 +23,11 @@ class ApprovalRequestController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $requiredRole = $request->user()->role === 'ADMIN' ? 'ADMIN' : 'DEPARTMENT_HEAD';
         $query = ApprovalRequest::with([
             'requester:school_id,first_name,last_name,role',
@@ -38,7 +43,7 @@ class ApprovalRequestController extends Controller
             $query->where('status', $status);
         }
 
-        $approvals = $query->get();
+        $approvals = $query->paginate($paging['per_page'] ?? 20);
         $this->attachEntityDetails($approvals);
 
         return response()->json($approvals);

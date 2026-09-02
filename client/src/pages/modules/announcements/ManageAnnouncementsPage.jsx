@@ -7,6 +7,8 @@ import {
   togglePublish,
   deleteAnnouncement,
 } from '../../../services/announcementService';
+import PaginationControls from '../../../components/PaginationControls';
+import { listMeta, unwrapList } from '../../../services/pagination';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -63,6 +65,8 @@ function getCurrentUserId() {
 
 export default function ManageAnnouncementsPage() {
   const [items, setItems] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -76,13 +80,17 @@ export default function ManageAnnouncementsPage() {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const params = categoryFilter === 'all' ? undefined : { category: categoryFilter };
+    const params = { page, ...(categoryFilter === 'all' ? {} : { category: categoryFilter }) };
     getAnnouncements(params)
-      .then((res) => { if (!cancelled) setItems(Array.isArray(res.data) ? res.data : []); })
+      .then((res) => {
+        if (cancelled) return;
+        setItems(unwrapList(res.data));
+        setMeta(listMeta(res.data));
+      })
       .catch(() => { if (!cancelled) setError('Failed to load announcements.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [categoryFilter]);
+  }, [categoryFilter, page]);
 
   useEffect(() => {
     return loadAnnouncements();
@@ -100,7 +108,10 @@ export default function ManageAnnouncementsPage() {
   async function handleDelete(id) {
     try {
       await deleteAnnouncement(id);
-      setItems((prev) => prev.filter((a) => a.id !== id));
+      // Reload rather than splice locally so the pagination footer's total
+      // (and this page's contents, if it was just emptied) stay in sync with
+      // the server instead of drifting.
+      loadAnnouncements();
     } catch {
       setError('Failed to delete announcement. Please try again.');
     }
@@ -153,14 +164,16 @@ export default function ManageAnnouncementsPage() {
       <SectionHeader title="All Announcements" />
       <div className="mb-4 flex items-center gap-2">
         <label className="text-xs font-semibold text-slate-500">Category:</label>
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+        <select value={categoryFilter} onChange={(e) => { setCategoryFilter(e.target.value); setPage(1); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
           {CATEGORY_OPTIONS.map((opt) => (
             <option key={opt.value} value={opt.value}>{opt.label}</option>
           ))}
         </select>
       </div>
       {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-400">No announcements yet.</p>
+        <p className="py-8 text-center text-sm text-slate-400">
+          {meta.total === 0 ? 'No announcements yet.' : 'No announcements on this page.'}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[720px] text-xs">
@@ -268,6 +281,13 @@ export default function ManageAnnouncementsPage() {
           </table>
         </div>
       )}
+      <PaginationControls
+        currentPage={meta.currentPage}
+        totalItems={meta.total}
+        pageSize={meta.perPage}
+        onPageChange={setPage}
+        label="announcements"
+      />
 
       <ConfirmModal
         open={confirmState.open}
