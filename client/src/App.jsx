@@ -15,6 +15,7 @@ const DepartmentHeadApprovalsPage = lazy(() => import('./pages/roles/department-
 const StudentHomePage = lazy(() => import('./pages/roles/student/StudentHomePage'));
 const AdminUsersPage = lazy(() => import('./pages/roles/admin/AdminUsersPage'));
 const ManageSboPositionsPage = lazy(() => import('./pages/roles/admin/ManageSboPositionsPage'));
+const ManageAcademicStructurePage = lazy(() => import('./pages/roles/admin/ManageAcademicStructurePage'));
 const GeneralAuditLogPage = lazy(() => import('./pages/roles/admin/GeneralAuditLogPage'));
 const FinancePage = lazy(() => import('./pages/modules/finance/FinancePage'));
 const StudentFinancialAccountsPage = lazy(() => import('./pages/modules/finance/StudentFinancialAccountsPage'));
@@ -191,6 +192,8 @@ function App() {
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
           <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
           <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
+          <Route path="admin/positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
+          <Route path="admin/programs-sections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageAcademicStructurePage /></ProtectedRoute>} />
           <Route path="audit-logs" element={<ProtectedRoute allowedRoles={["ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
 
           {/* Shared Modules */}
@@ -234,7 +237,7 @@ function App() {
           <Route path="tasks">
             <Route index element={<TasksIndexRedirect />} />
             <Route path="task-board" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
-            <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
+            <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="create" /></ProtectedRoute>} />
             <Route path="assigned-tasks" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
             <Route path="task-progress" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="progress" /></ProtectedRoute>} />
             <Route path="ai-delegation" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><TasksPage initialTab="ai" /></ProtectedRoute>} />

@@ -28,20 +28,53 @@ class ApprovalRequestController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $filters = $request->validate([
+            'status' => ['nullable', 'in:pending,approved,rejected,all'],
+            'entity_type' => ['nullable', 'in:event,budget,election,announcement,payment'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'sort' => ['nullable', 'in:newest,oldest'],
+        ]);
         $requiredRole = $request->user()->role === 'ADMIN' ? 'ADMIN' : 'DEPARTMENT_HEAD';
         $query = ApprovalRequest::with([
-            'requester:school_id,first_name,last_name,role',
-            'reviewer:school_id,first_name,last_name,role',
+            'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
+            'reviewer:school_id,first_name,last_name,email,role,position_title',
         ])
             ->where('organization_id', $request->user()->organization_id)
-            ->where('required_role', $requiredRole)
-            ->orderBy('requested_at', 'desc');
+            ->where('required_role', $requiredRole);
 
-        $status = $request->query('status', 'pending');
+        $status = $filters['status'] ?? 'pending';
 
         if ($status !== 'all') {
             $query->where('status', $status);
         }
+
+        if (! empty($filters['entity_type'])) {
+            $query->where('entity_type', $filters['entity_type']);
+        }
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($searchQuery) use ($search) {
+                $searchQuery->where('entity_type', 'like', "%{$search}%")
+                    ->orWhere('remarks', 'like', "%{$search}%")
+                    ->orWhereHas('requester', fn ($requester) => $requester
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%")
+                        ->orWhere('school_id', 'like', "%{$search}%"));
+            });
+        }
+
+        if (! empty($filters['from'])) {
+            $query->whereDate('requested_at', '>=', $filters['from']);
+        }
+
+        if (! empty($filters['to'])) {
+            $query->whereDate('requested_at', '<=', $filters['to']);
+        }
+
+        $query->orderBy('requested_at', ($filters['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc');
 
         $approvals = $query->paginate($paging['per_page'] ?? 20);
         $this->attachEntityDetails($approvals);

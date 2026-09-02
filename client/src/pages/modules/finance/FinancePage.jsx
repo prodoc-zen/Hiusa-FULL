@@ -172,7 +172,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
-  const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 20 });
+  const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [forecastGenerating, setForecastGenerating] = useState(false);
   const [reports, setReports] = useState([]);
@@ -210,6 +210,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   const showFeedback = useCallback((type, message) => {
     setFeedback({ open: true, type, message });
   }, []);
+
 
   function load(page = 1, filters = txFilters, searchTerm = search) {
     setLoading(true);

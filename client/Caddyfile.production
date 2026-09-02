@@ -1,0 +1,47 @@
+{$SITE_ADDRESS} {
+    encode zstd gzip
+
+    request_body {
+        max_size 8MB
+    }
+
+    header {
+        Content-Security-Policy "frame-ancestors 'none'; object-src 'none'; base-uri 'self'"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Strict-Transport-Security "max-age=31536000"
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        -Server
+    }
+
+    handle /api/* {
+        reverse_proxy laravel:80
+    }
+
+    handle /storage/* {
+        reverse_proxy laravel:80
+    }
+
+    handle /uploads/payments/* {
+        respond 404
+    }
+
+    handle /uploads/* {
+        reverse_proxy laravel:80
+    }
+
+    handle /up {
+        reverse_proxy laravel:80
+    }
+
+    handle {
+        root * /srv
+
+        route {
+            try_files {path} /index.html
+            header /index.html Cache-Control "public, max-age=0, must-revalidate"
+        }
+
+        file_server
+    }
+}

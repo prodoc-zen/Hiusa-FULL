@@ -5,6 +5,7 @@ import {
   CheckCircle2,
   ChevronLeft,
   Clock,
+  Download,
   Eye,
   Fingerprint,
   List,
@@ -94,6 +95,7 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [dateFilter, setDateFilter] = useState('');
+  const [eventStatusFilter, setEventStatusFilter] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -101,6 +103,7 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventsPage, setEventsPage] = useState(1);
   const [tasksPage, setTasksPage] = useState(1);
+  const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 10;
 
   const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
@@ -122,6 +125,8 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [checkInSubmitting, setCheckInSubmitting] = useState(false);
   const [checkInError, setCheckInError] = useState(null);
   const [checkInSuccess, setCheckInSuccess] = useState(null);
+  const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   let currentUser = {};
@@ -188,6 +193,8 @@ export default function EventsPage({ initialTab = 'events' }) {
     setCheckInStatus('present');
     setCheckInError(null);
     setCheckInSuccess(null);
+    setAttendanceSearch('');
+    setAttendanceStatusFilter('all');
     try {
       const res = await getAttendance(id);
       setAttendanceData(res.data);
@@ -358,15 +365,32 @@ export default function EventsPage({ initialTab = 'events' }) {
   const completed = events.filter((e) => e.status === 'completed').length;
 
   const filteredEvents = events.filter((event) => {
-    const matchesSearch = event.title?.toLowerCase().includes(search.toLowerCase());
+    const query = search.toLowerCase();
+    const matchesSearch = [event.title, event.description, event.location, event.creator?.first_name, event.creator?.last_name].filter(Boolean).join(' ').toLowerCase().includes(query);
     const matchesDate = !dateFilter || String(event.start_time || '').slice(0, 10) === dateFilter;
-    return matchesSearch && matchesDate;
+    const matchesStatus = !eventStatusFilter || event.status === eventStatusFilter;
+    return matchesSearch && matchesDate && matchesStatus;
   });
   const eventLinkedTasks = tasks.filter((t) => t.event_id);
   const pagedEvents = filteredEvents.slice((eventsPage - 1) * pageSize, eventsPage * pageSize);
   const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
+  const filteredAttendanceRecords = (attendanceData?.records ?? []).filter((record) => {
+    const query = attendanceSearch.trim().toLowerCase();
+    const haystack = [record.user?.school_id, record.user?.first_name, record.user?.last_name, record.user?.email, record.user?.program, record.user?.year_level, record.user?.section, record.recorder?.first_name, record.recorder?.last_name].filter(Boolean).join(' ').toLowerCase();
+    return (!query || haystack.includes(query)) && (attendanceStatusFilter === 'all' || record.status === attendanceStatusFilter);
+  });
+  const pagedAttendanceRecords = filteredAttendanceRecords.slice((attendancePage - 1) * pageSize, attendancePage * pageSize);
+
+  const exportAttendance = () => {
+    const event = attendanceData?.event;
+    const headers = ['Attendance ID', 'Event ID', 'Event', 'School ID', 'Name', 'Email', 'Role', 'Position', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Status', 'Method', 'Check In', 'Check Out', 'Recorded By', 'Remarks'];
+    const rows = filteredAttendanceRecords.map((record) => [record.id, event?.id, event?.title, record.user?.school_id, `${record.user?.first_name || ''} ${record.user?.last_name || ''}`.trim(), record.user?.email, record.user?.role, record.user?.position_title, record.user?.department, record.user?.program, record.user?.major, record.user?.year_level, record.user?.section, record.status, record.method, record.check_in_time, record.check_out_time, `${record.recorder?.first_name || ''} ${record.recorder?.last_name || ''}`.trim(), record.remarks]);
+    const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = `attendance-${event?.id || 'event'}-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
+  };
   const attendanceEvents = events.filter((event) => {
     if (canManageAttendance) return ['approved', 'ongoing', 'completed'].includes(event.status);
     const start = new Date(event.start_time).getTime();
@@ -386,6 +410,8 @@ export default function EventsPage({ initialTab = 'events' }) {
   useEffect(() => {
     setEventsPage(1);
   }, [search, dateFilter, events.length]);
+
+  useEffect(() => { setAttendancePage(1); }, [attendanceSearch, attendanceStatusFilter, selectedAttEventId]);
 
   useEffect(() => {
     setTasksPage(1);
@@ -465,6 +491,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                     onChange={(event) => setDateFilter(event.target.value)}
                     className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] outline-none focus:border-[#0B8ED0]"
                   />
+                  <select aria-label="Filter events by status" value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px]"><option value="">All statuses</option>{['pending_approval', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</select>
                 </>
               )}
               {canCreateEvents && (
@@ -492,12 +519,15 @@ export default function EventsPage({ initialTab = 'events' }) {
                 <p className="p-8 text-center text-sm text-slate-400">No events found.</p>
               ) : (
                 <div className="overflow-x-auto">
-                  <table className="w-full min-w-[460px] md:min-w-[700px] text-left">
+                  <table className="w-full min-w-[1280px] text-left">
                     <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       <tr>
                         <th className="px-5 py-3">Event</th>
-                        <th className="px-5 py-3">Start Time</th>
-                        <th className="hidden md:table-cell px-5 py-3">Location</th>
+                        <th className="px-5 py-3">Organizer</th>
+                        <th className="px-5 py-3">Schedule</th>
+                        <th className="px-5 py-3">Venue</th>
+                        <th className="px-5 py-3">Attendance</th>
+                        <th className="px-5 py-3">Tasks</th>
                         <th className="px-5 py-3">Status</th>
                         {canCreateEvents && <th className="px-5 py-3">Budget Status</th>}
                         <th className="px-5 py-3 text-right">Actions</th>
@@ -506,19 +536,23 @@ export default function EventsPage({ initialTab = 'events' }) {
                     <tbody className="divide-y divide-[#E5EDF3] text-sm">
                       {pagedEvents.map((evt) => (
                         <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
-                          <td className="px-5 py-4 font-bold text-[#0F172A]">{evt.title}</td>
+                          <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{evt.title}</p><p className="mt-1 line-clamp-2 text-[10px] text-slate-400">{evt.description || 'No description provided'}</p></td>
+                          <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${evt.creator.first_name} ${evt.creator.last_name}` : '-'}<p className="text-[10px] text-[#0B8ED0]">{evt.creator?.position_title || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
                           <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
                               <Clock size={13} className="text-slate-400" />
                               {formatDateTime(evt.start_time)}
                             </div>
+                            <p className="mt-1 text-[10px] text-slate-400">Ends {formatDateTime(evt.end_time)}</p>
                           </td>
-                          <td className="hidden md:table-cell px-5 py-4 font-medium text-slate-600">
+                          <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
                               <MapPin size={13} className="text-slate-400" />
                               {evt.location || '-'}
                             </div>
                           </td>
+                          <td className="px-5 py-4 text-xs"><p className="font-bold text-[#0F172A]">{evt.present_count || 0} present/late</p><p className="text-[10px] text-slate-400">{evt.attendance_records_count || 0} total records</p></td>
+                          <td className="px-5 py-4 text-xs"><p className="font-bold text-[#0F172A]">{evt.tasks_count || 0} linked</p><p className="text-[10px] text-slate-400">Workflow tasks</p></td>
                           <td className="px-5 py-4">
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
                               {statusLabel[evt.status] || capitalize(evt.status)}
@@ -851,24 +885,33 @@ export default function EventsPage({ initialTab = 'events' }) {
                     {(attendanceData?.records?.length ?? 0) === 0 ? (
                       <p className="p-8 text-center text-sm text-slate-400">No check-ins recorded yet.</p>
                     ) : (
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[400px] text-left">
+                      <div>
+                        <div className="grid gap-2 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-[minmax(0,1fr)_150px_auto]">
+                          <label className="relative"><Search size={14} className="absolute left-3 top-3 text-slate-400" /><input value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder="Search attendee or academic profile..." className="h-10 w-full rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs" /></label>
+                          <select value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</select>
+                          <button type="button" onClick={exportAttendance} disabled={!filteredAttendanceRecords.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> Export CSV</button>
+                        </div>
+                        <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1040px] text-left">
                           <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                             <tr>
                               <th className="px-5 py-3">Member</th>
                               <th className="px-5 py-3">School ID</th>
+                              <th className="px-5 py-3">Academic Profile</th>
                               <th className="px-5 py-3">Method</th>
                               <th className="px-5 py-3">Status</th>
-                              <th className="px-5 py-3">Time</th>
+                              <th className="px-5 py-3">Check In / Out</th>
+                              <th className="px-5 py-3">Recorded By</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                            {attendanceData.records.map((rec) => (
+                            {pagedAttendanceRecords.map((rec) => (
                               <tr key={rec.id} className="transition hover:bg-[#F8FBFD]">
                                 <td className="px-5 py-3.5 font-bold text-[#0F172A]">
                                   {rec.user ? `${rec.user.first_name} ${rec.user.last_name}` : '-'}
                                 </td>
                                 <td className="px-5 py-3.5 font-medium text-slate-600">{rec.user?.school_id ?? '-'}</td>
+                                <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold text-slate-700">{[rec.user?.program, rec.user?.major].filter(Boolean).join(' · ') || '-'}</p><p>{[rec.user?.year_level, rec.user?.section, rec.user?.department].filter(Boolean).join(' · ') || '-'}</p></td>
                                 <td className="px-5 py-3.5">
                                   <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${rec.method === 'biometric' ? 'bg-violet-50 text-violet-700' : 'bg-emerald-50 text-emerald-700'}`}>
                                     {capitalize(rec.method)}
@@ -877,11 +920,15 @@ export default function EventsPage({ initialTab = 'events' }) {
                                 <td className="px-5 py-3.5">
                                   <span className="rounded-full bg-[#EEF6FB] px-2.5 py-0.5 text-[11px] font-bold text-[#0B8ED0]">{capitalize(rec.status || 'present')}</span>
                                 </td>
-                                <td className="px-5 py-3.5 font-medium text-slate-600">{formatDateTime(rec.check_in_time)}</td>
+                                <td className="px-5 py-3.5 text-xs font-medium text-slate-600"><p>{formatDateTime(rec.check_in_time)}</p><p className="text-[10px] text-slate-400">Out: {formatDateTime(rec.check_out_time)}</p></td>
+                                <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold">{rec.recorder ? `${rec.recorder.first_name} ${rec.recorder.last_name}` : '-'}</p><p className="text-[10px]">{rec.recorder?.position_title || rec.recorder?.role || '-'}</p></td>
                               </tr>
                             ))}
+                            {!filteredAttendanceRecords.length && <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-400">No attendance records match the filters.</td></tr>}
                           </tbody>
                         </table>
+                        </div>
+                        <PaginationControls currentPage={attendancePage} totalItems={filteredAttendanceRecords.length} pageSize={pageSize} onPageChange={setAttendancePage} label="attendance records" />
                       </div>
                     )}
                   </>

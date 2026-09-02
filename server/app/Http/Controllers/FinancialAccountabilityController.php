@@ -157,7 +157,7 @@ class FinancialAccountabilityController extends Controller
             return response()->json(['message' => 'This cash advance is not repayable.'], 422);
         }
 
-return DB::transaction(function () use ($request, $advance, $data) {
+        return DB::transaction(function () use ($request, $advance, $data) {
             $locked = CashAdvance::lockForUpdate()->findOrFail($advance->id);
             $repaid = (float) CashAdvanceRepayment::where('cash_advance_id', $locked->id)->sum('amount');
             if ((float) $data['amount'] > (float) $locked->amount - $repaid + 0.00001) {
@@ -179,7 +179,7 @@ return DB::transaction(function () use ($request, $advance, $data) {
             $query->where('student_id', $request->user()->school_id);
         }
 
-return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceData($i)));
+        return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceData($i)));
     }
 
     public function studentDebts(Request $request)
@@ -189,7 +189,7 @@ return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceDa
             'department' => ['nullable', 'string', 'max:150'], 'program' => ['nullable', 'string', 'max:150'],
             'year_level' => ['nullable', 'string', 'max:50'], 'status' => ['nullable', 'in:all,owing,cleared,overdue,pending_payment'],
             'sort' => ['nullable', 'in:highest_debt,name,recent'], 'page' => ['nullable', 'integer', 'min:1'],
-            'per_page' => ['nullable', 'integer', 'min:10', 'max:50'],
+            'per_page' => ['nullable', 'integer', 'in:10'],
         ]);
         $organizationId = $request->user()->organization_id;
         $students = User::where('organization_id', $organizationId)->where('role', 'STUDENT')
@@ -234,7 +234,7 @@ return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceDa
             'name' => $accounts->sortBy('student.name', SORT_NATURAL | SORT_FLAG_CASE), 'recent' => $accounts->sortByDesc('last_activity_at'), default => $accounts->sortByDesc('total_debt'),
         };
         $page = (int) ($filters['page'] ?? 1);
-        $perPage = (int) ($filters['per_page'] ?? 15);
+        $perPage = 10;
         $accounts = $accounts->values();
         $paginator = new LengthAwarePaginator($accounts->forPage($page, $perPage)->values(), $accounts->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]);
         $payload = $paginator->toArray();
@@ -299,15 +299,17 @@ return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceDa
     public function auditLogs(Request $request)
     {
         $organizationId = $request->user()->organization_id;
-        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'string', 'max:30'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = AuditLog::with('user:school_id,first_name,last_name,role,department,program,year_level')->where('organization_id', $organizationId);
+        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'string', 'max:30'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
+        $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId);
         foreach (['user_id', 'module', 'action'] as $field) {
             if (! empty($filters[$field])) {
                 $query->where($field, $filters[$field]);
             }
         }
-        if (! empty($filters['role'])) {
-            $query->whereHas('user', fn ($q) => $q->where('role', $filters['role']));
+        foreach (['role', 'department', 'program', 'year_level', 'section', 'position_title'] as $userField) {
+            if (! empty($filters[$userField])) {
+                $query->whereHas('user', fn ($q) => $q->where($userField, $filters[$userField]));
+            }
         }
         if (! empty($filters['from'])) {
             $query->whereDate('created_at', '>=', $filters['from']);
@@ -324,7 +326,7 @@ return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceDa
         match ($filters['sort'] ?? 'newest') {
             'oldest' => $query->oldest('created_at'), 'user' => $query->orderBy(User::select('last_name')->whereColumn('users.school_id', 'audit_logs.user_id'))->orderBy(User::select('first_name')->whereColumn('users.school_id', 'audit_logs.user_id')), 'role' => $query->orderBy(User::select('role')->whereColumn('users.school_id', 'audit_logs.user_id')), 'module' => $query->orderBy('module')->orderByDesc('created_at'), 'action','category' => $query->orderBy('action')->orderByDesc('created_at'), default => $query->latest('created_at')
         };
-        $logs = $query->paginate($filters['per_page'] ?? 25);
+        $logs = $query->paginate(10);
         $logs->getCollection()->transform(fn (AuditLog $log) => $this->auditLogData($log, $organizationId));
 
         return response()->json($logs);
@@ -354,7 +356,7 @@ return response()->json($query->latest()->get()->map(fn ($i) => $this->invoiceDa
             return 'The selected order does not belong to this organization.';
         }
 
-return null;
+        return null;
     }
 
     private function auditLogData(AuditLog $log, int $organizationId): array
@@ -403,7 +405,7 @@ return null;
 
     private function profileData(User $user): array
     {
-        return ['school_id' => $user->school_id, 'name' => $this->userLabel($user), 'role' => $user->role, 'account_status' => $user->account_status, 'department' => $user->department, 'program' => $user->program, 'major' => $user->major, 'section' => $user->section, 'year_level' => $user->year_level, 'email' => $user->email, 'created_at' => $user->created_at];
+        return ['school_id' => $user->school_id, 'name' => $this->userLabel($user), 'role' => $user->role, 'position_title' => $user->position_title, 'account_status' => $user->account_status, 'department' => $user->department, 'program' => $user->program, 'major' => $user->major, 'section' => $user->section, 'year_level' => $user->year_level, 'email' => $user->email, 'created_at' => $user->created_at];
     }
 
     private function userLabel(User $user): string
@@ -427,7 +429,7 @@ return null;
             return $value ? 'Yes' : 'No';
         }
 
-return $value === null || $value === '' ? 'Not set' : (string) $value;
+        return $value === null || $value === '' ? 'Not set' : (string) $value;
     }
 
     private function actionCategory(string $action): string
@@ -453,7 +455,7 @@ return $value === null || $value === '' ? 'Not set' : (string) $value;
             return 'UPDATE';
         }
 
-return 'STATUS_CHANGE';
+        return 'STATUS_CHANGE';
     }
 
     private function actionsForCategory(string $category): array
@@ -508,7 +510,7 @@ return 'STATUS_CHANGE';
 
             return [
                 'student' => ['school_id' => $student->school_id, 'name' => trim($student->first_name.' '.$student->last_name), 'email' => $student->email, 'account_status' => $student->account_status, 'department' => $student->department, 'program' => $student->program, 'major' => $student->major, 'section' => $student->section, 'year_level' => $student->year_level],
-                'invoice_debt' => round($invoiceDebt,2), 'reserved_order_debt' => round($orderDebt,2), 'total_debt' => round($invoiceDebt + $orderDebt,2),
+                'invoice_debt' => round($invoiceDebt, 2), 'reserved_order_debt' => round($orderDebt, 2), 'total_debt' => round($invoiceDebt + $orderDebt, 2),
                 'clearance_status' => ($invoiceDebt + $orderDebt) < 0.005 ? 'financially_cleared' : 'pending_clearance', 'unpaid_invoice_count' => $studentInvoices->count(),
                 'pending_order_count' => $studentOrders->count(), 'pending_payment_count' => $pendingPayments, 'overdue_invoice_count' => $overdueCount,
                 'last_activity_at' => $activityDates->sortDesc()->first(), 'invoices' => $studentInvoices, 'reserved_orders' => $studentOrders,

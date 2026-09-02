@@ -32,7 +32,7 @@ describe('FinancePage transaction search', () => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     financeMocks.getTransactions.mockResolvedValue({
-      data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 20 },
+      data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 },
     });
     financeMocks.getTransactionSummary.mockResolvedValue({
       data: { total_income: 0, total_expense: 0, net_balance: 0 },
@@ -67,7 +67,7 @@ describe('FinancePage forecast explainability', () => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     financeMocks.getTransactions.mockResolvedValue({
-      data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 20 },
+      data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 },
     });
     financeMocks.getTransactionSummary.mockResolvedValue({
       data: { total_income: 0, total_expense: 0, net_balance: 0 },

@@ -74,23 +74,61 @@ class AnnouncementController extends Controller
     {
         $user = $request->user();
 
-        $paging = $request->validate([
+        $filters = $request->validate([
+            'category' => ['nullable', 'in:general,election,training,events,merchandise'],
+            'target_role' => ['nullable', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'approval_status' => ['nullable', 'in:draft,pending,approved,rejected'],
+            'publication_status' => ['nullable', 'in:published,draft'],
+            'search' => ['nullable', 'string', 'max:120'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+            'sort' => ['nullable', 'in:newest,oldest,title,most_viewed'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $allowedCategories = ['general', 'election', 'training', 'events', 'merchandise'];
-        $category = strtolower((string) $request->query('category', ''));
+        $category = strtolower((string) ($filters['category'] ?? ''));
 
         $query = Announcement::with([
-            'creator:school_id,first_name,last_name,role',
-            'reviewer:school_id,first_name,last_name,role',
+            'creator:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
+            'reviewer:school_id,first_name,last_name,email,role,position_title',
         ])
-            ->where('organization_id', $user->organization_id)
-            ->orderBy('created_at', 'desc');
+            ->where('organization_id', $user->organization_id);
 
         if ($category !== '' && in_array($category, $allowedCategories, true)) {
             $query->where('category', $category);
+        }
+
+        if (! empty($filters['target_role'])) {
+            $query->where('target_role', $filters['target_role']);
+        }
+
+        if (! empty($filters['approval_status'])) {
+            $query->where('approval_status', $filters['approval_status']);
+        }
+
+        if (! empty($filters['publication_status'])) {
+            $query->where('is_published', $filters['publication_status'] === 'published');
+        }
+
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $query->where(function ($searchQuery) use ($search) {
+                $searchQuery->where('title', 'like', "%{$search}%")
+                    ->orWhere('body', 'like', "%{$search}%")
+                    ->orWhereHas('creator', fn ($creator) => $creator
+                        ->where('first_name', 'like', "%{$search}%")
+                        ->orWhere('last_name', 'like', "%{$search}%"));
+            });
+        }
+
+        if (! empty($filters['from'])) {
+            $query->whereDate('created_at', '>=', $filters['from']);
+        }
+
+        if (! empty($filters['to'])) {
+            $query->whereDate('created_at', '<=', $filters['to']);
         }
 
         $publishedOnly = $request->boolean('published_only');
@@ -109,7 +147,14 @@ class AnnouncementController extends Controller
             });
         }
 
-        $announcements = $query->paginate($paging['per_page'] ?? 20);
+        match ($filters['sort'] ?? 'newest') {
+            'oldest' => $query->orderBy('created_at'),
+            'title' => $query->orderBy('title'),
+            'most_viewed' => $query->orderByDesc('views_count')->orderByDesc('created_at'),
+            default => $query->orderByDesc('created_at'),
+        };
+
+        $announcements = $query->paginate($filters['per_page'] ?? 20);
 
         // Reach is officer/admin-facing reporting data, not something other
         // students should see next to a bulletin they're reading.

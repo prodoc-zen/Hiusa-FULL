@@ -23,7 +23,7 @@ test('admin can review paginated student financial accounts', async ({ page }) =
   await page.route('**/api/student-debts**', async (route) => {
     const url = new URL(route.request().url());
     const currentPage = Number(url.searchParams.get('page') || 1);
-    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: [account], current_page: currentPage, per_page: 15, total: 17, last_page: 2, summary: { total_students: 17, students_owing: 5, students_cleared: 12, students_overdue: 1, total_outstanding: 1000 }, filter_options: { departments: ['Computing'], programs: ['BSIT'], year_levels: ['3rd Year'] } }) });
+    await route.fulfill({ contentType: 'application/json', body: JSON.stringify({ data: [account], current_page: currentPage, per_page: 10, total: 17, last_page: 2, summary: { total_students: 17, students_owing: 5, students_cleared: 12, students_overdue: 1, total_outstanding: 1000 }, filter_options: { departments: ['Computing'], programs: ['BSIT'], year_levels: ['3rd Year'] } }) });
   });
 
   await page.goto('/dashboard/finance/student-accounts');

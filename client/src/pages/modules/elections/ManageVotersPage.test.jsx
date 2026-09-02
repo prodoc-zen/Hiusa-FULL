@@ -26,7 +26,7 @@ describe('ManageVotersPage', () => {
   it('renders voters out of the paginated envelope', async () => {
     electionMocks.getElectionVoters.mockResolvedValue({
       current_page: 1,
-      per_page: 20,
+      per_page: 10,
       total: 2,
       data: [
         { school_id: '2021-00142', first_name: 'Juan', last_name: 'Dela Vega', email: 'juan@hiusa.local', has_voted: true },
@@ -56,7 +56,7 @@ describe('ManageVotersPage', () => {
   it('takes the headline counts from the summary rather than the loaded page', async () => {
     electionMocks.getElectionVoters.mockResolvedValue({
       current_page: 1,
-      per_page: 20,
+      per_page: 10,
       total: 320,
       data: [
         { school_id: '2021-00142', first_name: 'Juan', last_name: 'Dela Vega', email: 'juan@hiusa.local', has_voted: true },

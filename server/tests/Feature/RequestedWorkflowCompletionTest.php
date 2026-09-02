@@ -7,10 +7,12 @@ use App\Models\Budget;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -20,11 +22,17 @@ class RequestedWorkflowCompletionTest extends TestCase
 
     private function user(string $role, ?int $organizationId = null): User
     {
-        return User::factory()->create([
+        $user = User::factory()->create([
             'role' => $role,
+            'position_title' => $role === 'SBO_OFFICER' ? 'President' : null,
             'organization_id' => $organizationId ?? Organization::factory(),
             'account_status' => 'active',
         ]);
+        if ($role === 'SBO_OFFICER') {
+            SboPosition::updateOrCreate(['organization_id' => $user->organization_id, 'role' => $role, 'title' => 'President'], ['is_active' => true]);
+        }
+
+        return $user;
     }
 
     public function test_transaction_search_runs_server_side_across_the_organization_ledger(): void
@@ -48,7 +56,7 @@ class RequestedWorkflowCompletionTest extends TestCase
         }
 
         Sanctum::actingAs($admin);
-        $this->getJson('/api/transactions?search=leadership&per_page=1')
+        $this->getJson('/api/transactions?search=leadership&per_page=10')
             ->assertOk()
             ->assertJsonPath('total', 1)
             ->assertJsonPath('data.0.description', 'Leadership summit venue');
@@ -73,7 +81,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'status' => 'approved',
         ]);
 
-        foreach ([now()->subMonths(2)->startOfMonth(), now()->startOfMonth()] as $date) {
+        foreach ([now()->startOfMonth()->subMonths(2), now()->startOfMonth()] as $date) {
             Transaction::create([
                 'organization_id' => $admin->organization_id,
                 'recorded_by' => $admin->school_id,
@@ -120,10 +128,26 @@ class RequestedWorkflowCompletionTest extends TestCase
             'payment_reference' => '1234567890123',
             'payment_proof' => $proof,
         ], ['Accept' => 'application/json'])->assertOk();
-        $paymentPath = public_path(ltrim($payment->json('payment_proof_url'), '/'));
+        $paymentPath = $payment->json('payment_proof_url');
+        $this->assertTrue(Storage::disk('local')->exists($paymentPath));
 
         try {
+            $proofResponse = $this->get("/api/orders/{$orderId}/payment-proof")
+                ->assertOk()
+                ->assertHeader('X-Content-Type-Options', 'nosniff');
+            $this->assertStringContainsString('private', $proofResponse->headers->get('Cache-Control'));
+            $this->assertStringContainsString('no-store', $proofResponse->headers->get('Cache-Control'));
+
+            $otherStudent = $this->user('STUDENT', $buyer->organization_id);
+            Sanctum::actingAs($otherStudent);
+            $this->getJson("/api/orders/{$orderId}/payment-proof")->assertForbidden();
+
+            $otherOrganizationStudent = $this->user('STUDENT');
+            Sanctum::actingAs($otherOrganizationStudent);
+            $this->getJson("/api/orders/{$orderId}/payment-proof")->assertNotFound();
+
             Sanctum::actingAs($officer);
+            $this->get("/api/orders/{$orderId}/payment-proof")->assertOk();
             $this->patchJson("/api/orders/{$orderId}/status", [
                 'status' => 'paid',
                 'verified_amount' => 249,
@@ -145,9 +169,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             $this->postJson('/api/orders/claim', ['claim_token' => $token])->assertOk();
             $this->postJson('/api/orders/claim', ['claim_token' => $token])->assertConflict();
         } finally {
-            if (is_file($paymentPath)) {
-                unlink($paymentPath);
-            }
+            Storage::disk('local')->delete($paymentPath);
         }
     }
 
