@@ -61,6 +61,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [tasks, setTasks] = useState([]);
   const [tasksMeta, setTasksMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [allTasks, setAllTasks] = useState([]);
+  const [statusTotals, setStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
   const [officers, setOfficers] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -101,20 +102,17 @@ export default function TasksPage({ initialTab = 'board' }) {
     setError(null);
     const usersRequest = canManageTasks ? fetchAllPages(getUsers, { role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
     const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]);
-    // Stat cards, status counts, officer workload and the AI ranking view all need
-    // the COMPLETE task set (every status, not one filtered page), so it is fetched
-    // once in full and reused; the board table itself pages on the server with the
-    // active status/assignee/event/type filters sent along.
+    // The board table pages on the server with the active status/assignee/event/type
+    // filters; the complete task set (status totals, workload, ranking) is fetched
+    // separately in loadTotals() so paging and filter changes here don't re-walk it.
     Promise.all([
       getTasks({ page, per_page: pageSize, ...serverFilters }),
-      fetchAllPages((p) => getTasks(p).then((r) => r.data)),
       usersRequest,
       eventsRequest,
     ])
-      .then(([taskRes, fullTasks, allUsers, eventList]) => {
+      .then(([taskRes, allUsers, eventList]) => {
         setTasks(unwrapList(taskRes.data));
         setTasksMeta(listMeta(taskRes.data));
-        setAllTasks(fullTasks);
         setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER' && u.position_title?.trim()));
         setEvents(eventList);
       })
@@ -122,7 +120,32 @@ export default function TasksPage({ initialTab = 'board' }) {
       .finally(() => setLoading(false));
   }
 
+  // Status counts come from four small per-status totals-only requests (exact,
+  // never truncated) rather than array length off a walked table; the walked
+  // table itself (allTasks) still backs officer workload and the AI ranking view
+  // and is kept in its own effect so board paging/filtering never re-triggers it.
+  function loadTotals() {
+    Promise.all([
+      getTasks({ status: 'pending', per_page: 1 }),
+      getTasks({ status: 'in_progress', per_page: 1 }),
+      getTasks({ status: 'completed', per_page: 1 }),
+      getTasks({ status: 'overdue', per_page: 1 }),
+      fetchAllPages((p) => getTasks(p).then((r) => r.data)),
+    ])
+      .then(([pendingRes, inProgressRes, completedRes, overdueRes, fullTasks]) => {
+        setStatusTotals({
+          pending: listMeta(pendingRes.data).total,
+          in_progress: listMeta(inProgressRes.data).total,
+          completed: listMeta(completedRes.data).total,
+          overdue: listMeta(overdueRes.data).total,
+        });
+        setAllTasks(fullTasks);
+      })
+      .catch(() => {});
+  }
+
   useEffect(load, [canManageTasks, page, serverFilters]);
+  useEffect(loadTotals, [canManageTasks]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -148,6 +171,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       setCreateSuccess(`Task “${res.data.title}” was created${res.data.assignee ? ` and assigned to ${res.data.assignee.first_name} ${res.data.assignee.last_name}` : ''}.`);
       setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       load();
+      loadTotals();
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to create task.');
     } finally {
@@ -163,8 +187,16 @@ export default function TasksPage({ initialTab = 'board' }) {
         ...(progressNote?.trim() ? { progress_note: progressNote.trim() } : {}),
         ...(progressPercent !== null ? { progress_percent: Number(progressPercent) } : {}),
       });
+      const previousStatus = allTasks.find((t) => t.id === id)?.status ?? tasks.find((t) => t.id === id)?.status;
       setTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
       setAllTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
+      if (previousStatus && previousStatus !== res.data.status) {
+        setStatusTotals((totals) => ({
+          ...totals,
+          [previousStatus]: Math.max(0, (totals[previousStatus] ?? 0) - 1),
+          [res.data.status]: (totals[res.data.status] ?? 0) + 1,
+        }));
+      }
       setSelectedTask((current) => (current?.id === id ? res.data : current));
       return res.data;
     } catch (err) {
@@ -189,10 +221,10 @@ export default function TasksPage({ initialTab = 'board' }) {
     }
   }
 
-  // Stat cards, workload, and the AI ranking view read the complete task set
-  // (allTasks), never the loaded board page - /tasks paginates at 20/page by
-  // default, and this org's real task count can exceed that easily.
-  const counts = allTasks.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
+  // Stat cards read the exact per-status totals fetched by loadTotals(), never
+  // the loaded board page or a truncated walk of the whole table.
+  const counts = statusTotals;
+  const totalTasksCount = Object.values(statusTotals).reduce((sum, n) => sum + n, 0);
 
   // /tasks has no text-search filter, so search narrows only the page on screen;
   // status/assignee/event/type are applied server-side in load().
@@ -233,7 +265,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     <div className="space-y-6">
       {activeTab !== 'create' && <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          { label: 'Total Tasks', value: allTasks.length, helper: 'All time', icon: ListChecks },
+          { label: 'Total Tasks', value: totalTasksCount, helper: 'All time', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },

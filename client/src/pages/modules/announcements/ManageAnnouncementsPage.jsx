@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Eye, Search, Trash2, X } from 'lucide-react';
 import { Badge, SectionHeader, StatusBadge } from './announcementShared.jsx';
 import PaginationControls from '../../../components/PaginationControls';
@@ -8,7 +8,7 @@ import {
   togglePublish,
   deleteAnnouncement,
 } from '../../../services/announcementService';
-import { listMeta, unwrapList } from '../../../services/pagination';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -96,24 +96,27 @@ export default function ManageAnnouncementsPage() {
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
+  const [exporting, setExporting] = useState(false);
   const currentRole = getCurrentRole();
   const currentUserId = getCurrentUserId();
+
+  // Hoisted so the CSV export can reuse the exact same filter set as the
+  // loaded page, without page/per_page, via fetchAllPages.
+  const queryParams = useMemo(() => ({
+    category: categoryFilter === 'all' ? undefined : categoryFilter,
+    target_role: audienceFilter === 'all' ? undefined : audienceFilter,
+    publication_status: statusFilter === 'all' ? undefined : statusFilter,
+    search: search || undefined,
+    from: from || undefined,
+    to: to || undefined,
+    sort,
+  }), [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
 
   const loadAnnouncements = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const params = {
-      category: categoryFilter === 'all' ? undefined : categoryFilter,
-      target_role: audienceFilter === 'all' ? undefined : audienceFilter,
-      publication_status: statusFilter === 'all' ? undefined : statusFilter,
-      search: search || undefined,
-      from: from || undefined,
-      to: to || undefined,
-      sort,
-      page,
-    };
-    getAnnouncements(params)
+    getAnnouncements({ ...queryParams, page })
       .then((res) => {
         if (cancelled) return;
         setItems(unwrapList(res.data));
@@ -122,7 +125,19 @@ export default function ManageAnnouncementsPage() {
       .catch(() => { if (!cancelled) setError('Failed to load announcements.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [categoryFilter, audienceFilter, statusFilter, search, from, to, sort, page]);
+  }, [queryParams, page]);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const all = await fetchAllPages((params) => getAnnouncements(params).then((res) => res.data), queryParams);
+      exportAnnouncements(all);
+    } catch {
+      setError('Failed to export announcements. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(loadAnnouncements, 250);
@@ -196,7 +211,7 @@ export default function ManageAnnouncementsPage() {
 
   return (
     <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3"><SectionHeader title="Announcement Intelligence" /><button onClick={() => exportAnnouncements(items)} disabled={!items.length} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> Export CSV</button></div>
+      <div className="flex flex-wrap items-start justify-between gap-3"><SectionHeader title="Announcement Intelligence" /><button onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div>
       <div className="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-7">
         <label className="relative xl:col-span-2"><Search size={14} className="absolute left-3 top-3.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, content, author..." className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-xs outline-none focus:border-[#0B8ED0]" /></label>
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">

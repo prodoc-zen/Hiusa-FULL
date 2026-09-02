@@ -98,6 +98,7 @@ export default function AdminUsersPage() {
   const [sboPositions, setSboPositions] = useState([]);
   const [academicStructure, setAcademicStructure] = useState({ department: '', programs: [] });
   const pageSize = 10;
+  const loadRequestRef = useRef(0);
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [editForm, setEditForm] = useState(emptyEditForm);
@@ -121,6 +122,11 @@ export default function AdminUsersPage() {
   };
 
   async function load() {
+    // Filter changes and the page-1 reset they trigger race two requests against
+    // each other; only the one still current when it resolves may write state, so
+    // a stale filter-change request landing after the page-reset request can't
+    // leave the table showing page N while `page` state (and the footer) say 1.
+    const requestId = ++loadRequestRef.current;
     setLoading(true);
     setError('');
     try {
@@ -131,15 +137,16 @@ export default function AdminUsersPage() {
         getSboPositions().catch(() => null),
         getAcademicStructure().catch(() => null),
       ]);
+      if (loadRequestRef.current !== requestId) return;
       setUsers(unwrapList(usersRes));
       setMeta(listMeta(usersRes));
       setRoleSummary(usersRes?.summary?.by_role ?? {});
       setSboPositions(Array.isArray(positions) ? positions : []);
       if (structure) setAcademicStructure(structure || { department: '', programs: [] });
     } catch {
-      setError('Unable to load users.');
+      if (loadRequestRef.current === requestId) setError('Unable to load users.');
     } finally {
-      setLoading(false);
+      if (loadRequestRef.current === requestId) setLoading(false);
     }
   }
 

@@ -506,9 +506,11 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     }
 
     try {
-      // per_page is capped at 100 server-side, so a full export walks every page
-      // instead of asking for 1000 rows in one shot (that now fails validation).
-      const all = await fetchAllPages((p) => getTransactions(p).then((r) => r.data));
+      // /transactions only accepts per_page=10 (any other value 422s), so a full
+      // export walks every page at that size instead of asking for a bigger
+      // page in one shot. maxPages is raised well past the 50-page default so a
+      // semester (or the full log) isn't silently capped at 500 rows.
+      const all = await fetchAllPages((p) => getTransactions(p).then((r) => r.data), {}, { perPage: 10, maxPages: 500 });
 
       const toRow = (tx) => ({
         Date: tx.transaction_date,
