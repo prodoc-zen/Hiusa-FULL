@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Budget;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
@@ -31,7 +32,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
     {
         $admin = $this->user('ADMIN');
         foreach ([
-            ['period' => now()->subMonth()->startOfMonth(), 'type' => 'income', 'amount' => 1000],
+            ['period' => now()->startOfMonth()->subMonth(), 'type' => 'income', 'amount' => 1000],
             ['period' => now()->startOfMonth(), 'type' => 'income', 'amount' => 1200],
         ] as $row) {
             Transaction::create([
@@ -130,11 +131,17 @@ class HiusaAiServiceIntegrationTest extends TestCase
 
     private function user(string $role, ?int $organizationId = null): User
     {
-        return User::factory()->create([
+        $user = User::factory()->create([
             'role' => $role,
+            'position_title' => $role === 'SBO_OFFICER' ? 'President' : null,
             'organization_id' => $organizationId ?? Organization::factory(),
             'account_status' => 'active',
         ]);
+        if ($role === 'SBO_OFFICER') {
+            SboPosition::updateOrCreate(['organization_id' => $user->organization_id, 'role' => $role, 'title' => 'President'], ['is_active' => true]);
+        }
+
+        return $user;
     }
 
     private function adviceResponse(): array

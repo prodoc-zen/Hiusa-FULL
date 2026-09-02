@@ -8,6 +8,7 @@ use App\Http\Controllers\TaskController;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
@@ -312,7 +313,10 @@ class AiFallbackParityTest extends TestCase
         $monthsAgo = count($incomeExpensePairs) - 1;
 
         foreach ($incomeExpensePairs as [$income, $expense]) {
-            $period = now()->subMonths($monthsAgo)->startOfMonth();
+            // Start at a month boundary before subtracting so dates such as
+            // August 31 cannot overflow into duplicate months (for example,
+            // "four months ago" becoming May 1 instead of April 1).
+            $period = now()->startOfMonth()->subMonths($monthsAgo);
 
             Transaction::create([
                 'organization_id' => $admin->organization_id,
@@ -491,11 +495,17 @@ class AiFallbackParityTest extends TestCase
 
     private function user(string $role, ?int $organizationId = null, ?string $positionTitle = null): User
     {
-        return User::factory()->create([
+        $user = User::factory()->create([
             'role' => $role,
             'organization_id' => $organizationId ?? Organization::factory(),
             'account_status' => 'active',
             'position_title' => $positionTitle,
         ]);
+
+        if ($role === 'SBO_OFFICER' && $positionTitle) {
+            SboPosition::updateOrCreate(['organization_id' => $user->organization_id, 'role' => $role, 'title' => $positionTitle], ['is_active' => true]);
+        }
+
+        return $user;
     }
 }

@@ -1,12 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
-import { Eye, PencilLine, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { CircleCheck, CircleX, Download, Eye, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import { createUser, disableUser, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
+import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
-import { listMeta, unwrapList } from '../../../services/pagination';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const ROLE_LABELS = {
@@ -15,12 +15,14 @@ const ROLE_LABELS = {
   ADMIN: 'Admin',
   DEPARTMENT_HEAD: 'Department Head',
 };
+const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
 
 const emptyCreateForm = {
   school_id: '',
   first_name: '',
   last_name: '',
   email: '',
+  contact_number: '',
   role: 'STUDENT',
   position_title: '',
   department: '',
@@ -36,6 +38,7 @@ const emptyEditForm = {
   first_name: '',
   last_name: '',
   email: '',
+  contact_number: '',
   role: 'STUDENT',
   position_title: '',
   department: '',
@@ -66,10 +69,17 @@ function firstError(error) {
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
+  const [roleSummary, setRoleSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
+  const [departmentFilter, setDepartmentFilter] = useState('all');
+  const [programFilter, setProgramFilter] = useState('all');
+  const [yearLevelFilter, setYearLevelFilter] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
+  const [statusFilter, setStatusFilter] = useState('all');
+  const [sort, setSort] = useState('name');
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -81,10 +91,12 @@ export default function AdminUsersPage() {
   const profileRequestRef = useRef(0);
   const [disableTarget, setDisableTarget] = useState(null);
   const [reactivateTarget, setReactivateTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [page, setPage] = useState(1);
   const [sboPositions, setSboPositions] = useState([]);
+  const [academicStructure, setAcademicStructure] = useState({ department: '', programs: [] });
   const pageSize = 10;
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
@@ -97,22 +109,33 @@ export default function AdminUsersPage() {
     return () => clearTimeout(timeout);
   }, [search]);
 
+  // Shared by load() and export(): every filter maps onto a /users query parameter.
+  const userQuery = {
+    ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
+    ...(statusFilter !== 'all' ? { account_status: statusFilter } : {}),
+    ...(departmentFilter !== 'all' ? { department: departmentFilter } : {}),
+    ...(programFilter !== 'all' ? { program: programFilter } : {}),
+    ...(yearLevelFilter !== 'all' ? { year_level: yearLevelFilter } : {}),
+    ...(sectionFilter !== 'all' ? { section: sectionFilter } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+  };
+
   async function load() {
     setLoading(true);
     setError('');
     try {
-      const [usersRes, positions] = await Promise.all([
-        getUsers({
-          ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
-          ...(debouncedSearch ? { search: debouncedSearch } : {}),
-          page,
-          per_page: pageSize,
-        }),
-        getSboPositions(),
+      // Positions and the academic structure are best-effort: a hiccup there must
+      // not blank the user table, so each falls back to null instead of rejecting.
+      const [usersRes, positions, structure] = await Promise.all([
+        getUsers({ ...userQuery, page, per_page: pageSize }),
+        getSboPositions().catch(() => null),
+        getAcademicStructure().catch(() => null),
       ]);
       setUsers(unwrapList(usersRes));
       setMeta(listMeta(usersRes));
+      setRoleSummary(usersRes?.summary?.by_role ?? {});
       setSboPositions(Array.isArray(positions) ? positions : []);
+      if (structure) setAcademicStructure(structure || { department: '', programs: [] });
     } catch {
       setError('Unable to load users.');
     } finally {
@@ -121,13 +144,36 @@ export default function AdminUsersPage() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [roleFilter, debouncedSearch, page]);
+  useEffect(() => { load(); }, [roleFilter, statusFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, debouncedSearch, page]);
 
   const refreshUsers = load;
 
+  // Every filter is applied server-side, so any change goes back to page 1.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, roleFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter]);
+
+  // /users has no sort parameter, so sort orders the page on screen.
+  const sortedUsers = useMemo(() => [...users].sort((left, right) => {
+    if (sort === 'newest') return new Date(right.created_at || 0) - new Date(left.created_at || 0);
+    if (sort === 'school_id') return String(left.school_id).localeCompare(String(right.school_id), undefined, { numeric: true });
+      if (sort === 'program') return String(left.program || '').localeCompare(String(right.program || '')) || String(left.year_level || '').localeCompare(String(right.year_level || '')) || String(left.section || '').localeCompare(String(right.section || ''));
+    return `${left.last_name} ${left.first_name}`.localeCompare(`${right.last_name} ${right.first_name}`);
+  }), [users, sort]);
+
+  const exportUsers = async () => {
+    // Export every user matching the active filters; the table shows one page.
+    const exportRows = await fetchAllPages(getUsers, userQuery);
+    const headers = ['School ID', 'Last Name', 'First Name', 'Email', 'Role', 'Position', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Account Status', 'Created At', 'Updated At'];
+    const rows = exportRows.map((user) => [user.school_id, user.last_name, user.first_name, user.email, user.role, user.position_title, user.department, user.program, user.major, user.year_level, user.section, user.account_status, user.created_at, user.updated_at]);
+    const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a'); link.href = url; link.download = `user-register-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
+  };
+
 
   const openCreate = () => {
-    setCreateForm(emptyCreateForm);
+    setCreateForm({ ...emptyCreateForm, department: academicStructure.department || 'College of Computer Studies' });
     setModalError('');
     setShowCreate(true);
   };
@@ -145,6 +191,7 @@ export default function AdminUsersPage() {
       first_name: user.first_name,
       last_name: user.last_name,
       email: user.email,
+      contact_number: user.contact_number || '',
       role: user.role,
       position_title: user.position_title || '',
       department: user.department || '',
@@ -192,7 +239,7 @@ export default function AdminUsersPage() {
     try {
       await createUser({
         ...createForm,
-        position_title: createForm.role === 'SBO_OFFICER' ? createForm.position_title : '',
+        position_title: ['ADMIN', 'SBO_OFFICER'].includes(createForm.role) ? createForm.position_title : '',
       });
       setShowCreate(false);
       setCreateForm(emptyCreateForm);
@@ -217,7 +264,7 @@ export default function AdminUsersPage() {
       delete editableFields.school_id;
       await updateUser(selectedUser.id, {
         ...editableFields,
-        position_title: editForm.role === 'SBO_OFFICER' ? editForm.position_title : '',
+        position_title: ['ADMIN', 'SBO_OFFICER'].includes(editForm.role) ? editForm.position_title : '',
       });
       setSelectedUser(null);
       await refreshUsers();
@@ -265,6 +312,20 @@ export default function AdminUsersPage() {
     }
   };
 
+  const handleDelete = async () => {
+    if (!deleteTarget) return;
+    setError(''); setBusy(true);
+    try {
+      await deleteUser(deleteTarget.id);
+      await refreshUsers();
+      setFeedback({ open: true, type: 'success', message: `${deleteTarget.first_name} ${deleteTarget.last_name} was permanently deleted.` });
+      setDeleteTarget(null);
+    } catch (deleteError) {
+      setError(firstError(deleteError) || 'Unable to delete this user because linked records may still exist.');
+      setDeleteTarget(null);
+    } finally { setBusy(false); }
+  };
+
   const userForm = (form, setForm, mode) => (
     <form id={`${mode}-user-form`} onSubmit={mode === 'create' ? handleCreate : handleEdit} className="grid gap-3 sm:grid-cols-2">
       <Field label="School ID">
@@ -282,6 +343,9 @@ export default function AdminUsersPage() {
       <Field label="Email">
         <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
+      {form.role === 'STUDENT' && <Field label="Contact Number">
+        <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>}
       <Field label="First Name">
         <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
@@ -289,36 +353,34 @@ export default function AdminUsersPage() {
         <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
       <Field label="Role">
-        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: event.target.value === 'SBO_OFFICER' ? form.position_title : '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
           {roles.map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
         </select>
       </Field>
-      <Field label="SBO Position">
+      <Field label="Organization Position">
         <select
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
-          disabled={form.role !== 'SBO_OFFICER'}
+          disabled={!['ADMIN', 'SBO_OFFICER'].includes(form.role)}
           className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
         >
-          <option value="">Assign SBO position</option>
-          {sboPositions.filter((position) => position.is_active).map((position) => (
+          <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
+          {sboPositions.filter((position) => position.is_active && position.role === form.role).map((position) => (
             <option key={position.id} value={position.title}>{position.title}</option>
           ))}
         </select>
       </Field>
-      <Field label="Department">
-        <input value={form.department} onChange={(event) => setForm({ ...form, department: event.target.value })} placeholder="e.g. College of Computing" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-      </Field>
+      <Field label="Department"><input value={academicStructure.department || 'College of Computer Studies'} readOnly className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-slate-100 px-3 text-sm text-slate-500" /></Field>
       <Field label="Course / Program">
-        <input value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value })} placeholder="e.g. BS Information Technology" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+        <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
       </Field>
       <Field label="Year Level">
-        <input value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value })} placeholder="e.g. 3rd Year" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+        <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a year level</option>{YEAR_LEVELS.map((year) => <option key={year}>{year}</option>)}</select>
       </Field>
       <Field label="Major / Specialization"><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
-      <Field label="Section"><input value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} placeholder="Optional section" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
+      <Field label="Section"><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === YEAR_LEVELS.indexOf(form.year_level) + 1).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
       {mode === 'create' && (
         <>
           <Field label="Password">
@@ -348,13 +410,10 @@ export default function AdminUsersPage() {
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">User Management</h2>
             <p className="mt-1 text-sm text-slate-500">View, search, filter, add, update, deactivate, and reactivate user accounts.</p>
           </div>
-          <button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]">
-            <UserPlus size={15} />
-            New User
-          </button>
+          <div className="flex gap-2"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>
         </div>
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_auto]">
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <input
             value={search}
             onChange={(event) => { setSearch(event.target.value); setPage(1); }}
@@ -371,7 +430,17 @@ export default function AdminUsersPage() {
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </select>
+          <select aria-label="Filter by department" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All departments</option>{academicStructure.department && <option value={academicStructure.department}>{academicStructure.department}</option>}</select>
+          <select aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
+          <select aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{YEAR_LEVELS.map((year) => <option key={year}>{year}</option>)}</select>
+          <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === YEAR_LEVELS.indexOf(yearLevelFilter) + 1).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
+          <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
+          <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
+          ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['SBO Officers', roleSummary.SBO_OFFICER ?? 0], ['Admins', roleSummary.ADMIN ?? 0],
+        ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p></div>)}</div>
+        <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setDepartmentFilter('all'); setProgramFilter('all'); setYearLevelFilter('all'); setSectionFilter('all'); setStatusFilter('all'); setSort('name'); }} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-slate-600">Reset filters</button></div>
       </section>
 
       {error && (
@@ -380,15 +449,15 @@ export default function AdminUsersPage() {
 
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left">
+          <table className="w-full min-w-[940px] text-left">
             <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <tr>
                 <th className="px-4 py-3">School ID</th>
                 <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Email</th>
                 <th className="px-4 py-3">Role</th>
-                <th className="px-4 py-3">SBO Position</th>
-                <th className="px-4 py-3">Student Profile</th>
+                <th className="px-4 py-3">Program / Major</th>
+                <th className="px-4 py-3">Year Level</th>
+                <th className="px-4 py-3">Section</th>
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Actions</th>
               </tr>
@@ -403,52 +472,37 @@ export default function AdminUsersPage() {
                   ))}
                 </tr>
               ))}
-              {!loading && users.map((user) => (
+              {!loading && sortedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
-                  <td className="px-4 py-3.5 text-xs text-[#64748B]">{user.email}</td>
                   <td className="px-4 py-3.5">
                     <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0B8ED0]">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
-                  <td className="px-4 py-3.5 text-xs text-[#64748B]">{user.role === 'SBO_OFFICER' ? (user.position_title || '-') : '-'}</td>
-                  <td className="px-4 py-3.5 text-xs text-[#64748B]">
-                    {user.department || user.program || user.year_level ? <div className="space-y-0.5"><p className="font-semibold text-slate-700">{user.department || 'Department not recorded'}</p><p>{user.program || 'Course not recorded'} · {user.major || 'No major'} · {user.year_level || 'Year not recorded'}{user.section ? ` · ${user.section}` : ''}</p></div> : '-'}
+                  <td className="px-4 py-3.5 text-xs text-[#64748B]"><p className="font-semibold text-slate-700">{user.program || '-'}</p>{user.major && <p className="mt-0.5">{user.major}</p>}</td>
+                  <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.year_level || '-'}</td>
+                  <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.section || '-'}</td>
+                  <td className="px-4 py-3.5">
+                    {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-emerald-600" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
                   </td>
                   <td className="px-4 py-3.5">
-                    <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>
-                      {user.account_status || 'active'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3.5">
-                    <div className="flex gap-2">
-                      <button onClick={() => openEdit(user)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-2 text-xs font-semibold text-slate-600 hover:bg-[#EEF6FB]">
-                        <PencilLine size={13} />
-                        Edit
-                      </button>
-                      <button onClick={() => openProfile(user)} className="inline-flex items-center gap-1 rounded-md border border-[#B9D9E9] bg-[#EEF6FB] px-2.5 py-2 text-xs font-semibold text-[#0878B7] hover:bg-[#DDF2FB]">
-                        <Eye size={13} />
-                        View
-                      </button>
+                    <div className="flex gap-1.5">
+                      <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>
+                      <button aria-label={`View ${user.first_name} ${user.last_name}`} title="View user" onClick={() => openProfile(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]"><Eye size={14} /></button>
                       {user.role !== 'ADMIN' && user.account_status !== 'disabled' && (
-                        <button onClick={() => setDisableTarget(user)} className="inline-flex items-center gap-1 rounded-md border border-amber-200 bg-amber-50 px-2.5 py-2 text-xs font-semibold text-amber-700 hover:bg-amber-100">
-                          <UserX size={13} />
-                          Deactivate
-                        </button>
+                        <button aria-label={`Deactivate ${user.first_name} ${user.last_name}`} title="Deactivate user" onClick={() => setDisableTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"><UserX size={14} /></button>
                       )}
                       {user.account_status !== 'active' && (
-                        <button onClick={() => setReactivateTarget(user)} className="inline-flex items-center gap-1 rounded-md border border-emerald-200 bg-emerald-50 px-2.5 py-2 text-xs font-semibold text-emerald-700 hover:bg-emerald-100">
-                          <UserCheck size={13} />
-                          Reactivate
-                        </button>
+                        <button aria-label={`Reactivate ${user.first_name} ${user.last_name}`} title="Reactivate user" onClick={() => setReactivateTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><UserCheck size={14} /></button>
                       )}
+                      {user.role !== 'ADMIN' && <button aria-label={`Delete ${user.first_name} ${user.last_name}`} title="Delete user" onClick={() => setDeleteTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
               ))}
               {!loading && users.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
                     {meta.total === 0 ? 'No users found.' : 'No users on this page.'}
                   </td>
                 </tr>
@@ -476,9 +530,9 @@ export default function AdminUsersPage() {
         {profileUser && <div className="space-y-5">
           <div className="grid gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
-              ['Email', profileUser.email], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
+              ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
-              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['SBO position', profileUser.position_title || 'Not assigned'],
+              ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'],
             ].map(([label, value]) => <div key={label}><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></div>)}
           </div>
           {profileUser.role === 'STUDENT' && <section>
@@ -553,6 +607,18 @@ export default function AdminUsersPage() {
         busy={busy}
         onCancel={() => !busy && setReactivateTarget(null)}
         onConfirm={handleReactivate}
+      />
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete User Permanently"
+        message="This removes the account permanently. The system will block deletion if the user has linked operational records."
+        recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''}
+        confirmText="Delete User"
+        variant="danger"
+        busy={busy}
+        onCancel={() => !busy && setDeleteTarget(null)}
+        onConfirm={handleDelete}
       />
     </div>
   );

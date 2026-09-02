@@ -22,11 +22,13 @@ class SboPositionSeeder extends Seeder
         ];
 
         Organization::all(['id'])->each(function (Organization $organization) use ($positions) {
-            foreach ($positions as $title) {
-                SboPosition::updateOrCreate(
-                    ['organization_id' => $organization->id, 'title' => $title],
-                    ['is_active' => true]
-                );
+            foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
+                foreach ($positions as $title) {
+                    SboPosition::updateOrCreate(
+                        ['organization_id' => $organization->id, 'role' => $role, 'title' => $title],
+                        ['is_active' => true]
+                    );
+                }
             }
         });
     }

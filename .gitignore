@@ -6,6 +6,11 @@ rrl-instructions.md
 rrl.txt
 HIUSA-EXCESS
 
+# EC2/Docker production secrets. Track only the matching *.example templates.
+/.env
+/server/.env.production
+/ai-service/.env.production
+
 # Logs and captured shell output - never source of truth, machine-specific
 *.log
 

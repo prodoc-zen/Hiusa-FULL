@@ -5,7 +5,8 @@
 **Manage Merchandise Orders and Fulfillment**
 |-- <<include>> Load Pending Orders
 |-- <<include>> View Order Details
-|   `-- <<include>> View Details
+|   |-- <<include>> View Details
+|   `-- <<include>> View Review Trail
 |-- <<include>> Verify Payment Submission
 |   |-- <<include>> View Payment Proof
 |   |-- <<include>> Match Payment Amount
@@ -33,9 +34,9 @@
 
 - **Role Access:** Admin and SBO Officer can access order fulfillment and token validation.
 - **Load Pending Orders:** `GET /orders` loads organization orders for fulfillment roles.
-- **View Order Details:** order rows include buyer, item, quantity, total, review status, payment reference, proof, and claim token for fulfillment staff.
-- **Verify Payment Submission:** order records store payment method, payment reference, and payment proof URL.
-- **Approve Payment:** an SBO Officer submits the payment review to Admin; Admin approval creates/links a receipt transaction, releases the claim token, and notifies the buyer.
+- **View Order Details:** order rows include buyer, item, quantity, total, review status, payment reference, proof, and claim token for fulfillment staff. The detail panel loads the organization-scoped order audit history and shows each payment-review and fulfillment action with its actor and timestamp.
+- **Verify Payment Submission:** order records store the payment method, reference, and a private proof path. New proofs are kept outside the public web root. `GET /orders/{id}/payment-proof` streams a proof only to the organization-scoped buyer or an ADMIN/SBO_OFFICER reviewer, while unrelated same-organization users receive 403 and cross-organization lookups receive 404. Legacy proof files remain readable only through the same authorization gate and the production proxy blocks their former public URL prefix.
+- **Approve Payment:** an SBO Officer may submit payment review to Admin through the approval queue. An Admin may also approve or reject directly from Manage Orders, bypassing the officer review. Direct Admin approval remains amount/proof validated, audit logged, resolves any pending payment approval request, creates/links the receipt transaction, releases the claim token, and notifies the buyer.
 - **Reject Payment:** cancelling an order stores review remarks, restores stock when needed, and notifies the buyer.
 - **Validate Claim Token:** `POST /orders/claim` rejects invalid, unpaid, or already claimed tokens.
 - **Release Merchandise Item:** successful claim marks the order as claimed and records verifier/timestamp.

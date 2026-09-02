@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AcademicStructureController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
@@ -48,6 +49,11 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/sbo-positions', [SboPositionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/sbo-positions', [SboPositionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/sbo-positions/{position}', [SboPositionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::delete('/sbo-positions/{position}', [SboPositionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::get('/academic-structure', [AcademicStructureController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN']);
+    Route::post('/academic-structure/programs', [AcademicStructureController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::put('/academic-structure/programs/{program}', [AcademicStructureController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::delete('/academic-structure/programs/{program}', [AcademicStructureController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
@@ -135,6 +141,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/{id}/audit-logs', [OrderController::class, 'auditHistory'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/orders/claim', [OrderController::class, 'claimByToken'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::get('/orders/analytics/users', [OrderController::class, 'analyticsUsers'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
+    Route::get('/orders/export', [OrderController::class, 'export'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
+    Route::get('/orders/{id}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
