@@ -45,6 +45,8 @@ class PaginationContractTest extends TestCase
         ]);
         $this->assertSame($expectedPerPage, (int) $response->json('per_page'));
         $this->assertSame($expectedTotal, (int) $response->json('total'));
+        $expectedLastPage = (int) max(1, (int) ceil($expectedTotal / $expectedPerPage));
+        $this->assertSame($expectedLastPage, (int) $response->json('last_page'));
     }
 
     private function assertPagesDisjoint(array $page1Ids, array $page2Ids): void
@@ -102,12 +104,53 @@ class PaginationContractTest extends TestCase
         $this->assertSame(5, (int) $custom->json('per_page'));
         $custom->assertJsonCount(5, 'data');
 
+        $this->getJson('/api/announcements?per_page=100')->assertOk();
         $this->getJson('/api/announcements?per_page=101')->assertStatus(422);
     }
 
     public function test_announcements_index_requires_authentication(): void
     {
         $this->getJson('/api/announcements')->assertUnauthorized();
+    }
+
+    public function test_announcements_index_narrows_total_by_publication_and_target_role_for_students(): void
+    {
+        $org = $this->organization();
+        $admin = $this->actor($org->id, 'ADMIN');
+        $student = $this->actor($org->id, 'STUDENT');
+
+        // Visible to the student: published, approved, and targeted at everyone.
+        Announcement::factory()->count(6)->create([
+            'organization_id' => $org->id,
+            'created_by' => $admin->school_id,
+            'target_role' => 'all',
+            'is_published' => true,
+            'approval_status' => 'approved',
+        ]);
+        // Not yet published, so hidden from the student even though the target matches.
+        Announcement::factory()->count(7)->create([
+            'organization_id' => $org->id,
+            'created_by' => $admin->school_id,
+            'target_role' => 'all',
+            'is_published' => false,
+            'approval_status' => 'pending',
+        ]);
+        // Published and approved, but targeted at officers, not students.
+        Announcement::factory()->count(8)->create([
+            'organization_id' => $org->id,
+            'created_by' => $admin->school_id,
+            'target_role' => 'SBO_OFFICER',
+            'is_published' => true,
+            'approval_status' => 'approved',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $adminView = $this->getJson('/api/announcements');
+        $this->assertSame(21, (int) $adminView->json('total'));
+
+        Sanctum::actingAs($student);
+        $studentView = $this->getJson('/api/announcements');
+        $this->assertSame(6, (int) $studentView->json('total'));
     }
 
     // --- 2. Events ---
@@ -151,6 +194,7 @@ class PaginationContractTest extends TestCase
         $this->assertSame(5, (int) $custom->json('per_page'));
         $custom->assertJsonCount(5, 'data');
 
+        $this->getJson('/api/events?per_page=100')->assertOk();
         $this->getJson('/api/events?per_page=101')->assertStatus(422);
 
         // Students only see approved/ongoing/completed events, so the total
@@ -212,6 +256,7 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/tasks?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/tasks?per_page=100')->assertOk();
         $this->getJson('/api/tasks?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($this->actor($org->id, 'STUDENT'));
@@ -243,6 +288,7 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/budgets?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/budgets?per_page=100')->assertOk();
         $this->getJson('/api/budgets?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($this->actor($org->id, 'STUDENT'));
@@ -274,6 +320,7 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/forecasts?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/forecasts?per_page=100')->assertOk();
         $this->getJson('/api/forecasts?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($this->actor($org->id, 'STUDENT'));
@@ -317,6 +364,7 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/financial-reports?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/financial-reports?per_page=100')->assertOk();
         $this->getJson('/api/financial-reports?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($this->actor($org->id, 'STUDENT'));
@@ -350,6 +398,7 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/merchandise?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/merchandise?per_page=100')->assertOk();
         $this->getJson('/api/merchandise?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($student);
@@ -419,6 +468,7 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/approval-requests?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/approval-requests?per_page=100')->assertOk();
         $this->getJson('/api/approval-requests?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($this->actor($org->id, 'SBO_OFFICER'));
@@ -460,10 +510,12 @@ class PaginationContractTest extends TestCase
         $page2 = $this->getJson('/api/notifications?page=2');
         $page2->assertJsonCount(5, 'data');
         $this->assertPagesDisjoint($page1->json('data.*.id'), $page2->json('data.*.id'));
+        $this->assertSame(15, (int) $page2->json('unread_count'));
 
         $custom = $this->getJson('/api/notifications?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/notifications?per_page=100')->assertOk();
         $this->getJson('/api/notifications?per_page=101')->assertStatus(422);
     }
 
@@ -496,6 +548,8 @@ class PaginationContractTest extends TestCase
         $page2 = $this->getJson('/api/users?page=2');
         $page2->assertJsonCount(5, 'data');
         $this->assertPagesDisjoint($page1->json('data.*.school_id'), $page2->json('data.*.school_id'));
+        $this->assertSame(24, (int) $page2->json('summary.by_role.STUDENT'));
+        $this->assertSame(1, (int) $page2->json('summary.by_role.ADMIN'));
 
         // Filtering by role must shrink both the total and the role summary together.
         $filtered = $this->getJson('/api/users?role=STUDENT');
@@ -506,13 +560,63 @@ class PaginationContractTest extends TestCase
         $custom = $this->getJson('/api/users?per_page=5');
         $this->assertSame(5, (int) $custom->json('per_page'));
 
+        $this->getJson('/api/users?per_page=100')->assertOk();
         $this->getJson('/api/users?per_page=101')->assertStatus(422);
 
         Sanctum::actingAs($this->actor($org->id, 'STUDENT'));
         $this->getJson('/api/users')->assertForbidden();
     }
 
-    // --- 11 & 12. Deliberately left unpaginated ---
+    // --- 11. Deterministic page boundaries when sort keys tie or are null ---
+
+    /**
+     * generated_at is nullable and shared across a batch, exactly what a
+     * filesort-backed LIMIT/OFFSET on MySQL/MariaDB will reorder between
+     * pages without a unique tiebreaker. Every controller's paginated
+     * ordering now appends ->orderBy('id') (or ->orderBy('school_id') for
+     * users) for this reason - this walks every page and demands each row
+     * appear exactly once, which only holds with that tiebreaker in place.
+     */
+    public function test_financial_reports_pagination_is_stable_when_sort_keys_tie_or_are_null(): void
+    {
+        $org = $this->organization();
+        $admin = $this->actor($org->id, 'ADMIN');
+
+        $tiedAt = now();
+        for ($i = 0; $i < 30; $i++) {
+            FinancialReport::create([
+                'organization_id' => $org->id,
+                'report_type' => 'monthly',
+                'title' => "Tied Report {$i}",
+                'generated_at' => $tiedAt,
+            ]);
+        }
+        for ($i = 0; $i < 30; $i++) {
+            FinancialReport::create([
+                'organization_id' => $org->id,
+                'report_type' => 'monthly',
+                'title' => "Null Report {$i}",
+            ]);
+        }
+
+        Sanctum::actingAs($admin);
+
+        $seenIds = [];
+        for ($page = 1; $page <= 6; $page++) {
+            $response = $this->getJson("/api/financial-reports?per_page=10&page={$page}");
+            $response->assertOk();
+            $seenIds = array_merge($seenIds, $response->json('data.*.id'));
+        }
+
+        $this->assertCount(60, $seenIds);
+        $this->assertCount(
+            60,
+            array_unique($seenIds),
+            'Every row must appear exactly once across the full page walk - a missing unique tiebreaker lets a filesort-backed LIMIT/OFFSET repeat or drop rows when sort keys tie.'
+        );
+    }
+
+    // --- 12 & 13. Deliberately left unpaginated ---
 
     public function test_organizations_index_stays_a_bare_unpaginated_array(): void
     {

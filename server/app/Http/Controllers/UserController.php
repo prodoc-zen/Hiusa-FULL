@@ -77,6 +77,7 @@ class UserController extends Controller
         $paginated = $query
             ->orderBy('last_name')
             ->orderBy('first_name')
+            ->orderBy('school_id')
             ->paginate($filters['per_page'] ?? 20);
 
         return response()->json([

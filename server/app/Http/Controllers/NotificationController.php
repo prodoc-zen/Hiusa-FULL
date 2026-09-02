@@ -24,6 +24,7 @@ class NotificationController extends Controller
         $unreadCount = (clone $query)->where('is_read', false)->count();
         $notifications = $query
             ->orderByRaw('COALESCE(sent_at, created_at) DESC')
+            ->orderByDesc('id')
             ->paginate($paging['per_page'] ?? 20);
 
         return response()->json([

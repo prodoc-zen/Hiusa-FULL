@@ -32,6 +32,7 @@ class FinancialReportController extends Controller
             ])
                 ->where('organization_id', $request->user()->organization_id)
                 ->orderByDesc('generated_at')
+                ->orderByDesc('id')
                 ->paginate($paging['per_page'] ?? 20)
         );
     }

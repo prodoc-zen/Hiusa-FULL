@@ -36,7 +36,8 @@ class EventController extends Controller
                 'tasks',
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ])
-            ->orderBy('start_time', 'asc');
+            ->orderBy('start_time', 'asc')
+            ->orderBy('id');
 
         if ($user->role !== 'ADMIN') {
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
