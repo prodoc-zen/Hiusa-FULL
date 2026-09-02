@@ -249,11 +249,17 @@ class DemoDataIntegrityTest extends TestCase
                 $program,
                 "Student {$student->school_id} references program '{$student->program}', which does not exist in their organization."
             );
-            $this->assertTrue(
-                $program->sections()->where('name', $student->section)->exists(),
+            $section = $program->sections()->where('name', $student->section)->first();
+            $this->assertNotNull(
+                $section,
                 "Student {$student->school_id} references section '{$student->section}', which does not exist under '{$program->name}'."
             );
             $this->assertContains($student->year_level, ['1st Year', '2nd Year', '3rd Year', '4th Year']);
+            $this->assertSame(
+                $student->year_level,
+                ['1st Year', '2nd Year', '3rd Year', '4th Year'][(int) $section->year_level - 1],
+                "Student {$student->school_id} is in {$student->year_level} but section '{$section->name}' belongs to year {$section->year_level}."
+            );
         }
     }
 
