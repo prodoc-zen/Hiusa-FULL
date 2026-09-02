@@ -2,7 +2,7 @@
 
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
-use App\Providers\SecurityHeadersMiddleware;
+use App\Http\Middleware\SecurityHeadersMiddleware;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -25,7 +25,11 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->redirectGuestsTo(fn (Request $request) => $request->is('api/*') ? null : '/login');
         $middleware->append(LogRequestDetails::class);
-        $middleware->api(append: [SecurityHeadersMiddleware::class]);
+        // Global, not api(append: ...): Authenticate and ThrottleRequests both sit
+        // ahead of api-group middleware in Laravel's priority sort, so registering
+        // this there left 401s, 404s and 429s without the headers. Appending it to
+        // the whole stack puts it outside that sort entirely.
+        $middleware->append(SecurityHeadersMiddleware::class);
 
         $middleware->alias([
             'role' => EnsureRole::class,

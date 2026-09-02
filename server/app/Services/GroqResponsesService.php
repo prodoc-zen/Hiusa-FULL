@@ -27,7 +27,10 @@ class GroqResponsesService
         try {
             $response = Http::acceptJson()
                 ->withToken($apiKey)
-                ->timeout((int) config('services.groq.timeout', 25))
+                // (int) '' is 0 when GROQ_TIMEOUT is left blank, and Guzzle treats a
+                // timeout of 0 as "wait indefinitely" - the one thing a synchronous
+                // third-party call in the request cycle must never do.
+                ->timeout(max(1, (int) config('services.groq.timeout') ?: 25))
                 ->post((string) config('services.groq.url'), [
                     'model' => (string) config('services.groq.model'),
                     'instructions' => $instructions,
