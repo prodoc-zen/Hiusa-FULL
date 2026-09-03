@@ -46,6 +46,7 @@ export default function CreateAnnouncementPage() {
   const [targetRole, setTargetRole] = useState('all');
   const [category, setCategory] = useState('general');
   const [body, setBody] = useState('');
+  const [aiOutputId, setAiOutputId] = useState(null);
   const [imageFile, setImageFile] = useState(null);
   const [isPinned, setIsPinned] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
@@ -61,7 +62,7 @@ export default function CreateAnnouncementPage() {
     setSubmitting(true);
     setError(null);
     try {
-      await createAnnouncement({ title, body, target_role: targetRole, category, is_published: isPublished, imageFile, is_pinned: isPinned, is_important: isImportant });
+      await createAnnouncement({ title, body, target_role: targetRole, category, is_published: isPublished, imageFile, is_pinned: isPinned, is_important: isImportant, ai_output_id: aiOutputId });
       setLastPublishState(isPublished);
       setPosted(true);
     } catch (err) {
@@ -87,6 +88,7 @@ export default function CreateAnnouncementPage() {
         details: body,
       });
       setBody(res.data?.output_text || '');
+      setAiOutputId(res.data?.ai_output_id || null);
     } catch (err) {
       setError(err.response?.data?.message ?? 'Failed to generate announcement draft.');
     } finally {
@@ -108,7 +110,7 @@ export default function CreateAnnouncementPage() {
         </p>
         <div className="flex flex-col gap-2">
           <button
-            onClick={() => { setTitle(''); setBody(''); setTargetRole('all'); setCategory('general'); setImageFile(null); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
+            onClick={() => { setTitle(''); setBody(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
             className="rounded-lg bg-[#0B8ED0] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0878B7]"
           >
             Create Another

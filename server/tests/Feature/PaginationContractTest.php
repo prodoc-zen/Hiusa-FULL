@@ -197,6 +197,12 @@ class PaginationContractTest extends TestCase
         $this->getJson('/api/events?per_page=100')->assertOk();
         $this->getJson('/api/events?per_page=101')->assertStatus(422);
 
+        $approvedTitle = Event::where('organization_id', $org->id)->where('status', 'approved')->value('title');
+        $filtered = $this->getJson('/api/events?search='.urlencode($approvedTitle).'&status=approved&sort=title');
+        $filtered->assertOk();
+        $this->assertGreaterThanOrEqual(1, (int) $filtered->json('total'));
+        $this->assertTrue(collect($filtered->json('data'))->every(fn (array $event) => $event['status'] === 'approved'));
+
         // Students only see approved/ongoing/completed events, so the total
         // for the exact same organization must be smaller than the admin's.
         Sanctum::actingAs($student);

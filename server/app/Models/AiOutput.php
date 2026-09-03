@@ -14,7 +14,11 @@ class AiOutput extends Model
     protected function casts(): array
     {
         return [
+            'structured_input' => 'array',
+            'structured_output' => 'array',
+            'version' => 'integer',
             'created_at' => 'datetime',
+            'decided_at' => 'datetime',
         ];
     }
 

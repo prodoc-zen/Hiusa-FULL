@@ -12,11 +12,14 @@ class SboPositionSeeder extends Seeder
     {
         $positions = [
             'President',
-            'Vice President',
+            'Vice President – Internal',
+            'Vice President – External',
             'Secretary',
+            'Assistant Secretary',
             'Treasurer',
             'Auditor',
-            'Public Relations Officer',
+            'Public Information Officer',
+            'Representative',
             'Business Manager',
             'Adviser',
         ];

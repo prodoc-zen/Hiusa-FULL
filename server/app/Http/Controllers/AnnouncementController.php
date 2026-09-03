@@ -37,22 +37,50 @@ class AnnouncementController extends Controller
 
         $model = (string) config('services.groq.model');
         $generated = $this->groq->generate(
-            'Draft a polished, concise school-organization announcement. Return only the announcement body.',
+            'Draft a polished, concise school-organization announcement using only supplied facts. Never invent dates, venues, fees, requirements, contacts, or names. Clearly mark important missing information as not yet specified. Return only the editable announcement body.',
             $prompt,
             450,
             0.4,
         );
-        $output = $generated['text'] ?? $this->fallbackAnnouncementDraft($prompt);
-        $model = $generated['model'] ?? 'deterministic-fallback';
+        $version = ((int) AiOutput::where('organization_id', $request->user()->organization_id)
+            ->where('feature_type', 'ANNOUNCEMENT_DRAFT')->max('version')) + 1;
+
+        if (! $generated) {
+            AiOutput::create([
+                'organization_id' => $request->user()->organization_id,
+                'feature_type' => 'ANNOUNCEMENT_DRAFT',
+                'reference_type' => 'announcement',
+                'prompt_text' => $prompt,
+                'output_text' => '',
+                'structured_input' => $data,
+                'status' => 'failed',
+                'error_message' => 'Groq was unavailable or returned an invalid response.',
+                'version' => $version,
+                'decision_status' => 'rejected',
+                'requested_by' => $request->user()->id,
+                'created_at' => now(),
+            ]);
+
+            return response()->json(['message' => 'AI service is temporarily unavailable. Unable to generate the announcement draft.'], 503);
+        }
+
+        $output = $generated['text'];
+        $model = $generated['model'];
 
         $aiOutput = AiOutput::create([
             'organization_id' => $request->user()->organization_id,
-            'feature_type' => 'announcement_draft',
+            'feature_type' => 'ANNOUNCEMENT_DRAFT',
             'reference_type' => 'announcement',
             'reference_id' => null,
             'prompt_text' => $prompt,
             'output_text' => $output,
             'model_name' => $model,
+            'context_version' => 'announcement-v2',
+            'structured_input' => $data,
+            'structured_output' => ['body' => $output],
+            'status' => 'completed',
+            'version' => $version,
+            'decision_status' => 'pending',
             'requested_by' => $request->user()->id,
             'created_at' => now(),
         ]);
@@ -209,11 +237,23 @@ class AnnouncementController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
             'is_pinned' => ['boolean'],
             'is_important' => ['boolean'],
+            'ai_output_id' => ['nullable', 'integer'],
         ]);
 
         $user = $request->user();
         $canPublishWithoutApproval = $user->role === 'ADMIN';
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
+        $draftOutput = null;
+        if (! empty($data['ai_output_id'])) {
+            $draftOutput = AiOutput::where('organization_id', $user->organization_id)
+                ->where('requested_by', $user->school_id)
+                ->where('feature_type', 'ANNOUNCEMENT_DRAFT')
+                ->where('decision_status', 'pending')
+                ->find($data['ai_output_id']);
+            if (! $draftOutput) {
+                return response()->json(['message' => 'The selected AI draft is not available to this user.'], 422);
+            }
+        }
 
         $announcement = Announcement::create([
             'title' => $data['title'],
@@ -244,6 +284,13 @@ class AnnouncementController extends Controller
         if ($announcement->is_published) {
             $this->dispatchAnnouncementNotifications($announcement);
         }
+
+        $draftOutput?->update([
+            'reference_id' => $announcement->id,
+            'decision_status' => 'accepted',
+            'decided_by' => $user->school_id,
+            'decided_at' => now(),
+        ]);
 
         $this->recordAnnouncementAudit($request, 'created', $announcement, null, $this->auditableAnnouncementValues($announcement));
 

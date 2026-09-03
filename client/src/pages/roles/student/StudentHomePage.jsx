@@ -34,12 +34,6 @@ export default function StudentHomePage() {
   const sentinelRef = useRef(null);
   const requestedPages = useRef(new Set());
   const loadingRef = useRef(false);
-  const mountedRef = useRef(true);
-
-  useEffect(() => {
-    mountedRef.current = true;
-    return () => { mountedRef.current = false; };
-  }, []);
 
   const loadPage = useCallback(async (page, replace = false) => {
     if (loadingRef.current || requestedPages.current.has(page)) return;
@@ -50,7 +44,6 @@ export default function StudentHomePage() {
 
     try {
       const response = await getStudentFeed(page, 12);
-      if (!mountedRef.current) return;
       const incoming = Array.isArray(response.items) ? response.items : [];
       setItems((current) => {
         const merged = replace ? incoming : [...current, ...incoming];
@@ -62,10 +55,11 @@ export default function StudentHomePage() {
       setNextPage(response.pagination?.next_page || page + 1);
     } catch (requestError) {
       requestedPages.current.delete(page);
-      if (mountedRef.current) setError(getApiErrorMessage(requestError, 'Unable to load your organization feed.'));
+      setError(getApiErrorMessage(requestError, 'Unable to load your organization feed.'));
     } finally {
       loadingRef.current = false;
-      if (mountedRef.current) { setInitialLoading(false); setLoadingMore(false); }
+      setInitialLoading(false);
+      setLoadingMore(false);
     }
   }, []);
 

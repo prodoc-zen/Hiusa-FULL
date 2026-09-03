@@ -64,9 +64,9 @@ test('deterministic AI service applies forecast, budget, and delegation rules', 
       task_title: 'Playwright rule-based delegation check',
       max_active_tasks: 5,
       officers: [
-        { officer_id: 1, name: 'Busy Officer', role: 'SBO_OFFICER', position_title: 'President', account_status: 'active', active_tasks: 3, completed_tasks: 1, overdue_tasks: 1 },
-        { officer_id: 2, name: 'Available Officer', role: 'SBO_OFFICER', position_title: 'President', account_status: 'active', active_tasks: 0, completed_tasks: 3, overdue_tasks: 0 },
-        { officer_id: 3, name: 'Ineligible Student', role: 'STUDENT', account_status: 'active', active_tasks: 0 },
+        { officer_id: 1, name: 'Busy Officer', role: 'SBO_OFFICER', position_title: 'President', account_status: 'active', is_available: true, policy_eligible: true, active_tasks: 3, completed_tasks: 1, overdue_tasks: 1 },
+        { officer_id: 2, name: 'Available Officer', role: 'SBO_OFFICER', position_title: 'President', account_status: 'active', is_available: true, policy_eligible: true, active_tasks: 0, completed_tasks: 3, overdue_tasks: 0 },
+        { officer_id: 3, name: 'Ineligible Student', role: 'STUDENT', position_title: null, account_status: 'active', is_available: true, policy_eligible: true, active_tasks: 0, completed_tasks: 0, overdue_tasks: 0 },
       ],
     },
   });

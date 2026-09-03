@@ -19,7 +19,7 @@ import {
   Wallet,
   X,
 } from 'lucide-react';
-import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getAttendance, recordAttendance } from '../../../services/eventService';
+import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
@@ -44,6 +44,8 @@ const taskStatusBadge = {
   in_progress: 'bg-[#E6F6FD] text-[#0B8ED0]',
   completed: 'bg-emerald-50 text-emerald-700',
   overdue: 'bg-red-50 text-red-700',
+  blocked: 'bg-amber-50 text-amber-700',
+  ready: 'bg-cyan-50 text-cyan-700',
 };
 
 const budgetStatusBadge = {
@@ -91,6 +93,9 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const [eventsView, setEventsView] = useState(() => (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list'));
   const [events, setEvents] = useState([]);
+  const [eventRows, setEventRows] = useState([]);
+  const [eventTotal, setEventTotal] = useState(0);
+  const [eventListLoading, setEventListLoading] = useState(true);
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -103,6 +108,9 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [statusError, setStatusError] = useState(null);
   const [editingEventId, setEditingEventId] = useState(null);
   const [eventsPage, setEventsPage] = useState(1);
+  const [eventPageSize, setEventPageSize] = useState(10);
+  const [eventSort, setEventSort] = useState('start_asc');
+  const [eventReload, setEventReload] = useState(0);
   const [tasksPage, setTasksPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 10;
@@ -110,8 +118,12 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
-  const [planForm, setPlanForm] = useState({ event_id: '', requirements: '', create_workflow: true });
+  const [planForm, setPlanForm] = useState({ event_id: '', requirements: '' });
   const [planResult, setPlanResult] = useState('');
+  const [workflowDraft, setWorkflowDraft] = useState(null);
+  const [workflowOutputId, setWorkflowOutputId] = useState(null);
+  const [workflowAction, setWorkflowAction] = useState(false);
+  const [workflowHistory, setWorkflowHistory] = useState([]);
   const [planError, setPlanError] = useState(null);
   const [planSubmitting, setPlanSubmitting] = useState(false);
 
@@ -139,11 +151,8 @@ export default function EventsPage({ initialTab = 'events' }) {
   function load() {
     setLoading(true);
     setError(null);
-    // /events has no status/date filter at all (and orders oldest-first), and
-    // this page already re-implements its own client-side pagination over a
-    // fully-loaded array (eventsPage/pagedEvents below) - so the fix is to load
-    // the complete organization event (and task) set via fetchAllPages, the
-    // same shape this page already expected before the server started paginating.
+    // Calendar/dropdown sources need the complete authorized event set. The
+    // browsable event table is loaded separately with backend pagination.
     const canLoadTasks = currentUserRole === 'ADMIN' || currentUserRole === 'SBO_OFFICER';
     const requests = canLoadTasks
       ? [fetchAllPages((p) => getEvents(p).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
@@ -152,12 +161,30 @@ export default function EventsPage({ initialTab = 'events' }) {
       .then(([eventList, taskList]) => {
         setEvents(eventList);
         setTasks(taskList);
+        setEventReload((value) => value + 1);
       })
       .catch(() => setError('Failed to load data.'))
       .finally(() => setLoading(false));
   }
 
   useEffect(load, [currentUserRole]);
+
+  useEffect(() => {
+    let active = true;
+    const timer = window.setTimeout(() => {
+      setEventListLoading(true);
+      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort })
+        .then((response) => {
+          if (!active) return;
+          setEventRows(Array.isArray(response.data?.data) ? response.data.data : []);
+          setEventTotal(Number(response.data?.total || 0));
+        })
+        .catch(() => { if (active) setError('Failed to load events.'); })
+        .finally(() => { if (active) setEventListLoading(false); });
+    }, 250);
+
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -329,6 +356,7 @@ export default function EventsPage({ initialTab = 'events' }) {
       const response = await getEvent(selectedEvent.id);
       setSelectedEvent(response.data);
       setEvents((current) => current.map((event) => event.id === response.data.id ? response.data : event));
+      setEventRows((current) => current.map((event) => event.id === response.data.id ? response.data : event));
     } catch (err) {
       setStatusError(err.response?.data?.message ?? 'Failed to update event status.');
     } finally {
@@ -342,21 +370,17 @@ export default function EventsPage({ initialTab = 'events' }) {
     setPlanSubmitting(true);
     setPlanError(null);
     setPlanResult('');
+    setWorkflowDraft(null);
+    setWorkflowOutputId(null);
     try {
       const res = await generateEventPlan(planForm.event_id, {
         requirements: planForm.requirements,
-        create_workflow: planForm.create_workflow,
       });
       setPlanResult(res.data?.plan || '');
-      const generatedTasks = Array.isArray(res.data?.tasks) ? res.data.tasks : [];
-      if (generatedTasks.length > 0) {
-        setTasks((currentTasks) => [
-          ...generatedTasks,
-          ...currentTasks.filter((task) => !generatedTasks.some((generatedTask) => generatedTask.id === task.id)),
-        ]);
-        setTasksPage(1);
-      }
-      setPlanForm({ event_id: planForm.event_id, requirements: '', create_workflow: true });
+      setWorkflowDraft(res.data?.workflow || null);
+      setWorkflowOutputId(res.data?.ai_output?.id || null);
+      getEventWorkflowHistory(planForm.event_id).then((history) => setWorkflowHistory(history.data || [])).catch(() => {});
+      setPlanForm({ event_id: planForm.event_id, requirements: '' });
     } catch (err) {
       setPlanError(err.response?.data?.message ?? 'Failed to generate event plan.');
     } finally {
@@ -364,18 +388,60 @@ export default function EventsPage({ initialTab = 'events' }) {
     }
   }
 
+  function selectPlanningEvent(eventId) {
+    setPlanForm((current) => ({ ...current, event_id: eventId }));
+    setWorkflowDraft(null); setWorkflowOutputId(null); setPlanResult(''); setPlanError(null);
+    if (!eventId) { setWorkflowHistory([]); return; }
+    getEventWorkflowHistory(eventId).then((response) => setWorkflowHistory(response.data || [])).catch(() => setWorkflowHistory([]));
+  }
+
+  function updateWorkflowTask(index, field, value) {
+    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, [field]: value } : task) }));
+  }
+
+  function removeWorkflowTask(index) {
+    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.filter((_, taskIndex) => taskIndex !== index) }));
+  }
+
+  function addWorkflowTask() {
+    const key = `admin-task-${Date.now()}`;
+    setWorkflowDraft((current) => ({ ...current, tasks: [...current.tasks, { key, title: '', description: '', phase: 'pre_event', priority: 'medium', deadline: '', depends_on_key: null, recommended_role: null, assigned_to: null, recommendation: { rankings: [] } }] }));
+  }
+
+  async function confirmWorkflow() {
+    if (!workflowDraft || !workflowOutputId) return;
+    setWorkflowAction(true); setPlanError(null);
+    try {
+      const response = await confirmEventWorkflow(planForm.event_id, workflowOutputId, workflowDraft.tasks);
+      const created = response.data?.tasks || [];
+      setTasks((current) => [...created, ...current]);
+      setWorkflowDraft(null); setWorkflowOutputId(null);
+      setPlanResult('Workflow confirmed. Officers have been notified of their assigned tasks.');
+      setWorkflowHistory((current) => current.map((output) => output.id === workflowOutputId ? { ...output, decision_status: 'accepted' } : output));
+      load();
+    } catch (requestError) {
+      setPlanError(requestError.response?.data?.message || 'Unable to confirm the workflow.');
+    } finally { setWorkflowAction(false); }
+  }
+
+  async function discardWorkflow() {
+    if (!workflowOutputId) return;
+    setWorkflowAction(true); setPlanError(null);
+    try {
+      await discardEventWorkflow(planForm.event_id, workflowOutputId);
+      setWorkflowDraft(null); setWorkflowOutputId(null); setPlanResult('Workflow draft discarded.');
+      setWorkflowHistory((current) => current.map((output) => output.id === workflowOutputId ? { ...output, decision_status: 'discarded' } : output));
+    } catch (requestError) {
+      setPlanError(requestError.response?.data?.message || 'Unable to discard the workflow.');
+    } finally { setWorkflowAction(false); }
+  }
+
   const upcoming = events.filter((e) => ['upcoming', 'approved'].includes(e.status)).length;
   const completed = events.filter((e) => e.status === 'completed').length;
 
-  const filteredEvents = events.filter((event) => {
-    const query = search.toLowerCase();
-    const matchesSearch = [event.title, event.description, event.location, event.creator?.first_name, event.creator?.last_name].filter(Boolean).join(' ').toLowerCase().includes(query);
-    const matchesDate = !dateFilter || String(event.start_time || '').slice(0, 10) === dateFilter;
-    const matchesStatus = !eventStatusFilter || event.status === eventStatusFilter;
-    return matchesSearch && matchesDate && matchesStatus;
-  });
+  const filteredEvents = eventRows;
   const eventLinkedTasks = tasks.filter((t) => t.event_id);
-  const pagedEvents = filteredEvents.slice((eventsPage - 1) * pageSize, eventsPage * pageSize);
+  const pagedEvents = eventRows;
   const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
@@ -412,7 +478,7 @@ export default function EventsPage({ initialTab = 'events' }) {
 
   useEffect(() => {
     setEventsPage(1);
-  }, [search, dateFilter, events.length]);
+  }, [search, dateFilter, eventStatusFilter, eventSort]);
 
   useEffect(() => { setAttendancePage(1); }, [attendanceSearch, attendanceStatusFilter, selectedAttEventId]);
 
@@ -494,7 +560,8 @@ export default function EventsPage({ initialTab = 'events' }) {
                     onChange={(event) => setDateFilter(event.target.value)}
                     className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] outline-none focus:border-[#0B8ED0]"
                   />
-                  <select aria-label="Filter events by status" value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px]"><option value="">All statuses</option>{['pending_approval', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</select>
+                  <select aria-label="Filter events by status" value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px]"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</select>
+                  <select aria-label="Sort events" value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px]"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></select>
                 </>
               )}
               {canCreateEvents && (
@@ -514,7 +581,7 @@ export default function EventsPage({ initialTab = 'events' }) {
             />
           ) : (
             <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-              {loading ? (
+              {eventListLoading ? (
                 <div className="space-y-2 p-5">
                   {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
                 </div>
@@ -597,9 +664,11 @@ export default function EventsPage({ initialTab = 'events' }) {
               )}
               <PaginationControls
                 currentPage={eventsPage}
-                totalItems={filteredEvents.length}
-                pageSize={pageSize}
+                totalItems={eventTotal}
+                pageSize={eventPageSize}
                 onPageChange={setEventsPage}
+                onPageSizeChange={(size) => { setEventPageSize(size); setEventsPage(1); }}
+                pageSizeOptions={[10, 25, 50]}
                 label="events"
               />
             </div>
@@ -615,7 +684,7 @@ export default function EventsPage({ initialTab = 'events' }) {
               <select
                 aria-label="Event to plan"
                 value={planForm.event_id}
-                onChange={(e) => setPlanForm({ ...planForm, event_id: e.target.value })}
+                onChange={(e) => selectPlanningEvent(e.target.value)}
                 className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
               >
                 <option value="">Select event</option>
@@ -632,27 +701,45 @@ export default function EventsPage({ initialTab = 'events' }) {
                 className="rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] resize-none"
               />
               <div className="flex items-center gap-3">
-                <label className="flex items-center gap-2 text-xs font-semibold text-slate-600">
-                  <input
-                    type="checkbox"
-                    checked={planForm.create_workflow}
-                    onChange={(e) => setPlanForm({ ...planForm, create_workflow: e.target.checked })}
-                    className="h-4 w-4 rounded border-[#DDE7EF]"
-                  />
-                  Workflow
-                </label>
                 <button
                   type="submit"
                   disabled={planSubmitting || !planForm.event_id || !planForm.requirements.trim()}
                   className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
                 >
-                  {planSubmitting ? 'Generating...' : 'Generate'}
+                  {planSubmitting ? 'Generating event plan...' : 'Generate Workflow Draft'}
                 </button>
               </div>
             </form>
             {planError && <p className="mt-2 text-xs font-semibold text-red-600">{planError}</p>}
-            {planResult && (
+            {workflowHistory.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-slate-500">Versions:</span>{workflowHistory.map((output) => <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`rounded-full border px-3 py-1 text-xs font-bold ${output.id === workflowOutputId ? 'border-[#0B8ED0] bg-[#EEF6FB] text-[#0B8ED0]' : 'border-[#DDE7EF] text-slate-600'}`}>v{output.version} · {capitalize(output.decision_status)}</button>)}</div>}
+            {planResult && !workflowDraft && (
               <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-xs leading-5 text-slate-700">{planResult}</pre>
+            )}
+            {workflowDraft && (
+              <div className="mt-4 space-y-4 rounded-xl border border-[#B9DCEC] bg-[#F8FBFD] p-4">
+                <div><p className="text-xs font-black uppercase tracking-wider text-[#0B8ED0]">Generated workflow — review required</p><p className="mt-1 text-sm text-slate-700">{workflowDraft.overview}</p></div>
+                <div className="grid gap-3 md:grid-cols-3">
+                  {[['Timeline', workflowDraft.timeline], ['Resources', workflowDraft.resources], ['Risks', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]]].map(([heading, items]) => <div key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><h3 className="text-xs font-black text-[#0F172A]">{heading}</h3><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">{items?.map((item) => <li key={item}>{item}</li>)}</ul></div>)}
+                </div>
+                <div className="space-y-3">
+                  {workflowDraft.tasks.map((task, index) => (
+                    <article key={task.key} className="rounded-lg border border-[#DDE7EF] bg-white p-3">
+                      <div className="grid gap-2 lg:grid-cols-2">
+                        <input aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-sm font-bold" />
+                        <input aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={String(task.deadline || '').slice(0, 16)} onChange={(event) => updateWorkflowTask(index, 'deadline', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
+                        <select aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="pre_event">Pre-event</option><option value="event_day">Event day</option><option value="post_event">Post-event</option></select>
+                        <select aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select>
+                        <input aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Recommended role" className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
+                        <select aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">No dependency</option>{workflowDraft.tasks.slice(0, index).map((candidate) => <option key={candidate.key} value={candidate.key}>{candidate.title || candidate.key}</option>)}</select>
+                        <select aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs lg:col-span-2"><option value="">No eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>#{ranking.rank} {ranking.name} — {ranking.position_title} ({ranking.final_score})</option>)}</select>
+                        <textarea aria-label={`Task ${index + 1} description`} value={task.description || ''} onChange={(event) => updateWorkflowTask(index, 'description', event.target.value)} rows={2} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs lg:col-span-2" />
+                      </div>
+                      <button type="button" onClick={() => removeWorkflowTask(index)} className="mt-2 text-xs font-bold text-red-600">Delete task</button>
+                    </article>
+                  ))}
+                </div>
+                <div className="flex flex-wrap gap-2"><button type="button" onClick={addWorkflowTask} className="h-10 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0B8ED0]">Add task</button><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-10 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 disabled:opacity-50">Discard</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0} onClick={confirmWorkflow} className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white disabled:opacity-50">{workflowAction ? 'Saving...' : 'Confirm & Create Workflow'}</button></div>
+              </div>
             )}
           </div>
 
@@ -691,8 +778,8 @@ export default function EventsPage({ initialTab = 'events' }) {
                       </td>
                       <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>
                       <td className="px-5 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${taskStatusBadge[t.status] || 'bg-slate-100 text-slate-500'}`}>
-                          {capitalize(t.status)}
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${taskStatusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>
+                          {capitalize(t.workflow_status || t.status)}
                         </span>
                       </td>
                     </tr>

@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
+use Database\Seeders\SboPositionSeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -12,6 +13,22 @@ use Tests\TestCase;
 class PositionManagementTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_standard_position_catalog_uses_distinct_vice_presidents_and_required_roles(): void
+    {
+        $organization = Organization::factory()->create();
+        $this->seed(SboPositionSeeder::class);
+
+        $titles = SboPosition::where('organization_id', $organization->id)->where('role', 'SBO_OFFICER')->pluck('title');
+        $this->assertContains('Vice President – Internal', $titles);
+        $this->assertContains('Vice President – External', $titles);
+        $this->assertContains('Assistant Secretary', $titles);
+        $this->assertContains('Treasurer', $titles);
+        $this->assertContains('Auditor', $titles);
+        $this->assertContains('Public Information Officer', $titles);
+        $this->assertContains('Representative', $titles);
+        $this->assertNotContains('Vice President', $titles);
+    }
 
     public function test_admin_manages_role_aware_positions_with_complete_crud(): void
     {

@@ -118,12 +118,19 @@ class FinancialReportController extends Controller
         $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext) {
             $aiOutput = AiOutput::create([
                 'organization_id' => $organizationId,
-                'feature_type' => 'financial_summary',
+                'feature_type' => 'FINANCIAL_SUMMARY',
                 'reference_type' => FinancialReport::class,
                 'reference_id' => null,
                 'prompt_text' => json_encode($reportContext, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
                 'output_text' => $summary['text'],
                 'model_name' => $summary['model'],
+                'context_version' => 'financial-report-v2',
+                'structured_input' => $reportContext,
+                'structured_output' => ['summary' => $summary['text']],
+                'status' => 'completed',
+                'decision_status' => 'accepted',
+                'decided_by' => $request->user()->school_id,
+                'decided_at' => now(),
                 'requested_by' => $request->user()->school_id,
                 'created_at' => now(),
             ]);

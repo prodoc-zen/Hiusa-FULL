@@ -37,6 +37,15 @@ export const updateEventStatus = (id, status) =>
 export const generateEventPlan = (id, data) =>
   api.post(`/events/${id}/generate-plan`, data);
 
+export const getEventWorkflowHistory = (id) =>
+  api.get(`/events/${id}/workflows`);
+
+export const confirmEventWorkflow = (eventId, outputId, tasks) =>
+  api.post(`/events/${eventId}/workflows/${outputId}/confirm`, { tasks });
+
+export const discardEventWorkflow = (eventId, outputId) =>
+  api.patch(`/events/${eventId}/workflows/${outputId}/discard`);
+
 export const getAttendance = (id) =>
   api.get(`/events/${id}/attendance`);
 

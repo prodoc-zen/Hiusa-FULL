@@ -29,9 +29,8 @@ describe('PaginationControls', () => {
       element.tagName === 'P' && element.textContent.includes('members')
     ))).toBeInTheDocument();
 
-    const [previous, next] = screen.getAllByRole('button');
-    fireEvent.click(previous);
-    fireEvent.click(next);
+    fireEvent.click(screen.getByRole('button', { name: 'Previous page of members' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Next page of members' }));
 
     expect(onPageChange).toHaveBeenNthCalledWith(1, 1);
     expect(onPageChange).toHaveBeenNthCalledWith(2, 3);

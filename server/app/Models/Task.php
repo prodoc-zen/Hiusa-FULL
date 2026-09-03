@@ -15,6 +15,8 @@ class Task extends Model
 
     protected $guarded = [];
 
+    protected $appends = ['workflow_status'];
+
     protected function casts(): array
     {
         return [
@@ -26,6 +28,8 @@ class Task extends Model
             'performance_score' => 'decimal:2',
             'final_score' => 'decimal:2',
             'completed_at' => 'datetime',
+            'sequence' => 'integer',
+            'delegation_snapshot' => 'array',
         ];
     }
 
@@ -42,6 +46,28 @@ class Task extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to', 'school_id');
+    }
+
+    public function dependency(): BelongsTo
+    {
+        return $this->belongsTo(Task::class, 'depends_on_task_id');
+    }
+
+    public function getWorkflowStatusAttribute(): string
+    {
+        if ($this->status === 'completed') {
+            return 'completed';
+        }
+
+        $dependency = $this->relationLoaded('dependency')
+            ? $this->getRelation('dependency')
+            : $this->dependency()->first();
+
+        if ($dependency && $dependency->status !== 'completed') {
+            return 'blocked';
+        }
+
+        return $this->status === 'pending' ? 'ready' : $this->status;
     }
 
     public function progressUpdates(): HasMany

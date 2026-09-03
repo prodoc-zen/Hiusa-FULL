@@ -398,7 +398,7 @@ class UseCaseComplianceTest extends TestCase
 
         $this->assertSame('1400.00', $response->json('predicted_income'));
         $this->assertSame('800.00', $response->json('predicted_expense'));
-        $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'financial_summary', 'reference_id' => $response->json('id')]);
+        $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'FINANCIAL_SUMMARY', 'reference_id' => $response->json('id')]);
     }
 
     public function test_task_assignment_recommends_an_active_sbo_officer_and_calculates_scores(): void

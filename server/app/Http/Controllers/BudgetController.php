@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
+use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
@@ -212,6 +213,24 @@ class BudgetController extends Controller
             'recommended_allocation' => $advice['recommended_allocation'],
             'safe_spending_limit' => $advice['safe_spending_limit'],
             'advice_generated_at' => now(),
+        ]);
+        AiOutput::create([
+            'organization_id' => $budget->organization_id,
+            'feature_type' => 'BUDGET_EXPLANATION',
+            'reference_type' => Budget::class,
+            'reference_id' => $budget->id,
+            'prompt_text' => 'Explain the calculated budget-advisory facts without changing any value.',
+            'output_text' => $advice['advice'],
+            'model_name' => $advice['xai_model'],
+            'context_version' => 'budget-advice-v2',
+            'structured_input' => $payload,
+            'structured_output' => ['engine' => $engine, 'computed_advice' => $advice],
+            'status' => 'completed',
+            'decision_status' => 'accepted',
+            'requested_by' => $request->user()->school_id,
+            'decided_by' => $request->user()->school_id,
+            'decided_at' => now(),
+            'created_at' => now(),
         ]);
         $this->recordBudgetAudit($request, 'generated_advice', $budget, null, [
             ...$this->auditableValues($budget->fresh()),

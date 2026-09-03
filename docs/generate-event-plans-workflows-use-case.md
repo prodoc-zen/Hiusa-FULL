@@ -10,19 +10,20 @@
 |   |-- <<include>> Generate Resource Checklist
 |   |-- <<include>> Generate Logistics Checklist
 |   `-- <<extend>> Detect Possible Delays or Conflicts
-|-- <<extend>> Generate Workflow
+|-- <<include>> Generate Draft Workflow
 |   |-- <<include>> Create Task Sequence
 |   |-- <<include>> Set Task Deadlines
 |   |-- <<include>> Link Tasks to Event
-|   `-- <<include>> Save Workflow
-`-- <<include>> Save Generated Plan
+|   `-- <<include>> Rank Eligible Officers
+|-- <<include>> Admin Review/Edit/Discard
+`-- <<include>> Confirm and Create Workflow
 
 ## Implementation Coverage
 
 - **Role Access:** Admin-only event-planner route and API endpoint.
 - **Select Event:** event planner form selects the event to plan.
 - **Enter Event Planning Requirements:** Admin submits planning requirements from `EventsPage`.
-- **Generate Event Plan Using Groq LLM:** `POST /events/{id}/generate-plan` calls Groq when `GROQ_API_KEY` is configured and uses a deterministic fallback otherwise.
-- **Generate Timeline, Checklists, Delay Detection:** both Groq and the deterministic fallback require clearly labeled timeline, resource checklist, logistics checklist, and possible delay/conflict sections.
-- **Generate Workflow:** optional workflow creation stores linked AI-generated workflow tasks with distinct, ordered deadlines before the event starts.
-- **Save Generated Plan:** generated text is saved in `ai_outputs` and copied into event `planning_details`.
+- **Generate Event Plan Using Groq LLM:** `POST /events/{id}/generate-plan` sends real event, planning, linked-budget, and schedule-conflict context through Laravel and requires schema-constrained output. A provider/validation failure returns an error and creates no dummy tasks.
+- **Generate Timeline, Checklists, Delay Detection:** the validated output contains overview, phases, timeline, resources, logistics, risks, conflicts, and task drafts.
+- **Review Workflow:** drafts include editable phases, priorities, deadlines, dependencies, recommended positions, and deterministic officer rankings. Each regeneration is a separate `ai_outputs.version`.
+- **Confirm Workflow:** `POST /events/{id}/workflows/{aiOutput}/confirm` creates tasks, links dependencies, persists every ranking, notifies officers, and marks only that version accepted.

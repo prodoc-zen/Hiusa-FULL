@@ -42,6 +42,11 @@ return [
         'connect_timeout' => env('HIUSA_AI_SERVICE_CONNECT_TIMEOUT', 1),
         'timeout' => env('HIUSA_AI_SERVICE_TIMEOUT', 3),
         'task_max_active_tasks' => env('HIUSA_TASK_MAX_ACTIVE_TASKS', 5),
+        'task_weights' => [
+            'position' => env('HIUSA_TASK_POSITION_WEIGHT', 0.40),
+            'workload' => env('HIUSA_TASK_WORKLOAD_WEIGHT', 0.35),
+            'performance' => env('HIUSA_TASK_PERFORMANCE_WEIGHT', 0.25),
+        ],
     ],
 
     'groq' => [
@@ -49,6 +54,7 @@ return [
         'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1/responses'),
         'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
         'timeout' => env('GROQ_TIMEOUT', 25),
+        'connect_timeout' => env('GROQ_CONNECT_TIMEOUT', 5),
     ],
 
 ];
