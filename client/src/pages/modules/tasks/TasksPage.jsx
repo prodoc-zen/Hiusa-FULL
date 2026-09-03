@@ -22,7 +22,11 @@ import { fetchAllPages, listMeta, unwrapList } from '../../../services/paginatio
 
 function getDelegationDetail(source) {
   if (!source || typeof source !== 'object') return null;
-  const container = source.delegation && typeof source.delegation === 'object' ? source.delegation : source;
+  const container = source.delegation && typeof source.delegation === 'object'
+    ? source.delegation
+    : source.delegation_snapshot && typeof source.delegation_snapshot === 'object'
+      ? source.delegation_snapshot
+      : source;
   const rankings = Array.isArray(container.rankings) ? container.rankings : null;
   const weights = container.weights && typeof container.weights === 'object' ? container.weights : null;
   const eligibilityRules = Array.isArray(container.eligibility_rules) ? container.eligibility_rules : null;
@@ -44,6 +48,8 @@ const statusBadge = {
   completed: 'bg-emerald-50 text-emerald-700',
   overdue: 'bg-red-50 text-red-700',
   pending: 'bg-slate-100 text-slate-500',
+  blocked: 'bg-amber-50 text-amber-700',
+  ready: 'bg-cyan-50 text-cyan-700',
 };
 
 function capitalize(s) {
@@ -385,8 +391,8 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <td className="px-5 py-4 text-xs"><p className="font-semibold text-slate-600">{capitalize(t.task_type || 'regular')}</p><div className="mt-1 h-1.5 w-24 rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0B8ED0]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-[10px] text-slate-400">{t.progress_percent || 0}% complete</p></td>
                       <td className="px-5 py-4 font-medium text-slate-600">{formatDate(t.deadline)}</td>
                       <td className="px-5 py-4">
-                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.status] || 'bg-slate-100 text-slate-500'}`}>
-                          {capitalize(t.status)}
+                        <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>
+                          {capitalize(t.workflow_status || t.status)}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${t.creator.first_name} ${t.creator.last_name}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
@@ -395,7 +401,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                           <button type="button" onClick={() => openTaskDetails(t)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]">
                             <Eye size={12} /> View
                           </button>
-                          {(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && (
+                          {(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && (
                             <button
                               onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))}
                               className="rounded-md bg-[#E6F6FD] px-2.5 py-1 text-xs font-bold text-[#0B8ED0] hover:bg-[#d2eef9] transition"
@@ -608,7 +614,8 @@ export default function TasksPage({ initialTab = 'board' }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">{selectedTask.title}</h2>
-                <p className="mt-1 text-sm text-slate-500">Due {formatDate(selectedTask.deadline)} · {capitalize(selectedTask.status)}</p>
+                <p className="mt-1 text-sm text-slate-500">Due {formatDate(selectedTask.deadline)} · {capitalize(selectedTask.workflow_status || selectedTask.status)}</p>
+                {selectedTask.workflow_status === 'blocked' && selectedTask.dependency && <p className="mt-1 text-xs font-semibold text-amber-700">Blocked by {selectedTask.dependency.title}</p>}
               </div>
               <button type="button" aria-label="Close task details" onClick={() => setSelectedTask(null)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
             </div>

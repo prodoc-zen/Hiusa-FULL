@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from pydantic import BaseModel, Field, model_validator
@@ -87,6 +88,20 @@ class TaskDelegationRequest(BaseModel):
     task_type: str | None = Field(default=None, max_length=100)
     officers: list[OfficerCandidate] = Field(min_length=1, max_length=500)
     max_active_tasks: int = Field(default=5, ge=1, le=100)
+    weights: dict[str, float] = Field(default_factory=lambda: {
+        "position": float(os.getenv("HIUSA_TASK_POSITION_WEIGHT", "0.40")),
+        "workload": float(os.getenv("HIUSA_TASK_WORKLOAD_WEIGHT", "0.35")),
+        "performance": float(os.getenv("HIUSA_TASK_PERFORMANCE_WEIGHT", "0.25")),
+    })
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> "TaskDelegationRequest":
+        required = {"position", "workload", "performance"}
+        if set(self.weights) != required or any(value < 0 for value in self.weights.values()) or sum(self.weights.values()) <= 0:
+            raise ValueError("weights must contain non-negative position, workload, and performance values")
+        total = sum(self.weights.values())
+        self.weights = {name: round(value / total, 4) for name, value in self.weights.items()}
+        return self
 
 
 class OfficerRanking(BaseModel):

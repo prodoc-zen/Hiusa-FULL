@@ -74,6 +74,9 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware(['throttle:ai-generation', 'role:ADMIN']);
+    Route::get('/events/{id}/workflows', [EventController::class, 'workflowHistory'])->middleware(['throttle:api-read', 'role:ADMIN']);
+    Route::post('/events/{id}/workflows/{aiOutput}/confirm', [EventController::class, 'confirmWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::patch('/events/{id}/workflows/{aiOutput}/discard', [EventController::class, 'discardWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 

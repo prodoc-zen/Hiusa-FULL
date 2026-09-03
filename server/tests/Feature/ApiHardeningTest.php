@@ -7,6 +7,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
+use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -20,6 +21,13 @@ use Tests\TestCase;
 class ApiHardeningTest extends TestCase
 {
     use RefreshDatabase;
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+        config(['services.groq.key' => 'rate-limit-test-key']);
+        Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => 'Generated announcement body.'])]);
+    }
 
     private function student(): User
     {

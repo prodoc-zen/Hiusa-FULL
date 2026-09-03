@@ -198,8 +198,9 @@ class DepartmentHeadGapsTest extends TestCase
         $this->seed(SboPositionSeeder::class);
 
         $expected = [
-            'President', 'Vice President', 'Secretary', 'Treasurer',
-            'Auditor', 'Public Relations Officer', 'Business Manager', 'Adviser',
+            'President', 'Vice President – Internal', 'Vice President – External',
+            'Secretary', 'Assistant Secretary', 'Treasurer', 'Auditor',
+            'Public Information Officer', 'Representative', 'Business Manager', 'Adviser',
         ];
 
         foreach ([$orgA, $orgB] as $organization) {

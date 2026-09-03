@@ -59,4 +59,28 @@ class GroqResponsesServiceTest extends TestCase
         $this->assertNull(app(GroqResponsesService::class)->generate('Instructions', 'Input'));
         Http::assertNothingSent();
     }
+
+    public function test_it_requests_and_validates_json_schema_output(): void
+    {
+        config()->set('services.groq', [
+            'key' => 'test-groq-key',
+            'url' => 'https://api.groq.com/openai/v1/responses',
+            'model' => 'openai/gpt-oss-20b',
+            'timeout' => 25,
+            'connect_timeout' => 5,
+        ]);
+        Http::fake(['api.groq.com/*' => Http::response([
+            'id' => 'resp_json',
+            'model' => 'openai/gpt-oss-20b',
+            'output_text' => '{"overview":"Validated"}',
+        ])]);
+
+        $schema = ['type' => 'object', 'additionalProperties' => false, 'required' => ['overview'], 'properties' => ['overview' => ['type' => 'string']]];
+        $result = app(GroqResponsesService::class)->generateStructured('Use supplied facts.', ['event' => 'Assembly'], 'event_plan', $schema);
+
+        $this->assertSame(['overview' => 'Validated'], $result['data']);
+        Http::assertSent(fn (Request $request) => $request['text']['format']['type'] === 'json_schema'
+            && $request['text']['format']['strict'] === true
+            && $request['text']['format']['schema'] === $schema);
+    }
 }

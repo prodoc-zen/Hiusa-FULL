@@ -23,7 +23,8 @@
 
 ## Implementation Coverage
 
-- **Generate Announcement Draft:** `POST /announcements/generate-draft` sends the prompt to Groq when `GROQ_API_KEY` is configured and stores the generated text in `ai_outputs`.
+- **Generate Announcement Draft:** `POST /announcements/generate-draft` sends only supplied title/audience/category/details to Groq, records structured context and output, and returns a retryable error instead of placeholder copy when Groq fails.
+- **Accept Generated Draft:** saving the editable announcement links the versioned AI output to the new announcement and marks it accepted.
 - **Create Announcement:** Admin and SBO Officer can create announcements from the create page.
 - **Edit Announcement:** manage announcements now opens existing details, updates content, and saves the record.
 - **Submit Announcement for Approval:** SBO Officer announcements create an Admin approval request.

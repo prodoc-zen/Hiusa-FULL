@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
+use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
 use App\Models\Transaction;
@@ -137,12 +138,19 @@ class FinancialForecastController extends Controller
 
         $aiOutput = AiOutput::create([
             'organization_id' => $request->user()->organization_id,
-            'feature_type' => 'financial_summary',
+            'feature_type' => 'FINANCIAL_SUMMARY',
             'reference_type' => FinancialForecast::class,
             'reference_id' => null,
             'prompt_text' => "Forecast period: {$nextPeriod->format('F Y')}; predicted income: {$predictedIncome}; predicted expense: {$predictedExpense}; predicted balance: {$predictedBalance}; safe spending limit: {$safeSpendingLimit}; risk: {$risk}.",
             'output_text' => $summary['text'],
             'model_name' => $summary['model'],
+            'context_version' => 'financial-forecast-v2',
+            'structured_input' => ['monthly_records' => $monthly->all(), 'budget_advice_input' => $budgetAdvicePayload],
+            'structured_output' => ['forecast' => $analysis, 'budget_advice' => $advice],
+            'status' => 'completed',
+            'decision_status' => 'accepted',
+            'decided_by' => $request->user()->id,
+            'decided_at' => now(),
             'requested_by' => $request->user()->id,
             'created_at' => now(),
         ]);
@@ -183,6 +191,17 @@ class FinancialForecastController extends Controller
         );
 
         $aiOutput->update(['reference_id' => $forecast->id]);
+        AuditLog::create([
+            'organization_id' => $request->user()->organization_id,
+            'user_id' => $request->user()->school_id,
+            'module' => 'financial_forecasts',
+            'action' => 'generated',
+            'record_type' => FinancialForecast::class,
+            'record_id' => $forecast->id,
+            'new_values' => ['forecast_period' => $forecast->forecast_period, 'algorithm' => 'ordinary_least_squares', 'engine' => $analysis['engine'], 'risk' => $risk],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
+        ]);
 
         return response()->json($forecast->fresh()->load('generator:school_id,first_name,last_name'), 201);
     }

@@ -5,8 +5,6 @@ import re
 from app.schemas import OfficerCandidate, TaskDelegationRequest
 
 
-WEIGHTS = {"position": 0.40, "workload": 0.35, "performance": 0.25}
-
 # Functional areas an SBO task typically falls under. Each area lists the keywords
 # used to infer that area from a task's title/task_type, the position(s) with
 # primary responsibility for it, and the position(s) with a related but secondary
@@ -26,32 +24,32 @@ POSITION_RELEVANCE_MAP: dict[str, dict[str, tuple[str, ...]]] = {
             "publicity", "announce", "social media", "poster", "promot",
             "marketing", "campaign", "press release", "media",
         ),
-        "primary": ("Public Relations Officer",),
-        "secondary": ("Secretary", "Vice President"),
+        "primary": ("Public Information Officer", "Public Relations Officer"),
+        "secondary": ("Secretary", "Vice President – External", "Vice President"),
     },
     "documentation": {
         "keywords": (
             "document", "minutes", "attendance record", "report", "record",
             "memo", "correspondence", "certificate", "letter",
         ),
-        "primary": ("Secretary",),
-        "secondary": ("Auditor", "Vice President"),
+        "primary": ("Secretary", "Assistant Secretary"),
+        "secondary": ("Auditor", "Vice President – Internal", "Vice President"),
     },
     "logistics": {
         "keywords": (
             "logistic", "venue", "equipment", "setup", "supplies",
             "materials", "booth", "layout", "transport", "inventory",
         ),
-        "primary": ("Business Manager",),
-        "secondary": ("Vice President", "President"),
+        "primary": ("Business Manager", "Vice President – Internal"),
+        "secondary": ("Vice President", "President", "Representative"),
     },
     "coordination": {
         "keywords": (
             "coordinat", "overall", "program", "hosting", "host", "emcee",
             "planning", "organize", "oversee", "lead",
         ),
-        "primary": ("President", "Vice President"),
-        "secondary": ("Business Manager", "Secretary"),
+        "primary": ("President", "Vice President – Internal", "Vice President – External", "Vice President"),
+        "secondary": ("Business Manager", "Secretary", "Representative"),
     },
 }
 
@@ -119,7 +117,7 @@ def _workload_score(active_tasks: int, max_active_tasks: int) -> float:
     return round(max(0.0, 100.0 * (1.0 - utilization)), 2)
 
 
-def _score(officer: OfficerCandidate, area: str, max_active_tasks: int) -> dict:
+def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights: dict[str, float]) -> dict:
     position_score, tier = _position_relevance(officer.position_title, area)
     workload_score = _workload_score(officer.active_tasks, max_active_tasks)
     historical_tasks = officer.completed_tasks + officer.overdue_tasks
@@ -132,9 +130,9 @@ def _score(officer: OfficerCandidate, area: str, max_active_tasks: int) -> dict:
         performance_note = f" (no task history yet, so the neutral baseline of {NEUTRAL_PERFORMANCE_SCORE:.0f} was used)"
 
     final_score = round(
-        position_score * WEIGHTS["position"]
-        + workload_score * WEIGHTS["workload"]
-        + performance_score * WEIGHTS["performance"],
+        position_score * weights["position"]
+        + workload_score * weights["workload"]
+        + performance_score * weights["performance"],
         2,
     )
     position_label = officer.position_title.strip() if officer.position_title and officer.position_title.strip() else "no position on file"
@@ -172,12 +170,12 @@ def delegate_task(request: TaskDelegationRequest) -> dict:
         raise ValueError("No active SBO Officer is eligible for this task")
 
     area = infer_task_area(request.task_title, request.task_type)
-    rankings = [_score(officer, area, request.max_active_tasks) for officer in eligible]
+    rankings = [_score(officer, area, request.max_active_tasks, request.weights) for officer in eligible]
     rankings.sort(key=lambda row: (-row["final_score"], row["officer_id"]))
 
     return {
         "algorithm": "rule_based_weighted_scoring",
-        "weights": WEIGHTS,
+        "weights": request.weights,
         "task_area": area,
         "eligibility_rules": [
             "role must be SBO_OFFICER",

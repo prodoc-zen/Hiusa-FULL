@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\Event;
+use App\Models\AiOutput;
+use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Task;
 use App\Models\TaskProgressUpdate;
@@ -32,23 +34,23 @@ class TaskController extends Controller
         ],
         'publicity' => [
             'keywords' => ['publicity', 'announce', 'social media', 'poster', 'promot', 'marketing', 'campaign', 'press release', 'media'],
-            'primary' => ['Public Relations Officer'],
-            'secondary' => ['Secretary', 'Vice President'],
+            'primary' => ['Public Information Officer', 'Public Relations Officer'],
+            'secondary' => ['Secretary', 'Vice President – External', 'Vice President'],
         ],
         'documentation' => [
             'keywords' => ['document', 'minutes', 'attendance record', 'report', 'record', 'memo', 'correspondence', 'certificate', 'letter'],
-            'primary' => ['Secretary'],
-            'secondary' => ['Auditor', 'Vice President'],
+            'primary' => ['Secretary', 'Assistant Secretary'],
+            'secondary' => ['Auditor', 'Vice President – Internal', 'Vice President'],
         ],
         'logistics' => [
             'keywords' => ['logistic', 'venue', 'equipment', 'setup', 'supplies', 'materials', 'booth', 'layout', 'transport', 'inventory'],
-            'primary' => ['Business Manager'],
-            'secondary' => ['Vice President', 'President'],
+            'primary' => ['Business Manager', 'Vice President – Internal'],
+            'secondary' => ['Vice President', 'President', 'Representative'],
         ],
         'coordination' => [
             'keywords' => ['coordinat', 'overall', 'program', 'hosting', 'host', 'emcee', 'planning', 'organize', 'oversee', 'lead'],
-            'primary' => ['President', 'Vice President'],
-            'secondary' => ['Business Manager', 'Secretary'],
+            'primary' => ['President', 'Vice President – Internal', 'Vice President – External', 'Vice President'],
+            'secondary' => ['Business Manager', 'Secretary', 'Representative'],
         ],
     ];
 
@@ -76,6 +78,8 @@ class TaskController extends Controller
 
     private ?array $lastDelegation = null;
 
+    private ?string $lastExplanationModel = null;
+
     public function __construct(
         private readonly HiusaAiService $aiService,
         private readonly GroqResponsesService $groq,
@@ -92,6 +96,7 @@ class TaskController extends Controller
             'assignee:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section',
             'creator:school_id,first_name,last_name,role,position_title',
             'event:id,title',
+            'dependency:id,title,status',
             'progressUpdates.author:school_id,first_name,last_name',
         ])
             ->where('organization_id', $request->user()->organization_id)
@@ -148,6 +153,36 @@ class TaskController extends Controller
             ...$data,
             'created_by' => $request->user()->id,
             'organization_id' => $request->user()->organization_id,
+        ]);
+        $this->persistRecommendations($task, $this->lastDelegation);
+        AiOutput::create([
+            'organization_id' => $task->organization_id,
+            'feature_type' => 'TASK_EXPLANATION',
+            'reference_type' => Task::class,
+            'reference_id' => $task->id,
+            'prompt_text' => 'Explain the deterministic task-delegation result without changing its facts.',
+            'output_text' => (string) $task->ai_recommendation_note,
+            'model_name' => $this->lastExplanationModel ?? 'deterministic-explanation',
+            'context_version' => 'task-delegation-v2',
+            'structured_input' => $this->lastDelegation,
+            'structured_output' => ['explanation' => $task->ai_recommendation_note],
+            'status' => 'completed',
+            'decision_status' => 'accepted',
+            'requested_by' => $request->user()->school_id,
+            'decided_by' => $request->user()->school_id,
+            'decided_at' => now(),
+            'created_at' => now(),
+        ]);
+        AuditLog::create([
+            'organization_id' => $task->organization_id,
+            'user_id' => $request->user()->school_id,
+            'module' => 'task_delegation',
+            'action' => 'task_delegated',
+            'record_type' => Task::class,
+            'record_id' => $task->id,
+            'new_values' => ['assigned_to' => $task->assigned_to, 'recommended_officer_id' => $this->lastDelegation['recommended_officer_id'] ?? null, 'weights' => $this->lastDelegation['weights'] ?? $this->weights()],
+            'ip_address' => $request->ip(),
+            'created_at' => now(),
         ]);
         $this->recordProgressUpdate($task, $request, 'Task assigned.');
 
@@ -246,6 +281,14 @@ class TaskController extends Controller
             return response()->json([
                 'message' => 'Invalid task transition from '.str_replace('_', ' ', $task->status).' to '.str_replace('_', ' ', $data['status']).'.',
             ], 422);
+        }
+
+        if (in_array($data['status'], ['in_progress', 'completed'], true)
+            && $task->depends_on_task_id
+            && ! Task::whereKey($task->depends_on_task_id)
+                ->where('organization_id', $task->organization_id)
+                ->where('status', 'completed')->exists()) {
+            return response()->json(['message' => 'This task is blocked until its dependency is completed.'], 422);
         }
 
         $progressNote = $data['progress_note'] ?? null;
@@ -369,6 +412,7 @@ class TaskController extends Controller
             'final_score' => $scores['final_score'],
             'ai_recommendation_note' => $this->aiAssignmentExplanations[$assignee->school_id]
                 ?? $this->assignmentExplanation($data, $assignee, $scores),
+            'delegation_snapshot' => $this->lastDelegation,
         ];
     }
 
@@ -403,7 +447,7 @@ class TaskController extends Controller
         $local = $this->localAssignmentScores($assignee, $request);
         $this->lastDelegation = [
             'algorithm' => 'rule_based_weighted_scoring',
-            'weights' => self::WEIGHTS,
+            'weights' => $this->weights(),
             'task_area' => $local['task_area'],
             'eligibility_rules' => $this->eligibilityRules($local['max_active_tasks']),
             'recommended_officer_id' => $assignee->school_id,
@@ -433,7 +477,7 @@ class TaskController extends Controller
     {
         return [
             'algorithm' => $result['algorithm'] ?? 'rule_based_weighted_scoring',
-            'weights' => $result['weights'] ?? self::WEIGHTS,
+            'weights' => $result['weights'] ?? $this->weights(),
             'task_area' => $result['task_area'] ?? self::DEFAULT_TASK_AREA,
             'eligibility_rules' => $result['eligibility_rules'] ?? $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $result['recommended_officer_id'] ?? $fallbackRecommendedId,
@@ -523,7 +567,8 @@ class TaskController extends Controller
         $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
         $hasHistory = $historicalTasks > 0;
         $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
-        $finalScore = round(($roleScore * self::WEIGHTS['position']) + ($workloadScore * self::WEIGHTS['workload']) + ($performanceScore * self::WEIGHTS['performance']), 2);
+        $weights = $this->weights();
+        $finalScore = round(($roleScore * $weights['position']) + ($workloadScore * $weights['workload']) + ($performanceScore * $weights['performance']), 2);
         $name = trim("{$assignee->first_name} {$assignee->last_name}");
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
         $performanceNote = $hasHistory ? '' : sprintf(' (no task history yet, so the neutral baseline of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE);
@@ -568,7 +613,7 @@ class TaskController extends Controller
 
         return [
             'algorithm' => 'rule_based_weighted_scoring',
-            'weights' => self::WEIGHTS,
+            'weights' => $this->weights(),
             'task_area' => $rankings[0]['task_area'] ?? self::DEFAULT_TASK_AREA,
             'eligibility_rules' => $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
@@ -719,7 +764,41 @@ class TaskController extends Controller
             0.2,
         );
 
+        $this->lastExplanationModel = $generated['model'] ?? null;
+
         return $generated['text'] ?? $fallback;
+    }
+
+    private function weights(): array
+    {
+        $configured = config('services.hiusa_ai.task_weights', self::WEIGHTS);
+        $weights = [
+            'position' => (float) ($configured['position'] ?? self::WEIGHTS['position']),
+            'workload' => (float) ($configured['workload'] ?? self::WEIGHTS['workload']),
+            'performance' => (float) ($configured['performance'] ?? self::WEIGHTS['performance']),
+        ];
+        $sum = array_sum($weights);
+
+        return $sum > 0 ? array_map(fn (float $weight) => round($weight / $sum, 4), $weights) : self::WEIGHTS;
+    }
+
+    private function persistRecommendations(Task $task, ?array $delegation): void
+    {
+        foreach ($delegation['rankings'] ?? [] as $index => $ranking) {
+            DB::table('task_recommendations')->insert([
+                'task_id' => $task->id,
+                'organization_id' => $task->organization_id,
+                'officer_id' => $ranking['officer_id'] ?? null,
+                'role_score' => $ranking['role_score'] ?? null,
+                'workload_score' => $ranking['workload_score'] ?? null,
+                'performance_score' => $ranking['performance_score'] ?? null,
+                'weights' => json_encode($delegation['weights'] ?? $this->weights()),
+                'total_score' => $ranking['final_score'] ?? null,
+                'rank' => $ranking['rank'] ?? $index + 1,
+                'eligibility_result' => 'eligible',
+                'calculated_at' => now(),
+            ]);
+        }
     }
 
     private function notifyAdminsOfTaskUpdate(Request $request, Task $task): void
