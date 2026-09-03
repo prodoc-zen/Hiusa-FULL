@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { createApiGetCache } from './apiCache';
 
 function resolveApiUrl() {
   const configuredUrl = import.meta.env.VITE_API_URL?.trim();
@@ -30,6 +31,24 @@ const api = axios.create({
   },
 });
 
+const configuredCacheTtl = Number(import.meta.env.VITE_API_CACHE_TTL_MS);
+const apiGetCache = createApiGetCache({
+  ttlMs: Number.isFinite(configuredCacheTtl) && configuredCacheTtl >= 0
+    ? configuredCacheTtl
+    : 60_000,
+});
+const networkGet = api.get.bind(api);
+
+api.get = (url, config = {}) => apiGetCache.get(
+  url,
+  config,
+  () => networkGet(url, config),
+);
+
+export function clearApiCache() {
+  apiGetCache.clear();
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
 
@@ -41,11 +60,18 @@ api.interceptors.request.use((config) => {
 });
 
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    if (!['get', 'head'].includes(String(response.config?.method || '').toLowerCase())) {
+      clearApiCache();
+    }
+
+    return response;
+  },
   (error) => {
     const status = error.response?.status;
 
     if (status === 401) {
+      clearApiCache();
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
       window.location.href = '/login';

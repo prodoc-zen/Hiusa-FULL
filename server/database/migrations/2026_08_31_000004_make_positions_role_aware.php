@@ -9,6 +9,13 @@ return new class extends Migration
 {
     public function up(): void
     {
+        // MySQL requires a separate organization index before the legacy
+        // composite unique index can be dropped because that index currently
+        // supports the organization_id foreign key.
+        Schema::table('sbo_positions', function (Blueprint $table) {
+            $table->index('organization_id', 'sbo_positions_organization_id_index');
+        });
+
         Schema::table('sbo_positions', function (Blueprint $table) {
             $table->dropUnique(['organization_id', 'title']);
             $table->string('role', 30)->default('SBO_OFFICER')->after('organization_id');
@@ -44,6 +51,10 @@ return new class extends Migration
             $table->dropUnique('positions_organization_role_title_unique');
             $table->dropColumn('role');
             $table->unique(['organization_id', 'title']);
+        });
+
+        Schema::table('sbo_positions', function (Blueprint $table) {
+            $table->dropIndex('sbo_positions_organization_id_index');
         });
     }
 };

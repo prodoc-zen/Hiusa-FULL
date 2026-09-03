@@ -13,10 +13,7 @@ export default function ElectionsHub() {
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const role = currentUser?.role || 'SBO_OFFICER';
 
-  const [activeElectionId, setActiveElectionId] = useState(() => {
-    const saved = sessionStorage.getItem('activeElectionId');
-    return saved ? Number(saved) : null;
-  });
+  const [activeElectionId, setActiveElectionId] = useState(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -64,12 +61,10 @@ export default function ElectionsHub() {
   };
 
   const handleSelect = (id) => {
-    sessionStorage.setItem('activeElectionId', id);
     setActiveElectionId(id);
   };
 
   const handleClear = () => {
-    sessionStorage.removeItem('activeElectionId');
     setActiveElectionId(null);
     navigate('/dashboard/elections');
   };
@@ -96,9 +91,7 @@ export default function ElectionsHub() {
   return (
     <div className="space-y-5">
       <ElectionBreadcrumb election={activeElection} onClear={handleClear} />
-      <div className="mt-5">
-        <Outlet context={{ election: activeElection, role, refreshElection }} />
-      </div>
+      <Outlet context={{ election: activeElection, role, refreshElection }} />
     </div>
   );
 }

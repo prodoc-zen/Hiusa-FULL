@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\AuditLog;
 use App\Models\Merchandise;
 use App\Models\Organization;
 use App\Models\User;
@@ -77,7 +78,39 @@ class FinancialAccountabilityTest extends TestCase
             ->assertJsonPath('data.0.affected_user.department', 'Computing')
             ->assertJsonPath('data.0.affected_user.program', 'BSIT')
             ->assertJsonPath('data.0.affected_user.year_level', '3rd Year')
-            ->assertJsonPath('data.0.action_label', 'Created');
+            ->assertJsonPath('data.0.action_label', 'Created')
+            ->assertJsonPath('data.0.action_category_label', 'Create')
+            ->assertJsonPath('data.0.actor.role_label', 'Admin')
+            ->assertJsonPath('data.0.record_type_label', 'Invoice');
+    }
+
+    public function test_status_change_audit_filter_returns_fallback_workflow_actions(): void
+    {
+        $admin = $this->user('ADMIN');
+        AuditLog::create([
+            'organization_id' => $admin->organization_id,
+            'user_id' => $admin->school_id,
+            'module' => 'announcements',
+            'action' => 'published',
+            'record_type' => 'App\\Models\\Announcement',
+            'record_id' => 42,
+            'created_at' => now(),
+        ]);
+        AuditLog::create([
+            'organization_id' => $admin->organization_id,
+            'user_id' => $admin->school_id,
+            'module' => 'announcements',
+            'action' => 'created',
+            'record_type' => 'App\\Models\\Announcement',
+            'record_id' => 43,
+            'created_at' => now()->subSecond(),
+        ]);
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/audit-logs?category=STATUS_CHANGE')->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.action', 'published')
+            ->assertJsonPath('data.0.action_category_label', 'Status Change');
     }
 
     public function test_admin_can_view_one_students_debt_summary_for_the_profile_modal(): void

@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class EventController extends Controller
@@ -147,7 +148,13 @@ class EventController extends Controller
             'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
             'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
             'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
         ]);
+
+        unset($data['image']);
+        if ($request->hasFile('image')) {
+            $data['image_url'] = Storage::disk('public')->url($request->file('image')->store('events', 'public'));
+        }
 
         $event = Event::create([
             ...$data,
@@ -192,6 +199,8 @@ class EventController extends Controller
             'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
             'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
             'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
+            'remove_image' => ['sometimes', 'boolean'],
         ]);
 
         $endTime = isset($data['end_time']) ? Carbon::parse($data['end_time']) : $event->end_time;
@@ -223,7 +232,19 @@ class EventController extends Controller
             $this->reopenApproval($event, $request);
         }
 
+        $oldImageUrl = $event->image_url;
+        $removeImage = (bool) ($data['remove_image'] ?? false);
+        unset($data['image'], $data['remove_image']);
+        if ($request->hasFile('image')) {
+            $data['image_url'] = Storage::disk('public')->url($request->file('image')->store('events', 'public'));
+        } elseif ($removeImage) {
+            $data['image_url'] = null;
+        }
+
         $event->update($data);
+        if (($request->hasFile('image') || $removeImage) && $oldImageUrl) {
+            Storage::disk('public')->delete($this->publicStoragePath($oldImageUrl));
+        }
         $this->resubmitIfRejected($event);
 
         return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
@@ -249,6 +270,8 @@ class EventController extends Controller
             'location',
             'requires_budget',
             'planning_details',
+            'image',
+            'remove_image',
         ])) > 0;
     }
 
@@ -287,6 +310,7 @@ class EventController extends Controller
             return response()->json(['message' => 'You are not authorized to delete this event.'], 403);
         }
 
+        $imageUrl = $event->image_url;
         DB::transaction(function () use ($event) {
             ApprovalRequest::where('organization_id', $event->organization_id)
                 ->where('entity_type', 'event')
@@ -294,8 +318,18 @@ class EventController extends Controller
                 ->delete();
             $event->delete();
         });
+        if ($imageUrl) {
+            Storage::disk('public')->delete($this->publicStoragePath($imageUrl));
+        }
 
         return response()->json(['message' => 'Event deleted successfully.']);
+    }
+
+    private function publicStoragePath(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
+
+        return ltrim(Str::after($path, '/storage/'), '/');
     }
 
     public function updateStatus(Request $request, $id)

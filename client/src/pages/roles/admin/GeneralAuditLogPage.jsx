@@ -2,6 +2,26 @@ import { useEffect, useMemo, useState } from "react";
 import { Clock3, Eye, Search, ShieldCheck, X } from "lucide-react";
 import PaginationControls from "../../../components/PaginationControls";
 import { getAuditLogs } from "../../../services/financeService";
+import { displayAuditValue, humanizeIdentifier, ROLE_LABELS } from "../../../utils/displayText";
+
+const MODULE_OPTIONS = [
+  "users", "positions", "orders", "merchandise", "invoices", "transactions",
+  "budgets", "events", "tasks", "collections", "attendance", "elections",
+  "announcements", "academic_structure",
+];
+
+const ACTION_CATEGORY_OPTIONS = [
+  { value: "CREATE", label: "Create" },
+  { value: "UPDATE", label: "Update" },
+  { value: "DELETE", label: "Delete" },
+  { value: "APPROVE", label: "Approve" },
+  { value: "REJECT", label: "Reject" },
+  { value: "PAYMENT", label: "Payment" },
+  { value: "COLLECTION", label: "Collection" },
+  { value: "REMITTANCE", label: "Remittance" },
+  { value: "ATTENDANCE", label: "Attendance" },
+  { value: "STATUS_CHANGE", label: "Status Change" },
+];
 
 const EMPTY_FILTERS = {
   search: "",
@@ -113,23 +133,9 @@ export default function GeneralAuditLogPage() {
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
           >
             <option value="">All modules</option>
-            {[
-              "users",
-              "orders",
-              "merchandise",
-              "invoices",
-              "transactions",
-              "budgets",
-              "events",
-              "tasks",
-              "collections",
-              "attendance",
-              "elections",
-              "announcements",
-              "academic_structure",
-            ].map((module) => (
+            {MODULE_OPTIONS.map((module) => (
               <option key={module} value={module}>
-                {module.replaceAll("_", " ")}
+                {humanizeIdentifier(module)}
               </option>
             ))}
           </select>
@@ -140,19 +146,8 @@ export default function GeneralAuditLogPage() {
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
           >
             <option value="">All actions</option>
-            {[
-              "CREATE",
-              "UPDATE",
-              "DELETE",
-              "APPROVE",
-              "REJECT",
-              "PAYMENT",
-              "COLLECTION",
-              "REMITTANCE",
-              "ATTENDANCE",
-              "STATUS_CHANGE",
-            ].map((category) => (
-              <option key={category}>{category}</option>
+            {ACTION_CATEGORY_OPTIONS.map((category) => (
+              <option key={category.value} value={category.value}>{category.label}</option>
             ))}
           </select>
           <select
@@ -162,9 +157,9 @@ export default function GeneralAuditLogPage() {
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
           >
             <option value="">All actor roles</option>
-            {["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"].map(
-              (role) => (
-                <option key={role}>{role}</option>
+            {Object.entries(ROLE_LABELS).map(
+              ([role, label]) => (
+                <option key={role} value={role}>{label}</option>
               ),
             )}
           </select>
@@ -269,11 +264,11 @@ export default function GeneralAuditLogPage() {
                 <div className="flex flex-col justify-between gap-3 sm:flex-row">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[10px] font-bold uppercase text-[#0B8ED0]">
+                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[10px] font-bold text-[#0B8ED0]">
                         {log.module_label || log.module}
                       </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase text-slate-600">
-                        {log.action_category}
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
+                        {log.action_category_label || humanizeIdentifier(log.action_category)}
                       </span>
                       <span className="font-mono text-[10px] text-slate-400">
                         LOG-{log.id} · Record {log.record_id}
@@ -288,7 +283,7 @@ export default function GeneralAuditLogPage() {
                         {log.actor?.name || "System"}
                       </strong>
                       {log.actor?.role
-                        ? ` · ${log.actor.role.replaceAll("_", " ")}`
+                        ? ` · ${log.actor.role_label || humanizeIdentifier(log.actor.role)}`
                         : ""}
                       {log.actor?.position_title
                         ? ` · ${log.actor.position_title}`
@@ -347,7 +342,7 @@ export default function GeneralAuditLogPage() {
                         key={change.field}
                         className="rounded-md border border-[#DDE7EF] bg-white px-2 py-1 text-[10px] font-semibold text-slate-500"
                       >
-                        {change.field}: {change.to}
+                        {change.field}: {displayAuditValue(change.to)}
                       </span>
                     ))}
                   </div>
@@ -377,7 +372,7 @@ export default function GeneralAuditLogPage() {
                   {selectedLog.description}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
-                  {selectedLog.module_label} · {selectedLog.action_label} ·{" "}
+                  {selectedLog.module_label || humanizeIdentifier(selectedLog.module)} · {selectedLog.action_label || humanizeIdentifier(selectedLog.action)} ·{" "}
                   {new Date(selectedLog.created_at).toLocaleString("en-PH")}
                 </p>
               </div>
@@ -396,7 +391,7 @@ export default function GeneralAuditLogPage() {
                 [
                   "Actor role / position",
                   [
-                    selectedLog.actor?.role?.replaceAll("_", " "),
+                    selectedLog.actor?.role_label || humanizeIdentifier(selectedLog.actor?.role),
                     selectedLog.actor?.position_title,
                   ]
                     .filter(Boolean)
@@ -415,7 +410,7 @@ export default function GeneralAuditLogPage() {
                     .join(" · "),
                 ],
                 ["Affected record", selectedLog.subject],
-                ["Record type", selectedLog.record_type],
+                ["Record type", selectedLog.record_type_label || humanizeIdentifier(String(selectedLog.record_type || '').split('\\').pop())],
                 ["Record ID", selectedLog.record_id],
                 ["IP address", selectedLog.ip_address],
                 [
@@ -457,10 +452,10 @@ export default function GeneralAuditLogPage() {
                             {change.field}
                           </td>
                           <td className="px-3 py-2 text-slate-500">
-                            {change.from || "-"}
+                            {change.from === null || change.from === undefined ? "-" : displayAuditValue(change.from)}
                           </td>
                           <td className="px-3 py-2 text-[#0F172A]">
-                            {change.to}
+                            {displayAuditValue(change.to)}
                           </td>
                         </tr>
                         ))}

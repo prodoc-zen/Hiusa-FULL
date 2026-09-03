@@ -12,6 +12,15 @@ decision service, MySQL, Laravel's scheduler, and its queue worker.
 - Laravel connects to MySQL and FastAPI over Docker's private network.
 - MySQL, Laravel storage, public uploads, and Caddy certificates use named
   volumes and survive container replacement.
+- Vite's fingerprinted `/assets/*` files are cached by browsers for one year.
+- Recently viewed JSON tables are reused from a bounded 60-second in-memory
+  browser cache. Successful writes and authentication changes clear it.
+- Authenticated JSON reads use a 20-second private server cache keyed by
+  organization, user, role, route, and query. Successful writes invalidate the
+  organization's cached reads; binary downloads and error responses bypass it.
+  The scheduler removes expired database-cache rows daily.
+- Public, authenticated, write, authentication, password-recovery, and
+  AI/report-generation requests have separate configurable rate limits.
 - Production secrets are generated only on EC2 and are ignored by Git.
 
 This is a practical single-server deployment, not a highly available one. The
@@ -115,6 +124,11 @@ curl https://hiusa.example.com/api/organizations
 
 All six services should be running; MySQL, FastAPI, and Laravel should report
 healthy. Test login, a direct dashboard-page refresh, and an image upload.
+API responses include standard `RateLimit-*` headers. Cacheable authenticated
+JSON reads also include `X-Cache: MISS` or `X-Cache: HIT`; browser revalidation
+may return `304 Not Modified`. Tune the `API_RESPONSE_CACHE_*` and
+`RATE_LIMIT_*` values in `server/.env.production` only if measured traffic
+requires it, then run `php artisan config:cache` or redeploy.
 
 ## 5. Deploy updates
 

@@ -88,8 +88,6 @@ function planChecks(root, files) {
     /^client\/(src\/|package(?:-lock)?\.json$|vite\.config\.|vitest\.config\.)/.test(file));
   const clientJs = files.some((file) =>
     /^client\/(src\/.*\.[cm]?[jt]sx?$|e2e\/.*\.[cm]?[jt]s$|.*config\.[cm]?js$)/.test(file));
-  const e2eConfig = files.some((file) =>
-    /^client\/(e2e\/|playwright\.config\.|package(?:-lock)?\.json$)/.test(file));
 
   if (clientCode) {
     addCheck(checks, 'Frontend unit tests', npm, ['run', 'test:unit'], clientRoot);
@@ -97,9 +95,6 @@ function planChecks(root, files) {
   }
   if (clientJs) {
     addCheck(checks, 'Frontend lint', npm, ['run', 'lint'], clientRoot);
-  }
-  if (e2eConfig) {
-    addCheck(checks, 'Playwright test discovery', npm, ['run', 'test:e2e', '--', '--list'], clientRoot);
   }
 
   const backendProduction = files.some((file) =>

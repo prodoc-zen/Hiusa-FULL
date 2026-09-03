@@ -299,7 +299,7 @@ class FinancialAccountabilityController extends Controller
     public function auditLogs(Request $request)
     {
         $organizationId = $request->user()->organization_id;
-        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'string', 'max:30'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
+        $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'in:CREATE,UPDATE,DELETE,APPROVE,REJECT,PAYMENT,COLLECTION,REMITTANCE,ATTENDANCE,STATUS_CHANGE'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
         $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId);
         foreach (['user_id', 'module', 'action'] as $field) {
             if (! empty($filters[$field])) {
@@ -321,7 +321,7 @@ class FinancialAccountabilityController extends Controller
             $query->where(fn ($q) => $q->where('module', 'like', "%$search%")->orWhere('action', 'like', "%$search%")->orWhere('record_id', 'like', "%$search%")->orWhereHas('user', fn ($u) => $u->where('first_name', 'like', "%$search%")->orWhere('last_name', 'like', "%$search%")->orWhere('school_id', 'like', "%$search%")));
         }
         if (! empty($filters['category'])) {
-            $query->whereIn('action', $this->actionsForCategory($filters['category']));
+            $this->applyActionCategoryFilter($query, $filters['category']);
         }
         match ($filters['sort'] ?? 'newest') {
             'oldest' => $query->oldest('created_at'), 'user' => $query->orderBy(User::select('last_name')->whereColumn('users.school_id', 'audit_logs.user_id'))->orderBy(User::select('first_name')->whereColumn('users.school_id', 'audit_logs.user_id')), 'role' => $query->orderBy(User::select('role')->whereColumn('users.school_id', 'audit_logs.user_id')), 'module' => $query->orderBy('module')->orderByDesc('created_at'), 'action','category' => $query->orderBy('action')->orderByDesc('created_at'), default => $query->latest('created_at')
@@ -400,12 +400,14 @@ class FinancialAccountabilityController extends Controller
         $actor = $log->user ? $this->profileData($log->user) : ['name' => 'System'];
         $subject = $subject ?? Str::headline(class_basename((string) $recordType)).' #'.$log->record_id;
 
-        return [...$log->toArray(), 'action_label' => $actionLabel, 'action_category' => $this->actionCategory($log->action), 'module_label' => $moduleLabel, 'actor' => $actor, 'subject' => $subject, 'description' => $actor['name'].' '.$this->descriptionVerb($log->action).' '.$subject.'.', 'affected_user' => $affectedUser ? $this->profileData($affectedUser) : null, 'changes' => $this->auditChanges($log)];
+        $actionCategory = $this->actionCategory($log->action);
+
+        return [...$log->toArray(), 'action_label' => $actionLabel, 'action_category' => $actionCategory, 'action_category_label' => $this->identifierLabel($actionCategory), 'module_label' => $moduleLabel, 'record_type_label' => $this->identifierLabel(class_basename((string) $recordType)), 'actor' => $actor, 'subject' => $subject, 'description' => $actor['name'].' '.$this->descriptionVerb($log->action).' '.$subject.'.', 'affected_user' => $affectedUser ? $this->profileData($affectedUser) : null, 'changes' => $this->auditChanges($log)];
     }
 
     private function profileData(User $user): array
     {
-        return ['school_id' => $user->school_id, 'name' => $this->userLabel($user), 'role' => $user->role, 'position_title' => $user->position_title, 'account_status' => $user->account_status, 'department' => $user->department, 'program' => $user->program, 'major' => $user->major, 'section' => $user->section, 'year_level' => $user->year_level, 'email' => $user->email, 'created_at' => $user->created_at];
+        return ['school_id' => $user->school_id, 'name' => $this->userLabel($user), 'role' => $user->role, 'role_label' => $this->identifierLabel($user->role), 'position_title' => $user->position_title, 'account_status' => $user->account_status, 'account_status_label' => $this->identifierLabel($user->account_status), 'department' => $user->department, 'program' => $user->program, 'major' => $user->major, 'section' => $user->section, 'year_level' => $user->year_level, 'email' => $user->email, 'created_at' => $user->created_at];
     }
 
     private function userLabel(User $user): string
@@ -429,7 +431,20 @@ class FinancialAccountabilityController extends Controller
             return $value ? 'Yes' : 'No';
         }
 
-        return $value === null || $value === '' ? 'Not set' : (string) $value;
+        if ($value === null || $value === '') {
+            return 'Not set';
+        }
+
+        if (is_string($value) && preg_match('/^[A-Za-z0-9]+(?:[_\.][A-Za-z0-9]+)+$/', $value)) {
+            return $this->identifierLabel($value);
+        }
+
+        return (string) $value;
+    }
+
+    private function identifierLabel(string $value): string
+    {
+        return Str::headline(strtolower(str_replace(['_', '.'], ' ', $value)));
     }
 
     private function actionCategory(string $action): string
@@ -461,8 +476,33 @@ class FinancialAccountabilityController extends Controller
     private function actionsForCategory(string $category): array
     {
         return match ($category) {
-            'CREATE' => ['created', 'submitted'], 'UPDATE' => ['updated'], 'DELETE' => ['deleted'], 'APPROVE' => ['approved', 'reviewed_approved', 'payment_approved'], 'REJECT' => ['rejected', 'reviewed_rejected', 'payment_rejected'], 'PAYMENT' => ['payment_submitted', 'payment_approved', 'payment_rejected'], 'COLLECTION' => ['recorded', 'verified'], 'REMITTANCE' => ['recorded'], default => []
+            'CREATE' => ['created', 'submitted'], 'UPDATE' => ['updated'], 'DELETE' => ['deleted'], 'APPROVE' => ['approved', 'reviewed_approved', 'payment_approved'], 'REJECT' => ['rejected', 'reviewed_rejected', 'payment_rejected'], 'PAYMENT' => ['payment_submitted', 'payment_approved', 'payment_rejected'], 'COLLECTION' => ['recorded', 'verified'], 'REMITTANCE' => ['recorded'], 'ATTENDANCE' => ['attendance_recorded', 'attendance_updated'], default => []
         };
+    }
+
+    private function applyActionCategoryFilter($query, string $category): void
+    {
+        if ($category !== 'STATUS_CHANGE') {
+            $query->whereIn('action', $this->actionsForCategory($category));
+
+            return;
+        }
+
+        $categorizedActions = collect([
+            'CREATE',
+            'UPDATE',
+            'DELETE',
+            'APPROVE',
+            'REJECT',
+            'PAYMENT',
+            'COLLECTION',
+            'REMITTANCE',
+            'ATTENDANCE',
+        ])->flatMap(fn (string $knownCategory) => $this->actionsForCategory($knownCategory))->unique()->values()->all();
+
+        // Status changes are the intentionally broad fallback category. Keeping
+        // this as the complement means new workflow actions remain discoverable.
+        $query->whereNotIn('action', $categorizedActions);
     }
 
     private function descriptionVerb(string $action): string

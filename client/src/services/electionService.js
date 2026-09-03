@@ -4,8 +4,38 @@ const unwrap = (response) => response.data;
 
 export const getElections = async () => unwrap(await api.get('/elections'));
 export const getElectionDetails = async (id) => unwrap(await api.get(`/elections/${id}`));
-export const createElection = async (payload) => unwrap(await api.post('/elections', payload));
-export const updateElection = async (id, payload) => unwrap(await api.put(`/elections/${id}`, payload));
+function toElectionFormData(payload, method = null) {
+  const fd = new FormData();
+  if (method) fd.append('_method', method);
+
+  Object.entries(payload).forEach(([key, value]) => {
+    if (key === 'imageFile') {
+      if (value) fd.append('image', value);
+      return;
+    }
+    if (key === 'positions') {
+      value.forEach((position, index) => {
+        fd.append(`positions[${index}][title]`, position.title);
+        fd.append(`positions[${index}][max_winners]`, String(position.max_winners));
+      });
+      return;
+    }
+    if (value !== undefined && value !== null) fd.append(key, String(value));
+  });
+
+  return fd;
+}
+
+export const createElection = async (payload) => {
+  const requestPayload = payload.imageFile ? toElectionFormData(payload) : payload;
+  return unwrap(await api.post('/elections', requestPayload));
+};
+export const updateElection = async (id, payload) => {
+  if (payload.imageFile || payload.remove_image) {
+    return unwrap(await api.post(`/elections/${id}`, toElectionFormData(payload, 'PUT')));
+  }
+  return unwrap(await api.put(`/elections/${id}`, payload));
+};
 export const deleteElection = async (id, options = {}) => unwrap(await api.delete(`/elections/${id}`, { params: options }));
 
 export const getElectionPositions = async (id) => unwrap(await api.get(`/elections/${id}/positions`));

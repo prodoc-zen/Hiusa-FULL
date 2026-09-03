@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\CacheApiResponse;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use Illuminate\Auth\AuthenticationException;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->append(LogRequestDetails::class);
 
         $middleware->alias([
+            'cache.api' => CacheApiResponse::class,
             'role' => EnsureRole::class,
         ]);
     })

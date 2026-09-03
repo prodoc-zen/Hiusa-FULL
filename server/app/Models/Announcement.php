@@ -19,6 +19,8 @@ class Announcement extends Model
     {
         return [
             'is_published' => 'boolean',
+            'is_pinned' => 'boolean',
+            'is_important' => 'boolean',
             'published_at' => 'datetime',
             'views_count' => 'integer',
         ];

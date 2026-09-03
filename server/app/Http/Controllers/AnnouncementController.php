@@ -13,6 +13,7 @@ use App\Services\GroqResponsesService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
@@ -202,6 +203,9 @@ class AnnouncementController extends Controller
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
+            'is_pinned' => ['boolean'],
+            'is_important' => ['boolean'],
         ]);
 
         $user = $request->user();
@@ -214,6 +218,9 @@ class AnnouncementController extends Controller
             'target_role' => $data['target_role'],
             'category' => $data['category'] ?? 'general',
             'is_published' => $isDirectPublish,
+            'image_url' => $request->hasFile('image') ? Storage::disk('public')->url($request->file('image')->store('announcements', 'public')) : null,
+            'is_pinned' => $data['is_pinned'] ?? false,
+            'is_important' => $data['is_important'] ?? false,
             'approval_status' => $isDirectPublish ? 'approved' : ($user->role === 'SBO_OFFICER' ? 'pending' : 'draft'),
             'reviewed_by' => $isDirectPublish ? $user->id : null,
             'published_at' => $isDirectPublish ? now() : null,
@@ -263,6 +270,10 @@ class AnnouncementController extends Controller
             'target_role' => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['sometimes', 'required', 'in:general,election,training,events,merchandise'],
             'is_published' => ['sometimes', 'boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
+            'remove_image' => ['sometimes', 'boolean'],
+            'is_pinned' => ['sometimes', 'boolean'],
+            'is_important' => ['sometimes', 'boolean'],
         ]);
 
         $oldValues = $this->auditableAnnouncementValues($announcement);
@@ -271,10 +282,28 @@ class AnnouncementController extends Controller
             'body',
             'target_role',
             'category',
+            'image',
+            'remove_image',
+            'is_pinned',
+            'is_important',
         ])) > 0;
 
         unset($data['is_published']);
+        $oldImageUrl = $announcement->image_url;
+        $removeImage = (bool) ($data['remove_image'] ?? false);
+        unset($data['image'], $data['remove_image']);
+
+        if ($request->hasFile('image')) {
+            $data['image_url'] = Storage::disk('public')->url($request->file('image')->store('announcements', 'public'));
+        } elseif ($removeImage) {
+            $data['image_url'] = null;
+        }
+
         $announcement->update($data);
+
+        if (($request->hasFile('image') || $removeImage) && $oldImageUrl) {
+            Storage::disk('public')->delete($this->publicStoragePath($oldImageUrl));
+        }
 
         if ($user->role === 'SBO_OFFICER' && $hasMaterialChange && $announcement->approval_status !== 'pending') {
             $announcement->update([
@@ -334,6 +363,7 @@ class AnnouncementController extends Controller
         }
 
         $oldValues = $this->auditableAnnouncementValues($announcement);
+        $imageUrl = $announcement->image_url;
         DB::transaction(function () use ($announcement) {
             ApprovalRequest::where('organization_id', $announcement->organization_id)
                 ->where('entity_type', 'announcement')
@@ -341,9 +371,19 @@ class AnnouncementController extends Controller
                 ->delete();
             $announcement->delete();
         });
+        if ($imageUrl) {
+            Storage::disk('public')->delete($this->publicStoragePath($imageUrl));
+        }
         $this->recordAnnouncementAudit($request, 'deleted', $announcement, $oldValues, null);
 
         return response()->json(['message' => 'Announcement deleted successfully.']);
+    }
+
+    private function publicStoragePath(string $url): string
+    {
+        $path = parse_url($url, PHP_URL_PATH) ?: $url;
+
+        return ltrim(Str::after($path, '/storage/'), '/');
     }
 
     public function togglePublish(Request $request, $id)
@@ -512,6 +552,9 @@ class AnnouncementController extends Controller
             'target_role' => $announcement->target_role,
             'category' => $announcement->category,
             'is_published' => $announcement->is_published,
+            'image_url' => $announcement->image_url,
+            'is_pinned' => $announcement->is_pinned,
+            'is_important' => $announcement->is_important,
             'approval_status' => $announcement->approval_status,
             'created_by' => $announcement->created_by,
         ];

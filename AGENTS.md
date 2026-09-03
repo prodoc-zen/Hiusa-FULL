@@ -2,6 +2,12 @@
 
 These instructions apply to every agent working in this repository. Read `readme2.md` for the detailed architecture and coding guide, `design.md` before UI work, and the matching `docs/*-use-case.md` before changing a business workflow.
 
+## Temporary execution policy
+
+- Do not spawn or invoke any tester, Browser QA, security-reviewer, reviewer, explorer, worker, or other subagent. The primary Codex agent performs work and validation directly.
+- Do not run Playwright, browser E2E, Playwright discovery, or live browser automation.
+- This temporary policy overrides the specialist-agent and Browser QA triggers below until the user explicitly re-enables them.
+
 ## Development ownership
 
 The primary Codex agent owns production implementation. For meaningful coding requests:
