@@ -84,6 +84,8 @@ class AnnouncementController extends Controller
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'sort' => ['nullable', 'in:newest,oldest,title,most_viewed'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
         $allowedCategories = ['general', 'election', 'training', 'events', 'merchandise'];
@@ -152,13 +154,14 @@ class AnnouncementController extends Controller
             'most_viewed' => $query->orderByDesc('views_count')->orderByDesc('created_at'),
             default => $query->orderByDesc('created_at'),
         };
+        $query->orderBy('id');
 
-        $announcements = $query->get();
+        $announcements = $query->paginate($filters['per_page'] ?? 20);
 
         // Reach is officer/admin-facing reporting data, not something other
         // students should see next to a bulletin they're reading.
         if (! $canManageAnnouncements) {
-            $announcements->each->makeHidden('views_count');
+            $announcements->getCollection()->each->makeHidden('views_count');
         }
 
         return response()->json($announcements);

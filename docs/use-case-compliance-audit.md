@@ -74,21 +74,70 @@ Status meanings:
 
 ## Verification Results
 
-Numbers below were re-measured on 2026-08-28 on this machine. The 2026-08-20 figures are superseded; where a prior claim could not be re-checked this pass, it is labelled as such rather than repeated.
+Numbers below were re-measured on 2026-09-03 on this machine. The 2026-08-20 figures are superseded; where a prior claim could not be re-checked this pass, it is labelled as such rather than repeated.
 
-- Laravel: **106 tests, 824 assertions passed, 0 failed** (`php artisan test`, 15 feature test files), including the four-role API access matrix, the financial-accountability suite, the GCash QR precondition tests, the new AI fallback-parity suite, the new demo-data integrity suite, and the merchandise/payment/notification/authentication/validation regressions. This includes a fix landed this pass: `RequestedWorkflowCompletionTest`'s GCash workflow test now configures an organization QR via a new `OrganizationFactory::withGcashQr()` state before submitting payment proof, so it no longer collides with the unconditional QR gate added in `2e67be8`.
-- Python AI service: **15 pytest tests passing** (`ai-service/.venv`, `pytest -q`), now including coverage for position-relevance variance, weak-fit detection on noisy data, negative-trend clamping, the workload tie that used to occur at 6+ active tasks, and word-boundary keyword matching.
-- Client unit tests: **vitest, 9 tests passing across 3 files** (`npm run test:unit`) — `FinancePage`, `PaginationControls`, and the new `ManageVotersPage` suite that guards the paginated-envelope regression.
+- Laravel: **149 tests, 1630 assertions passed, 0 failed** (`php artisan test`, 22 feature test files). The same suite was also run against MariaDB 10.4 on a throwaway database rather than SQLite, with the same result, including the four-role API access matrix, the financial-accountability suite, the GCash QR precondition tests, the new AI fallback-parity suite, the new demo-data integrity suite, and the merchandise/payment/notification/authentication/validation regressions. This includes a fix landed this pass: `RequestedWorkflowCompletionTest`'s GCash workflow test now configures an organization QR via a new `OrganizationFactory::withGcashQr()` state before submitting payment proof, so it no longer collides with the unconditional QR gate added in `2e67be8`.
+- Python AI service: **16 pytest tests passing** (`ai-service/.venv`, `pytest -q`), now including coverage for position-relevance variance, weak-fit detection on noisy data, negative-trend clamping, the workload tie that used to occur at 6+ active tasks, and word-boundary keyword matching.
+- Client unit tests: **vitest, 28 tests passing across 6 files** (`npm run test:unit`) — `FinancePage`, `PaginationControls`, `ManageVotersPage`, the shared `pagination` helper, and `AdminHomePage` and `DashboardPage` suites that mock a page shorter than the server total and assert the rendered figure is the total.
 - Client e2e: **5 Playwright spec files exist** under `client/e2e` (`ai-decision-support-live`, `events-live`, `example`, `finance-live`, `financial-accounts`); the "live" specs are gated behind env flags and have never been run on this machine. Not counted as passing evidence.
 - Frontend: **ESLint passed with zero warnings/errors**.
 - Frontend: **Vite production build passed** with route-level chunks and no bundle-size warning; the entry bundle is **275.10 kB (84.14 kB gzip)**.
-- Database: **46 migration files, all 46 applied**, **39 tables** in `hiusa_db` (MariaDB, 127.0.0.1:3307), including the 2026-08-27 financial-accountability and SBO-position tables.
-- Routes: **112 API routes** (`php artisan route:list --path=api`) load successfully, and `route:cache` / `route:clear` succeed without error.
+- Database: **50 migration files, all 50 applied**, **41 tables** in `hiusa_db` (MariaDB, 127.0.0.1:3307), including the 2026-08-27 financial-accountability and SBO-position tables.
+- Routes: **120 API routes** (`php artisan route:list --path=api`) load successfully, and `route:cache` / `route:clear` succeed without error.
 - Runtime smoke test: **not re-run this pass** — the prior "63 real HTTP checks" figure from 2026-08-20 was not reproduced and should not be treated as current evidence.
-- Dependency security: `npm audit` reports **0 vulnerabilities**, and `composer audit` now reports **"No security vulnerability advisories found."** The 14 advisories across 3 packages found earlier in this pass were all in transitive dependencies — `guzzlehttp/guzzle` (7, one high), `guzzlehttp/psr7` (1), `league/commonmark` (6, four high) — and were newly-disclosed advisories rather than a new dependency. They were remediated with a targeted `composer update guzzlehttp/guzzle guzzlehttp/psr7 league/commonmark` (patch/minor bumps within the same majors, no framework upgrade), and the suite still reports 106 passed / 824 assertions afterwards. Practical exposure had been low regardless: HIUSA's Guzzle usage is two fixed trusted endpoints (the local AI service and the Groq API) with no user-controlled URLs or cookies, and it does not render user-supplied Markdown. Teammates must run `composer install` after pulling, since `composer.lock` changed.
-- PHP quality: all project PHP files pass syntax validation (`php -l`), and Laravel Pint (`vendor/bin/pint --test`) now reports **`"result":"passed"`, 0 files failing**. The 19-file violation set found earlier in this pass (`FinancialAccountabilityController`, `GcashSettingsController`, `SboPositionController`, the six financial-accountability models, `SboPosition`, `OrderFulfillmentService`, `EventController`, `OrderController`, `routes/api.php`, two test files, and the three 2026-08-27 migrations) was pre-existing debt introduced by commit `2e67be8`, not by this pass. It has now been auto-fixed with `vendor/bin/pint`; the changes are whitespace, brace position, import ordering and one unused import, and the full suite still reports 106 passed / 824 assertions afterwards.
+- Dependency security: `npm audit` reports **0 vulnerabilities**, and `composer audit` now reports **"No security vulnerability advisories found."** The 14 advisories across 3 packages found earlier in this pass were all in transitive dependencies — `guzzlehttp/guzzle` (7, one high), `guzzlehttp/psr7` (1), `league/commonmark` (6, four high) — and were newly-disclosed advisories rather than a new dependency. They were remediated with a targeted `composer update guzzlehttp/guzzle guzzlehttp/psr7 league/commonmark` (patch/minor bumps within the same majors, no framework upgrade), and the suite stayed green afterwards (106 passed / 824 assertions at that point in time). Practical exposure had been low regardless: HIUSA's Guzzle usage is two fixed trusted endpoints (the local AI service and the Groq API) with no user-controlled URLs or cookies, and it does not render user-supplied Markdown. Teammates must run `composer install` after pulling, since `composer.lock` changed.
+- PHP quality: all project PHP files pass syntax validation (`php -l`), and Laravel Pint (`vendor/bin/pint --test`) now reports **`"result":"passed"`, 0 files failing**. The 19-file violation set found earlier in this pass (`FinancialAccountabilityController`, `GcashSettingsController`, `SboPositionController`, the six financial-accountability models, `SboPosition`, `OrderFulfillmentService`, `EventController`, `OrderController`, `routes/api.php`, two test files, and the three 2026-08-27 migrations) was pre-existing debt introduced by commit `2e67be8`, not by this pass. It has now been auto-fixed with `vendor/bin/pint`; the changes are whitespace, brace position, import ordering and one unused import, and the full suite stayed green afterwards (106 passed / 824 assertions at that point in time).
 - Static patch check: `git diff --check` passed.
 - Live browser interaction: not attempted this pass; the 2026-08-20 note (no available browser targets in that session) is not re-confirmed either way.
+
+## What changed between 2026-08-28 and 2026-09-03
+
+Recorded so the numbers above have context. Fifteen commits by this branch, plus a
+merge of three upstream commits.
+
+- **Server pagination, end to end.** Ten `index()` endpoints that returned whole
+  tables now return the standard paginator envelope with a hard `per_page` cap of 100
+  and filters applied before `paginate()`, so `total` describes the filtered set.
+  Every consumer on the client reads through one shared helper that accepts either a
+  bare array or an envelope; counts come from server totals or summaries, never from
+  the length of a loaded page. `PaginationContractTest` pins the shape, the cap,
+  filtered totals, role visibility, page disjointness, and a tie-heavy walk.
+- **Deterministic page boundaries.** Every paginated query ends with a unique
+  tiebreaker. Without one, MySQL's filesort returned 19 of the same 20 rows on pages
+  1 and 2 when sort keys tied (measured on this machine's MariaDB). SQLite is stable
+  by accident, which is why the suite alone could not have caught it.
+- **Per-user rate limiting** on every authenticated route (four named limiters, a
+  separate tighter one for AI generation, one for the check-in desk), security
+  headers on every response including 401 and 429, and the last unthrottled public
+  route closed.
+- **Queues.** Password-reset mail and the approval notification fan-out are queued
+  on the database driver; the audit write deliberately stays inline. The job is
+  retry-safe and carries its own after-commit guarantee.
+- **CI.** Four jobs: the SQLite suite with Pint and `composer audit` as failing
+  steps, the client, the Python service, and a migrations job that runs every
+  migration plus a rollback against both `mysql:8.4` (production) and
+  `mariadb:10.4` (development).
+- **A production-blocking migration bug found and fixed.** Upstream's
+  `make_positions_role_aware` dropped a unique index an InnoDB foreign key relied on
+  before creating its replacement. It passed the SQLite suite and aborted on MariaDB
+  with error 1553; it would have stopped `scripts/setup-ec2.sh` on its first
+  deployment. Reordered to create-then-drop.
+- **Merge of upstream.** Academic-structure CRUD, richer admin filters and exports,
+  order analytics and the EC2 Docker Compose deployment were merged over the
+  pagination work. Twelve conflicts, each resolved as the union: upstream's filters
+  before this branch's `paginate()`. Two merge-induced 422s (a dashboard asking for
+  `per_page=1`, an export asking for 100, against endpoints upstream had fixed at 10)
+  were found by driving the real app and fixed.
+- **Demo data.** The academic structure is seeded (programs, year levels, lettered
+  and Non Block sections) and every student is placed across all program-year
+  combinations; `DemoDataIntegrityTest` asserts it, including that a student's
+  section belongs to their year.
+- **Documentation.** `EC2-DEPLOYMENT.md` is the single deployment procedure;
+  `docs/DEPLOYMENT.md` is the go-live checklist and smoke test that wraps it;
+  `docs/OPERATIONS.md` is the runbook, mapped onto the real compose service names.
+- **Two adversarial review passes** over all of the above, with every finding
+  applied. Still deliberately open: no browser-driven verification has been run;
+  Playwright specs exist under `client/e2e` behind environment flags.
 
 ## Demo Readiness of the Seeded Database
 

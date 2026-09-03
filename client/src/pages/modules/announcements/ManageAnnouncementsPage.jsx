@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download, Eye, Search, Trash2, X } from 'lucide-react';
 import { Badge, SectionHeader, StatusBadge } from './announcementShared.jsx';
 import PaginationControls from '../../../components/PaginationControls';
@@ -8,6 +8,7 @@ import {
   togglePublish,
   deleteAnnouncement,
 } from '../../../services/announcementService';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -19,7 +20,6 @@ const CATEGORY_OPTIONS = [
   { label: 'Events', value: 'events' },
   { label: 'Merchandise', value: 'merchandise' },
 ];
-const PAGE_SIZE = 10;
 
 function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onConfirm }) {
   if (!open) return null;
@@ -81,6 +81,8 @@ function getCurrentUserId() {
 
 export default function ManageAnnouncementsPage() {
   const [items, setItems] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -90,33 +92,52 @@ export default function ManageAnnouncementsPage() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('newest');
-  const [page, setPage] = useState(1);
   const [details, setDetails] = useState(null);
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
+  const [exporting, setExporting] = useState(false);
   const currentRole = getCurrentRole();
   const currentUserId = getCurrentUserId();
+
+  // Hoisted so the CSV export can reuse the exact same filter set as the
+  // loaded page, without page/per_page, via fetchAllPages.
+  const queryParams = useMemo(() => ({
+    category: categoryFilter === 'all' ? undefined : categoryFilter,
+    target_role: audienceFilter === 'all' ? undefined : audienceFilter,
+    publication_status: statusFilter === 'all' ? undefined : statusFilter,
+    search: search || undefined,
+    from: from || undefined,
+    to: to || undefined,
+    sort,
+  }), [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
 
   const loadAnnouncements = useCallback(() => {
     let cancelled = false;
     setLoading(true);
     setError(null);
-    const params = {
-      category: categoryFilter === 'all' ? undefined : categoryFilter,
-      target_role: audienceFilter === 'all' ? undefined : audienceFilter,
-      publication_status: statusFilter === 'all' ? undefined : statusFilter,
-      search: search || undefined,
-      from: from || undefined,
-      to: to || undefined,
-      sort,
-    };
-    getAnnouncements(params)
-      .then((res) => { if (!cancelled) setItems(Array.isArray(res.data) ? res.data : []); })
+    getAnnouncements({ ...queryParams, page })
+      .then((res) => {
+        if (cancelled) return;
+        setItems(unwrapList(res.data));
+        setMeta(listMeta(res.data));
+      })
       .catch(() => { if (!cancelled) setError('Failed to load announcements.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
+  }, [queryParams, page]);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const all = await fetchAllPages((params) => getAnnouncements(params).then((res) => res.data), queryParams);
+      exportAnnouncements(all);
+    } catch {
+      setError('Failed to export announcements. Please try again.');
+    } finally {
+      setExporting(false);
+    }
+  }
 
   useEffect(() => {
     const timer = setTimeout(loadAnnouncements, 250);
@@ -124,10 +145,6 @@ export default function ManageAnnouncementsPage() {
   }, [loadAnnouncements]);
 
   useEffect(() => { setPage(1); }, [categoryFilter, audienceFilter, statusFilter, search, from, to, sort]);
-  useEffect(() => {
-    setPage((current) => Math.min(current, Math.max(1, Math.ceil(items.length / PAGE_SIZE))));
-  }, [items.length]);
-  const pagedItems = items.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   async function handleToggle(id) {
     try {
@@ -141,7 +158,10 @@ export default function ManageAnnouncementsPage() {
   async function handleDelete(id) {
     try {
       await deleteAnnouncement(id);
-      setItems((prev) => prev.filter((a) => a.id !== id));
+      // Reload rather than splice locally so the pagination footer's total
+      // (and this page's contents, if it was just emptied) stay in sync with
+      // the server instead of drifting.
+      loadAnnouncements();
     } catch {
       setError('Failed to delete announcement. Please try again.');
     }
@@ -191,7 +211,7 @@ export default function ManageAnnouncementsPage() {
 
   return (
     <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3"><SectionHeader title="Announcement Intelligence" /><button onClick={() => exportAnnouncements(items)} disabled={!items.length} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> Export CSV</button></div>
+      <div className="flex flex-wrap items-start justify-between gap-3"><SectionHeader title="Announcement Intelligence" /><button onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div>
       <div className="mb-4 grid gap-2 md:grid-cols-2 xl:grid-cols-7">
         <label className="relative xl:col-span-2"><Search size={14} className="absolute left-3 top-3.5 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search title, content, author..." className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-xs outline-none focus:border-[#0B8ED0]" /></label>
         <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
@@ -212,7 +232,9 @@ export default function ManageAnnouncementsPage() {
       </div>
       <div className="mb-4 flex justify-end"><button type="button" onClick={() => { setSearch(''); setCategoryFilter('all'); setAudienceFilter('all'); setStatusFilter('all'); setFrom(''); setTo(''); setSort('newest'); }} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-slate-600">Reset filters</button></div>
       {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-400">No announcements yet.</p>
+        <p className="py-8 text-center text-sm text-slate-400">
+          {meta.total === 0 ? 'No announcements yet.' : 'No announcements on this page.'}
+        </p>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] text-xs">
@@ -224,7 +246,7 @@ export default function ManageAnnouncementsPage() {
               </tr>
             </thead>
             <tbody>
-              {pagedItems.map((a) => {
+              {items.map((a) => {
                 const canModify = currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId);
                 const canPublishOwnDraft = canModify && ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentRole);
 
@@ -324,7 +346,13 @@ export default function ManageAnnouncementsPage() {
           </table>
         </div>
       )}
-      <PaginationControls currentPage={page} totalItems={items.length} pageSize={PAGE_SIZE} onPageChange={setPage} label="announcements" />
+      <PaginationControls
+        currentPage={meta.currentPage}
+        totalItems={meta.total}
+        pageSize={meta.perPage}
+        onPageChange={setPage}
+        label="announcements"
+      />
 
       <ConfirmModal
         open={confirmState.open}

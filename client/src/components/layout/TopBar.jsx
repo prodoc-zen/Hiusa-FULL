@@ -4,6 +4,7 @@ import { Bell, ChevronDown, LogOut, Menu, ShoppingCart, User } from 'lucide-reac
 import ConfirmModal from '../ConfirmModal';
 import { logout } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
+import { unwrapList } from '../../services/pagination';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
@@ -77,8 +78,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
   const loadNotifications = useCallback(async () => {
     try {
-      const res = await getNotifications();
-      const data = res?.data?.notifications ?? (Array.isArray(res?.data) ? res.data : []);
+      const res = await getNotifications({ per_page: 10 });
+      const data = unwrapList(res?.data);
       setNotifications(data.slice(0, 10));
       setUnreadCount(Number(res?.data?.unread_count ?? data.filter((notification) => !notification.is_read).length));
     } catch {

@@ -34,6 +34,7 @@ import {
   generateFinancialReport,
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
+import { fetchAllPages } from '../../../services/pagination';
 import FeedbackToast from '../../../components/FeedbackToast';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
@@ -210,37 +211,27 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     setFeedback({ open: true, type, message });
   }, []);
 
-  async function fetchAllTransactionsForExport() {
-    const rows = [];
-    let page = 1;
-    let lastPage;
-    do {
-      const response = await getTransactions({ page, per_page: 10 });
-      const payload = response.data;
-      rows.push(...(Array.isArray(payload?.data) ? payload.data : []));
-      lastPage = Number(payload?.last_page || 1);
-      page += 1;
-    } while (page <= lastPage);
-
-    return rows;
-  }
 
   function load(page = 1, filters = txFilters, searchTerm = search) {
     setLoading(true);
     setError(null);
     const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''));
+    // Budgets, forecasts, reports, and the event dropdown source have no server-side
+    // filter that narrows them down, and every one of them doubles as either a full
+    // catalog view or a <select> option list elsewhere on this page - so they are
+    // fetched in full (across every page) rather than left truncated at page one.
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? getTransactionSummary(activeFilters) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
-      canViewForecasts ? getForecasts() : Promise.resolve({ data: [] }),
-      canViewBudgets ? getBudgets() : Promise.resolve({ data: [] }),
-      canViewBudgets || canManageLedger ? getEvents() : Promise.resolve({ data: [] }),
+      canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data)) : Promise.resolve([]),
+      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data)) : Promise.resolve([]),
+      canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       getPersonalReceipts(),
       getInvoices(),
       currentUserRole === 'ADMIN' ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
-      canViewTransactions ? getFinancialReports() : Promise.resolve({ data: [] }),
+      canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data)) : Promise.resolve([]),
     ])
-      .then(([txRes, sumRes, fcRes, budgetRes, eventsRes, receiptRes, invoiceRes, auditRes, reportRes]) => {
+      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -252,13 +243,13 @@ export default function FinancePage({ initialTab = 'transactions' }) {
           });
         }
         setSummary(sumRes.data ?? { total_income: 0, total_expense: 0, net_balance: 0 });
-        setForecasts(Array.isArray(fcRes.data) ? fcRes.data : []);
-        setBudgets(Array.isArray(budgetRes.data) ? budgetRes.data : []);
-        setEvents(Array.isArray(eventsRes.data) ? eventsRes.data : []);
+        setForecasts(forecasts);
+        setBudgets(budgetsList);
+        setEvents(eventsList);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
         setAuditLogs(Array.isArray(auditRes.data?.data) ? auditRes.data.data : []);
-        setReports(Array.isArray(reportRes.data) ? reportRes.data : []);
+        setReports(reports);
       })
       .catch(() => setError('Failed to load financial data.'))
       .finally(() => setLoading(false));
@@ -515,7 +506,11 @@ export default function FinancePage({ initialTab = 'transactions' }) {
     }
 
     try {
-      const all = await fetchAllTransactionsForExport();
+      // /transactions only accepts per_page=10 (any other value 422s), so a full
+      // export walks every page at that size instead of asking for a bigger
+      // page in one shot. maxPages is raised well past the 50-page default so a
+      // semester (or the full log) isn't silently capped at 500 rows.
+      const all = await fetchAllPages((p) => getTransactions(p).then((r) => r.data), {}, { perPage: 10, maxPages: 500 });
 
       const toRow = (tx) => ({
         Date: tx.transaction_date,

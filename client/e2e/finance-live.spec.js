@@ -21,13 +21,13 @@ test('student can open the statement of account and cannot access admin audit lo
   await signInAs(page, request, 2100142, 'Demo@12345');
   await page.goto('/dashboard/finance/statement-of-account');
   await expect(page.getByRole('heading', { name: 'Statement of Account & Financial Clearance' })).toBeVisible();
-  await page.goto('/dashboard/finance/audit-logs');
+  await page.goto('/dashboard/audit-logs');
   await expect(page).toHaveURL(/\/dashboard\/student$/);
 });
 
 test('admin can open the read-only audit log', async ({ page, request }) => {
   await signInAs(page, request, 990001, 'Admin@123456');
-  await page.goto('/dashboard/finance/audit-logs');
-  await expect(page.getByRole('heading', { name: 'Admin Audit Logs' }).last()).toBeVisible();
-  await expect(page.getByText('Read-only activity history across financial, approval, order, and system modules.')).toBeVisible();
+  await page.goto('/dashboard/audit-logs');
+  await expect(page.getByRole('main').getByRole('heading', { name: 'General Audit Log' })).toBeVisible();
+  await expect(page.getByText('Trace actors, records, academic context, approvals, payments, and before/after values across HIUSA.')).toBeVisible();
 });

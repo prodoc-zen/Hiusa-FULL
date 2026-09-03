@@ -6,6 +6,7 @@ import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const ROLE_LABELS = {
@@ -67,8 +68,11 @@ function firstError(error) {
 
 export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
+  const [roleSummary, setRoleSummary] = useState({});
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [departmentFilter, setDepartmentFilter] = useState('all');
   const [programFilter, setProgramFilter] = useState('all');
@@ -94,97 +98,84 @@ export default function AdminUsersPage() {
   const [sboPositions, setSboPositions] = useState([]);
   const [academicStructure, setAcademicStructure] = useState({ department: '', programs: [] });
   const pageSize = 10;
+  const loadRequestRef = useRef(0);
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [editForm, setEditForm] = useState(emptyEditForm);
 
+  // Debounced so typing doesn't fire a request per keystroke - role/search are
+  // now server-side filters (the endpoint paginates), not a client-side scan.
   useEffect(() => {
-    let cancelled = false;
+    const timeout = setTimeout(() => setDebouncedSearch(search.trim()), 300);
+    return () => clearTimeout(timeout);
+  }, [search]);
 
-    async function load() {
-      try {
-        const rows = await getUsers();
-        if (!cancelled) {
-          setUsers(Array.isArray(rows) ? rows : []);
-        }
-      } catch {
-        if (!cancelled) {
-          setError('Unable to load users.');
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+  // Shared by load() and export(): every filter maps onto a /users query parameter.
+  const userQuery = {
+    ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
+    ...(statusFilter !== 'all' ? { account_status: statusFilter } : {}),
+    ...(departmentFilter !== 'all' ? { department: departmentFilter } : {}),
+    ...(programFilter !== 'all' ? { program: programFilter } : {}),
+    ...(yearLevelFilter !== 'all' ? { year_level: yearLevelFilter } : {}),
+    ...(sectionFilter !== 'all' ? { section: sectionFilter } : {}),
+    ...(debouncedSearch ? { search: debouncedSearch } : {}),
+  };
 
-      const [positionsResult, structureResult] = await Promise.allSettled([getSboPositions(), getAcademicStructure()]);
-      if (!cancelled && positionsResult.status === 'fulfilled') {
-        setSboPositions(Array.isArray(positionsResult.value) ? positionsResult.value : []);
-      }
-      if (!cancelled && structureResult.status === 'fulfilled') {
-        setAcademicStructure(structureResult.value || { department: '', programs: [] });
-      }
+  async function load() {
+    // Filter changes and the page-1 reset they trigger race two requests against
+    // each other; only the one still current when it resolves may write state, so
+    // a stale filter-change request landing after the page-reset request can't
+    // leave the table showing page N while `page` state (and the footer) say 1.
+    const requestId = ++loadRequestRef.current;
+    setLoading(true);
+    setError('');
+    try {
+      // Positions and the academic structure are best-effort: a hiccup there must
+      // not blank the user table, so each falls back to null instead of rejecting.
+      const [usersRes, positions, structure] = await Promise.all([
+        getUsers({ ...userQuery, page, per_page: pageSize }),
+        getSboPositions().catch(() => null),
+        getAcademicStructure().catch(() => null),
+      ]);
+      if (loadRequestRef.current !== requestId) return;
+      setUsers(unwrapList(usersRes));
+      setMeta(listMeta(usersRes));
+      setRoleSummary(usersRes?.summary?.by_role ?? {});
+      setSboPositions(Array.isArray(positions) ? positions : []);
+      if (structure) setAcademicStructure(structure || { department: '', programs: [] });
+    } catch {
+      if (loadRequestRef.current === requestId) setError('Unable to load users.');
+    } finally {
+      if (loadRequestRef.current === requestId) setLoading(false);
     }
+  }
 
-    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { load(); }, [roleFilter, statusFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, debouncedSearch, page]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const refreshUsers = load;
 
-  const filtered = useMemo(() => {
-    const matching = users.filter((user) => {
-      const fullName = `${user.first_name} ${user.last_name}`.toLowerCase();
-      const query = search.toLowerCase();
-      const matchesSearch =
-        fullName.includes(query) ||
-        String(user.school_id ?? '').toLowerCase().includes(query) ||
-        user.email.toLowerCase().includes(query) ||
-        (user.department || '').toLowerCase().includes(query) ||
-        (user.program || '').toLowerCase().includes(query) ||
-        (user.year_level || '').toLowerCase().includes(query);
-      const matchesRole = roleFilter === 'all' || user.role === roleFilter;
-      const matchesDepartment = departmentFilter === 'all' || user.department === departmentFilter;
-      const matchesProgram = programFilter === 'all' || user.program === programFilter;
-      const matchesYearLevel = yearLevelFilter === 'all' || user.year_level === yearLevelFilter;
-      const matchesSection = sectionFilter === 'all' || user.section === sectionFilter;
-      const matchesStatus = statusFilter === 'all' || user.account_status === statusFilter;
-      return matchesSearch && matchesRole && matchesDepartment && matchesProgram && matchesYearLevel && matchesSection && matchesStatus;
-    });
-    return [...matching].sort((left, right) => {
-      if (sort === 'newest') return new Date(right.created_at || 0) - new Date(left.created_at || 0);
-      if (sort === 'school_id') return String(left.school_id).localeCompare(String(right.school_id), undefined, { numeric: true });
-      if (sort === 'program') return String(left.program || '').localeCompare(String(right.program || '')) || String(left.year_level || '').localeCompare(String(right.year_level || '')) || String(left.section || '').localeCompare(String(right.section || ''));
-      return `${left.last_name} ${left.first_name}`.localeCompare(`${right.last_name} ${right.first_name}`);
-    });
-  }, [users, search, roleFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter, sort]);
-
-  const pagedUsers = useMemo(() => {
-    const start = (page - 1) * pageSize;
-    return filtered.slice(start, start + pageSize);
-  }, [filtered, page]);
-
+  // Every filter is applied server-side, so any change goes back to page 1.
   useEffect(() => {
     setPage(1);
-  }, [search, roleFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter, sort]);
+  }, [debouncedSearch, roleFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter]);
 
-  const exportUsers = () => {
+  // /users has no sort parameter, so sort orders the page on screen.
+  const sortedUsers = useMemo(() => [...users].sort((left, right) => {
+    if (sort === 'newest') return new Date(right.created_at || 0) - new Date(left.created_at || 0);
+    if (sort === 'school_id') return String(left.school_id).localeCompare(String(right.school_id), undefined, { numeric: true });
+      if (sort === 'program') return String(left.program || '').localeCompare(String(right.program || '')) || String(left.year_level || '').localeCompare(String(right.year_level || '')) || String(left.section || '').localeCompare(String(right.section || ''));
+    return `${left.last_name} ${left.first_name}`.localeCompare(`${right.last_name} ${right.first_name}`);
+  }), [users, sort]);
+
+  const exportUsers = async () => {
+    // Export every user matching the active filters; the table shows one page.
+    const exportRows = await fetchAllPages(getUsers, userQuery);
     const headers = ['School ID', 'Last Name', 'First Name', 'Email', 'Role', 'Position', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Account Status', 'Created At', 'Updated At'];
-    const rows = filtered.map((user) => [user.school_id, user.last_name, user.first_name, user.email, user.role, user.position_title, user.department, user.program, user.major, user.year_level, user.section, user.account_status, user.created_at, user.updated_at]);
+    const rows = exportRows.map((user) => [user.school_id, user.last_name, user.first_name, user.email, user.role, user.position_title, user.department, user.program, user.major, user.year_level, user.section, user.account_status, user.created_at, user.updated_at]);
     const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `user-register-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
-  };
-
-  const refreshUsers = async () => {
-    const rows = await getUsers();
-    setUsers(Array.isArray(rows) ? rows : []);
-    const [positionsResult, structureResult] = await Promise.allSettled([getSboPositions(), getAcademicStructure()]);
-    if (positionsResult.status === 'fulfilled') {
-      setSboPositions(Array.isArray(positionsResult.value) ? positionsResult.value : []);
-    }
-    if (structureResult.status === 'fulfilled') {
-      setAcademicStructure(structureResult.value || { department: '', programs: [] });
-    }
   };
 
 
@@ -426,19 +417,19 @@ export default function AdminUsersPage() {
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">User Management</h2>
             <p className="mt-1 text-sm text-slate-500">View, search, filter, add, update, deactivate, and reactivate user accounts.</p>
           </div>
-          <div className="flex gap-2"><button onClick={exportUsers} disabled={!filtered.length} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>
+          <div className="flex gap-2"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
           <input
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
+            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
             placeholder="Search by name, school ID, department, program, or email"
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
           <select
             value={roleFilter}
-            onChange={(event) => setRoleFilter(event.target.value)}
+            onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           >
             <option value="all">All roles</option>
@@ -454,7 +445,7 @@ export default function AdminUsersPage() {
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
-          ['Total users', users.length], ['Matching users', filtered.length], ['Active accounts', filtered.filter((user) => user.account_status === 'active').length], ['Students', filtered.filter((user) => user.role === 'STUDENT').length],
+          ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['SBO Officers', roleSummary.SBO_OFFICER ?? 0], ['Admins', roleSummary.ADMIN ?? 0],
         ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p></div>)}</div>
         <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setDepartmentFilter('all'); setProgramFilter('all'); setYearLevelFilter('all'); setSectionFilter('all'); setStatusFilter('all'); setSort('name'); }} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-slate-600">Reset filters</button></div>
       </section>
@@ -488,7 +479,7 @@ export default function AdminUsersPage() {
                   ))}
                 </tr>
               ))}
-              {!loading && pagedUsers.map((user) => (
+              {!loading && sortedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
@@ -516,18 +507,20 @@ export default function AdminUsersPage() {
                   </td>
                 </tr>
               ))}
-              {!loading && filtered.length === 0 && (
+              {!loading && users.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-[#94A3B8]">No users found.</td>
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
+                    {meta.total === 0 ? 'No users found.' : 'No users on this page.'}
+                  </td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
         <PaginationControls
-          currentPage={page}
-          totalItems={filtered.length}
-          pageSize={pageSize}
+          currentPage={meta.currentPage}
+          totalItems={meta.total}
+          pageSize={meta.perPage}
           onPageChange={setPage}
           label="users"
         />

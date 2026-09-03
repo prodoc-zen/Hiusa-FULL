@@ -1,6 +1,8 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, Clock, Coins, Download, Eye, Megaphone, Package, Search, Vote, X } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
+import PaginationControls from '../../../components/PaginationControls';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 const ENTITY_ICON = {
   event: CalendarDays,
@@ -140,9 +142,12 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
 export default function DepartmentHeadApprovalsPage() {
   const currentUser = getStoredUser();
   const [requests, setRequests] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
+  const [pendingTotal, setPendingTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [statusFilter, setStatusFilter] = useState('pending');
+  const [page, setPage] = useState(1);
   const [entityFilter, setEntityFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [from, setFrom] = useState('');
@@ -151,14 +156,52 @@ export default function DepartmentHeadApprovalsPage() {
   const [details, setDetails] = useState(null);
   const [modalState, setModalState] = useState({ open: false, request: null, action: null });
   const [submitting, setSubmitting] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  // Hoisted so the CSV export can reuse the exact same filter set as the
+  // loaded page, without page/per_page, via fetchAllPages.
+  const queryParams = useMemo(() => ({
+    status: statusFilter,
+    entity_type: entityFilter === 'all' ? undefined : entityFilter,
+    search: search || undefined,
+    from: from || undefined,
+    to: to || undefined,
+    sort,
+  }), [statusFilter, entityFilter, search, from, to, sort]);
 
   const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    getApprovalRequests({ status: statusFilter, entity_type: entityFilter === 'all' ? undefined : entityFilter, search: search || undefined, from: from || undefined, to: to || undefined, sort })
-      .then((res) => setRequests(Array.isArray(res.data) ? res.data : []))
+    // The "Pending (n)" tab label always names the pending queue, even while
+    // viewing "All History", so it is read from its own totals-only request
+    // rather than from whichever status is currently loaded into `requests`.
+    Promise.all([
+      getApprovalRequests({ ...queryParams, page }),
+      getApprovalRequests({ status: 'pending', per_page: 1 }),
+    ])
+      .then(([res, pendingRes]) => {
+        setRequests(unwrapList(res.data));
+        setMeta(listMeta(res.data));
+        setPendingTotal(listMeta(pendingRes.data).total);
+      })
       .catch(() => setError('Failed to load approval requests.'))
       .finally(() => setLoading(false));
+  }, [queryParams, page]);
+
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const all = await fetchAllPages((params) => getApprovalRequests(params).then((res) => res.data), queryParams);
+      downloadCsv(all);
+    } catch {
+      setError('Failed to export approval requests.');
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  useEffect(() => {
+    setPage(1);
   }, [statusFilter, entityFilter, search, from, to, sort]);
 
   useEffect(() => {
@@ -180,8 +223,6 @@ export default function DepartmentHeadApprovalsPage() {
     }
   }
 
-  const pendingCount = requests.filter((request) => request.status === 'pending').length;
-
   return (
     <div className="space-y-6">
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
@@ -194,14 +235,14 @@ export default function DepartmentHeadApprovalsPage() {
         {['pending', 'all'].map((tab) => (
           <button
             key={tab}
-            onClick={() => setStatusFilter(tab)}
+            onClick={() => { setStatusFilter(tab); setPage(1); }}
             className={`rounded-lg px-4 py-2.5 text-[13px] font-bold capitalize transition-all ${
               statusFilter === tab
                 ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20'
                 : 'border border-[#DDE7EF] bg-white text-slate-600 hover:bg-[#EEF6FB]'
             }`}
           >
-            {tab === 'pending' ? `Pending${pendingCount ? ` (${pendingCount})` : ''}` : 'All History'}
+            {tab === 'pending' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : 'All History'}
           </button>
         ))}
       </div>
@@ -220,10 +261,10 @@ export default function DepartmentHeadApprovalsPage() {
           <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
-          <p className="text-xs font-semibold text-slate-500">{requests.length} matching request{requests.length === 1 ? '' : 's'} · {requests.filter((item) => item.status === 'pending').length} awaiting action</p>
+          <p className="text-xs font-semibold text-slate-500">{meta.total} matching request{meta.total === 1 ? '' : 's'} · {pendingTotal} awaiting action</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => { setSearch(''); setEntityFilter('all'); setFrom(''); setTo(''); setSort('newest'); }} className="h-9 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Reset</button>
-            <button type="button" onClick={() => downloadCsv(requests)} disabled={!requests.length} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> Export CSV</button>
+            <button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button>
           </div>
         </div>
       </section>
@@ -303,6 +344,15 @@ export default function DepartmentHeadApprovalsPage() {
               );
             })}
           </div>
+        )}
+        {!loading && requests.length > 0 && (
+          <PaginationControls
+            currentPage={meta.currentPage}
+            totalItems={meta.total}
+            pageSize={meta.perPage}
+            onPageChange={setPage}
+            label="requests"
+          />
         )}
       </section>
 

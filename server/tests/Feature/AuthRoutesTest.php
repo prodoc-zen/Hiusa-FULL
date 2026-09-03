@@ -148,7 +148,7 @@ class AuthRoutesTest extends TestCase
 
         $resetUrl = null;
 
-        Mail::assertSent(PasswordResetMail::class, function (PasswordResetMail $mail) use (&$resetUrl) {
+        Mail::assertQueued(PasswordResetMail::class, function (PasswordResetMail $mail) use (&$resetUrl) {
             $resetUrl = $mail->resetUrl;
 
             return $mail->hasTo('recover@example.com')
@@ -227,7 +227,7 @@ class AuthRoutesTest extends TestCase
         ])->assertOk()
             ->assertJsonStructure(['message']);
 
-        Mail::assertNothingSent();
+        Mail::assertNothingOutgoing();
     }
 
     public function test_all_roles_can_update_their_own_profile(): void

@@ -50,8 +50,8 @@ class AdministrativeRegisterFiltersTest extends TestCase
 
         $response = $this->getJson('/api/announcements?category=training&target_role=STUDENT&publication_status=published&search=Leadership&sort=most_viewed');
 
-        $response->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $matching->id);
-        $response->assertJsonPath('0.creator.school_id', $admin->school_id);
+        $response->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $matching->id);
+        $response->assertJsonPath('data.0.creator.school_id', $admin->school_id);
     }
 
     public function test_approval_register_filters_by_type_requester_and_date_with_profile_context(): void
@@ -94,8 +94,8 @@ class AdministrativeRegisterFiltersTest extends TestCase
 
         $response = $this->getJson("/api/approval-requests?status=pending&entity_type=budget&search=Andrea&from={$date}&to={$date}");
 
-        $response->assertOk()->assertJsonCount(1)->assertJsonPath('0.id', $matching->id);
-        $response->assertJsonPath('0.requester.position_title', 'Treasurer');
-        $response->assertJsonPath('0.requester.program', 'BSIT');
+        $response->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $matching->id);
+        $response->assertJsonPath('data.0.requester.position_title', 'Treasurer');
+        $response->assertJsonPath('data.0.requester.program', 'BSIT');
     }
 }

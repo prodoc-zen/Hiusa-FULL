@@ -26,19 +26,22 @@ class AppServiceProvider extends ServiceProvider
             'message' => 'Too many requests. Please wait before trying again.',
         ], 429, $headers);
 
+        $authenticatedKey = fn (Request $request) => $request->user()
+            ? $request->user()->organization_id.':'.$request->user()->getAuthIdentifier()
+            : $request->ip();
+
         RateLimiter::for('public', fn (Request $request) => Limit::perMinute(
             config('performance.rate_limits.public_per_minute'),
         )->by($request->ip())->response($tooManyRequests));
 
         RateLimiter::for('authenticated', function (Request $request) use ($tooManyRequests) {
-            $userKey = $request->user()
-                ? $request->user()->organization_id.':'.$request->user()->getAuthIdentifier()
-                : $request->ip();
             $perMinute = $request->isMethodSafe()
                 ? config('performance.rate_limits.read_per_minute')
                 : config('performance.rate_limits.write_per_minute');
 
-            return Limit::perMinute($perMinute)->by($userKey)->response($tooManyRequests);
+            return Limit::perMinute($perMinute)
+                ->by($request->user()->organization_id.':'.$request->user()->getAuthIdentifier())
+                ->response($tooManyRequests);
         });
 
         RateLimiter::for('expensive', fn (Request $request) => Limit::perMinute(
@@ -75,5 +78,33 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('registration', fn (Request $request) => Limit::perMinute(
             config('performance.rate_limits.registration_per_minute'),
         )->by($request->ip())->response($tooManyRequests));
+
+        // Authenticated limits are keyed by organization and primary user key,
+        // not IP, because many campus users can share a single NAT address.
+        RateLimiter::for('api-read', fn (Request $request) => Limit::perMinute(
+            config('performance.rate_limits.read_per_minute'),
+        )->by($authenticatedKey($request))->response($tooManyRequests));
+
+        RateLimiter::for('api-write', fn (Request $request) => Limit::perMinute(
+            config('performance.rate_limits.write_per_minute'),
+        )->by($authenticatedKey($request))->response($tooManyRequests));
+
+        // AI generation routes proxy to an LLM with a long timeout - a much
+        // tighter, clearly separate limit so one account can't rack up expensive
+        // third-party calls or tie up the request-handling workers.
+        RateLimiter::for('ai-generation', fn (Request $request) => Limit::perMinute(5)
+            ->by($authenticatedKey($request))->response($tooManyRequests));
+
+        // Double-voting is already prevented at the schema level, so this limit is
+        // purely about load during an election window, not integrity - generous
+        // enough that a student submitting a multi-position ballot never trips it.
+        RateLimiter::for('voting', fn (Request $request) => Limit::perMinute(20)
+            ->by($authenticatedKey($request))->response($tooManyRequests));
+
+        // Event check-in is bursty in a way the shared api-write bucket isn't
+        // built for: one officer at the door can log a student every couple of
+        // seconds, which blows past 30/min well before the desk line does.
+        RateLimiter::for('attendance', fn (Request $request) => Limit::perMinute(120)
+            ->by($authenticatedKey($request))->response($tooManyRequests));
     }
 }

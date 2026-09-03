@@ -3,6 +3,7 @@ import { NavLink } from 'react-router-dom';
 import { ShieldCheck, Megaphone, FileText, GraduationCap, UserCheck, Briefcase } from 'lucide-react';
 import { getUsers } from '../../../services/userService';
 import { getAnnouncements } from '../../../services/announcementService';
+import { listMeta } from '../../../services/pagination';
 
 const ROLE_CONFIG = [
   { key: 'STUDENT',         label: 'Students',      icon: GraduationCap, color: 'bg-blue-50 text-blue-700 border-blue-200' },
@@ -12,8 +13,10 @@ const ROLE_CONFIG = [
 ];
 
 export default function AdminHomePage() {
-  const [users, setUsers] = useState([]);
-  const [announcements, setAnnouncements] = useState([]);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [usersByRole, setUsersByRole] = useState({});
+  const [published, setPublished] = useState(0);
+  const [drafts, setDrafts] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -21,17 +24,26 @@ export default function AdminHomePage() {
 
     async function load() {
       try {
-        const [usersRes, announcementsRes] = await Promise.all([
-          getUsers(),
-          getAnnouncements(),
+        // /users and /announcements are both paginated now. /users answers with
+        // an org-wide summary.by_role alongside the page, which is exactly what
+        // the role pills need. `published_only` on /announcements narrows to the
+        // requesting user's own target_role, which for an admin silently drops
+        // every announcement aimed at a single other role - use the unfiltered
+        // publication_status split instead, which applies with no such narrowing.
+        const [usersRes, publishedRes, draftRes] = await Promise.all([
+          getUsers({ per_page: 1 }),
+          getAnnouncements({ publication_status: 'published', per_page: 1 }),
+          getAnnouncements({ publication_status: 'draft', per_page: 1 }),
         ]);
 
         if (cancelled) return;
 
-        setUsers(Array.isArray(usersRes) ? usersRes : (Array.isArray(usersRes?.data) ? usersRes.data : []));
-        setAnnouncements(Array.isArray(announcementsRes?.data) ? announcementsRes.data : []);
+        setTotalUsers(Number(usersRes?.total ?? 0));
+        setUsersByRole(usersRes?.summary?.by_role ?? {});
+        setPublished(listMeta(publishedRes?.data).total);
+        setDrafts(listMeta(draftRes?.data).total);
       } catch {
-        if (!cancelled) { setUsers([]); setAnnouncements([]); }
+        if (!cancelled) { setTotalUsers(0); setUsersByRole({}); setPublished(0); setDrafts(0); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -41,9 +53,7 @@ export default function AdminHomePage() {
     return () => { cancelled = true; };
   }, []);
 
-  const countByRole = (role) => users.filter((u) => u.role === role).length;
-  const published = announcements.filter((a) => a.is_published).length;
-  const drafts = announcements.filter((a) => !a.is_published).length;
+  const countByRole = (role) => Number(usersByRole[role] ?? 0);
 
   return (
     <div className="space-y-6">
@@ -60,7 +70,7 @@ export default function AdminHomePage() {
             <h3 className="text-base font-bold text-[#0F172A]">Users by Role</h3>
             {loading
               ? <div className="mt-1 h-3 w-24 animate-pulse rounded bg-slate-100" aria-hidden="true" />
-              : <p className="text-xs font-medium text-slate-400">{users.length} total accounts</p>}
+              : <p className="text-xs font-medium text-slate-400">{totalUsers} total accounts</p>}
           </div>
           <NavLink to="/dashboard/admin/users" className="text-xs font-bold text-[#0B8ED0] hover:underline">Manage Users</NavLink>
         </div>

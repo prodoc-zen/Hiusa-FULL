@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -18,6 +18,7 @@ import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
 import PaginationControls from '../../../components/PaginationControls';
 import EngineBadge from '../../../components/ai/EngineBadge';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 function getDelegationDetail(source) {
   if (!source || typeof source !== 'object') return null;
@@ -58,6 +59,9 @@ export default function TasksPage({ initialTab = 'board' }) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [tasks, setTasks] = useState([]);
+  const [tasksMeta, setTasksMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
+  const [allTasks, setAllTasks] = useState([]);
+  const [statusTotals, setStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
   const [officers, setOfficers] = useState([]);
   const [events, setEvents] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -84,23 +88,64 @@ export default function TasksPage({ initialTab = 'board' }) {
   const canManageTasks = currentUserRole === 'ADMIN';
   const canUpdateAssignedTasks = currentUserRole === 'SBO_OFFICER';
 
+  // Memoised so it is a stable dependency for the load effect below; a fresh object
+  // each render would refire the effect on every render.
+  const serverFilters = useMemo(() => ({
+    ...(taskFilters.status ? { status: taskFilters.status } : {}),
+    ...(taskFilters.assignee ? { assigned_to: taskFilters.assignee } : {}),
+    ...(taskFilters.event ? { event_id: taskFilters.event } : {}),
+    ...(taskFilters.type ? { task_type: taskFilters.type } : {}),
+  }), [taskFilters]);
+
   function load() {
     setLoading(true);
     setError(null);
-    const usersRequest = canManageTasks ? getUsers({ role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
-    const eventsRequest = canManageTasks ? getEvents() : Promise.resolve({ data: [] });
-    Promise.all([getTasks(), usersRequest, eventsRequest])
-      .then(([taskRes, userRes, eventRes]) => {
-        setTasks(Array.isArray(taskRes.data) ? taskRes.data : []);
-        const allUsers = Array.isArray(userRes) ? userRes : (Array.isArray(userRes.data) ? userRes.data : []);
+    const usersRequest = canManageTasks ? fetchAllPages(getUsers, { role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
+    const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]);
+    // The board table pages on the server with the active status/assignee/event/type
+    // filters; the complete task set (status totals, workload, ranking) is fetched
+    // separately in loadTotals() so paging and filter changes here don't re-walk it.
+    Promise.all([
+      getTasks({ page, per_page: pageSize, ...serverFilters }),
+      usersRequest,
+      eventsRequest,
+    ])
+      .then(([taskRes, allUsers, eventList]) => {
+        setTasks(unwrapList(taskRes.data));
+        setTasksMeta(listMeta(taskRes.data));
         setOfficers(allUsers.filter((u) => u.role === 'SBO_OFFICER' && u.position_title?.trim()));
-        setEvents(Array.isArray(eventRes.data) ? eventRes.data : []);
+        setEvents(eventList);
       })
       .catch(() => setError('Failed to load tasks.'))
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [canManageTasks]);
+  // Status counts come from four small per-status totals-only requests (exact,
+  // never truncated) rather than array length off a walked table; the walked
+  // table itself (allTasks) still backs officer workload and the AI ranking view
+  // and is kept in its own effect so board paging/filtering never re-triggers it.
+  function loadTotals() {
+    Promise.all([
+      getTasks({ status: 'pending', per_page: 1 }),
+      getTasks({ status: 'in_progress', per_page: 1 }),
+      getTasks({ status: 'completed', per_page: 1 }),
+      getTasks({ status: 'overdue', per_page: 1 }),
+      fetchAllPages((p) => getTasks(p).then((r) => r.data)),
+    ])
+      .then(([pendingRes, inProgressRes, completedRes, overdueRes, fullTasks]) => {
+        setStatusTotals({
+          pending: listMeta(pendingRes.data).total,
+          in_progress: listMeta(inProgressRes.data).total,
+          completed: listMeta(completedRes.data).total,
+          overdue: listMeta(overdueRes.data).total,
+        });
+        setAllTasks(fullTasks);
+      })
+      .catch(() => {});
+  }
+
+  useEffect(load, [canManageTasks, page, serverFilters]);
+  useEffect(loadTotals, [canManageTasks]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -126,6 +171,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       setCreateSuccess(`Task “${res.data.title}” was created${res.data.assignee ? ` and assigned to ${res.data.assignee.first_name} ${res.data.assignee.last_name}` : ''}.`);
       setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
       load();
+      loadTotals();
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to create task.');
     } finally {
@@ -141,7 +187,16 @@ export default function TasksPage({ initialTab = 'board' }) {
         ...(progressNote?.trim() ? { progress_note: progressNote.trim() } : {}),
         ...(progressPercent !== null ? { progress_percent: Number(progressPercent) } : {}),
       });
+      const previousStatus = allTasks.find((t) => t.id === id)?.status ?? tasks.find((t) => t.id === id)?.status;
       setTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
+      setAllTasks((prev) => prev.map((t) => (t.id === id ? res.data : t)));
+      if (previousStatus && previousStatus !== res.data.status) {
+        setStatusTotals((totals) => ({
+          ...totals,
+          [previousStatus]: Math.max(0, (totals[previousStatus] ?? 0) - 1),
+          [res.data.status]: (totals[res.data.status] ?? 0) + 1,
+        }));
+      }
       setSelectedTask((current) => (current?.id === id ? res.data : current));
       return res.data;
     } catch (err) {
@@ -166,32 +221,34 @@ export default function TasksPage({ initialTab = 'board' }) {
     }
   }
 
-  const counts = tasks.reduce((acc, t) => { acc[t.status] = (acc[t.status] || 0) + 1; return acc; }, {});
+  // Stat cards read the exact per-status totals fetched by loadTotals(), never
+  // the loaded board page or a truncated walk of the whole table.
+  const counts = statusTotals;
+  const totalTasksCount = Object.values(statusTotals).reduce((sum, n) => sum + n, 0);
 
+  // /tasks has no text-search filter, so search narrows only the page on screen;
+  // status/assignee/event/type are applied server-side in load().
   const filteredTasks = tasks.filter((t) => {
     const query = search.toLowerCase();
     const searchable = [t.title, t.description, t.assignee?.first_name, t.assignee?.last_name, t.assignee?.position_title, t.event?.title].filter(Boolean).join(' ').toLowerCase();
-    return searchable.includes(query)
-      && (!taskFilters.status || t.status === taskFilters.status)
-      && (!taskFilters.assignee || String(t.assigned_to) === taskFilters.assignee)
-      && (!taskFilters.event || String(t.event_id) === taskFilters.event)
-      && (!taskFilters.type || t.task_type === taskFilters.type);
+    return searchable.includes(query);
   });
-  const pagedTasks = filteredTasks.slice((page - 1) * pageSize, page * pageSize);
 
   useEffect(() => {
     setPage(1);
-  }, [search, tasks.length, taskFilters]);
+  }, [taskFilters]);
 
-  function exportVisibleTasks() {
+  async function exportVisibleTasks() {
+    // Export every task matching the active filters, not just the page on screen.
+    const exportRows = await fetchAllPages((p) => getTasks(p).then((r) => r.data), serverFilters);
     const header = ['Task ID', 'Title', 'Description', 'Type', 'Assignee', 'Role', 'Position', 'Department', 'Program', 'Year Level', 'Section', 'Related Event', 'Status', 'Progress Percent', 'Deadline', 'Completed At', 'Assigned By', 'Created At', 'Updated At'];
-    const rows = filteredTasks.map((task) => [task.id, task.title, task.description, task.task_type, task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : '', task.assignee?.role, task.assignee?.position_title, task.assignee?.department, task.assignee?.program, task.assignee?.year_level, task.assignee?.section, task.event?.title, task.status, task.progress_percent, task.deadline, task.completed_at, task.creator ? `${task.creator.first_name} ${task.creator.last_name}` : '', task.created_at, task.updated_at]);
+    const rows = exportRows.map((task) => [task.id, task.title, task.description, task.task_type, task.assignee ? `${task.assignee.first_name} ${task.assignee.last_name}` : '', task.assignee?.role, task.assignee?.position_title, task.assignee?.department, task.assignee?.program, task.assignee?.year_level, task.assignee?.section, task.event?.title, task.status, task.progress_percent, task.deadline, task.completed_at, task.creator ? `${task.creator.first_name} ${task.creator.last_name}` : '', task.created_at, task.updated_at]);
     const csv = [header, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
     const anchor = document.createElement('a'); anchor.href = url; anchor.download = `tasks-${new Date().toISOString().slice(0, 10)}.csv`; anchor.click(); URL.revokeObjectURL(url);
   }
 
-  const workloadByAssignee = tasks.reduce((acc, t) => {
+  const workloadByAssignee = allTasks.reduce((acc, t) => {
     if (!t.assignee) return acc;
     const key = t.assignee.school_id ?? t.assignee.id;
     if (!acc[key]) acc[key] = { user: t.assignee, total: 0, completed: 0 };
@@ -199,7 +256,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     if (t.status === 'completed') acc[key].completed += 1;
     return acc;
   }, {});
-  const scoredAssignments = tasks
+  const scoredAssignments = allTasks
     .filter((task) => task.assignee && Number.isFinite(Number(task.final_score)))
     .sort((a, b) => Number(b.final_score) - Number(a.final_score))
     .slice(0, 5);
@@ -208,7 +265,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     <div className="space-y-6">
       {activeTab !== 'create' && <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
-          { label: 'Total Tasks', value: tasks.length, helper: 'All time', icon: ListChecks },
+          { label: 'Total Tasks', value: totalTasksCount, helper: 'All time', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },
@@ -299,7 +356,9 @@ export default function TasksPage({ initialTab = 'board' }) {
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : filteredTasks.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No tasks found.</p>
+            <p className="p-8 text-center text-sm text-slate-400">
+              {tasksMeta.total === 0 ? 'No tasks found.' : search.trim() ? 'No tasks on this page match your search.' : 'No tasks on this page.'}
+            </p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[1380px] text-left">
@@ -317,7 +376,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {pagedTasks.map((t) => (
+                  {filteredTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{t.title}</p><p className="mt-1 line-clamp-2 text-[10px] text-slate-400">{t.description || 'No description'}</p></td>
                       <td className="px-5 py-4 font-medium text-slate-600">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}<p className="text-[10px] font-semibold text-[#0B8ED0]">{t.assignee?.position_title || t.assignee?.role?.replaceAll('_', ' ') || '-'}</p></td>
@@ -361,9 +420,9 @@ export default function TasksPage({ initialTab = 'board' }) {
             </div>
           )}
           <PaginationControls
-            currentPage={page}
-            totalItems={filteredTasks.length}
-            pageSize={pageSize}
+            currentPage={tasksMeta.currentPage}
+            totalItems={tasksMeta.total}
+            pageSize={tasksMeta.perPage}
             onPageChange={setPage}
             label="tasks"
           />

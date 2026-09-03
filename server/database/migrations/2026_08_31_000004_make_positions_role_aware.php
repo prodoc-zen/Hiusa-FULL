@@ -9,17 +9,19 @@ return new class extends Migration
 {
     public function up(): void
     {
-        // MySQL requires a separate organization index before the legacy
-        // composite unique index can be dropped because that index currently
-        // supports the organization_id foreign key.
+        // InnoDB requires organization_id to remain the leading column of an
+        // index while the legacy unique index is replaced. A standalone index
+        // keeps the foreign key valid throughout the migration and rollback.
         Schema::table('sbo_positions', function (Blueprint $table) {
             $table->index('organization_id', 'sbo_positions_organization_id_index');
+        });
+        Schema::table('sbo_positions', function (Blueprint $table) {
+            $table->string('role', 30)->default('SBO_OFFICER')->after('organization_id');
+            $table->unique(['organization_id', 'role', 'title'], 'positions_organization_role_title_unique');
         });
 
         Schema::table('sbo_positions', function (Blueprint $table) {
             $table->dropUnique(['organization_id', 'title']);
-            $table->string('role', 30)->default('SBO_OFFICER')->after('organization_id');
-            $table->unique(['organization_id', 'role', 'title'], 'positions_organization_role_title_unique');
         });
 
         $now = now();
@@ -47,10 +49,15 @@ return new class extends Migration
         // The legacy schema cannot represent the same title for both roles.
         DB::table('sbo_positions')->where('role', 'ADMIN')->delete();
 
+        // Same constraint in reverse: restore the legacy index before dropping the one
+        // that currently backs the foreign key.
+        Schema::table('sbo_positions', function (Blueprint $table) {
+            $table->unique(['organization_id', 'title']);
+        });
+
         Schema::table('sbo_positions', function (Blueprint $table) {
             $table->dropUnique('positions_organization_role_title_unique');
             $table->dropColumn('role');
-            $table->unique(['organization_id', 'title']);
         });
 
         Schema::table('sbo_positions', function (Blueprint $table) {
