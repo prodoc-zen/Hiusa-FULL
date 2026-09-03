@@ -22,7 +22,9 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -732,6 +734,40 @@ class UseCaseComplianceTest extends TestCase
             'entity_id' => $electionId,
             'status' => 'pending',
         ]);
+    }
+
+    public function test_admin_can_upload_and_replace_a_safe_election_image(): void
+    {
+        Storage::fake('public');
+        $admin = $this->user('ADMIN');
+        $this->authenticate($admin);
+
+        $created = $this->post('/api/elections', [
+            'title' => 'Election With Artwork',
+            'start_time' => now()->addDay()->toISOString(),
+            'end_time' => now()->addDays(2)->toISOString(),
+            'positions' => [['title' => 'President', 'max_winners' => 1]],
+            'image' => UploadedFile::fake()->image('election.webp', 1200, 675),
+        ])->assertCreated()
+            ->assertJsonPath('status', 'pending_approval');
+
+        $electionId = $created->json('id');
+        $originalPath = str_replace('/storage/', '', $created->json('image_url'));
+        Storage::disk('public')->assertExists($originalPath);
+
+        $updated = $this->post("/api/elections/{$electionId}", [
+            '_method' => 'PUT',
+            'image' => UploadedFile::fake()->image('replacement.jpg', 1200, 675),
+        ])->assertOk();
+
+        $replacementPath = str_replace('/storage/', '', $updated->json('image_url'));
+        Storage::disk('public')->assertMissing($originalPath);
+        Storage::disk('public')->assertExists($replacementPath);
+
+        $this->withHeader('Accept', 'application/json')->post("/api/elections/{$electionId}", [
+            '_method' => 'PUT',
+            'image' => UploadedFile::fake()->create('unsafe.svg', 10, 'image/svg+xml'),
+        ])->assertUnprocessable();
     }
 
     public function test_ballot_submission_requires_every_official_position(): void

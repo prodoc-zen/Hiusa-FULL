@@ -64,7 +64,7 @@ const NAV_STRUCTURE = [
     icon: Vote,
     roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
-      { id: 'manage-elections', label: 'Manage Election', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
+      { id: 'manage-elections', label: 'Election Workspace', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
       { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'manage-voters', label: 'Voters', path: '/dashboard/elections/manage-voters', roles: ['SBO_OFFICER'] },
       { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['ADMIN'] },

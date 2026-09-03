@@ -8,6 +8,7 @@ import {
   Download,
   Eye,
   Fingerprint,
+  ImagePlus,
   List,
   MapPin,
   Pencil,
@@ -105,7 +106,7 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 10;
 
-  const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
+  const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [planForm, setPlanForm] = useState({ event_id: '', requirements: '', create_workflow: true });
@@ -242,6 +243,7 @@ export default function EventsPage({ initialTab = 'events' }) {
         end_time,
         location: form.location,
         description: form.description,
+        imageFile: form.imageFile,
         requires_budget: form.requires_budget,
         planning_details: {
           budget_notes: form.budget_notes,
@@ -257,7 +259,7 @@ export default function EventsPage({ initialTab = 'events' }) {
       }
       setShowForm(false);
       setEditingEventId(null);
-      setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
+      setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
       load();
     } catch (err) {
       setFormError(err.response?.data?.message ?? `Failed to ${editingEventId ? 'update' : 'create'} event.`);
@@ -268,7 +270,7 @@ export default function EventsPage({ initialTab = 'events' }) {
 
   function openCreateForm() {
     setEditingEventId(null);
-    setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
+    setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
     setFormError(null);
     setShowForm(true);
   }
@@ -284,6 +286,7 @@ export default function EventsPage({ initialTab = 'events' }) {
       endTime: String(event.end_time || '').slice(11, 16),
       location: event.location || '',
       description: event.description || '',
+      imageFile: null,
       requires_budget: Boolean(event.requires_budget),
       budget_notes: planning.budget_notes || '',
       vendor_deadlines: planning.vendor_deadlines || '',
@@ -1108,6 +1111,14 @@ export default function EventsPage({ initialTab = 'events' }) {
                   placeholder="Brief description..."
                   className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="event-image" className="text-[13px] font-semibold text-[#0F172A]">Event poster <span className="font-normal text-slate-400">(optional)</span></label>
+                <label htmlFor="event-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#B9CBD8] bg-[#F8FBFD] p-3 hover:border-[#0B8ED0]">
+                  <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><ImagePlus size={18} /></span>
+                  <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#0F172A]">{form.imageFile?.name || (editingEventId ? 'Choose a replacement poster' : 'Choose an image')}</span><span className="block text-[10px] text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
+                </label>
+                <input id="event-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setForm({ ...form, imageFile: event.target.files?.[0] || null })} />
               </div>
               <label className="flex items-center gap-2 text-[13px] font-semibold text-[#0F172A]">
                 <input

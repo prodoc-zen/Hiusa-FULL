@@ -33,7 +33,8 @@ const ManageCandidatesPage = lazy(() => import('./pages/modules/elections/Manage
 const ManagePartylistsPage = lazy(() => import('./pages/modules/elections/ManagePartylistsPage'));
 const ManageVotersPage = lazy(() => import('./pages/modules/elections/ManageVotersPage'));
 const ElectionResultsPage = lazy(() => import('./pages/modules/elections/ElectionResultsPage'));
-const CastVotePage = lazy(() => import('./pages/modules/elections/CastVotePage'));
+const CastVoteRedirectPage = lazy(() => import('./pages/modules/elections/CastVoteRedirectPage'));
+const ImmersiveVotePage = lazy(() => import('./pages/modules/elections/ImmersiveVotePage'));
 
 function RouteLoadingFallback() {
   return (
@@ -255,7 +256,7 @@ function App() {
             <Route path="manage-candidates" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageCandidatesPage /></ProtectedRoute>} />
             <Route path="manage-partylists" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManagePartylistsPage /></ProtectedRoute>} />
             <Route path="manage-voters" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><ManageVotersPage /></ProtectedRoute>} />
-            <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><CastVotePage /></ProtectedRoute>} />
+            <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><CastVoteRedirectPage /></ProtectedRoute>} />
             <Route path="election-results" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><ElectionResultsPage /></ProtectedRoute>} />
 
             {/* Legacy election links redirected to REFERENCE view IDs */}
@@ -267,6 +268,9 @@ function App() {
           </Route>
 
         </Route>
+      </Route>
+      <Route element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]} />}>
+        <Route path="/elections/:electionId/vote" element={<ImmersiveVotePage />} />
       </Route>
       <Route path="*" element={<NotFoundRedirect />} />
       </Routes>

@@ -15,6 +15,7 @@ use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\SboPositionController;
+use App\Http\Controllers\StudentFeedController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
@@ -23,21 +24,22 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware(['auth:sanctum', 'throttle:authenticated', 'cache.api']);
 
-Route::post('/register', [UserController::class, 'register'])->middleware('throttle:10,1');
-Route::post('/login', [UserController::class, 'login'])->middleware('throttle:10,1');
-Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])->middleware('throttle:5,1');
-Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:10,1');
-Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:5,1');
-Route::get('/organizations', [OrganizationController::class, 'index']);
+Route::post('/register', [UserController::class, 'register'])->middleware('throttle:registration');
+Route::post('/login', [UserController::class, 'login'])->middleware('throttle:login');
+Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])->middleware('throttle:password');
+Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:password');
+Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:password');
+Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'throttle:authenticated', 'cache.api'])->group(function () {
     Route::post('/logout', [UserController::class, 'logout']);
 
     // Profile Routes (authenticated user updates own profile/password)
     Route::put('/user/profile', [UserController::class, 'updateProfile']);
     Route::put('/user/password', [UserController::class, 'updatePassword']);
+    Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware('role:STUDENT');
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER');
@@ -57,7 +59,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Announcement Routes
     Route::get('/announcements', [AnnouncementController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD');
-    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::post('/announcements/generate-draft', [AnnouncementController::class, 'generateDraft'])->middleware(['role:ADMIN,SBO_OFFICER', 'throttle:expensive']);
     Route::post('/announcements', [AnnouncementController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::put('/announcements/{id}', [AnnouncementController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER');
@@ -71,7 +73,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/events/{id}', [EventController::class, 'update'])->middleware('role:ADMIN');
     Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware('role:ADMIN');
     Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware('role:ADMIN');
-    Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware('role:ADMIN');
+    Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware(['role:ADMIN', 'throttle:expensive']);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
     Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');
 
@@ -85,7 +87,7 @@ Route::middleware('auth:sanctum')->group(function () {
     // Finance Routes - Budgets
     Route::get('/budgets', [BudgetController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
     Route::post('/budgets', [BudgetController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
-    Route::post('/budgets/{id}/advice', [BudgetController::class, 'advice'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/budgets/{id}/advice', [BudgetController::class, 'advice'])->middleware(['role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD', 'throttle:expensive']);
     Route::put('/budgets/{id}', [BudgetController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
     Route::delete('/budgets/{id}', [BudgetController::class, 'destroy'])->middleware('role:ADMIN');
 
@@ -116,14 +118,14 @@ Route::middleware('auth:sanctum')->group(function () {
 
     // Finance Routes - Forecasts
     Route::get('/forecasts', [FinancialForecastController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER');
-    Route::post('/forecasts/generate', [FinancialForecastController::class, 'generate'])->middleware('role:ADMIN,SBO_OFFICER');
+    Route::post('/forecasts/generate', [FinancialForecastController::class, 'generate'])->middleware(['role:ADMIN,SBO_OFFICER', 'throttle:expensive']);
     Route::post('/forecasts', [FinancialForecastController::class, 'store'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::put('/forecasts/{id}', [FinancialForecastController::class, 'update'])->middleware('role:ADMIN,SBO_OFFICER');
     Route::delete('/forecasts/{id}', [FinancialForecastController::class, 'destroy'])->middleware('role:ADMIN,SBO_OFFICER');
 
     // Finance Routes - Reports
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
-    Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD');
+    Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD', 'throttle:expensive']);
 
     // Merchandise Routes
     Route::get('/merchandise', [MerchandiseController::class, 'index'])->middleware('role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT');

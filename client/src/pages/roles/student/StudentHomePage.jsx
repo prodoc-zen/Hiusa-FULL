@@ -1,225 +1,135 @@
-import { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
-import { Vote, CalendarDays, Megaphone, Package, ArrowRight } from 'lucide-react';
-import { getElections } from '../../../services/electionService';
-import { getEvents } from '../../../services/eventService';
-import { getAnnouncements } from '../../../services/announcementService';
-import { getMerchandise } from '../../../services/merchandiseService';
-import { resolveAssetUrl } from '../../../utils/assetUrl';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { CalendarDays, ChevronRight, Inbox, RefreshCw, ShieldCheck, Vote } from 'lucide-react';
+import { Link } from 'react-router-dom';
+import FeedPost from '../../../components/feed/FeedPost';
+import { getStudentFeed } from '../../../services/studentFeedService';
+import { getApiErrorMessage } from '../../../utils/apiError';
 
-function formatDate(d) {
-  if (!d) return '-';
-  return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
+function formatEventDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric' });
 }
 
-function fmtPrice(n) {
-  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+function FeedSkeleton() {
+  return (
+    <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white" role="status">
+      <div className="flex gap-3 p-4 sm:p-5"><div className="h-11 w-11 animate-pulse rounded-full bg-slate-100" /><div className="flex-1 space-y-2"><div className="h-4 w-44 animate-pulse rounded bg-slate-100" /><div className="h-3 w-28 animate-pulse rounded bg-slate-100" /></div></div>
+      <div className="space-y-3 px-4 pb-4 sm:px-5"><div className="h-5 w-3/4 animate-pulse rounded bg-slate-100" /><div className="h-3 w-full animate-pulse rounded bg-slate-100" /><div className="h-3 w-5/6 animate-pulse rounded bg-slate-100" /></div>
+      <div className="h-56 animate-pulse bg-slate-100" /><span className="sr-only">Loading post</span>
+    </div>
+  );
 }
-
-const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 
 export default function StudentHomePage() {
-  const [data, setData] = useState({ elections: [], events: [], announcements: [], merchandise: [] });
-  const [loading, setLoading] = useState(true);
+  const [items, setItems] = useState([]);
+  const [organization, setOrganization] = useState(null);
+  const [sidebar, setSidebar] = useState({ active_election: null, upcoming_events: [] });
+  const [nextPage, setNextPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [error, setError] = useState('');
+  const sentinelRef = useRef(null);
+  const requestedPages = useRef(new Set());
+  const loadingRef = useRef(false);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    let cancelled = false;
+  useEffect(() => () => { mountedRef.current = false; }, []);
 
-    async function load() {
-      try {
-        const [electionsRes, eventsRes, announcementsRes, merchandiseRes] = await Promise.all([
-          getElections(),
-          getEvents(),
-          getAnnouncements({ published_only: 1 }),
-          getMerchandise(),
-        ]);
+  const loadPage = useCallback(async (page, replace = false) => {
+    if (loadingRef.current || requestedPages.current.has(page)) return;
+    loadingRef.current = true;
+    requestedPages.current.add(page);
+    if (page === 1) setInitialLoading(true); else setLoadingMore(true);
+    setError('');
 
-        if (cancelled) return;
-
-        setData({
-          elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
-          events: Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []),
-          announcements: Array.isArray(announcementsRes?.data) ? announcementsRes.data : [],
-          merchandise: Array.isArray(merchandiseRes?.data) ? merchandiseRes.data : (Array.isArray(merchandiseRes) ? merchandiseRes : []),
-        });
-      } catch {
-        if (!cancelled) setData({ elections: [], events: [], announcements: [], merchandise: [] });
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
+    try {
+      const response = await getStudentFeed(page, 12);
+      if (!mountedRef.current) return;
+      const incoming = Array.isArray(response.items) ? response.items : [];
+      setItems((current) => {
+        const merged = replace ? incoming : [...current, ...incoming];
+        return [...new Map(merged.map((item) => [item.key, item])).values()];
+      });
+      if (response.organization) setOrganization(response.organization);
+      if (response.sidebar) setSidebar(response.sidebar);
+      setHasMore(Boolean(response.pagination?.has_more));
+      setNextPage(response.pagination?.next_page || page + 1);
+    } catch (requestError) {
+      requestedPages.current.delete(page);
+      if (mountedRef.current) setError(getApiErrorMessage(requestError, 'Unable to load your organization feed.'));
+    } finally {
+      loadingRef.current = false;
+      if (mountedRef.current) { setInitialLoading(false); setLoadingMore(false); }
     }
-
-    load();
-    return () => { cancelled = true; };
   }, []);
 
-  const activeElection = data.elections.find((e) => e.status === 'active') || null;
-  const upcomingEvents = data.events
-    .filter((e) => e.status === 'upcoming' || e.status === 'approved')
-    .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
-    .slice(0, 3);
-  const latestAnnouncements = data.announcements.filter((a) => a.is_published).slice(0, 5);
-  const availableMerch = data.merchandise.filter((m) => m.is_active && m.stock_quantity > 0).slice(0, 4);
+  useEffect(() => { loadPage(1, true); }, [loadPage]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel || !hasMore || initialLoading || error) return undefined;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0]?.isIntersecting && !loadingRef.current) loadPage(nextPage);
+    }, { rootMargin: '320px 0px' });
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [error, hasMore, initialLoading, loadPage, nextPage]);
+
+  const retry = () => {
+    const page = items.length ? nextPage : 1;
+    requestedPages.current.delete(page);
+    loadPage(page, items.length === 0);
+  };
+  const activeElection = sidebar.active_election;
+  const upcomingEvents = Array.isArray(sidebar.upcoming_events) ? sidebar.upcoming_events : [];
 
   return (
-    <div className="space-y-6">
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Student Portal</p>
-        <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Welcome to HIUSA</h2>
-        <p className="mt-1 text-sm font-medium text-slate-500">Vote in active elections, browse events, read announcements, and order merchandise.</p>
-      </section>
+    <div className="mx-auto w-full max-w-6xl overflow-x-hidden">
+      <header className="mb-4 rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Student community</p>
+        <h1 className="mt-1 truncate text-xl font-black text-[#0F172A] sm:text-2xl">{organization?.name || 'HIUSA Feed'}</h1>
+        <p className="mt-1 text-xs font-medium text-[#64748B] sm:text-sm">Official updates, events, and elections from your organization.</p>
+      </header>
 
-      {/* Active Election CTA */}
-      {!loading && (
-        activeElection ? (
-          <section className="rounded-xl border border-[#0B8ED0]/25 bg-gradient-to-br from-[#E6F6FD] to-white p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-4">
-              <div className="flex items-start gap-4">
-                <div className="grid h-12 w-12 shrink-0 place-items-center rounded-xl bg-[#0B8ED0] text-white">
-                  <Vote size={22} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Active Election</p>
-                  <h3 className="mt-1 text-lg font-black text-[#0F172A]">{activeElection.title}</h3>
-                  <p className="mt-0.5 text-sm text-slate-500">Your vote matters. Cast it before the election closes.</p>
-                </div>
-              </div>
-              <span className="mt-1 shrink-0 rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
-            </div>
-            <div className="mt-4 flex flex-wrap gap-2 sm:gap-4">
-              <NavLink
-                to="/dashboard/elections/cast-vote"
-                className="flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 py-2.5 text-sm font-bold text-white transition hover:bg-[#0878B7]"
-              >
-                Cast Vote <ArrowRight size={15} />
-              </NavLink>
-              <NavLink
-                to="/dashboard/elections/election-results"
-                className="rounded-lg border border-[#DDE7EF] bg-white px-5 py-2.5 text-sm font-bold text-slate-700 transition hover:bg-[#F8FBFD]"
-              >
-                View Results
-              </NavLink>
-            </div>
-          </section>
-        ) : (
-          <section className="flex items-center gap-4 rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-400">
-              <Vote size={20} />
-            </div>
-            <div>
-              <p className="font-bold text-[#0F172A]">No Active Election</p>
-              <p className="text-sm text-slate-400">There are no elections running right now.</p>
-            </div>
-            <NavLink to="/dashboard/elections" className="ml-auto text-xs font-bold text-[#0B8ED0] hover:underline">View Elections</NavLink>
-          </section>
-        )
-      )}
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_300px] xl:justify-center">
+        <main className="min-w-0 space-y-4" aria-label="Organization feed">
+          {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}
+          {!initialLoading && items.map((item) => <FeedPost key={item.key} item={item} organization={organization} />)}
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
-        <div className="space-y-6">
-          {/* Upcoming Events */}
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
-              <h3 className="text-base font-bold text-[#0F172A]">Upcoming Events</h3>
-              <NavLink to="/dashboard/events" className="text-xs font-bold text-[#0B8ED0] hover:underline">View all</NavLink>
-            </div>
-            {loading ? (
-              <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
-            ) : upcomingEvents.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">No upcoming events.</p>
-            ) : (
-              <div className="divide-y divide-[#E5EDF3]">
-                {upcomingEvents.map((ev) => (
-                  <div key={ev.id} className="flex items-center gap-4 px-5 py-3.5">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
-                      <CalendarDays size={18} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-[#0F172A]">{ev.title}</p>
-                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-
-          {/* Announcements Feed */}
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
-              <h3 className="text-base font-bold text-[#0F172A]">Announcements</h3>
-              <NavLink to="/dashboard/announcements/view-announcements" className="text-xs font-bold text-[#0B8ED0] hover:underline">View all</NavLink>
-            </div>
-            {loading ? (
-              <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}</div>
-            ) : latestAnnouncements.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">No announcements yet.</p>
-            ) : (
-              <div className="divide-y divide-[#E5EDF3]">
-                {latestAnnouncements.map((a) => (
-                  <div key={a.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
-                      <Megaphone size={15} />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="truncate font-semibold text-[#0F172A]">{a.title}</p>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-500 capitalize">
-                          {ROLE_LABEL[a.target_role] || a.target_role}
-                        </span>
-                      </div>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-slate-400">{a.body}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        </div>
-
-        {/* Merchandise Grid */}
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm h-fit">
-          <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
-            <h3 className="text-base font-bold text-[#0F172A]">Available Merchandise</h3>
-            <NavLink to="/dashboard/merchandise" className="text-xs font-bold text-[#0B8ED0] hover:underline">Shop</NavLink>
-          </div>
-          {loading ? (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-5">
-              {[...Array(4)].map((_, i) => <div key={i} className="h-28 animate-pulse rounded-lg bg-slate-100" />)}
-            </div>
-          ) : availableMerch.length === 0 ? (
-            <div className="py-10 text-center">
-              <Package size={32} className="mx-auto mb-2 text-slate-200" />
-              <p className="text-sm text-slate-400">No merchandise available.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-5">
-              {availableMerch.map((item) => (
-                <div key={item.id} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                  <div className="mb-2 h-12 w-full overflow-hidden rounded-md bg-[#E6F6FD]">
-                    {item.image_url
-                      ? <img src={resolveAssetUrl(item.image_url)} alt={item.name} className="h-full w-full object-cover" />
-                      : <div className="grid h-full w-full place-items-center"><Package size={22} className="text-[#0B8ED0]" /></div>
-                    }
-                  </div>
-                  <p className="truncate text-[13px] font-bold text-[#0F172A]">{item.name}</p>
-                  <p className="text-xs font-semibold text-[#0B8ED0]">{fmtPrice(item.price)}</p>
-                  <p className="text-[11px] text-slate-400">{item.stock_quantity} left</p>
-                </div>
-              ))}
+          {!initialLoading && items.length === 0 && !error && (
+            <div className="rounded-lg border border-dashed border-[#B9CBD8] bg-white px-5 py-14 text-center">
+              <Inbox size={34} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-black text-[#0F172A]">Your feed is quiet</h2><p className="mt-1 text-sm text-[#64748B]">Official organization updates will appear here when published.</p>
             </div>
           )}
-          {!loading && availableMerch.length > 0 && (
-            <div className="border-t border-[#DDE7EF] p-3">
-              <NavLink
-                to="/dashboard/merchandise"
-                className="flex h-9 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-xs font-bold text-white transition hover:bg-[#0878B7]"
-              >
-                Browse All Items <ArrowRight size={13} />
-              </NavLink>
-            </div>
+          {error && (
+            <div role="alert" className="rounded-lg border border-red-200 bg-white p-5 text-center"><p className="text-sm font-semibold text-red-700">{error}</p><button type="button" onClick={retry} className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><RefreshCw size={15} /> Try again</button></div>
           )}
-        </section>
+          {loadingMore && <FeedSkeleton />}
+          <div ref={sentinelRef} className="h-1" aria-hidden="true" />
+          {!initialLoading && items.length > 0 && !hasMore && <p className="py-4 text-center text-xs font-semibold text-[#94A3B8]">You’re all caught up.</p>}
+        </main>
+
+        <aside className="order-first min-w-0 space-y-4 xl:order-none xl:sticky xl:top-5" aria-label="Student shortcuts">
+          {activeElection && (
+            <section className="rounded-lg border border-[#0B8ED0]/25 bg-white p-4 shadow-sm">
+              <div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#0B8ED0]"><Vote size={14} /> Active election</span><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /></div>
+              <h2 className="mt-3 text-base font-black leading-6 text-[#0F172A]">{activeElection.title}</h2>
+              <p className="mt-1 text-xs leading-5 text-[#64748B]">{activeElection.has_voted ? 'Your ballot has been securely submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
+              {activeElection.has_voted ? <span className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 text-xs font-bold text-emerald-700"><ShieldCheck size={15} /> Vote submitted</span> : <Link to={`/elections/${activeElection.id}/vote`} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-sm font-bold text-white hover:bg-[#0878B7]"><ShieldCheck size={16} /> Enter secure voting</Link>}
+            </section>
+          )}
+
+          <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
+            <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black text-[#0F172A]">Coming up</h2><CalendarDays size={17} className="text-[#0B8ED0]" /></div>
+            <div className="mt-3 divide-y divide-[#E5EDF3]">
+              {upcomingEvents.length ? upcomingEvents.map((event) => <div key={event.id} className="flex gap-3 py-3 first:pt-1"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] px-1 text-center text-[9px] font-black uppercase text-[#0B8ED0]">{formatEventDate(event.start_time)}</span><div className="min-w-0"><p className="line-clamp-2 text-xs font-bold leading-5 text-[#0F172A]">{event.title}</p>{event.location && <p className="mt-0.5 truncate text-[11px] text-[#64748B]">{event.location}</p>}</div></div>) : <p className="py-4 text-xs text-[#64748B]">No upcoming events yet.</p>}
+            </div>
+            <Link to="/dashboard/events/activity-calendar" className="mt-2 inline-flex h-10 w-full items-center justify-center gap-1 text-xs font-bold text-[#0B8ED0] hover:underline">Open activity calendar <ChevronRight size={14} /></Link>
+          </section>
+        </aside>
       </div>
     </div>
   );

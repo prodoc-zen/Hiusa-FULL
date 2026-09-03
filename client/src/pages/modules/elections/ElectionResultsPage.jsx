@@ -1,31 +1,13 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { Vote, Award, Users, Trophy, SlidersHorizontal } from 'lucide-react';
+import { Award, BarChart3, Trophy, UsersRound, Vote } from 'lucide-react';
 import { getElectionResults } from '../../../services/electionService';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
-function Avatar({ name, size = 'sm' }) {
-  const safeName = name || '?';
-  const initials = safeName
-    .split(' ')
-    .map((value) => value[0])
-    .filter(Boolean)
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || '?';
-
-  const colors = [
-    'bg-[#0B8ED0]',
-    'bg-purple-500',
-    'bg-emerald-500',
-    'bg-red-500',
-    'bg-amber-500',
-    'bg-indigo-500',
-    'bg-pink-500',
-  ];
-  const bg = colors[safeName.charCodeAt(0) % colors.length];
-  const sz = size === 'lg' ? 'w-12 h-12 text-base' : size === 'md' ? 'w-9 h-9 text-sm' : 'w-7 h-7 text-xs';
-
-  return <div className={`rounded-full flex items-center justify-center text-white font-bold shrink-0 ${sz} ${bg}`}>{initials}</div>;
+function CandidatePortrait({ candidate, name, className = 'h-12 w-12' }) {
+  if (candidate.image_url) return <img src={resolveAssetUrl(candidate.image_url)} alt={name} className={`${className} shrink-0 rounded-lg border border-[#DDE7EF] object-cover`} />;
+  const initials = name.split(' ').map((part) => part[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || '?';
+  return <div className={`${className} grid shrink-0 place-items-center rounded-lg bg-[#0F2F62] text-sm font-black text-white`}>{initials}</div>;
 }
 
 export default function ElectionResultsPage() {
@@ -38,183 +20,87 @@ export default function ElectionResultsPage() {
 
   useEffect(() => {
     let cancelled = false;
-
     if (!election?.id || !electionIsClosed) {
-      setResults([]);
-      setLoading(false);
-      setError('');
+      setResults([]); setLoading(false); setError('');
       return () => { cancelled = true; };
     }
-
-    setLoading(true);
-    setError('');
+    setLoading(true); setError('');
     getElectionResults(election.id)
-      .then((data) => {
-        if (!cancelled) setResults(Array.isArray(data) ? data : []);
-      })
-      .catch((requestError) => {
-        if (!cancelled) setError(requestError.response?.data?.message || 'Unable to load election results.');
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-
+      .then((data) => { if (!cancelled) setResults(Array.isArray(data) ? data : []); })
+      .catch((requestError) => { if (!cancelled) setError(requestError.response?.data?.message || 'Unable to load election results.'); })
+      .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [election?.id, electionIsClosed]);
 
-  if (!election) {
-    return (
-      <div className="text-center py-20">
-        <p className="text-sm text-slate-500">Election not found.</p>
-      </div>
-    );
-  }
+  const summary = useMemo(() => {
+    const candidates = results.flatMap((result) => result.candidates || []);
+    return {
+      candidates,
+      selections: results.reduce((sum, result) => sum + Number(result.totalVotes || 0), 0),
+      voters: results.reduce((highest, result) => Math.max(highest, Number(result.totalVotes || 0)), 0),
+      winners: results.flatMap((result) => (result.candidates || []).slice(0, Number(result.position.max_winners || 1)).filter((candidate) => candidate.votes > 0).map((candidate) => ({ ...candidate, position: result.position.title }))),
+    };
+  }, [results]);
 
-  if (!electionIsClosed) {
-    return (
-      <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center">
-        <Trophy size={32} className="mx-auto mb-3 text-amber-500" />
-        <p className="font-bold text-amber-900">Official results are not available yet.</p>
-        <p className="mt-1 text-sm font-medium text-amber-700">Live standings remain available in Cast Vote. Final results appear after the election closes.</p>
-      </div>
-    );
-  }
-
-  if (loading) {
-    return (
-      <div className="space-y-4" role="status" aria-label="Loading election results">
-        <div className="h-24 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />
-        {[1, 2, 3].map((item) => <div key={item} className="h-44 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}
-        <span className="sr-only">Loading election results...</span>
-      </div>
-    );
-  }
-
-  if (error) {
-    return <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div>;
-  }
+  if (!election) return <div className="py-20 text-center text-sm text-[#64748B]">Election not found.</div>;
+  if (!electionIsClosed) return <div className="rounded-xl border border-amber-200 bg-amber-50 p-8 text-center"><Trophy size={36} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-black text-amber-900">Official results are not available yet</h2><p className="mt-2 text-sm font-medium text-amber-800">Final winners and vote totals appear after the election closes.</p></div>;
+  if (loading) return <div className="space-y-4" role="status" aria-label="Loading election results"><div className="h-72 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />{[1, 2].map((item) => <div key={item} className="h-64 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading election results...</span></div>;
+  if (error) return <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div>;
 
   const positions = results.map((result) => result.position);
-  const allCandidates = results.flatMap((result) => result.candidates || []);
-  const totalVotesCast = results.reduce((sum, result) => sum + Number(result.totalVotes || 0), 0);
-  const uniqueVoters = results.reduce((highest, result) => Math.max(highest, Number(result.totalVotes || 0)), 0);
   const positionResults = results.filter(({ position }) => positionFilter === 'all' || String(position.id) === positionFilter);
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-3 rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Official Results</p>
-          <h2 className="mt-1 text-xl font-black text-[#0F172A]">{election.title}</h2>
-          <p className="mt-1 text-xs font-medium text-[#64748B]">Final winners based on recorded ballots.</p>
+      <section className="grid overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm lg:grid-cols-[minmax(300px,.7fr)_minmax(0,1.3fr)]">
+        <div className="relative min-h-56 bg-[#0F2F62]">
+          {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center text-white/70"><Trophy size={64} strokeWidth={1.5} /></div>}
+          <div className="absolute inset-0 bg-[#0B1831]/30" />
+          <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-[#0B1831]/80 px-3 py-1.5 text-xs font-bold text-white">Official final results</span>
         </div>
-        <label className="flex min-w-56 items-center gap-2">
-          <SlidersHorizontal size={15} className="text-[#64748B]" />
-          <span className="sr-only">Filter results by position</span>
-          <select value={positionFilter} onChange={(event) => setPositionFilter(event.target.value)} className="h-10 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
-            <option value="all">All positions</option>
-            {positions.map((position) => <option key={position.id} value={String(position.id)}>{position.title}</option>)}
-          </select>
-        </label>
+        <div className="p-5 sm:p-7 lg:p-8">
+          <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Election concluded</p>
+          <h1 className="mt-2 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{election.title}</h1>
+          <p className="mt-3 text-sm leading-6 text-[#64748B]">Verified vote totals and declared winners across every ballot position.</p>
+          <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[{ label: 'Ballots', value: summary.voters, icon: Vote }, { label: 'Selections', value: summary.selections, icon: BarChart3 }, { label: 'Positions', value: positions.length, icon: Award }, { label: 'Candidates', value: summary.candidates.length, icon: UsersRound }].map((stat) => <div key={stat.label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><stat.icon size={16} className="text-[#0B8ED0]" /><p className="mt-2 text-xl font-black text-[#0F172A]">{stat.value}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">{stat.label}</p></div>)}
+          </div>
+        </div>
       </section>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {[
-          { label: 'Total Selections', value: totalVotesCast, sub: `${uniqueVoters} complete ballots`, icon: Vote, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
-          { label: 'Voter Turnout', value: uniqueVoters, sub: 'Unique voters participated', icon: Award, color: { bg: 'bg-emerald-50', icon: 'text-emerald-600', border: 'border-emerald-200' } },
-          { label: 'Positions', value: positions.length, icon: Award, color: { bg: 'bg-purple-50', icon: 'text-purple-600', border: 'border-purple-200' } },
-          { label: 'Candidates', value: allCandidates.length, icon: Users, color: { bg: 'bg-amber-50', icon: 'text-amber-600', border: 'border-amber-200' } },
-        ].map((stat) => (
-          <div key={stat.label} className={`rounded-xl border bg-white p-5 shadow-sm flex items-start gap-4 ${stat.color.border}`}>
-            <div className={`p-2.5 rounded-lg ${stat.color.bg}`}>
-              <stat.icon size={20} className={stat.color.icon} />
-            </div>
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-[#64748B] font-medium uppercase tracking-wide">{stat.label}</p>
-              <p className="text-2xl font-black text-[#0F172A] mt-0.5">{stat.value}</p>
-              {stat.sub && <p className="text-xs text-[#64748B] mt-1">{stat.sub}</p>}
-            </div>
-          </div>
-        ))}
-      </div>
+      {summary.winners.length > 0 && (
+        <section>
+          <div className="mb-3 flex items-center gap-2"><Trophy size={18} className="text-amber-500" /><h2 className="text-lg font-black text-[#0F172A]">Winner spotlight</h2></div>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{summary.winners.map((winner) => <article key={`${winner.position}-${winner.id}`} className="flex items-center gap-4 rounded-xl border border-amber-200 bg-white p-4 shadow-sm"><CandidatePortrait candidate={winner} name={winner.name} className="h-16 w-16" /><div className="min-w-0 flex-1"><span className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-black text-amber-700"><Trophy size={10} /> WINNER</span><h3 className="mt-1 truncate text-base font-black text-[#0F172A]">{winner.name}</h3><p className="truncate text-xs font-bold text-[#0B8ED0]">{winner.position}</p><p className="mt-1 text-xs text-[#64748B]">{winner.votes} vote{winner.votes === 1 ? '' : 's'} · {winner.partylist}</p></div></article>)}</div>
+        </section>
+      )}
 
-      <div className="space-y-4">
-        {positionResults.map(({ position, candidates, totalVotes }) => {
-          if (candidates.length === 0) {
-            return null;
-          }
+      <section className="rounded-xl border border-[#DDE7EF] bg-white p-3 shadow-sm">
+        <p className="px-2 pb-2 text-[11px] font-bold uppercase tracking-widest text-[#64748B]">Filter by position</p>
+        <div className="flex gap-2 overflow-x-auto pb-1"><button type="button" onClick={() => setPositionFilter('all')} className={`h-10 shrink-0 rounded-lg border px-4 text-xs font-bold ${positionFilter === 'all' ? 'border-[#0B8ED0] bg-[#0B8ED0] text-white' : 'border-[#DDE7EF] text-[#64748B] hover:bg-[#F8FBFD]'}`}>All positions</button>{positions.map((position) => <button key={position.id} type="button" onClick={() => setPositionFilter(String(position.id))} className={`h-10 shrink-0 rounded-lg border px-4 text-xs font-bold ${positionFilter === String(position.id) ? 'border-[#0B8ED0] bg-[#0B8ED0] text-white' : 'border-[#DDE7EF] text-[#64748B] hover:bg-[#F8FBFD]'}`}>{position.title}</button>)}</div>
+      </section>
 
-          if (candidates.length === 1) {
-            const candidate = candidates[0];
-            return (
-              <div key={position.id} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-                <div className="flex items-center gap-2 mb-4">
-                  <span className="text-xs font-bold text-[#64748B] uppercase tracking-wide">{position.title}</span>
-                  {position.max_winners > 1 && <span className="text-[10px] text-[#94A3B8]">(Top {position.max_winners})</span>}
-                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700">Uncontested</span>
-                </div>
-                <div className="flex items-center gap-4">
-                  <Avatar name={candidate.name} size="lg" />
-                  <div>
-                    <p className="text-lg font-black text-[#0F172A]">{candidate.name}</p>
-                    <span className="inline-block px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{candidate.partylist}</span>
-                    <p className="text-xs text-[#64748B] mt-1">{candidate.votes} votes</p>
+      <section className="grid gap-4 xl:grid-cols-2">
+        {positionResults.map(({ position, candidates, totalVotes }) => (
+          <article key={position.id} className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <header className="flex items-start justify-between gap-3 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Ballot position</p><h2 className="mt-1 text-lg font-black text-[#0F172A]">{position.title}</h2></div><div className="text-right"><p className="text-lg font-black text-[#0F172A]">{totalVotes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes cast</p></div></header>
+            <div className="divide-y divide-[#E5EDF3]">
+              {candidates.map((candidate, index) => {
+                const percentage = totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0;
+                const isWinner = index < position.max_winners && candidate.votes > 0;
+                return (
+                  <div key={candidate.id} className={`p-4 ${isWinner ? 'bg-[#F0FAFF]' : ''}`}>
+                    <div className="flex items-center gap-3"><CandidatePortrait candidate={candidate} name={candidate.name} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-black text-[#0F172A]">{candidate.name}</h3>{isWinner && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800"><Trophy size={9} /> WINNER</span>}</div><p className="mt-0.5 truncate text-xs font-semibold text-[#64748B]">{candidate.partylist}</p></div><div className="shrink-0 text-right"><p className="text-lg font-black tabular-nums text-[#0F172A]">{candidate.votes}</p><p className="text-[11px] font-bold text-[#64748B]">{percentage}%</p></div></div>
+                    <div className="mt-3 h-2 overflow-hidden rounded-full bg-[#E5EDF3]"><div className={`h-full rounded-full ${isWinner ? 'bg-[#0B8ED0]' : 'bg-slate-400'}`} style={{ width: `${percentage}%` }} /></div>
                   </div>
-                  <Trophy size={24} className="text-amber-500 ml-auto" />
-                </div>
-              </div>
-            );
-          }
-
-          return (
-            <div key={position.id} className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm overflow-hidden">
-              <div className="flex items-center gap-2 px-5 py-3 border-b border-[#DDE7EF] bg-[#F8FBFD]">
-                <span className="text-xs font-bold text-slate-600 uppercase tracking-wide">{position.title}</span>
-                {position.max_winners > 1 && <span className="text-[10px] text-[#94A3B8]">(Top {position.max_winners})</span>}
-                <span className="text-[10px] text-[#94A3B8] ml-auto">{totalVotes} votes cast</span>
-              </div>
-              <div className="divide-y divide-[#E5EDF3]">
-                {candidates.map((candidate, idx) => {
-                  const pct = totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0;
-                  const isWinner = idx < position.max_winners && candidate.votes > 0;
-                  return (
-                    <div key={candidate.id} className={`flex items-center gap-4 px-5 py-4 ${isWinner ? 'bg-[#F0FAFF]' : ''}`}>
-                      <Avatar name={candidate.name} size="md" />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="text-sm font-black text-[#0F172A]">{candidate.name}</p>
-                          {isWinner && (
-                            <span className="flex items-center gap-1 bg-amber-400 text-amber-900 text-[10px] font-black px-2 py-0.5 rounded-full">
-                              <Trophy size={9} />
-                              WINNER
-                            </span>
-                          )}
-                        </div>
-                        <span className="inline-block mt-0.5 mb-1.5 px-2 py-0.5 bg-[#F8FBFD] border border-[#DDE7EF] rounded-full text-[10px] font-bold text-slate-600">{candidate.partylist}</span>
-                        <div className="h-1.5 w-full rounded-full bg-[#EEF6FB]">
-                          <div
-                            className={`h-1.5 rounded-full transition-all ${isWinner ? 'bg-[#0B8ED0]' : 'bg-slate-300'}`}
-                            style={{ width: `${pct}%` }}
-                          />
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <p className="text-lg font-black text-[#0F172A] tabular-nums">{candidate.votes}</p>
-                        <p className="text-xs text-[#94A3B8]">{pct}%</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
+                );
+              })}
+              {candidates.length === 0 && <div className="p-8 text-center text-sm text-[#64748B]">No candidate result data is available.</div>}
             </div>
-          );
-        })}
-        {positionResults.length === 0 && (
-          <div className="rounded-xl border border-dashed border-[#DDE7EF] bg-white p-8 text-center text-sm font-medium text-[#64748B]">
-            No result data is available for this position yet.
-          </div>
-        )}
-      </div>
+          </article>
+        ))}
+      </section>
+      {positionResults.length === 0 && <div className="rounded-xl border border-dashed border-[#DDE7EF] bg-white p-8 text-center text-sm font-medium text-[#64748B]">No result data is available for this position.</div>}
     </div>
   );
 }

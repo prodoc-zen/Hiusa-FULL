@@ -21,6 +21,18 @@ use Illuminate\Validation\ValidationException;
 
 class ElectionController extends Controller
 {
+    private function storeElectionImage(Request $request): string
+    {
+        return Storage::url($request->file('image')->store('elections', 'public'));
+    }
+
+    private function deleteElectionImage(?string $imageUrl): void
+    {
+        if ($imageUrl && str_starts_with($imageUrl, '/storage/elections/')) {
+            Storage::disk('public')->delete(ltrim(str_replace('/storage/', '', $imageUrl), '/'));
+        }
+    }
+
     private function storePartylistBanner(Request $request): string
     {
         $file = $request->file('banner');
@@ -138,38 +150,48 @@ class ElectionController extends Controller
             'end_time' => ['required', 'date', 'after:start_time'],
             'status' => ['nullable', 'in:upcoming,active,closed,pending_approval'],
             'results_visible' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             'positions' => ['sometimes', 'array', 'min:1', 'max:30'],
             'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
         ]);
 
-        $election = DB::transaction(function () use ($data, $request) {
-            $election = Election::create([
-                'title' => trim($data['title']),
-                'start_time' => $data['start_time'],
-                'end_time' => $data['end_time'],
-                'status' => 'pending_approval',
-                'results_visible' => $data['results_visible'] ?? true,
-                'organization_id' => $request->user()->organization_id,
-            ]);
+        $imageUrl = $request->hasFile('image') ? $this->storeElectionImage($request) : null;
 
-            foreach ($data['positions'] ?? [] as $position) {
-                $election->positions()->create([
-                    'title' => trim($position['title']),
-                    'max_winners' => $position['max_winners'],
+        try {
+            $election = DB::transaction(function () use ($data, $request, $imageUrl) {
+                $election = Election::create([
+                    'title' => trim($data['title']),
+                    'image_url' => $imageUrl,
+                    'start_time' => $data['start_time'],
+                    'end_time' => $data['end_time'],
+                    'status' => 'pending_approval',
+                    'results_visible' => $data['results_visible'] ?? true,
+                    'organization_id' => $request->user()->organization_id,
                 ]);
-            }
 
-            ApprovalRequest::create([
-                'organization_id' => $request->user()->organization_id,
-                'entity_type' => 'election',
-                'entity_id' => $election->id,
-                'requested_by' => $request->user()->id,
-                'required_role' => 'DEPARTMENT_HEAD',
-            ]);
+                foreach ($data['positions'] ?? [] as $position) {
+                    $election->positions()->create([
+                        'title' => trim($position['title']),
+                        'max_winners' => $position['max_winners'],
+                    ]);
+                }
 
-            return $election;
-        });
+                ApprovalRequest::create([
+                    'organization_id' => $request->user()->organization_id,
+                    'entity_type' => 'election',
+                    'entity_id' => $election->id,
+                    'requested_by' => $request->user()->id,
+                    'required_role' => 'DEPARTMENT_HEAD',
+                ]);
+
+                return $election;
+            });
+        } catch (\Throwable $exception) {
+            $this->deleteElectionImage($imageUrl);
+
+            throw $exception;
+        }
 
         $election->load('positions');
         $this->recordElectionAudit(
@@ -198,6 +220,8 @@ class ElectionController extends Controller
             'end_time' => ['sometimes', 'required', 'date'],
             'status' => ['sometimes', 'required', 'in:upcoming,active,closed,pending_approval'],
             'results_visible' => ['boolean'],
+            'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'remove_image' => ['sometimes', 'boolean'],
         ]);
         $requestedFields = array_keys($data);
         $oldValues = $this->auditableElectionValues($election);
@@ -227,17 +251,39 @@ class ElectionController extends Controller
             return response()->json(['message' => "Election status cannot change from {$election->status} to {$data['status']}."], 422);
         }
 
-        if ($election->votes()->exists() && count(array_intersect(array_keys($data), ['title', 'start_time', 'end_time'])) > 0) {
+        if ($election->votes()->exists() && (count(array_intersect(array_keys($data), ['title', 'start_time', 'end_time', 'image', 'remove_image'])) > 0)) {
             return response()->json(['message' => 'Election details cannot be changed after votes have been cast.'], 409);
         }
 
-        if ($election->approved_at && $this->hasMaterialElectionChange($data)) {
-            $data['status'] = 'pending_approval';
-            $data['approved_at'] = null;
-            $this->reopenApproval($election, $request);
+        $oldImageUrl = $election->image_url;
+        $newImageUrl = null;
+        if ($request->hasFile('image')) {
+            $newImageUrl = $this->storeElectionImage($request);
+            $data['image_url'] = $newImageUrl;
+        } elseif ($request->boolean('remove_image')) {
+            $data['image_url'] = null;
+        }
+        unset($data['image'], $data['remove_image']);
+
+        try {
+            DB::transaction(function () use ($election, $request, &$data) {
+                if ($election->approved_at && $this->hasMaterialElectionChange($data)) {
+                    $data['status'] = 'pending_approval';
+                    $data['approved_at'] = null;
+                    $this->reopenApproval($election, $request);
+                }
+
+                $election->update($data);
+            });
+        } catch (\Throwable $exception) {
+            $this->deleteElectionImage($newImageUrl);
+
+            throw $exception;
         }
 
-        $election->update($data);
+        if (array_key_exists('image_url', $data) && $oldImageUrl !== $data['image_url']) {
+            $this->deleteElectionImage($oldImageUrl);
+        }
 
         ApprovalRequest::where('entity_type', 'election')
             ->where('entity_id', $election->id)
@@ -265,6 +311,7 @@ class ElectionController extends Controller
             'title',
             'start_time',
             'end_time',
+            'image_url',
         ])) > 0;
     }
 
@@ -366,6 +413,7 @@ class ElectionController extends Controller
 
         $oldValues = $this->auditableElectionValues($election);
         $electionId = $election->id;
+        $imageUrl = $election->image_url;
 
         ApprovalRequest::where('organization_id', $election->organization_id)
             ->where('entity_type', 'election')
@@ -373,6 +421,7 @@ class ElectionController extends Controller
             ->delete();
 
         $election->delete();
+        $this->deleteElectionImage($imageUrl);
         $this->recordElectionAudit($request, 'deleted', Election::class, $electionId, $oldValues, null);
 
         return response()->json(['message' => 'Election deleted successfully']);
@@ -1041,6 +1090,8 @@ class ElectionController extends Controller
                     'id' => $c->id,
                     'name' => trim(($c->user->first_name ?? '').' '.($c->user->last_name ?? '')),
                     'partylist' => $c->partylist ? $c->partylist->name : 'Independent',
+                    'image_url' => $c->image_url,
+                    'platform' => $c->platform,
                     'votes' => $c->votes_count,
                 ])
                 ->sortByDesc('votes')
@@ -1075,6 +1126,7 @@ class ElectionController extends Controller
             'id' => $election->id,
             'organization_id' => $election->organization_id,
             'title' => $election->title,
+            'image_url' => $election->image_url,
             'start_time' => $election->start_time?->toISOString(),
             'end_time' => $election->end_time?->toISOString(),
             'status' => $election->status,
