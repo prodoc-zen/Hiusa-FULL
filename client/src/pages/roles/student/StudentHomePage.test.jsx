@@ -1,3 +1,4 @@
+import { StrictMode } from 'react';
 import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,5 +35,12 @@ describe('StudentHomePage', () => {
     expect(screen.getByText('Important')).toBeInTheDocument();
     expect(getStudentFeed).toHaveBeenCalledWith(1, 12);
     expect(screen.getByText('You’re all caught up.')).toBeInTheDocument();
+  });
+
+  it('finishes loading the feed under the application StrictMode wrapper', async () => {
+    render(<StrictMode><MemoryRouter><StudentHomePage /></MemoryRouter></StrictMode>);
+
+    expect(await screen.findByRole('heading', { name: 'Classes suspended' })).toBeInTheDocument();
+    expect(screen.queryAllByRole('status')).toHaveLength(0);
   });
 });

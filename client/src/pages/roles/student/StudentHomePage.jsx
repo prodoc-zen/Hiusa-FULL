@@ -36,7 +36,10 @@ export default function StudentHomePage() {
   const loadingRef = useRef(false);
   const mountedRef = useRef(true);
 
-  useEffect(() => () => { mountedRef.current = false; }, []);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const loadPage = useCallback(async (page, replace = false) => {
     if (loadingRef.current || requestedPages.current.has(page)) return;
