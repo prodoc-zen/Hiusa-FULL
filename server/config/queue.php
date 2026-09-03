@@ -41,7 +41,11 @@ return [
             'table' => env('DB_QUEUE_TABLE', 'jobs'),
             'queue' => env('DB_QUEUE', 'default'),
             'retry_after' => (int) env('DB_QUEUE_RETRY_AFTER', 90),
-            'after_commit' => false,
+            // Several controllers create the ApprovalRequest that dispatches
+            // NotifyApproversJob inside DB::transaction(). Deferring the push
+            // until commit keeps a worker from ever picking up a job whose
+            // approval row could still be rolled back.
+            'after_commit' => true,
         ],
 
         'beanstalkd' => [

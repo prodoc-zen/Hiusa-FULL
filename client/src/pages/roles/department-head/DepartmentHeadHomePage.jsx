@@ -5,6 +5,7 @@ import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getApprovalRequests } from '../../../services/approvalService';
+import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -16,6 +17,7 @@ const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'pay
 
 export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
+  const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -23,23 +25,30 @@ export default function DepartmentHeadHomePage() {
 
     async function load() {
       try {
-        const [electionsRes, eventsRes, announcementsRes, approvalsRes] = await Promise.all([
+        // /events has no status filter, so the full org event list is walked via
+        // fetchAllPages - the endpoint also orders oldest-first, so a single
+        // page-1 fetch would surface stale events instead of upcoming ones. The
+        // pending-approval queue has no per-type filter either, but it is a
+        // working queue (bounded in practice), so a single generous per_page
+        // captures it in one call while `total` still backs the headline count.
+        const [electionsRes, events, announcementsRes, approvalsRes] = await Promise.all([
           getElections(),
-          getEvents(),
+          fetchAllPages((p) => getEvents(p).then((r) => r.data)),
           getAnnouncements({ published_only: 1 }),
-          getApprovalRequests({ status: 'pending' }),
+          getApprovalRequests({ status: 'pending', per_page: 100 }),
         ]);
 
         if (cancelled) return;
 
         setData({
           elections: Array.isArray(electionsRes) ? electionsRes : (Array.isArray(electionsRes?.data) ? electionsRes.data : []),
-          events: Array.isArray(eventsRes?.data) ? eventsRes.data : (Array.isArray(eventsRes) ? eventsRes : []),
-          announcements: Array.isArray(announcementsRes?.data) ? announcementsRes.data : [],
-          pendingApprovals: Array.isArray(approvalsRes?.data) ? approvalsRes.data : [],
+          events,
+          announcements: unwrapList(announcementsRes?.data),
+          pendingApprovals: unwrapList(approvalsRes?.data),
         });
+        setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
       } catch {
-        if (!cancelled) setData({ elections: [], events: [], announcements: [], pendingApprovals: [] });
+        if (!cancelled) { setData({ elections: [], events: [], announcements: [], pendingApprovals: [] }); setPendingApprovalsTotal(0); }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -58,7 +67,7 @@ export default function DepartmentHeadHomePage() {
 
   const stat = (val) => loading ? '-' : val;
 
-  const totalPendingApprovals = data.pendingApprovals.length;
+  const totalPendingApprovals = pendingApprovalsTotal;
   const approvalsByType = APPROVAL_TYPE_ORDER
     .map((type) => ({ type, count: data.pendingApprovals.filter((r) => r.entity_type === type).length }))
     .filter((row) => row.count > 0);
@@ -71,7 +80,7 @@ export default function DepartmentHeadHomePage() {
         <p className="mt-1 text-sm font-medium text-slate-500">Review approvals and monitor elections, events, and published announcements.</p>
       </section>
 
-      {!loading && data.pendingApprovals.length > 0 && (
+      {!loading && totalPendingApprovals > 0 && (
         <NavLink
           to="/dashboard/department-head/approvals"
           className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:bg-amber-100"
@@ -81,7 +90,7 @@ export default function DepartmentHeadHomePage() {
               <ClipboardCheck size={20} />
             </div>
             <div>
-              <p className="font-bold text-[#0F172A]">{data.pendingApprovals.length} item{data.pendingApprovals.length === 1 ? '' : 's'} awaiting your approval</p>
+              <p className="font-bold text-[#0F172A]">{totalPendingApprovals} item{totalPendingApprovals === 1 ? '' : 's'} awaiting your approval</p>
               <p className="text-sm text-amber-700">Events, budgets, and elections need your sign-off before they go live.</p>
             </div>
           </div>
@@ -94,7 +103,7 @@ export default function DepartmentHeadHomePage() {
           { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
           { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
           { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
-          { label: 'Pending Approvals', value: stat(data.pendingApprovals.length), icon: ClipboardCheck },
+          { label: 'Pending Approvals', value: stat(totalPendingApprovals), icon: ClipboardCheck },
         ].map((item) => (
           <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">

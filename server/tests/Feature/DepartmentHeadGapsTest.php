@@ -154,7 +154,7 @@ class DepartmentHeadGapsTest extends TestCase
         ]);
 
         Sanctum::actingAs($student);
-        $studentIds = collect($this->getJson('/api/announcements')->assertOk()->json())->pluck('id');
+        $studentIds = collect($this->getJson('/api/announcements')->assertOk()->json('data'))->pluck('id');
         $this->assertFalse($studentIds->contains($announcement->id));
 
         $this->postJson("/api/announcements/{$announcement->id}/view")->assertNotFound();
@@ -178,12 +178,12 @@ class DepartmentHeadGapsTest extends TestCase
         ]);
 
         Sanctum::actingAs($student);
-        $studentRow = collect($this->getJson('/api/announcements')->assertOk()->json())
+        $studentRow = collect($this->getJson('/api/announcements')->assertOk()->json('data'))
             ->firstWhere('id', $announcement->id);
         $this->assertArrayNotHasKey('views_count', $studentRow);
 
         Sanctum::actingAs($officer);
-        $officerRow = collect($this->getJson('/api/announcements')->assertOk()->json())
+        $officerRow = collect($this->getJson('/api/announcements')->assertOk()->json('data'))
             ->firstWhere('id', $announcement->id);
         $this->assertSame(3, $officerRow['views_count']);
     }
@@ -242,7 +242,7 @@ class DepartmentHeadGapsTest extends TestCase
             ->assertJsonFragment(['id' => $announcement->id]);
 
         Sanctum::actingAs($student);
-        $studentIds = collect($this->getJson('/api/announcements')->assertOk()->json())->pluck('id');
+        $studentIds = collect($this->getJson('/api/announcements')->assertOk()->json('data'))->pluck('id');
         $this->assertFalse($studentIds->contains($announcement->id));
     }
 

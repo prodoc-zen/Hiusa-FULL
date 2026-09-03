@@ -23,6 +23,11 @@ class ApprovalRequestController extends Controller
 
     public function index(Request $request)
     {
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $filters = $request->validate([
             'status' => ['nullable', 'in:pending,approved,rejected,all'],
             'entity_type' => ['nullable', 'in:event,budget,election,announcement,payment'],
@@ -70,8 +75,9 @@ class ApprovalRequestController extends Controller
         }
 
         $query->orderBy('requested_at', ($filters['sort'] ?? 'newest') === 'oldest' ? 'asc' : 'desc');
+        $query->orderBy('id');
 
-        $approvals = $query->get();
+        $approvals = $query->paginate($paging['per_page'] ?? 20);
         $this->attachEntityDetails($approvals);
 
         return response()->json($approvals);

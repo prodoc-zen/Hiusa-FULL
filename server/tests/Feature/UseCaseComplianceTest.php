@@ -1129,8 +1129,8 @@ class UseCaseComplianceTest extends TestCase
 
         $this->getJson('/api/announcements')
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.id', $published->id);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $published->id);
     }
 
     public function test_department_head_order_history_is_personal_and_catalog_hides_inactive_items(): void
@@ -1178,8 +1178,8 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonPath('data.0.claim_token', null);
         $this->getJson('/api/merchandise')
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.id', $activeItem->id);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $activeItem->id);
 
         $this->assertDatabaseHas('merchandise', ['id' => $inactiveItem->id, 'is_active' => false]);
     }
@@ -1219,8 +1219,8 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($admin);
         $this->getJson('/api/users?role=STUDENT&account_status=active')
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.school_id', $activeStudent->school_id);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.school_id', $activeStudent->school_id);
     }
 
     public function test_sbo_calendar_cannot_read_unapproved_event_plans(): void
@@ -1242,8 +1242,8 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($officer);
         $this->getJson('/api/events')
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.id', $approved->id);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $approved->id);
         $this->getJson("/api/events/{$planning->id}")->assertForbidden();
     }
 

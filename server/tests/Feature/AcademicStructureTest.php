@@ -50,8 +50,8 @@ class AcademicStructureTest extends TestCase
 
         $this->getJson('/api/users?program=BS%20Information%20Technology&year_level=1st%20Year&section=1-B')
             ->assertOk()
-            ->assertJsonCount(1)
-            ->assertJsonPath('0.school_id', 87654321);
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.school_id', 87654321);
     }
 
     public function test_admin_can_update_and_delete_programs_without_orphaning_user_profiles(): void

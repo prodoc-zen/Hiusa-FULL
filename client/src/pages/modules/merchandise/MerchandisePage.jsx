@@ -44,6 +44,7 @@ import {
 } from "../../../services/orderService";
 import { resolveAssetUrl } from "../../../utils/assetUrl";
 import PaginationControls from "../../../components/PaginationControls";
+import { fetchAllPages } from "../../../services/pagination";
 
 const STUDENT_CART_KEY = "hiusa_student_cart";
 const EMPTY_ORDER_FILTERS = {
@@ -331,6 +332,7 @@ export default function MerchandisePage({ initialTab }) {
     total: 0,
     per_page: 10,
   });
+  const [pendingOrdersTotal, setPendingOrdersTotal] = useState(0);
 
   // Officer-only state
   const [showForm, setShowForm] = useState(false);
@@ -462,10 +464,19 @@ export default function MerchandisePage({ initialTab }) {
     setLoading(true);
     setError(null);
     const calls = isPersonalShoppingView
-      ? [getMerchandise(), getOrders({ mine: 1 }), getGcashSettings()]
-      : [getMerchandise(), getOrders({ page: 1, ...EMPTY_ORDER_FILTERS })];
+      ? [
+          fetchAllPages((p) => getMerchandise(p).then((r) => r.data)).then((rows) => ({ data: rows })),
+          getOrders({ mine: 1 }),
+          getGcashSettings(),
+          // /orders ignores status filters entirely for the personal ("mine")
+          // view server-side, so the only way to get an accurate pending count
+          // is to walk the student's own order history (bounded per-student,
+          // unlike a full-table walk) rather than trust a filtered request.
+          fetchAllPages((p) => getOrders({ mine: 1, ...p }).then((r) => r.data), {}, { perPage: 10 }),
+        ]
+      : [fetchAllPages((p) => getMerchandise(p).then((r) => r.data)).then((rows) => ({ data: rows })), getOrders({ page: 1, ...EMPTY_ORDER_FILTERS })];
     Promise.all(calls)
-      .then(([mRes, oRes, gcashRes]) => {
+      .then(([mRes, oRes, gcashRes, allMineOrders]) => {
         const merch = Array.isArray(mRes.data?.data)
           ? mRes.data.data
           : Array.isArray(mRes.data)
@@ -474,6 +485,9 @@ export default function MerchandisePage({ initialTab }) {
         setItems(merch);
         extractOrders(oRes);
         if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
+        if (allMineOrders) {
+          setPendingOrdersTotal(allMineOrders.filter((o) => o.status === "pending").length);
+        }
       })
       .catch(() => setError("Failed to load merchandise data."))
       .finally(() => setLoading(false));
@@ -483,6 +497,18 @@ export default function MerchandisePage({ initialTab }) {
     setLoading(true);
     try {
       const oRes = await getOrders({ page, ...filters });
+      extractOrders(oRes);
+    } catch {
+      setError("Failed to load orders.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function loadPersonalOrders(page) {
+    setLoading(true);
+    try {
+      const oRes = await getOrders({ mine: 1, page });
       extractOrders(oRes);
     } catch {
       setError("Failed to load orders.");
@@ -1305,13 +1331,13 @@ export default function MerchandisePage({ initialTab }) {
             },
             {
               label: "My Orders",
-              value: orders.length,
+              value: ordersMeta.total,
               helper: "Total reservations",
               icon: ShoppingBag,
             },
             {
               label: "Pending Payment",
-              value: orders.filter((o) => o.status === "pending").length,
+              value: pendingOrdersTotal,
               helper: "Awaiting payment",
               icon: Ticket,
             },
@@ -1614,7 +1640,9 @@ export default function MerchandisePage({ initialTab }) {
                   className="mx-auto mb-3 text-slate-200"
                 />
                 <p className="text-sm font-semibold text-slate-400">
-                  No orders yet. Browse merchandise to place your first order.
+                  {studentOrderSearch.trim() && ordersMeta.total > 0
+                    ? "No orders on this page match your search."
+                    : "No orders yet. Browse merchandise to place your first order."}
                 </p>
               </div>
             ) : (
@@ -1708,6 +1736,13 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             )}
+            <PaginationControls
+              currentPage={ordersMeta.current_page}
+              totalItems={ordersMeta.total}
+              pageSize={ordersMeta.per_page}
+              onPageChange={loadPersonalOrders}
+              label="orders"
+            />
           </section>
         )}
 

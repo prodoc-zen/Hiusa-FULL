@@ -25,6 +25,11 @@ class EventController extends Controller
     {
         $user = $request->user();
 
+        $paging = $request->validate([
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
+        ]);
+
         $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
             ->where('organization_id', $user->organization_id)
             ->withCount([
@@ -32,13 +37,14 @@ class EventController extends Controller
                 'tasks',
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ])
-            ->orderBy('start_time', 'asc');
+            ->orderBy('start_time', 'asc')
+            ->orderBy('id');
 
         if ($user->role !== 'ADMIN') {
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
         }
 
-        $events = $query->get();
+        $events = $query->paginate($paging['per_page'] ?? 20);
         $this->attachApprovalInfo($events);
 
         if ($user->role === 'ADMIN') {

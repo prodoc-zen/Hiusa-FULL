@@ -2,6 +2,14 @@
 
 This guide is for team members cloning the project to run it locally for the demo. Follow every step in order. Do not skip steps.
 
+> **Deploying this somewhere real, or operating an already-running instance?** This
+> guide is for local development only. See [`EC2-DEPLOYMENT.md`](EC2-DEPLOYMENT.md)
+> for the actual deployment procedure (the Docker Compose stack on EC2, and the
+> setup/deploy/backup scripts), [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) for the
+> go-live checklist and post-deploy smoke test that wrap it, and
+> [`docs/OPERATIONS.md`](docs/OPERATIONS.md) for running and troubleshooting a
+> live instance day to day (health checks, logs, the queue worker, common failures).
+
 ---
 
 ## What You Need Before Starting
@@ -281,6 +289,16 @@ Go to **http://localhost:5173** in your browser.
 
 ## Demo Accounts
 
+> ⚠️ **Development only. Never seed these into a real installation.** These
+> credentials are created by `php artisan db:seed` and are published here, in
+> version control, in plain text. That is fine for a local demo database only you
+> and your team can reach. It is a real security hole on any installation other
+> people can actually use — see the seeder-trap section of
+> [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md) before running seeders anywhere but a
+> disposable local database. On the real EC2 deployment path
+> ([`EC2-DEPLOYMENT.md`](EC2-DEPLOYMENT.md)), this is enforced by
+> `scripts/setup-ec2.sh`'s opt-in `--seed-demo` flag rather than left to memory.
+
 All passwords are shown below. The **Login** field differs by role.
 
 ### Admin
@@ -295,12 +313,27 @@ All passwords are shown below. The **Login** field differs by role.
 |---|---|---|
 | Marco Dela Cruz | `officer1@hiusa.local` | `Demo@12345` |
 | Angela Santos | `officer2@hiusa.local` | `Demo@12345` |
+| Bianca Fernandez | `officer3@hiusa.local` | `Demo@12345` |
+| Diego Villanueva | `officer4@hiusa.local` | `Demo@12345` |
+| Ellaine Morales | `officer5@hiusa.local` | `Demo@12345` |
+| Franco Cruz | `officer6@hiusa.local` | `Demo@12345` |
+| Grace Ibanez | `officer7@hiusa.local` | `Demo@12345` |
+| Mika Salcedo | `mika.salcedo@cbe.hiusa.local` | `Demo@12345` |
 
 ### Advisers
 | Name | Email | Password |
 |---|---|---|
 | Ricardo Lim | `adviser1@hiusa.local` | `Demo@12345` |
 | Maria Reyes | `adviser2@hiusa.local` | `Demo@12345` |
+
+### Department Heads
+| Name | Email | School ID | Password |
+|---|---|---|---|
+| Ramon Castillo | `dean.ccs@hiusa.local` | `940001` | `Demo@12345` |
+| Corazon Villareal | `dean.cbe@hiusa.local` | `940002` | `Demo@12345` |
+| Benjamin Torres | `dean.cte@hiusa.local` | `940003` | `Demo@12345` |
+| Marilou Santos | `dean.chs@hiusa.local` | `940004` | `Demo@12345` |
+| Eduardo Ramos | `dean.coe@hiusa.local` | `940005` | `Demo@12345` |
 
 ### Students — login with **School ID**, not email
 | Name | School ID | Password |
@@ -319,6 +352,8 @@ All passwords are shown below. The **Login** field differs by role.
 | Trisha Herrera | `2024-00019` | `Demo@12345` |
 | Jerome Evangelista | `2024-00067` | `Demo@12345` |
 | Alyssa Domingo | `2024-00093` | `Demo@12345` |
+| Nico Valdez | `2024-00118` | `Demo@12345` |
+| Paolo Marquez | `2024-00133` | `Demo@12345` |
 
 ---
 
@@ -360,7 +395,7 @@ ls server/database/database.sqlite
 If missing, run: `php -r "touch('database/database.sqlite');"`
 
 ### Vite shows blank page / "Failed to fetch"
-The Laravel server is not running. Open Terminal 1 and run `php artisan serve` from the `server/` folder.
+The Laravel server is not running. Open Terminal 2 and run `php artisan serve` from the `server/` folder.
 
 ### Migration error: "Table already exists"
 Run a fresh migration:
@@ -404,16 +439,29 @@ Hiusa-FULL/
 
 ## Quick Reference — Daily Workflow
 
-Every time you sit down to work or demo:
+Every time you sit down to work or demo, you need **four** terminals, not two —
+skipping the AI service or the queue worker doesn't error, it just silently
+degrades: AI-backed features fall back to local calculations, and password
+resets / approval notifications never go out (see Troubleshooting and
+`docs/OPERATIONS.md` §1 for both symptoms).
 
 ```bash
-# Terminal 1
+# Terminal 1 - Python AI service
+cd ai-service
+.\.venv\Scripts\Activate.ps1
+python run.py
+
+# Terminal 2 - Laravel API
 cd server
 php artisan serve
 
-# Terminal 2
+# Terminal 3 - Frontend
 cd client
 npm run dev
+
+# Terminal 4 - Queue worker (password resets, approval notifications)
+cd server
+php artisan queue:work
 
 # Open browser
 http://localhost:5173

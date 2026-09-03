@@ -26,6 +26,8 @@ class UserController extends Controller
             'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'account_status' => ['nullable', 'in:active,inactive,disabled'],
             'search' => ['nullable', 'string', 'max:100'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+            'page' => ['nullable', 'integer', 'min:1'],
             'department' => ['nullable', 'string', 'max:120'],
             'program' => ['nullable', 'string', 'max:120'],
             'year_level' => ['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'],
@@ -33,9 +35,7 @@ class UserController extends Controller
         ]);
 
         $query = User::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->orderBy('last_name')
-            ->orderBy('first_name');
+            ->where('organization_id', $request->user()->organization_id);
 
         if (! empty($filters['role'])) {
             $query->where('role', $filters['role']);
@@ -67,7 +67,23 @@ class UserController extends Controller
             });
         }
 
-        return response()->json($query->get());
+        // Counted on the filtered-but-unordered clone so an admin dashboard can
+        // show organization-wide role totals without paging through every user.
+        $roleCounts = (clone $query)
+            ->selectRaw('role, count(*) as aggregate')
+            ->groupBy('role')
+            ->pluck('aggregate', 'role');
+
+        $paginated = $query
+            ->orderBy('last_name')
+            ->orderBy('first_name')
+            ->orderBy('school_id')
+            ->paginate($filters['per_page'] ?? 20);
+
+        return response()->json([
+            ...$paginated->toArray(),
+            'summary' => ['by_role' => $roleCounts],
+        ]);
     }
 
     public function store(Request $request)
@@ -388,15 +404,12 @@ class UserController extends Controller
             ->where('email', $validated['email'])
             ->first();
 
-        if (! $user) {
+        // Non-enumerating: an unknown email, a disabled account, and an active
+        // account all return the identical body, so an unauthenticated caller
+        // cannot use this endpoint to discover which emails have accounts or an
+        // account's status. Mail is only actually sent for an active account.
+        if (! $user || $user->account_status !== 'active') {
             return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
-        }
-
-        if ($user->account_status !== 'active') {
-            return response()->json([
-                'message' => 'This account is not active. Please contact an administrator.',
-                'account_status' => $user->account_status,
-            ], 403);
         }
 
         $token = Str::random(64);
@@ -417,7 +430,7 @@ class UserController extends Controller
 
         Mail::to($user->email)->send(new PasswordResetMail($user, $resetUrl, $expiresInMinutes));
 
-        return response()->json(['message' => 'Password reset instructions sent.']);
+        return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
     }
 
     public function validatePasswordResetToken(Request $request)

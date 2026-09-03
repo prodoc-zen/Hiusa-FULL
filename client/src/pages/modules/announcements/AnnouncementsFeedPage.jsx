@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { ArrowUpRight, CalendarDays, Megaphone, Search } from 'lucide-react';
 import { Avatar } from './announcementShared.jsx';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
+import PaginationControls from '../../../components/PaginationControls';
+import { listMeta, unwrapList } from '../../../services/pagination';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -34,32 +36,57 @@ function Author({ announcement, inverted = false }) {
 
 export default function AnnouncementsFeedPage() {
   const [announcements, setAnnouncements] = useState([]);
+  const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
+  const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
 
-  function load() {
+  const load = useCallback(() => {
     setLoading(true);
     setError(null);
-    const params = { published_only: 1, ...(categoryFilter === 'all' ? {} : { category: categoryFilter }) };
+    const params = {
+      published_only: 1,
+      page,
+      search: search || undefined,
+      ...(categoryFilter === 'all' ? {} : { category: categoryFilter }),
+    };
     getAnnouncements(params)
-      .then((res) => setAnnouncements(Array.isArray(res.data) ? res.data : []))
+      .then((res) => {
+        setAnnouncements(unwrapList(res.data));
+        setMeta(listMeta(res.data));
+      })
       .catch(() => setError('Failed to load announcements.'))
       .finally(() => setLoading(false));
-  }
+  }, [categoryFilter, search, page]);
 
-  useEffect(load, [categoryFilter]);
+  useEffect(() => {
+    const timer = setTimeout(load, 250);
+    return () => clearTimeout(timer);
+  }, [load]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [categoryFilter, search]);
 
   useEffect(() => {
     let cancelled = false;
     async function markAnnouncementAlertsAsRead() {
       try {
-        const res = await getNotifications();
-        const notifications = Array.isArray(res.data?.notifications) ? res.data.notifications : [];
-        const unreadIds = notifications.filter((item) => !item.is_read && String(item.title || '').startsWith('New Announcement:')).map((item) => item.id);
-        if (!cancelled && unreadIds.length > 0) await Promise.all(unreadIds.map((id) => markRead(id)));
+        // /notifications now paginates at 20/page by default; the endpoint's
+        // cap is 100 (NotificationController.php:14), so the sweep asks for
+        // that directly rather than only ever clearing the newest 20.
+        const res = await getNotifications({ per_page: 100 });
+        const notifications = unwrapList(res.data);
+        const unreadAnnouncementIds = notifications
+          .filter((notification) => !notification.is_read && String(notification.title || '').startsWith('New Announcement:'))
+          .map((notification) => notification.id);
+
+        if (!cancelled && unreadAnnouncementIds.length > 0) {
+          await Promise.all(unreadAnnouncementIds.map((id) => markRead(id)));
+        }
       } catch {
         // Notification syncing must not block the feed.
       }
@@ -68,7 +95,7 @@ export default function AnnouncementsFeedPage() {
     return () => { cancelled = true; };
   }, []);
 
-  const filtered = announcements.filter((announcement) => announcement.is_published && String(announcement.title || '').toLowerCase().includes(search.toLowerCase()));
+  const filtered = announcements.filter((announcement) => announcement.is_published);
   const featured = filtered[0];
   const remaining = filtered.slice(1);
 
@@ -83,8 +110,8 @@ export default function AnnouncementsFeedPage() {
             <p className="mt-2 text-sm leading-6 text-[#64748B]">Updates, schedules, and important notices from your organization—all in one readable feed.</p>
           </div>
           <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 text-left lg:text-right">
-            <p className="text-2xl font-black text-[#0B8ED0]">{filtered.length}</p>
-            <p className="text-xs font-bold text-[#64748B]">Published update{filtered.length === 1 ? '' : 's'}</p>
+            <p className="text-2xl font-black text-[#0B8ED0]">{meta.total}</p>
+            <p className="text-xs font-bold text-[#64748B]">Published update{meta.total === 1 ? '' : 's'}</p>
           </div>
         </div>
         <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
@@ -136,6 +163,16 @@ export default function AnnouncementsFeedPage() {
             ))}
           </div>
         </section>
+      )}
+
+      {!loading && !error && (
+        <PaginationControls
+          currentPage={meta.currentPage}
+          totalItems={meta.total}
+          pageSize={meta.perPage}
+          onPageChange={setPage}
+          label="announcements"
+        />
       )}
     </div>
   );

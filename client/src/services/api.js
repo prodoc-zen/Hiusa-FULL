@@ -86,6 +86,18 @@ api.interceptors.response.use(
       error.validationErrors = error.response.data?.errors ?? {};
     }
 
+    // The authenticated API is rate-limited per user (see AppServiceProvider's
+    // RateLimiter definitions). Surface the limit and its Retry-After so a page
+    // can say "try again in a moment" instead of reporting a generic failure.
+    if (status === 429) {
+      error.isRateLimited = true;
+      const retryAfter = Number(error.response.headers?.['retry-after']);
+      error.retryAfterSeconds = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : null;
+      error.userMessage = error.retryAfterSeconds
+        ? `Too many requests. Please try again in ${error.retryAfterSeconds} seconds.`
+        : 'Too many requests. Please wait a moment and try again.';
+    }
+
     if (status >= 500) {
       error.isServerError = true;
     }

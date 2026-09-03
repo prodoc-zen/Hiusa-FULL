@@ -1,7 +1,7 @@
 import api from './api';
 
-export const getNotifications = () =>
-  api.get('/notifications');
+export const getNotifications = (params) =>
+  api.get('/notifications', { params });
 
 export const markRead = (id) =>
   api.patch(`/notifications/${id}/read`);
