@@ -95,7 +95,7 @@ export default function StudentHomePage() {
       </header>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_300px] xl:justify-center">
-        <main className="min-w-0 space-y-4" aria-label="Organization feed">
+        <section className="min-w-0 space-y-4" aria-label="Organization feed">
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}
           {!initialLoading && items.map((item) => <FeedPost key={item.key} item={item} organization={organization} />)}
 
@@ -110,7 +110,7 @@ export default function StudentHomePage() {
           {loadingMore && <FeedSkeleton />}
           <div ref={sentinelRef} className="h-1" aria-hidden="true" />
           {!initialLoading && items.length > 0 && !hasMore && <p className="py-4 text-center text-xs font-semibold text-[#94A3B8]">You’re all caught up.</p>}
-        </main>
+        </section>
 
         <aside className="order-first min-w-0 space-y-4 xl:order-none xl:sticky xl:top-5" aria-label="Student shortcuts">
           {activeElection && (
