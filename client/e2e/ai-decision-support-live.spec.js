@@ -55,7 +55,7 @@ test('deterministic AI service applies forecast, budget, and delegation rules', 
     safe_spending_limit: 960,
     recommended_allocation: 960,
     reserve_amount: 40,
-    allocation_status: 'reduce_allocation',
+    allocation_status: 'within_limit',
   });
 
   const delegation = await request.post(`${aiUrl}/api/v1/task-delegation`, {
@@ -73,7 +73,7 @@ test('deterministic AI service applies forecast, budget, and delegation rules', 
   await expect(delegation).toBeOK();
   await expect(delegation.json()).resolves.toMatchObject({
     algorithm: 'rule_based_weighted_scoring',
-    weights: { role: 0.4, workload: 0.35, performance: 0.25 },
+    weights: { position: 0.4, workload: 0.35, performance: 0.25 },
     recommended_officer_id: 2,
   });
 
