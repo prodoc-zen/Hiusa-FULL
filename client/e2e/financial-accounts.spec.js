@@ -35,5 +35,5 @@ test('admin can review paginated student financial accounts', async ({ page }) =
   await expect(page.getByText('INV-TEST · Organization fee')).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('button', { name: 'Next page of student accounts' }).click();
-  await expect(page.getByText('2 / 2')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Page 2 of student accounts' })).toHaveAttribute('aria-current', 'page');
 });

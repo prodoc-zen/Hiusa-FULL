@@ -55,13 +55,24 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
       contentType: 'application/json',
       status: 201,
       body: JSON.stringify({
+        ai_output: { id: 501, version: 1, decision_status: 'pending' },
         plan: 'Timeline:\n- Confirm schedule.\n\nResource Checklist:\n- Venue.\n\nLogistics Checklist:\n- Setup.\n\nPossible Delays or Conflicts:\n- Supplier delay.',
-        tasks: [
-          { id: 101, event_id: 3, title: 'Confirm event scope and vendor commitments', status: 'pending', deadline: '2026-09-01T08:00:00Z', event: { id: 3, title: 'Sports Fest 2024' } },
-          { id: 102, event_id: 3, title: 'Finalize event timeline and resources', status: 'pending', deadline: '2026-09-02T08:00:00Z', event: { id: 3, title: 'Sports Fest 2024' } },
-          { id: 103, event_id: 3, title: 'Complete logistics checklist', status: 'pending', deadline: '2026-09-03T08:00:00Z', event: { id: 3, title: 'Sports Fest 2024' } },
-          { id: 104, event_id: 3, title: 'Review delays, conflicts, and contingencies', status: 'pending', deadline: '2026-09-04T08:00:00Z', event: { id: 3, title: 'Sports Fest 2024' } },
-        ],
+        workflow: {
+          overview: 'Prepare and deliver Sports Fest safely.',
+          preparation_phases: ['Confirm scope', 'Coordinate delivery'],
+          timeline: ['Confirm schedule'],
+          resources: ['Venue'],
+          logistics: ['Setup'],
+          risks: ['Supplier delay'],
+          scheduling_conflicts: [],
+          tasks: [
+            { key: 'scope', title: 'Confirm event scope and vendor commitments', description: 'Confirm scope.', phase: 'pre_event', priority: 'high', deadline: '2026-09-01T08:00:00Z', depends_on_key: null, recommended_role: 'President', assigned_to: 900001, recommendation: { rankings: [{ officer_id: 900001, rank: 1, name: 'Marco Dela Cruz', position_title: 'President', final_score: 90 }] } },
+            { key: 'timeline', title: 'Finalize event timeline and resources', description: 'Finalize timeline.', phase: 'pre_event', priority: 'medium', deadline: '2026-09-02T08:00:00Z', depends_on_key: 'scope', recommended_role: 'Secretary', assigned_to: 900003, recommendation: { rankings: [{ officer_id: 900003, rank: 1, name: 'Bianca Fernandez', position_title: 'Secretary', final_score: 88 }] } },
+            { key: 'logistics', title: 'Complete logistics checklist', description: 'Complete setup.', phase: 'event_day', priority: 'high', deadline: '2026-09-03T08:00:00Z', depends_on_key: 'timeline', recommended_role: 'Business Manager', assigned_to: 900007, recommendation: { rankings: [{ officer_id: 900007, rank: 1, name: 'Grace Ibanez', position_title: 'Business Manager', final_score: 86 }] } },
+            { key: 'risks', title: 'Review delays, conflicts, and contingencies', description: 'Review risks.', phase: 'post_event', priority: 'medium', deadline: '2026-09-04T08:00:00Z', depends_on_key: 'logistics', recommended_role: 'Auditor', assigned_to: 900005, recommendation: { rankings: [{ officer_id: 900005, rank: 1, name: 'Ellaine Morales', position_title: 'Auditor', final_score: 84 }] } },
+          ],
+        },
+        tasks: [],
       }),
     });
   });
@@ -69,25 +80,27 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   await expect(page.getByRole('heading', { name: 'Generate Event Plan' })).toBeVisible();
   await page.locator('select').first().selectOption({ label: 'Sports Fest 2024' });
   await page.getByPlaceholder('Timeline, resources, vendors, logistics, risks...').fill('Verify the complete planning workflow.');
-  await expect(page.getByRole('button', { name: 'Generate' })).toBeEnabled();
-  await expect(page.getByText('Workflow', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Generate' }).click();
-  const renderedPlan = page.locator('pre');
-  await expect(renderedPlan).toContainText('Timeline:');
-  await expect(renderedPlan).toContainText('Resource Checklist:');
-  await expect(renderedPlan).toContainText('Logistics Checklist:');
-  await expect(renderedPlan).toContainText('Possible Delays or Conflicts:');
+  const generateWorkflow = page.getByRole('button', { name: 'Generate Workflow Draft' });
+  await expect(generateWorkflow).toBeEnabled();
+  await generateWorkflow.click();
+  await expect(page.getByText('Generated workflow — review required', { exact: true })).toBeVisible();
+  await expect(page.getByText('Preparation Phases', { exact: true })).toBeVisible();
+  await expect(page.getByText('Timeline', { exact: true })).toBeVisible();
+  await expect(page.getByText('Resources', { exact: true })).toBeVisible();
+  await expect(page.getByText('Logistics Checklist', { exact: true })).toBeVisible();
+  await expect(page.getByText('Risks / Conflicts', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Confirm & Create Workflow' })).toBeVisible();
   expect(plannerRequest).toMatchObject({
     requirements: 'Verify the complete planning workflow.',
     create_workflow: true,
   });
-  for (const taskTitle of [
+  for (const [index, taskTitle] of [
     'Confirm event scope and vendor commitments',
     'Finalize event timeline and resources',
     'Complete logistics checklist',
     'Review delays, conflicts, and contingencies',
-  ]) {
-    await expect(page.getByText(taskTitle, { exact: true })).toBeVisible();
+  ].entries()) {
+    await expect(page.getByLabel(`Task ${index + 1} title`)).toHaveValue(taskTitle);
   }
 
   await page.goto('/dashboard/events/event-operations');
