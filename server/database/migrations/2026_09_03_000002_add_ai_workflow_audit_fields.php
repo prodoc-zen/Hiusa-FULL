@@ -33,6 +33,15 @@ return new class extends Migration
             $table->index(['event_id', 'phase', 'sequence'], 'tasks_event_workflow_order_index');
         });
 
+        // A rollback temporarily creates this index so the event_id foreign key
+        // remains backed while the composite workflow index is removed. Once the
+        // composite index exists again, restore the normal forward schema.
+        if (Schema::hasIndex('tasks', 'tasks_event_id_rollback_index')) {
+            Schema::table('tasks', function (Blueprint $table) {
+                $table->dropIndex('tasks_event_id_rollback_index');
+            });
+        }
+
         Schema::create('task_recommendations', function (Blueprint $table) {
             $table->id();
             $table->foreignId('task_id')->nullable()->constrained('tasks')->cascadeOnDelete();
@@ -56,6 +65,15 @@ return new class extends Migration
     public function down(): void
     {
         Schema::dropIfExists('task_recommendations');
+
+        // InnoDB may discard the original event_id index after the composite
+        // workflow index is added. Add a temporary replacement before dropping
+        // that composite index or MySQL/MariaDB reject the rollback with error 1553.
+        if (! Schema::hasIndex('tasks', 'tasks_event_id_rollback_index')) {
+            Schema::table('tasks', function (Blueprint $table) {
+                $table->index('event_id', 'tasks_event_id_rollback_index');
+            });
+        }
 
         Schema::table('tasks', function (Blueprint $table) {
             $table->dropForeign(['depends_on_task_id']);
