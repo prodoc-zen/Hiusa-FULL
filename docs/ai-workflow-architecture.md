@@ -9,6 +9,7 @@ HIUSA uses AI as a reviewable decision-support layer. Laravel remains the only c
 - **Suggestion before creation:** Jira's Rovo flow presents suggested child work items and creates them after acceptance. HIUSA similarly returns proposed tasks and creates real `tasks` rows only through the confirm endpoint. Source: [Atlassian AI features in Jira](https://support.atlassian.com/organization-administration/docs/atlassian-intelligence-features-in-jira-software/).
 - **Planning data does not rewrite accounting:** financial forecasts/advice use real ledger totals, while planning outputs remain separate from transactions and approved budgets. Source: [QuickBooks cash flow planner](https://quickbooks.intuit.com/learn-support/en-us/help-article/budget-forecast-reports/use-cash-flow-planner-quickbooks-online/L2l59mIqe_US_en_US).
 - **Schema-constrained model output:** Groq calls use the Responses API JSON-schema format. Laravel then performs domain validation for dates, phases, dependencies, and allowed values before saving. Source: [Groq Responses API](https://console.groq.com/docs/responses-api).
+- **Numeric fact guard:** task and financial explanations are accepted only when every numeric claim already exists in the backend-calculated context. Rejected or unavailable explanations are logged as failed; deterministic calculations remain clearly identified and usable.
 
 ## Event workflow sequence
 

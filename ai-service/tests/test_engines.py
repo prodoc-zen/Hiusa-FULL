@@ -130,6 +130,10 @@ def test_task_delegation_filters_ineligible_users_and_prefers_lower_workload() -
 
     assert result["recommended_officer_id"] == 20
     assert [ranking["officer_id"] for ranking in result["rankings"]] == [20, 10]
+    evaluations = {row["officer_id"]: row for row in result["evaluations"]}
+    assert evaluations[20]["rank"] == 1
+    assert evaluations[30]["eligibility_result"] == "invalid_role"
+    assert evaluations[30]["final_score"] is None
 
 
 def test_task_delegation_applies_availability_and_policy_rules_before_scoring() -> None:
@@ -147,6 +151,8 @@ def test_task_delegation_applies_availability_and_policy_rules_before_scoring() 
     assert result["recommended_officer_id"] == 4
     assert [ranking["officer_id"] for ranking in result["rankings"]] == [4]
     assert result["weights"] == {"position": 0.40, "workload": 0.35, "performance": 0.25}
+    evaluations = {row["officer_id"]: row["eligibility_result"] for row in result["evaluations"]}
+    assert evaluations == {4: "eligible", 1: "overloaded", 2: "overloaded", 3: "inactive_position"}
 
 
 def test_task_delegation_position_relevance_varies_by_position_title() -> None:

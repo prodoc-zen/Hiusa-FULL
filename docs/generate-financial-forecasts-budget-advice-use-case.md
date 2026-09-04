@@ -23,4 +23,4 @@
 - **Estimate Safe Spending Limit:** forecast records derive safe spending limit when not provided.
 - **Detect Overspending/Deficit:** budget records store overspending risk and forecasts expose predicted balances.
 - **Generate Budget Advice:** deterministic rules account for current available funds, predicted income and expense, approved commitments, the warning threshold, and a safety reserve. Forecast fit quality and reliability warnings prevent a short or noisy trend from being presented as certainty.
-- **Generate Financial Summary Using Groq LLM:** the server requests a constrained Groq summary when configured and stores a deterministic fallback when Groq is unavailable.
+- **Generate Financial Summary Using Groq LLM:** the server requests a constrained Groq summary and rejects copy that introduces figures absent from the calculated input. If Groq is unavailable or invalid, the OLS/risk calculation still completes with a clearly labelled deterministic summary while the `FINANCIAL_SUMMARY` AI output is recorded as failed and retryable rather than pretending the fallback was AI-generated.

@@ -113,7 +113,22 @@ class OfficerRanking(BaseModel):
     workload_score: float
     performance_score: float
     final_score: float
+    rank: int
+    eligibility_result: Literal["eligible"]
     explanation: str
+
+
+class OfficerEvaluation(BaseModel):
+    officer_id: int
+    name: str
+    position_title: str | None
+    position_tier: Literal["primary", "secondary", "unrelated", "unknown"] | None
+    role_score: float | None
+    workload_score: float | None
+    performance_score: float | None
+    final_score: float | None
+    rank: int | None
+    eligibility_result: Literal["eligible", "invalid_role", "inactive_account", "missing_position", "inactive_position", "overloaded"]
 
 
 class TaskDelegationResponse(BaseModel):
@@ -123,3 +138,4 @@ class TaskDelegationResponse(BaseModel):
     eligibility_rules: list[str]
     recommended_officer_id: int
     rankings: list[OfficerRanking]
+    evaluations: list[OfficerEvaluation]

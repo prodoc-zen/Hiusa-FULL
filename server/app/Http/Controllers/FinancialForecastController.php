@@ -142,15 +142,16 @@ class FinancialForecastController extends Controller
             'reference_type' => FinancialForecast::class,
             'reference_id' => null,
             'prompt_text' => "Forecast period: {$nextPeriod->format('F Y')}; predicted income: {$predictedIncome}; predicted expense: {$predictedExpense}; predicted balance: {$predictedBalance}; safe spending limit: {$safeSpendingLimit}; risk: {$risk}.",
-            'output_text' => $summary['text'],
+            'output_text' => $summary['ai_generated'] ? $summary['text'] : '',
             'model_name' => $summary['model'],
             'context_version' => 'financial-forecast-v2',
             'structured_input' => ['monthly_records' => $monthly->all(), 'budget_advice_input' => $budgetAdvicePayload],
-            'structured_output' => ['forecast' => $analysis, 'budget_advice' => $advice],
-            'status' => 'completed',
-            'decision_status' => 'accepted',
-            'decided_by' => $request->user()->id,
-            'decided_at' => now(),
+            'structured_output' => ['forecast' => $analysis, 'budget_advice' => $advice, 'deterministic_summary' => $summary['text']],
+            'status' => $summary['ai_generated'] ? 'completed' : 'failed',
+            'error_message' => $summary['ai_generated'] ? null : 'Groq explanation was unavailable; the deterministic forecast was still completed.',
+            'decision_status' => $summary['ai_generated'] ? 'accepted' : 'rejected',
+            'decided_by' => $summary['ai_generated'] ? $request->user()->id : null,
+            'decided_at' => $summary['ai_generated'] ? now() : null,
             'requested_by' => $request->user()->id,
             'created_at' => now(),
         ]);
@@ -185,6 +186,7 @@ class FinancialForecastController extends Controller
                     'risk' => $risk,
                     'budget_advice' => $advice,
                     'ai_output_id' => $aiOutput->id,
+                    'explanation_status' => $summary['ai_generated'] ? 'generated' : 'unavailable',
                 ],
                 'generated_by' => $request->user()->id,
             ]
@@ -454,15 +456,23 @@ class FinancialForecastController extends Controller
 
     private function financialSummary(string $period, float $income, float $expense, float $balance, float $safeLimit, string $risk): array
     {
+        $facts = compact('period', 'income', 'expense', 'balance', 'safeLimit', 'risk');
         $fallback = $risk === 'deficit'
             ? "The {$period} forecast indicates a possible deficit. Reduce discretionary expenses and secure additional income before committing new funds. The safe spending limit is PHP ".number_format($safeLimit, 2).'.'
             : "The {$period} forecast is {$risk}. Expected income is PHP ".number_format($income, 2).', expected expenses are PHP '.number_format($expense, 2).', and the safe spending limit is PHP '.number_format($safeLimit, 2).'.';
 
-        return $this->groq->generate(
+        $generated = $this->groq->generate(
             'Provide a concise, practical budget summary for a student organization. Do not alter any supplied figures.',
             "Period: {$period}; income: {$income}; expense: {$expense}; balance: {$balance}; safe limit: {$safeLimit}; risk: {$risk}.",
             220,
             0.2,
-        ) ?? ['text' => $fallback, 'model' => 'deterministic-fallback'];
+        );
+        if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $facts)) {
+            $generated = null;
+        }
+
+        return $generated
+            ? [...$generated, 'ai_generated' => true]
+            : ['text' => $fallback, 'model' => null, 'ai_generated' => false];
     }
 }

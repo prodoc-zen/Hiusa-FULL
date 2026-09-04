@@ -839,6 +839,9 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                           {budgetAdviceDetails[b.id].advice.xai_model && (
                             <span className="text-[11px] font-semibold text-slate-400">Explained by {budgetAdviceDetails[b.id].advice.xai_model}</span>
                           )}
+                          {budgetAdviceDetails[b.id].advice.xai_status === 'unavailable' && (
+                            <span className="text-[11px] font-semibold text-amber-700">AI explanation unavailable. The displayed figures and advice are deterministic; use AI Advice to retry.</span>
+                          )}
                         </div>
                         <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-3">
                           {budgetAdviceDetails[b.id].advice.reserve_amount != null && (
@@ -959,6 +962,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                         </p>
                       )}
                       {f.confidence_note && <p className="mt-3 text-xs leading-5 text-slate-500">{f.confidence_note}</p>}
+                      {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-[11px] font-semibold text-amber-700">AI explanation was unavailable. The OLS forecast and deterministic risk calculations completed normally; generate again to retry the explanation.</p>}
                     </div>
                   );
                 })}
@@ -1048,6 +1052,7 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   <div>
                     <h3 className="font-bold text-[#0F172A]">{generatedReport.report.title}</h3>
                     <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{generatedReport.report.summary_text}</p>
+                    {generatedReport.ai_summary_status === 'unavailable' && <p className="mt-2 text-xs font-semibold text-amber-700">AI summary was unavailable. This report was saved with backend-calculated totals and a deterministic summary; generate it again to retry.</p>}
                   </div>
                   <div className="flex shrink-0 gap-2">
                     <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex h-9 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>

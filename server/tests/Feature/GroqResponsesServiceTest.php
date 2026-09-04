@@ -83,4 +83,20 @@ class GroqResponsesServiceTest extends TestCase
             && $request['text']['format']['strict'] === true
             && $request['text']['format']['schema'] === $schema);
     }
+
+    public function test_numeric_fact_guard_rejects_invented_figures(): void
+    {
+        $service = app(GroqResponsesService::class);
+        $facts = ['income' => 50000, 'spent' => 38000, 'remaining' => 12000, 'forecasted_expense' => 15000, 'projected_balance' => -3000];
+
+        $this->assertTrue($service->preservesNumericFacts(
+            'From PHP 50,000.00, spending of 38,000 leaves 12,000; after 15,000 more, the balance is -3,000.',
+            $facts,
+        ));
+        $this->assertTrue($service->preservesNumericFacts('The configured safety ratio is 80%.', ['safety_ratio' => 0.8]));
+        $this->assertFalse($service->preservesNumericFacts(
+            'The organization should secure an additional PHP 9,999.',
+            $facts,
+        ));
+    }
 }

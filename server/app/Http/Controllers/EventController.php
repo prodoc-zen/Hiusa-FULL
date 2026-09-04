@@ -3,11 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
-use App\Models\AuditLog;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
+use App\Models\AuditLog;
+use App\Models\Budget;
 use App\Models\Event;
+use App\Models\FinancialForecast;
 use App\Models\Notification;
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use App\Services\GroqResponsesService;
@@ -145,28 +148,59 @@ class EventController extends Controller
             ? new Collection([$events])
             : $events;
 
+        if ($events->isEmpty()) {
+            return;
+        }
+
         $events->load([
             'budgets' => fn ($query) => $query
                 ->withCount('transactions')
+                ->withSum(['transactions as spent_amount' => fn ($transactions) => $transactions->where('type', 'expense')], 'amount')
+                ->withSum(['transactions as income_amount' => fn ($transactions) => $transactions->where('type', 'income')], 'amount')
                 ->orderBy('created_at', 'desc'),
         ]);
 
         $budgets = $events->flatMap(fn (Event $event) => $event->budgets);
 
-        if ($budgets->isEmpty()) {
-            return;
-        }
-
-        $approvals = ApprovalRequest::where('entity_type', 'budget')
-            ->whereIn('entity_id', $budgets->pluck('id'))
-            ->orderBy('id')
-            ->get()
-            ->keyBy('entity_id');
+        $approvals = $budgets->isEmpty()
+            ? collect()
+            : ApprovalRequest::where('organization_id', $events->first()->organization_id)
+                ->where('entity_type', 'budget')
+                ->whereIn('entity_id', $budgets->pluck('id'))
+                ->orderBy('id')
+                ->get()
+                ->keyBy('entity_id');
 
         foreach ($budgets as $budget) {
             $approval = $approvals->get($budget->id);
             $budget->approval_status = $approval?->status;
             $budget->approval_remarks = $approval?->remarks;
+        }
+
+        $latestForecast = FinancialForecast::where('organization_id', $events->first()->organization_id)
+            ->orderByDesc('forecast_period')
+            ->orderByDesc('id')
+            ->first();
+
+        foreach ($events as $event) {
+            $eventBudgets = $event->budgets;
+            $risk = $eventBudgets->sortByDesc(fn (Budget $budget) => match ($budget->overspending_risk) {
+                'high' => 3,
+                'medium' => 2,
+                default => 1,
+            })->first()?->overspending_risk;
+
+            $event->financial_summary = [
+                'allocated_budget' => round((float) $eventBudgets->sum('allocated_amount'), 2),
+                'spent' => round((float) $eventBudgets->sum('spent_amount'), 2),
+                'income' => round((float) $eventBudgets->sum('income_amount'), 2),
+                'remaining_budget' => round((float) $eventBudgets->sum('remaining_amount'), 2),
+                'risk' => $risk ?? 'not_analyzed',
+                'latest_forecast' => $latestForecast?->only([
+                    'id', 'forecast_period', 'predicted_income', 'predicted_expense',
+                    'predicted_balance', 'safe_spending_limit', 'confidence_note',
+                ]),
+            ];
         }
     }
 
@@ -179,35 +213,82 @@ class EventController extends Controller
             'end_time' => ['required', 'date', 'after:start_time'],
             'location' => ['nullable', 'string', 'max:255'],
             'requires_budget' => ['boolean'],
-            'planning_details' => ['nullable', 'array'],
+            'planning_details' => ['nullable', 'array:budget_notes,vendor_deadlines,logistics_checklist,event_type,expected_participants,requirements,resources,proposed_budget_amount,budget_warning_threshold'],
             'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
             'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
             'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
+            'planning_details.event_type' => ['nullable', 'string', 'max:100'],
+            'planning_details.expected_participants' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+            'planning_details.requirements' => ['nullable', 'string', 'max:5000'],
+            'planning_details.resources' => ['nullable', 'string', 'max:5000'],
+            'planning_details.proposed_budget_amount' => ['nullable', 'numeric', 'min:0.01'],
+            'planning_details.budget_warning_threshold' => ['nullable', 'numeric', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
         ]);
+
+        $proposedBudget = (float) data_get($data, 'planning_details.proposed_budget_amount', 0);
+        $warningThreshold = (float) data_get($data, 'planning_details.budget_warning_threshold', 0);
+        if ($proposedBudget > 0 && ! ($data['requires_budget'] ?? false)) {
+            return response()->json(['message' => 'Enable budget allocation before entering a proposed budget.'], 422);
+        }
+        if ($warningThreshold > $proposedBudget) {
+            return response()->json(['message' => 'The budget warning threshold cannot exceed the proposed budget.'], 422);
+        }
+        if (($data['requires_budget'] ?? false) && trim((string) data_get($data, 'planning_details.budget_notes')) === '') {
+            return response()->json(['message' => 'Budget requirements or funding notes are required for events that need a budget.'], 422);
+        }
 
         unset($data['image']);
         if ($request->hasFile('image')) {
             $data['image_url'] = Storage::disk('public')->url($request->file('image')->store('events', 'public'));
         }
 
-        $event = Event::create([
-            ...$data,
-            'requires_budget' => $data['requires_budget'] ?? false,
-            'status' => 'planning',
-            'created_by' => $request->user()->id,
-            'organization_id' => $request->user()->organization_id,
-        ]);
+        $event = DB::transaction(function () use ($data, $request, $proposedBudget, $warningThreshold) {
+            $event = Event::create([
+                ...$data,
+                'requires_budget' => $data['requires_budget'] ?? false,
+                'status' => 'planning',
+                'created_by' => $request->user()->id,
+                'organization_id' => $request->user()->organization_id,
+            ]);
 
-        ApprovalRequest::create([
-            'organization_id' => $request->user()->organization_id,
-            'entity_type' => 'event',
-            'entity_id' => $event->id,
-            'requested_by' => $request->user()->id,
-            'required_role' => 'DEPARTMENT_HEAD',
-        ]);
+            ApprovalRequest::create([
+                'organization_id' => $request->user()->organization_id,
+                'entity_type' => 'event',
+                'entity_id' => $event->id,
+                'requested_by' => $request->user()->id,
+                'required_role' => 'DEPARTMENT_HEAD',
+            ]);
 
-        return response()->json($event->load('creator:school_id,first_name,last_name'), 201);
+            if ($proposedBudget > 0) {
+                $budget = Budget::create([
+                    'organization_id' => $event->organization_id,
+                    'event_id' => $event->id,
+                    'title' => $event->title.' Proposed Budget',
+                    'allocated_amount' => $proposedBudget,
+                    'remaining_amount' => $proposedBudget,
+                    'warning_threshold' => $warningThreshold,
+                ]);
+                ApprovalRequest::create([
+                    'organization_id' => $event->organization_id,
+                    'entity_type' => 'budget',
+                    'entity_id' => $budget->id,
+                    'requested_by' => $request->user()->id,
+                    'required_role' => 'DEPARTMENT_HEAD',
+                ]);
+                $event->update(['planning_details' => [
+                    ...($event->planning_details ?? []),
+                    'proposed_budget_id' => $budget->id,
+                ]]);
+            }
+
+            return $event;
+        });
+
+        $event->load('creator:school_id,first_name,last_name');
+        $this->loadLinkedBudgets($event);
+
+        return response()->json($event, 201);
     }
 
     public function update(Request $request, $id)
@@ -230,13 +311,48 @@ class EventController extends Controller
             'location' => ['nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'required', 'in:planning,approved,ongoing,completed,cancelled'],
             'requires_budget' => ['boolean'],
-            'planning_details' => ['nullable', 'array'],
+            'planning_details' => ['nullable', 'array:budget_notes,vendor_deadlines,logistics_checklist,event_type,expected_participants,requirements,resources,proposed_budget_amount,budget_warning_threshold'],
             'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
             'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
             'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
+            'planning_details.event_type' => ['nullable', 'string', 'max:100'],
+            'planning_details.expected_participants' => ['nullable', 'integer', 'min:1', 'max:1000000'],
+            'planning_details.requirements' => ['nullable', 'string', 'max:5000'],
+            'planning_details.resources' => ['nullable', 'string', 'max:5000'],
+            'planning_details.proposed_budget_amount' => ['nullable', 'numeric', 'min:0.01'],
+            'planning_details.budget_warning_threshold' => ['nullable', 'numeric', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
             'remove_image' => ['sometimes', 'boolean'],
         ]);
+
+        $existingPlanning = $event->planning_details ?? [];
+        $updatedPlanning = array_key_exists('planning_details', $data)
+            ? [...$existingPlanning, ...($data['planning_details'] ?? [])]
+            : $existingPlanning;
+        if (array_key_exists('planning_details', $data)) {
+            $data['planning_details'] = $updatedPlanning;
+        }
+        $requiresBudget = (bool) ($data['requires_budget'] ?? $event->requires_budget);
+        if ($requiresBudget && trim((string) ($updatedPlanning['budget_notes'] ?? '')) === '') {
+            return response()->json(['message' => 'Budget requirements or funding notes are required for events that need a budget.'], 422);
+        }
+        $updatedProposal = (float) ($updatedPlanning['proposed_budget_amount'] ?? 0);
+        $updatedThreshold = (float) ($updatedPlanning['budget_warning_threshold'] ?? 0);
+        if ($updatedProposal > 0 && ! $requiresBudget) {
+            return response()->json(['message' => 'Enable budget allocation before entering a proposed budget.'], 422);
+        }
+        if ($updatedThreshold > $updatedProposal) {
+            return response()->json(['message' => 'The budget warning threshold cannot exceed the proposed budget.'], 422);
+        }
+        if (! empty($existingPlanning['proposed_budget_id'])) {
+            $currentProposal = (float) ($existingPlanning['proposed_budget_amount'] ?? 0);
+            $updatedProposal = (float) ($updatedPlanning['proposed_budget_amount'] ?? $currentProposal);
+            if (abs($currentProposal - $updatedProposal) > 0.001) {
+                return response()->json(['message' => 'Change the linked proposed budget through Finance to preserve its approval history.'], 422);
+            }
+            $updatedPlanning['proposed_budget_id'] = $existingPlanning['proposed_budget_id'];
+            $data['planning_details'] = $updatedPlanning;
+        }
 
         $endTime = isset($data['end_time']) ? Carbon::parse($data['end_time']) : $event->end_time;
         $startTime = isset($data['start_time']) ? Carbon::parse($data['start_time']) : $event->start_time;
@@ -439,11 +555,13 @@ class EventController extends Controller
             'existing_planning_details' => $event->planning_details ?? [],
             'linked_budgets' => $event->budgets->map->only(['id', 'title', 'allocated_amount', 'remaining_amount', 'approval_status'])->values()->all(),
             'schedule_conflicts' => $conflicts,
-            'allowed_positions' => [
-                'President', 'Vice President – Internal', 'Vice President – External', 'Secretary',
-                'Assistant Secretary', 'Treasurer', 'Auditor', 'Public Information Officer',
-                'Representative', 'Business Manager', 'Adviser',
-            ],
+            'allowed_positions' => SboPosition::where('organization_id', $event->organization_id)
+                ->where('role', 'SBO_OFFICER')
+                ->where('is_active', true)
+                ->orderBy('title')
+                ->pluck('title')
+                ->values()
+                ->all(),
         ];
         $generated = $this->groq->generateStructured(
             'Create a practical student-organization event plan from only the supplied facts. Do not invent fees, names, vendors, venues, dates, or approvals. Use null or identify an item as unresolved when information is missing. Produce realistic, editable workflow tasks in dependency order. Pre-event deadlines must be before the event, event-day deadlines must fall during the event, and post-event deadlines must be after it ends but within 30 days.',
@@ -479,7 +597,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Unable to generate the event plan. The AI service is temporarily unavailable or returned an invalid response.'], 503);
         }
 
-        $workflow = $this->normalizeWorkflow($generated['data'], $event);
+        $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
         if ($workflow === null) {
             AiOutput::create([
                 'organization_id' => $event->organization_id,
@@ -578,12 +696,19 @@ class EventController extends Controller
             'tasks.*.assigned_to' => ['nullable', 'integer'],
         ]);
         $keyPositions = collect($data['tasks'])->pluck('key')->flip();
+        $activePositions = SboPosition::where('organization_id', $event->organization_id)
+            ->where('role', 'SBO_OFFICER')
+            ->where('is_active', true)
+            ->pluck('title');
         foreach ($data['tasks'] as $position => $task) {
             if (! empty($task['depends_on_key']) && (! $keyPositions->has($task['depends_on_key']) || $keyPositions[$task['depends_on_key']] >= $position)) {
                 return response()->json(['message' => "Task dependency '{$task['depends_on_key']}' is invalid."], 422);
             }
             if (! $this->deadlineMatchesPhase(Carbon::parse($task['deadline']), $task['phase'], $event)) {
                 return response()->json(['message' => "The deadline for '{$task['title']}' does not match its workflow phase."], 422);
+            }
+            if (! empty($task['recommended_role']) && ! $activePositions->containsStrict($task['recommended_role'])) {
+                return response()->json(['message' => "The recommended role for '{$task['title']}' is not an active SBO position."], 422);
             }
         }
 
@@ -621,7 +746,7 @@ class EventController extends Controller
                     'created_by' => $request->user()->school_id,
                     'organization_id' => $event->organization_id,
                 ]);
-                foreach ($recommendation['rankings'] as $ranking) {
+                foreach ($recommendation['evaluations'] as $ranking) {
                     DB::table('task_recommendations')->insert([
                         'task_id' => $task->id,
                         'ai_output_id' => $aiOutput->id,
@@ -633,13 +758,29 @@ class EventController extends Controller
                         'weights' => json_encode($recommendation['weights']),
                         'total_score' => $ranking['final_score'],
                         'rank' => $ranking['rank'],
-                        'eligibility_result' => 'eligible',
+                        'eligibility_result' => $ranking['eligibility_result'],
                         'calculated_at' => now(),
                     ]);
                 }
                 if ((int) $assignedTo !== (int) $recommendedId) {
                     $overrides++;
                 }
+                AuditLog::create([
+                    'organization_id' => $event->organization_id,
+                    'user_id' => $request->user()->school_id,
+                    'module' => 'task_delegation',
+                    'action' => (int) $assignedTo === (int) $recommendedId ? 'accepted_recommendation' : 'overrode_recommendation',
+                    'record_type' => Task::class,
+                    'record_id' => $task->id,
+                    'new_values' => [
+                        'recommended_officer_id' => $recommendedId,
+                        'assigned_officer_id' => $assignedTo,
+                        'selected_rank' => $selected['rank'],
+                        'selected_score' => $selected['final_score'],
+                    ],
+                    'ip_address' => $request->ip(),
+                    'created_at' => now(),
+                ]);
                 $byKey[$draft['key']] = $task;
                 $tasks[] = $task;
             }
@@ -676,7 +817,103 @@ class EventController extends Controller
             return $tasks;
         });
 
+        $this->explainWorkflowAssignments($request, $event, collect($created));
+
         return response()->json(['message' => 'Workflow confirmed and tasks assigned.', 'tasks' => collect($created)->map->fresh()->values()], 201);
+    }
+
+    private function explainWorkflowAssignments(Request $request, Event $event, $tasks): void
+    {
+        $facts = $tasks->map(function (Task $task) {
+            $recommendation = $task->delegation_snapshot ?? [];
+            $selected = collect($recommendation['rankings'] ?? [])->firstWhere('officer_id', $task->assigned_to);
+
+            return [
+                'task_id' => $task->id,
+                'task_title' => $task->title,
+                'officer_id' => $task->assigned_to,
+                'officer_name' => $selected['name'] ?? $task->assignee?->full_name,
+                'position_title' => $selected['position_title'] ?? null,
+                'rank' => $selected['rank'] ?? null,
+                'role_score' => $selected['role_score'] ?? null,
+                'workload_score' => $selected['workload_score'] ?? null,
+                'performance_score' => $selected['performance_score'] ?? null,
+                'total_score' => $selected['final_score'] ?? null,
+                'weights' => $recommendation['weights'] ?? null,
+            ];
+        })->values();
+
+        $generated = $this->groq->generateStructured(
+            'Explain each deterministic task recommendation in one concise sentence. Use only the supplied facts. Do not change scores, ranks, officer assignments, eligibility, or weights, and do not invent qualifications.',
+            ['event_id' => $event->id, 'event_title' => $event->title, 'recommendations' => $facts->all()],
+            'hiusa_task_recommendation_explanations',
+            [
+                'type' => 'object',
+                'additionalProperties' => false,
+                'required' => ['explanations'],
+                'properties' => [
+                    'explanations' => [
+                        'type' => 'array',
+                        'items' => [
+                            'type' => 'object',
+                            'additionalProperties' => false,
+                            'required' => ['task_id', 'explanation'],
+                            'properties' => [
+                                'task_id' => ['type' => 'integer'],
+                                'explanation' => ['type' => 'string'],
+                            ],
+                        ],
+                    ],
+                ],
+            ],
+            min(1800, max(300, $tasks->count() * 120)),
+            0.2,
+        );
+        $explanations = collect($generated['data']['explanations'] ?? [])->keyBy('task_id');
+        $validIds = $facts->pluck('task_id')->sort()->values()->all();
+        $returnedIds = $explanations->keys()->map(fn ($id) => (int) $id)->sort()->values()->all();
+        $isValid = $generated && $validIds === $returnedIds
+            && $explanations->every(function ($row, $taskId) use ($facts) {
+                $fact = $facts->firstWhere('task_id', (int) $taskId);
+
+                return is_string($row['explanation'] ?? null)
+                    && trim($row['explanation']) !== ''
+                    && $fact
+                    && $this->groq->preservesNumericFacts($row['explanation'], $fact);
+            });
+
+        foreach ($tasks as $task) {
+            $fact = $facts->firstWhere('task_id', $task->id);
+            $explanation = $isValid ? trim($explanations[$task->id]['explanation']) : null;
+            if ($explanation) {
+                $task->update(['ai_recommendation_note' => $explanation]);
+            }
+            AiOutput::create([
+                'organization_id' => $event->organization_id,
+                'feature_type' => 'TASK_EXPLANATION',
+                'reference_type' => Task::class,
+                'reference_id' => $task->id,
+                'prompt_text' => 'Explain deterministic task recommendation facts without changing them.',
+                'output_text' => $explanation ?? '',
+                'model_name' => $explanation ? $generated['model'] : null,
+                'context_version' => 'task-delegation-v2',
+                'structured_input' => $fact,
+                'structured_output' => $explanation ? ['explanation' => $explanation] : ['deterministic_explanation' => $task->ai_recommendation_note],
+                'status' => $explanation ? 'completed' : 'failed',
+                'error_message' => $explanation ? null : 'Groq explanation was unavailable or invalid; deterministic assignment facts were retained.',
+                'version' => 1,
+                'decision_status' => $explanation ? 'accepted' : 'rejected',
+                'requested_by' => $request->user()->school_id,
+                'decided_by' => $explanation ? $request->user()->school_id : null,
+                'decided_at' => $explanation ? now() : null,
+                'created_at' => now(),
+            ]);
+        }
+        $this->auditAiAction($request, 'task_explanations_generated', $event, [
+            'task_count' => $tasks->count(),
+            'generated_count' => $isValid ? $tasks->count() : 0,
+            'failed_count' => $isValid ? 0 : $tasks->count(),
+        ]);
     }
 
     public function discardWorkflow(Request $request, $id, AiOutput $aiOutput)
@@ -854,7 +1091,7 @@ class EventController extends Controller
         ];
     }
 
-    private function normalizeWorkflow(array $workflow, Event $event): ?array
+    private function normalizeWorkflow(array $workflow, Event $event, array $allowedPositions): ?array
     {
         foreach (['overview', 'preparation_phases', 'timeline', 'resources', 'logistics', 'risks', 'scheduling_conflicts', 'tasks'] as $field) {
             if (! array_key_exists($field, $workflow)) {
@@ -885,6 +1122,9 @@ class EventController extends Controller
             $task['description'] = trim((string) ($task['description'] ?? ''));
             $task['depends_on_key'] = $task['depends_on_key'] ?: null;
             $task['recommended_role'] = $task['recommended_role'] ?: null;
+            if ($task['recommended_role'] !== null && ! in_array($task['recommended_role'], $allowedPositions, true)) {
+                return null;
+            }
         }
         unset($task);
         foreach ($workflow['tasks'] as $task) {

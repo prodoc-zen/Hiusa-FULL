@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Event;
 use App\Models\AiOutput;
 use App\Models\AuditLog;
+use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Task;
 use App\Models\TaskProgressUpdate;
@@ -141,6 +141,13 @@ class TaskController extends Controller
             : $this->recommendOfficer($request);
 
         if (! $assignee) {
+            if (! empty($data['assigned_to'])) {
+                return response()->json(['message' => 'The selected officer is not an active SBO Officer with an active position.'], 422);
+            }
+            if ($this->eligibleOfficerQuery($request)->exists()) {
+                return response()->json(['message' => 'No eligible SBO Officer is currently available. All configured officers may be at workload capacity.'], 422);
+            }
+
             return response()->json(['message' => 'Assign an active SBO position to at least one officer before using task delegation.'], 422);
         }
 
@@ -155,22 +162,24 @@ class TaskController extends Controller
             'organization_id' => $request->user()->organization_id,
         ]);
         $this->persistRecommendations($task, $this->lastDelegation);
+        $hasGroqExplanation = $this->lastExplanationModel !== null;
         AiOutput::create([
             'organization_id' => $task->organization_id,
             'feature_type' => 'TASK_EXPLANATION',
             'reference_type' => Task::class,
             'reference_id' => $task->id,
             'prompt_text' => 'Explain the deterministic task-delegation result without changing its facts.',
-            'output_text' => (string) $task->ai_recommendation_note,
-            'model_name' => $this->lastExplanationModel ?? 'deterministic-explanation',
+            'output_text' => $hasGroqExplanation ? (string) $task->ai_recommendation_note : '',
+            'model_name' => $this->lastExplanationModel,
             'context_version' => 'task-delegation-v2',
             'structured_input' => $this->lastDelegation,
-            'structured_output' => ['explanation' => $task->ai_recommendation_note],
-            'status' => 'completed',
-            'decision_status' => 'accepted',
+            'structured_output' => ['deterministic_explanation' => $task->ai_recommendation_note],
+            'status' => $hasGroqExplanation ? 'completed' : 'failed',
+            'error_message' => $hasGroqExplanation ? null : 'Groq explanation was unavailable; deterministic assignment facts were retained.',
+            'decision_status' => $hasGroqExplanation ? 'accepted' : 'rejected',
             'requested_by' => $request->user()->school_id,
-            'decided_by' => $request->user()->school_id,
-            'decided_at' => now(),
+            'decided_by' => $hasGroqExplanation ? $request->user()->school_id : null,
+            'decided_at' => $hasGroqExplanation ? now() : null,
             'created_at' => now(),
         ]);
         AuditLog::create([
@@ -410,8 +419,7 @@ class TaskController extends Controller
             'workload_score' => $scores['workload_score'],
             'performance_score' => $scores['performance_score'],
             'final_score' => $scores['final_score'],
-            'ai_recommendation_note' => $this->aiAssignmentExplanations[$assignee->school_id]
-                ?? $this->assignmentExplanation($data, $assignee, $scores),
+            'ai_recommendation_note' => $this->assignmentExplanation($data, $assignee, $scores),
             'delegation_snapshot' => $this->lastDelegation,
         ];
     }
@@ -482,6 +490,7 @@ class TaskController extends Controller
             'eligibility_rules' => $result['eligibility_rules'] ?? $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $result['recommended_officer_id'] ?? $fallbackRecommendedId,
             'rankings' => $result['rankings'] ?? [],
+            'evaluations' => $result['evaluations'] ?? ($result['rankings'] ?? []),
             'engine' => 'python-fastapi',
         ];
     }
@@ -631,9 +640,13 @@ class TaskController extends Controller
         }
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
+        $candidates = User::where('organization_id', $request->user()->organization_id)
+            ->where('role', 'SBO_OFFICER')
+            ->orderBy('school_id')
+            ->get();
         $result = $this->aiService->taskDelegation(
             (string) $request->input('title', 'Untitled task'),
-            $officers->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all(),
+            $candidates->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all(),
             $request->input('task_type')
         );
         $this->rememberAiRankings($result);
@@ -658,6 +671,15 @@ class TaskController extends Controller
         }
 
         $this->lastDelegation = $this->buildLocalDelegation($eligible->all(), $request, $maxActiveTasks);
+        $this->lastDelegation['evaluations'] = [
+            ...$this->lastDelegation['rankings'],
+            ...$candidates
+                ->reject(fn (User $candidate) => $eligible->contains('school_id', $candidate->school_id))
+                ->map(fn (User $candidate) => $this->ineligibleEvaluation($candidate, $request, $maxActiveTasks))
+                ->values()
+                ->all(),
+        ];
+        $this->rememberAiRankings($this->lastDelegation);
         $recommendedOfficerId = $this->lastDelegation['recommended_officer_id'];
 
         return $eligible->firstWhere('school_id', $recommendedOfficerId);
@@ -676,7 +698,12 @@ class TaskController extends Controller
             'position_title' => $officer->position_title,
             'account_status' => $officer->account_status,
             'is_available' => $activeTasks < (int) config('services.hiusa_ai.task_max_active_tasks', 5),
-            'policy_eligible' => true,
+            'policy_eligible' => DB::table('sbo_positions')
+                ->where('organization_id', $request->user()->organization_id)
+                ->where('role', 'SBO_OFFICER')
+                ->where('title', $officer->position_title)
+                ->where('is_active', true)
+                ->exists(),
             'active_tasks' => $activeTasks,
             'completed_tasks' => (clone $baseQuery)->where('status', 'completed')->count(),
             'overdue_tasks' => (clone $baseQuery)->where('status', 'overdue')->count(),
@@ -744,7 +771,7 @@ class TaskController extends Controller
         $tierPhrase = self::TIER_PHRASE[$tier] ?? $tier;
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
 
-        $fallback = $scores['explanation'] ?? sprintf(
+        $fallback = $this->aiAssignmentExplanations[$assignee->school_id] ?? $scores['explanation'] ?? sprintf(
             "%s %s scored %s for a task inferred as '%s': position '%s' is %s for this area (%s pts), workload %s, and past performance %s.",
             $assignee->first_name,
             $assignee->last_name,
@@ -757,12 +784,25 @@ class TaskController extends Controller
             $scores['performance_score']
         );
 
+        $facts = [
+            'task' => $taskData['title'] ?? 'Untitled',
+            'officer' => trim("{$assignee->first_name} {$assignee->last_name}"),
+            'task_area' => $area,
+            'position_match' => $tierPhrase,
+            'role_score' => $scores['role_score'],
+            'workload_score' => $scores['workload_score'],
+            'performance_score' => $scores['performance_score'],
+            'final_score' => $scores['final_score'],
+        ];
         $generated = $this->groq->generate(
             'Explain a student-organization task assignment in one concise sentence. Preserve every supplied score, the inferred task area, and the position match tier exactly as given.',
-            'Task: '.($taskData['title'] ?? 'Untitled')."; officer: {$assignee->first_name} {$assignee->last_name}; inferred task area: {$area}; position match: {$tierPhrase}; role score: {$scores['role_score']}; workload score: {$scores['workload_score']}; performance score: {$scores['performance_score']}; final score: {$scores['final_score']}.",
+            json_encode($facts, JSON_THROW_ON_ERROR),
             120,
             0.2,
         );
+        if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $facts)) {
+            $generated = null;
+        }
 
         $this->lastExplanationModel = $generated['model'] ?? null;
 
@@ -784,7 +824,7 @@ class TaskController extends Controller
 
     private function persistRecommendations(Task $task, ?array $delegation): void
     {
-        foreach ($delegation['rankings'] ?? [] as $index => $ranking) {
+        foreach ($delegation['evaluations'] ?? $delegation['rankings'] ?? [] as $index => $ranking) {
             DB::table('task_recommendations')->insert([
                 'task_id' => $task->id,
                 'organization_id' => $task->organization_id,
@@ -794,11 +834,35 @@ class TaskController extends Controller
                 'performance_score' => $ranking['performance_score'] ?? null,
                 'weights' => json_encode($delegation['weights'] ?? $this->weights()),
                 'total_score' => $ranking['final_score'] ?? null,
-                'rank' => $ranking['rank'] ?? $index + 1,
-                'eligibility_result' => 'eligible',
+                'rank' => array_key_exists('rank', $ranking) ? $ranking['rank'] : $index + 1,
+                'eligibility_result' => $ranking['eligibility_result'] ?? 'eligible',
                 'calculated_at' => now(),
             ]);
         }
+    }
+
+    private function ineligibleEvaluation(User $officer, Request $request, int $maxActiveTasks): array
+    {
+        $payload = $this->officerPayload($officer, $request);
+        $result = match (true) {
+            $officer->account_status !== 'active' => 'inactive_account',
+            trim((string) $officer->position_title) === '' => 'missing_position',
+            ! $payload['policy_eligible'] => 'inactive_position',
+            ! $payload['is_available'] || $payload['active_tasks'] >= $maxActiveTasks => 'overloaded',
+            default => 'ineligible',
+        };
+
+        return [
+            'officer_id' => $officer->school_id,
+            'name' => $payload['name'],
+            'position_title' => $officer->position_title,
+            'role_score' => null,
+            'workload_score' => null,
+            'performance_score' => null,
+            'final_score' => null,
+            'rank' => null,
+            'eligibility_result' => $result,
+        ];
     }
 
     private function notifyAdminsOfTaskUpdate(Request $request, Task $task): void

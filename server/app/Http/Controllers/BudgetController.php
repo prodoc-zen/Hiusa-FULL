@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ApprovalRequest;
 use App\Models\AiOutput;
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
@@ -188,23 +188,29 @@ class BudgetController extends Controller
             $engine = 'php-fallback';
         }
 
+        $xaiFacts = [
+            'budget' => $budget->title,
+            'event_or_project' => $budget->event?->title,
+            'computed_advice' => $advice,
+        ];
         $xai = $this->groq->generate(
             'Explain this computed budget-advisory result in two concise sentences for a student-organization officer. Preserve all supplied figures and risk labels. Do not recalculate or invent values.',
-            json_encode([
-                'budget' => $budget->title,
-                'event_or_project' => $budget->event?->title,
-                'computed_advice' => $advice,
-            ], JSON_THROW_ON_ERROR),
+            json_encode($xaiFacts, JSON_THROW_ON_ERROR),
             220,
             0.2,
         );
+        if ($xai && ! $this->groq->preservesNumericFacts($xai['text'], $xaiFacts)) {
+            $xai = null;
+        }
 
         if ($xai) {
             $advice['deterministic_advice'] = $advice['advice'];
             $advice['advice'] = $xai['text'];
             $advice['xai_model'] = $xai['model'];
+            $advice['xai_status'] = 'generated';
         } else {
-            $advice['xai_model'] = 'deterministic-fallback';
+            $advice['xai_model'] = null;
+            $advice['xai_status'] = 'unavailable';
         }
 
         $budget->update([
@@ -220,16 +226,17 @@ class BudgetController extends Controller
             'reference_type' => Budget::class,
             'reference_id' => $budget->id,
             'prompt_text' => 'Explain the calculated budget-advisory facts without changing any value.',
-            'output_text' => $advice['advice'],
+            'output_text' => $xai ? $advice['advice'] : '',
             'model_name' => $advice['xai_model'],
             'context_version' => 'budget-advice-v2',
             'structured_input' => $payload,
             'structured_output' => ['engine' => $engine, 'computed_advice' => $advice],
-            'status' => 'completed',
-            'decision_status' => 'accepted',
+            'status' => $xai ? 'completed' : 'failed',
+            'error_message' => $xai ? null : 'Groq explanation was unavailable; deterministic budget advice was still calculated.',
+            'decision_status' => $xai ? 'accepted' : 'rejected',
             'requested_by' => $request->user()->school_id,
-            'decided_by' => $request->user()->school_id,
-            'decided_at' => now(),
+            'decided_by' => $xai ? $request->user()->school_id : null,
+            'decided_at' => $xai ? now() : null,
             'created_at' => now(),
         ]);
         $this->recordBudgetAudit($request, 'generated_advice', $budget, null, [
