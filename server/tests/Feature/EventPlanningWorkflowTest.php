@@ -6,6 +6,7 @@ use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
+use App\Models\FinancialForecast;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\Task;
@@ -43,7 +44,24 @@ class EventPlanningWorkflowTest extends TestCase
         SboPosition::create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
         $officer = User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => 'Business Manager']);
         $workflow = $this->workflowPayload($event);
-        Http::fake(['*' => Http::response(['id' => 'resp_test', 'model' => 'test-model', 'output_text' => json_encode($workflow)])]);
+        Http::fake(function ($request) use ($workflow) {
+            if (data_get($request->data(), 'text.format.name') === 'hiusa_task_recommendation_explanations') {
+                $input = json_decode((string) $request->data()['input'], true);
+
+                return Http::response([
+                    'id' => 'resp_explanations',
+                    'model' => 'test-model',
+                    'output_text' => json_encode([
+                        'explanations' => collect($input['recommendations'])->map(fn ($row) => [
+                            'task_id' => $row['task_id'],
+                            'explanation' => "Officer {$row['officer_id']} ranked {$row['rank']} with a total score of {$row['total_score']}.",
+                        ])->all(),
+                    ]),
+                ]);
+            }
+
+            return Http::response(['id' => 'resp_test', 'model' => 'test-model', 'output_text' => json_encode($workflow)]);
+        });
 
         Sanctum::actingAs($admin);
 
@@ -80,6 +98,8 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertSame('accepted', AiOutput::find($outputId)->decision_status);
         $this->assertDatabaseCount('task_recommendations', 3);
         $this->assertDatabaseCount('notifications', 3);
+        $this->assertSame(3, AiOutput::where('feature_type', 'TASK_EXPLANATION')->where('status', 'completed')->count());
+        $this->assertTrue($tasks->every(fn (Task $task) => str_contains($task->fresh()->ai_recommendation_note, 'total score')));
 
         Sanctum::actingAs($officer);
         $this->patchJson("/api/tasks/{$tasks[1]->id}/status", ['status' => 'in_progress'])
@@ -112,6 +132,42 @@ class EventPlanningWorkflowTest extends TestCase
 
         $this->assertDatabaseCount('ai_outputs', 0);
         $this->assertDatabaseCount('tasks', 0);
+    }
+
+    public function test_admin_officer_override_is_applied_and_audited(): void
+    {
+        config(['services.groq.key' => 'test-groq-key']);
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'start_time' => now()->addDays(30),
+            'end_time' => now()->addDays(30)->addHours(3),
+        ]);
+        foreach (['Business Manager', 'President'] as $position) {
+            SboPosition::create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'title' => $position, 'is_active' => true]);
+        }
+        User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => 'Business Manager']);
+        User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => 'President']);
+        Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode($this->workflowPayload($event))])]);
+        Sanctum::actingAs($admin);
+
+        $draft = $this->postJson("/api/events/{$event->id}/generate-plan", ['requirements' => 'Create an editable workflow.'])->assertCreated();
+        $tasks = $draft->json('workflow.tasks');
+        $recommended = $tasks[0]['recommendation']['recommended_officer_id'];
+        $alternate = collect($tasks[0]['recommendation']['rankings'])->first(fn ($row) => $row['officer_id'] !== $recommended);
+        $tasks[0]['assigned_to'] = $alternate['officer_id'];
+
+        $confirmed = $this->postJson("/api/events/{$event->id}/workflows/{$draft->json('ai_output.id')}/confirm", ['tasks' => $tasks])
+            ->assertCreated()
+            ->assertJsonPath('tasks.0.assigned_to', $alternate['officer_id']);
+
+        $this->assertDatabaseHas('audit_logs', [
+            'module' => 'task_delegation',
+            'action' => 'overrode_recommendation',
+            'record_type' => Task::class,
+            'record_id' => $confirmed->json('tasks.0.id'),
+        ]);
     }
 
     public function test_workflow_generation_rejects_events_without_enough_future_lead_time(): void
@@ -175,31 +231,55 @@ class EventPlanningWorkflowTest extends TestCase
         config(['services.groq.key' => 'test-groq-key', 'services.hiusa_ai.enabled' => false]);
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
+        $departmentHead = User::factory()->create(['organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD']);
         $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
         $student = User::factory()->student()->create(['organization_id' => $organization->id]);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
-        $event = Event::factory()->create([
-            'organization_id' => $organization->id,
-            'created_by' => $admin->school_id,
-            'status' => 'approved',
-            'approved_at' => now(),
+
+        Sanctum::actingAs($admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'Full Lifecycle Event',
+            'description' => 'Exercises planning, delegation, attendance, and finance.',
             'start_time' => now()->addDays(30),
             'end_time' => now()->addDays(30)->addHours(3),
-        ]);
+            'location' => 'Main Hall',
+            'requires_budget' => true,
+            'planning_details' => [
+                'event_type' => 'General Assembly',
+                'expected_participants' => 100,
+                'requirements' => 'Registration, logistics, documentation, and finance closeout.',
+                'resources' => 'Main hall, sound system, and volunteers.',
+                'budget_notes' => 'Supplies and venue costs.',
+                'proposed_budget_amount' => 1000,
+                'budget_warning_threshold' => 200,
+            ],
+        ])->assertCreated()->json('id');
+        $event = Event::findOrFail($eventId);
+        $budget = Budget::where('event_id', $event->id)->firstOrFail();
+
+        Sanctum::actingAs($departmentHead);
+        $eventApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->firstOrFail();
+        $budgetApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->firstOrFail();
+        $this->patchJson("/api/approval-requests/{$eventApproval->id}", ['status' => 'approved'])->assertOk();
+        $this->patchJson("/api/approval-requests/{$budgetApproval->id}", ['status' => 'approved'])->assertOk();
+        $event->refresh();
+
         Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode($this->workflowPayload($event))])]);
         Sanctum::actingAs($admin);
 
         $draft = $this->postJson("/api/events/{$event->id}/generate-plan", ['requirements' => 'Create the full operational workflow.'])->assertCreated();
         $created = $this->postJson("/api/events/{$event->id}/workflows/{$draft->json('ai_output.id')}/confirm", ['tasks' => $draft->json('workflow.tasks')])->assertCreated();
-        $firstTaskId = $created->json('tasks.0.id');
+        $createdTaskIds = collect($created->json('tasks'))->pluck('id');
 
         Sanctum::actingAs($officer);
-        $this->patchJson("/api/tasks/{$firstTaskId}/status", ['status' => 'in_progress', 'progress_percent' => 50, 'progress_note' => 'Preparation started.'])->assertOk();
+        foreach ($createdTaskIds as $taskId) {
+            $this->patchJson("/api/tasks/{$taskId}/status", ['status' => 'in_progress', 'progress_percent' => 50, 'progress_note' => 'Preparation started.'])->assertOk();
+            $this->patchJson("/api/tasks/{$taskId}/status", ['status' => 'completed', 'progress_note' => 'Task completed.'])->assertOk();
+        }
+        $this->getJson('/api/tasks')->assertOk()->assertJsonCount(3, 'data');
         Sanctum::actingAs($admin);
         $this->postJson("/api/events/{$event->id}/attendance", ['user_id' => $student->school_id, 'method' => 'manual', 'status' => 'present'])->assertCreated();
 
-        $budget = Budget::factory()->create(['organization_id' => $organization->id, 'event_id' => $event->id, 'allocated_amount' => 1000, 'remaining_amount' => 1000]);
-        ApprovalRequest::create(['organization_id' => $organization->id, 'entity_type' => 'budget', 'entity_id' => $budget->id, 'requested_by' => $admin->school_id, 'required_role' => 'DEPARTMENT_HEAD', 'status' => 'approved', 'reviewed_by' => $admin->school_id]);
         foreach ([2 => [600, 300], 1 => [800, 400]] as $monthsAgo => [$income, $expense]) {
             Transaction::create(['organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'type' => 'income', 'category' => 'Historical', 'description' => 'Forecast history', 'amount' => $income, 'transaction_date' => now()->subMonths($monthsAgo)]);
             Transaction::create(['organization_id' => $organization->id, 'recorded_by' => $admin->school_id, 'type' => 'expense', 'category' => 'Historical', 'description' => 'Forecast history', 'amount' => $expense, 'transaction_date' => now()->subMonths($monthsAgo)]);
@@ -212,7 +292,115 @@ class EventPlanningWorkflowTest extends TestCase
 
         $this->assertDatabaseHas('financial_reports', ['event_id' => $event->id]);
         $this->assertDatabaseHas('attendance', ['event_id' => $event->id, 'user_id' => $student->school_id]);
+        $this->assertSame(3, Task::where('event_id', $event->id)->where('status', 'completed')->count());
         $this->assertDatabaseHas('audit_logs', ['module' => 'ai_workflows', 'action' => 'workflow_confirmed', 'record_id' => $event->id]);
+    }
+
+    public function test_event_creation_builds_a_linked_budget_and_exposes_real_financial_summary(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
+        Sanctum::actingAs($admin);
+
+        $created = $this->postJson('/api/events', [
+            'title' => 'Integrated Leadership Summit',
+            'description' => 'A planning and governance summit.',
+            'start_time' => now()->addMonth()->toISOString(),
+            'end_time' => now()->addMonth()->addHours(4)->toISOString(),
+            'location' => 'University Hall',
+            'requires_budget' => true,
+            'planning_details' => [
+                'event_type' => 'Leadership Summit',
+                'expected_participants' => 250,
+                'requirements' => 'Registration, accessibility, safety, and documentation.',
+                'resources' => 'Hall, sound system, registration volunteers.',
+                'budget_notes' => 'Venue, meals, materials, and emergency reserve.',
+                'proposed_budget_amount' => 2500,
+                'budget_warning_threshold' => 500,
+            ],
+        ])->assertCreated()
+            ->assertJsonPath('planning_details.event_type', 'Leadership Summit')
+            ->assertJsonPath('planning_details.expected_participants', 250)
+            ->assertJsonPath('financial_summary.allocated_budget', 2500)
+            ->assertJsonCount(1, 'budgets');
+
+        $eventId = $created->json('id');
+        $budget = Budget::where('event_id', $eventId)->firstOrFail();
+        $this->assertSame($budget->id, $created->json('planning_details.proposed_budget_id'));
+        $this->assertDatabaseHas('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId, 'status' => 'pending']);
+        $this->assertDatabaseHas('approval_requests', ['entity_type' => 'budget', 'entity_id' => $budget->id, 'status' => 'pending']);
+
+        ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->update(['status' => 'approved']);
+        $transactionBase = [
+            'budget_id' => $budget->id,
+            'event_id' => $eventId,
+            'category' => 'Events',
+            'transaction_date' => now()->toDateString(),
+        ];
+        $this->postJson('/api/transactions', [...$transactionBase, 'type' => 'expense', 'amount' => 600, 'description' => 'Venue deposit'])->assertCreated();
+        $this->postJson('/api/transactions', [...$transactionBase, 'type' => 'income', 'amount' => 100, 'description' => 'Partner contribution'])->assertCreated();
+        $budget->update(['overspending_risk' => 'medium', 'safe_spending_limit' => 1200, 'advice_generated_at' => now()]);
+        FinancialForecast::factory()->create([
+            'organization_id' => $organization->id,
+            'forecast_period' => now()->addMonth()->format('Y-m'),
+            'predicted_income' => 900,
+            'predicted_expense' => 1100,
+            'predicted_balance' => -200,
+        ]);
+
+        $this->getJson("/api/events/{$eventId}")->assertOk()
+            ->assertJsonPath('financial_summary.allocated_budget', 2500)
+            ->assertJsonPath('financial_summary.spent', 600)
+            ->assertJsonPath('financial_summary.income', 100)
+            ->assertJsonPath('financial_summary.remaining_budget', 2000)
+            ->assertJsonPath('financial_summary.risk', 'medium')
+            ->assertJsonPath('financial_summary.latest_forecast.predicted_balance', '-200.00');
+    }
+
+    public function test_event_rejects_a_proposed_budget_when_budgeting_is_not_enabled(): void
+    {
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/events', [
+            'title' => 'Invalid Budget Event',
+            'start_time' => now()->addMonth()->toISOString(),
+            'end_time' => now()->addMonth()->addHours(2)->toISOString(),
+            'requires_budget' => false,
+            'planning_details' => ['proposed_budget_amount' => 1000],
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Enable budget allocation before entering a proposed budget.');
+
+        $this->assertDatabaseCount('events', 0);
+        $this->assertDatabaseCount('budgets', 0);
+    }
+
+    public function test_editing_event_inputs_preserves_server_owned_workflow_history(): void
+    {
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        $event = Event::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'status' => 'planning',
+            'planning_details' => [
+                'event_type' => 'Assembly',
+                'requirements' => 'Original requirements',
+                'draft_ai_output_id' => 41,
+                'draft_plan' => 'Persisted generated plan',
+            ],
+        ]);
+        Sanctum::actingAs($admin);
+
+        $this->putJson("/api/events/{$event->id}", [
+            'description' => 'Updated description',
+            'planning_details' => [
+                'event_type' => 'Assembly',
+                'requirements' => 'Updated requirements',
+            ],
+        ])->assertOk()
+            ->assertJsonPath('planning_details.requirements', 'Updated requirements')
+            ->assertJsonPath('planning_details.draft_ai_output_id', 41)
+            ->assertJsonPath('planning_details.draft_plan', 'Persisted generated plan');
     }
 
     private function workflowPayload(Event $event): array

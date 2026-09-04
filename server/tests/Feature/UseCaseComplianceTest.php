@@ -398,7 +398,40 @@ class UseCaseComplianceTest extends TestCase
 
         $this->assertSame('1400.00', $response->json('predicted_income'));
         $this->assertSame('800.00', $response->json('predicted_expense'));
-        $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'FINANCIAL_SUMMARY', 'reference_id' => $response->json('id')]);
+        $response->assertJsonPath('model_details.explanation_status', 'unavailable');
+        $this->assertDatabaseHas('ai_outputs', [
+            'feature_type' => 'FINANCIAL_SUMMARY',
+            'reference_id' => $response->json('id'),
+            'status' => 'failed',
+            'decision_status' => 'rejected',
+            'output_text' => '',
+        ]);
+    }
+
+    public function test_ols_forecast_rejects_empty_or_single_month_history(): void
+    {
+        $admin = $this->user('ADMIN');
+        $this->authenticate($admin);
+
+        $this->postJson('/api/forecasts/generate', ['months' => 12])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'At least two months of transaction history are required to generate an OLS forecast.');
+
+        Transaction::create([
+            'organization_id' => $admin->organization_id,
+            'recorded_by' => $admin->school_id,
+            'type' => 'income',
+            'amount' => 1000,
+            'category' => 'General',
+            'description' => 'Only one populated month',
+            'transaction_date' => now(),
+        ]);
+        $this->postJson('/api/forecasts/generate', ['months' => 12])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'At least two months of transaction history are required to generate an OLS forecast.');
+
+        $this->assertDatabaseCount('financial_forecasts', 0);
+        $this->assertDatabaseCount('ai_outputs', 0);
     }
 
     public function test_task_assignment_recommends_an_active_sbo_officer_and_calculates_scores(): void

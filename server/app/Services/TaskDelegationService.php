@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 
@@ -43,22 +44,42 @@ class TaskDelegationService
 
         $officers = User::where('users.organization_id', $organizationId)
             ->where('users.role', 'SBO_OFFICER')
-            ->where('users.account_status', 'active')
-            ->whereNotNull('users.position_title')
-            ->whereRaw("TRIM(users.position_title) <> ''")
-            ->whereExists(function ($query) {
-                $query->selectRaw('1')->from('sbo_positions')
-                    ->whereColumn('sbo_positions.organization_id', 'users.organization_id')
-                    ->whereColumn('sbo_positions.title', 'users.position_title')
-                    ->where('sbo_positions.role', 'SBO_OFFICER')
-                    ->where('sbo_positions.is_active', true);
-            })->get();
+            ->orderBy('users.school_id')
+            ->get();
+        $activePositions = SboPosition::where('organization_id', $organizationId)
+            ->where('role', 'SBO_OFFICER')
+            ->where('is_active', true)
+            ->pluck('title')
+            ->all();
 
         $rankings = [];
+        $ineligible = [];
         foreach ($officers as $officer) {
             $base = Task::where('organization_id', $organizationId)->where('assigned_to', $officer->school_id);
             $active = (clone $base)->whereIn('status', ['pending', 'in_progress', 'overdue'])->count();
-            if ($active >= $maxActive) {
+            $eligibilityResult = match (true) {
+                $officer->account_status !== 'active' => 'inactive_account',
+                trim((string) $officer->position_title) === '' => 'missing_position',
+                ! in_array($officer->position_title, $activePositions, true) => 'inactive_position',
+                $active >= $maxActive => 'overloaded',
+                default => 'eligible',
+            };
+            if ($eligibilityResult !== 'eligible') {
+                $ineligible[] = [
+                    'officer_id' => $officer->school_id,
+                    'name' => trim("{$officer->first_name} {$officer->last_name}"),
+                    'position_title' => $officer->position_title,
+                    'position_tier' => null,
+                    'role_score' => null,
+                    'workload_score' => null,
+                    'performance_score' => null,
+                    'final_score' => null,
+                    'active_tasks' => $active,
+                    'max_active_tasks' => $maxActive,
+                    'rank' => null,
+                    'eligibility_result' => $eligibilityResult,
+                ];
+
                 continue;
             }
 
@@ -100,8 +121,15 @@ class TaskDelegationService
             'algorithm' => 'rule_based_weighted_scoring',
             'weights' => $weights,
             'task_area' => $area,
+            'eligibility_rules' => [
+                'required_role' => 'SBO_OFFICER',
+                'required_account_status' => 'active',
+                'requires_active_position' => true,
+                'max_active_tasks' => $maxActive,
+            ],
             'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
             'rankings' => $rankings,
+            'evaluations' => [...$rankings, ...$ineligible],
         ];
     }
 

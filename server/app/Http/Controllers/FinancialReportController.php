@@ -122,15 +122,16 @@ class FinancialReportController extends Controller
                 'reference_type' => FinancialReport::class,
                 'reference_id' => null,
                 'prompt_text' => json_encode($reportContext, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
-                'output_text' => $summary['text'],
+                'output_text' => $summary['ai_generated'] ? $summary['text'] : '',
                 'model_name' => $summary['model'],
                 'context_version' => 'financial-report-v2',
                 'structured_input' => $reportContext,
-                'structured_output' => ['summary' => $summary['text']],
-                'status' => 'completed',
-                'decision_status' => 'accepted',
-                'decided_by' => $request->user()->school_id,
-                'decided_at' => now(),
+                'structured_output' => ['deterministic_summary' => $summary['text']],
+                'status' => $summary['ai_generated'] ? 'completed' : 'failed',
+                'error_message' => $summary['ai_generated'] ? null : 'Groq summary was unavailable; the calculated financial report was still saved.',
+                'decision_status' => $summary['ai_generated'] ? 'accepted' : 'rejected',
+                'decided_by' => $summary['ai_generated'] ? $request->user()->school_id : null,
+                'decided_at' => $summary['ai_generated'] ? now() : null,
                 'requested_by' => $request->user()->school_id,
                 'created_at' => now(),
             ]);
@@ -183,6 +184,7 @@ class FinancialReportController extends Controller
                 'budget_advisories' => $budgets,
                 'audit_logs' => $auditLogs,
                 'transactions' => $transactions,
+                'ai_summary_status' => $summary['ai_generated'] ? 'generated' : 'unavailable',
             ];
         });
 
@@ -215,11 +217,18 @@ class FinancialReportController extends Controller
         $statement = $context['income_statement'];
         $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is PHP ".number_format($statement['total_income'], 2).', total expenses are PHP '.number_format($statement['total_expense'], 2).', and net balance is PHP '.number_format($statement['net_balance'], 2).'. The report also includes the latest available OLS forecast, budget-advisory outputs, and '.$context['audit_log_summary']['entry_count'].' financial audit log entry or entries.';
 
-        return $this->groq->generate(
+        $generated = $this->groq->generate(
             'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, latest OLS forecast when available, budget-advisory results, and audit-log summary. Preserve every figure and risk label. Clearly say when an input section has no data.',
             json_encode($context, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
             650,
             0.2,
-        ) ?? ['text' => $fallback, 'model' => 'deterministic-fallback'];
+        );
+        if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $context)) {
+            $generated = null;
+        }
+
+        return $generated
+            ? [...$generated, 'ai_generated' => true]
+            : ['text' => $fallback, 'model' => null, 'ai_generated' => false];
     }
 }

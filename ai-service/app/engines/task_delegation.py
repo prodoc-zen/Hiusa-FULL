@@ -156,22 +156,46 @@ def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights:
 
 
 def delegate_task(request: TaskDelegationRequest) -> dict:
-    eligible = [
-        officer
-        for officer in request.officers
-        if officer.role == "SBO_OFFICER"
-        and officer.account_status == "active"
-        and bool(officer.position_title and officer.position_title.strip())
-        and officer.is_available
-        and officer.policy_eligible
-        and officer.active_tasks < request.max_active_tasks
-    ]
+    def eligibility_result(officer: OfficerCandidate) -> str:
+        if officer.role != "SBO_OFFICER":
+            return "invalid_role"
+        if officer.account_status != "active":
+            return "inactive_account"
+        if not officer.position_title or not officer.position_title.strip():
+            return "missing_position"
+        if not officer.policy_eligible:
+            return "inactive_position"
+        if not officer.is_available or officer.active_tasks >= request.max_active_tasks:
+            return "overloaded"
+        return "eligible"
+
+    eligibility = [(officer, eligibility_result(officer)) for officer in request.officers]
+    eligible = [officer for officer, result in eligibility if result == "eligible"]
     if not eligible:
         raise ValueError("No active SBO Officer is eligible for this task")
 
     area = infer_task_area(request.task_title, request.task_type)
     rankings = [_score(officer, area, request.max_active_tasks, request.weights) for officer in eligible]
     rankings.sort(key=lambda row: (-row["final_score"], row["officer_id"]))
+    for rank, ranking in enumerate(rankings, start=1):
+        ranking["rank"] = rank
+        ranking["eligibility_result"] = "eligible"
+    ineligible = [
+        {
+            "officer_id": officer.officer_id,
+            "name": officer.name,
+            "position_title": officer.position_title,
+            "position_tier": None,
+            "role_score": None,
+            "workload_score": None,
+            "performance_score": None,
+            "final_score": None,
+            "rank": None,
+            "eligibility_result": result,
+        }
+        for officer, result in eligibility
+        if result != "eligible"
+    ]
 
     return {
         "algorithm": "rule_based_weighted_scoring",
@@ -187,4 +211,5 @@ def delegate_task(request: TaskDelegationRequest) -> dict:
         ],
         "recommended_officer_id": rankings[0]["officer_id"],
         "rankings": rankings,
+        "evaluations": [*rankings, *ineligible],
     }

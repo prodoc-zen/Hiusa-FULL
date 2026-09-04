@@ -86,6 +86,13 @@ function getEventBudgetStatus(event) {
   return { label: 'Approved', tone: budgetStatusBadge.approved };
 }
 
+const emptyEventForm = () => ({
+  title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null,
+  requires_budget: false, event_type: '', expected_participants: '', requirements: '', resources: '',
+  proposed_budget_amount: '', budget_warning_threshold: '', budget_notes: '', vendor_deadlines: '', logistics_checklist: '',
+  proposed_budget_id: null,
+});
+
 export default function EventsPage({ initialTab = 'events' }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -115,7 +122,7 @@ export default function EventsPage({ initialTab = 'events' }) {
   const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 10;
 
-  const [form, setForm] = useState({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
+  const [form, setForm] = useState(emptyEventForm);
   const [formError, setFormError] = useState(null);
   const [formSubmitting, setFormSubmitting] = useState(false);
   const [planForm, setPlanForm] = useState({ event_id: '', requirements: '' });
@@ -274,6 +281,11 @@ export default function EventsPage({ initialTab = 'events' }) {
         setFormSubmitting(false);
         return;
       }
+      if (form.proposed_budget_amount && Number(form.budget_warning_threshold || 0) > Number(form.proposed_budget_amount)) {
+        setFormError('The warning threshold cannot exceed the proposed budget.');
+        setFormSubmitting(false);
+        return;
+      }
       const payload = {
         title: form.title.trim(),
         start_time,
@@ -283,6 +295,12 @@ export default function EventsPage({ initialTab = 'events' }) {
         imageFile: form.imageFile,
         requires_budget: form.requires_budget,
         planning_details: {
+          event_type: form.event_type,
+          expected_participants: form.expected_participants ? Number(form.expected_participants) : null,
+          requirements: form.requirements,
+          resources: form.resources,
+          proposed_budget_amount: form.proposed_budget_amount ? Number(form.proposed_budget_amount) : null,
+          budget_warning_threshold: form.budget_warning_threshold ? Number(form.budget_warning_threshold) : 0,
           budget_notes: form.budget_notes,
           vendor_deadlines: form.vendor_deadlines,
           logistics_checklist: form.logistics_checklist,
@@ -296,7 +314,7 @@ export default function EventsPage({ initialTab = 'events' }) {
       }
       setShowForm(false);
       setEditingEventId(null);
-      setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
+      setForm(emptyEventForm());
       load();
     } catch (err) {
       setFormError(err.response?.data?.message ?? `Failed to ${editingEventId ? 'update' : 'create'} event.`);
@@ -307,7 +325,7 @@ export default function EventsPage({ initialTab = 'events' }) {
 
   function openCreateForm() {
     setEditingEventId(null);
-    setForm({ title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null, requires_budget: false, budget_notes: '', vendor_deadlines: '', logistics_checklist: '' });
+    setForm(emptyEventForm());
     setFormError(null);
     setShowForm(true);
   }
@@ -325,6 +343,13 @@ export default function EventsPage({ initialTab = 'events' }) {
       description: event.description || '',
       imageFile: null,
       requires_budget: Boolean(event.requires_budget),
+      event_type: planning.event_type || '',
+      expected_participants: planning.expected_participants || '',
+      requirements: planning.requirements || '',
+      resources: planning.resources || '',
+      proposed_budget_amount: planning.proposed_budget_amount || '',
+      budget_warning_threshold: planning.budget_warning_threshold || '',
+      proposed_budget_id: planning.proposed_budget_id || null,
       budget_notes: planning.budget_notes || '',
       vendor_deadlines: planning.vendor_deadlines || '',
       logistics_checklist: planning.logistics_checklist || '',
@@ -389,7 +414,8 @@ export default function EventsPage({ initialTab = 'events' }) {
   }
 
   function selectPlanningEvent(eventId) {
-    setPlanForm((current) => ({ ...current, event_id: eventId }));
+    const selected = events.find((event) => String(event.id) === String(eventId));
+    setPlanForm({ event_id: eventId, requirements: selected?.planning_details?.requirements || '' });
     setWorkflowDraft(null); setWorkflowOutputId(null); setPlanResult(''); setPlanError(null);
     if (!eventId) { setWorkflowHistory([]); return; }
     getEventWorkflowHistory(eventId).then((response) => setWorkflowHistory(response.data || [])).catch(() => setWorkflowHistory([]));
@@ -719,7 +745,13 @@ export default function EventsPage({ initialTab = 'events' }) {
               <div className="mt-4 space-y-4 rounded-xl border border-[#B9DCEC] bg-[#F8FBFD] p-4">
                 <div><p className="text-xs font-black uppercase tracking-wider text-[#0B8ED0]">Generated workflow — review required</p><p className="mt-1 text-sm text-slate-700">{workflowDraft.overview}</p></div>
                 <div className="grid gap-3 md:grid-cols-3">
-                  {[['Timeline', workflowDraft.timeline], ['Resources', workflowDraft.resources], ['Risks', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]]].map(([heading, items]) => <div key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><h3 className="text-xs font-black text-[#0F172A]">{heading}</h3><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">{items?.map((item) => <li key={item}>{item}</li>)}</ul></div>)}
+                  {[
+                    ['Preparation Phases', workflowDraft.preparation_phases],
+                    ['Timeline', workflowDraft.timeline],
+                    ['Resources', workflowDraft.resources],
+                    ['Logistics Checklist', workflowDraft.logistics],
+                    ['Risks / Conflicts', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]],
+                  ].map(([heading, items]) => <div key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><h3 className="text-xs font-black text-[#0F172A]">{heading}</h3><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">{items?.map((item) => <li key={item}>{item}</li>)}</ul></div>)}
                 </div>
                 <div className="space-y-3">
                   {workflowDraft.tasks.map((task, index) => (
@@ -1045,6 +1077,8 @@ export default function EventsPage({ initialTab = 'events' }) {
               <div className="mt-5 space-y-3 text-sm text-slate-600">
                 <p><span className="font-bold text-[#0F172A]">Schedule:</span> {formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</p>
                 <p><span className="font-bold text-[#0F172A]">Location:</span> {selectedEvent.location || 'Not specified'}</p>
+                <p><span className="font-bold text-[#0F172A]">Event type:</span> {selectedEvent.planning_details?.event_type || 'Not specified'}</p>
+                <p><span className="font-bold text-[#0F172A]">Expected participants:</span> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</p>
                 <p className="whitespace-pre-wrap"><span className="font-bold text-[#0F172A]">Description:</span> {selectedEvent.description || 'No description provided.'}</p>
                 <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
                   <div>
@@ -1061,9 +1095,11 @@ export default function EventsPage({ initialTab = 'events' }) {
                     <p className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedEvent.approval_status || selectedEvent.status)}</p>
                   </div>
                 </div>
-                {(selectedEvent.planning_details?.budget_notes || selectedEvent.planning_details?.vendor_deadlines || selectedEvent.planning_details?.logistics_checklist) && (
+                {(selectedEvent.planning_details?.requirements || selectedEvent.planning_details?.resources || selectedEvent.planning_details?.budget_notes || selectedEvent.planning_details?.vendor_deadlines || selectedEvent.planning_details?.logistics_checklist) && (
                   <div className="space-y-2 rounded-lg border border-[#DDE7EF] p-4">
                     <p className="font-bold text-[#0F172A]">Planning Details</p>
+                    {selectedEvent.planning_details?.requirements && <p className="whitespace-pre-wrap"><span className="font-semibold">Requirements:</span> {selectedEvent.planning_details.requirements}</p>}
+                    {selectedEvent.planning_details?.resources && <p className="whitespace-pre-wrap"><span className="font-semibold">Resources:</span> {selectedEvent.planning_details.resources}</p>}
                     {selectedEvent.planning_details?.budget_notes && <p className="whitespace-pre-wrap"><span className="font-semibold">Budget requirements:</span> {selectedEvent.planning_details.budget_notes}</p>}
                     {selectedEvent.planning_details?.vendor_deadlines && <p className="whitespace-pre-wrap"><span className="font-semibold">Vendor deadlines:</span> {selectedEvent.planning_details.vendor_deadlines}</p>}
                     {selectedEvent.planning_details?.logistics_checklist && <p className="whitespace-pre-wrap"><span className="font-semibold">Logistics checklist:</span> {selectedEvent.planning_details.logistics_checklist}</p>}
@@ -1080,6 +1116,28 @@ export default function EventsPage({ initialTab = 'events' }) {
                         Manage Budgets
                       </button>
                     </div>
+                    {selectedEvent.financial_summary && (
+                      <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                        {[
+                          ['Allocated', selectedEvent.financial_summary.allocated_budget],
+                          ['Spent', selectedEvent.financial_summary.spent],
+                          ['Income', selectedEvent.financial_summary.income],
+                          ['Remaining', selectedEvent.financial_summary.remaining_budget],
+                        ].map(([label, value]) => (
+                          <div key={label} className="rounded-lg bg-[#F8FBFD] p-2.5">
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+                            <p className="mt-1 text-xs font-black text-[#0F172A]">{formatCurrency(value)}</p>
+                          </div>
+                        ))}
+                        <div className="col-span-2 rounded-lg bg-[#F8FBFD] p-2.5 sm:col-span-4">
+                          <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Financial Risk / Latest Organization Forecast</p>
+                          <p className="mt-1 text-xs font-bold text-[#0F172A]">Risk: {capitalize(selectedEvent.financial_summary.risk)}</p>
+                          {selectedEvent.financial_summary.latest_forecast ? (
+                            <p className="mt-1 text-xs text-slate-500">{selectedEvent.financial_summary.latest_forecast.forecast_period}: projected income {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_income)}, expense {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_expense)}, balance {formatCurrency(selectedEvent.financial_summary.latest_forecast.predicted_balance)}</p>
+                          ) : <p className="mt-1 text-xs text-slate-500">No OLS forecast has been generated yet.</p>}
+                        </div>
+                      </div>
+                    )}
                     {selectedEvent.budgets?.length ? (
                       <div className="mt-3 space-y-2">
                         {selectedEvent.budgets.map((budget) => (
@@ -1090,7 +1148,8 @@ export default function EventsPage({ initialTab = 'events' }) {
                                 {capitalize(budget.approval_status || 'pending')}
                               </span>
                             </div>
-                            <p className="mt-1 text-xs text-slate-500">Allocated {formatCurrency(budget.allocated_amount)} · Remaining {formatCurrency(budget.remaining_amount)} · {budget.transactions_count ?? 0} transaction(s)</p>
+                            <p className="mt-1 text-xs text-slate-500">Allocated {formatCurrency(budget.allocated_amount)} · Spent {formatCurrency(budget.spent_amount)} · Income {formatCurrency(budget.income_amount)} · Remaining {formatCurrency(budget.remaining_amount)} · {budget.transactions_count ?? 0} transaction(s)</p>
+                            {budget.advice_generated_at && <p className="mt-1 text-xs text-slate-500">Advisory risk: {capitalize(budget.overspending_risk || 'not analyzed')} · Safe spending {formatCurrency(budget.safe_spending_limit)}</p>}
                             {budget.approval_remarks && <p className="mt-1 text-xs text-red-600">Remarks: {budget.approval_remarks}</p>}
                           </div>
                         ))}
@@ -1142,6 +1201,16 @@ export default function EventsPage({ initialTab = 'events' }) {
                   placeholder="e.g. Annual General Assembly"
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
+              </div>
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label htmlFor="event-type" className="text-[13px] font-semibold text-[#0F172A]">Event Type</label>
+                  <input id="event-type" type="text" maxLength={100} value={form.event_type} onChange={(e) => setForm({ ...form, event_type: e.target.value })} placeholder="e.g. General Assembly" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="event-participants" className="text-[13px] font-semibold text-[#0F172A]">Expected Participants</label>
+                  <input id="event-participants" type="number" min="1" max="1000000" value={form.expected_participants} onChange={(e) => setForm({ ...form, expected_participants: e.target.value })} placeholder="e.g. 250" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+                </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
@@ -1210,6 +1279,14 @@ export default function EventsPage({ initialTab = 'events' }) {
                 />
               </div>
               <div className="space-y-1.5">
+                <label htmlFor="event-requirements" className="text-[13px] font-semibold text-[#0F172A]">Planning Requirements</label>
+                <textarea id="event-requirements" rows={2} value={form.requirements} onChange={(e) => setForm({ ...form, requirements: e.target.value })} placeholder="Program, safety, registration, approvals, accessibility..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="event-resources" className="text-[13px] font-semibold text-[#0F172A]">Available / Required Resources</label>
+                <textarea id="event-resources" rows={2} value={form.resources} onChange={(e) => setForm({ ...form, resources: e.target.value })} placeholder="Rooms, equipment, volunteers, suppliers, materials..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+              </div>
+              <div className="space-y-1.5">
                 <label htmlFor="event-image" className="text-[13px] font-semibold text-[#0F172A]">Event poster <span className="font-normal text-slate-400">(optional)</span></label>
                 <label htmlFor="event-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#B9CBD8] bg-[#F8FBFD] p-3 hover:border-[#0B8ED0]">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><ImagePlus size={18} /></span>
@@ -1226,6 +1303,21 @@ export default function EventsPage({ initialTab = 'events' }) {
                 />
                 Requires budget allocation
               </label>
+              {form.requires_budget && (
+                <div className="grid grid-cols-1 gap-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
+                  <div className="space-y-1.5">
+                    <label htmlFor="event-proposed-budget" className="text-[13px] font-semibold text-[#0F172A]">Proposed Budget</label>
+                    <input id="event-proposed-budget" type="number" min="0.01" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.proposed_budget_amount} onChange={(e) => setForm({ ...form, proposed_budget_amount: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label htmlFor="event-budget-threshold" className="text-[13px] font-semibold text-[#0F172A]">Warning Threshold</label>
+                    <input id="event-budget-threshold" type="number" min="0" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.budget_warning_threshold} onChange={(e) => setForm({ ...form, budget_warning_threshold: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
+                  </div>
+                  <p className="text-xs font-medium text-[#0878B7] sm:col-span-2">
+                    {editingEventId && form.proposed_budget_id ? 'This proposal is already linked. Change approved budget values from Finance so its approval history is preserved.' : 'Entering an amount creates a linked proposed budget and a separate Department Head approval request.'}
+                  </p>
+                </div>
+              )}
               <div className="space-y-1.5">
                 <label htmlFor="event-budget-notes" className="text-[13px] font-semibold text-[#0F172A]">Budget Requirements / Notes</label>
                 <textarea
@@ -1237,7 +1329,7 @@ export default function EventsPage({ initialTab = 'events' }) {
                   className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
-              {form.requires_budget && (
+              {form.requires_budget && !form.proposed_budget_amount && (
                 <p className="rounded-lg bg-[#EEF6FB] p-3 text-xs font-medium text-[#0878B7]">
                   These notes describe the event's funding needs. The actual allocation is proposed and linked to this event in Finance → Budget Allocation.
                 </p>

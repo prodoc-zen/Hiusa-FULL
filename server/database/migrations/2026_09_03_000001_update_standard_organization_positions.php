@@ -60,10 +60,9 @@ return new class extends Migration
                 foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
                     $this->renameOrMerge($organizationId, $role, 'Vice President – Internal', 'Vice President');
                     $this->renameOrMerge($organizationId, $role, 'Public Information Officer', 'Public Relations Officer');
-                    DB::table('sbo_positions')->where([
-                        'organization_id' => $organizationId,
-                        'role' => $role,
-                    ])->whereIn('title', ['Vice President – External', 'Assistant Secretary', 'Representative'])->delete();
+                    // Additive positions may have existed before this migration and may
+                    // already be assigned. Keep them on rollback instead of deleting
+                    // organization configuration or orphaning user position titles.
                 }
             }
         });
