@@ -156,7 +156,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/results', [ElectionController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/voters', [ElectionController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:STUDENT']);
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);

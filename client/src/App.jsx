@@ -269,7 +269,7 @@ function App() {
 
         </Route>
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]} />}>
+      <Route element={<ProtectedRoute allowedRoles={["STUDENT"]} />}>
         <Route path="/elections/:electionId/vote" element={<ImmersiveVotePage />} />
       </Route>
       <Route path="*" element={<NotFoundRedirect />} />

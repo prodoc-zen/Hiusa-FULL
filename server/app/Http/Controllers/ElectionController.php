@@ -920,6 +920,14 @@ class ElectionController extends Controller
 
     public function vote(Request $request, $id)
     {
+        // Only students are the electorate (this matches the eligibility roll in
+        // voters()). Enforced here as well as in the route middleware so widening
+        // the route later cannot silently let an officer, adviser or admin cast a
+        // counted ballot.
+        if ($request->user()->role !== 'STUDENT') {
+            return response()->json(['message' => 'Only students may cast a ballot in this election.'], 403);
+        }
+
         $this->synchronizeScheduledStatuses($request->user()->organization_id, (int) $id);
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (! $election) {
