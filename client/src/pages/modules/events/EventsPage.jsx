@@ -93,7 +93,7 @@ const emptyEventForm = () => ({
   proposed_budget_id: null,
 });
 
-export default function EventsPage({ initialTab = 'events' }) {
+export default function EventsPage({ initialTab = 'events', startEventRequest = false }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [showForm, setShowForm] = useState(false);
@@ -196,6 +196,16 @@ export default function EventsPage({ initialTab = 'events' }) {
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (startEventRequest && canCreateEvents) {
+      setActiveTab('events');
+      setEditingEventId(null);
+      setForm(emptyEventForm());
+      setFormError(null);
+      setShowForm(true);
+    }
+  }, [canCreateEvents, startEventRequest]);
 
   useEffect(() => {
     setEventsView(location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list');

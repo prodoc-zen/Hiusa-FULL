@@ -41,4 +41,12 @@ describe('ElectionPickerPage', () => {
     expect(screen.getByLabelText('Election title *')).toBeInTheDocument();
     expect(screen.getByText('Choose image')).toBeInTheDocument();
   });
+
+  it('opens the creation form when launched from the approval-request selector', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} startCreate />);
+
+    expect(await screen.findByRole('dialog')).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Create election' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit for approval' })).toBeInTheDocument();
+  });
 });

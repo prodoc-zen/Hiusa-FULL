@@ -4,7 +4,7 @@ import ElectionBreadcrumb from '../../../components/elections/ElectionBreadcrumb
 import ElectionPickerPage from './ElectionPickerPage';
 import { getElectionDetails } from '../../../services/electionService';
 
-export default function ElectionsHub() {
+export default function ElectionsHub({ startCreateElection = false }) {
   const navigate = useNavigate();
   const [activeElection, setActiveElection] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -85,7 +85,7 @@ export default function ElectionsHub() {
   }
 
   if (!activeElection) {
-    return <ElectionPickerPage onSelect={handleSelect} />;
+    return <ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} />;
   }
 
   return (

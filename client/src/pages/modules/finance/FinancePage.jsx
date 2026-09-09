@@ -7,10 +7,12 @@ import {
   ChevronRight,
   Coins,
   Download,
+  Eye,
   FileSpreadsheet,
   FileText,
   Pencil,
   Plus,
+  Printer,
   Search,
   Sparkles,
   TrendingUp,
@@ -38,7 +40,9 @@ import { fetchAllPages } from '../../../services/pagination';
 import FeedbackToast from '../../../components/FeedbackToast';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
+import Modal from '../../../components/Modal';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const budgetStatusBadge = {
   pending: 'bg-amber-50 text-amber-700',
@@ -128,6 +132,21 @@ function receiptLabel(transaction) {
   return null;
 }
 
+function receiptReportRow(receipt) {
+  return {
+    Receipt: receiptLabel(receipt) || `Receipt #${receipt.id}`,
+    Date: formatLedgerDate(receipt.transaction_date),
+    Description: receipt.description || 'Payment transaction',
+    Type: String(receipt.type || '').replace(/_/g, ' ') || 'Not recorded',
+    Category: receipt.category || 'Not recorded',
+    Amount: fmt(receipt.amount),
+    Event: receipt.event?.title || 'Not linked',
+    Budget: receipt.budget?.title || 'Not linked',
+    Payer: personName(receipt.payer, 'Not recorded'),
+    'Recorded by': personName(receipt.recorder, 'Not recorded'),
+  };
+}
+
 function ForecastLineGraph({ forecasts }) {
   const points = forecasts.map((forecast) => ({ label: String(forecast.forecast_period || '').slice(0, 7), income: Number(forecast.predicted_income || 0), expense: Number(forecast.predicted_expense || 0), balance: Number(forecast.predicted_balance || 0) }));
   if (!points.length) return null;
@@ -181,11 +200,12 @@ function printReport(rows, title) {
   return true;
 }
 
-export default function FinancePage({ initialTab = 'transactions' }) {
+export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [transactions, setTransactions] = useState([]);
   const [personalReceipts, setPersonalReceipts] = useState([]);
+  const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [auditLogs, setAuditLogs] = useState([]);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
@@ -319,6 +339,13 @@ export default function FinancePage({ initialTab = 'transactions' }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
   useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
+  useEffect(() => {
+    if (startBudgetProposal && canProposeBudget) {
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+      setBudgetFormError(null);
+      setShowBudgetForm(true);
+    }
+  }, [canProposeBudget, startBudgetProposal]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -1190,20 +1217,28 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   <div className="min-w-0">
                     <p className="font-bold text-[#0F172A]">{receipt.description}</p>
                     <p className="mt-1 text-xs text-slate-400">
-                      {receipt.transaction_date} - {receipt.event?.title || receipt.budget?.title || receipt.category}
+                      {formatLedgerDate(receipt.transaction_date)} - {receipt.event?.title || receipt.budget?.title || receipt.category}
                     </p>
                     <p className="mt-1 text-xs font-semibold text-[#0B8ED0]">
-                      Receipt {receipt.receipt_number || receipt.receipt_reference || receipt.id}
+                      {receiptLabel(receipt) || `Receipt #${receipt.id}`}
                     </p>
                   </div>
-                  <div className="flex items-center gap-3">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(receipt.amount)}</p>
                     <button
                       type="button"
-                      onClick={() => window.print()}
+                      onClick={() => setSelectedReceipt(receipt)}
                       className="flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
                     >
-                      <Download size={14} />
+                      <Eye size={14} />
+                      View details
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => printReport([receiptReportRow(receipt)], `${receiptLabel(receipt) || `Receipt #${receipt.id}`} - HIUSA`)}
+                      className="flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
+                    >
+                      <Printer size={14} />
                       Print
                     </button>
                   </div>
@@ -1213,6 +1248,49 @@ export default function FinancePage({ initialTab = 'transactions' }) {
           )}
         </section>
       )}
+
+      <Modal
+        open={Boolean(selectedReceipt)}
+        title={selectedReceipt ? receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}` : 'Receipt details'}
+        description="Saved payment record from your personal transaction history."
+        onClose={() => setSelectedReceipt(null)}
+        maxWidth="max-w-xl"
+        footer={selectedReceipt ? (
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+            <button type="button" onClick={() => setSelectedReceipt(null)} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Close</button>
+            {selectedReceipt.receipt_file_url && (
+              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0]/30 px-4 text-sm font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Download size={15} /> Open receipt file</a>
+            )}
+            <button type="button" onClick={() => printReport([receiptReportRow(selectedReceipt)], `${receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}`} - HIUSA`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7]"><Printer size={15} /> Print receipt</button>
+          </div>
+        ) : null}
+      >
+        {selectedReceipt && (
+          <div className="space-y-4">
+            <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+              <p className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">Amount</p>
+              <p className="mt-1 text-2xl font-black tabular-nums text-[#0F172A]">{fmt(selectedReceipt.amount)}</p>
+              <p className="mt-1 text-sm font-semibold text-[#64748B]">{selectedReceipt.description || 'Payment transaction'}</p>
+            </div>
+            <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
+              {Object.entries({
+                Date: formatLedgerDate(selectedReceipt.transaction_date),
+                Type: String(selectedReceipt.type || 'Not recorded').replace(/_/g, ' '),
+                Category: selectedReceipt.category || 'Not recorded',
+                Event: selectedReceipt.event?.title || 'Not linked',
+                Budget: selectedReceipt.budget?.title || 'Not linked',
+                Payer: personName(selectedReceipt.payer, 'Not recorded'),
+                'Recorded by': personName(selectedReceipt.recorder, 'Not recorded'),
+              }).map(([label, value]) => (
+                <div key={label}>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">{label}</dt>
+                  <dd className="mt-1 break-words text-sm font-semibold capitalize text-[#0F172A]">{value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        )}
+      </Modal>
 
       {activeTab === 'invoices' && (
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
