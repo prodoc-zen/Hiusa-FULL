@@ -23,6 +23,12 @@ return new class extends Migration
             $table->index(['organization_id', 'feature_type', 'reference_id', 'version'], 'ai_outputs_history_index');
         });
 
+        if (Schema::hasIndex('ai_outputs', 'ai_outputs_organization_id_rollback_index')) {
+            Schema::table('ai_outputs', function (Blueprint $table) {
+                $table->dropIndex('ai_outputs_organization_id_rollback_index');
+            });
+        }
+
         Schema::table('tasks', function (Blueprint $table) {
             $table->string('phase', 40)->nullable()->after('task_type');
             $table->string('priority', 20)->default('medium')->after('phase');
@@ -83,6 +89,17 @@ return new class extends Migration
 
         Schema::table('ai_outputs', function (Blueprint $table) {
             $table->dropForeign(['decided_by']);
+        });
+
+        // The history index can become the index that backs organization_id's
+        // foreign key. Keep that foreign key indexed before removing history.
+        if (! Schema::hasIndex('ai_outputs', 'ai_outputs_organization_id_rollback_index')) {
+            Schema::table('ai_outputs', function (Blueprint $table) {
+                $table->index('organization_id', 'ai_outputs_organization_id_rollback_index');
+            });
+        }
+
+        Schema::table('ai_outputs', function (Blueprint $table) {
             $table->dropIndex('ai_outputs_history_index');
             $table->dropColumn(['context_version', 'structured_input', 'structured_output', 'status', 'error_message', 'version', 'decision_status', 'decided_by', 'decided_at']);
         });
