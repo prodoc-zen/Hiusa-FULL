@@ -46,6 +46,7 @@ const NAV_STRUCTURE = [
     },
     roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
+  { id: 'submit-request', label: 'Submit Request', icon: ClipboardCheck, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
   { id: 'audit-logs', label: 'General Audit Log', icon: ClipboardCheck, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
   {
     id: 'announcements',

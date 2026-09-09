@@ -12,6 +12,7 @@ const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const DepartmentHeadHomePage = lazy(() => import('./pages/roles/department-head/DepartmentHeadHomePage'));
 const DepartmentHeadApprovalsPage = lazy(() => import('./pages/roles/department-head/DepartmentHeadApprovalsPage'));
+const SubmitApprovalRequestPage = lazy(() => import('./pages/modules/approvals/SubmitApprovalRequestPage'));
 const StudentHomePage = lazy(() => import('./pages/roles/student/StudentHomePage'));
 const AdminUsersPage = lazy(() => import('./pages/roles/admin/AdminUsersPage'));
 const ManageSboPositionsPage = lazy(() => import('./pages/roles/admin/ManageSboPositionsPage'));
@@ -190,6 +191,11 @@ function App() {
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
+          <Route path="approval-requests/new" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SubmitApprovalRequestPage /></ProtectedRoute>} />
+          <Route path="approval-requests/new/announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
+          <Route path="approval-requests/new/budget" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><FinancePage initialTab="budgets" startBudgetProposal /></ProtectedRoute>} />
+          <Route path="approval-requests/new/event" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" startEventRequest /></ProtectedRoute>} />
+          <Route path="approval-requests/new/election" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionsHub startCreateElection /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
           <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
           <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />

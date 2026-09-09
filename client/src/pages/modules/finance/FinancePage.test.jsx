@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancePage from './FinancePage';
 
@@ -93,6 +93,46 @@ describe('FinancePage transaction search', () => {
     expect(screen.getAllByText('Sports Fest Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Recorded by Marco Santos/).length).toBeGreaterThan(0);
+  });
+
+  it('opens complete personal receipt details and can close them', async () => {
+    financeMocks.getPersonalReceipts.mockResolvedValue({
+      data: [{
+        id: 9,
+        transaction_date: '2026-09-08T10:30:00.000000Z',
+        description: 'Membership payment',
+        category: 'Membership',
+        type: 'income',
+        amount: 750,
+        receipt_reference: 'HIUSA-1-00000009',
+        receipt_file_url: '/storage/receipts/receipt-9.pdf',
+        event: { id: 3, title: 'General Assembly' },
+        budget: { id: 4, title: 'Operating Budget' },
+        payer: { school_id: 101, first_name: 'Ana', last_name: 'Reyes' },
+        recorder: { school_id: 102, first_name: 'Marco', last_name: 'Santos' },
+      }],
+    });
+
+    render(<FinancePage initialTab="receipts" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'View details' }));
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByRole('heading', { name: 'HIUSA-1-00000009' })).toBeInTheDocument();
+    expect(within(dialog).getByText('General Assembly')).toBeInTheDocument();
+    expect(within(dialog).getByText('Operating Budget')).toBeInTheDocument();
+    expect(within(dialog).getByText('Ana Reyes')).toBeInTheDocument();
+    expect(within(dialog).getByText('Marco Santos')).toBeInTheDocument();
+    expect(within(dialog).getByRole('link', { name: 'Open receipt file' })).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('opens the budget proposal form when launched from the request selector', async () => {
+    render(<FinancePage initialTab="budgets" startBudgetProposal />);
+
+    expect(await screen.findByRole('heading', { name: 'Propose Budget' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Submit for Approval' })).toBeInTheDocument();
   });
 });
 

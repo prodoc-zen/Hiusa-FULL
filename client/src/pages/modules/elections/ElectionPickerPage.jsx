@@ -155,7 +155,7 @@ function ElectionFormFields({ form, setForm, editing = false }) {
   );
 }
 
-export default function ElectionPickerPage({ onSelect }) {
+export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const canManageElections = currentUser?.role === 'ADMIN';
@@ -185,6 +185,13 @@ export default function ElectionPickerPage({ onSelect }) {
   };
 
   useEffect(() => { loadElections(); }, []);
+  useEffect(() => {
+    if (startCreate && canManageElections) {
+      setForm(blankElection());
+      setFormError('');
+      setShowCreate(true);
+    }
+  }, [canManageElections, startCreate]);
 
   const filteredElections = useMemo(() => {
     const query = searchTerm.trim().toLowerCase();

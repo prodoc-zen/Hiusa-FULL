@@ -1,5 +1,7 @@
 # Manage Elections
 
+> Canonical correction: this workflow is election-specific. It replaces the duplicated event-management steps that appeared under "Manage Elections" in the earlier function list.
+
 **Users:** Admin
 
 **Manage Elections**
