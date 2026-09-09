@@ -40,13 +40,14 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   await page.getByPlaceholder('Search events...').fill('Sports Fest');
   await expect(page.getByRole('cell', { name: 'Sports Fest 2024' }).first()).toBeVisible();
   await expect(page.getByRole('cell', { name: 'HIUSA General Assembly' }).first()).toBeHidden();
-  await page.getByPlaceholder('Search events...').fill('');
 
   await page.getByLabel('Edit Sports Fest 2024').first().click();
   await expect(page.getByText('Edit Event', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Vendor Deadlines')).toBeVisible();
   await expect(page.getByLabel('Logistics Checklist')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
+  await page.getByPlaceholder('Search events...').fill('');
+  await expect(page.getByRole('cell', { name: 'HIUSA General Assembly' }).first()).toBeVisible();
 
   let plannerRequest;
   await page.route('**/api/events/*/generate-plan', async (route) => {
@@ -90,9 +91,8 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   await expect(page.getByText('Logistics Checklist', { exact: true })).toBeVisible();
   await expect(page.getByText('Risks / Conflicts', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Confirm & Create Workflow' })).toBeVisible();
-  expect(plannerRequest).toMatchObject({
+  expect(plannerRequest).toEqual({
     requirements: 'Verify the complete planning workflow.',
-    create_workflow: true,
   });
   for (const [index, taskTitle] of [
     'Confirm event scope and vendor commitments',
