@@ -218,11 +218,17 @@ class FinancialReportController extends Controller
         $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is PHP ".number_format($statement['total_income'], 2).', total expenses are PHP '.number_format($statement['total_expense'], 2).', and net balance is PHP '.number_format($statement['net_balance'], 2).'. The report also includes the latest available OLS forecast, budget-advisory outputs, and '.$context['audit_log_summary']['entry_count'].' financial audit log entry or entries.';
 
         $generated = $this->groq->generate(
-            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, latest OLS forecast when available, budget-advisory results, and audit-log summary. Preserve every figure and risk label. Clearly say when an input section has no data.',
+            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, latest OLS forecast when available, budget-advisory results, and audit-log summary. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',
             json_encode($context, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
             650,
             0.2,
         );
+        if ($generated) {
+            $generated['text'] = $this->groq->plainText($generated['text']);
+            if ($generated['text'] === '') {
+                $generated = null;
+            }
+        }
         if ($generated && ! $this->groq->preservesNumericFacts($generated['text'], $context)) {
             $generated = null;
         }

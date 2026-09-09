@@ -48,6 +48,7 @@ class GroqResponsesServiceTest extends TestCase
                 && $request['model'] === 'openai/gpt-oss-20b'
                 && $request['instructions'] === 'Preserve the supplied figures.'
                 && $request['input'] === 'Income: 1000; expense: 400.'
+                && $request['reasoning']['effort'] === 'low'
                 && $request['max_output_tokens'] === 220;
         });
     }
@@ -81,6 +82,7 @@ class GroqResponsesServiceTest extends TestCase
         $this->assertSame(['overview' => 'Validated'], $result['data']);
         Http::assertSent(fn (Request $request) => $request['text']['format']['type'] === 'json_schema'
             && $request['text']['format']['strict'] === true
+            && $request['reasoning']['effort'] === 'low'
             && $request['text']['format']['schema'] === $schema);
     }
 
@@ -98,5 +100,15 @@ class GroqResponsesServiceTest extends TestCase
             'The organization should secure an additional PHP 9,999.',
             $facts,
         ));
+    }
+
+    public function test_plain_text_removes_markdown_markers_from_display_copy(): void
+    {
+        $text = "# **Summary**\r\n\r\n* First **item**\r\n+ `Second` item\r\n\r\n\r\nDone";
+
+        $this->assertSame(
+            "Summary\n\n- First item\n- Second item\n\nDone",
+            app(GroqResponsesService::class)->plainText($text),
+        );
     }
 }

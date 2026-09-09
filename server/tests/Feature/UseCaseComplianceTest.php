@@ -24,6 +24,7 @@ use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -479,6 +480,12 @@ class UseCaseComplianceTest extends TestCase
 
     public function test_event_financial_report_is_computed_summarized_and_saved(): void
     {
+        config(['services.groq.key' => 'test-key']);
+        Http::fake(['*' => Http::response([
+            'id' => 'financial-report-response',
+            'model' => 'test-model',
+            'output_text' => "**Report summary**\n\n* Income is 1000, expenses are 350, and the balance is 650.",
+        ])]);
         $admin = $this->user('ADMIN');
         $event = Event::create([
             'organization_id' => $admin->organization_id,
@@ -509,11 +516,14 @@ class UseCaseComplianceTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('totals.income', 1000)
             ->assertJsonPath('totals.expense', 350)
-            ->assertJsonPath('totals.balance', 650);
+            ->assertJsonPath('totals.balance', 650)
+            ->assertJsonPath('ai_summary_status', 'generated');
 
         $report = FinancialReport::findOrFail($response->json('report.id'));
         $this->assertSame([$response->json('transactions.0.id'), $response->json('transactions.1.id')], $report->source_transaction_ids);
         $this->assertNotEmpty($report->summary_text);
+        $this->assertSame("Report summary\n\n- Income is 1000, expenses are 350, and the balance is 650.", $report->summary_text);
+        $this->assertStringNotContainsString('*', $report->summary_text);
         $this->assertDatabaseHas('ai_outputs', ['reference_type' => FinancialReport::class, 'reference_id' => $report->id]);
     }
 

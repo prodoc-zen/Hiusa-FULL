@@ -37,11 +37,17 @@ class AnnouncementController extends Controller
 
         $model = (string) config('services.groq.model');
         $generated = $this->groq->generate(
-            'Draft a polished, concise school-organization announcement using only supplied facts. Never invent dates, venues, fees, requirements, contacts, or names. Clearly mark important missing information as not yet specified. Return only the editable announcement body.',
+            'Draft a polished, concise school-organization announcement using only supplied facts. Never invent dates, venues, fees, requirements, contacts, or names. Clearly mark important missing information as not yet specified. Return only the editable announcement body as plain text. Do not use Markdown, asterisks, backticks, or heading markers.',
             $prompt,
             450,
             0.4,
         );
+        if ($generated) {
+            $generated['text'] = $this->groq->plainText($generated['text']);
+            if ($generated['text'] === '') {
+                $generated = null;
+            }
+        }
         $version = ((int) AiOutput::where('organization_id', $request->user()->organization_id)
             ->where('feature_type', 'ANNOUNCEMENT_DRAFT')->max('version')) + 1;
 

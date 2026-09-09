@@ -17,7 +17,7 @@ class AnnouncementAiWorkflowTest extends TestCase
     public function test_generated_draft_is_logged_and_accepted_when_the_user_saves_it(): void
     {
         config(['services.groq.key' => 'test-key']);
-        Http::fake(['*' => Http::response(['id' => 'announcement-response', 'model' => 'test-model', 'output_text' => 'Assembly details are pending venue confirmation.'])]);
+        Http::fake(['*' => Http::response(['id' => 'announcement-response', 'model' => 'test-model', 'output_text' => "**Assembly update**\n\n* Venue details are pending confirmation."])]);
         $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
         Sanctum::actingAs($admin);
 
@@ -26,7 +26,9 @@ class AnnouncementAiWorkflowTest extends TestCase
             'target_role' => 'STUDENT',
             'category' => 'events',
             'details' => 'Venue is not confirmed. Do not invent one.',
-        ])->assertOk()->assertJsonPath('model_name', 'test-model');
+        ])->assertOk()
+            ->assertJsonPath('model_name', 'test-model')
+            ->assertJsonPath('output_text', "Assembly update\n\n- Venue details are pending confirmation.");
 
         $outputId = $generated->json('ai_output_id');
         $editedBody = $generated->json('output_text')."\n\nPlease wait for the official venue notice.";
@@ -44,6 +46,7 @@ class AnnouncementAiWorkflowTest extends TestCase
         $this->assertSame('accepted', $output->decision_status);
         $this->assertSame($announcement->json('id'), (int) $output->reference_id);
         $this->assertSame('Venue is not confirmed. Do not invent one.', $output->structured_input['details']);
+        $this->assertStringNotContainsString('*', $output->output_text);
         $this->assertSame($editedBody, $announcement->json('body'));
     }
 

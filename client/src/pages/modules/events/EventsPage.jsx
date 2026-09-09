@@ -706,6 +706,19 @@ export default function EventsPage({ initialTab = 'events' }) {
         <section className="space-y-4">
           <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h2 className="text-lg font-bold text-[#0F172A]">Generate Event Plan</h2>
+            <p className="mt-1 text-sm font-medium text-slate-500">Analyze an event, turn the plan into an ordered to-do list, and delegate each task to the best-fit eligible officer.</p>
+            <div aria-label="Event workflow automation stages" className="mt-4 grid overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] md:grid-cols-3">
+              {[
+                ['1', 'Event Planning', 'Analyze timeline, resources, logistics, and risks'],
+                ['2', 'Workflow To-do List', 'Create sequenced tasks, deadlines, and dependencies'],
+                ['3', 'Task Delegation', 'Rank officers by role fit, workload, and performance'],
+              ].map(([step, title, detail], index) => (
+                <div key={title} className={`flex gap-3 p-3 ${index ? 'border-t border-[#DDE7EF] md:border-l md:border-t-0' : ''}`}>
+                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-xs font-black text-white">{step}</span>
+                  <div><p className="text-xs font-black text-[#0F172A]">{title}</p><p className="mt-0.5 text-[11px] leading-4 text-slate-500">{detail}</p></div>
+                </div>
+              ))}
+            </div>
             <form className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr_auto]" onSubmit={handleGeneratePlan}>
               <select
                 aria-label="Event to plan"
@@ -743,7 +756,7 @@ export default function EventsPage({ initialTab = 'events' }) {
             )}
             {workflowDraft && (
               <div className="mt-4 space-y-4 rounded-xl border border-[#B9DCEC] bg-[#F8FBFD] p-4">
-                <div><p className="text-xs font-black uppercase tracking-wider text-[#0B8ED0]">Generated workflow — review required</p><p className="mt-1 text-sm text-slate-700">{workflowDraft.overview}</p></div>
+                <div><p className="text-xs font-black uppercase tracking-wider text-[#0B8ED0]">Generated workflow — {workflowDraft.tasks.length} to-do item{workflowDraft.tasks.length === 1 ? '' : 's'} — review required</p><p className="mt-1 text-sm text-slate-700">{workflowDraft.overview}</p></div>
                 <div className="grid gap-3 md:grid-cols-3">
                   {[
                     ['Preparation Phases', workflowDraft.preparation_phases],
@@ -754,8 +767,11 @@ export default function EventsPage({ initialTab = 'events' }) {
                   ].map(([heading, items]) => <div key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><h3 className="text-xs font-black text-[#0F172A]">{heading}</h3><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">{items?.map((item) => <li key={item}>{item}</li>)}</ul></div>)}
                 </div>
                 <div className="space-y-3">
-                  {workflowDraft.tasks.map((task, index) => (
+                  {workflowDraft.tasks.map((task, index) => {
+                    const selectedOfficer = task.recommendation?.rankings?.find((ranking) => String(ranking.officer_id) === String(task.assigned_to));
+                    return (
                     <article key={task.key} className="rounded-lg border border-[#DDE7EF] bg-white p-3">
+                      <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-slate-400">To-do {index + 1} · {capitalize(task.phase)}</p>
                       <div className="grid gap-2 lg:grid-cols-2">
                         <input aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-sm font-bold" />
                         <input aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={String(task.deadline || '').slice(0, 16)} onChange={(event) => updateWorkflowTask(index, 'deadline', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
@@ -764,11 +780,13 @@ export default function EventsPage({ initialTab = 'events' }) {
                         <input aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Recommended role" className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
                         <select aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">No dependency</option>{workflowDraft.tasks.slice(0, index).map((candidate) => <option key={candidate.key} value={candidate.key}>{candidate.title || candidate.key}</option>)}</select>
                         <select aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs lg:col-span-2"><option value="">No eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>#{ranking.rank} {ranking.name} — {ranking.position_title} ({ranking.final_score})</option>)}</select>
+                        {selectedOfficer && <p className="rounded-md bg-[#EEF6FB] px-3 py-2 text-[11px] font-semibold text-slate-600 lg:col-span-2">Delegation score: position fit {selectedOfficer.role_score} · workload {selectedOfficer.workload_score} · performance {selectedOfficer.performance_score} · final {selectedOfficer.final_score}. Active tasks: {selectedOfficer.active_tasks}/{selectedOfficer.max_active_tasks}. Task area: {capitalize(task.recommendation?.task_area || 'general')}.</p>}
                         <textarea aria-label={`Task ${index + 1} description`} value={task.description || ''} onChange={(event) => updateWorkflowTask(index, 'description', event.target.value)} rows={2} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs lg:col-span-2" />
                       </div>
                       <button type="button" onClick={() => removeWorkflowTask(index)} className="mt-2 text-xs font-bold text-red-600">Delete task</button>
                     </article>
-                  ))}
+                    );
+                  })}
                 </div>
                 <div className="flex flex-wrap gap-2"><button type="button" onClick={addWorkflowTask} className="h-10 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0B8ED0]">Add task</button><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-10 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 disabled:opacity-50">Discard</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0} onClick={confirmWorkflow} className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white disabled:opacity-50">{workflowAction ? 'Saving...' : 'Confirm & Create Workflow'}</button></div>
               </div>
