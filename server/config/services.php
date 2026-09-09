@@ -53,6 +53,7 @@ return [
         'key' => env('GROQ_API_KEY'),
         'url' => env('GROQ_API_URL', 'https://api.groq.com/openai/v1/responses'),
         'model' => env('GROQ_MODEL', 'openai/gpt-oss-20b'),
+        'reasoning_effort' => env('GROQ_REASONING_EFFORT', 'low'),
         'timeout' => env('GROQ_TIMEOUT', 25),
         'connect_timeout' => env('GROQ_CONNECT_TIMEOUT', 5),
     ],

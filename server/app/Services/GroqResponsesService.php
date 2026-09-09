@@ -22,6 +22,7 @@ class GroqResponsesService
             'model' => (string) config('services.groq.model'),
             'instructions' => $instructions,
             'input' => $input,
+            'reasoning' => ['effort' => $this->reasoningEffort()],
             'temperature' => $temperature,
             'max_output_tokens' => $maxOutputTokens,
         ]);
@@ -64,6 +65,7 @@ class GroqResponsesService
             'model' => (string) config('services.groq.model'),
             'instructions' => $instructions,
             'input' => json_encode($input, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+            'reasoning' => ['effort' => $this->reasoningEffort()],
             'temperature' => $temperature,
             'max_output_tokens' => $maxOutputTokens,
             'text' => [
@@ -126,6 +128,25 @@ class GroqResponsesService
         return true;
     }
 
+    /**
+     * Convert model-authored display copy to plain text before it is persisted.
+     * Announcement and report fields are rendered as prose, not Markdown.
+     */
+    public function plainText(string $text): string
+    {
+        $text = str_replace(["\r\n", "\r"], "\n", $text);
+        $lines = preg_split('/\n/u', $text) ?: [];
+
+        $lines = array_map(function (string $line): string {
+            $line = preg_replace('/^\s{0,3}#{1,6}\s*/u', '', $line) ?? $line;
+            $line = preg_replace('/^\s*[*+]\s+/u', '- ', $line) ?? $line;
+
+            return rtrim(str_replace(['*', '`'], '', $line));
+        }, $lines);
+
+        return trim(preg_replace('/\n{3,}/u', "\n\n", implode("\n", $lines)) ?? implode("\n", $lines));
+    }
+
     private function request(array $body): ?array
     {
         $apiKey = trim((string) config('services.groq.key'));
@@ -162,6 +183,13 @@ class GroqResponsesService
 
             return null;
         }
+    }
+
+    private function reasoningEffort(): string
+    {
+        $effort = strtolower(trim((string) config('services.groq.reasoning_effort', 'low')));
+
+        return in_array($effort, ['low', 'medium', 'high'], true) ? $effort : 'low';
     }
 
     private function extractOutputText(array $payload): string

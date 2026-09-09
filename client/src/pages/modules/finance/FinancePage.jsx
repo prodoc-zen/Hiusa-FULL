@@ -106,6 +106,28 @@ function fmt(n) {
   return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function formatLedgerDate(value) {
+  if (!value) return 'Not recorded';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', timeZone: 'Asia/Manila' });
+}
+
+function personName(person, fallback) {
+  const name = [person?.first_name, person?.last_name].filter(Boolean).join(' ').trim();
+  return name || fallback;
+}
+
+function ledgerSource(transaction) {
+  return [transaction.event?.title, transaction.budget?.title].filter(Boolean);
+}
+
+function receiptLabel(transaction) {
+  if (transaction.receipt_reference) return transaction.receipt_reference;
+  if (transaction.receipt_number) return `Receipt #${transaction.receipt_number}`;
+  return null;
+}
+
 function ForecastLineGraph({ forecasts }) {
   const points = forecasts.map((forecast) => ({ label: String(forecast.forecast_period || '').slice(0, 7), income: Number(forecast.predicted_income || 0), expense: Number(forecast.predicted_expense || 0), balance: Number(forecast.predicted_balance || 0) }));
   if (!points.length) return null;
@@ -616,8 +638,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">Transactions</h2>
-              <p className="text-sm font-medium text-slate-500">Record and view all financial transactions</p>
+              <h2 className="text-lg font-bold text-[#0F172A]">Digital Ledger</h2>
+              <p className="text-sm font-medium text-slate-500">Trace each transaction to its source, receipt, payer, and recorder</p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
@@ -699,11 +721,13 @@ export default function FinancePage({ initialTab = 'transactions' }) {
             <p className="p-8 text-center text-sm text-slate-400">No transactions recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[500px] md:min-w-[700px] text-left">
+              <table className="w-full min-w-[760px] lg:min-w-[1120px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Date</th>
                     <th className="px-5 py-3">Description</th>
+                    <th className="hidden lg:table-cell px-5 py-3">Source</th>
+                    <th className="hidden lg:table-cell px-5 py-3">Payer / Recorder</th>
                     <th className="hidden md:table-cell px-5 py-3">Category</th>
                     <th className="px-5 py-3">Type</th>
                     <th className="px-5 py-3">Amount</th>
@@ -711,10 +735,27 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[#E5EDF3] text-sm">
-                  {filtered.map((tx) => (
+                  {filtered.map((tx) => {
+                    const sources = ledgerSource(tx);
+                    const receipt = receiptLabel(tx);
+                    return (
                     <tr key={tx.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="px-5 py-4 font-medium text-slate-600">{tx.transaction_date}</td>
-                      <td className="px-5 py-4 font-semibold text-[#0F172A]">{tx.description}</td>
+                      <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-600">{formatLedgerDate(tx.transaction_date)}</td>
+                      <td className="px-5 py-4">
+                        <p className="font-semibold text-[#0F172A]">{tx.description}</p>
+                        {receipt && <p className="mt-1 text-xs font-medium text-[#0B8ED0]">{receipt}</p>}
+                        <div className="mt-1 space-y-0.5 text-[11px] text-slate-500 lg:hidden">
+                          <p>{sources.length ? sources.join(' · ') : 'General ledger'}</p>
+                          <p>Payer: {personName(tx.payer, 'No payer linked')} · Recorded by: {personName(tx.recorder, 'Unknown recorder')}</p>
+                        </div>
+                      </td>
+                      <td className="hidden px-5 py-4 lg:table-cell">
+                        {sources.length ? sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate font-semibold text-slate-700">{source}</p>) : <span className="text-xs text-slate-400">General ledger</span>}
+                      </td>
+                      <td className="hidden px-5 py-4 text-xs lg:table-cell">
+                        <p className="font-semibold text-slate-700">{personName(tx.payer, 'No payer linked')}</p>
+                        <p className="mt-1 text-slate-400">Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
+                      </td>
                       <td className="hidden md:table-cell px-5 py-4">
                         <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
                       </td>
@@ -739,7 +780,8 @@ export default function FinancePage({ initialTab = 'transactions' }) {
                         </td>
                       )}
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>

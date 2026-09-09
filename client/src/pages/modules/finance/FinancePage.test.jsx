@@ -60,6 +60,40 @@ describe('FinancePage transaction search', () => {
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
   });
+
+  it('shows the complete traceable data for each digital-ledger entry', async () => {
+    financeMocks.getTransactions.mockResolvedValue({
+      data: {
+        data: [{
+          id: 7,
+          transaction_date: '2026-09-08T10:30:00.000000Z',
+          description: 'Venue reservation',
+          category: 'Events',
+          type: 'expense',
+          amount: 2500,
+          receipt_reference: 'HIUSA-1-00000007',
+          event: { id: 3, title: 'Sports Fest' },
+          budget: { id: 4, title: 'Sports Fest Budget' },
+          payer: { school_id: 101, first_name: 'Ana', last_name: 'Reyes' },
+          recorder: { school_id: 102, first_name: 'Marco', last_name: 'Santos' },
+        }],
+        current_page: 1,
+        last_page: 1,
+        total: 1,
+        per_page: 10,
+      },
+    });
+
+    render(<FinancePage initialTab="transactions" />);
+
+    expect(await screen.findByText('Venue reservation')).toBeInTheDocument();
+    expect(screen.getByText('Sep 8, 2026')).toBeInTheDocument();
+    expect(screen.getByText('HIUSA-1-00000007')).toBeInTheDocument();
+    expect(screen.getAllByText('Sports Fest').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Sports Fest Budget').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Recorded by Marco Santos/).length).toBeGreaterThan(0);
+  });
 });
 
 describe('FinancePage forecast explainability', () => {
