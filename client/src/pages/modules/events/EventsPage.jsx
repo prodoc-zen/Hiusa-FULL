@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Calendar,
@@ -110,6 +110,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [dateFilter, setDateFilter] = useState('');
   const [eventStatusFilter, setEventStatusFilter] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const detailsRequestRef = useRef(0);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [statusError, setStatusError] = useState(null);
@@ -369,17 +370,25 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   async function openEventDetails(event) {
+    const requestId = detailsRequestRef.current + 1;
+    detailsRequestRef.current = requestId;
     setSelectedEvent(event);
     setDetailsLoading(true);
     setStatusError(null);
     try {
       const response = await getEvent(event.id);
-      setSelectedEvent(response.data);
+      if (detailsRequestRef.current === requestId) setSelectedEvent(response.data);
     } catch {
-      setSelectedEvent(event);
+      if (detailsRequestRef.current === requestId) setSelectedEvent(event);
     } finally {
-      setDetailsLoading(false);
+      if (detailsRequestRef.current === requestId) setDetailsLoading(false);
     }
+  }
+
+  function closeEventDetails() {
+    detailsRequestRef.current += 1;
+    setSelectedEvent(null);
+    setDetailsLoading(false);
   }
 
   async function handleStatusUpdate(status) {
@@ -1097,7 +1106,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[selectedEvent.status] || capitalize(selectedEvent.status)}</span>
                 <h2 className="mt-3 text-xl font-extrabold text-[#0F172A]">{selectedEvent.title}</h2>
               </div>
-              <button type="button" aria-label="Close event details" onClick={() => setSelectedEvent(null)} className="grid h-9 w-9 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+              <button type="button" aria-label="Close event details" onClick={closeEventDetails} className="grid h-9 w-9 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
             </div>
             {detailsLoading ? (
               <div className="mt-5 h-28 animate-pulse rounded-lg bg-slate-100" />

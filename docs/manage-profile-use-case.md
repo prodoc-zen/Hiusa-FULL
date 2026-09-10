@@ -18,10 +18,12 @@
 
 - **Role Access:** all four roles can access `/dashboard/profile`.
 - **View Profile Information:** profile data is loaded from the authenticated user stored by the auth flow and displayed in `SettingsPage`.
+- **Responsive Account Overview:** the profile screen presents identity, role, organization, school ID, and account-security context in a responsive summary panel without compressing either form.
 - **Edit Profile Information:** users can update first name, last name, and email.
 - **Validate Profile Updates:** `UserController@updateProfile` validates required profile fields and organization-scoped email uniqueness.
 - **Save Profile Changes:** profile updates are persisted through `PUT /user/profile` and refreshed into local storage.
 - **Change Password:** users submit current password, new password, and confirmation.
 - **Verify Current Password:** `UserController@updatePassword` checks the current password before updating.
 - **Validate New Password:** new passwords require confirmation and a minimum length.
+- **Password Usability:** each password field has an independent show/hide control, with visible minimum-length and confirmation-match guidance.
 - **Update Password:** password updates revoke existing tokens and redirect the user back to login.
