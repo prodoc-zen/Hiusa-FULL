@@ -78,19 +78,19 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
     });
   });
   await page.goto('/dashboard/events/event-planner');
-  await expect(page.getByRole('heading', { name: 'Generate Event Plan' })).toBeVisible();
-  await page.locator('select').first().selectOption({ label: 'Sports Fest 2024' });
-  await page.getByPlaceholder('Timeline, resources, vendors, logistics, risks...').fill('Verify the complete planning workflow.');
-  const generateWorkflow = page.getByRole('button', { name: 'Generate Workflow Draft' });
-  await expect(generateWorkflow).toBeEnabled();
-  await generateWorkflow.click();
-  await expect(page.getByText(/Generated workflow — \d+ to-do items — review required/)).toBeVisible();
-  await expect(page.getByText('Preparation Phases', { exact: true })).toBeVisible();
-  await expect(page.getByText('Timeline', { exact: true })).toBeVisible();
-  await expect(page.getByText('Resources', { exact: true })).toBeVisible();
-  await expect(page.getByText('Logistics Checklist', { exact: true })).toBeVisible();
-  await expect(page.getByText('Risks / Conflicts', { exact: true })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Confirm & Create Workflow' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Build an Event To-do List' })).toBeVisible();
+  await page.getByLabel('Event', { exact: true }).selectOption({ label: 'Sports Fest 2024' });
+  await page.getByLabel('What should the to-do list cover?').fill('Verify the complete planning workflow.');
+  const createToDoList = page.getByRole('button', { name: 'Create To-do List' });
+  await expect(createToDoList).toBeEnabled();
+  await createToDoList.click();
+  await expect(page.getByText(/\d+ suggested to-do items/)).toBeVisible();
+  await expect(page.getByText('Plan outline', { exact: true })).toBeVisible();
+  await expect(page.getByText('Key dates', { exact: true })).toBeVisible();
+  await expect(page.getByText('What is needed', { exact: true })).toBeVisible();
+  await expect(page.getByText('Setup and coordination', { exact: true })).toBeVisible();
+  await expect(page.getByText('Possible problems', { exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Save and Assign Tasks' })).toBeVisible();
   expect(plannerRequest).toEqual({
     requirements: 'Verify the complete planning workflow.',
   });

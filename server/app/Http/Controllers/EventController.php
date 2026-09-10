@@ -533,14 +533,14 @@ class EventController extends Controller
 
         if ($event->start_time->lte(now()->addMinutes(5))) {
             return response()->json([
-                'message' => 'Workflow tasks require an event that starts at least five minutes in the future.',
+                'message' => 'Choose an event that starts at least five minutes from now so its tasks can be scheduled.',
             ], 422);
         }
 
         if (AiOutput::where('organization_id', $event->organization_id)
             ->where('feature_type', 'EVENT_WORKFLOW')->where('reference_type', Event::class)
             ->where('reference_id', $event->id)->where('decision_status', 'accepted')->exists()) {
-            return response()->json(['message' => 'This event already has a confirmed workflow. Existing active tasks are never overwritten by regeneration.'], 409);
+            return response()->json(['message' => 'This event already has a saved to-do list. Existing tasks will not be replaced.'], 409);
         }
 
         $conflicts = Event::where('organization_id', $event->organization_id)
@@ -594,7 +594,7 @@ class EventController extends Controller
                 'created_at' => now(),
             ]);
 
-            return response()->json(['message' => 'Unable to generate the event plan. The AI service is temporarily unavailable or returned an invalid response.'], 503);
+            return response()->json(['message' => 'We could not create a reliable to-do list right now. Please wait a moment and try again.'], 503);
         }
 
         $workflow = $this->normalizeWorkflow($generated['data'], $event, $context['allowed_positions']);
@@ -617,7 +617,7 @@ class EventController extends Controller
                 'created_at' => now(),
             ]);
 
-            return response()->json(['message' => 'The generated response could not be validated. Please retry.'], 422);
+            return response()->json(['message' => 'The suggested plan was incomplete, so no tasks were created. Please try again.'], 422);
         }
 
         foreach ($workflow['tasks'] as &$task) {
@@ -677,10 +677,10 @@ class EventController extends Controller
         if (! $event || $aiOutput->organization_id !== $request->user()->organization_id
             || $aiOutput->reference_type !== Event::class || (int) $aiOutput->reference_id !== (int) $event->id
             || $aiOutput->feature_type !== 'EVENT_WORKFLOW') {
-            return response()->json(['message' => 'Event workflow not found.'], 404);
+            return response()->json(['message' => 'This event plan could not be found.'], 404);
         }
         if ($aiOutput->decision_status !== 'pending') {
-            return response()->json(['message' => 'This workflow version has already been decided.'], 409);
+            return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
         }
 
         $data = $request->validate([
@@ -702,13 +702,19 @@ class EventController extends Controller
             ->pluck('title');
         foreach ($data['tasks'] as $position => $task) {
             if (! empty($task['depends_on_key']) && (! $keyPositions->has($task['depends_on_key']) || $keyPositions[$task['depends_on_key']] >= $position)) {
-                return response()->json(['message' => "Task dependency '{$task['depends_on_key']}' is invalid."], 422);
+                return response()->json(['message' => "'{$task['title']}' can only start after a task listed above it."], 422);
             }
             if (! $this->deadlineMatchesPhase(Carbon::parse($task['deadline']), $task['phase'], $event)) {
-                return response()->json(['message' => "The deadline for '{$task['title']}' does not match its workflow phase."], 422);
+                $guidance = match ($task['phase']) {
+                    'pre_event' => 'before the event starts',
+                    'event_day' => 'during the event',
+                    'post_event' => 'after the event ends and within 30 days',
+                };
+
+                return response()->json(['message' => "The due date for '{$task['title']}' must be {$guidance}."], 422);
             }
             if (! empty($task['recommended_role']) && ! $activePositions->containsStrict($task['recommended_role'])) {
-                return response()->json(['message' => "The recommended role for '{$task['title']}' is not an active SBO position."], 422);
+                return response()->json(['message' => "Choose an active officer role for '{$task['title']}'."], 422);
             }
         }
 
@@ -721,7 +727,7 @@ class EventController extends Controller
                 $recommendedId = $recommendation['recommended_officer_id'];
                 $assignedTo = $draft['assigned_to'] ?? $recommendedId;
                 if ($assignedTo === null || ! collect($recommendation['rankings'])->contains('officer_id', (int) $assignedTo)) {
-                    abort(422, 'No eligible SBO Officer is available for one or more workflow tasks.');
+                    abort(422, "No officer is currently available for '{$draft['title']}'. Check officer status, positions, and open task limits.");
                 }
                 $selected = collect($recommendation['rankings'])->firstWhere('officer_id', (int) $assignedTo);
                 $task = Task::create([
@@ -819,7 +825,7 @@ class EventController extends Controller
 
         $this->explainWorkflowAssignments($request, $event, collect($created));
 
-        return response()->json(['message' => 'Workflow confirmed and tasks assigned.', 'tasks' => collect($created)->map->fresh()->values()], 201);
+        return response()->json(['message' => 'Tasks saved and assigned. Each officer has been notified.', 'tasks' => collect($created)->map->fresh()->values()], 201);
     }
 
     private function explainWorkflowAssignments(Request $request, Event $event, $tasks): void
@@ -920,15 +926,15 @@ class EventController extends Controller
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
         if (! $event || $aiOutput->organization_id !== $request->user()->organization_id || (int) $aiOutput->reference_id !== (int) $event->id || $aiOutput->feature_type !== 'EVENT_WORKFLOW') {
-            return response()->json(['message' => 'Event workflow not found.'], 404);
+            return response()->json(['message' => 'This event plan could not be found.'], 404);
         }
         if ($aiOutput->decision_status !== 'pending') {
-            return response()->json(['message' => 'This workflow version has already been decided.'], 409);
+            return response()->json(['message' => 'This draft has already been saved or removed.'], 409);
         }
         $aiOutput->update(['decision_status' => 'discarded', 'decided_by' => $request->user()->school_id, 'decided_at' => now()]);
         $this->auditAiAction($request, 'workflow_discarded', $event, ['ai_output_id' => $aiOutput->id]);
 
-        return response()->json(['message' => 'Workflow draft discarded.']);
+        return response()->json(['message' => 'Draft removed. No tasks were created.']);
     }
 
     public function workflowHistory(Request $request, $id)

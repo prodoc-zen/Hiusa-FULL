@@ -25,3 +25,27 @@ export function isoToLocalDateTimeInput(value) {
     pad(date.getMinutes()),
   ].join('');
 }
+
+export function formatDateTime(value, fallback = '—') {
+  if (!value) return fallback;
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return fallback;
+
+  return new Intl.DateTimeFormat('en-PH', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  }).format(date);
+}
+
+export function replaceIsoDateTimes(value) {
+  if (value === null || value === undefined) return '';
+
+  return String(value).replace(
+    /\b\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:\d{2})?\b/g,
+    (dateTime) => formatDateTime(dateTime, dateTime),
+  );
+}
