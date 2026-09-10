@@ -84,7 +84,7 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
   const generateWorkflow = page.getByRole('button', { name: 'Generate Workflow Draft' });
   await expect(generateWorkflow).toBeEnabled();
   await generateWorkflow.click();
-  await expect(page.getByText('Generated workflow — review required', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Generated workflow — \d+ to-do items — review required/)).toBeVisible();
   await expect(page.getByText('Preparation Phases', { exact: true })).toBeVisible();
   await expect(page.getByText('Timeline', { exact: true })).toBeVisible();
   await expect(page.getByText('Resources', { exact: true })).toBeVisible();

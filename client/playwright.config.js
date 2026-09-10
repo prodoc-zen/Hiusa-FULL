@@ -1,6 +1,9 @@
 import { defineConfig, devices } from '@playwright/test';
 import process from 'node:process';
 
+const clientPort = process.env.HIUSA_E2E_CLIENT_PORT || '5173';
+const baseURL = process.env.HIUSA_E2E_BASE_URL || `http://127.0.0.1:${clientPort}`;
+
 export default defineConfig({
   testDir: './e2e',
 
@@ -15,7 +18,7 @@ export default defineConfig({
   timeout: 30_000,
 
   use: {
-    baseURL: 'http://127.0.0.1:5173',
+    baseURL,
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
   },
@@ -28,9 +31,9 @@ export default defineConfig({
   ],
 
   webServer: {
-    command: 'npm run dev -- --host 127.0.0.1 --port 5173',
+    command: `npm run dev -- --host 127.0.0.1 --port ${clientPort}`,
     cwd: '.',
-    url: 'http://127.0.0.1:5173',
+    url: baseURL,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
