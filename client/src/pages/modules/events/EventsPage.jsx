@@ -25,6 +25,8 @@ import { getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
+import { getApiErrorMessage } from '../../../utils/apiError';
+import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIsoDateTimes } from '../../../utils/dateTime';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
@@ -62,13 +64,26 @@ const allowedStatusTransitions = {
   cancelled: [],
 };
 
-function formatDateTime(iso) {
-  if (!iso) return '-';
-  return new Date(iso).toLocaleString('en-PH', { month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
 function capitalize(s) {
   return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
+}
+
+const workflowStatusLabel = {
+  pending: 'Needs review',
+  accepted: 'Tasks created',
+  discarded: 'Removed',
+  rejected: 'Could not create',
+};
+
+const workflowPhaseLabel = {
+  pre_event: 'Before the event',
+  event_day: 'During the event',
+  post_event: 'After the event',
+};
+
+function scoreLabel(value) {
+  const score = Number(value);
+  return Number.isFinite(score) ? `${Math.round(score)}/100` : 'Not available';
 }
 
 function formatCurrency(value) {
@@ -171,7 +186,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         setTasks(taskList);
         setEventReload((value) => value + 1);
       })
-      .catch(() => setError('Failed to load data.'))
+      .catch((requestError) => setError(getApiErrorMessage(requestError, 'We could not load your events and tasks. Check your connection and try again.')))
       .finally(() => setLoading(false));
   }
 
@@ -187,7 +202,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           setEventRows(Array.isArray(response.data?.data) ? response.data.data : []);
           setEventTotal(Number(response.data?.total || 0));
         })
-        .catch(() => { if (active) setError('Failed to load events.'); })
+        .catch((requestError) => { if (active) setError(getApiErrorMessage(requestError, 'We could not load the event list. Check your connection and try again.')); })
         .finally(() => { if (active) setEventListLoading(false); });
     }, 250);
 
@@ -268,7 +283,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       const res = await getAttendance(selectedAttEventId);
       setAttendanceData(res.data);
     } catch (err) {
-      setCheckInError(err.response?.data?.message ?? 'Failed to record check-in.');
+      setCheckInError(getApiErrorMessage(err, 'We could not record this check-in. Please try again.'));
     } finally {
       setCheckInSubmitting(false);
     }
@@ -328,7 +343,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setForm(emptyEventForm());
       load();
     } catch (err) {
-      setFormError(err.response?.data?.message ?? `Failed to ${editingEventId ? 'update' : 'create'} event.`);
+      setFormError(getApiErrorMessage(err, `We could not ${editingEventId ? 'update' : 'create'} this event. Please try again.`));
     } finally {
       setFormSubmitting(false);
     }
@@ -343,13 +358,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   function openEditForm(event) {
     const planning = event.planning_details || {};
+    const [startDate = '', startTime = ''] = isoToLocalDateTimeInput(event.start_time).split('T');
+    const [endDate = '', endTime = ''] = isoToLocalDateTimeInput(event.end_time).split('T');
     setEditingEventId(event.id);
     setForm({
       title: event.title || '',
-      date: String(event.start_time || '').slice(0, 10),
-      startTime: String(event.start_time || '').slice(11, 16),
-      endDate: String(event.end_time || '').slice(0, 10),
-      endTime: String(event.end_time || '').slice(11, 16),
+      date: startDate,
+      startTime,
+      endDate,
+      endTime,
       location: event.location || '',
       description: event.description || '',
       imageFile: null,
@@ -402,7 +419,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setEvents((current) => current.map((event) => event.id === response.data.id ? response.data : event));
       setEventRows((current) => current.map((event) => event.id === response.data.id ? response.data : event));
     } catch (err) {
-      setStatusError(err.response?.data?.message ?? 'Failed to update event status.');
+      setStatusError(getApiErrorMessage(err, 'We could not update the event status. Please try again.'));
     } finally {
       setStatusUpdating(false);
     }
@@ -426,7 +443,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       getEventWorkflowHistory(planForm.event_id).then((history) => setWorkflowHistory(history.data || [])).catch(() => {});
       setPlanForm({ event_id: planForm.event_id, requirements: '' });
     } catch (err) {
-      setPlanError(err.response?.data?.message ?? 'Failed to generate event plan.');
+      setPlanError(getApiErrorMessage(err, 'We could not create a reliable to-do list. Check the event details and try again.'));
     } finally {
       setPlanSubmitting(false);
     }
@@ -455,29 +472,35 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   async function confirmWorkflow() {
     if (!workflowDraft || !workflowOutputId) return;
+    const incompleteTask = workflowDraft.tasks.findIndex((task) => !task.title?.trim() || !task.deadline);
+    if (incompleteTask !== -1) {
+      setPlanError(`To-do ${incompleteTask + 1} needs a name and due date before you can save it.`);
+      return;
+    }
     setWorkflowAction(true); setPlanError(null);
     try {
       const response = await confirmEventWorkflow(planForm.event_id, workflowOutputId, workflowDraft.tasks);
       const created = response.data?.tasks || [];
       setTasks((current) => [...created, ...current]);
       setWorkflowDraft(null); setWorkflowOutputId(null);
-      setPlanResult('Workflow confirmed. Officers have been notified of their assigned tasks.');
+      setPlanResult('Tasks created and assigned. Each officer has received a notification.');
       setWorkflowHistory((current) => current.map((output) => output.id === workflowOutputId ? { ...output, decision_status: 'accepted' } : output));
       load();
     } catch (requestError) {
-      setPlanError(requestError.response?.data?.message || 'Unable to confirm the workflow.');
+      setPlanError(getApiErrorMessage(requestError, 'We could not save and assign these tasks. Review the highlighted details and try again.'));
     } finally { setWorkflowAction(false); }
   }
 
   async function discardWorkflow() {
     if (!workflowOutputId) return;
+    if (!window.confirm('Remove this draft? No tasks have been created from it yet.')) return;
     setWorkflowAction(true); setPlanError(null);
     try {
       await discardEventWorkflow(planForm.event_id, workflowOutputId);
-      setWorkflowDraft(null); setWorkflowOutputId(null); setPlanResult('Workflow draft discarded.');
+      setWorkflowDraft(null); setWorkflowOutputId(null); setPlanResult('Draft removed. No tasks were created.');
       setWorkflowHistory((current) => current.map((output) => output.id === workflowOutputId ? { ...output, decision_status: 'discarded' } : output));
     } catch (requestError) {
-      setPlanError(requestError.response?.data?.message || 'Unable to discard the workflow.');
+      setPlanError(getApiErrorMessage(requestError, 'We could not remove this draft. Please try again.'));
     } finally { setWorkflowAction(false); }
   }
 
@@ -488,6 +511,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const eventLinkedTasks = tasks.filter((t) => t.event_id);
   const pagedEvents = eventRows;
   const pagedEventTasks = eventLinkedTasks.slice((tasksPage - 1) * pageSize, tasksPage * pageSize);
+  const selectedPlanningEvent = events.find((event) => String(event.id) === String(planForm.event_id));
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
   const filteredAttendanceRecords = (attendanceData?.records ?? []).filter((record) => {
@@ -723,115 +747,150 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'tasks' && (
         <section className="space-y-4">
-          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <h2 className="text-lg font-bold text-[#0F172A]">Generate Event Plan</h2>
-            <p className="mt-1 text-sm font-medium text-slate-500">Analyze an event, turn the plan into an ordered to-do list, and delegate each task to the best-fit eligible officer.</p>
-            <div aria-label="Event workflow automation stages" className="mt-4 grid overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] md:grid-cols-3">
-              {[
-                ['1', 'Event Planning', 'Analyze timeline, resources, logistics, and risks'],
-                ['2', 'Workflow To-do List', 'Create sequenced tasks, deadlines, and dependencies'],
-                ['3', 'Task Delegation', 'Rank officers by role fit, workload, and performance'],
-              ].map(([step, title, detail], index) => (
-                <div key={title} className={`flex gap-3 p-3 ${index ? 'border-t border-[#DDE7EF] md:border-l md:border-t-0' : ''}`}>
-                  <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-xs font-black text-white">{step}</span>
-                  <div><p className="text-xs font-black text-[#0F172A]">{title}</p><p className="mt-0.5 text-[11px] leading-4 text-slate-500">{detail}</p></div>
+          <div className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
+              <div className="flex items-start gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]"><List size={19} /></div>
+                <div>
+                  <h2 className="text-lg font-bold text-[#0F172A]">Build an Event To-do List</h2>
+                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Choose an event and describe what needs to happen. The AI will suggest a plan, due dates, and officers. You review everything before any task is created.</p>
                 </div>
-              ))}
-            </div>
-            <form className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr_auto]" onSubmit={handleGeneratePlan}>
-              <select
-                aria-label="Event to plan"
-                value={planForm.event_id}
-                onChange={(e) => selectPlanningEvent(e.target.value)}
-                className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"
-              >
-                <option value="">Select event</option>
-                {events.map((evt) => (
-                  <option key={evt.id} value={evt.id}>{evt.title}</option>
-                ))}
-              </select>
-              <textarea
-                aria-label="Event planning requirements"
-                rows={2}
-                value={planForm.requirements}
-                onChange={(e) => setPlanForm({ ...planForm, requirements: e.target.value })}
-                placeholder="Timeline, resources, vendors, logistics, risks..."
-                className="rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] resize-none"
-              />
-              <div className="flex items-center gap-3">
-                <button
-                  type="submit"
-                  disabled={planSubmitting || !planForm.event_id || !planForm.requirements.trim()}
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
-                >
-                  {planSubmitting ? 'Generating event plan...' : 'Generate Workflow Draft'}
-                </button>
               </div>
-            </form>
-            {planError && <p className="mt-2 text-xs font-semibold text-red-600">{planError}</p>}
-            {workflowHistory.length > 0 && <div className="mt-3 flex flex-wrap items-center gap-2"><span className="text-xs font-bold text-slate-500">Versions:</span>{workflowHistory.map((output) => <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`rounded-full border px-3 py-1 text-xs font-bold ${output.id === workflowOutputId ? 'border-[#0B8ED0] bg-[#EEF6FB] text-[#0B8ED0]' : 'border-[#DDE7EF] text-slate-600'}`}>v{output.version} · {capitalize(output.decision_status)}</button>)}</div>}
-            {planResult && !workflowDraft && (
-              <pre className="mt-4 max-h-72 overflow-auto whitespace-pre-wrap rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-xs leading-5 text-slate-700">{planResult}</pre>
-            )}
-            {workflowDraft && (
-              <div className="mt-4 space-y-4 rounded-xl border border-[#B9DCEC] bg-[#F8FBFD] p-4">
-                <div><p className="text-xs font-black uppercase tracking-wider text-[#0B8ED0]">Generated workflow — {workflowDraft.tasks.length} to-do item{workflowDraft.tasks.length === 1 ? '' : 's'} — review required</p><p className="mt-1 text-sm text-slate-700">{workflowDraft.overview}</p></div>
-                <div className="grid gap-3 md:grid-cols-3">
-                  {[
-                    ['Preparation Phases', workflowDraft.preparation_phases],
-                    ['Timeline', workflowDraft.timeline],
-                    ['Resources', workflowDraft.resources],
-                    ['Logistics Checklist', workflowDraft.logistics],
-                    ['Risks / Conflicts', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]],
-                  ].map(([heading, items]) => <div key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><h3 className="text-xs font-black text-[#0F172A]">{heading}</h3><ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-slate-600">{items?.map((item) => <li key={item}>{item}</li>)}</ul></div>)}
+
+              <div aria-label="Steps for creating an event to-do list" className="mt-5 grid overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] md:grid-cols-3">
+                {[
+                  ['1', 'Choose an event', 'The event date, location, budget, and saved notes are included.'],
+                  ['2', 'Describe what is needed', 'Mention setup, supplies, publicity, safety, reports, or special concerns.'],
+                  ['3', 'Review and assign', 'Check every task and officer before saving the list.'],
+                ].map(([step, title, detail], index) => (
+                  <div key={title} className={`flex gap-3 p-4 ${index ? 'border-t border-[#DDE7EF] md:border-l md:border-t-0' : ''}`}>
+                    <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-xs font-black text-white">{step}</span>
+                    <div><p className="text-xs font-black text-[#0F172A]">{title}</p><p className="mt-1 text-[11px] leading-5 text-slate-500">{detail}</p></div>
+                  </div>
+                ))}
+              </div>
+
+              <form className="mt-5 grid gap-4 lg:grid-cols-[260px_1fr]" onSubmit={handleGeneratePlan}>
+                <div>
+                  <label htmlFor="planning-event" className="text-xs font-bold text-[#0F172A]">Event</label>
+                  <select id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                    <option value="">Choose an event</option>
+                    {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+                  </select>
+                  {selectedPlanningEvent && <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-5 text-slate-500"><Calendar size={13} className="mt-0.5 shrink-0 text-[#0B8ED0]" /> {formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
                 </div>
-                <div className="space-y-3">
+                <div>
+                  <label htmlFor="planning-needs" className="text-xs font-bold text-[#0F172A]">What should the to-do list cover?</label>
+                  <textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Example: registration, venue setup, publicity, equipment, safety checks, attendance, and the post-event report." className="mt-1.5 w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none transition placeholder:text-slate-400 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" />
+                  <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <p className="text-[11px] leading-5 text-slate-500">Include details the event record may not contain. Missing names, prices, and approvals will be marked for review instead of guessed.</p>
+                    <button type="submit" disabled={planSubmitting || !planForm.event_id || !planForm.requirements.trim()} className="h-11 shrink-0 rounded-lg bg-[#0B8ED0] px-5 text-[13px] font-bold text-white transition hover:bg-[#0878B7] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">{planSubmitting ? 'Creating your to-do list…' : 'Create To-do List'}</button>
+                  </div>
+                </div>
+              </form>
+
+              {planError && <div role="alert" className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3"><p className="text-sm font-bold text-red-700">We could not finish that action</p><p className="mt-1 text-xs leading-5 text-red-700">{planError}</p></div>}
+
+              {workflowHistory.length > 0 && (
+                <div className="mt-4 border-t border-[#DDE7EF] pt-4">
+                  <p className="text-xs font-bold text-[#0F172A]">Previous drafts</p>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {workflowHistory.map((output) => (
+                      <button key={output.id} type="button" onClick={() => { setPlanResult(output.output_text || ''); if (output.decision_status === 'pending' && output.structured_output) { setWorkflowDraft(output.structured_output); setWorkflowOutputId(output.id); } else { setWorkflowDraft(null); setWorkflowOutputId(null); } }} className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${output.id === workflowOutputId ? 'border-[#0B8ED0] bg-[#E6F6FD] text-[#0B8ED0]' : 'border-[#DDE7EF] bg-white text-slate-600 hover:border-[#B9DCEC] hover:bg-[#F8FBFD]'}`}>Draft {output.version} · {workflowStatusLabel[output.decision_status] || 'Status unavailable'}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {planResult && !workflowDraft && <div className="m-4 max-h-80 overflow-auto whitespace-pre-wrap rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm leading-6 text-slate-700 sm:m-5">{replaceIsoDateTimes(planResult)}</div>}
+
+            {workflowDraft && (
+              <div className="bg-[#F8FBFD] p-4 sm:p-5">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div><p className="text-xs font-black uppercase tracking-wider text-[#0B8ED0]">Ready for your review</p><h3 className="mt-1 text-base font-bold text-[#0F172A]">{workflowDraft.tasks.length} suggested to-do item{workflowDraft.tasks.length === 1 ? '' : 's'}</h3><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-600">{replaceIsoDateTimes(workflowDraft.overview)}</p></div>
+                  <span className="w-fit rounded-full border border-amber-200 bg-amber-50 px-3 py-1 text-xs font-bold text-amber-700">Nothing saved yet</span>
+                </div>
+
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                  {[
+                    ['Plan outline', workflowDraft.preparation_phases],
+                    ['Key dates', workflowDraft.timeline],
+                    ['What is needed', workflowDraft.resources],
+                    ['Setup and coordination', workflowDraft.logistics],
+                    ['Possible problems', [...(workflowDraft.risks || []), ...(workflowDraft.scheduling_conflicts || [])]],
+                  ].map(([heading, items]) => (
+                    <article key={heading} className="rounded-lg border border-[#DDE7EF] bg-white p-4"><h4 className="text-xs font-black text-[#0F172A]">{heading}</h4>{items?.length ? <ul className="mt-2 list-disc space-y-1.5 pl-4 text-xs leading-5 text-slate-600">{items.map((item, itemIndex) => <li key={`${heading}-${itemIndex}`}>{replaceIsoDateTimes(item)}</li>)}</ul> : <p className="mt-2 text-xs text-slate-400">Nothing listed.</p>}</article>
+                  ))}
+                </div>
+
+                <div className="mt-6 flex items-center justify-between gap-3">
+                  <div><h3 className="text-sm font-bold text-[#0F172A]">To-do items</h3><p className="mt-0.5 text-xs text-slate-500">Review the order, due dates, and assigned officers.</p></div>
+                  <button type="button" onClick={addWorkflowTask} className="inline-flex h-10 shrink-0 items-center gap-2 rounded-lg border border-[#0B8ED0] bg-white px-3 text-xs font-bold text-[#0B8ED0] transition hover:bg-[#E6F6FD]"><Plus size={15} /> Add to-do</button>
+                </div>
+
+                <div className="mt-3 space-y-4">
                   {workflowDraft.tasks.map((task, index) => {
                     const selectedOfficer = task.recommendation?.rankings?.find((ranking) => String(ranking.officer_id) === String(task.assigned_to));
+                    const dueDateHint = task.phase === 'pre_event' ? `Choose a time before ${formatDateTime(selectedPlanningEvent?.start_time)}.` : task.phase === 'event_day' ? `Choose a time between ${formatDateTime(selectedPlanningEvent?.start_time)} and ${formatDateTime(selectedPlanningEvent?.end_time)}.` : `Choose a time after ${formatDateTime(selectedPlanningEvent?.end_time)}, within 30 days.`;
                     return (
-                    <article key={task.key} className="rounded-lg border border-[#DDE7EF] bg-white p-3">
-                      <p className="mb-2 text-[11px] font-black uppercase tracking-wider text-slate-400">To-do {index + 1} · {capitalize(task.phase)}</p>
-                      <div className="grid gap-2 lg:grid-cols-2">
-                        <input aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-sm font-bold" />
-                        <input aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={String(task.deadline || '').slice(0, 16)} onChange={(event) => updateWorkflowTask(index, 'deadline', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
-                        <select aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="pre_event">Pre-event</option><option value="event_day">Event day</option><option value="post_event">Post-event</option></select>
-                        <select aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select>
-                        <input aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Recommended role" className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
-                        <select aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs"><option value="">No dependency</option>{workflowDraft.tasks.slice(0, index).map((candidate) => <option key={candidate.key} value={candidate.key}>{candidate.title || candidate.key}</option>)}</select>
-                        <select aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-10 rounded-lg border border-[#DDE7EF] px-3 text-xs lg:col-span-2"><option value="">No eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>#{ranking.rank} {ranking.name} — {ranking.position_title} ({ranking.final_score})</option>)}</select>
-                        {selectedOfficer && <p className="rounded-md bg-[#EEF6FB] px-3 py-2 text-[11px] font-semibold text-slate-600 lg:col-span-2">Delegation score: position fit {selectedOfficer.role_score} · workload {selectedOfficer.workload_score} · performance {selectedOfficer.performance_score} · final {selectedOfficer.final_score}. Active tasks: {selectedOfficer.active_tasks}/{selectedOfficer.max_active_tasks}. Task area: {capitalize(task.recommendation?.task_area || 'general')}.</p>}
-                        <textarea aria-label={`Task ${index + 1} description`} value={task.description || ''} onChange={(event) => updateWorkflowTask(index, 'description', event.target.value)} rows={2} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs lg:col-span-2" />
-                      </div>
-                      <button type="button" onClick={() => removeWorkflowTask(index)} className="mt-2 text-xs font-bold text-red-600">Delete task</button>
-                    </article>
+                      <article key={task.key} className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3 border-b border-[#E5EDF3] pb-3">
+                          <div className="flex items-center gap-3"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#E6F6FD] text-xs font-black text-[#0B8ED0]">{index + 1}</span><div><p className="text-sm font-bold text-[#0F172A]">To-do {index + 1}</p><p className="mt-0.5 text-[11px] text-slate-500">{workflowPhaseLabel[task.phase] || 'Timing not selected'}</p></div></div>
+                          <button type="button" aria-label={`Delete to-do ${index + 1}`} onClick={() => removeWorkflowTask(index)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-red-200 text-red-600 transition hover:bg-red-50"><X size={15} /></button>
+                        </div>
+
+                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                          <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-[#0F172A]">Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-semibold outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
+                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]">Due date and time</label><input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]">What needs to be done?</label><textarea id={`workflow-description-${index}`} aria-label={`Task ${index + 1} description`} value={task.description || ''} onChange={(event) => updateWorkflowTask(index, 'description', event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
+                          <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-[#0F172A]">When should it happen?</label><select id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></select></div>
+                          <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]">Importance</label><select id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select></div>
+                          <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]">Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
+                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]">This can start after</label><select id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{candidate.title || `To-do ${candidateIndex + 1}`}</option>)}</select></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]">Assign to</label><select id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Let the system choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {ranking.name} — {ranking.position_title} — {scoreLabel(ranking.final_score)} overall match</option>)}</select>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">The system will check for the best available officer when you save this task.</p>}</div>
+                        </div>
+
+                        {selectedOfficer && (
+                          <div className="mt-4 rounded-lg border border-[#B9DCEC] bg-[#F5FBFE] p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#0F172A]">Why {selectedOfficer.name} was suggested</p><span className="rounded-full bg-[#0B8ED0] px-2.5 py-1 text-[11px] font-bold text-white">{scoreLabel(selectedOfficer.final_score)} overall match</span></div>
+                            <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score]].map(([label, value]) => <div key={label} className="rounded-md border border-[#DDE7EF] bg-white px-3 py-2"><p className="text-[10px] font-semibold text-slate-500">{label}</p><p className="mt-0.5 text-xs font-black text-[#0F172A]">{scoreLabel(value)}</p></div>)}</div>
+                            {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-[11px] leading-5 text-slate-600">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
+                          </div>
+                        )}
+                      </article>
                     );
                   })}
                 </div>
-                <div className="flex flex-wrap gap-2"><button type="button" onClick={addWorkflowTask} className="h-10 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0B8ED0]">Add task</button><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-10 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 disabled:opacity-50">Discard</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0} onClick={confirmWorkflow} className="h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white disabled:opacity-50">{workflowAction ? 'Saving...' : 'Confirm & Create Workflow'}</button></div>
+
+                <div className="mt-5 flex flex-col gap-3 border-t border-[#DDE7EF] pt-5 sm:flex-row sm:items-center sm:justify-between">
+                  <p className="text-xs leading-5 text-slate-500">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row"><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-11 rounded-lg border border-red-200 bg-white px-4 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50">Remove Draft</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0} onClick={confirmWorkflow} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-xs font-bold text-white transition hover:bg-[#0878B7] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:opacity-50">{workflowAction ? 'Saving and assigning…' : 'Save and Assign Tasks'}</button></div>
+                </div>
               </div>
             )}
           </div>
 
           <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="border-b border-[#DDE7EF] p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">Event Task Assignments</h2>
-            <p className="text-sm font-medium text-slate-500">Tasks linked to events</p>
+          <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
+            <h2 className="text-lg font-bold text-[#0F172A]">Assigned Event Tasks</h2>
+            <p className="mt-1 text-sm text-slate-500">See who is responsible, when each task is due, and whether it can begin.</p>
           </div>
           {loading ? (
             <div className="space-y-2 p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : eventLinkedTasks.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No event-linked tasks yet.</p>
+            <div className="p-8 text-center"><p className="text-sm font-semibold text-slate-600">No event tasks yet</p><p className="mt-1 text-xs text-slate-400">Create and save a to-do list above to assign the first tasks.</p></div>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[600px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
                     <th className="px-5 py-3">Task</th>
-                    <th className="px-5 py-3">Assigned To</th>
+                    <th className="px-5 py-3">Assigned Officer</th>
                     <th className="px-5 py-3">Event</th>
-                    <th className="px-5 py-3">Deadline</th>
+                    <th className="px-5 py-3">Due Date</th>
                     <th className="px-5 py-3">Status</th>
                   </tr>
                 </thead>
@@ -845,7 +904,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       <td className="max-w-[160px] truncate px-5 py-4 font-medium text-slate-600">
                         {t.event?.title ?? '-'}
                       </td>
-                      <td className="px-5 py-4 font-medium text-slate-600">{t.deadline ?? '-'}</td>
+                      <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-600">{formatDateTime(t.deadline)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${taskStatusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(t.workflow_status || t.status)}

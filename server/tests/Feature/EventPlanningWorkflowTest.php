@@ -189,7 +189,7 @@ class EventPlanningWorkflowTest extends TestCase
             'requirements' => 'Create a last-minute workflow.',
             'create_workflow' => true,
         ])->assertUnprocessable()
-            ->assertJsonPath('message', 'Workflow tasks require an event that starts at least five minutes in the future.');
+            ->assertJsonPath('message', 'Choose an event that starts at least five minutes from now so its tasks can be scheduled.');
 
         $this->assertDatabaseCount('ai_outputs', 0);
         $this->assertDatabaseCount('tasks', 0);
@@ -220,7 +220,8 @@ class EventPlanningWorkflowTest extends TestCase
 
         $this->postJson("/api/events/{$event->id}/generate-plan", [
             'requirements' => 'Require a complete plan.',
-        ])->assertServiceUnavailable();
+        ])->assertServiceUnavailable()
+            ->assertJsonPath('message', 'We could not create a reliable to-do list right now. Please wait a moment and try again.');
 
         $this->assertDatabaseCount('tasks', 0);
         $this->assertDatabaseHas('ai_outputs', ['feature_type' => 'EVENT_WORKFLOW', 'status' => 'failed']);
