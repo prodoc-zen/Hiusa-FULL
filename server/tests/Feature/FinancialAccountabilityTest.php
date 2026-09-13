@@ -23,10 +23,10 @@ class FinancialAccountabilityTest extends TestCase
     public function test_verified_collection_can_be_partially_remitted_without_double_counting_ledger_income(): void
     {
         $officer = $this->user('SBO_OFFICER');
-        $adviser = $this->user('DEPARTMENT_HEAD', $officer->organization_id);
+        $superAdmin = $this->user('SUPER_ADMIN', $officer->organization_id);
         Sanctum::actingAs($officer);
         $collection = $this->postJson('/api/collections', ['expected_amount' => '1000.00', 'amount_collected' => '850.00', 'source' => 'Event fee'])->assertCreated()->json();
-        Sanctum::actingAs($adviser);
+        Sanctum::actingAs($superAdmin);
         $this->patchJson('/api/collections/'.$collection['id'].'/verify')->assertOk();
         Sanctum::actingAs($officer);
         $this->postJson('/api/collections/'.$collection['id'].'/remittances', ['amount' => '700.00'])->assertCreated();
@@ -40,12 +40,16 @@ class FinancialAccountabilityTest extends TestCase
     {
         $officer = $this->user('SBO_OFFICER');
         $admin = $this->user('ADMIN', $officer->organization_id);
+        $superAdmin = $this->user('SUPER_ADMIN', $officer->organization_id);
         Sanctum::actingAs($officer);
         $advanceId = $this->postJson('/api/cash-advances', ['amount' => '500.00', 'purpose' => 'Venue deposit'])->assertCreated()->json('id');
         Sanctum::actingAs($officer);
         $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertForbidden();
         Sanctum::actingAs($admin);
+        $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertForbidden();
+        Sanctum::actingAs($superAdmin);
         $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertOk();
+        Sanctum::actingAs($admin);
         $this->patchJson("/api/cash-advances/{$advanceId}/release")->assertOk();
         $this->postJson("/api/cash-advances/{$advanceId}/repayments", ['amount' => '200.00'])->assertOk()->assertJsonPath('remaining_balance', 300);
         $this->postJson("/api/cash-advances/{$advanceId}/repayments", ['amount' => '301.00'])->assertUnprocessable();

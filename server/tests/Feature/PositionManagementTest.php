@@ -68,7 +68,7 @@ class PositionManagementTest extends TestCase
     public function test_user_positions_are_validated_by_role_and_organization(): void
     {
         $organization = Organization::factory()->create();
-        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SUPER_ADMIN']);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => 'Secretary', 'is_active' => true]);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer', 'is_active' => true]);
 

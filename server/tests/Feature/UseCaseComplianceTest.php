@@ -91,14 +91,14 @@ class UseCaseComplianceTest extends TestCase
         $this->assertTrue(Hash::check('password123', $reactivatedUser->password_hash));
 
         $this->putJson("/api/users/{$admin->school_id}", ['account_status' => 'disabled'])
-            ->assertUnprocessable();
+            ->assertForbidden();
         $this->postJson("/api/users/{$admin->school_id}/disable")
-            ->assertUnprocessable();
+            ->assertForbidden();
 
         $disabledAdmin = $this->user('ADMIN', $admin->organization_id);
         $disabledAdmin->update(['account_status' => 'disabled']);
         $this->putJson("/api/users/{$admin->school_id}", ['role' => 'STUDENT'])
-            ->assertUnprocessable();
+            ->assertForbidden();
 
         $this->assertDatabaseHas('audit_logs', [
             'module' => 'users',
@@ -232,7 +232,7 @@ class UseCaseComplianceTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => $linkedBudget->id,
             'requested_by' => $admin->school_id,
-            'required_role' => 'DEPARTMENT_HEAD',
+            'required_role' => 'SUPER_ADMIN',
             'status' => 'approved',
         ]);
         Attendance::create([
@@ -268,7 +268,7 @@ class UseCaseComplianceTest extends TestCase
     public function test_only_approved_budgets_are_spendable_and_overspending_is_reversible(): void
     {
         $admin = $this->user('ADMIN');
-        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
+        $superAdmin = $this->user('SUPER_ADMIN', $admin->organization_id);
         $this->authenticate($admin);
         $budgetId = $this->postJson('/api/budgets', [
             'title' => 'Operations Budget',
@@ -286,7 +286,7 @@ class UseCaseComplianceTest extends TestCase
 
         $this->postJson('/api/transactions', $transaction)->assertUnprocessable();
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
-        $this->authenticate($departmentHead);
+        $this->authenticate($superAdmin);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
@@ -320,7 +320,7 @@ class UseCaseComplianceTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => $budget->id,
             'requested_by' => $admin->school_id,
-            'required_role' => 'DEPARTMENT_HEAD',
+            'required_role' => 'SUPER_ADMIN',
             'status' => 'approved',
         ]);
         $this->authenticate($admin);
@@ -345,7 +345,7 @@ class UseCaseComplianceTest extends TestCase
     public function test_approved_budget_changes_reopen_approval_before_more_spending(): void
     {
         $admin = $this->user('ADMIN');
-        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
+        $superAdmin = $this->user('SUPER_ADMIN', $admin->organization_id);
         $this->authenticate($admin);
 
         $budgetId = $this->postJson('/api/budgets', [
@@ -355,7 +355,7 @@ class UseCaseComplianceTest extends TestCase
         ])->assertCreated()->json('id');
 
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
-        $this->authenticate($departmentHead);
+        $this->authenticate($superAdmin);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
@@ -840,7 +840,7 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseCount('votes', 0);
     }
 
-    public function test_manual_attendance_records_status_and_biometric_is_safely_deferred(): void
+    public function test_manual_attendance_records_status_and_legacy_biometric_submission_is_rejected(): void
     {
         $admin = $this->user('ADMIN');
         $student = $this->user('STUDENT', $admin->organization_id);
@@ -869,7 +869,8 @@ class UseCaseComplianceTest extends TestCase
         $this->postJson("/api/events/{$event->id}/attendance", [
             'user_id' => $otherStudent->school_id,
             'method' => 'biometric',
-        ])->assertStatus(501);
+        ])->assertUnprocessable()
+            ->assertJsonPath('message', 'Biometric attendance must be submitted through the fingerprint identification endpoint.');
     }
 
     public function test_votes_lock_election_ballot_setup(): void

@@ -42,10 +42,10 @@ class BudgetSeeder extends Seeder
         // Budgets have no approved_at column of their own - TransactionController
         // gates new postings solely on the latest ApprovalRequest for the budget
         // being 'approved'. The Sports Fest budget is left deliberately pending
-        // (unapproved) so the Department Head Approvals screen has a real budget
+        // (unapproved) so the Super Admin Approvals screen has a real budget
         // to sign off on live, distinct from the event approval demo.
-        $deptHead = User::where('organization_id', $officer1->organization_id)
-            ->where('role', 'DEPARTMENT_HEAD')
+        $superAdmin = User::where('organization_id', $officer1->organization_id)
+            ->where('role', 'SUPER_ADMIN')
             ->first();
 
         foreach ([
@@ -59,15 +59,15 @@ class BudgetSeeder extends Seeder
             // withoutEvents() suppresses ApprovalRequest::booted()'s
             // notifyApprovers() and recordSubmissionAudit(), which would
             // otherwise fan out bogus notifications/audit rows during seeding.
-            ApprovalRequest::withoutEvents(function () use ($budget, $officer1, $deptHead, $approved) {
+            ApprovalRequest::withoutEvents(function () use ($budget, $officer1, $superAdmin, $approved) {
                 ApprovalRequest::create([
                     'organization_id' => $officer1->organization_id,
                     'entity_type' => 'budget',
                     'entity_id' => $budget->id,
                     'requested_by' => $officer1->school_id,
-                    'required_role' => 'DEPARTMENT_HEAD',
+                    'required_role' => 'SUPER_ADMIN',
                     'status' => $approved ? 'approved' : 'pending',
-                    'reviewed_by' => $approved ? $deptHead?->school_id : null,
+                    'reviewed_by' => $approved ? $superAdmin?->school_id : null,
                     'requested_at' => $approved ? now()->subWeeks(3) : now()->subDays(2),
                     'reviewed_at' => $approved ? now()->subWeeks(3)->addHours(6) : null,
                 ]);

@@ -160,7 +160,7 @@ class DemoDataIntegrityTest extends TestCase
         // reason as events above.
         $this->assertTrue(
             ApprovalRequest::where('entity_type', 'budget')->where('status', 'pending')->exists(),
-            'No pending budget ApprovalRequest exists for the Department Head to act on.'
+            'No pending budget ApprovalRequest exists for the Super Admin to act on.'
         );
 
         // POST /api/transactions is ADMIN-only (routes/api.php), and must be an
@@ -168,7 +168,9 @@ class DemoDataIntegrityTest extends TestCase
         // TransactionController scopes both the requester and the budget to the
         // requester's organization_id, and other seeded admins belong to other
         // orgs.
-        $admin = User::where('school_id', 990001)->firstOrFail();
+        $admin = User::where('role', 'ADMIN')
+            ->where('organization_id', $approvedBudget->organization_id)
+            ->firstOrFail();
         Sanctum::actingAs($admin);
 
         $this->postJson('/api/transactions', [

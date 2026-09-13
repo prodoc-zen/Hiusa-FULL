@@ -23,7 +23,7 @@ class UserController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
             'account_status' => ['nullable', 'in:active,inactive,disabled'],
             'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
@@ -35,6 +35,7 @@ class UserController extends Controller
         ]);
 
         $query = User::query()
+            ->withExists(['fingerprints as fingerprint_enrolled'])
             ->where('organization_id', $request->user()->organization_id);
 
         if (! empty($filters['role'])) {
@@ -122,6 +123,10 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
+        if ($validatedData['role'] === 'ADMIN' && $actor->role !== 'SUPER_ADMIN') {
+            return response()->json(['message' => 'Only the super admin can create administrator accounts.'], 403);
+        }
+
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
         $validatedData = $this->normalizePositionPayload($validatedData, $actor);
 
@@ -158,6 +163,14 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($user->role === 'SUPER_ADMIN') {
+            return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
+        }
+
+        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
+            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        }
+
         $oldValues = $this->auditableUserValues($user);
 
         $validatedData = $request->validate([
@@ -185,6 +198,10 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
             'password' => 'sometimes|required|string|min:8',
         ]);
+
+        if (($validatedData['role'] ?? $user->role) === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
+            return response()->json(['message' => 'Only the super admin can assign the administrator role.'], 403);
+        }
 
         if (
             array_key_exists('role', $validatedData) &&
@@ -234,6 +251,14 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($user->role === 'SUPER_ADMIN') {
+            return response()->json(['message' => 'The super admin account cannot be deactivated.'], 403);
+        }
+
+        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
+            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        }
+
         if ($user->school_id === $request->user()->school_id) {
             return response()->json(['message' => 'You cannot deactivate your own account.'], 422);
         }
@@ -267,6 +292,14 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($user->role === 'SUPER_ADMIN') {
+            return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
+        }
+
+        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
+            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        }
+
         if ($user->account_status === 'active') {
             return response()->json(['message' => 'User account is already active.'], 422);
         }
@@ -291,8 +324,12 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
-        if ($user->role === 'ADMIN') {
-            return response()->json(['message' => 'Admin accounts cannot be deleted using this endpoint.'], 422);
+        if ($user->role === 'SUPER_ADMIN') {
+            return response()->json(['message' => 'The super admin account cannot be deleted.'], 403);
+        }
+
+        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
+            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
         }
 
         $oldValues = $this->auditableUserValues($user);

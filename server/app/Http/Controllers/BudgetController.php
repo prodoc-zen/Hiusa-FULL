@@ -67,7 +67,7 @@ class BudgetController extends Controller
                 'entity_type' => 'budget',
                 'entity_id' => $budget->id,
                 'requested_by' => $request->user()->id,
-                'required_role' => $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD',
+                'required_role' => 'SUPER_ADMIN',
             ]);
 
             $this->recordBudgetAudit($request, 'created', $budget, null, $this->auditableValues($budget));
@@ -310,7 +310,7 @@ class BudgetController extends Controller
             ->first()
             ?->reopen(
                 $request->user()->id,
-                $request->user()->role === 'DEPARTMENT_HEAD' ? 'ADMIN' : 'DEPARTMENT_HEAD'
+                'SUPER_ADMIN'
             );
     }
 
