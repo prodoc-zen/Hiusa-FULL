@@ -125,6 +125,39 @@ class SuperAdminFingerprintTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_organization_admin_can_manage_a_fellow_admin_fingerprint_only_in_their_organization(): void
+    {
+        $organization = Organization::factory()->create();
+        $otherOrganization = Organization::factory()->create();
+        $actor = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $colleague = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $foreignAdmin = User::factory()->admin()->create(['organization_id' => $otherOrganization->id]);
+        $this->app->instance(FingerprintMatcher::class, new RecordingFingerprintMatcher);
+
+        Sanctum::actingAs($actor);
+
+        $this->postJson('/api/users/'.$colleague->school_id.'/fingerprint', [
+            'samples' => ['sample-1', 'sample-2', 'sample-3', 'sample-4'],
+            'sample_format' => 5,
+            'consent_confirmed' => true,
+        ])->assertCreated();
+
+        $this->assertDatabaseHas('fingerprints', [
+            'organization_id' => $organization->id,
+            'user_id' => $colleague->school_id,
+            'enrolled_by' => $actor->school_id,
+        ]);
+
+        $this->deleteJson('/api/users/'.$colleague->school_id.'/fingerprint')
+            ->assertOk();
+
+        $this->postJson('/api/users/'.$foreignAdmin->school_id.'/fingerprint', [
+            'samples' => ['sample-1', 'sample-2', 'sample-3', 'sample-4'],
+            'sample_format' => 5,
+            'consent_confirmed' => true,
+        ])->assertNotFound();
+    }
+
     public function test_budget_approval_is_visible_to_and_reviewable_only_by_super_admin(): void
     {
         $organization = Organization::factory()->create();

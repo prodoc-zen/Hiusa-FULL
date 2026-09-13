@@ -317,17 +317,21 @@ All passwords are shown below. The **Login** field differs by role.
 | Account email | `org.admin@hiusa.local` |
 | Password | `Admin@123456` |
 
-### Officers
+### Organization Leadership Admins
 | Name | Email | Password |
 |---|---|---|
 | Marco Dela Cruz | `officer1@hiusa.local` | `Demo@12345` |
 | Angela Santos | `officer2@hiusa.local` | `Demo@12345` |
 | Bianca Fernandez | `officer3@hiusa.local` | `Demo@12345` |
+| Mika Salcedo | `mika.salcedo@cbe.hiusa.local` | `Demo@12345` |
+
+### Officers
+| Name | Email | Password |
+|---|---|---|
 | Diego Villanueva | `officer4@hiusa.local` | `Demo@12345` |
 | Ellaine Morales | `officer5@hiusa.local` | `Demo@12345` |
 | Franco Cruz | `officer6@hiusa.local` | `Demo@12345` |
 | Grace Ibanez | `officer7@hiusa.local` | `Demo@12345` |
-| Mika Salcedo | `mika.salcedo@cbe.hiusa.local` | `Demo@12345` |
 
 ### Advisers
 | Name | Email | Password |
