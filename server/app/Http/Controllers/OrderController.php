@@ -488,6 +488,84 @@ class OrderController extends Controller
         return response()->json($order->load('merchandise:id,name,price,image_url'));
     }
 
+    public function cancel(Request $request, $id)
+    {
+        $data = $request->validate([
+            'reason' => ['nullable', 'string', 'max:500'],
+        ]);
+
+        try {
+            $order = DB::transaction(function () use ($request, $id, $data) {
+                $order = Order::where('organization_id', $request->user()->organization_id)
+                    ->whereKey($id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $order) {
+                    return null;
+                }
+
+                if ($order->student_id !== $request->user()->id) {
+                    abort(403, 'You can only cancel your own order.');
+                }
+
+                if ($order->status !== 'pending') {
+                    throw new DomainException("Only pending orders can be cancelled. Current status: {$order->status}.");
+                }
+
+                $reviewStarted = $order->officer_review_status !== 'pending'
+                    || $order->admin_review_status !== 'pending'
+                    || ApprovalRequest::where('organization_id', $order->organization_id)
+                        ->where('entity_type', 'payment')
+                        ->where('entity_id', $order->id)
+                        ->where('status', 'pending')
+                        ->exists();
+
+                if ($order->payment_proof_url || $reviewStarted) {
+                    throw new DomainException('This order already has payment activity. Contact merchandise staff so they can review the payment before cancelling it.');
+                }
+
+                $item = Merchandise::where('organization_id', $order->organization_id)
+                    ->whereKey($order->merchandise_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $item) {
+                    throw new DomainException('The merchandise item for this order could not be found.');
+                }
+
+                $remarks = trim($data['reason'] ?? '');
+                $order->update([
+                    'status' => 'cancelled',
+                    'review_remarks' => $remarks !== ''
+                        ? 'Cancelled by buyer: '.$remarks
+                        : 'Cancelled by buyer.',
+                ]);
+                $item->increment('stock_quantity', $order->quantity);
+
+                $this->notifyFulfillmentTeam(
+                    $order,
+                    'Merchandise Order Cancelled',
+                    'Order ORD-'.$order->id.' was cancelled by the buyer and its reserved stock was returned.'
+                );
+                $this->audit($request, 'cancelled_by_buyer', $order->fresh());
+
+                return $order->fresh();
+            });
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        if (! $order) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
+        $order->load('merchandise:id,name,category,price,image_url');
+        $order->setAttribute('claim_token', null);
+
+        return response()->json($order);
+    }
+
     public function updateStatus(Request $request, $id)
     {
         $order = Order::where('organization_id', $request->user()->organization_id)->find($id);
@@ -762,8 +840,11 @@ class OrderController extends Controller
         }
     }
 
-    private function notifyFulfillmentTeam(Order $order): void
-    {
+    private function notifyFulfillmentTeam(
+        Order $order,
+        string $title = 'New Merchandise Order',
+        ?string $message = null
+    ): void {
         $reviewers = User::where('organization_id', $order->organization_id)
             ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
             ->where('account_status', 'active')
@@ -773,8 +854,8 @@ class OrderController extends Controller
             Notification::create([
                 'organization_id' => $order->organization_id,
                 'user_id' => $reviewer->school_id,
-                'title' => 'New Merchandise Order',
-                'message' => 'Order ORD-'.$order->id.' is awaiting payment verification.',
+                'title' => $title,
+                'message' => $message ?? 'Order ORD-'.$order->id.' is awaiting payment verification.',
                 'notification_type' => 'merchandise',
                 'reference_type' => Order::class,
                 'reference_id' => $order->id,

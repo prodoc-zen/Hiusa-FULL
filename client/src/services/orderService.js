@@ -27,6 +27,9 @@ export const submitOrderPayment = (id, data) => {
   return api.post(`/orders/${id}/payment`, formData);
 };
 
+export const cancelOrder = (id, reason = null) =>
+  api.patch(`/orders/${id}/cancel`, { reason });
+
 export const openOrderPaymentProof = async (id) => {
   const preview = window.open('about:blank', '_blank');
   if (preview) {
