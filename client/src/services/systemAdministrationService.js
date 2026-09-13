@@ -1,6 +1,6 @@
 import api from './api';
 
-const unwrap = (response) => response.data;
+const unwrap = async (response) => (await response).data;
 
 export const getSystemOverview = (params) => unwrap(api.get('/system/overview', { params }));
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params }));
