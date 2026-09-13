@@ -441,8 +441,8 @@ export default function AdminUsersPage() {
         <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
       <Field label="Role">
-        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
-          {roles.map((role) => (
+        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={mode === 'edit' && selectedUser?.role === 'ADMIN'} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
+          {(mode === 'edit' && selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
         </select>
@@ -578,7 +578,7 @@ export default function AdminUsersPage() {
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex gap-1.5">
-                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>}
+                      {user.role !== 'SUPER_ADMIN' && <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>}
                       <button aria-label={`View ${user.first_name} ${user.last_name}`} title="View user" onClick={() => openProfile(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]"><Eye size={14} /></button>
                       {((user.role === 'SUPER_ADMIN' && actorRole === 'SUPER_ADMIN' && Number(user.school_id) === Number(actorId)) || (user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN'))) && <button aria-label={`Enroll fingerprint for ${user.first_name} ${user.last_name}`} title={user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint'} onClick={() => setFingerprintTarget(user)} className={`grid h-9 w-9 place-items-center rounded-md border ${user.fingerprint_enrolled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}><Fingerprint size={14} /></button>}
                       {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && user.account_status !== 'disabled' && (

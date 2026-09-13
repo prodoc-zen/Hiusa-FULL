@@ -90,6 +90,9 @@ class UseCaseComplianceTest extends TestCase
         $reactivatedUser = User::findOrFail($created->json('school_id'));
         $this->assertTrue(Hash::check('password123', $reactivatedUser->password_hash));
 
+        $this->putJson("/api/users/{$admin->school_id}", ['first_name' => 'Updated Admin'])
+            ->assertOk()
+            ->assertJsonPath('first_name', 'Updated Admin');
         $this->putJson("/api/users/{$admin->school_id}", ['account_status' => 'disabled'])
             ->assertForbidden();
         $this->postJson("/api/users/{$admin->school_id}/disable")
