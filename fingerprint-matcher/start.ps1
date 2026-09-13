@@ -1,6 +1,18 @@
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
+$healthUrl = 'http://127.0.0.1:9100/health'
+
+try {
+    $health = Invoke-RestMethod -Uri $healthUrl -TimeoutSec 2
+    if ($health.status -eq 'ok' -and $health.service -eq 'hiusa-sourceafis-matcher') {
+        Write-Host "Fingerprint matcher is already running at $healthUrl." -ForegroundColor Green
+        return
+    }
+} catch {
+    # No healthy matcher is listening, so continue with normal startup.
+}
+
 if (-not (Test-Path '.env')) {
     throw 'Missing .env. Copy .env.example to .env and configure MATCHER_API_KEY first.'
 }
