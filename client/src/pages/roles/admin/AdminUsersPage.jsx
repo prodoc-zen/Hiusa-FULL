@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { CircleCheck, CircleX, Download, Eye, Fingerprint, MoreHorizontal, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -71,7 +72,7 @@ function firstError(error) {
   return error?.response?.data?.message;
 }
 
-const ACTION_COLORS = {
+const ACTION_ICON_COLORS = {
   edit: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
   view: 'border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]',
   fingerprint: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
@@ -81,7 +82,7 @@ const ACTION_COLORS = {
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
 };
 
-function ActionButton({ action, expanded = true, index = 0 }) {
+function ActionButton({ action }) {
   const Icon = action.icon;
 
   return (
@@ -89,10 +90,8 @@ function ActionButton({ action, expanded = true, index = 0 }) {
       type="button"
       aria-label={action.label}
       title={action.title}
-      tabIndex={expanded ? 0 : -1}
       onClick={action.onClick}
-      style={{ transitionDelay: expanded ? `${index * 35}ms` : '0ms' }}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border shadow-sm transition-all duration-200 ${ACTION_COLORS[action.color]} ${expanded ? 'translate-x-0 scale-100 opacity-100' : 'translate-x-3 scale-75 opacity-0'}`}
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border shadow-sm transition-colors duration-200 ${ACTION_ICON_COLORS[action.color]}`}
     >
       <Icon size={14} strokeWidth={2.2} />
     </button>
@@ -101,33 +100,40 @@ function ActionButton({ action, expanded = true, index = 0 }) {
 
 export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onDeactivate, onReactivate, onDelete }) {
   const [expanded, setExpanded] = useState(false);
-  const dockRef = useRef(null);
+  const [menuPosition, setMenuPosition] = useState({ left: 12, top: 12, origin: 'top right' });
+  const triggerRef = useRef(null);
+  const menuRef = useRef(null);
   const name = `${user.first_name} ${user.last_name}`;
   const canManageAccount = user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
   const actions = [
-    user.role !== 'SUPER_ADMIN' && { key: 'edit', label: `Edit ${name}`, title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
-    { key: 'view', label: `View ${name}`, title: 'View user', icon: Eye, color: 'view', onClick: onView },
-    user.role !== 'SUPER_ADMIN' && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
-    canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
-    canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
-    canManageAccount && { key: 'delete', label: `Delete ${name}`, title: 'Delete user', icon: Trash2, color: 'delete', onClick: onDelete },
+    user.role !== 'SUPER_ADMIN' && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
+    { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, color: 'view', onClick: onView },
+    user.role !== 'SUPER_ADMIN' && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
+    canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
+    canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
+    canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete account', title: 'Delete user', icon: Trash2, color: 'delete', onClick: onDelete },
   ].filter(Boolean);
 
   useEffect(() => {
     if (!expanded) return undefined;
 
     const closeOnOutsideClick = (event) => {
-      if (!dockRef.current?.contains(event.target)) setExpanded(false);
+      if (!triggerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setExpanded(false);
     };
     const closeOnEscape = (event) => {
       if (event.key === 'Escape') setExpanded(false);
     };
+    const closeOnViewportChange = () => setExpanded(false);
     document.addEventListener('pointerdown', closeOnOutsideClick);
     document.addEventListener('keydown', closeOnEscape);
+    window.addEventListener('resize', closeOnViewportChange);
+    window.addEventListener('scroll', closeOnViewportChange, true);
 
     return () => {
       document.removeEventListener('pointerdown', closeOnOutsideClick);
       document.removeEventListener('keydown', closeOnEscape);
+      window.removeEventListener('resize', closeOnViewportChange);
+      window.removeEventListener('scroll', closeOnViewportChange, true);
     };
   }, [expanded]);
 
@@ -137,33 +143,83 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   };
 
   if (actions.length <= 2) {
-    return <div className="flex justify-end gap-1.5">{actions.map((action, index) => <ActionButton key={action.key} action={{ ...action, onClick: () => run(action) }} index={index} />)}</div>;
+    return <div className="flex justify-end gap-1.5">{actions.map((action) => <ActionButton key={action.key} action={{ ...action, onClick: () => run(action) }} />)}</div>;
   }
 
-  const expandedWidth = 46 + (actions.length * 38);
+  const toggleMenu = () => {
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+
+    const rect = triggerRef.current?.getBoundingClientRect();
+    if (rect) {
+      const menuWidth = 224;
+      const menuHeight = 62 + (actions.length * 44);
+      const opensUpward = window.innerHeight - rect.bottom < menuHeight + 16 && rect.top > menuHeight;
+      setMenuPosition({
+        left: Math.max(12, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12)),
+        top: opensUpward ? Math.max(12, rect.top - menuHeight - 8) : rect.bottom + 8,
+        origin: opensUpward ? 'bottom right' : 'top right',
+      });
+    }
+    setExpanded(true);
+  };
+
+  const menu = typeof document === 'undefined' ? null : createPortal(
+    <div
+      ref={menuRef}
+      id={`user-actions-${user.school_id}`}
+      role="menu"
+      aria-label={`Actions for ${name}`}
+      aria-hidden={!expanded}
+      style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
+      className={`fixed z-[100] w-56 rounded-2xl border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
+    >
+      <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0B8ED0]">User actions</p>
+        <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{name}</p>
+      </div>
+      <div className="space-y-0.5">
+        {actions.map((action) => {
+          const Icon = action.icon;
+          const destructive = action.key === 'delete';
+          return (
+            <button
+              key={action.key}
+              type="button"
+              role="menuitem"
+              aria-label={action.label}
+              tabIndex={expanded ? 0 : -1}
+              onClick={() => run(action)}
+              className={`group flex h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-[13px] font-semibold transition-colors duration-150 ${destructive ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-[#EEF6FB] hover:text-[#0878B7]'}`}
+            >
+              <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-colors duration-150 ${ACTION_ICON_COLORS[action.color]}`}><Icon size={14} strokeWidth={2.1} /></span>
+              <span className="min-w-0 flex-1 truncate">{action.menuLabel}</span>
+              <span className={`h-1.5 w-1.5 rounded-full transition-all duration-150 ${destructive ? 'bg-red-200 group-hover:bg-red-500' : 'bg-slate-200 group-hover:bg-[#16C7F3]'}`} />
+            </button>
+          );
+        })}
+      </div>
+    </div>,
+    document.body,
+  );
 
   return (
-    <div ref={dockRef} className="relative ml-auto h-10 w-10">
-      <div
-        role="group"
-        aria-label={`Actions for ${name}`}
-        style={{ width: expanded ? `${expandedWidth}px` : '40px' }}
-        className={`absolute right-0 top-0 z-20 flex h-10 items-center justify-end overflow-hidden rounded-xl border shadow-lg transition-[width,background-color,border-color,box-shadow] duration-300 ease-out ${expanded ? 'border-[#B9D9E9] bg-white/95 px-1 shadow-[#0B8ED0]/15 backdrop-blur-md' : 'border-[#DDE7EF] bg-white shadow-sm'}`}
+    <div className="ml-auto flex h-10 w-10 items-center justify-end">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={`${expanded ? 'Close' : 'Open'} actions for ${name}`}
+        aria-expanded={expanded}
+        aria-haspopup="menu"
+        aria-controls={`user-actions-${user.school_id}`}
+        onClick={toggleMenu}
+        className={`grid h-9 w-9 place-items-center rounded-xl border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-[#8CCCE8] bg-[#E6F6FD] text-[#0878B7] shadow-[#16C7F3]/15' : 'border-[#DDE7EF] bg-white text-slate-500 hover:border-[#B9D9E9] hover:bg-[#F3FAFD] hover:text-[#0B8ED0]'}`}
       >
-        <div aria-hidden={!expanded} className={`flex items-center gap-1.5 transition-opacity duration-200 ${expanded ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
-          {actions.map((action, index) => <ActionButton key={action.key} action={{ ...action, onClick: () => run(action) }} expanded={expanded} index={index} />)}
-        </div>
-        <span className={`mx-1 h-5 w-px shrink-0 bg-slate-200 transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0'}`} />
-        <button
-          type="button"
-          aria-label={`${expanded ? 'Close' : 'Open'} actions for ${name}`}
-          aria-expanded={expanded}
-          onClick={() => setExpanded((current) => !current)}
-          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-all duration-300 ${expanded ? 'bg-[#0B1831] text-[#16C7F3]' : 'text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]'}`}
-        >
-          <MoreHorizontal size={18} className={`transition-transform duration-300 ${expanded ? 'rotate-90' : 'rotate-0'}`} />
-        </button>
-      </div>
+        <MoreHorizontal size={18} className={`transition-transform duration-200 ${expanded ? 'rotate-90' : 'rotate-0'}`} />
+      </button>
+      {menu}
     </div>
   );
 }

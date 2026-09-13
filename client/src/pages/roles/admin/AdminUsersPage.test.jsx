@@ -32,9 +32,13 @@ describe('UserActionDock', () => {
     fireEvent.click(trigger);
     expect(screen.getByRole('button', { name: 'Close actions for Ricardo Lim' })).toHaveAttribute('aria-expanded', 'true');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Enroll fingerprint for Ricardo Lim' }));
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.getByRole('button', { name: 'Open actions for Ricardo Lim' })).toHaveAttribute('aria-expanded', 'false');
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Ricardo Lim' }));
+
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Enroll fingerprint for Ricardo Lim' }));
     expect(onFingerprint).toHaveBeenCalledOnce();
-    expect(screen.queryByRole('button', { name: 'Deactivate Ricardo Lim' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete Ricardo Lim' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Deactivate Ricardo Lim' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete Ricardo Lim' })).not.toBeInTheDocument();
   });
 });
