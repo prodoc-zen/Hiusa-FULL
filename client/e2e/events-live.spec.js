@@ -105,8 +105,8 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
 
   await page.goto('/dashboard/events/event-operations');
   await page.getByRole('button', { name: /Sports Fest 2024/ }).first().click();
-  await expect(page.getByText('Biometric scanner integration')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Scanner pending' })).toBeDisabled();
+  await expect(page.getByText('One-scan fingerprint check-in')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Scan Fingerprint Once' })).toBeDisabled();
   await expect(page.getByText('Record Manual Attendance')).toBeVisible();
   await expect(page.getByLabel('Attendance status')).toBeVisible();
 
