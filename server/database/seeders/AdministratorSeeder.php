@@ -15,17 +15,18 @@ class AdministratorSeeder extends Seeder
         }
 
         $organizationId = Organization::where('acronym', 'PSITS-CCS')->value('id');
+        $saoOrganizationId = Organization::where('acronym', 'SAO')->value('id');
 
         User::updateOrCreate(
             ['school_id' => 990001],
             [
-                'organization_id' => $organizationId,
-                'first_name' => 'System',
-                'last_name' => 'Administrator',
-                'email' => 'admin@hiusa.local',
+                'organization_id' => $saoOrganizationId,
+                'first_name' => 'SAO',
+                'last_name' => 'Director',
+                'email' => 'sao.director@hiusa.local',
                 'password_hash' => 'Admin@123456',
                 'role' => 'SUPER_ADMIN',
-                'position_title' => 'Super Administrator',
+                'position_title' => 'SAO Director',
             ]
         );
 

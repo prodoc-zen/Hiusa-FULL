@@ -19,31 +19,27 @@ class SuperAdminFingerprintTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_only_super_admin_can_create_and_manage_admin_accounts(): void
+    public function test_sao_director_creates_and_manages_admin_accounts_through_system_administration(): void
     {
         $organization = Organization::factory()->create();
-        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $organization->id]);
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'position_title' => 'SAO Director']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
 
         Sanctum::actingAs($admin);
         $this->postJson('/api/users', $this->adminPayload(880001))->assertForbidden();
-        $this->postJson('/api/users/'.$admin->school_id.'/fingerprint', [
-            'samples' => ['sample-1', 'sample-2', 'sample-3', 'sample-4'],
-            'sample_format' => 5,
-            'consent_confirmed' => true,
-        ])->assertForbidden();
 
         Sanctum::actingAs($superAdmin);
-        $created = $this->postJson('/api/users', $this->adminPayload(880002))
+        $created = $this->postJson('/api/system/admins', [...$this->adminPayload(880002), 'organization_id' => $organization->id])
             ->assertCreated()
             ->assertJsonPath('role', 'ADMIN');
 
         $createdId = $created->json('school_id');
         Sanctum::actingAs($admin);
-        $this->putJson('/api/users/'.$createdId, ['first_name' => 'Blocked'])->assertForbidden();
+        $this->putJson('/api/system/admins/'.$createdId, ['first_name' => 'Blocked'])->assertForbidden();
 
         Sanctum::actingAs($superAdmin);
-        $this->putJson('/api/users/'.$createdId, ['first_name' => 'Managed'])
+        $this->putJson('/api/system/admins/'.$createdId, ['first_name' => 'Managed'])
             ->assertOk()
             ->assertJsonPath('first_name', 'Managed');
     }

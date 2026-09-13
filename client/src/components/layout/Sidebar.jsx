@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, Users, Vote, X } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, ShieldCheck, Users, Vote, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
@@ -138,6 +138,22 @@ const profileNav = [
   { label: 'Profile', path: '/dashboard/profile', icon: Users },
 ];
 
+const SUPER_ADMIN_NAV = [
+  NAV_STRUCTURE[0],
+  {
+    id: 'sao-administration',
+    label: 'SAO Administration',
+    icon: ShieldCheck,
+    roles: ['SUPER_ADMIN'],
+    children: [
+      { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-announcements', label: 'Official Notices', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-approvals', label: 'Financial Approvals', path: '/dashboard/super-admin/approvals', roles: ['SUPER_ADMIN'] },
+    ],
+  },
+];
+
 function NavItem({ label, path, icon: Icon, end, onClick }) {
   return (
     <NavLink
@@ -201,7 +217,7 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const role = user?.role || 'SBO_OFFICER';
   const roleLabel = ROLE_LABELS[role] || role;
-  const nav = NAV_STRUCTURE.filter((item) => item.roles.includes(role));
+  const nav = role === 'SUPER_ADMIN' ? SUPER_ADMIN_NAV : NAV_STRUCTURE.filter((item) => item.roles.includes(role));
 
   const getVisibleChildren = (item) => (item.children || []).filter((child) => child.roles.includes(role));
 

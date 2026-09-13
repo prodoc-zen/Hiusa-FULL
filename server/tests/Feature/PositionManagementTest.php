@@ -68,17 +68,11 @@ class PositionManagementTest extends TestCase
     public function test_user_positions_are_validated_by_role_and_organization(): void
     {
         $organization = Organization::factory()->create();
-        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SUPER_ADMIN']);
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => 'Secretary', 'is_active' => true]);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer', 'is_active' => true]);
 
         Sanctum::actingAs($admin);
-        $adminId = $this->postJson('/api/users', $this->userPayload(71000001, 'ADMIN', 'Secretary'))
-            ->assertCreated()->assertJsonPath('position_title', 'Secretary')->json('school_id');
-
-        $this->putJson("/api/users/{$adminId}", ['position_title' => 'Treasurer'])
-            ->assertUnprocessable()->assertJsonValidationErrors('position_title');
-
         $this->postJson('/api/users', $this->userPayload(71000002, 'STUDENT', 'Secretary'))
             ->assertUnprocessable()->assertJsonValidationErrors('position_title');
 

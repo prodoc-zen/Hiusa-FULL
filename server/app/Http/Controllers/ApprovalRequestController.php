@@ -41,8 +41,10 @@ class ApprovalRequestController extends Controller
             'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
         ])
-            ->where('organization_id', $request->user()->organization_id)
             ->where('required_role', $requiredRole);
+        if ($request->user()->role !== 'SUPER_ADMIN') {
+            $query->where('organization_id', $request->user()->organization_id);
+        }
 
         $status = $filters['status'] ?? 'pending';
 
@@ -85,7 +87,11 @@ class ApprovalRequestController extends Controller
 
     public function review(Request $request, $id)
     {
-        $approval = ApprovalRequest::where('organization_id', $request->user()->organization_id)->find($id);
+        $approvalQuery = ApprovalRequest::query();
+        if ($request->user()->role !== 'SUPER_ADMIN') {
+            $approvalQuery->where('organization_id', $request->user()->organization_id);
+        }
+        $approval = $approvalQuery->find($id);
 
         if (! $approval) {
             return response()->json(['message' => 'Approval request not found.'], 404);
@@ -114,9 +120,11 @@ class ApprovalRequestController extends Controller
 
         try {
             $freshApproval = DB::transaction(function () use ($approval, $data, $request) {
-                $approval = ApprovalRequest::where('organization_id', $request->user()->organization_id)
-                    ->lockForUpdate()
-                    ->findOrFail($approval->id);
+                $lockedQuery = ApprovalRequest::query();
+                if ($request->user()->role !== 'SUPER_ADMIN') {
+                    $lockedQuery->where('organization_id', $request->user()->organization_id);
+                }
+                $approval = $lockedQuery->lockForUpdate()->findOrFail($approval->id);
 
                 if ($approval->status !== 'pending') {
                     throw new DomainException('This request has already been reviewed.');
@@ -269,20 +277,15 @@ class ApprovalRequestController extends Controller
     private function attachEntityDetails($approvals): void
     {
         $grouped = $approvals->groupBy('entity_type');
-        $organizationId = $approvals->first()?->organization_id;
-        $entities = [
-            'event' => Event::where('organization_id', $organizationId)->whereIn('id', $grouped->get('event', collect())->pluck('entity_id'))->get()->keyBy('id'),
-            'budget' => Budget::with('event:id,title')->where('organization_id', $organizationId)->whereIn('id', $grouped->get('budget', collect())->pluck('entity_id'))->get()->keyBy('id'),
-            'election' => Election::where('organization_id', $organizationId)->whereIn('id', $grouped->get('election', collect())->pluck('entity_id'))->get()->keyBy('id'),
-            'announcement' => Announcement::where('organization_id', $organizationId)->whereIn('id', $grouped->get('announcement', collect())->pluck('entity_id'))->get()->keyBy('id'),
-            'payment' => Order::with([
-                'merchandise:id,name',
-                'student:school_id,first_name,last_name',
-            ])->where('organization_id', $organizationId)->whereIn('id', $grouped->get('payment', collect())->pluck('entity_id'))->get()->keyBy('id'),
-        ];
-
         foreach ($approvals as $approval) {
-            $entity = ($entities[$approval->entity_type] ?? collect())->get($approval->entity_id);
+            $entity = match ($approval->entity_type) {
+                'event' => Event::where('organization_id', $approval->organization_id)->find($approval->entity_id),
+                'budget' => Budget::with('event:id,title')->where('organization_id', $approval->organization_id)->find($approval->entity_id),
+                'election' => Election::where('organization_id', $approval->organization_id)->find($approval->entity_id),
+                'announcement' => Announcement::where('organization_id', $approval->organization_id)->find($approval->entity_id),
+                'payment' => Order::with(['merchandise:id,name', 'student:school_id,first_name,last_name'])->where('organization_id', $approval->organization_id)->find($approval->entity_id),
+                default => null,
+            };
             $approval->title = $this->entityTitle($approval, $entity);
             $approval->summary = $this->entitySummary($approval, $entity);
         }

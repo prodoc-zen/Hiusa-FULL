@@ -12,6 +12,9 @@ const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
 const SuperAdminFinancialApprovalsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialApprovalsPage'));
+const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
+const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
+const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
 const DepartmentHeadHomePage = lazy(() => import('./pages/roles/department-head/DepartmentHeadHomePage'));
 const DepartmentHeadApprovalsPage = lazy(() => import('./pages/roles/department-head/DepartmentHeadApprovalsPage'));
 const SubmitApprovalRequestPage = lazy(() => import('./pages/modules/approvals/SubmitApprovalRequestPage'));
@@ -193,11 +196,14 @@ function App() {
           {/* Role Home Pages */}
           <Route index element={<DashboardIndexRedirect />} />
           <Route path="super-admin" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminHomePage /></ProtectedRoute>} />
+          <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
+          <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
+          <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
           <Route path="admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminHomePage /></ProtectedRoute>} />
           <Route path="officer" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><DashboardPage /></ProtectedRoute>} />
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
-          <Route path="approvals" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
+          <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="super-admin/approvals" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminFinancialApprovalsPage /></ProtectedRoute>} />
           <Route path="approval-requests/new" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SubmitApprovalRequestPage /></ProtectedRoute>} />
           <Route path="approval-requests/new/announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
@@ -205,17 +211,17 @@ function App() {
           <Route path="approval-requests/new/event" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" startEventRequest /></ProtectedRoute>} />
           <Route path="approval-requests/new/election" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionsHub startCreateElection /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
-          <Route path="admin/users" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
+          <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
           <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
           <Route path="admin/positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
           <Route path="admin/programs-sections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageAcademicStructurePage /></ProtectedRoute>} />
-          <Route path="audit-logs" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
+          <Route path="audit-logs" element={<ProtectedRoute allowedRoles={["ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
 
           {/* Shared Modules */}
           <Route path="announcements">
             <Route index element={<AnnouncementsIndexRedirect />} />
-            <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER"]}><ManageAnnouncementsPage /></ProtectedRoute>} />
-            <Route path="create-announcement" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
+            <Route path="manage-announcements" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageAnnouncementsPage /></ProtectedRoute>} />
+            <Route path="create-announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
             <Route path="view-announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><AnnouncementsFeedPage /></ProtectedRoute>} />
           </Route>
 
@@ -223,18 +229,18 @@ function App() {
             <Route index element={<EventsIndexRedirect />} />
             <Route path="manage-events" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
             <Route path="event-planner" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="tasks" /></ProtectedRoute>} />
-            <Route path="event-operations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "SBO_OFFICER", "ADMIN"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
-            <Route path="check-in" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
-            <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
+            <Route path="event-operations" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
+            <Route path="check-in" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
+            <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
           </Route>
 
           <Route path="finance">
             <Route index element={<FinanceIndexRedirect />} />
-            <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
+            <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
             <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
-            <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "SBO_OFFICER", "ADMIN", "DEPARTMENT_HEAD"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
+            <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "DEPARTMENT_HEAD"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
             <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
-            <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "SBO_OFFICER", "ADMIN", "DEPARTMENT_HEAD"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
+            <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "DEPARTMENT_HEAD"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
             <Route path="personal-receipts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><FinancePage initialTab="receipts" /></ProtectedRoute>} />
             <Route path="statement-of-account" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><FinancePage initialTab="invoices" /></ProtectedRoute>} />
           </Route>
