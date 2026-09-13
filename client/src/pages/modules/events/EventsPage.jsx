@@ -27,6 +27,9 @@ import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIsoDateTimes } from '../../../utils/dateTime';
+import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
+import { identifyAndAttend } from '../../../services/fingerprintService';
+import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
@@ -108,6 +111,54 @@ const emptyEventForm = () => ({
   proposed_budget_id: null,
 });
 
+function BiometricCheckIn({ eventId, onRecorded }) {
+  const reader = useFingerprintReader();
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState(null);
+
+  async function scan() {
+    if (!reader.connected || busy) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      // Fscanner identification extracts one probe and compares it to every
+      // compatible enrollment. No account needs to be selected first.
+      const capture = await reader.identifyFingerprint();
+      const response = await identifyAndAttend(eventId, capture);
+      setResult({ type: 'success', message: response.data.message, user: response.data.user });
+      await onRecorded();
+    } catch (scanError) {
+      setResult({
+        type: scanError?.response?.status === 409 ? 'warning' : 'error',
+        message: getApiErrorMessage(scanError, scanError?.message || 'Fingerprint identification failed.'),
+        user: scanError?.response?.data?.user,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="mb-5 rounded-xl border border-[#B9D9E9] bg-[#F8FBFD] p-4">
+      <div className="mb-3 flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]"><Fingerprint size={20} /></span>
+        <div><p className="text-[13px] font-bold text-[#0F172A]">One-scan fingerprint check-in</p><p className="mt-0.5 text-xs font-medium text-slate-500">Place the enrolled finger once. HIUSA identifies the member and records attendance automatically.</p></div>
+      </div>
+      <ScannerStatus reader={reader} />
+      {result && <div className={`mt-3 rounded-lg border px-3 py-2.5 text-xs font-semibold ${result.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : result.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
+        {result.user && <p className="mb-0.5 font-black">{result.user.first_name} {result.user.last_name} · {result.user.school_id}</p>}
+        <p>{result.message}</p>
+      </div>}
+      <div className="mt-3 flex flex-wrap gap-2">
+        <button type="button" onClick={scan} disabled={!reader.connected || busy} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] disabled:opacity-40">
+          <Fingerprint size={16} /> {busy ? 'Scanning and identifying...' : 'Scan Fingerprint Once'}
+        </button>
+        {busy && <button type="button" onClick={reader.cancelCapture} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-[13px] font-bold text-slate-600">Cancel</button>}
+      </div>
+    </div>
+  );
+}
+
 export default function EventsPage({ initialTab = 'events', startEventRequest = false }) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -169,7 +220,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
   const currentUserRole = currentUser?.role ?? '';
   const canCreateEvents = currentUserRole === 'ADMIN';
-  const canManageAttendance = currentUserRole === 'ADMIN' || currentUserRole === 'SBO_OFFICER';
+  const canManageAttendance = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
 
   function load() {
     setLoading(true);
@@ -1014,14 +1065,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     {/* Check-in form - officer only */}
                     {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
                       <div className="border-b border-[#DDE7EF] p-5">
-                        <div className="mb-4 flex items-start gap-3 rounded-lg border border-violet-200 bg-violet-50 p-3">
-                          <Fingerprint size={20} className="mt-0.5 shrink-0 text-violet-600" />
-                          <div className="min-w-0 flex-1">
-                            <p className="text-[13px] font-bold text-violet-900">Biometric scanner integration</p>
-                            <p className="mt-0.5 text-xs font-medium text-violet-700">{attendanceData?.biometric_adapter?.message || 'Fingerprint capture and matching are prepared for a future scanner adapter.'}</p>
-                          </div>
-                          <button type="button" disabled title="Scanner hardware is not connected" className="h-9 shrink-0 rounded-lg bg-violet-200 px-3 text-xs font-bold text-violet-700 opacity-70">Scanner pending</button>
-                        </div>
+                        <BiometricCheckIn eventId={selectedAttEventId} onRecorded={async () => {
+                          const response = await getAttendance(selectedAttEventId);
+                          setAttendanceData(response.data);
+                        }} />
                         <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Manual Attendance</p>
                         <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_130px_auto]">
                           <div className="relative flex-1">
@@ -1410,7 +1457,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <input id="event-budget-threshold" type="number" min="0" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.budget_warning_threshold} onChange={(e) => setForm({ ...form, budget_warning_threshold: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
                   </div>
                   <p className="text-xs font-medium text-[#0878B7] sm:col-span-2">
-                    {editingEventId && form.proposed_budget_id ? 'This proposal is already linked. Change approved budget values from Finance so its approval history is preserved.' : 'Entering an amount creates a linked proposed budget and a separate Department Head approval request.'}
+                    {editingEventId && form.proposed_budget_id ? 'This proposal is already linked. Change approved budget values from Finance so its approval history is preserved.' : 'Entering an amount creates a linked proposed budget and a separate Super Admin approval request.'}
                   </p>
                 </div>
               )}

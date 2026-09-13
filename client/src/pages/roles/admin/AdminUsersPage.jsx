@@ -1,15 +1,20 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleCheck, CircleX, Download, Eye, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { CircleCheck, CircleX, Download, Eye, Fingerprint, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
+import { enrollFingerprint, removeFingerprint } from '../../../services/fingerprintService';
+import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
+import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
-const roles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
+const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
+const filterRoles = ['SUPER_ADMIN', ...accountRoles];
 const ROLE_LABELS = {
+  SUPER_ADMIN: 'Super Admin',
   STUDENT: 'Student',
   SBO_OFFICER: 'SBO Officer',
   ADMIN: 'Admin',
@@ -66,7 +71,82 @@ function firstError(error) {
   return error?.response?.data?.message;
 }
 
+function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
+  const reader = useFingerprintReader();
+  const [captured, setCaptured] = useState(0);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [consentConfirmed, setConsentConfirmed] = useState(false);
+
+  async function handleEnroll() {
+    setBusy(true);
+    setCaptured(0);
+    setError('');
+    try {
+      const capture = await reader.enrollFingerprint(4, ({ captured: count }) => setCaptured(count));
+      await enrollFingerprint(user.school_id, capture);
+      onSaved('Fingerprint enrollment completed. This user can now be identified with one attendance scan.');
+    } catch (enrollmentError) {
+      setError(enrollmentError?.response ? firstError(enrollmentError) || 'Unable to enroll this fingerprint.' : enrollmentError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleRemove() {
+    setBusy(true);
+    setError('');
+    try {
+      await removeFingerprint(user.school_id);
+      onSaved('Fingerprint enrollment removed.');
+    } catch (removeError) {
+      setError(firstError(removeError) || 'Unable to remove this fingerprint.');
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Modal
+      open
+      title="Fingerprint Enrollment"
+      description={`${user.first_name} ${user.last_name} · School ID ${user.school_id}`}
+      onClose={() => !busy && onClose()}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      footer={<>
+        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
+        {user.fingerprint_enrolled && <button type="button" onClick={handleRemove} disabled={busy} className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 disabled:opacity-50">Remove</button>}
+        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Re-enroll' : 'Start Enrollment'}</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <ScannerStatus reader={reader} />
+        <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+          <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#0F172A]">Capture progress</p><span className="text-xs font-bold text-[#0B8ED0]">{captured} / 4</span></div>
+          <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-[#0B8ED0]' : 'bg-[#DDE7EF]'}`} />)}</div>
+          <p className="mt-3 text-xs leading-5 text-slate-500">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
+        </div>
+        <label className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3 text-xs font-medium leading-5 text-slate-600">
+          <input type="checkbox" checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#B9CBD8]" />
+          <span>I confirm the user consented to biometric enrollment and understands they may request removal of the stored template.</span>
+        </label>
+        {busy && <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
+        {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
+      </div>
+    </Modal>
+  );
+}
+
 export default function AdminUsersPage() {
+  let actorRole = '';
+  let actorId = null;
+  try {
+    const actor = JSON.parse(localStorage.getItem('user') || '{}');
+    actorRole = actor?.role || '';
+    actorId = actor?.school_id ?? actor?.id ?? null;
+  } catch {}
+  const roles = actorRole === 'SUPER_ADMIN' ? accountRoles : accountRoles.filter((role) => role !== 'ADMIN');
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
@@ -92,6 +172,7 @@ export default function AdminUsersPage() {
   const [disableTarget, setDisableTarget] = useState(null);
   const [reactivateTarget, setReactivateTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [fingerprintTarget, setFingerprintTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [page, setPage] = useState(1);
@@ -433,7 +514,7 @@ export default function AdminUsersPage() {
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           >
             <option value="all">All roles</option>
-            {roles.map((role) => (
+            {filterRoles.map((role) => (
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </select>
@@ -445,7 +526,7 @@ export default function AdminUsersPage() {
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </div>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
-          ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['SBO Officers', roleSummary.SBO_OFFICER ?? 0], ['Admins', roleSummary.ADMIN ?? 0],
+          ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['Admins', roleSummary.ADMIN ?? 0], ['Super admins', roleSummary.SUPER_ADMIN ?? 0],
         ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p></div>)}</div>
         <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setDepartmentFilter('all'); setProgramFilter('all'); setYearLevelFilter('all'); setSectionFilter('all'); setStatusFilter('all'); setSort('name'); }} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-slate-600">Reset filters</button></div>
       </section>
@@ -490,19 +571,23 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.year_level || '-'}</td>
                   <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.section || '-'}</td>
                   <td className="px-4 py-3.5">
-                    {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-emerald-600" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
+                    <div className="flex items-center gap-2">
+                      {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-emerald-600" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
+                      {user.fingerprint_enrolled && <Fingerprint aria-label="Fingerprint enrolled" size={16} className="text-[#0B8ED0]" />}
+                    </div>
                   </td>
                   <td className="px-4 py-3.5">
                     <div className="flex gap-1.5">
-                      <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>
+                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>}
                       <button aria-label={`View ${user.first_name} ${user.last_name}`} title="View user" onClick={() => openProfile(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]"><Eye size={14} /></button>
-                      {user.role !== 'ADMIN' && user.account_status !== 'disabled' && (
+                      {((user.role === 'SUPER_ADMIN' && actorRole === 'SUPER_ADMIN' && Number(user.school_id) === Number(actorId)) || (user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN'))) && <button aria-label={`Enroll fingerprint for ${user.first_name} ${user.last_name}`} title={user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint'} onClick={() => setFingerprintTarget(user)} className={`grid h-9 w-9 place-items-center rounded-md border ${user.fingerprint_enrolled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}><Fingerprint size={14} /></button>}
+                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && user.account_status !== 'disabled' && (
                         <button aria-label={`Deactivate ${user.first_name} ${user.last_name}`} title="Deactivate user" onClick={() => setDisableTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"><UserX size={14} /></button>
                       )}
-                      {user.account_status !== 'active' && (
+                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && user.account_status !== 'active' && (
                         <button aria-label={`Reactivate ${user.first_name} ${user.last_name}`} title="Reactivate user" onClick={() => setReactivateTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><UserCheck size={14} /></button>
                       )}
-                      {user.role !== 'ADMIN' && <button aria-label={`Delete ${user.first_name} ${user.last_name}`} title="Delete user" onClick={() => setDeleteTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"><Trash2 size={14} /></button>}
+                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && <button aria-label={`Delete ${user.first_name} ${user.last_name}`} title="Delete user" onClick={() => setDeleteTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"><Trash2 size={14} /></button>}
                     </div>
                   </td>
                 </tr>
@@ -557,6 +642,16 @@ export default function AdminUsersPage() {
           </section>}
         </div>}
       </Modal>
+
+      {fingerprintTarget && <FingerprintEnrollmentModal
+        user={fingerprintTarget}
+        onClose={() => setFingerprintTarget(null)}
+        onSaved={async (message) => {
+          setFingerprintTarget(null);
+          await refreshUsers();
+          setFeedback({ open: true, type: 'success', message });
+        }}
+      />}
 
       <Modal
         open={showCreate}
