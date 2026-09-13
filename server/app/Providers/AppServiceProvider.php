@@ -2,6 +2,9 @@
 
 namespace App\Providers;
 
+use App\Contracts\FingerprintMatcher;
+use App\Services\HttpFingerprintMatcher;
+use App\Services\UnavailableFingerprintMatcher;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
@@ -14,7 +17,17 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(FingerprintMatcher::class, function () {
+            if (config('fingerprint.matcher') === 'http' && config('fingerprint.http.url')) {
+                return new HttpFingerprintMatcher(
+                    config('fingerprint.http.url'),
+                    config('fingerprint.http.key'),
+                    config('fingerprint.http.timeout'),
+                );
+            }
+
+            return new UnavailableFingerprintMatcher;
+        });
     }
 
     /**
