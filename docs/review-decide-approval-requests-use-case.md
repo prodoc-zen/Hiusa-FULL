@@ -1,6 +1,6 @@
 # Review and Decide Approval Requests
 
-**Users:** Admin, Department Head
+**Users:** Super Admin, Admin, Department Head
 
 **Review and Decide Approval Requests**
 |-- <<include>> Validate Approver Permission
@@ -23,7 +23,8 @@
 
 ## Implementation Coverage
 
-- **Role Access:** Admin and Department Head can access approval review; backend authorization also enforces the reviewer role.
+- **Role Access:** Super Admin, Admin, and Department Head can access approval review; the backend returns only requests requiring the authenticated reviewer's exact role. Budget requests require Super Admin.
+- **Final Financial Review:** the Super Admin Financial Approval Center combines pending budget requests with unverified collections and pending cash advances. Collection verification posts income to the ledger, while an approved cash advance must still be released by Admin.
 - **Validate Approver Permission:** `ApprovalRequestController@review` checks the required role and prevents requesters from reviewing their own submissions.
 - **Load Pending Approval Requests:** the approval list loads pending requests for the current reviewer role by default.
 - **Open Request Details:** approval responses include derived title and summary details for each request.

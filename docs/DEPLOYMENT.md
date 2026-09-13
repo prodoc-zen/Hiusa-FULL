@@ -67,6 +67,12 @@ Each item points at the concrete EC2 step or script that satisfies it.
         python -c "import urllib.request; print(urllib.request.urlopen('http://127.0.0.1:8001/health').read())"
       ```
       should print `"authentication": "api-key"`, not `"disabled"`.
+- [ ] `FINGERPRINT_MATCHER_KEY` set — `setup-ec2.sh` generates it and writes it
+      to both Docker Compose and Laravel without printing it. Confirm
+      `fingerprint-matcher` is healthy and port 9100 is not exposed publicly.
+- [ ] Every check-in workstation has a supported DigitalPersona reader, its
+      driver, and HID Authentication Device Client installed. The browser talks
+      to that local client; the EC2 matcher alone cannot capture a finger.
 - [ ] `GROQ_API_KEY` set if AI-generated narration (announcement drafts, event
       plans, financial summaries) is wanted — `setup-ec2.sh` prompts for it via
       hidden input. Otherwise the deterministic fallback is fine, but should be
@@ -74,11 +80,13 @@ Each item points at the concrete EC2 step or script that satisfies it.
 - [ ] Migrations run with zero demo rows — `setup-ec2.sh` does this on first
       run. Confirm `--seed-demo` was **not** passed unless this is a
       disposable install (see "The seeder trap" above).
-- [ ] A real first Admin account created manually through the running
-      application or `tinker`, never from the demo seeders.
-- [ ] All six containers running/healthy:
+- [ ] A real first Super Admin account created manually through `tinker` on a
+      fresh empty installation, never from the demo seeders. On an upgraded
+      installation, the migration promotes the oldest active Admin in each
+      organization to Super Admin.
+- [ ] All seven containers running/healthy:
       `docker compose -f compose.production.yml ps` — `mysql`, `ai-service`,
-      and `laravel` carry health checks; anything stuck restarting or
+      `fingerprint-matcher`, and `laravel` carry health checks; anything stuck restarting or
       `unhealthy` here means something upstream of this checklist failed. See
       `docs/OPERATIONS.md`'s Docker mapping section for what each service is
       and how to read its logs.
@@ -104,7 +112,7 @@ public entry point, so every path below goes through it on port 443.
    returns `200` (Laravel, proxied by Caddy). The AI service itself is never
    public (`EC2-DEPLOYMENT.md`'s runtime layout) — confirm it's healthy via
    `docker compose -f compose.production.yml ps` instead.
-2. **Auth** — log in as the real Admin account created in the checklist above
+2. **Auth** — log in as the real Super Admin account created in the checklist above
    (not a seeded demo account — there shouldn't be one). Confirm the dashboard
    loads over `https://DOMAIN`.
 3. **Announcements** — create one announcement, publish it, confirm it appears
@@ -115,7 +123,7 @@ public entry point, so every path below goes through it on port 443.
 5. **Tasks** — create one task, assign it (accept the AI-recommended assignee
    or assign manually), confirm the assignee sees it and can update its
    status.
-6. **Finance** — create one budget, submit and approve it, record one
+6. **Finance** — create one budget, approve it as Super Admin, record one
    transaction against it, confirm the remaining balance updates correctly.
 7. **Merchandise** — create one item, place one cash order as a student
    account, approve/fulfill it as an officer, confirm the claim token flow
@@ -131,7 +139,11 @@ public entry point, so every path below goes through it on port 443.
 10. **Password reset** — trigger "Forgot password" for one account, confirm
     the email actually arrives at a real inbox — the `MAIL_MAILER` check from
     the go-live checklist, verified end to end.
-11. **API smoke** — `curl https://DOMAIN/api/organizations` returns `200` with
+11. **Fingerprint** — enroll one user with four captures of the same finger,
+    then select an approved/ongoing event and confirm one fresh scan identifies
+    that user and records attendance. Repeat it and confirm duplicate attendance
+    is rejected clearly.
+12. **API smoke** — `curl https://DOMAIN/api/organizations` returns `200` with
     JSON, confirming Caddy's `/api` proxy rule and Laravel are wired together
     end to end, not just individually healthy.
 

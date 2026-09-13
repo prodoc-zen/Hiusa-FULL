@@ -8,6 +8,7 @@ The system is an AI-integrated student governance and financial management platf
 
 ## Primary Actors
 
+- SUPER_ADMIN: Organization-level account administrator, announcement publisher, and final financial approver.
 - ADMIN: President, treasurer, secretary, auditor, adviser-equivalent system administrator, or authorized organization administrator.
 - SBO_OFFICER: Student body officers who execute operations, process assigned work, manage some modules, and support students.
 - DEPARTMENT_HEAD: Dean, chairperson, or department-level approver.
@@ -25,8 +26,8 @@ The system is an AI-integrated student governance and financial management platf
 
 ## Organization and User Management Flow
 
-1. ADMIN creates or manages users for the organization.
-2. ADMIN assigns one of the four access-control roles: `ADMIN`, `SBO_OFFICER`, `DEPARTMENT_HEAD`, or `STUDENT`.
+1. SUPER_ADMIN creates and manages ADMIN accounts for the organization; SUPER_ADMIN and ADMIN manage lower-tier accounts.
+2. The five access-control roles are `SUPER_ADMIN`, `ADMIN`, `SBO_OFFICER`, `DEPARTMENT_HEAD`, and `STUDENT`. A SUPER_ADMIN cannot be created through ordinary user management.
 3. Organizational titles such as President, Treasurer, PIO, VP Internal, or VP External should be stored separately from the access-control role.
 4. Users update their own profile and password.
 5. Disabled or deleted users lose access to role-protected workflows.
@@ -35,8 +36,8 @@ The system is an AI-integrated student governance and financial management platf
 
 1. ADMIN or SBO_OFFICER creates an item that requires sign-off.
 2. System creates an approval request.
-3. DEPARTMENT_HEAD views pending approval requests.
-4. DEPARTMENT_HEAD approves or rejects with optional remarks.
+3. The role named in the request views its pending approval requests.
+4. DEPARTMENT_HEAD decides operational requests; SUPER_ADMIN decides budget and final financial requests.
 5. If approved, the target record is activated or marked approved.
 6. If rejected, the target record remains in its draft/planning/pending state.
 7. Editing a rejected item can resubmit the request for approval.
@@ -56,12 +57,15 @@ Planned or SQL-patch-supported approval targets:
 
 1. ADMIN creates budgets for general operations or specific events.
 2. A created budget starts as pending and creates an approval request.
-3. DEPARTMENT_HEAD approves or rejects the budget.
-4. ADMIN records income and expenses against budgets.
-5. System shows transaction history, summaries, and budget totals.
-6. Forecast records can be created for predicted income and expenses.
-7. Planned AI/OLS features should calculate predicted balance, safe spending limits, budget advice, report summaries, and overspending risk.
-8. Planned exports should generate income statements, expense summaries, audit logs, and event-specific reports.
+3. SUPER_ADMIN approves or rejects the budget.
+4. ADMIN or SBO_OFFICER records collections; SUPER_ADMIN verifies them before they are posted to the ledger.
+5. ADMIN, SBO_OFFICER, or DEPARTMENT_HEAD requests a cash advance; SUPER_ADMIN approves it before ADMIN can release funds.
+6. ADMIN records income and expenses against approved budgets.
+7. The Super Admin Financial Approval Center combines pending budgets, collections, and cash advances in one responsive review workspace.
+8. System shows transaction history, summaries, and budget totals.
+9. Forecast records can be created for predicted income and expenses.
+10. Planned AI/OLS features should calculate predicted balance, safe spending limits, budget advice, report summaries, and overspending risk.
+11. Planned exports should generate income statements, expense summaries, audit logs, and event-specific reports.
 
 ## Event Management Flow
 
@@ -70,8 +74,8 @@ Planned or SQL-patch-supported approval targets:
 3. System creates a Department Head approval request.
 4. If approved, event becomes visible to students.
 5. Tasks and budgets may be linked to the event.
-6. Event attendance can be recorded by SBO_OFFICER.
-7. Attendance may use manual check-in now and biometric check-in later.
+6. Event attendance can be recorded by SUPER_ADMIN, ADMIN, or SBO_OFFICER.
+7. Biometric enrollment uses four captures of one finger; attendance identification uses one fresh DigitalPersona scan against encrypted, organization-scoped SourceAFIS templates.
 8. Notifications should alert users when events are created or nearing.
 9. Planned AI assistant should generate timelines, resources, checklists, and delay/conflict warnings.
 
@@ -119,7 +123,7 @@ Planned or SQL-patch-supported approval targets:
 
 ## Announcements and Notifications Flow
 
-1. ADMIN or SBO_OFFICER creates an announcement.
+1. SUPER_ADMIN, ADMIN, or SBO_OFFICER creates an announcement.
 2. Announcement can target all users or a specific role.
 3. Published announcements trigger notifications to matching users.
 4. STUDENT and DEPARTMENT_HEAD see only published announcements intended for them.
@@ -130,12 +134,12 @@ Planned or SQL-patch-supported approval targets:
 ## Attendance Flow
 
 1. Event exists within the user's organization.
-2. SBO_OFFICER opens attendance for the event.
-3. SBO_OFFICER selects attendee and method.
+2. SUPER_ADMIN, ADMIN, or SBO_OFFICER opens attendance for the event.
+3. The operator either selects an attendee for manual attendance or captures one fingerprint scan for identification.
 4. System validates the attendee belongs to the same organization.
 5. System prevents duplicate check-in for the same event/user pair.
 6. System records check-in time and method.
-7. Planned enhancement should add check-out time, recorder, remarks, and biometric template registration/verification.
+7. Biometric verification logs the match result and score without storing the transient fingerprint image.
 
 ## AI and Reporting Flow
 
@@ -152,7 +156,7 @@ Planned or SQL-patch-supported approval targets:
 1. ADMIN creates a proposed Sports Fest event.
 2. ADMIN creates a proposed event budget.
 3. System creates approval requests for both records.
-4. DEPARTMENT_HEAD approves the event and budget.
+4. DEPARTMENT_HEAD approves the event; SUPER_ADMIN approves the budget.
 5. ADMIN uses workflow automation to create event tasks.
 6. System suggests officers based on role, workload, and performance.
 7. SBO_OFFICER receives task notifications and updates progress.

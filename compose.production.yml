@@ -37,6 +37,8 @@ services:
         condition: service_healthy
       ai-service:
         condition: service_healthy
+      fingerprint-matcher:
+        condition: service_healthy
     expose:
       - "80"
     networks:
@@ -110,6 +112,23 @@ services:
       timeout: 5s
       retries: 12
       start_period: 15s
+    restart: unless-stopped
+
+  fingerprint-matcher:
+    build:
+      context: ./fingerprint-matcher
+      dockerfile: Dockerfile
+    environment:
+      MATCHER_API_KEY: ${FINGERPRINT_MATCHER_KEY}
+      ASPNETCORE_URLS: http://0.0.0.0:9100
+      MATCH_THRESHOLD: 40
+      ENROLLMENT_CONSISTENCY_THRESHOLD: 25
+      FINGERPRINT_DPI: 512
+      TEMPLATE_CACHE_SIZE: 10000
+    expose:
+      - "9100"
+    networks:
+      - application
     restart: unless-stopped
 
   mysql:

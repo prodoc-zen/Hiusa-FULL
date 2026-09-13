@@ -10,6 +10,7 @@ HIUSA-EXCESS
 /.env
 /server/.env.production
 /ai-service/.env.production
+/fingerprint-matcher/.env
 
 # Logs and captured shell output - never source of truth, machine-specific
 *.log

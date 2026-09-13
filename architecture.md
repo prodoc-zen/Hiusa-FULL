@@ -121,7 +121,7 @@ The application's route structure is controlled inside:
 
 ### Roles
 
-The active role model is **ADMIN, SBO_OFFICER, DEPARTMENT_HEAD, STUDENT** (stored on `users.role`). The earlier Officer/Adviser naming was retired — see 🔗 **[Role_Model_Correction_2026-07-11.md](docs/devlog/Role_Model_Correction_2026-07-11.md)** for the history.
+The active role model is **SUPER_ADMIN, ADMIN, SBO_OFFICER, DEPARTMENT_HEAD, STUDENT** (stored on `users.role`). `SUPER_ADMIN` is the organization-level administrator and final financial approver. The earlier Officer/Adviser naming was retired — see 🔗 **[Role_Model_Correction_2026-07-11.md](docs/devlog/Role_Model_Correction_2026-07-11.md)** for the history.
 
 ---
 
@@ -129,17 +129,19 @@ The active role model is **ADMIN, SBO_OFFICER, DEPARTMENT_HEAD, STUDENT** (store
 
 Database schemas are defined in migration scripts under `server/database/migrations/` and map to models in `server/app/Models/`.
 
-Model list below is enumerated from `server/app/Models/` (30 models).
+Model list below is enumerated from `server/app/Models/` (34 models).
 
 | Model Name | Table Name | Purpose |
 | :--- | :--- | :--- |
 | **`Organization`** | `organizations` | Student body organizations/workspaces selected before login. Also holds `gcash_qr_url`, the admin-uploaded GCash QR code required before any GCash order/payment. |
-| **`User`** | `users` | User credentials, roles, and profiles. Uses integer `school_id` as the primary key. Role is one of `ADMIN`, `SBO_OFFICER`, `DEPARTMENT_HEAD`, `STUDENT`. |
+| **`User`** | `users` | User credentials, roles, and profiles. Uses integer `school_id` as the primary key. Role is one of `SUPER_ADMIN`, `ADMIN`, `SBO_OFFICER`, `DEPARTMENT_HEAD`, `STUDENT`. |
 | **`Announcement`** | `announcements` | System bulletins, organization news, or notices. |
 | **`AnnouncementView`** | `announcement_views` | Per-user read/view records against an announcement, backing its view count. |
 | **`ApprovalRequest`** | `approval_requests` | Pending/approved/rejected approval gates for events, budgets, elections, and merchandise payments; ties an entity to the role required to decide it. |
 | **`Event`** | `events` | Calendared system activities. |
-| **`Attendance`** | `attendance` | Member attendance records tracking check-ins for events. Biometric check-in intentionally returns `501 Not Implemented` until scanner hardware is connected. |
+| **`Attendance`** | `attendance` | Member attendance records tracking manual or one-scan DigitalPersona/SourceAFIS check-ins for events. |
+| **`Fingerprint`** | `fingerprints` | Encrypted SourceAFIS enrollment templates scoped to an organization and user. |
+| **`FingerprintVerification`** | `fingerprint_verifications` | Match/no-match audit metadata and optional event linkage; transient scan images are not persisted. |
 | **`Task`** | `tasks` | Action items, assignees, deadlines, and completion statuses. |
 | **`TaskProgressUpdate`** | `task_progress_updates` | Timestamped progress/status history entries recorded against a task. |
 | **`Budget`** | `budgets` | Main budget records tracking categories and totals. |

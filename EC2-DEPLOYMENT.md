@@ -2,14 +2,15 @@
 
 This repository includes a single-instance production stack for Amazon Linux
 2023. Docker Compose runs Caddy, the React build, Laravel/Apache, the FastAPI
-decision service, MySQL, Laravel's scheduler, and its queue worker.
+decision service, the private SourceAFIS fingerprint matcher, MySQL, Laravel's
+scheduler, and its queue worker.
 
 ## Runtime layout
 
 - Caddy is the only public container and binds ports 80/443.
 - React is compiled with the same-origin API base `/api`.
 - Caddy proxies `/api`, `/storage`, `/uploads`, and `/up` to Laravel.
-- Laravel connects to MySQL and FastAPI over Docker's private network.
+- Laravel connects to MySQL, FastAPI, and the fingerprint matcher over Docker's private network.
 - MySQL, Laravel storage, public uploads, and Caddy certificates use named
   volumes and survive container replacement.
 - Vite's fingerprinted `/assets/*` files are cached by browsers for one year.
@@ -92,7 +93,7 @@ The setup script:
 1. Generates independent database, Laravel, and internal service secrets.
 2. Optionally accepts a Groq key through hidden terminal input.
 3. Builds the production images.
-4. starts MySQL and FastAPI.
+4. Starts MySQL, FastAPI, and the fingerprint matcher.
 5. Runs Laravel migrations.
 6. Starts the frontend, API, scheduler, and queue worker.
 7. Optimizes Laravel and prints container status.
@@ -122,8 +123,10 @@ curl https://hiusa.example.com/up
 curl https://hiusa.example.com/api/organizations
 ```
 
-All six services should be running; MySQL, FastAPI, and Laravel should report
-healthy. Test login, a direct dashboard-page refresh, and an image upload.
+All seven services should be running; MySQL, FastAPI, the fingerprint matcher,
+and Laravel should report healthy. Test login, a direct dashboard-page refresh,
+an image upload, and a one-scan fingerprint check-in from a workstation with the
+DigitalPersona driver and HID Authentication Device Client installed.
 API responses include standard `RateLimit-*` headers. Cacheable authenticated
 JSON reads also include `X-Cache: MISS` or `X-Cache: HIT`; browser revalidation
 may return `304 Not Modified`. Tune the `API_RESPONSE_CACHE_*` and

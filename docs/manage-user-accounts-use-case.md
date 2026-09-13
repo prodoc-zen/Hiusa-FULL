@@ -1,6 +1,6 @@
 # Manage User Accounts and Permissions
 
-**Users:** Admin
+**Users:** Super Admin, Admin
 
 **Manage User Accounts and Permissions**
 ├── <<include>> View User List
@@ -28,9 +28,10 @@
 - **Filter User by Academic Profile:** department, course/program, year level, and section selectors filter the visible user list.
 - **Managed Academic Profile:** department is derived from the logged-in administrator's organization college (PSITS defaults to College of Computer Studies). Programs and year-level section counts are configured in **Users & Positions → Programs & Sections**, then used as controlled user-form choices.
 - **Academic Structure CRUD:** Admins can create, view, update, and delete unassigned programs and their generated sections. Every program always includes `1 - Non Block` through `4 - Non Block`; removing assigned sections and deleting assigned programs are blocked.
-- **Add User Account:** the create form captures user information and an optional role-compatible organization position for Admin or SBO Officer accounts, then saves through `POST /users`. Student and Department Head accounts cannot be assigned a position, and the API enforces this even if a client is bypassed.
+- **Add User Account:** the create form captures user information and an optional role-compatible organization position, then saves through `POST /users`. Only Super Admin can create an Admin account; Admin can create Student, SBO Officer, and Department Head accounts. Neither role can create another Super Admin through the application.
 - **Manage Positions:** Admins can create, view, update, activate/deactivate, and delete Admin or SBO Officer positions. Position choices are organization-scoped and role-specific. Renaming a position updates matching assignments; deactivation, role changes, or deletion safely clears invalid assignments.
 - **Pagination:** user and management tables display at most 10 rows per page.
-- **Update User Account:** the edit form opens existing user details, including the student's contact number, allows changes, and saves through `PUT /users/{id}`.
+- **Update User Account:** the edit form opens existing user details, including the student's contact number, allows changes, and saves through `PUT /users/{id}`. Admin accounts can only be managed by Super Admin, while the Super Admin record is immutable from this screen.
+- **Manage Fingerprint Enrollment:** after confirming the user's consent, authorized user managers can enroll four captures of one finger or remove an enrollment. Admin fingerprints are manageable only by Super Admin; a Super Admin can manage only their own Super Admin fingerprint. Only an encrypted SourceAFIS template is stored.
 - **Deactivate User Account:** the deactivate action confirms first, prevents self-deactivation and loss of the last active Admin, revokes active tokens, and records an audit log.
 - **Delete User Account:** non-Admin accounts can be permanently deleted after confirmation when no protected linked records exist; the deletion is audit logged.
