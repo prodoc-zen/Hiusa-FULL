@@ -24,7 +24,7 @@ class SboPositionSeeder extends Seeder
             'Adviser',
         ];
 
-        Organization::all(['id'])->each(function (Organization $organization) use ($positions) {
+        Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->get(['id'])->each(function (Organization $organization) use ($positions) {
             foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
                 foreach ($positions as $title) {
                     SboPosition::updateOrCreate(

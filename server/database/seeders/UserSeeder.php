@@ -15,7 +15,10 @@ class UserSeeder extends Seeder
         }
 
         $defaultOrganizationId = Organization::where('acronym', 'PSITS-CCS')->value('id');
-        $otherOrganizationIds = Organization::where('acronym', '!=', 'PSITS-CCS')->pluck('id')->values();
+        $otherOrganizationIds = Organization::where('acronym', '!=', 'PSITS-CCS')
+            ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
+            ->pluck('id')
+            ->values();
 
         $users = [
             // Officers (login with email). position_title mirrors the exec-board

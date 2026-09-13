@@ -351,7 +351,7 @@ class UserController extends Controller
     public function register(Request $request)
     {
         $validatedData = $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
+            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
             'school_id' => [
                 'required',
                 'integer',
