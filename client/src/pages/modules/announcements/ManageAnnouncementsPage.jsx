@@ -10,7 +10,7 @@ import {
 } from '../../../services/announcementService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
-const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
+const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
 const CATEGORY_OPTIONS = [
   { label: 'All Categories', value: 'all' },

@@ -9,6 +9,7 @@ import { unwrapList } from '../../services/pagination';
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
 const ROLE_LABELS = {
+  SUPER_ADMIN: 'Super Admin',
   ADMIN: 'Admin',
   SBO_OFFICER: 'Officer',
   DEPARTMENT_HEAD: 'Department Head',

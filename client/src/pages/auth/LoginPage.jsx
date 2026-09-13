@@ -77,6 +77,7 @@ export default function LoginPage() {
 
       const role = response.data.user?.role;
       const redirects = {
+        SUPER_ADMIN: '/dashboard/super-admin',
         ADMIN: '/dashboard/admin',
         SBO_OFFICER: '/dashboard/officer',
         DEPARTMENT_HEAD: '/dashboard/department-head',
