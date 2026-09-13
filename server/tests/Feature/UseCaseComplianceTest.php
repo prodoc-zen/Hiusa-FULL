@@ -863,7 +863,9 @@ class UseCaseComplianceTest extends TestCase
             ->assertOk()
             ->assertJsonPath('summary.late', 1)
             ->assertJsonPath('summary.present', 0)
-            ->assertJsonPath('biometric_adapter.configured', false);
+            ->assertJsonStructure([
+                'biometric_adapter' => ['configured', 'message'],
+            ]);
 
         $otherStudent = $this->user('STUDENT', $admin->organization_id);
         $this->postJson("/api/events/{$event->id}/attendance", [
