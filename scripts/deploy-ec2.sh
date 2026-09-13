@@ -25,6 +25,31 @@ bash scripts/backup-ec2.sh
 echo "Updating tracked source files..."
 git pull --ff-only
 
+set_env_value() {
+    local file="$1"
+    local name="$2"
+    local value="$3"
+    if grep -q "^${name}=" "$file"; then
+        sed -i "s|^${name}=.*|${name}=${value}|" "$file"
+    else
+        printf '%s=%s\n' "$name" "$value" >> "$file"
+    fi
+}
+
+# Upgrade installations created before the fingerprint matcher was added.
+# Keep one private key on both sides of the internal Docker connection.
+fingerprint_matcher_key="$(sed -n 's/^FINGERPRINT_MATCHER_KEY=//p' .env | tail -n 1)"
+if [[ -z "$fingerprint_matcher_key" || "$fingerprint_matcher_key" == CHANGE_ME_* ]]; then
+    fingerprint_matcher_key="$(openssl rand -hex 32)"
+fi
+set_env_value .env FINGERPRINT_MATCHER_KEY "$fingerprint_matcher_key"
+set_env_value server/.env.production FINGERPRINT_MATCHER_DRIVER http
+set_env_value server/.env.production FINGERPRINT_MATCHER_URL http://fingerprint-matcher:9100
+set_env_value server/.env.production FINGERPRINT_MATCHER_KEY "$fingerprint_matcher_key"
+set_env_value server/.env.production FINGERPRINT_MATCHER_TIMEOUT 15
+set_env_value server/.env.production FINGERPRINT_MATCHER_TEMPLATE_FORMAT fscanner-sourceafis-dotnet-3.14.0-png-v1
+echo "Fingerprint matcher configuration is present and synchronized."
+
 echo "Validating production configuration..."
 "${compose[@]}" config --quiet
 

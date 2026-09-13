@@ -130,6 +130,10 @@ $fingerprintKey = if ($serverHasMatcherKey) {
 
 Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_KEY' $fingerprintKey
 Set-EnvironmentValue $matcherEnvironment 'MATCHER_API_KEY' $fingerprintKey
+Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_DRIVER' 'http'
+Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_URL' 'http://127.0.0.1:9100'
+Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_TIMEOUT' '15'
+Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_TEMPLATE_FORMAT' 'fscanner-sourceafis-dotnet-3.14.0-png-v1'
 
 Set-EnvironmentValue $serverEnvironment 'APP_URL' "http://${HostAddress}:8000"
 Set-EnvironmentValue $serverEnvironment 'FRONTEND_URL' "http://${HostAddress}:5173"
@@ -159,12 +163,20 @@ if (($serverCreated -or (Get-EnvironmentValue $serverEnvironment 'APP_KEY') -eq 
     Push-Location (Split-Path -Parent $artisanPath)
     try {
         & php artisan key:generate --force
-        & php artisan config:clear
     } finally {
         Pop-Location
     }
 } elseif ((Get-EnvironmentValue $serverEnvironment 'APP_KEY') -eq '') {
     Write-Warning 'PHP dependencies are not ready. After composer install, run: cd server; php artisan key:generate; php artisan config:clear'
+}
+
+if ($phpCommand -and (Test-Path -LiteralPath $vendorAutoload)) {
+    Push-Location (Split-Path -Parent $artisanPath)
+    try {
+        & php artisan config:clear
+    } finally {
+        Pop-Location
+    }
 }
 
 Write-Host ''
