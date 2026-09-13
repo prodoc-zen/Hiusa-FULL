@@ -9,6 +9,7 @@ const AUDIENCE_OPTIONS = [
   { label: 'Students Only', value: 'STUDENT' },
   { label: 'Admins Only', value: 'ADMIN' },
   { label: 'Department Heads Only', value: 'DEPARTMENT_HEAD' },
+  { label: 'Super Admin Only', value: 'SUPER_ADMIN' },
 ];
 
 const CATEGORY_OPTIONS = [

@@ -21,7 +21,7 @@ import {
 } from '../../../services/announcementService';
 import { unwrapList } from '../../../services/pagination';
 
-const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads' };
+const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
 const AUDIENCE_OPTIONS = [
   { label: 'All Members', value: 'all' },
   { label: 'Officers Only', value: 'SBO_OFFICER' },

@@ -82,6 +82,7 @@ function getStoredUser() {
 
 function roleLabel(role) {
   return {
+    SUPER_ADMIN: 'Super Admin',
     ADMIN: 'Admin',
     DEPARTMENT_HEAD: 'Department Head',
   }[role] || 'Reviewer';

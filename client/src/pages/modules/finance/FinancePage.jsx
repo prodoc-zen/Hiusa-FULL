@@ -240,10 +240,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
-  const canViewTransactions = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const canViewTransactions = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const canViewForecasts = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
-  const canViewBudgets = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
-  const canProposeBudget = canViewBudgets;
+  const canViewBudgets = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const canProposeBudget = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
 
   const closeFeedback = useCallback(() => {
     setFeedback((current) => ({ ...current, open: false }));
@@ -270,7 +270,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       getPersonalReceipts(),
       getInvoices(),
-      currentUserRole === 'ADMIN' ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
+      ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data)) : Promise.resolve([]),
     ])
       .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports]) => {
@@ -1309,7 +1309,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'audit' && currentUserRole === 'ADMIN' && (
+      {activeTab === 'audit' && ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && (
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] p-5"><h2 className="text-lg font-bold text-[#0F172A]">Admin Audit Logs</h2><p className="mt-1 text-sm text-slate-500">Read-only activity history across financial, approval, order, and system modules.</p></div>
           {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-400">No audit activity recorded.</p> : <div className="divide-y divide-[#E5EDF3]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0B8ED0]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-400">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {log.actor?.name || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {log.affected_user.name} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
@@ -1450,7 +1450,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <button onClick={() => setShowBudgetForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
             </div>
             <p className="mb-4 text-xs font-medium text-slate-500">
-              New budgets await Department Head approval before funds can be tracked against them.
+              New budgets await Super Admin approval before funds can be tracked against them.
             </p>
             <form className="space-y-4" onSubmit={handleCreateBudget}>
               <div className="space-y-1.5">

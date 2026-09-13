@@ -6,6 +6,8 @@ import TopBar from './TopBar';
 const pageTitles = {
   '/dashboard': 'Officer Dashboard',
   '/dashboard/admin': 'Admin Dashboard',
+  '/dashboard/super-admin': 'Super Admin Dashboard',
+  '/dashboard/super-admin/approvals': 'Financial Approvals',
   '/dashboard/admin/users': 'User Management',
   '/dashboard/admin/sbo-positions': 'Manage Positions',
   '/dashboard/admin/positions': 'Manage Positions',
