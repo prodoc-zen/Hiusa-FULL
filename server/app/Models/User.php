@@ -100,6 +100,11 @@ class User extends Authenticatable
         return $this->hasMany(Attendance::class, 'user_id', 'school_id');
     }
 
+    public function fingerprints(): HasMany
+    {
+        return $this->hasMany(Fingerprint::class, 'user_id', 'school_id');
+    }
+
     public function recordedTransactions(): HasMany
     {
         return $this->hasMany(Transaction::class, 'recorded_by', 'school_id');
