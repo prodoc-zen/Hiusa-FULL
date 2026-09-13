@@ -67,17 +67,15 @@ export default function SuperAdminFinancialApprovalsPage() {
     setLoading(true);
     setError('');
     try {
-      const [budgetResponse, collectionResponse, advanceResponse] = await Promise.all([
-        fetchAllPages(
-          (params) => getApprovalRequests(params).then((response) => response.data),
-          { status: 'pending', entity_type: 'budget' },
-        ),
-        getCollections(),
-        getCashAdvances(),
-      ]);
+      const budgetResponse = await fetchAllPages(
+        (params) => getApprovalRequests(params).then((response) => response.data),
+        { status: 'pending', entity_type: 'budget' },
+      );
       setBudgets(budgetResponse);
-      setCollections((collectionResponse.data || []).filter((row) => row.status === 'pending'));
-      setAdvances((advanceResponse.data || []).filter((row) => row.status === 'pending'));
+      // Collection and cash-advance operations stay with the organization.
+      // The SAO director reviews the cross-organization financial approval queue.
+      setCollections([]);
+      setAdvances([]);
     } catch (requestError) {
       setError(getApiErrorMessage(requestError, 'Unable to load financial approvals.'));
     } finally {

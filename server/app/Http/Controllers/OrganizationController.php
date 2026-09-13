@@ -11,6 +11,7 @@ class OrganizationController extends Controller
         return response()->json(
             Organization::query()
                 ->where('is_active', true)
+                ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
                 ->orderBy('name')
                 ->get(['id', 'name', 'slug', 'college', 'acronym'])
         );

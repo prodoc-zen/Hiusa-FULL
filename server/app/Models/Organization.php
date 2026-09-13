@@ -23,4 +23,9 @@ class Organization extends Model
     {
         return $this->hasMany(User::class);
     }
+
+    public function administrators(): HasMany
+    {
+        return $this->hasMany(User::class)->where('role', 'ADMIN');
+    }
 }

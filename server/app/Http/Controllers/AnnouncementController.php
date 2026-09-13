@@ -22,6 +22,9 @@ class AnnouncementController extends Controller
 
     public function generateDraft(Request $request)
     {
+        if ($request->user()->role === 'SUPER_ADMIN') {
+            return response()->json(['message' => 'SAO Directors do not use AI generation tools.'], 403);
+        }
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
@@ -128,8 +131,14 @@ class AnnouncementController extends Controller
         $query = Announcement::with([
             'creator:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
-        ])
-            ->where('organization_id', $user->organization_id);
+            'sourceOrganization:id,name,acronym',
+        ])->where(function ($scope) use ($user) {
+            $scope->where('organization_id', $user->organization_id)
+                ->orWhere(function ($global) use ($user) {
+                    $global->where('announcement_source', 'SAO')
+                        ->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id));
+                });
+        });
 
         if ($category !== '' && in_array($category, $allowedCategories, true)) {
             $query->where('category', $category);
@@ -168,11 +177,13 @@ class AnnouncementController extends Controller
 
         $publishedOnly = $request->boolean('published_only');
 
-        $canManageAnnouncements = in_array($user->role, ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'], true);
+        $canManageAnnouncements = in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true);
 
         if ($publishedOnly || ! $canManageAnnouncements) {
             $query->where('is_published', true)
-                ->where('approval_status', 'approved');
+                ->where('approval_status', 'approved')
+                ->where(fn ($q) => $q->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now()))
+                ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()));
         }
 
         if (! $canManageAnnouncements || $publishedOnly) {
@@ -205,9 +216,14 @@ class AnnouncementController extends Controller
     {
         $user = $request->user();
 
-        $announcement = Announcement::where('organization_id', $user->organization_id)
+        $announcement = Announcement::where(function ($scope) use ($user) {
+                $scope->where('organization_id', $user->organization_id)
+                    ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
+            })
             ->where('is_published', true)
             ->where('approval_status', 'approved')
+            ->where(fn ($q) => $q->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
             ->where(function ($q) use ($user) {
                 $q->where('target_role', 'all')->orWhere('target_role', $user->role);
             })
@@ -234,6 +250,9 @@ class AnnouncementController extends Controller
 
     public function store(Request $request)
     {
+        if ($request->user()->role === 'SUPER_ADMIN') {
+            return response()->json(['message' => 'SAO Directors publish only through Global Announcements.'], 403);
+        }
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
@@ -247,7 +266,7 @@ class AnnouncementController extends Controller
         ]);
 
         $user = $request->user();
-        $canPublishWithoutApproval = in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true);
+        $canPublishWithoutApproval = $user->role === 'ADMIN';
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
         $draftOutput = null;
         if (! empty($data['ai_output_id'])) {
@@ -316,7 +335,7 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && ! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
+        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only edit your own announcements.'], 403);
         }
 
@@ -387,7 +406,7 @@ class AnnouncementController extends Controller
                     'required_role' => 'ADMIN',
                 ]);
             }
-        } elseif (in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true) && $announcement->approval_status === 'rejected') {
+        } elseif ($user->role === 'ADMIN' && $announcement->approval_status === 'rejected') {
             $announcement->update([
                 'approval_status' => 'draft',
                 'reviewed_by' => null,
@@ -414,7 +433,7 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && ! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
+        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only delete your own announcements.'], 403);
         }
 
@@ -452,14 +471,14 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if (! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
+        if ($user->role !== 'ADMIN') {
             return response()->json(['message' => 'Announcements from SBO officers require admin approval before publishing.'], 403);
         }
 
         $wasPublished = (bool) $announcement->is_published;
 
         if (! $wasPublished && $announcement->approval_status === 'pending') {
-            if (! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
+            if ($user->role !== 'ADMIN') {
                 return response()->json(['message' => 'Pending SBO announcements require admin approval before publishing.'], 403);
             }
 

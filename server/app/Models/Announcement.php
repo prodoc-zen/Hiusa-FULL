@@ -22,6 +22,11 @@ class Announcement extends Model
             'is_pinned' => 'boolean',
             'is_important' => 'boolean',
             'published_at' => 'datetime',
+            'scheduled_at' => 'datetime',
+            'expires_at' => 'datetime',
+            'target_organization_ids' => 'array',
+            'target_departments' => 'array',
+            'target_roles' => 'array',
             'views_count' => 'integer',
         ];
     }
@@ -39,5 +44,15 @@ class Announcement extends Model
     public function views(): HasMany
     {
         return $this->hasMany(AnnouncementView::class);
+    }
+
+    public function recipients(): HasMany
+    {
+        return $this->hasMany(AnnouncementRecipient::class);
+    }
+
+    public function sourceOrganization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'source_organization_id');
     }
 }

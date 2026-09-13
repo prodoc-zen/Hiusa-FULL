@@ -16,6 +16,13 @@ class OrganizationSeeder extends Seeder
 
         $organizations = [
             [
+                'name' => 'Student Affairs Office',
+                'college' => null,
+                'acronym' => 'SAO',
+                'organization_type' => 'SYSTEM_ADMINISTRATION',
+                'description' => 'System administration office for university-wide student organization oversight.',
+            ],
+            [
                 'name' => 'Philippine Society of Information Technology Students - College of Computer Studies',
                 'college' => 'College of Computer Studies',
                 'acronym' => 'PSITS-CCS',
@@ -54,7 +61,7 @@ class OrganizationSeeder extends Seeder
         foreach ($organizations as $organization) {
             Organization::updateOrCreate(
                 ['slug' => Str::slug($organization['name'])],
-                [...$organization, 'is_active' => true]
+                [...$organization, 'organization_type' => $organization['organization_type'] ?? 'STUDENT_ORGANIZATION', 'is_active' => true]
             );
         }
     }

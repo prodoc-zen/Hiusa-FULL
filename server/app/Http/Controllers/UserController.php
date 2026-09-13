@@ -123,8 +123,8 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
-        if ($validatedData['role'] === 'ADMIN' && $actor->role !== 'SUPER_ADMIN') {
-            return response()->json(['message' => 'Only the super admin can create administrator accounts.'], 403);
+        if ($validatedData['role'] === 'ADMIN') {
+            return response()->json(['message' => 'Administrator accounts are created only from SAO Administration.'], 403);
         }
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
@@ -167,8 +167,8 @@ class UserController extends Controller
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
 
-        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
-            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        if ($user->role === 'ADMIN') {
+            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
         $oldValues = $this->auditableUserValues($user);
@@ -199,8 +199,8 @@ class UserController extends Controller
             'password' => 'sometimes|required|string|min:8',
         ]);
 
-        if (($validatedData['role'] ?? $user->role) === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
-            return response()->json(['message' => 'Only the super admin can assign the administrator role.'], 403);
+        if (($validatedData['role'] ?? $user->role) === 'ADMIN' && $user->role !== 'ADMIN') {
+            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
         if (
@@ -255,8 +255,8 @@ class UserController extends Controller
             return response()->json(['message' => 'The super admin account cannot be deactivated.'], 403);
         }
 
-        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
-            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        if ($user->role === 'ADMIN') {
+            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
         if ($user->school_id === $request->user()->school_id) {
@@ -296,8 +296,8 @@ class UserController extends Controller
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
 
-        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
-            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        if ($user->role === 'ADMIN') {
+            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
         if ($user->account_status === 'active') {
@@ -328,8 +328,8 @@ class UserController extends Controller
             return response()->json(['message' => 'The super admin account cannot be deleted.'], 403);
         }
 
-        if ($user->role === 'ADMIN' && $request->user()->role !== 'SUPER_ADMIN') {
-            return response()->json(['message' => 'Only the super admin can manage administrator accounts.'], 403);
+        if ($user->role === 'ADMIN') {
+            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
         $oldValues = $this->auditableUserValues($user);
