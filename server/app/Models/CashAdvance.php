@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class CashAdvance extends Model
@@ -17,5 +18,10 @@ class CashAdvance extends Model
     public function repayments(): HasMany
     {
         return $this->hasMany(CashAdvanceRepayment::class);
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
     }
 }

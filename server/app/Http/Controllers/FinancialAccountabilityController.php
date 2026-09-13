@@ -39,7 +39,11 @@ class FinancialAccountabilityController extends Controller
 
     public function collections(Request $request)
     {
-        $query = Collection::with(['remittances'])->where('organization_id', $request->user()->organization_id)->latest('collected_at');
+        $filters = $request->validate(['status' => ['nullable', 'in:pending,verified']]);
+        $query = Collection::with(['remittances', 'organization:id,name,acronym'])
+            ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('organization_id', $request->user()->organization_id))
+            ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->latest('collected_at');
         if ($request->filled('search')) {
             $query->where(fn ($q) => $q->where('reference', 'like', '%'.$request->search.'%')->orWhere('source', 'like', '%'.$request->search.'%'));
         }
@@ -67,14 +71,14 @@ class FinancialAccountabilityController extends Controller
         $this->sameOrganization($request, $collection->organization_id);
 
         return DB::transaction(function () use ($request, $collection) {
-            $locked = Collection::where('organization_id', $request->user()->organization_id)->lockForUpdate()->findOrFail($collection->id);
+            $locked = Collection::where('organization_id', $collection->organization_id)->lockForUpdate()->findOrFail($collection->id);
             if ($locked->status !== 'pending') {
                 return response()->json(['message' => 'Only pending collections can be verified.'], 409);
             } if ($locked->collected_by === $request->user()->school_id) {
                 return response()->json(['message' => 'You cannot verify your own collection.'], 403);
-            } $transaction = $this->ledger($request, 'income', $locked->amount_collected, 'Collection', 'Collection '.$locked->reference, null, $locked->id);
+            } $transaction = $this->ledger($request, 'income', $locked->amount_collected, 'Collection', 'Collection '.$locked->reference, null, $locked->id, $locked->organization_id);
             $locked->update(['status' => 'verified', 'verified_by' => $request->user()->school_id, 'verified_at' => now(), 'ledger_transaction_id' => $transaction->id]);
-            $this->audit($request, 'collections', 'verified', $locked);
+            $this->audit($request, 'collections', 'verified', $locked, $locked->organization_id);
 
             return response()->json($this->collectionData($locked->fresh()));
         });
@@ -102,7 +106,13 @@ class FinancialAccountabilityController extends Controller
 
     public function advances(Request $request)
     {
-        return response()->json(CashAdvance::with('repayments')->where('organization_id', $request->user()->organization_id)->latest()->get()->map(fn ($a) => $this->advanceData($a)));
+        $filters = $request->validate(['status' => ['nullable', 'in:pending,approved,released,partially_repaid,fully_repaid']]);
+        $query = CashAdvance::with(['repayments', 'organization:id,name,acronym'])
+            ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('organization_id', $request->user()->organization_id))
+            ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
+            ->latest();
+
+        return response()->json($query->get()->map(fn ($advance) => $this->advanceData($advance)));
     }
 
     public function storeAdvance(Request $request)
@@ -128,7 +138,7 @@ class FinancialAccountabilityController extends Controller
         } if ($advance->status !== 'pending') {
             return response()->json(['message' => 'Only pending cash advances can be approved.'], 409);
         } $advance->update(['status' => 'approved', 'approved_by' => $request->user()->school_id, 'approved_at' => now()]);
-        $this->audit($request, 'cash_advances', 'approved', $advance);
+        $this->audit($request, 'cash_advances', 'approved', $advance, $advance->organization_id);
 
         return response()->json($this->advanceData($advance->fresh()));
     }
@@ -332,19 +342,19 @@ class FinancialAccountabilityController extends Controller
         return response()->json($logs);
     }
 
-    private function ledger(Request $request, string $type, $amount, string $category, string $description, ?int $payerId, int $entityId): Transaction
+    private function ledger(Request $request, string $type, $amount, string $category, string $description, ?int $payerId, int $entityId, ?int $organizationId = null): Transaction
     {
-        return Transaction::create(['organization_id' => $request->user()->organization_id, 'recorded_by' => $request->user()->school_id, 'payer_id' => $payerId, 'type' => $type, 'amount' => $amount, 'category' => $category, 'description' => $description, 'receipt_reference' => 'FIN-'.strtoupper(Str::random(12)), 'transaction_date' => now()]);
+        return Transaction::create(['organization_id' => $organizationId ?? $request->user()->organization_id, 'recorded_by' => $request->user()->school_id, 'payer_id' => $payerId, 'type' => $type, 'amount' => $amount, 'category' => $category, 'description' => $description, 'receipt_reference' => 'FIN-'.strtoupper(Str::random(12)), 'transaction_date' => now()]);
     }
 
-    private function audit(Request $r, string $module, string $action, $model): void
+    private function audit(Request $r, string $module, string $action, $model, ?int $organizationId = null): void
     {
-        AuditLog::create(['organization_id' => $r->user()->organization_id, 'user_id' => $r->user()->school_id, 'module' => $module, 'action' => $action, 'record_type' => $model::class, 'record_id' => $model->id, 'new_values' => $model->getAttributes(), 'ip_address' => $r->ip(), 'created_at' => now()]);
+        AuditLog::create(['organization_id' => $organizationId ?? $r->user()->organization_id, 'user_id' => $r->user()->school_id, 'module' => $module, 'action' => $action, 'record_type' => $model::class, 'record_id' => $model->id, 'new_values' => $model->getAttributes(), 'ip_address' => $r->ip(), 'created_at' => now()]);
     }
 
     private function sameOrganization(Request $r, int $organizationId): void
     {
-        abort_unless($r->user()->organization_id === $organizationId, 404);
+        abort_unless($r->user()->role === 'SUPER_ADMIN' || $r->user()->organization_id === $organizationId, 404);
     }
 
     private function validateLinks(Request $request, array $data): ?string
