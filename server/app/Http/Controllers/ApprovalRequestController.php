@@ -36,7 +36,7 @@ class ApprovalRequestController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'sort' => ['nullable', 'in:newest,oldest'],
         ]);
-        $requiredRole = $request->user()->role === 'ADMIN' ? 'ADMIN' : 'DEPARTMENT_HEAD';
+        $requiredRole = $request->user()->role;
         $query = ApprovalRequest::with([
             'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
@@ -159,10 +159,6 @@ class ApprovalRequestController extends Controller
 
     private function canReview(string $userRole, ?string $requiredRole): bool
     {
-        if ($userRole === 'ADMIN') {
-            return $requiredRole === 'ADMIN';
-        }
-
         return $userRole === $requiredRole;
     }
 

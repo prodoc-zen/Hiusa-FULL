@@ -24,7 +24,8 @@ class AdministratorSeeder extends Seeder
                 'last_name' => 'Administrator',
                 'email' => 'admin@hiusa.local',
                 'password_hash' => 'Admin@123456',
-                'role' => 'ADMIN',
+                'role' => 'SUPER_ADMIN',
+                'position_title' => 'Super Administrator',
             ]
         );
     }

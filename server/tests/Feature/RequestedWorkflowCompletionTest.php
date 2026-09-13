@@ -77,7 +77,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => $budget->id,
             'requested_by' => $admin->school_id,
-            'required_role' => 'DEPARTMENT_HEAD',
+            'required_role' => 'SUPER_ADMIN',
             'status' => 'approved',
         ]);
 

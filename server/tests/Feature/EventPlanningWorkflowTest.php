@@ -233,6 +233,7 @@ class EventPlanningWorkflowTest extends TestCase
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
         $departmentHead = User::factory()->create(['organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD']);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $organization->id]);
         $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
         $student = User::factory()->student()->create(['organization_id' => $organization->id]);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
@@ -262,6 +263,8 @@ class EventPlanningWorkflowTest extends TestCase
         $eventApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->firstOrFail();
         $budgetApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->firstOrFail();
         $this->patchJson("/api/approval-requests/{$eventApproval->id}", ['status' => 'approved'])->assertOk();
+        $this->assertSame('SUPER_ADMIN', $budgetApproval->required_role);
+        Sanctum::actingAs($superAdmin);
         $this->patchJson("/api/approval-requests/{$budgetApproval->id}", ['status' => 'approved'])->assertOk();
         $event->refresh();
 

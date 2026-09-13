@@ -175,7 +175,7 @@ class FinancialAccountabilityController extends Controller
     public function invoices(Request $request)
     {
         $query = Invoice::with('payments')->where('organization_id', $request->user()->organization_id);
-        if ($request->user()->role !== 'ADMIN') {
+        if (! in_array($request->user()->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
             $query->where('student_id', $request->user()->school_id);
         }
 

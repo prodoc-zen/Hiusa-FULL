@@ -24,7 +24,7 @@ class AnnouncementController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'details' => ['nullable', 'string'],
         ]);
@@ -111,7 +111,7 @@ class AnnouncementController extends Controller
 
         $filters = $request->validate([
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
-            'target_role' => ['nullable', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'target_role' => ['nullable', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
             'approval_status' => ['nullable', 'in:draft,pending,approved,rejected'],
             'publication_status' => ['nullable', 'in:published,draft'],
             'search' => ['nullable', 'string', 'max:120'],
@@ -168,7 +168,7 @@ class AnnouncementController extends Controller
 
         $publishedOnly = $request->boolean('published_only');
 
-        $canManageAnnouncements = in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true);
+        $canManageAnnouncements = in_array($user->role, ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'], true);
 
         if ($publishedOnly || ! $canManageAnnouncements) {
             $query->where('is_published', true)
@@ -237,7 +237,7 @@ class AnnouncementController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
-            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
@@ -247,7 +247,7 @@ class AnnouncementController extends Controller
         ]);
 
         $user = $request->user();
-        $canPublishWithoutApproval = $user->role === 'ADMIN';
+        $canPublishWithoutApproval = in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true);
         $isDirectPublish = $canPublishWithoutApproval && ($data['is_published'] ?? false);
         $draftOutput = null;
         if (! empty($data['ai_output_id'])) {
@@ -316,14 +316,14 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
+        if ($announcement->created_by !== $user->id && ! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
             return response()->json(['message' => 'You can only edit your own announcements.'], 403);
         }
 
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
             'body' => ['sometimes', 'required', 'string'],
-            'target_role' => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
+            'target_role' => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
             'category' => ['sometimes', 'required', 'in:general,election,training,events,merchandise'],
             'is_published' => ['sometimes', 'boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
@@ -387,7 +387,7 @@ class AnnouncementController extends Controller
                     'required_role' => 'ADMIN',
                 ]);
             }
-        } elseif ($user->role === 'ADMIN' && $announcement->approval_status === 'rejected') {
+        } elseif (in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true) && $announcement->approval_status === 'rejected') {
             $announcement->update([
                 'approval_status' => 'draft',
                 'reviewed_by' => null,
@@ -414,7 +414,7 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($announcement->created_by !== $user->id && $user->role !== 'ADMIN') {
+        if ($announcement->created_by !== $user->id && ! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
             return response()->json(['message' => 'You can only delete your own announcements.'], 403);
         }
 
@@ -452,14 +452,14 @@ class AnnouncementController extends Controller
 
         $user = $request->user();
 
-        if ($user->role !== 'ADMIN') {
+        if (! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
             return response()->json(['message' => 'Announcements from SBO officers require admin approval before publishing.'], 403);
         }
 
         $wasPublished = (bool) $announcement->is_published;
 
         if (! $wasPublished && $announcement->approval_status === 'pending') {
-            if ($user->role !== 'ADMIN') {
+            if (! in_array($user->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
                 return response()->json(['message' => 'Pending SBO announcements require admin approval before publishing.'], 403);
             }
 
