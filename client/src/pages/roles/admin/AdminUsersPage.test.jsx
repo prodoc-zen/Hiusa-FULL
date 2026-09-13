@@ -5,6 +5,7 @@ import { UserActionDock } from './AdminUsersPage';
 describe('UserActionDock', () => {
   it('expands Admin actions and exposes fingerprint enrollment without destructive controls', () => {
     const onFingerprint = vi.fn();
+    const onVerify = vi.fn();
     const user = {
       school_id: 910001,
       first_name: 'Ricardo',
@@ -21,6 +22,7 @@ describe('UserActionDock', () => {
         onEdit={vi.fn()}
         onView={vi.fn()}
         onFingerprint={onFingerprint}
+        onVerify={onVerify}
         onDeactivate={vi.fn()}
         onReactivate={vi.fn()}
         onDelete={vi.fn()}
@@ -38,6 +40,10 @@ describe('UserActionDock', () => {
 
     fireEvent.click(screen.getByRole('menuitem', { name: 'Enroll fingerprint for Ricardo Lim' }));
     expect(onFingerprint).toHaveBeenCalledOnce();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Ricardo Lim' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Verify identity for Ricardo Lim' }));
+    expect(onVerify).toHaveBeenCalledOnce();
     expect(screen.queryByRole('menuitem', { name: 'Deactivate Ricardo Lim' })).not.toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete Ricardo Lim' })).not.toBeInTheDocument();
   });
