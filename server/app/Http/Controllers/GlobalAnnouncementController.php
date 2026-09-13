@@ -17,6 +17,7 @@ use Illuminate\Validation\Rule;
 class GlobalAnnouncementController extends Controller
 {
     private const SCOPES = ['all_users', 'all_organizations', 'selected_organizations', 'all_departments', 'selected_departments'];
+
     private const ROLES = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 
     public function index(Request $request)
@@ -30,6 +31,7 @@ class GlobalAnnouncementController extends Controller
             'archived' => $query->whereNotNull('expires_at')->where('expires_at', '<=', now()),
             default => null,
         };
+
         return response()->json($query->latest()->paginate($data['per_page'] ?? 20));
     }
 
@@ -55,35 +57,53 @@ class GlobalAnnouncementController extends Controller
                 'published_at' => $publishNow ? now() : null, 'scheduled_at' => $data['scheduled_at'] ?? null, 'expires_at' => $data['expires_at'] ?? null,
             ]);
             $this->syncRecipients($announcement);
-            if ($publishNow) $this->notifyRecipients($announcement);
+            if ($publishNow) {
+                $this->notifyRecipients($announcement);
+            }
             $this->audit($request, 'global_announcement_created', $announcement, ['target_scope' => $announcement->target_scope, 'recipient_count' => $announcement->recipients()->count(), 'published' => $publishNow]);
+
             return $announcement;
         });
+
         return response()->json($announcement->load('sourceOrganization:id,name,acronym')->loadCount('recipients'), 201);
     }
 
     public function update(Request $request, Announcement $announcement)
     {
-        if ($announcement->announcement_source !== 'SAO') return response()->json(['message' => 'Only official SAO announcements are managed here.'], 404);
-        if ($announcement->is_published && $announcement->published_at) return response()->json(['message' => 'Published announcements can be archived, but their audience cannot be changed.'], 422);
+        if ($announcement->announcement_source !== 'SAO') {
+            return response()->json(['message' => 'Only official SAO announcements are managed here.'], 404);
+        }
+        if ($announcement->is_published && $announcement->published_at) {
+            return response()->json(['message' => 'Published announcements can be archived, but their audience cannot be changed.'], 422);
+        }
         $data = $this->validatedPayload($request, true);
         $old = $announcement->only(['title', 'body', 'target_scope', 'target_organization_ids', 'target_departments', 'target_roles', 'scheduled_at', 'expires_at']);
         $publishNow = ($data['publish'] ?? false) && empty($data['scheduled_at']);
         $values = collect($data)->except(['publish', 'image'])->all();
-        if ($request->hasFile('image')) $values['image_url'] = Storage::disk('public')->url($request->file('image')->store('announcements', 'public'));
-        if ($publishNow) $values += ['is_published' => true, 'published_at' => now(), 'reviewed_by' => $request->user()->school_id];
+        if ($request->hasFile('image')) {
+            $values['image_url'] = Storage::disk('public')->url($request->file('image')->store('announcements', 'public'));
+        }
+        if ($publishNow) {
+            $values += ['is_published' => true, 'published_at' => now(), 'reviewed_by' => $request->user()->school_id];
+        }
         $announcement->update($values);
         $this->syncRecipients($announcement->fresh());
-        if ($publishNow) $this->notifyRecipients($announcement->fresh());
+        if ($publishNow) {
+            $this->notifyRecipients($announcement->fresh());
+        }
         $this->audit($request, 'global_announcement_updated', $announcement, ['before' => $old, 'after' => $announcement->fresh()->only(array_keys($old))]);
+
         return response()->json($announcement->fresh()->load('sourceOrganization:id,name,acronym')->loadCount('recipients'));
     }
 
     public function archive(Request $request, Announcement $announcement)
     {
-        if ($announcement->announcement_source !== 'SAO') return response()->json(['message' => 'Announcement not found.'], 404);
+        if ($announcement->announcement_source !== 'SAO') {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
         $announcement->update(['is_published' => false, 'expires_at' => now()]);
         $this->audit($request, 'global_announcement_archived', $announcement, []);
+
         return response()->json(['message' => 'Official announcement archived.']);
     }
 
@@ -94,6 +114,7 @@ class GlobalAnnouncementController extends Controller
             $announcement->update(['published_at' => now(), 'reviewed_by' => $announcement->created_by]);
             $this->notifyRecipients($announcement->fresh());
         }
+
         return $announcements->count();
     }
 
@@ -111,9 +132,16 @@ class GlobalAnnouncementController extends Controller
             'is_pinned' => ['sometimes', 'boolean'], 'is_important' => ['sometimes', 'boolean'],
         ]);
         $scope = $data['target_scope'] ?? null;
-        if ($scope === 'selected_organizations' && empty($data['target_organization_ids'])) return abort(response()->json(['message' => 'Choose at least one organization.'], 422));
-        if ($scope === 'selected_departments' && empty($data['target_departments'])) return abort(response()->json(['message' => 'Choose at least one department.'], 422));
-        if (! empty($data['scheduled_at']) && ! empty($data['expires_at']) && strtotime($data['expires_at']) <= strtotime($data['scheduled_at'])) return abort(response()->json(['message' => 'Expiration must be after the scheduled publish date.'], 422));
+        if ($scope === 'selected_organizations' && empty($data['target_organization_ids'])) {
+            return abort(response()->json(['message' => 'Choose at least one organization.'], 422));
+        }
+        if ($scope === 'selected_departments' && empty($data['target_departments'])) {
+            return abort(response()->json(['message' => 'Choose at least one department.'], 422));
+        }
+        if (! empty($data['scheduled_at']) && ! empty($data['expires_at']) && strtotime($data['expires_at']) <= strtotime($data['scheduled_at'])) {
+            return abort(response()->json(['message' => 'Expiration must be after the scheduled publish date.'], 422));
+        }
+
         return $data;
     }
 
@@ -126,17 +154,24 @@ class GlobalAnnouncementController extends Controller
             'selected_departments' => $query->whereIn('department', $announcement->target_departments ?? []),
             default => null,
         };
-        if (! empty($announcement->target_roles)) $query->whereIn('role', $announcement->target_roles);
+        if (! empty($announcement->target_roles)) {
+            $query->whereIn('role', $announcement->target_roles);
+        }
         $rows = $query->get(['school_id', 'organization_id'])->map(fn ($user) => ['announcement_id' => $announcement->id, 'user_id' => $user->school_id, 'organization_id' => $user->organization_id, 'created_at' => now(), 'updated_at' => now()]);
         AnnouncementRecipient::where('announcement_id', $announcement->id)->delete();
-        foreach ($rows->chunk(250) as $chunk) AnnouncementRecipient::insert($chunk->all());
+        foreach ($rows->chunk(250) as $chunk) {
+            AnnouncementRecipient::insert($chunk->all());
+        }
     }
 
     private function notifyRecipients(Announcement $announcement): void
     {
-        $now = now(); $message = str($announcement->body)->stripTags()->squish()->limit(180)->toString();
+        $now = now();
+        $message = str($announcement->body)->stripTags()->squish()->limit(180)->toString();
         $rows = $announcement->recipients()->get(['user_id', 'organization_id'])->map(fn ($recipient) => ['organization_id' => $recipient->organization_id, 'user_id' => $recipient->user_id, 'notification_type' => 'announcement', 'title' => 'SAO Official: '.str($announcement->title)->limit(220), 'message' => $message, 'reference_type' => Announcement::class, 'reference_id' => $announcement->id, 'is_read' => false, 'sent_at' => $now, 'created_at' => $now, 'updated_at' => $now]);
-        foreach ($rows->chunk(250) as $chunk) Notification::insert($chunk->all());
+        foreach ($rows->chunk(250) as $chunk) {
+            Notification::insert($chunk->all());
+        }
     }
 
     private function sao(): Organization

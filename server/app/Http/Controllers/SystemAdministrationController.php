@@ -11,7 +11,6 @@ use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -69,7 +68,10 @@ class SystemAdministrationController extends Controller
         if (! empty($filters['search'])) {
             $query->where(fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%')->orWhere('acronym', 'like', '%'.$filters['search'].'%')->orWhere('college', 'like', '%'.$filters['search'].'%'));
         }
-        if (($filters['status'] ?? 'all') !== 'all') $query->where('is_active', $filters['status'] === 'active');
+        if (($filters['status'] ?? 'all') !== 'all') {
+            $query->where('is_active', $filters['status'] === 'active');
+        }
+
         return response()->json($query->orderBy('name')->paginate($filters['per_page'] ?? 20));
     }
 
@@ -78,17 +80,23 @@ class SystemAdministrationController extends Controller
         $data = $request->validate(['name' => ['required', 'string', 'max:255', 'unique:organizations,name'], 'acronym' => ['required', 'string', 'max:50', 'unique:organizations,acronym'], 'college' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
         $organization = Organization::create([...$data, 'slug' => Str::slug($data['name']), 'organization_type' => 'STUDENT_ORGANIZATION', 'is_active' => $data['is_active'] ?? true]);
         $this->audit($request, 'organization_created', $organization, $organization->toArray());
+
         return response()->json($organization, 201);
     }
 
     public function updateOrganization(Request $request, Organization $organization)
     {
-        if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') return response()->json(['message' => 'The SAO system organization is not managed as an SBO.'], 403);
+        if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') {
+            return response()->json(['message' => 'The SAO system organization is not managed as an SBO.'], 403);
+        }
         $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
         $old = $organization->toArray();
-        if (isset($data['name'])) $data['slug'] = Str::slug($data['name']);
+        if (isset($data['name'])) {
+            $data['slug'] = Str::slug($data['name']);
+        }
         $organization->update($data);
         $this->audit($request, 'organization_updated', $organization, ['before' => $old, 'after' => $organization->fresh()->toArray()]);
+
         return response()->json($organization->fresh());
     }
 
@@ -96,9 +104,16 @@ class SystemAdministrationController extends Controller
     {
         $filters = $request->validate(['organization_id' => ['nullable', 'integer', 'exists:organizations,id'], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,disabled,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = User::with('organization:id,name,acronym,college')->where('role', 'ADMIN');
-        if (! empty($filters['organization_id'])) $query->where('organization_id', $filters['organization_id']);
-        if (($filters['status'] ?? 'all') !== 'all') $query->where('account_status', $filters['status']);
-        if (! empty($filters['search'])) $query->where(fn ($q) => $q->where('first_name', 'like', '%'.$filters['search'].'%')->orWhere('last_name', 'like', '%'.$filters['search'].'%')->orWhere('email', 'like', '%'.$filters['search'].'%')->orWhere('school_id', 'like', '%'.$filters['search'].'%'));
+        if (! empty($filters['organization_id'])) {
+            $query->where('organization_id', $filters['organization_id']);
+        }
+        if (($filters['status'] ?? 'all') !== 'all') {
+            $query->where('account_status', $filters['status']);
+        }
+        if (! empty($filters['search'])) {
+            $query->where(fn ($q) => $q->where('first_name', 'like', '%'.$filters['search'].'%')->orWhere('last_name', 'like', '%'.$filters['search'].'%')->orWhere('email', 'like', '%'.$filters['search'].'%')->orWhere('school_id', 'like', '%'.$filters['search'].'%'));
+        }
+
         return response()->json($query->orderBy('last_name')->paginate($filters['per_page'] ?? 20));
     }
 
@@ -106,25 +121,37 @@ class SystemAdministrationController extends Controller
     {
         $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'password' => ['required', 'string', 'min:8', 'confirmed'], 'contact_number' => ['nullable', 'string', 'max:30'], 'position_title' => ['nullable', 'string', 'max:100']]);
         $organization = Organization::whereKey($data['organization_id'])->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->first();
-        if (! $organization) return response()->json(['message' => 'Choose an active student organization.'], 422);
+        if (! $organization) {
+            return response()->json(['message' => 'Choose an active student organization.'], 422);
+        }
         $admin = User::create([...$data, 'password_hash' => Hash::make($data['password']), 'role' => 'ADMIN', 'account_status' => 'active', 'is_member' => true, 'department' => $organization->college]);
         unset($admin->password);
         Notification::create(['organization_id' => $organization->id, 'user_id' => $admin->school_id, 'notification_type' => 'general', 'title' => 'Administrator account created', 'message' => 'Your HIUSA administrator account has been created by the Student Affairs Office.', 'is_read' => false, 'sent_at' => now()]);
         $this->audit($request, 'administrator_created', $admin, ['administrator_id' => $admin->school_id, 'organization_id' => $organization->id]);
+
         return response()->json($admin->load('organization:id,name,acronym'), 201);
     }
 
     public function updateAdmin(Request $request, User $user)
     {
-        if ($user->role !== 'ADMIN') return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
+        if ($user->role !== 'ADMIN') {
+            return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
+        }
         $data = $request->validate(['organization_id' => ['sometimes', 'integer', 'exists:organizations,id'], 'first_name' => ['sometimes', 'required', 'string', 'max:60'], 'last_name' => ['sometimes', 'required', 'string', 'max:60'], 'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->school_id, 'school_id')], 'contact_number' => ['nullable', 'string', 'max:30'], 'position_title' => ['nullable', 'string', 'max:100'], 'account_status' => ['sometimes', 'in:active,inactive,disabled']]);
         if (isset($data['organization_id'])) {
             $organization = Organization::whereKey($data['organization_id'])->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->first();
-            if (! $organization) return response()->json(['message' => 'Choose a student organization.'], 422);
+            if (! $organization) {
+                return response()->json(['message' => 'Choose a student organization.'], 422);
+            }
             $data['department'] = $organization->college;
         }
-        $old = $user->toArray(); $user->update($data); if (($data['account_status'] ?? 'active') !== 'active') $user->tokens()->delete();
+        $old = $user->toArray();
+        $user->update($data);
+        if (($data['account_status'] ?? 'active') !== 'active') {
+            $user->tokens()->delete();
+        }
         $this->audit($request, 'administrator_updated', $user, ['before' => $old, 'after' => $user->fresh()->toArray()]);
+
         return response()->json($user->fresh()->load('organization:id,name,acronym'));
     }
 

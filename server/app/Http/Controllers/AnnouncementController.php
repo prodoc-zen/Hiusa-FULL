@@ -217,9 +217,9 @@ class AnnouncementController extends Controller
         $user = $request->user();
 
         $announcement = Announcement::where(function ($scope) use ($user) {
-                $scope->where('organization_id', $user->organization_id)
-                    ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
-            })
+            $scope->where('organization_id', $user->organization_id)
+                ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
+        })
             ->where('is_published', true)
             ->where('approval_status', 'approved')
             ->where(fn ($q) => $q->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now()))
