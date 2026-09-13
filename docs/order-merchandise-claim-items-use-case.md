@@ -15,6 +15,7 @@
 |   |-- <<include>> Enter Reference Number
 |   `-- <<include>> Save Payment Submission
 |-- <<include>> Track Order Status
+|-- <<extend>> Cancel Pending Unpaid Order
 |-- <<extend>> Receive Digital Receipt
 |-- <<extend>> Receive Claim Token
 `-- <<extend>> Present Claim Token for Validation
@@ -32,6 +33,7 @@
 - **Reserve Merchandise Item:** checkout creates pending orders and decrements stock.
 - **Submit GCash Payment Proof:** checkout requires a reference number and image upload, then stores the proof URL on the pending order.
 - **Track Order Status:** personal order views load only the current user's orders using `mine=1`.
+- **Cancel Pending Unpaid Order:** buyers may cancel only their own pending order before payment proof or staff review exists. Cancellation returns the reserved quantity to inventory atomically and cannot restore stock twice. Orders with payment activity require staff review.
 - **Receive Digital Receipt:** approved payments create linked receipt transactions.
 - **Receive Claim Token:** the reserved token remains hidden from the buyer until Admin approves payment.
 - **Present Claim Token for Validation:** personal token views show active tokens for pickup.

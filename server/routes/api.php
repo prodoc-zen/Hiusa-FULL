@@ -167,6 +167,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     // Order Routes
     Route::get('/orders', [OrderController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/orders', [OrderController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::patch('/orders/{id}/cancel', [OrderController::class, 'cancel'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/{id}/audit-logs', [OrderController::class, 'auditHistory'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);

@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import {
   AlertTriangle,
   ArrowRight,
+  Boxes,
   CheckCircle,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,7 @@ import {
   Pencil,
   Plus,
   Search,
+  ShieldCheck,
   SlidersHorizontal,
   ShoppingBag,
   Ticket,
@@ -32,6 +34,7 @@ import {
   deleteItem,
 } from "../../../services/merchandiseService";
 import {
+  cancelOrder,
   exportOrders,
   getOrderAnalyticsUsers,
   getOrderAuditLogs,
@@ -185,6 +188,7 @@ function ConfirmModal({
   message,
   confirmText = "Confirm",
   busy = false,
+  danger = false,
   onCancel,
   onConfirm,
 }) {
@@ -207,7 +211,7 @@ function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+            className={`h-11 rounded-lg px-5 text-sm font-bold text-white transition disabled:opacity-50 ${danger ? "bg-[#DC2626] hover:bg-[#B91C1C]" : "bg-[#0B8ED0] hover:bg-[#0878B7]"}`}
             disabled={busy}
           >
             {busy ? "Processing..." : confirmText}
@@ -325,6 +329,8 @@ export default function MerchandisePage({ initialTab }) {
   });
   const [exportingOrders, setExportingOrders] = useState(false);
   const [studentItemSearch, setStudentItemSearch] = useState("");
+  const [studentCategory, setStudentCategory] = useState("all");
+  const [studentItemSort, setStudentItemSort] = useState("featured");
   const [studentOrderSearch, setStudentOrderSearch] = useState("");
   const [ordersMeta, setOrdersMeta] = useState({
     current_page: 1,
@@ -382,6 +388,7 @@ export default function MerchandisePage({ initialTab }) {
     confirmText: "Confirm",
     action: null,
     busy: false,
+    danger: false,
   });
 
   async function openOrderDetails(order) {
@@ -611,7 +618,7 @@ export default function MerchandisePage({ initialTab }) {
     setClaimSuccess(null);
   }, [claimSuccess]);
 
-  function openConfirm({ title, message, confirmText, action }) {
+  function openConfirm({ title, message, confirmText, action, danger = false }) {
     setConfirmModal({
       open: true,
       title,
@@ -619,6 +626,7 @@ export default function MerchandisePage({ initialTab }) {
       confirmText,
       action,
       busy: false,
+      danger,
     });
   }
 
@@ -630,6 +638,7 @@ export default function MerchandisePage({ initialTab }) {
       confirmText: "Confirm",
       action: null,
       busy: false,
+      danger: false,
     });
   }
 
@@ -829,6 +838,45 @@ export default function MerchandisePage({ initialTab }) {
         error: err.response?.data?.message ?? "Failed to submit payment proof.",
       }));
     }
+  }
+
+  function confirmBuyerCancellation(order) {
+    openConfirm({
+      title: "Cancel this order?",
+      message: `Cancel ORD-${order.id} for ${order.merchandise?.name ?? "this item"}? The reserved ${order.quantity} unit${order.quantity === 1 ? "" : "s"} will immediately return to available stock.`,
+      confirmText: "Cancel Order",
+      danger: true,
+      action: async () => {
+        const response = await cancelOrder(order.id);
+        setOrders((current) =>
+          current.map((row) => (row.id === order.id ? response.data : row)),
+        );
+        setPendingOrdersTotal((current) => Math.max(0, current - 1));
+        setItems((current) =>
+          current.map((item) =>
+            item.id === order.merchandise?.id
+              ? { ...item, stock_quantity: item.stock_quantity + order.quantity }
+              : item,
+          ),
+        );
+        setCart((current) =>
+          current.map((row) =>
+            row.item.id === order.merchandise?.id
+              ? {
+                  ...row,
+                  item: {
+                    ...row.item,
+                    stock_quantity: row.item.stock_quantity + order.quantity,
+                  },
+                }
+              : row,
+          ),
+        );
+        setTransactionMessage(
+          `Order ORD-${order.id} was cancelled. Reserved stock is available again.`,
+        );
+      },
+    });
   }
 
   async function handlePaymentVerification() {
@@ -1210,6 +1258,10 @@ export default function MerchandisePage({ initialTab }) {
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
   );
+  const availableUnits = availableItems.reduce(
+    (sum, item) => sum + item.stock_quantity,
+    0,
+  );
   const cartTotal = useMemo(
     () =>
       cart.reduce(
@@ -1218,17 +1270,43 @@ export default function MerchandisePage({ initialTab }) {
       ),
     [cart],
   );
+  const cartQuantity = cart.reduce((sum, row) => sum + row.quantity, 0);
 
   const filteredInventoryItems = items.filter((i) =>
     i.name?.toLowerCase().includes(inventorySearch.toLowerCase()),
   );
 
-  const filteredStudentItems = items.filter(
-    (i) =>
-      i.is_active &&
-      i.stock_quantity > 0 &&
-      i.name?.toLowerCase().includes(studentItemSearch.toLowerCase()),
-  );
+  const studentCategories = [
+    "all",
+    ...new Set(
+      items
+        .filter((item) => item.is_active && item.category)
+        .map((item) => item.category),
+    ),
+  ];
+  const filteredStudentItems = items
+    .filter(
+      (item) =>
+        item.is_active &&
+        (studentCategory === "all" || item.category === studentCategory) &&
+        [item.name, item.category, item.description].some((value) =>
+          (value ?? "")
+            .toLowerCase()
+            .includes(studentItemSearch.trim().toLowerCase()),
+        ),
+    )
+    .sort((left, right) => {
+      if (studentItemSort === "price-low") {
+        return toNumber(left.price) - toNumber(right.price);
+      }
+      if (studentItemSort === "price-high") {
+        return toNumber(right.price) - toNumber(left.price);
+      }
+      if (studentItemSort === "stock") {
+        return right.stock_quantity - left.stock_quantity;
+      }
+      return Number(right.stock_quantity > 0) - Number(left.stock_quantity > 0);
+    });
 
   const filteredStudentOrders = orders.filter((o) => {
     const q = studentOrderSearch.toLowerCase();
@@ -1326,7 +1404,7 @@ export default function MerchandisePage({ initialTab }) {
             {
               label: "Available Items",
               value: availableItems.length,
-              helper: "Ready to reserve",
+              helper: `${availableUnits} unit${availableUnits === 1 ? "" : "s"} currently in stock`,
               icon: Package,
             },
             {
@@ -1364,80 +1442,162 @@ export default function MerchandisePage({ initialTab }) {
 
         {/* Order Merchandise tab */}
         {activeTab === "order" && (
-          <section className="space-y-4">
-            <div className="flex items-start gap-3 rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] p-4">
-              <Info size={18} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
-              <p className="text-[13px] font-medium text-[#0B1831]">
-                Reserve available items, then choose cash or submit your GCash
-                reference and payment proof for verification.
-              </p>
+          <section className="space-y-5">
+            <div className="overflow-hidden rounded-xl border border-[#173B68] bg-[#0F2F62] text-white shadow-sm">
+              <div className="flex flex-col justify-between gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
+                <div className="max-w-2xl">
+                  <div className="mb-2 flex items-center gap-2 text-[#8DDAF5]">
+                    <ShieldCheck size={16} />
+                    <span className="text-xs font-bold uppercase tracking-wider">
+                      Official organization store
+                    </span>
+                  </div>
+                  <h2 className="text-xl font-extrabold sm:text-2xl">
+                    Choose it now, decide before payment
+                  </h2>
+                  <p className="mt-2 text-[13px] font-medium leading-6 text-slate-200">
+                    Stock is shown live and reserved after checkout. You can
+                    cancel a pending unpaid order from My Orders if you change
+                    your mind.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab("cart")}
+                  className="flex min-h-11 shrink-0 items-center justify-between gap-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-left text-[#0B1831] transition hover:bg-[#EEF6FB] sm:min-w-48"
+                >
+                  <span>
+                    <span className="block text-[11px] font-bold uppercase text-slate-500">
+                      Your cart
+                    </span>
+                    <span className="text-sm font-extrabold">
+                      {cartQuantity} item{cartQuantity === 1 ? "" : "s"} · {fmt(cartTotal)}
+                    </span>
+                  </span>
+                  <ArrowRight size={18} className="text-[#0B8ED0]" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
-              <Search size={15} className="text-slate-400" />
-              <input
-                value={studentItemSearch}
-                onChange={(e) => setStudentItemSearch(e.target.value)}
-                type="text"
-                placeholder="Search merchandise..."
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400"
-              />
+            <div className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+              <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
+                <label className="flex h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
+                  <Search size={16} className="shrink-0 text-slate-400" />
+                  <span className="sr-only">Search merchandise</span>
+                  <input
+                    value={studentItemSearch}
+                    onChange={(e) => setStudentItemSearch(e.target.value)}
+                    type="search"
+                    placeholder="Search product, category, or description"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                  />
+                </label>
+                <select
+                  aria-label="Filter merchandise category"
+                  value={studentCategory}
+                  onChange={(event) => setStudentCategory(event.target.value)}
+                  className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                >
+                  {studentCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category === "all" ? "All categories" : category}
+                    </option>
+                  ))}
+                </select>
+                <select
+                  aria-label="Sort merchandise"
+                  value={studentItemSort}
+                  onChange={(event) => setStudentItemSort(event.target.value)}
+                  className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                >
+                  <option value="featured">Available first</option>
+                  <option value="stock">Most stock</option>
+                  <option value="price-low">Price: low to high</option>
+                  <option value="price-high">Price: high to low</option>
+                </select>
+              </div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEF2F7] pt-3">
+                <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                  <Boxes size={15} className="text-[#0B8ED0]" />
+                  {availableUnits} total units available across {availableItems.length} products
+                </p>
+                <p className="text-xs font-medium text-slate-400">
+                  Stock refreshes after every reservation or cancellation.
+                </p>
+              </div>
             </div>
 
             {loading ? (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                {[1, 2, 3].map((i) => (
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
-                    className="h-56 animate-pulse rounded-xl bg-slate-100"
+                    className="h-96 animate-pulse rounded-xl border border-[#DDE7EF] bg-white"
                   />
                 ))}
               </div>
             ) : filteredStudentItems.length === 0 ? (
               <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
                 <Package size={36} className="mx-auto mb-3 text-slate-200" />
-                <p className="text-sm font-semibold text-slate-400">
-                  No items available right now.
+                <p className="text-sm font-bold text-[#0F172A]">
+                  No merchandise matches your filters.
                 </p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setStudentItemSearch("");
+                    setStudentCategory("all");
+                  }}
+                  className="mt-3 text-xs font-bold text-[#0B8ED0] hover:text-[#0878B7]"
+                >
+                  Clear search and category
+                </button>
               </div>
             ) : (
-              <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
                 {filteredStudentItems.map((item) => (
-                  <div
+                  <article
                     key={item.id}
-                    className="flex flex-col rounded-xl border border-[#DDE7EF] bg-white shadow-sm overflow-hidden"
+                    className={`group flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${item.stock_quantity === 0 ? "border-slate-200" : "border-[#DDE7EF] hover:border-[#0B8ED0]/40"}`}
                   >
-                    {item.image_url ? (
-                      <img
-                        src={resolveAssetUrl(item.image_url)}
-                        alt={item.name}
-                        className="h-40 w-full object-cover"
-                      />
-                    ) : (
-                      <div className="flex h-40 items-center justify-center bg-[#F8FBFD]">
-                        <Package size={40} className="text-slate-200" />
-                      </div>
-                    )}
-                    <div className="flex flex-1 flex-col p-4">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-bold text-[#0F172A] leading-snug">
-                          {item.name}
-                        </p>
+                    <div className="relative overflow-hidden bg-[#F8FBFD]">
+                      {item.image_url ? (
+                        <img
+                          src={resolveAssetUrl(item.image_url)}
+                          alt={item.name}
+                          className={`h-48 w-full object-cover transition duration-300 group-hover:scale-[1.02] ${item.stock_quantity === 0 ? "grayscale" : ""}`}
+                        />
+                      ) : (
+                        <div className="flex h-48 items-center justify-center">
+                          <Package size={44} className="text-slate-200" />
+                        </div>
+                      )}
+                      <div className="absolute inset-x-0 top-0 flex items-start justify-between gap-2 p-3">
+                        <span className="rounded-full border border-white/70 bg-white/95 px-2.5 py-1 text-[10px] font-bold uppercase text-[#0F2F62] shadow-sm">
+                          {item.category || "Merchandise"}
+                        </span>
                         <span
-                          className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-bold ${stockBadge(item.stock_quantity)}`}
+                          className={`shrink-0 rounded-full border border-white/70 px-2.5 py-1 text-[11px] font-extrabold shadow-sm ${stockBadge(item.stock_quantity)}`}
                         >
-                          {stockLabel(item.stock_quantity)}
+                          {item.stock_quantity} in stock
                         </span>
                       </div>
+                    </div>
+                    <div className="flex flex-1 flex-col p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <h3 className="min-w-0 font-bold leading-snug text-[#0F172A]">
+                          {item.name}
+                        </h3>
+                        <p className="shrink-0 text-lg font-black text-[#0B8ED0]">
+                          {fmt(item.price)}
+                        </p>
+                      </div>
                       {item.description && (
-                        <p className="mt-1 text-[12px] text-slate-400 line-clamp-2">
+                        <p className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500">
                           {item.description}
                         </p>
                       )}
-                      <p className="mt-3 text-lg font-black text-[#0B8ED0]">
-                        {fmt(item.price)}
-                      </p>
-                      <div className="mt-3 flex items-center gap-2">
+                      <div className="mt-auto flex items-center gap-2 border-t border-[#EEF2F7] pt-4">
                         <button
                           type="button"
                           onClick={() =>
@@ -1449,7 +1609,8 @@ export default function MerchandisePage({ initialTab }) {
                               ),
                             }))
                           }
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"
+                          disabled={item.stock_quantity === 0}
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Decrease quantity for ${item.name}`}
                         >
                           <Minus size={14} />
@@ -1470,7 +1631,8 @@ export default function MerchandisePage({ initialTab }) {
                               [item.id]: safe,
                             }));
                           }}
-                          className="h-10 w-16 rounded-lg border border-[#DDE7EF] text-center text-sm font-bold outline-none focus:border-[#0B8ED0]"
+                          disabled={item.stock_quantity === 0}
+                          className="h-11 w-16 rounded-lg border border-[#DDE7EF] text-center text-sm font-bold outline-none focus:border-[#0B8ED0] disabled:bg-slate-50 disabled:text-slate-400"
                         />
                         <button
                           type="button"
@@ -1483,7 +1645,8 @@ export default function MerchandisePage({ initialTab }) {
                               ),
                             }))
                           }
-                          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"
+                          disabled={item.stock_quantity === 0}
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Increase quantity for ${item.name}`}
                         >
                           <Plus size={14} />
@@ -1492,13 +1655,16 @@ export default function MerchandisePage({ initialTab }) {
                       <button
                         type="button"
                         onClick={() => addToCart(item)}
-                        className="mt-3 flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-[13px] font-bold text-white transition hover:bg-[#0878B7]"
+                        disabled={item.stock_quantity === 0}
+                        className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                       >
                         <ShoppingBag size={14} />
-                        Add To Cart
+                        {item.stock_quantity === 0
+                          ? "Currently unavailable"
+                          : "Add to Cart"}
                       </button>
                     </div>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
@@ -1506,12 +1672,26 @@ export default function MerchandisePage({ initialTab }) {
         )}
 
         {activeTab === "cart" && (
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="border-b border-[#DDE7EF] p-5">
-              <h2 className="text-lg font-bold text-[#0F172A]">Order Cart</h2>
-              <p className="text-sm font-medium text-slate-500">
-                Review your items before finalizing your reservation list.
-              </p>
+          <section className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-[#0B8ED0]">
+                  Review your selection
+                </p>
+                <h2 className="mt-1 text-xl font-extrabold text-[#0F172A]">
+                  Your merchandise cart
+                </h2>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Nothing is reserved until you submit the order.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setActiveTab("order")}
+                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0B8ED0] hover:bg-[#F8FBFD]"
+              >
+                Continue Shopping
+              </button>
             </div>
             {cart.length === 0 ? (
               <div className="p-8 text-center">
@@ -1535,14 +1715,27 @@ export default function MerchandisePage({ initialTab }) {
                 {cart.map((row) => (
                   <div
                     key={row.item.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-[#DDE7EF] p-4"
+                    className="flex flex-wrap items-center gap-4 rounded-lg border border-[#DDE7EF] p-4 transition hover:border-[#0B8ED0]/30"
                   >
-                    <div>
+                    <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD]">
+                      {row.item.image_url ? (
+                        <img
+                          src={resolveAssetUrl(row.item.image_url)}
+                          alt={row.item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <div className="grid h-full w-full place-items-center">
+                          <Package size={24} className="text-slate-200" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="min-w-40 flex-1">
                       <p className="font-bold text-[#0F172A]">
                         {row.item.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {fmt(row.item.price)} each
+                        {fmt(row.item.price)} each · {row.item.stock_quantity} available
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
@@ -1564,7 +1757,8 @@ export default function MerchandisePage({ initialTab }) {
                         onClick={() =>
                           changeCartQty(row.item.id, row.quantity + 1)
                         }
-                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"
+                        disabled={row.quantity >= row.item.stock_quantity}
+                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label={`Increase quantity for ${row.item.name}`}
                       >
                         <Plus size={13} />
@@ -1578,30 +1772,42 @@ export default function MerchandisePage({ initialTab }) {
                         <Trash2 size={13} />
                       </button>
                     </div>
-                    <p className="text-sm font-black text-[#0F172A]">
+                    <p className="min-w-24 text-right text-base font-black text-[#0F172A]">
                       {fmt(toNumber(row.item.price) * row.quantity)}
                     </p>
                   </div>
                 ))}
-                <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#DDE7EF] pt-4">
-                  <p className="text-sm font-bold text-slate-600">
-                    Total:{" "}
-                    <span className="text-[#0F172A]">{fmt(cartTotal)}</span>
-                  </p>
+                <div className="flex flex-col gap-4 border-t border-[#DDE7EF] pt-4 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-xs font-semibold text-slate-500">
+                      {cartQuantity} total item{cartQuantity === 1 ? "" : "s"}
+                    </p>
+                    <p className="mt-1 text-lg font-black text-[#0F172A]">
+                      Order total: <span className="text-[#0B8ED0]">{fmt(cartTotal)}</span>
+                    </p>
+                  </div>
                   <div className="flex gap-2">
                     <button
                       type="button"
-                      onClick={() => setCart([])}
-                      className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
+                      onClick={() =>
+                        openConfirm({
+                          title: "Clear your cart?",
+                          message: "Remove every item from this cart? No order has been placed yet.",
+                          confirmText: "Clear Cart",
+                          danger: true,
+                          action: async () => setCart([]),
+                        })
+                      }
+                      className="h-11 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
                     >
                       Clear Cart
                     </button>
                     <button
                       type="button"
                       onClick={() => setCheckoutOpen(true)}
-                      className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]"
+                      className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]"
                     >
-                      Finalize Order List
+                      Review & Continue
                     </button>
                   </div>
                 </div>
@@ -1653,19 +1859,34 @@ export default function MerchandisePage({ initialTab }) {
                     className={`rounded-xl border bg-white p-5 shadow-sm ${o.status === "claimed" ? "border-emerald-200" : o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-mono text-xs font-bold text-slate-400">
-                          ORD-{o.id}
-                        </p>
-                        <p className="mt-0.5 font-bold text-[#0F172A]">
-                          {o.merchandise?.name ?? "-"}
-                        </p>
-                        <p className="text-[13px] text-slate-500">
-                          Qty: {o.quantity} - Total: {fmt(o.total_price)}
-                        </p>
-                        <p className="mt-1 text-[12px] text-slate-400">
-                          {fmtDate(o.created_at)}
-                        </p>
+                      <div className="flex min-w-0 items-start gap-3">
+                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD]">
+                          {o.merchandise?.image_url ? (
+                            <img
+                              src={resolveAssetUrl(o.merchandise.image_url)}
+                              alt={o.merchandise?.name ?? "Merchandise"}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <div className="grid h-full w-full place-items-center">
+                              <Package size={22} className="text-slate-200" />
+                            </div>
+                          )}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="font-mono text-xs font-bold text-slate-400">
+                            ORD-{o.id}
+                          </p>
+                          <p className="mt-0.5 truncate font-bold text-[#0F172A]">
+                            {o.merchandise?.name ?? "-"}
+                          </p>
+                          <p className="text-[13px] text-slate-500">
+                            Qty: {o.quantity} · Total: {fmt(o.total_price)}
+                          </p>
+                          <p className="mt-1 text-[12px] text-slate-400">
+                            {fmtDate(o.created_at)}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <span
@@ -1681,6 +1902,11 @@ export default function MerchandisePage({ initialTab }) {
                           )}
                       </div>
                     </div>
+                    {o.status !== "cancelled" && (
+                      <div className="mt-4 border-t border-[#EEF2F7] pt-4">
+                        <StepTracker status={o.status} />
+                      </div>
+                    )}
                     {o.status === "paid" && (
                       <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2">
                         <Info size={14} className="text-amber-600 shrink-0" />
@@ -1699,26 +1925,47 @@ export default function MerchandisePage({ initialTab }) {
                               ? "You can submit GCash proof now or pay cash on pickup."
                               : "Pay cash on pickup. GCash is unavailable until the official QR code is configured."}
                         </p>
-                        {gcashSettings?.gcash_qr_url && (
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setPaymentModal({
-                                open: true,
-                                order: o,
-                                reference: o.payment_reference || "",
-                                proof_file: null,
-                                busy: false,
-                                error: "",
-                              })
-                            }
-                            className="h-9 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white hover:bg-[#0878B7]"
-                          >
-                            {o.payment_proof_url
-                              ? "Replace Proof"
-                              : "Submit GCash Proof"}
-                          </button>
-                        )}
+                        <div className="flex flex-wrap gap-2">
+                          {gcashSettings?.gcash_qr_url && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setPaymentModal({
+                                  open: true,
+                                  order: o,
+                                  reference: o.payment_reference || "",
+                                  proof_file: null,
+                                  busy: false,
+                                  error: "",
+                                })
+                              }
+                              className="h-9 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white hover:bg-[#0878B7]"
+                            >
+                              {o.payment_proof_url
+                                ? "Replace Proof"
+                                : "Submit GCash Proof"}
+                            </button>
+                          )}
+                          {!o.payment_proof_url &&
+                            o.officer_review_status === "pending" &&
+                            o.admin_review_status === "pending" && (
+                              <button
+                                type="button"
+                                onClick={() => confirmBuyerCancellation(o)}
+                                className="h-9 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-[#DC2626] transition hover:bg-red-50"
+                              >
+                                Cancel Order
+                              </button>
+                            )}
+                        </div>
+                      </div>
+                    )}
+                    {o.status === "cancelled" && (
+                      <div className="mt-3 flex items-start gap-2 rounded-lg bg-red-50 px-3 py-2">
+                        <AlertTriangle size={14} className="mt-0.5 shrink-0 text-red-600" />
+                        <p className="text-[12px] font-semibold text-red-700">
+                          {o.review_remarks || "This order was cancelled and its stock was returned."}
+                        </p>
                       </div>
                     )}
                     {o.status === "claimed" && (
@@ -1851,12 +2098,15 @@ export default function MerchandisePage({ initialTab }) {
 
         {checkoutOpen && (
           <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-xl rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
-              <h2 className="text-lg font-bold text-[#0F172A]">
-                Confirm Order List
+            <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-2xl sm:p-6">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#0B8ED0]">
+                Final review
+              </p>
+              <h2 className="mt-1 text-xl font-extrabold text-[#0F172A]">
+                Confirm your reservation
               </h2>
               <p className="mt-1 text-sm text-slate-500">
-                Please review all items before finalizing.
+                Check quantities and available stock before choosing payment.
               </p>
               <div className="mt-4 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-[#DDE7EF] p-3">
                 {cart.map((row) => (
@@ -1869,7 +2119,7 @@ export default function MerchandisePage({ initialTab }) {
                         {row.item.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Qty: {row.quantity} x {fmt(row.item.price)}
+                        Qty: {row.quantity} × {fmt(row.item.price)} · {row.item.stock_quantity} in stock
                       </p>
                     </div>
                     <p className="text-sm font-black text-[#0F172A]">
@@ -1878,9 +2128,15 @@ export default function MerchandisePage({ initialTab }) {
                   </div>
                 ))}
               </div>
-              <p className="mt-3 text-sm font-bold text-[#0F172A]">
-                Grand Total: {fmt(cartTotal)}
-              </p>
+              <div className="mt-3 flex items-end justify-between rounded-lg bg-[#EEF6FB] px-4 py-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-500">Grand total</p>
+                  <p className="text-[11px] font-medium text-slate-400">
+                    {cartQuantity} item{cartQuantity === 1 ? "" : "s"}
+                  </p>
+                </div>
+                <p className="text-xl font-black text-[#0B8ED0]">{fmt(cartTotal)}</p>
+              </div>
               <div className="mt-4 space-y-3">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -1969,7 +2225,13 @@ export default function MerchandisePage({ initialTab }) {
                   </div>
                 )}
               </div>
-              <div className="mt-5 flex justify-end gap-3">
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-3">
+                <Info size={15} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+                <p className="text-[11px] font-medium leading-5 text-[#0B1831]">
+                  Submitting reserves the stock. You may cancel later from My Orders only while the order remains unpaid and unreviewed.
+                </p>
+              </div>
+              <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <button
                   type="button"
                   onClick={() => setCheckoutOpen(false)}
@@ -1984,7 +2246,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
                   disabled={checkoutSubmitting}
                 >
-                  {checkoutSubmitting ? "Submitting..." : "Confirm & Submit"}
+                  {checkoutSubmitting ? "Reserving..." : "Place Reservation"}
                 </button>
               </div>
             </div>
@@ -2092,6 +2354,7 @@ export default function MerchandisePage({ initialTab }) {
           message={confirmModal.message}
           confirmText={confirmModal.confirmText}
           busy={confirmModal.busy}
+          danger={confirmModal.danger}
           onCancel={closeConfirm}
           onConfirm={async () => {
             if (!confirmModal.action) return;
@@ -2099,6 +2362,12 @@ export default function MerchandisePage({ initialTab }) {
             try {
               await confirmModal.action();
               closeConfirm();
+            } catch (requestError) {
+              showFeedback(
+                "error",
+                requestError.response?.data?.message ||
+                  "The requested action could not be completed.",
+              );
             } finally {
               setConfirmModal((prev) => ({ ...prev, busy: false }));
             }
@@ -3947,6 +4216,7 @@ export default function MerchandisePage({ initialTab }) {
         message={confirmModal.message}
         confirmText={confirmModal.confirmText}
         busy={confirmModal.busy}
+        danger={confirmModal.danger}
         onCancel={closeConfirm}
         onConfirm={async () => {
           if (!confirmModal.action) return;
@@ -3954,6 +4224,12 @@ export default function MerchandisePage({ initialTab }) {
           try {
             await confirmModal.action();
             closeConfirm();
+          } catch (requestError) {
+            showFeedback(
+              "error",
+              requestError.response?.data?.message ||
+                "The requested action could not be completed.",
+            );
           } finally {
             setConfirmModal((prev) => ({ ...prev, busy: false }));
           }
