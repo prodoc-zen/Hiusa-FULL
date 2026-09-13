@@ -167,10 +167,6 @@ class UserController extends Controller
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
 
-        if ($user->role === 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
-        }
-
         $oldValues = $this->auditableUserValues($user);
 
         $validatedData = $request->validate([
@@ -198,6 +194,20 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
             'password' => 'sometimes|required|string|min:8',
         ]);
+
+        if ($user->role === 'ADMIN') {
+            if (isset($validatedData['role']) && $validatedData['role'] !== 'ADMIN') {
+                return response()->json(['message' => 'Only the SAO Director can change an administrator role.'], 403);
+            }
+
+            if (isset($validatedData['account_status']) && $validatedData['account_status'] !== $user->account_status) {
+                return response()->json(['message' => 'Only the SAO Director can change an administrator account status.'], 403);
+            }
+
+            if (array_key_exists('password', $validatedData)) {
+                return response()->json(['message' => 'Only the SAO Director can reset another administrator account.'], 403);
+            }
+        }
 
         if (($validatedData['role'] ?? $user->role) === 'ADMIN' && $user->role !== 'ADMIN') {
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
