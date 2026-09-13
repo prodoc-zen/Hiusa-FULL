@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CircleCheck, CircleX, Download, Eye, Fingerprint, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { CircleCheck, CircleX, Download, Eye, Fingerprint, MoreHorizontal, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
@@ -69,6 +69,103 @@ function firstError(error) {
   }
 
   return error?.response?.data?.message;
+}
+
+const ACTION_COLORS = {
+  edit: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
+  view: 'border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]',
+  fingerprint: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
+  enrolledFingerprint: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+  deactivate: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
+  reactivate: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+  delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
+};
+
+function ActionButton({ action, expanded = true, index = 0 }) {
+  const Icon = action.icon;
+
+  return (
+    <button
+      type="button"
+      aria-label={action.label}
+      title={action.title}
+      tabIndex={expanded ? 0 : -1}
+      onClick={action.onClick}
+      style={{ transitionDelay: expanded ? `${index * 35}ms` : '0ms' }}
+      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border shadow-sm transition-all duration-200 ${ACTION_COLORS[action.color]} ${expanded ? 'translate-x-0 scale-100 opacity-100' : 'translate-x-3 scale-75 opacity-0'}`}
+    >
+      <Icon size={14} strokeWidth={2.2} />
+    </button>
+  );
+}
+
+export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onDeactivate, onReactivate, onDelete }) {
+  const [expanded, setExpanded] = useState(false);
+  const dockRef = useRef(null);
+  const name = `${user.first_name} ${user.last_name}`;
+  const canManageAccount = user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
+  const actions = [
+    user.role !== 'SUPER_ADMIN' && { key: 'edit', label: `Edit ${name}`, title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
+    { key: 'view', label: `View ${name}`, title: 'View user', icon: Eye, color: 'view', onClick: onView },
+    user.role !== 'SUPER_ADMIN' && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
+    canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
+    canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
+    canManageAccount && { key: 'delete', label: `Delete ${name}`, title: 'Delete user', icon: Trash2, color: 'delete', onClick: onDelete },
+  ].filter(Boolean);
+
+  useEffect(() => {
+    if (!expanded) return undefined;
+
+    const closeOnOutsideClick = (event) => {
+      if (!dockRef.current?.contains(event.target)) setExpanded(false);
+    };
+    const closeOnEscape = (event) => {
+      if (event.key === 'Escape') setExpanded(false);
+    };
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [expanded]);
+
+  const run = (action) => {
+    setExpanded(false);
+    action.onClick();
+  };
+
+  if (actions.length <= 2) {
+    return <div className="flex justify-end gap-1.5">{actions.map((action, index) => <ActionButton key={action.key} action={{ ...action, onClick: () => run(action) }} index={index} />)}</div>;
+  }
+
+  const expandedWidth = 46 + (actions.length * 38);
+
+  return (
+    <div ref={dockRef} className="relative ml-auto h-10 w-10">
+      <div
+        role="group"
+        aria-label={`Actions for ${name}`}
+        style={{ width: expanded ? `${expandedWidth}px` : '40px' }}
+        className={`absolute right-0 top-0 z-20 flex h-10 items-center justify-end overflow-hidden rounded-xl border shadow-lg transition-[width,background-color,border-color,box-shadow] duration-300 ease-out ${expanded ? 'border-[#B9D9E9] bg-white/95 px-1 shadow-[#0B8ED0]/15 backdrop-blur-md' : 'border-[#DDE7EF] bg-white shadow-sm'}`}
+      >
+        <div aria-hidden={!expanded} className={`flex items-center gap-1.5 transition-opacity duration-200 ${expanded ? 'opacity-100' : 'pointer-events-none opacity-0'}`}>
+          {actions.map((action, index) => <ActionButton key={action.key} action={{ ...action, onClick: () => run(action) }} expanded={expanded} index={index} />)}
+        </div>
+        <span className={`mx-1 h-5 w-px shrink-0 bg-slate-200 transition-opacity duration-200 ${expanded ? 'opacity-100' : 'opacity-0'}`} />
+        <button
+          type="button"
+          aria-label={`${expanded ? 'Close' : 'Open'} actions for ${name}`}
+          aria-expanded={expanded}
+          onClick={() => setExpanded((current) => !current)}
+          className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg transition-all duration-300 ${expanded ? 'bg-[#0B1831] text-[#16C7F3]' : 'text-slate-500 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]'}`}
+        >
+          <MoreHorizontal size={18} className={`transition-transform duration-300 ${expanded ? 'rotate-90' : 'rotate-0'}`} />
+        </button>
+      </div>
+    </div>
+  );
 }
 
 function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
@@ -545,7 +642,7 @@ export default function AdminUsersPage() {
                 <th className="px-4 py-3">Year Level</th>
                 <th className="px-4 py-3">Section</th>
                 <th className="px-4 py-3">Status</th>
-                <th className="px-4 py-3">Actions</th>
+                <th className="w-[72px] px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[#E5EDF3] text-sm">
@@ -575,18 +672,16 @@ export default function AdminUsersPage() {
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
-                    <div className="flex gap-1.5">
-                      {user.role !== 'SUPER_ADMIN' && <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>}
-                      <button aria-label={`View ${user.first_name} ${user.last_name}`} title="View user" onClick={() => openProfile(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]"><Eye size={14} /></button>
-                      {user.role !== 'SUPER_ADMIN' && <button aria-label={`Enroll fingerprint for ${user.first_name} ${user.last_name}`} title={user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint'} onClick={() => setFingerprintTarget(user)} className={`grid h-9 w-9 place-items-center rounded-md border ${user.fingerprint_enrolled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}><Fingerprint size={14} /></button>}
-                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && user.account_status !== 'disabled' && (
-                        <button aria-label={`Deactivate ${user.first_name} ${user.last_name}`} title="Deactivate user" onClick={() => setDisableTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"><UserX size={14} /></button>
-                      )}
-                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && user.account_status !== 'active' && (
-                        <button aria-label={`Reactivate ${user.first_name} ${user.last_name}`} title="Reactivate user" onClick={() => setReactivateTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100"><UserCheck size={14} /></button>
-                      )}
-                      {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && <button aria-label={`Delete ${user.first_name} ${user.last_name}`} title="Delete user" onClick={() => setDeleteTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-red-200 bg-red-50 text-red-600 hover:bg-red-100"><Trash2 size={14} /></button>}
-                    </div>
+                    <UserActionDock
+                      user={user}
+                      actorRole={actorRole}
+                      onEdit={() => openEdit(user)}
+                      onView={() => openProfile(user)}
+                      onFingerprint={() => setFingerprintTarget(user)}
+                      onDeactivate={() => setDisableTarget(user)}
+                      onReactivate={() => setReactivateTarget(user)}
+                      onDelete={() => setDeleteTarget(user)}
+                    />
                   </td>
                 </tr>
               ))}
