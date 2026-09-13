@@ -83,10 +83,13 @@ $clientExample = Join-Path $projectRoot 'client\.env.example'
 $clientEnvironment = Join-Path $projectRoot 'client\.env'
 $aiExample = Join-Path $projectRoot 'ai-service\.env.example'
 $aiEnvironment = Join-Path $projectRoot 'ai-service\.env'
+$matcherExample = Join-Path $projectRoot 'fingerprint-matcher\.env.example'
+$matcherEnvironment = Join-Path $projectRoot 'fingerprint-matcher\.env'
 
 $serverCreated = Copy-EnvironmentTemplate $serverExample $serverEnvironment
 $null = Copy-EnvironmentTemplate $clientExample $clientEnvironment
 $null = Copy-EnvironmentTemplate $aiExample $aiEnvironment
+$null = Copy-EnvironmentTemplate $matcherExample $matcherEnvironment
 
 $serverSharedKey = Get-EnvironmentValue $serverEnvironment 'HIUSA_AI_SERVICE_KEY'
 $aiSharedKey = Get-EnvironmentValue $aiEnvironment 'HIUSA_AI_SERVICE_KEY'
@@ -107,6 +110,26 @@ $sharedKey = if ($serverHasRealKey) {
 
 Set-EnvironmentValue $serverEnvironment 'HIUSA_AI_SERVICE_KEY' $sharedKey
 Set-EnvironmentValue $aiEnvironment 'HIUSA_AI_SERVICE_KEY' $sharedKey
+
+$matcherKey = Get-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_KEY'
+$matcherServiceKey = Get-EnvironmentValue $matcherEnvironment 'MATCHER_API_KEY'
+$serverHasMatcherKey = $matcherKey -ne '' -and -not $matcherKey.StartsWith('CHANGE_ME_')
+$matcherHasRealKey = $matcherServiceKey -ne '' -and -not $matcherServiceKey.StartsWith('CHANGE_ME_') -and -not $matcherServiceKey.StartsWith('replace-')
+
+if ($serverHasMatcherKey -and $matcherHasRealKey -and $matcherKey -ne $matcherServiceKey) {
+    throw 'Existing server and matcher fingerprint service keys do not match. Resolve them manually or rerun with -Force.'
+}
+
+$fingerprintKey = if ($serverHasMatcherKey) {
+    $matcherKey
+} elseif ($matcherHasRealKey) {
+    $matcherServiceKey
+} else {
+    New-SharedServiceKey
+}
+
+Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_KEY' $fingerprintKey
+Set-EnvironmentValue $matcherEnvironment 'MATCHER_API_KEY' $fingerprintKey
 
 Set-EnvironmentValue $serverEnvironment 'APP_URL' "http://${HostAddress}:8000"
 Set-EnvironmentValue $serverEnvironment 'FRONTEND_URL' "http://${HostAddress}:5173"
@@ -147,7 +170,7 @@ if (($serverCreated -or (Get-EnvironmentValue $serverEnvironment 'APP_KEY') -eq 
 Write-Host ''
 Write-Host 'Environment preparation complete.'
 Write-Host "Host address: $HostAddress"
-Write-Host 'The Laravel/Python service keys were generated and synchronized without printing them.'
+Write-Host 'The Laravel/AI and fingerprint-matcher service keys were generated and synchronized without printing them.'
 if (-not $PromptForGroqKey -and (Get-EnvironmentValue $serverEnvironment 'GROQ_API_KEY') -eq '') {
     Write-Host 'Next: add GROQ_API_KEY to server/.env or rerun with -PromptForGroqKey.'
 }

@@ -65,7 +65,7 @@ esac
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
-for required_file in compose.production.yml server/Dockerfile.production client/Dockerfile.production ai-service/Dockerfile; do
+for required_file in compose.production.yml server/Dockerfile.production client/Dockerfile.production ai-service/Dockerfile fingerprint-matcher/Dockerfile; do
     if [[ ! -f "$required_file" ]]; then
         echo "Missing required deployment file: $required_file" >&2
         exit 1
@@ -103,6 +103,7 @@ mysql_password="$(openssl rand -hex 24)"
 mysql_root_password="$(openssl rand -hex 32)"
 app_key="base64:$(openssl rand -base64 32 | tr -d '\r\n')"
 ai_service_key="$(openssl rand -hex 32)"
+fingerprint_matcher_key="$(openssl rand -hex 32)"
 groq_key=""
 
 if [[ -t 0 ]]; then
@@ -116,6 +117,7 @@ MYSQL_DATABASE=hiusa_db
 MYSQL_USER=hiusa
 MYSQL_PASSWORD=$mysql_password
 MYSQL_ROOT_PASSWORD=$mysql_root_password
+FINGERPRINT_MATCHER_KEY=$fingerprint_matcher_key
 EOF
 
 cat > server/.env.production <<EOF
@@ -151,6 +153,12 @@ HIUSA_AI_SERVICE_KEY=$ai_service_key
 HIUSA_AI_SERVICE_CONNECT_TIMEOUT=2
 HIUSA_AI_SERVICE_TIMEOUT=10
 HIUSA_TASK_MAX_ACTIVE_TASKS=5
+
+FINGERPRINT_MATCHER_DRIVER=http
+FINGERPRINT_MATCHER_URL=http://fingerprint-matcher:9100
+FINGERPRINT_MATCHER_KEY=$fingerprint_matcher_key
+FINGERPRINT_MATCHER_TIMEOUT=15
+FINGERPRINT_MATCHER_TEMPLATE_FORMAT=fscanner-sourceafis-dotnet-3.14.0-png-v1
 
 GROQ_API_KEY=$groq_key
 GROQ_API_URL=https://api.groq.com/openai/v1/responses
@@ -191,8 +199,8 @@ echo "Validating production configuration..."
 echo "Building production images..."
 "${compose[@]}" build
 
-echo "Starting database and AI service..."
-"${compose[@]}" up -d mysql ai-service
+echo "Starting database, AI service, and fingerprint matcher..."
+"${compose[@]}" up -d mysql ai-service fingerprint-matcher
 
 echo "Running database migrations..."
 "${compose[@]}" run --rm laravel php artisan migrate --force

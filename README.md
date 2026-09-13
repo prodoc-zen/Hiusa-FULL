@@ -301,11 +301,12 @@ Go to **http://localhost:5173** in your browser.
 
 All passwords are shown below. The **Login** field differs by role.
 
-### Admin
+### Super Admin
 | Field | Value |
 |---|---|
-| Login field | Email |
-| Email | `admin@hiusa.local` |
+| Login field | School ID |
+| School ID | `990001` |
+| Account email | `admin@hiusa.local` |
 | Password | `Admin@123456` |
 
 ### Officers
@@ -439,7 +440,7 @@ Hiusa-FULL/
 
 ## Quick Reference — Daily Workflow
 
-Every time you sit down to work or demo, you need **four** terminals, not two —
+Every time you sit down to work or demo, you need **five** terminals, not two —
 skipping the AI service or the queue worker doesn't error, it just silently
 degrades: AI-backed features fall back to local calculations, and password
 resets / approval notifications never go out (see Troubleshooting and
@@ -463,9 +464,20 @@ npm run dev
 cd server
 php artisan queue:work
 
+# Terminal 5 - Fscanner-derived SourceAFIS matcher
+cd fingerprint-matcher
+# First run: copy .env.example to .env; scripts/setup-env.ps1 synchronizes its key.
+.\start.ps1
+
 # Open browser
 http://localhost:5173
 ```
+
+Fingerprint capture also requires a DigitalPersona reader, the device driver,
+and HID Authentication Device Client on the workstation running the browser.
+Enrollment uses four captures for template quality; attendance identification
+uses one scan. The browser SDK assets are synchronized automatically by
+`npm install`.
 
 If you pulled new changes from git:
 ```bash

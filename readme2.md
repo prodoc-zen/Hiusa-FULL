@@ -18,7 +18,7 @@ Do not blindly implement “planned” items from an old document. Confirm that 
 
 ## 2. What this repository contains
 
-HIUSA is a decoupled monorepo with three runtime services:
+HIUSA is a decoupled monorepo with four runtime services:
 
 ```text
 Hiusa-FULL/
@@ -47,6 +47,7 @@ Hiusa-FULL/
 │   ├── app/schemas.py          Pydantic request/response contracts
 │   ├── app/main.py             HTTP endpoints and service-key authentication
 │   └── tests/                  Pytest engine/contract tests
+├── fingerprint-matcher/        Private Fscanner-derived SourceAFIS service (.NET 9)
 ├── docs/                       Current feature use cases and dev logs
 ├── docs2/                      Reference Word documents; not executable truth
 ├── scripts/setup-env.ps1       Local environment bootstrap
@@ -74,12 +75,13 @@ HIUSA is multi-organization. `organization_id` is a security boundary, not merel
 
 The current application roles are exactly:
 
+- `SUPER_ADMIN`
 - `ADMIN`
 - `SBO_OFFICER`
 - `DEPARTMENT_HEAD`
 - `STUDENT`
 
-Organizational titles such as President or Treasurer belong in `position_title`; they are not new authorization roles. Enforce access in `server/routes/api.php` with the `role:` middleware and enforce ownership/state rules again in the controller where needed. Frontend guards improve navigation but never replace backend authorization.
+`SUPER_ADMIN` is the organization-level root role: it creates and manages `ADMIN` accounts and provides final financial approval. Organizational titles such as President or Treasurer belong in `position_title`; they are not new authorization roles. Enforce access in `server/routes/api.php` with the `role:` middleware and enforce ownership/state rules again in the controller where needed. Frontend guards improve navigation but never replace backend authorization.
 
 When changing permissions, update all affected layers together:
 
