@@ -21,12 +21,13 @@ class UserSeeder extends Seeder
             ->values();
 
         $users = [
-            // Officers (login with email). position_title mirrors the exec-board
-            // titles seeded by SboPositionSeeder so the AI task-delegation engine's
-            // position-relevance scoring has real signal to rank against.
-            ['school_id' => 900001, 'role' => 'SBO_OFFICER',  'position_title' => 'President',                 'first_name' => 'Marco',      'last_name' => 'Dela Cruz',   'email' => 'officer1@hiusa.local'],
-            ['school_id' => 900002, 'role' => 'SBO_OFFICER',  'position_title' => 'Vice President – Internal', 'first_name' => 'Angela',     'last_name' => 'Santos',      'email' => 'officer2@hiusa.local'],
-            ['school_id' => 900003, 'role' => 'SBO_OFFICER',  'position_title' => 'Secretary',                 'first_name' => 'Bianca',     'last_name' => 'Fernandez',   'email' => 'officer3@hiusa.local'],
+            // Organization leaders sign in as organization-scoped Admins and
+            // can manage only the users and fingerprints in their organization.
+            ['school_id' => 900001, 'role' => 'ADMIN',        'position_title' => 'President',                 'first_name' => 'Marco',      'last_name' => 'Dela Cruz',   'email' => 'officer1@hiusa.local'],
+            ['school_id' => 900002, 'role' => 'ADMIN',        'position_title' => 'Vice President – Internal', 'first_name' => 'Angela',     'last_name' => 'Santos',      'email' => 'officer2@hiusa.local'],
+            ['school_id' => 900003, 'role' => 'ADMIN',        'position_title' => 'Secretary',                 'first_name' => 'Bianca',     'last_name' => 'Fernandez',   'email' => 'officer3@hiusa.local'],
+
+            // Other officers retain the narrower officer workspace.
             ['school_id' => 900004, 'role' => 'SBO_OFFICER',  'position_title' => 'Treasurer',                 'first_name' => 'Diego',      'last_name' => 'Villanueva',  'email' => 'officer4@hiusa.local'],
             ['school_id' => 900005, 'role' => 'SBO_OFFICER',  'position_title' => 'Auditor',                   'first_name' => 'Ellaine',    'last_name' => 'Morales',     'email' => 'officer5@hiusa.local'],
             ['school_id' => 900006, 'role' => 'SBO_OFFICER',  'position_title' => 'Public Information Officer', 'first_name' => 'Franco',     'last_name' => 'Cruz',        'email' => 'officer6@hiusa.local'],
@@ -65,7 +66,7 @@ class UserSeeder extends Seeder
         }
 
         $sampleOtherOrgUsers = [
-            ['school_id' => 920011, 'role' => 'SBO_OFFICER', 'position_title' => 'President', 'first_name' => 'Mika', 'last_name' => 'Salcedo', 'email' => 'mika.salcedo@cbe.hiusa.local'],
+            ['school_id' => 920011, 'role' => 'ADMIN', 'position_title' => 'President', 'first_name' => 'Mika', 'last_name' => 'Salcedo', 'email' => 'mika.salcedo@cbe.hiusa.local'],
             ['school_id' => 2400118, 'role' => 'STUDENT', 'first_name' => 'Nico', 'last_name' => 'Valdez', 'email' => 'nico.valdez@cte.hiusa.local'],
             ['school_id' => 930027, 'role' => 'ADMIN', 'position_title' => 'Adviser', 'first_name' => 'Elena', 'last_name' => 'Soriano', 'email' => 'elena.soriano@chs.hiusa.local'],
             ['school_id' => 2400133, 'role' => 'STUDENT', 'first_name' => 'Paolo', 'last_name' => 'Marquez', 'email' => 'paolo.marquez@coe.hiusa.local'],

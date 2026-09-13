@@ -315,12 +315,6 @@ class FingerprintController extends Controller
             ], 403);
         }
 
-        if ($target->role === 'ADMIN' && $actor->role !== 'SUPER_ADMIN') {
-            return response()->json([
-                'message' => 'Only a super administrator can manage an administrator fingerprint.',
-            ], 403);
-        }
-
         return null;
     }
 }

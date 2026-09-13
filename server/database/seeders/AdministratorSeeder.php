@@ -35,7 +35,7 @@ class AdministratorSeeder extends Seeder
         $leadership = [
             ['title' => 'Adviser', 'first_name' => 'Organization', 'last_name' => 'Adviser'],
             ['title' => 'President', 'first_name' => 'Organization', 'last_name' => 'President'],
-            ['title' => 'Vice President â€“ Internal', 'first_name' => 'Organization', 'last_name' => 'Vice President'],
+            ['title' => 'Vice President – Internal', 'first_name' => 'Organization', 'last_name' => 'Vice President'],
             ['title' => 'Secretary', 'first_name' => 'Organization', 'last_name' => 'Secretary'],
         ];
 

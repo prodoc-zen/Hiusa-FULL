@@ -140,11 +140,9 @@ function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
 
 export default function AdminUsersPage() {
   let actorRole = '';
-  let actorId = null;
   try {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
-    actorId = actor?.school_id ?? actor?.id ?? null;
   } catch {}
   const roles = actorRole === 'SUPER_ADMIN' ? accountRoles : accountRoles.filter((role) => role !== 'ADMIN');
   const [users, setUsers] = useState([]);
@@ -580,7 +578,7 @@ export default function AdminUsersPage() {
                     <div className="flex gap-1.5">
                       {user.role !== 'SUPER_ADMIN' && <button aria-label={`Edit ${user.first_name} ${user.last_name}`} title="Edit user" onClick={() => openEdit(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"><PencilLine size={14} /></button>}
                       <button aria-label={`View ${user.first_name} ${user.last_name}`} title="View user" onClick={() => openProfile(user)} className="grid h-9 w-9 place-items-center rounded-md border border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]"><Eye size={14} /></button>
-                      {((user.role === 'SUPER_ADMIN' && actorRole === 'SUPER_ADMIN' && Number(user.school_id) === Number(actorId)) || (user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN'))) && <button aria-label={`Enroll fingerprint for ${user.first_name} ${user.last_name}`} title={user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint'} onClick={() => setFingerprintTarget(user)} className={`grid h-9 w-9 place-items-center rounded-md border ${user.fingerprint_enrolled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}><Fingerprint size={14} /></button>}
+                      {user.role !== 'SUPER_ADMIN' && <button aria-label={`Enroll fingerprint for ${user.first_name} ${user.last_name}`} title={user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint'} onClick={() => setFingerprintTarget(user)} className={`grid h-9 w-9 place-items-center rounded-md border ${user.fingerprint_enrolled ? 'border-emerald-200 bg-emerald-50 text-emerald-700' : 'border-violet-200 bg-violet-50 text-violet-700'}`}><Fingerprint size={14} /></button>}
                       {user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN') && user.account_status !== 'disabled' && (
                         <button aria-label={`Deactivate ${user.first_name} ${user.last_name}`} title="Deactivate user" onClick={() => setDisableTarget(user)} className="grid h-9 w-9 place-items-center rounded-md border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"><UserX size={14} /></button>
                       )}
