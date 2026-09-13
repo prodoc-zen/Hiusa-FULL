@@ -7,7 +7,7 @@ import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
-import { enrollFingerprint, removeFingerprint } from '../../../services/fingerprintService';
+import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
@@ -77,6 +77,7 @@ const ACTION_ICON_COLORS = {
   view: 'border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]',
   fingerprint: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
   enrolledFingerprint: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
+  verify: 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100',
   deactivate: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
   reactivate: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
@@ -98,7 +99,7 @@ function ActionButton({ action }) {
   );
 }
 
-export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onDeactivate, onReactivate, onDelete }) {
+export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete }) {
   const [expanded, setExpanded] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 12, top: 12, origin: 'top right' });
   const triggerRef = useRef(null);
@@ -109,6 +110,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
     user.role !== 'SUPER_ADMIN' && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
     { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, color: 'view', onClick: onView },
     user.role !== 'SUPER_ADMIN' && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
+    user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, color: 'verify', onClick: onVerify },
     canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
     canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
     canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete account', title: 'Delete user', icon: Trash2, color: 'delete', onClick: onDelete },
@@ -156,10 +158,12 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
     if (rect) {
       const menuWidth = 224;
       const menuHeight = 62 + (actions.length * 44);
-      const opensUpward = window.innerHeight - rect.bottom < menuHeight + 16 && rect.top > menuHeight;
+      const visibleMenuHeight = Math.min(menuHeight, window.innerHeight - 24);
+      const opensUpward = window.innerHeight - rect.bottom < visibleMenuHeight + 16 && rect.top > visibleMenuHeight;
+      const preferredTop = opensUpward ? rect.top - visibleMenuHeight - 8 : rect.bottom + 8;
       setMenuPosition({
         left: Math.max(12, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12)),
-        top: opensUpward ? Math.max(12, rect.top - menuHeight - 8) : rect.bottom + 8,
+        top: Math.max(12, Math.min(preferredTop, window.innerHeight - visibleMenuHeight - 12)),
         origin: opensUpward ? 'bottom right' : 'top right',
       });
     }
@@ -174,7 +178,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       aria-label={`Actions for ${name}`}
       aria-hidden={!expanded}
       style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
-      className={`fixed z-[100] w-56 rounded-2xl border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
+      className={`fixed z-[100] max-h-[calc(100vh-24px)] w-56 overflow-y-auto rounded-2xl border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
     >
       <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0B8ED0]">User actions</p>
@@ -291,6 +295,78 @@ function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
   );
 }
 
+function FingerprintVerificationModal({ expectedUser, onClose }) {
+  const reader = useFingerprintReader();
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [result, setResult] = useState(null);
+
+  async function handleVerify() {
+    setBusy(true);
+    setError('');
+    setResult(null);
+    try {
+      const capture = await reader.identifyFingerprint();
+      const response = await identifyFingerprint(capture);
+      const identifiedUser = response.data?.user;
+      if (!identifiedUser?.school_id) throw new Error('The matcher did not return an identified user. Please scan again.');
+      setResult({
+        user: identifiedUser,
+        matchesExpected: String(identifiedUser?.school_id) === String(expectedUser.school_id),
+        score: response.data?.match?.score,
+        threshold: response.data?.match?.threshold,
+      });
+    } catch (verificationError) {
+      setError(verificationError?.response ? firstError(verificationError) || 'No enrolled user matched this fingerprint.' : verificationError.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const identifiedName = result?.user ? `${result.user.first_name} ${result.user.last_name}` : '';
+
+  return (
+    <Modal
+      open
+      title="Verify Fingerprint Identity"
+      description="One scan checks the fingerprint against every enrolled user in this organization (1:N)."
+      onClose={() => !busy && onClose()}
+      closeOnBackdrop={!busy}
+      closeOnEscape={!busy}
+      maxWidth="max-w-xl"
+      footer={<>
+        <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
+        <button type="button" onClick={handleVerify} disabled={busy || !reader.connected} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0878B7] disabled:opacity-50"><Fingerprint size={15} /> {busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</button>
+      </>}
+    >
+      <div className="space-y-4">
+        <ScannerStatus reader={reader} />
+        <div className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0B8ED0]">Expected account</p>
+          <div className="mt-2 flex items-center gap-3">
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E6F6FD] text-sm font-black text-[#0878B7]">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
+            <div><p className="text-sm font-black text-[#0F172A]">{expectedUser.first_name} {expectedUser.last_name}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
+          </div>
+        </div>
+
+        {busy && <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3"><p className="text-sm font-bold text-cyan-800">Place one finger flat on the reader.</p><p className="mt-1 text-xs text-cyan-700">HIUSA will search the organization’s enrolled fingerprint directory automatically.</p></div>}
+        {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+        {result && <div className={`rounded-xl border p-4 ${result.matchesExpected ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+          <div className="flex items-start gap-3">
+            <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${result.matchesExpected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><UserCheck size={19} /></span>
+            <div className="min-w-0 flex-1">
+              <p className={`text-[10px] font-black uppercase tracking-[0.16em] ${result.matchesExpected ? 'text-emerald-700' : 'text-amber-700'}`}>{result.matchesExpected ? 'Identity confirmed' : 'Different user identified'}</p>
+              <p className="mt-1 text-base font-black text-[#0F172A]">{identifiedName}</p>
+              <p className="text-xs font-medium text-slate-600">School ID {result.user?.school_id} · {ROLE_LABELS[result.user?.role] || result.user?.role}</p>
+              {Number.isFinite(Number(result.score)) && <p className="mt-2 text-[11px] font-semibold text-slate-500">Match score {Number(result.score).toFixed(2)}{Number.isFinite(Number(result.threshold)) ? ` · Required ${Number(result.threshold).toFixed(2)}` : ''}</p>}
+            </div>
+          </div>
+        </div>}
+      </div>
+    </Modal>
+  );
+}
+
 export default function AdminUsersPage() {
   let actorRole = '';
   try {
@@ -324,6 +400,7 @@ export default function AdminUsersPage() {
   const [reactivateTarget, setReactivateTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [fingerprintTarget, setFingerprintTarget] = useState(null);
+  const [fingerprintVerifyTarget, setFingerprintVerifyTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [page, setPage] = useState(1);
@@ -734,6 +811,7 @@ export default function AdminUsersPage() {
                       onEdit={() => openEdit(user)}
                       onView={() => openProfile(user)}
                       onFingerprint={() => setFingerprintTarget(user)}
+                      onVerify={() => setFingerprintVerifyTarget(user)}
                       onDeactivate={() => setDisableTarget(user)}
                       onReactivate={() => setReactivateTarget(user)}
                       onDelete={() => setDeleteTarget(user)}
@@ -800,6 +878,11 @@ export default function AdminUsersPage() {
           await refreshUsers();
           setFeedback({ open: true, type: 'success', message });
         }}
+      />}
+
+      {fingerprintVerifyTarget && <FingerprintVerificationModal
+        expectedUser={fingerprintVerifyTarget}
+        onClose={() => setFingerprintVerifyTarget(null)}
       />}
 
       <Modal
