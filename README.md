@@ -309,6 +309,14 @@ All passwords are shown below. The **Login** field differs by role.
 | Account email | `admin@hiusa.local` |
 | Password | `Admin@123456` |
 
+### Organization Admin
+| Field | Value |
+|---|---|
+| Login field | School ID |
+| School ID | `990002` |
+| Account email | `org.admin@hiusa.local` |
+| Password | `Admin@123456` |
+
 ### Officers
 | Name | Email | Password |
 |---|---|---|

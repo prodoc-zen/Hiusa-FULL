@@ -42,6 +42,7 @@ class DemoDataIntegrityTest extends TestCase
     {
         $this->seed();
 
+        $this->assertAdministrativeDemoAccountsAreDistinct();
         $this->assertAnnouncementTargetingIsValid();
         $this->assertPublishedAnnouncementsAreApprovedAndVisibleToStudents();
         $this->assertAnEventIsApprovedWithAMatchingApprovalRequest();
@@ -52,6 +53,18 @@ class DemoDataIntegrityTest extends TestCase
         $this->assertAcademicStructureIsSeededAndStudentsArePlaced();
         $this->assertHeadlineScreensAreNotEmpty();
         $this->assertAtLeastOneStudentHasNotVotedYet();
+    }
+
+    private function assertAdministrativeDemoAccountsAreDistinct(): void
+    {
+        $this->assertDatabaseHas('users', [
+            'school_id' => 990001,
+            'role' => 'SUPER_ADMIN',
+        ]);
+        $this->assertDatabaseHas('users', [
+            'school_id' => 990002,
+            'role' => 'ADMIN',
+        ]);
     }
 
     private function assertAnnouncementTargetingIsValid(): void

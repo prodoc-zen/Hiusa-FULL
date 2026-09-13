@@ -26,7 +26,7 @@ test('student can open the statement of account and cannot access admin audit lo
 });
 
 test('admin can open the read-only audit log', async ({ page, request }) => {
-  await signInAs(page, request, 990001, 'Admin@123456');
+  await signInAs(page, request, 990002, 'Admin@123456');
   await page.goto('/dashboard/audit-logs');
   await expect(page.getByRole('main').getByRole('heading', { name: 'General Audit Log' })).toBeVisible();
   await expect(page.getByText('Trace actors, records, academic context, approvals, payments, and before/after values across HIUSA.')).toBeVisible();

@@ -28,5 +28,18 @@ class AdministratorSeeder extends Seeder
                 'position_title' => 'Super Administrator',
             ]
         );
+
+        User::updateOrCreate(
+            ['school_id' => 990002],
+            [
+                'organization_id' => $organizationId,
+                'first_name' => 'Organization',
+                'last_name' => 'Administrator',
+                'email' => 'org.admin@hiusa.local',
+                'password_hash' => 'Admin@123456',
+                'role' => 'ADMIN',
+                'position_title' => 'Adviser',
+            ]
+        );
     }
 }
