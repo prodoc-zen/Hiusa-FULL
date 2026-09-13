@@ -1,5 +1,5 @@
 import api from './api';
 
-export const getOrganizations = () => {
-  return api.get('/organizations');
+export const getOrganizations = (params) => {
+  return api.get('/organizations', { params });
 };

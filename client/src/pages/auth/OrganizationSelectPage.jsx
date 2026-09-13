@@ -18,7 +18,7 @@ export default function OrganizationSelectPage() {
   useEffect(() => {
     let alive = true;
 
-    getOrganizations()
+    getOrganizations({ for_login: 1 })
       .then((response) => {
         if (!alive) return;
         // /organizations deliberately stays a bare, unpaginated array (a
@@ -99,7 +99,7 @@ export default function OrganizationSelectPage() {
                 <Building2 size={24} />
               </div>
               <h1 className="mt-6 max-w-[520px] text-3xl font-black leading-tight sm:text-4xl">
-                Select your student organization.
+              Select your organization or SAO access.
               </h1>
               <p className="mt-4 max-w-[460px] text-sm font-medium leading-6 text-slate-300">
                 HIUSA opens the right workspace for your school body before you sign in.
@@ -122,7 +122,7 @@ export default function OrganizationSelectPage() {
             <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">Before sign in</p>
             <h2 className="mt-2 text-2xl font-black text-slate-950">Find your organization</h2>
             <p className="mt-1.5 text-sm font-medium text-slate-500">
-              Choose the student body organization connected to your account.
+              Choose the student organization or Student Affairs Office connected to your account.
             </p>
           </div>
 
@@ -142,7 +142,7 @@ export default function OrganizationSelectPage() {
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[13px] font-semibold text-slate-800">Student body organization</span>
+              <span className="mb-1.5 block text-[13px] font-semibold text-slate-800">Organization or SAO access</span>
               <span className="relative block">
                 <select
                   value={selectedId}
@@ -156,7 +156,7 @@ export default function OrganizationSelectPage() {
                   <option value="">{loading ? 'Loading organizations...' : 'Select your organization...'}</option>
                   {filteredOrganizations.map((organization) => (
                     <option key={organization.id} value={organization.id}>
-                      {organization.name}
+                      {organization.organization_type === 'SYSTEM_ADMINISTRATION' ? `${organization.name} (System Access)` : organization.name}
                     </option>
                   ))}
                 </select>
