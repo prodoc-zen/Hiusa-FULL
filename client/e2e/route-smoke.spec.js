@@ -16,7 +16,7 @@ const liveEnabled = process.env.HIUSA_LIVE_E2E === '1';
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
 const ACCOUNTS = {
-  ADMIN: { schoolId: 990001, password: 'Admin@123456' },
+  ADMIN: { schoolId: 990002, password: 'Admin@123456' },
   SBO_OFFICER: { schoolId: 900001, password: 'Demo@12345' },
   DEPARTMENT_HEAD: { schoolId: 940001, password: 'Demo@12345' },
   STUDENT: { schoolId: 2100142, password: 'Demo@12345' },

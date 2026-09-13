@@ -27,7 +27,7 @@ async function signInAs(page, request, schoolId, password) {
 }
 
 test('admin can inspect event, planner, calendar, and attendance workflows', async ({ page, request }) => {
-  await signInAs(page, request, 990001, 'Admin@123456');
+  await signInAs(page, request, 990002, 'Admin@123456');
 
   await page.goto('/dashboard/events/manage-events');
   await expect(page.getByRole('heading', { name: 'All Events' })).toBeVisible();

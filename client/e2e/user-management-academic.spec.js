@@ -29,9 +29,9 @@ test('admin user management offers controlled academic dropdowns', async ({ page
   const form = page.locator('#create-user-form');
   const roleSelect = form.locator('select').first();
   await expect(form.getByLabel('Organization Position')).toBeDisabled();
-  await roleSelect.selectOption('ADMIN');
+  await roleSelect.selectOption('SBO_OFFICER');
   await expect(form.getByLabel('Organization Position')).toBeEnabled();
-  await expect(form.getByLabel('Organization Position').locator('option')).toHaveText(['Choose a position', 'President']);
+  await expect(form.getByLabel('Organization Position').locator('option')).toHaveText(['Choose a position', 'Secretary']);
   await roleSelect.selectOption('STUDENT');
   await expect(form.getByLabel('Organization Position')).toBeDisabled();
   await form.getByLabel('Course / Program').selectOption('BS Information Technology');

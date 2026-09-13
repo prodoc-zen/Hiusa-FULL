@@ -14,7 +14,7 @@ class OrderSeeder extends Seeder
     public function run(): void
     {
         $officer1 = User::where('school_id', 900001)->first();
-        $admin = User::where('school_id', 990001)->first();
+        $admin = User::where('school_id', 990002)->first();
 
         $shirt = Merchandise::where('name', 'HIUSA T-Shirt (S/M)')->first();
         $toteBag = Merchandise::where('name', 'HIUSA Tote Bag')->first();

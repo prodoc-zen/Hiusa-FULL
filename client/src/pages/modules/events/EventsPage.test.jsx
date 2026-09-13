@@ -93,6 +93,7 @@ describe('EventsPage approval-request launch', () => {
     render(<MemoryRouter initialEntries={['/dashboard/events/event-planner']}><EventsPage initialTab="tasks" /></MemoryRouter>);
 
     await screen.findByRole('heading', { name: 'Build an Event To-do List' });
+    await screen.findByRole('option', { name: 'Leadership Summit' });
     fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '9' } });
     fireEvent.change(screen.getByLabelText('What should the to-do list cover?'), { target: { value: 'Plan setup and safety.' } });
     fireEvent.click(screen.getByRole('button', { name: 'Create To-do List' }));
