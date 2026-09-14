@@ -12,7 +12,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** all four roles can access the activity-calendar route and events API.
+- **Role Access:** all four organization roles can access the activity-calendar route and events API; SAO does not inherit this operational function.
 - **Load Approved Events:** Student and Department Head event lists are limited to approved, ongoing, or completed events.
 - **Display Activity Calendar:** `EventsPage` displays the event list with schedule, location, and status.
 - **Open Event Details:** `GET /events/{id}` loads schedule/details for all roles; officer tasks and attendee records are included only for Admin and SBO Officer.

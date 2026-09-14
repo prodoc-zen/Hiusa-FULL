@@ -81,7 +81,7 @@ The current application roles are exactly:
 - `DEPARTMENT_HEAD`
 - `STUDENT`
 
-`SUPER_ADMIN` is the organization-level root role: it creates and manages `ADMIN` accounts and provides final financial approval. Organizational titles such as President or Treasurer belong in `position_title`; they are not new authorization roles. Enforce access in `server/routes/api.php` with the `role:` middleware and enforce ownership/state rules again in the controller where needed. Frontend guards improve navigation but never replace backend authorization.
+`SUPER_ADMIN` is the university-wide SAO role. It manages registered SBOs and their primary `ADMIN` accounts, publishes official SAO announcements, and reviews requests explicitly routed to SAO; it does not inherit routine SBO operations. Each `ADMIN` remains scoped to its own organization. Organizational titles such as President or Treasurer belong in `position_title`; they are not new authorization roles. Enforce access in `server/routes/api.php` with the `role:` middleware and enforce ownership/state rules again in the controller where needed. Frontend guards improve navigation but never replace backend authorization.
 
 When changing permissions, update all affected layers together:
 

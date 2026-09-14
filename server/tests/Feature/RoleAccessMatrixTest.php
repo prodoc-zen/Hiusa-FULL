@@ -25,9 +25,16 @@ class RoleAccessMatrixTest extends TestCase
             ]);
 
         $cases = [
+            ['GET', '/api/system/overview', ['SUPER_ADMIN']],
+            ['GET', '/api/system/organizations', ['SUPER_ADMIN']],
+            ['GET', '/api/system/admins', ['SUPER_ADMIN']],
+            ['GET', '/api/system/announcements', ['SUPER_ADMIN']],
+            ['POST', '/api/system/admins/'.$users['ADMIN']->school_id.'/password-reset', ['SUPER_ADMIN']],
             ['POST', '/api/users', ['ADMIN']],
             ['POST', '/api/announcements', ['ADMIN', 'SBO_OFFICER']],
             ['POST', '/api/announcements/generate-draft', ['ADMIN', 'SBO_OFFICER']],
+            ['POST', '/api/notifications', ['ADMIN', 'SBO_OFFICER']],
+            ['POST', '/api/users/'.$users['STUDENT']->school_id.'/fingerprint', ['ADMIN']],
             ['POST', '/api/elections', ['ADMIN']],
             ['POST', '/api/elections/999/candidates', ['ADMIN', 'SBO_OFFICER']],
             ['POST', '/api/partylists', ['ADMIN']],

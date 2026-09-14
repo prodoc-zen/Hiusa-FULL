@@ -27,7 +27,7 @@ class AnnouncementController extends Controller
         }
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
-            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
+            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'details' => ['nullable', 'string'],
         ]);
@@ -256,7 +256,7 @@ class AnnouncementController extends Controller
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'body' => ['required', 'string'],
-            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
+            'target_role' => ['required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'is_published' => ['boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
@@ -302,7 +302,7 @@ class AnnouncementController extends Controller
                 'entity_type' => 'announcement',
                 'entity_id' => $announcement->id,
                 'requested_by' => $user->id,
-                'required_role' => 'ADMIN',
+                'required_role' => config('approvals.routes.announcement'),
             ]);
         }
 
@@ -342,7 +342,7 @@ class AnnouncementController extends Controller
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
             'body' => ['sometimes', 'required', 'string'],
-            'target_role' => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD,SUPER_ADMIN'],
+            'target_role' => ['sometimes', 'required', 'in:all,STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD'],
             'category' => ['sometimes', 'required', 'in:general,election,training,events,merchandise'],
             'is_published' => ['sometimes', 'boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
@@ -396,14 +396,14 @@ class AnnouncementController extends Controller
                 ->first();
 
             if ($approval) {
-                $approval->reopen($user->id, 'ADMIN');
+                $approval->reopen($user->id, config('approvals.routes.announcement'));
             } else {
                 ApprovalRequest::create([
                     'organization_id' => $announcement->organization_id,
                     'entity_type' => 'announcement',
                     'entity_id' => $announcement->id,
                     'requested_by' => $user->id,
-                    'required_role' => 'ADMIN',
+                    'required_role' => config('approvals.routes.announcement'),
                 ]);
             }
         } elseif ($user->role === 'ADMIN' && $announcement->approval_status === 'rejected') {
@@ -485,7 +485,7 @@ class AnnouncementController extends Controller
             $approval = ApprovalRequest::where('organization_id', $announcement->organization_id)
                 ->where('entity_type', 'announcement')
                 ->where('entity_id', $announcement->id)
-                ->where('required_role', 'ADMIN')
+                ->where('required_role', config('approvals.routes.announcement'))
                 ->where('status', 'pending')
                 ->latest('id')
                 ->first();

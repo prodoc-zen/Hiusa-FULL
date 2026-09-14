@@ -15,6 +15,7 @@ class ApprovalRequest extends Model
     protected function casts(): array
     {
         return [
+            'assigned_approver' => 'integer',
             'requested_at' => 'datetime',
             'reviewed_at' => 'datetime',
         ];
@@ -38,6 +39,11 @@ class ApprovalRequest extends Model
         return $this->belongsTo(User::class, 'reviewed_by', 'school_id');
     }
 
+    public function assignedApprover(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_approver', 'school_id');
+    }
+
     public function resubmit(): void
     {
         if ($this->status !== 'rejected') {
@@ -54,7 +60,9 @@ class ApprovalRequest extends Model
             'status' => $this->status,
             'requested_by' => $this->requested_by,
             'required_role' => $this->required_role,
+            'assigned_approver' => $this->assigned_approver,
             'reviewed_by' => $this->reviewed_by,
+            'decision' => $this->decision,
             'reviewed_at' => $this->reviewed_at,
             'remarks' => $this->remarks,
         ];
@@ -63,7 +71,9 @@ class ApprovalRequest extends Model
             'status' => 'pending',
             'requested_by' => $requestedBy,
             'required_role' => $requiredRole,
+            'assigned_approver' => null,
             'reviewed_by' => null,
+            'decision' => null,
             'reviewed_at' => null,
             'remarks' => null,
             'requested_at' => now(),
@@ -83,8 +93,10 @@ class ApprovalRequest extends Model
         AuditLog::create([
             'organization_id' => $this->organization_id,
             'user_id' => $this->requested_by,
+            'actor_role' => $this->requester()->value('role'),
             'module' => 'approvals',
             'action' => $action,
+            'description' => 'Approval request '.$action.' for '.$this->entity_type.'.',
             'record_type' => self::class,
             'record_id' => $this->id,
             'old_values' => $oldValues,
@@ -92,6 +104,7 @@ class ApprovalRequest extends Model
                 'entity_type' => $this->entity_type,
                 'entity_id' => $this->entity_id,
                 'required_role' => $this->required_role,
+                'assigned_approver' => $this->assigned_approver,
                 'status' => $this->status,
             ],
             'ip_address' => null,

@@ -67,7 +67,7 @@ class BudgetController extends Controller
                 'entity_type' => 'budget',
                 'entity_id' => $budget->id,
                 'requested_by' => $request->user()->id,
-                'required_role' => 'SUPER_ADMIN',
+                'required_role' => config('approvals.routes.budget'),
             ]);
 
             $this->recordBudgetAudit($request, 'created', $budget, null, $this->auditableValues($budget));

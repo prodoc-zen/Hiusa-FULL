@@ -642,7 +642,7 @@ class OrderController extends Controller
                         'entity_type' => 'payment',
                         'entity_id' => $lockedOrder->id,
                         'requested_by' => $request->user()->id,
-                        'required_role' => 'ADMIN',
+                        'required_role' => config('approvals.routes.payment'),
                         'status' => 'pending',
                         'active_key' => 'payment:'.$lockedOrder->organization_id.':'.$lockedOrder->id,
                     ]);
