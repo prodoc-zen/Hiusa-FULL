@@ -13,7 +13,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** all four roles can access personal receipts.
+- **Role Access:** all four organization roles can access personal receipts; SAO does not inherit routine SBO financial activity.
 - **Validate Receipt Ownership:** receipt queries return transactions where the authenticated user is payer or recorder.
 - **Load User Transactions:** `GET /transactions/personal-receipts` loads owned receipt-bearing transactions.
 - **Load Approved Payment Records:** saved receipt references, receipt numbers, and receipt files are treated as approved/saved payment records.

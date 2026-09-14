@@ -107,6 +107,33 @@ class QueuedWorkTest extends TestCase
         $this->assertDatabaseMissing('notifications', ['user_id' => $otherOrgDeptHead->school_id]);
     }
 
+    public function test_sao_approval_notification_reaches_the_system_super_admin_across_organizations(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $studentOrganization = Organization::factory()->create();
+        $requester = User::factory()->admin()->create(['organization_id' => $studentOrganization->id]);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'account_status' => 'active']);
+        $ordinaryAdmin = User::factory()->admin()->create(['organization_id' => $studentOrganization->id]);
+
+        $approval = ApprovalRequest::create([
+            'organization_id' => $studentOrganization->id,
+            'entity_type' => 'budget',
+            'entity_id' => 55,
+            'requested_by' => $requester->school_id,
+            'required_role' => config('approvals.routes.budget'),
+            'status' => 'pending',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'organization_id' => $sao->id,
+            'user_id' => $director->school_id,
+            'title' => 'New SAO Approval Request',
+            'reference_type' => 'approval_request',
+            'reference_id' => $approval->id,
+        ]);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $ordinaryAdmin->school_id, 'reference_id' => $approval->id]);
+    }
+
     public function test_approval_request_without_events_still_suppresses_the_job_dispatch_and_the_audit_write(): void
     {
         Bus::fake();

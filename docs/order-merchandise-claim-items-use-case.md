@@ -26,7 +26,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** all four documented roles can browse, order, view personal orders, and view claim tokens.
+- **Role Access:** all four organization roles can browse, order, view personal orders, and view claim tokens; SAO does not inherit merchandise operations.
 - **Browse Merchandise Catalog:** catalog views only show active in-stock merchandise for ordering.
 - **View Item Details:** item cards display image, name, description, price, and stock status.
 - **Check Item Availability:** cart validation prevents ordering beyond available stock.

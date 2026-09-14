@@ -30,7 +30,8 @@ class SuperAdminFingerprintTest extends TestCase
         $this->postJson('/api/users', $this->adminPayload(880001))->assertForbidden();
 
         Sanctum::actingAs($superAdmin);
-        $created = $this->postJson('/api/system/admins', [...$this->adminPayload(880002), 'organization_id' => $organization->id])
+        $payload = collect($this->adminPayload(880002))->except(['password', 'password_confirmation'])->all();
+        $created = $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])
             ->assertCreated()
             ->assertJsonPath('role', 'ADMIN');
 
@@ -195,6 +196,7 @@ class SuperAdminFingerprintTest extends TestCase
         $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'approved'])
             ->assertOk()
             ->assertJsonPath('status', 'approved')
+            ->assertJsonPath('decision', 'approved')
             ->assertJsonPath('reviewed_by', $superAdmin->school_id);
     }
 

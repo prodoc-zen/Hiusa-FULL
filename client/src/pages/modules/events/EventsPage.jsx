@@ -220,7 +220,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
   const currentUserRole = currentUser?.role ?? '';
   const canCreateEvents = currentUserRole === 'ADMIN';
-  const canManageAttendance = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
+  const canManageAttendance = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
 
   function load() {
     setLoading(true);

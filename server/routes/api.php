@@ -78,6 +78,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/system/admins', [SystemAdministrationController::class, 'admins'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/admins', [SystemAdministrationController::class, 'storeAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/admins/{user}', [SystemAdministrationController::class, 'updateAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::get('/system/announcements', [GlobalAnnouncementController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/announcements', [GlobalAnnouncementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/announcements/{announcement}', [GlobalAnnouncementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -208,5 +209,5 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/notifications', [NotificationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
-    Route::post('/notifications', [NotificationController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::post('/notifications', [NotificationController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
 });

@@ -40,8 +40,10 @@ class ApprovalRequestController extends Controller
         $query = ApprovalRequest::with([
             'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
+            'assignedApprover:school_id,first_name,last_name,email,role,position_title',
         ])
-            ->where('required_role', $requiredRole);
+            ->where('required_role', $requiredRole)
+            ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id));
         if ($request->user()->role !== 'SUPER_ADMIN') {
             $query->where('organization_id', $request->user()->organization_id);
         }
@@ -101,7 +103,7 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'This request has already been reviewed.'], 409);
         }
 
-        if (! $this->canReview($request->user()->role, $approval->required_role)) {
+        if (! $this->canReview($request->user()->role, $approval->required_role) || ($approval->assigned_approver && $approval->assigned_approver !== $request->user()->school_id)) {
             return response()->json(['message' => 'You are not authorized to review this request.'], 403);
         }
 
@@ -132,6 +134,7 @@ class ApprovalRequestController extends Controller
 
                 $approval->update([
                     'status' => $data['status'],
+                    'decision' => $data['status'],
                     'active_key' => null,
                     'remarks' => $data['remarks'] ?? null,
                     'reviewed_by' => $request->user()->id,
@@ -438,10 +441,12 @@ class ApprovalRequestController extends Controller
     private function recordApprovalAudit(Request $request, ApprovalRequest $approval, string $status): void
     {
         AuditLog::create([
-            'organization_id' => $request->user()?->organization_id,
+            'organization_id' => $approval->organization_id,
             'user_id' => $request->user()?->school_id,
+            'actor_role' => $request->user()?->role,
             'module' => 'approvals',
             'action' => 'reviewed_'.$status,
+            'description' => 'SAO or designated approver '.($status === 'approved' ? 'approved' : 'rejected').' an approval request.',
             'record_type' => ApprovalRequest::class,
             'record_id' => $approval->id,
             'old_values' => null,

@@ -91,6 +91,25 @@ class AuthRoutesTest extends TestCase
             ->assertJsonStructure(['access_token', 'token_type', 'user']);
     }
 
+    public function test_sao_can_login_with_email_and_receives_the_super_admin_role(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $director = User::factory()->create([
+            'organization_id' => $sao->id,
+            'role' => 'SUPER_ADMIN',
+            'email' => 'director@sao.example',
+            'password_hash' => 'password123',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $sao->id,
+            'email' => strtoupper($director->email),
+            'password' => 'password123',
+        ])->assertOk()
+            ->assertJsonPath('user.role', 'SUPER_ADMIN')
+            ->assertJsonMissing(['password_hash']);
+    }
+
     public function test_inactive_user_cannot_login(): void
     {
         $user = User::factory()->create([
@@ -232,7 +251,7 @@ class AuthRoutesTest extends TestCase
 
     public function test_all_roles_can_update_their_own_profile(): void
     {
-        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
             $this->flushHeaders();
             $this->app['auth']->forgetGuards();
 
@@ -255,7 +274,7 @@ class AuthRoutesTest extends TestCase
 
     public function test_all_roles_can_change_their_password(): void
     {
-        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
             $this->flushHeaders();
             $this->app['auth']->forgetGuards();
 

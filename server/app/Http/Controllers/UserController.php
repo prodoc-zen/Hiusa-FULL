@@ -2,24 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\PasswordResetMail;
 use App\Models\AcademicProgram;
 use App\Models\AcademicSection;
 use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
+use App\Services\PasswordResetService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    public function __construct(private readonly PasswordResetService $passwordResetService) {}
+
     public function index(Request $request)
     {
         $filters = $request->validate([
@@ -412,17 +412,21 @@ class UserController extends Controller
     {
         $request->validate([
             'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
-            'school_id' => 'required|integer|min:1|max:99999999',
+            'school_id' => ['nullable', 'integer', 'min:1', 'max:99999999', 'required_without:email'],
+            'email' => ['nullable', 'email', 'max:255', 'required_without:school_id'],
             'password' => 'required|string',
         ]);
 
         $user = User::where('organization_id', $request->organization_id)
-            ->where('school_id', $request->school_id)
-            ->first();
+            ->when(
+                $request->filled('email'),
+                fn ($query) => $query->where('email', strtolower(trim((string) $request->email))),
+                fn ($query) => $query->where('school_id', $request->school_id),
+            )->first();
 
         if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             throw ValidationException::withMessages([
-                'school_id' => ['The provided credentials are incorrect.'],
+                ($request->filled('email') ? 'email' : 'school_id') => ['The provided credentials are incorrect.'],
             ]);
         }
 
@@ -459,23 +463,7 @@ class UserController extends Controller
             return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
         }
 
-        $token = Str::random(64);
-
-        DB::table('password_reset_tokens')->updateOrInsert(
-            [
-                'organization_id' => $user->organization_id,
-                'email' => $user->email,
-            ],
-            [
-                'token' => Hash::make($token),
-                'created_at' => now(),
-            ]
-        );
-
-        $resetUrl = $this->passwordResetUrl($user->organization_id, $user->email, $token);
-        $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
-
-        Mail::to($user->email)->send(new PasswordResetMail($user, $resetUrl, $expiresInMinutes));
+        $this->passwordResetService->issue($user);
 
         return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
     }
@@ -598,17 +586,6 @@ class UserController extends Controller
         }
 
         return Carbon::parse($record->created_at)->addMinutes(config('auth.passwords.users.expire', 60))->isFuture();
-    }
-
-    private function passwordResetUrl(int $organizationId, string $email, string $token): string
-    {
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
-
-        return $frontendUrl.'/reset-password?'.http_build_query([
-            'organization_id' => $organizationId,
-            'email' => $email,
-            'token' => $token,
-        ]);
     }
 
     private function auditableUserValues(User $user): array

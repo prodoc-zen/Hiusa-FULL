@@ -349,7 +349,7 @@ class FinancialAccountabilityController extends Controller
 
     private function audit(Request $r, string $module, string $action, $model, ?int $organizationId = null): void
     {
-        AuditLog::create(['organization_id' => $organizationId ?? $r->user()->organization_id, 'user_id' => $r->user()->school_id, 'module' => $module, 'action' => $action, 'record_type' => $model::class, 'record_id' => $model->id, 'new_values' => $model->getAttributes(), 'ip_address' => $r->ip(), 'created_at' => now()]);
+        AuditLog::create(['organization_id' => $organizationId ?? $r->user()->organization_id, 'user_id' => $r->user()->school_id, 'actor_role' => $r->user()->role, 'module' => $module, 'action' => $action, 'description' => Str::headline($module).' '.Str::headline($action).'.', 'record_type' => $model::class, 'record_id' => $model->id, 'new_values' => $model->getAttributes(), 'ip_address' => $r->ip(), 'created_at' => now()]);
     }
 
     private function sameOrganization(Request $r, int $organizationId): void

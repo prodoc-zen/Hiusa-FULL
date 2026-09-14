@@ -257,7 +257,7 @@ class EventController extends Controller
                 'entity_type' => 'event',
                 'entity_id' => $event->id,
                 'requested_by' => $request->user()->id,
-                'required_role' => 'DEPARTMENT_HEAD',
+                'required_role' => config('approvals.routes.event'),
             ]);
 
             if ($proposedBudget > 0) {
@@ -274,7 +274,7 @@ class EventController extends Controller
                     'entity_type' => 'budget',
                     'entity_id' => $budget->id,
                     'requested_by' => $request->user()->id,
-                    'required_role' => 'SUPER_ADMIN',
+                    'required_role' => config('approvals.routes.budget'),
                 ]);
                 $event->update(['planning_details' => [
                     ...($event->planning_details ?? []),
@@ -446,7 +446,7 @@ class EventController extends Controller
             ->where('organization_id', $event->organization_id)
             ->latest('id')
             ->first()
-            ?->reopen($request->user()->id, 'DEPARTMENT_HEAD');
+            ?->reopen($request->user()->id, config('approvals.routes.event'));
     }
 
     public function destroy(Request $request, $id)
@@ -964,7 +964,7 @@ class EventController extends Controller
             ->where('event_id', $id)
             ->orderBy('check_in_time', 'asc');
 
-        $canManageAttendance = in_array($request->user()->role, ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'], true);
+        $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
         if (! $canManageAttendance) {
             $recordsQuery->where('user_id', $request->user()->id);
         }
@@ -1006,7 +1006,7 @@ class EventController extends Controller
             return response()->json(['message' => 'Only approved or ongoing events can accept attendance.'], 422);
         }
 
-        $canManageAttendance = in_array($request->user()->role, ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'], true);
+        $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
         $data['user_id'] = $canManageAttendance ? ($data['user_id'] ?? $request->user()->id) : $request->user()->id;
 
         if (! $canManageAttendance && (now()->lt($event->start_time) || now()->gt($event->end_time))) {

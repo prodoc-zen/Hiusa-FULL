@@ -1,6 +1,6 @@
 # Authenticate and Recover Account
 
-**Users:** Admin, SBO Officer, Department Head, Student
+**Users:** Super Admin, Admin, SBO Officer, Department Head, Student
 
 **Authenticate and Recover Account**
 |-- <<include>> Enter Login Credentials
@@ -21,10 +21,10 @@
 
 ## Implementation Coverage
 
-- **Role Access:** all four documented roles can authenticate through the shared login route.
+- **Role Access:** all five documented roles authenticate through the shared login route; `SUPER_ADMIN` is the canonical SAO role.
 - **Enter Login Credentials:** login accepts organization plus email or school ID and password.
 - **Validate Credentials:** `UserController@login` retrieves the organization-scoped account, verifies the password, and blocks inactive accounts.
 - **Establish User Session:** successful login issues a Laravel Sanctum bearer token.
 - **Verify User Role:** optional selected role is compared with the stored account role before login succeeds.
-- **Redirect to Role-Based Dashboard:** `App.jsx` routes authenticated users to the matching role dashboard.
+- **Redirect to Role-Based Dashboard:** `App.jsx` routes SAO to its dedicated university-oversight dashboard and routes every other user to the matching role dashboard.
 - **Recover Account:** password reset endpoints request a reset, send the reset link, validate the reset token, confirm the new password, update the stored password, and revoke existing tokens.

@@ -24,6 +24,7 @@
 ## Implementation Coverage
 
 - **Role Access:** Super Admin, Admin, and Department Head can access approval review; the backend returns only requests requiring the authenticated reviewer's exact role. Budget requests require Super Admin.
+- **Explicit Routing:** request-type routing is defined in `config/approvals.php`. An approval stores its required role and optional assigned approver; reviewers see only requests routed to their exact role and, when assigned, their own account.
 - **Final Financial Review:** the Super Admin Financial Approval Center combines pending budget requests with unverified collections and pending cash advances. Collection verification posts income to the ledger, while an approved cash advance must still be released by Admin.
 - **Validate Approver Permission:** `ApprovalRequestController@review` checks the required role and prevents requesters from reviewing their own submissions.
 - **Load Pending Approval Requests:** the approval list loads pending requests for the current reviewer role by default.

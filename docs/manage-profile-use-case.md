@@ -1,6 +1,6 @@
 # Manage Profile
 
-**Users:** Admin, SBO Officer, Department Head, Student
+**Users:** Super Admin, Admin, SBO Officer, Department Head, Student
 
 **Manage Profile**
 |-- <<include>> View Profile Information
@@ -16,7 +16,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** all four roles can access `/dashboard/profile`.
+- **Role Access:** all five roles can access `/dashboard/profile`; updates always apply to the authenticated account only.
 - **View Profile Information:** profile data is loaded from the authenticated user stored by the auth flow and displayed in `SettingsPage`.
 - **Responsive Account Overview:** the profile screen presents identity, role, organization, school ID, and account-security context in a responsive summary panel without compressing either form.
 - **Edit Profile Information:** users can update first name, last name, and email.

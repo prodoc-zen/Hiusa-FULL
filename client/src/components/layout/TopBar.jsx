@@ -5,6 +5,7 @@ import ConfirmModal from '../ConfirmModal';
 import { logout } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { unwrapList } from '../../services/pagination';
+import { getNotificationDestination } from '../../utils/notificationLinks';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
@@ -308,17 +309,17 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     <p className="text-sm font-black text-[#0F172A]">{selectedNotification.title}</p>
                     <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">{selectedNotification.message}</p>
                     <p className="mt-3 text-[11px] font-medium text-slate-300">{timeAgo(selectedNotification.created_at)}</p>
-                    {String(selectedNotification.title || '').startsWith('New Announcement:') && (
+                    {getNotificationDestination(selectedNotification, user?.role) && (
                       <button
                         type="button"
                         onClick={() => {
                           setNotifOpen(false);
                           setSelectedNotification(null);
-                          navigate('/dashboard/announcements/view-announcements');
+                          navigate(getNotificationDestination(selectedNotification, user?.role));
                         }}
                         className="mt-4 h-9 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]"
                       >
-                        Open Announcement
+                        Open related record
                       </button>
                     )}
                   </div>

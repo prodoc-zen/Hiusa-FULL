@@ -17,7 +17,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** all four roles can access the check-in route and attendance record endpoint.
+- **Role Access:** all four organization roles can access the check-in route and attendance record endpoint; SAO does not inherit this operational function.
 - **Select Active Event:** check-in is accepted only for approved or ongoing events.
 - **Verify User Identity:** authenticated users are scoped to their organization; non-managers can only check in themselves.
 - **Submit Manual Attendance:** the check-in UI records manual attendance for the current user or a manager-selected participant.
