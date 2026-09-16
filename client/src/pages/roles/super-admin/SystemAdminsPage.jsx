@@ -21,7 +21,7 @@ import { getApiErrorMessage } from "../../../utils/apiError";
 import ConfirmModal from "../../../components/ConfirmModal";
 
 const LEADERSHIP_TITLES = [
-  "Organization Adviser",
+  "Adviser",
   "President",
   "Vice President – Internal",
   "Vice President – External",
@@ -219,8 +219,8 @@ export default function SystemAdminsPage() {
           <h2 className="mt-2 text-2xl font-black">Admin User Management</h2>
           <p className="mt-1 max-w-2xl text-sm text-slate-300">
             Create and manage the President, Vice President, Secretary,
-            Organization Adviser, and other authorized Admin users for each
-            student organization.
+            Adviser, and other authorized Admin users for each student
+            organization. Adviser assignment is reserved for the SAO Director.
           </p>
         </div>
         <button

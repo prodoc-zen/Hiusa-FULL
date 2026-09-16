@@ -127,11 +127,12 @@ class SaoDirectorAdministrationTest extends TestCase
             'organization_id' => $organization->id,
             'school_id' => 78001122,
             'first_name' => 'Org',
-            'last_name' => 'President',
-            'email' => 'president@example.test',
-            'position_title' => 'President',
+            'last_name' => 'Adviser',
+            'email' => 'adviser@example.test',
+            'position_title' => 'Adviser',
         ])->assertCreated()
             ->assertJsonPath('role', 'ADMIN')
+            ->assertJsonPath('position_title', 'Adviser')
             ->assertJsonMissing(['password_hash', 'password']);
 
         $admin = User::findOrFail($response->json('school_id'));

@@ -91,23 +91,39 @@ class AuthRoutesTest extends TestCase
             ->assertJsonStructure(['access_token', 'token_type', 'user']);
     }
 
-    public function test_sao_can_login_with_email_and_receives_the_super_admin_role(): void
+    public function test_sao_can_login_with_school_id_and_receives_the_super_admin_role(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
         $director = User::factory()->create([
             'organization_id' => $sao->id,
             'role' => 'SUPER_ADMIN',
+            'school_id' => 99000001,
             'email' => 'director@sao.example',
             'password_hash' => 'password123',
         ]);
 
         $this->postJson('/api/login', [
             'organization_id' => $sao->id,
-            'email' => strtoupper($director->email),
+            'school_id' => $director->school_id,
             'password' => 'password123',
         ])->assertOk()
             ->assertJsonPath('user.role', 'SUPER_ADMIN')
             ->assertJsonMissing(['password_hash']);
+    }
+
+    public function test_email_cannot_be_used_in_place_of_school_id_for_login(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'email-login-is-disabled@example.com',
+            'password_hash' => 'password123',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $user->organization_id,
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['school_id']);
     }
 
     public function test_inactive_user_cannot_login(): void

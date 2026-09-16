@@ -50,7 +50,13 @@ class SuperAdminFingerprintTest extends TestCase
         $organization = Organization::factory()->create();
         $otherOrganization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->student()->create([
+            'organization_id' => $organization->id,
+            'department' => $organization->college,
+            'program' => 'BSIT',
+            'year_level' => '4th Year',
+            'section' => 'A',
+        ]);
         $otherStudent = User::factory()->student()->create(['organization_id' => $otherOrganization->id]);
         $matcher = new RecordingFingerprintMatcher;
         $this->app->instance(FingerprintMatcher::class, $matcher);
@@ -94,17 +100,40 @@ class SuperAdminFingerprintTest extends TestCase
             'status' => 'ongoing',
         ]);
 
-        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
+        $preview = $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
             'samples' => ['probe-scan'],
             'sample_format' => 5,
-        ])->assertCreated()
+            'year_levels' => ['4th Year'],
+            'programs' => ['BSIT'],
+            'sections' => ['A'],
+        ])->assertOk()
             ->assertJsonPath('identified', true)
             ->assertJsonPath('user.school_id', $student->school_id)
-            ->assertJsonPath('attendance.method', 'biometric');
+            ->assertJsonPath('action', 'check_in')
+            ->assertJsonPath('match.threshold', 60)
+            ->assertJsonStructure(['confirmation_token', 'confirmation_expires_at']);
 
         $this->assertCount(1, $matcher->lastIdentificationSamples);
         $this->assertCount(1, $matcher->lastCandidates);
         $this->assertSame($fingerprint->id, $matcher->lastCandidates[0]['id']);
+        $this->assertDatabaseMissing('attendance', [
+            'event_id' => $event->id,
+            'user_id' => $student->school_id,
+        ]);
+
+        $otherAdmin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        Sanctum::actingAs($otherAdmin);
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint/confirm', [
+            'confirmation_token' => $preview->json('confirmation_token'),
+        ])->assertForbidden();
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint/confirm', [
+            'confirmation_token' => $preview->json('confirmation_token'),
+        ])->assertCreated()
+            ->assertJsonPath('action', 'checked_in')
+            ->assertJsonPath('attendance.method', 'biometric');
+
         $this->assertDatabaseHas('attendance', [
             'event_id' => $event->id,
             'user_id' => $student->school_id,
@@ -117,13 +146,123 @@ class SuperAdminFingerprintTest extends TestCase
             'sample_format' => 5,
         ])->assertUnprocessable()->assertJsonValidationErrors('samples');
 
+        $checkoutPreview = $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
+            'samples' => ['probe-scan'],
+            'sample_format' => 5,
+        ])->assertOk()
+            ->assertJsonPath('action', 'check_out');
+
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint/confirm', [
+            'confirmation_token' => $checkoutPreview->json('confirmation_token'),
+        ])->assertOk()
+            ->assertJsonPath('action', 'checked_out')
+            ->assertJsonPath('user.school_id', $student->school_id)
+            ->assertJsonPath('attendance.id', Attendance::where('event_id', $event->id)->value('id'));
+
+        $this->assertNotNull(Attendance::where('event_id', $event->id)->value('check_out_time'));
+        $this->assertDatabaseHas('audit_logs', [
+            'module' => 'biometrics',
+            'action' => 'biometric_attendance_checked_out',
+            'record_id' => $student->school_id,
+        ]);
+
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
+            'samples' => ['probe-scan'],
+            'sample_format' => 5,
+        ])->assertConflict()
+            ->assertJsonPath('message', $student->first_name.' '.$student->last_name.' is already checked out from this event.');
+
         $this->assertSame(1, Attendance::where('event_id', $event->id)->count());
+
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint/confirm', [
+            'confirmation_token' => $checkoutPreview->json('confirmation_token'),
+        ])->assertConflict();
 
         Sanctum::actingAs($student);
         $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
             'samples' => ['probe-scan'],
             'sample_format' => 5,
         ])->assertForbidden();
+    }
+
+    public function test_attendance_identification_rejects_low_or_ambiguous_scores_and_wrong_academic_scope(): void
+    {
+        config()->set('fingerprint.identification.minimum_score', 60);
+        config()->set('fingerprint.identification.minimum_margin', 10);
+
+        $organization = Organization::factory()->create(['college' => 'College of Computer Studies']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $fourthYear = User::factory()->student()->create([
+            'organization_id' => $organization->id,
+            'department' => $organization->college,
+            'program' => 'BSIT',
+            'year_level' => '4th Year',
+            'section' => 'A',
+        ]);
+        $thirdYear = User::factory()->student()->create([
+            'organization_id' => $organization->id,
+            'department' => $organization->college,
+            'program' => 'BSCS',
+            'year_level' => '3rd Year',
+            'section' => 'B',
+        ]);
+        $wrongDepartment = User::factory()->student()->create([
+            'organization_id' => $organization->id,
+            'department' => 'College of Business Education',
+            'program' => 'BSBA',
+            'year_level' => '4th Year',
+            'section' => 'C',
+        ]);
+        $matcher = new RecordingFingerprintMatcher;
+        $this->app->instance(FingerprintMatcher::class, $matcher);
+
+        foreach ([$fourthYear, $thirdYear, $wrongDepartment] as $student) {
+            Fingerprint::create([
+                'organization_id' => $organization->id,
+                'user_id' => $student->school_id,
+                'template' => Crypt::encryptString('template-'.$student->school_id),
+                'template_format' => 'fscanner-sourceafis-dotnet-3.14.0-png-v1',
+                'finger_index' => 1,
+                'enrolled_by' => $admin->school_id,
+                'enrolled_at' => now(),
+            ]);
+        }
+
+        $event = Event::factory()->create([
+            'organization_id' => $organization->id,
+            'created_by' => $admin->school_id,
+            'status' => 'ongoing',
+        ]);
+        Sanctum::actingAs($admin);
+
+        $matcher->matchedFingerprintId = Fingerprint::where('user_id', $fourthYear->school_id)->value('id');
+        $matcher->matchedScore = 55;
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
+            'samples' => ['probe-scan'],
+            'sample_format' => 5,
+            'year_levels' => ['4th Year'],
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'no_match')
+            ->assertJsonPath('best.threshold', 60);
+
+        $matcher->matchedScore = 88.5;
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
+            'samples' => ['probe-scan'],
+            'sample_format' => 5,
+            'year_levels' => ['2nd Year'],
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'no_enrollments');
+
+        $matcher->scores = [
+            Fingerprint::where('user_id', $fourthYear->school_id)->value('id') => 88.5,
+            Fingerprint::where('user_id', $thirdYear->school_id)->value('id') => 83.5,
+        ];
+        $this->postJson('/api/events/'.$event->id.'/attendance/fingerprint', [
+            'samples' => ['probe-scan'],
+            'sample_format' => 5,
+        ])->assertUnprocessable()
+            ->assertJsonPath('code', 'ambiguous_match');
+        $this->assertCount(2, $matcher->lastCandidates);
     }
 
     public function test_organization_admin_can_manage_a_fellow_admin_fingerprint_only_in_their_organization(): void
@@ -218,6 +357,10 @@ class RecordingFingerprintMatcher implements FingerprintMatcher
 {
     public ?int $matchedFingerprintId = null;
 
+    public float $matchedScore = 88.5;
+
+    public array $scores = [];
+
     public array $lastCandidates = [];
 
     public array $lastIdentificationSamples = [];
@@ -239,7 +382,7 @@ class RecordingFingerprintMatcher implements FingerprintMatcher
             'candidates' => array_map(fn (array $candidate) => [
                 'id' => $candidate['id'],
                 'matched' => $candidate['id'] === $this->matchedFingerprintId,
-                'score' => $candidate['id'] === $this->matchedFingerprintId ? 88.5 : 0.0,
+                'score' => $this->scores[$candidate['id']] ?? ($candidate['id'] === $this->matchedFingerprintId ? $this->matchedScore : 0.0),
                 'threshold' => 40.0,
             ], $candidates),
             'elapsed_ms' => 2.1,

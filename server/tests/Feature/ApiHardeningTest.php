@@ -109,7 +109,7 @@ class ApiHardeningTest extends TestCase
 
     public function test_guest_hitting_a_throttled_auth_route_still_gets_429(): void
     {
-        $credentials = ['email' => 'nobody@example.com', 'password' => 'wrong-password', 'role' => 'STUDENT'];
+        $credentials = ['organization_id' => 999, 'school_id' => 99999999, 'password' => 'wrong-password'];
 
         for ($i = 0; $i < 10; $i++) {
             $this->postJson('/api/login', $credentials);

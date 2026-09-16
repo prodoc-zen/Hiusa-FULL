@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use Dotenv\Dotenv;
+use Illuminate\Support\Env;
 use Tests\TestCase;
 
 class EnvironmentTemplateTest extends TestCase
@@ -28,6 +29,24 @@ class EnvironmentTemplateTest extends TestCase
         $this->assertSame(1, preg_match($server['FRONTEND_ORIGIN_PATTERNS'], 'http://192.168.50.25:5173'));
         $this->assertSame(1, preg_match($server['FRONTEND_ORIGIN_PATTERNS'], 'http://10.0.0.20:5174'));
         $this->assertSame(0, preg_match($server['FRONTEND_ORIGIN_PATTERNS'], 'https://public.example.com'));
+
+        $environment = Env::getRepository();
+        $originalPatterns = $environment->get('FRONTEND_ORIGIN_PATTERNS');
+
+        try {
+            $environment->clear('FRONTEND_ORIGIN_PATTERNS');
+            $environment->set('FRONTEND_ORIGIN_PATTERNS', $server['FRONTEND_ORIGIN_PATTERNS']);
+
+            $cors = require config_path('cors.php');
+
+            $this->assertSame([$server['FRONTEND_ORIGIN_PATTERNS']], $cors['allowed_origins_patterns']);
+        } finally {
+            $environment->clear('FRONTEND_ORIGIN_PATTERNS');
+
+            if ($originalPatterns !== null) {
+                $environment->set('FRONTEND_ORIGIN_PATTERNS', $originalPatterns);
+            }
+        }
 
         foreach ([$serverContents, $clientContents, $aiContents] as $contents) {
             $this->assertStringNotContainsString('gsk_', $contents);

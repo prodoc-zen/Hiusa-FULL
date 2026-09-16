@@ -105,11 +105,13 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
   const name = `${user.first_name} ${user.last_name}`;
-  const canManageAccount = user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
+  const officerCanManageTarget = actorRole !== 'SBO_OFFICER' || user.role === 'STUDENT';
+  const canManageAccount = officerCanManageTarget && user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
+  const canManageFingerprint = officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const actions = [
-    user.role !== 'SUPER_ADMIN' && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
+    canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
     { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, color: 'view', onClick: onView },
-    user.role !== 'SUPER_ADMIN' && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
+    canManageFingerprint && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
     user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, color: 'verify', onClick: onVerify },
     canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
     canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
@@ -228,12 +230,13 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   );
 }
 
-function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
+export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
   const reader = useFingerprintReader();
   const [captured, setCaptured] = useState(0);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
 
   async function handleEnroll() {
     setBusy(true);
@@ -263,21 +266,40 @@ function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
     }
   }
 
+  if (confirmRemove) {
+    return <ConfirmModal
+      open
+      title="Remove Fingerprint Enrollment"
+      message="The encrypted fingerprint template will be removed. Attendance identification will stop working for this Student until they enroll again."
+      recordName={`${user.first_name} ${user.last_name} · School ID ${user.school_id}`}
+      confirmText="Remove Fingerprint"
+      variant="danger"
+      busy={busy}
+      onCancel={() => !busy && setConfirmRemove(false)}
+      onConfirm={handleRemove}
+    />;
+  }
+
   return (
     <Modal
       open
-      title="Fingerprint Enrollment"
+      title={user.fingerprint_enrolled ? 'Re-enroll Fingerprint' : 'Enroll Fingerprint'}
       description={`${user.first_name} ${user.last_name} · School ID ${user.school_id}`}
       onClose={() => !busy && onClose()}
       closeOnBackdrop={!busy}
       closeOnEscape={!busy}
       footer={<>
         <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
-        {user.fingerprint_enrolled && <button type="button" onClick={handleRemove} disabled={busy} className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 disabled:opacity-50">Remove</button>}
-        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Re-enroll' : 'Start Enrollment'}</button>
+        {user.fingerprint_enrolled && <button type="button" onClick={() => setConfirmRemove(true)} disabled={busy} className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 disabled:opacity-50">Remove</button>}
+        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start Re-enrollment' : 'Start 4-Scan Enrollment'}</button>
       </>}
+      maxWidth="max-w-lg"
     >
       <div className="space-y-4">
+        <div className="flex items-center gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-xs font-black text-white">{user.first_name?.[0]}{user.last_name?.[0]}</span>
+          <div className="min-w-0"><p className="truncate text-sm font-black text-[#0F172A]">{user.first_name} {user.last_name}</p><p className="text-xs font-semibold text-slate-500">School ID {user.school_id} · {ROLE_LABELS[user.role] || user.role}</p></div>
+        </div>
         <ScannerStatus reader={reader} />
         <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
           <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#0F172A]">Capture progress</p><span className="text-xs font-bold text-[#0B8ED0]">{captured} / 4</span></div>
@@ -285,7 +307,7 @@ function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
           <p className="mt-3 text-xs leading-5 text-slate-500">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
         </div>
         <label className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3 text-xs font-medium leading-5 text-slate-600">
-          <input type="checkbox" checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#B9CBD8]" />
+          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#B9CBD8]" />
           <span>I confirm the user consented to biometric enrollment and understands they may request removal of the stored template.</span>
         </label>
         {busy && <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
@@ -373,7 +395,7 @@ export default function AdminUsersPage() {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
   } catch {}
-  const roles = actorRole === 'SUPER_ADMIN' ? accountRoles : accountRoles.filter((role) => role !== 'ADMIN');
+  const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : actorRole === 'SUPER_ADMIN' ? accountRoles : accountRoles.filter((role) => role !== 'ADMIN');
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
@@ -529,7 +551,7 @@ export default function AdminUsersPage() {
     setProfileUser(user);
     setProfileDebt(null);
     setProfileError('');
-    if (user.role !== 'STUDENT') { setProfileLoading(false); return; }
+    if (user.role !== 'STUDENT' || actorRole === 'SBO_OFFICER') { setProfileLoading(false); return; }
     setProfileLoading(true);
     try {
       const response = await getStudentDebts({ student_id: user.school_id });
@@ -669,7 +691,7 @@ export default function AdminUsersPage() {
         <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
       <Field label="Role">
-        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={mode === 'edit' && selectedUser?.role === 'ADMIN'} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
+        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || (mode === 'edit' && selectedUser?.role === 'ADMIN')} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
           {(mode === 'edit' && selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
@@ -722,9 +744,9 @@ export default function AdminUsersPage() {
       <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Administrator</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">{actorRole === 'SBO_OFFICER' ? 'SBO Officer' : 'Administrator'}</p>
             <h2 className="mt-1 text-2xl font-black text-[#0F172A]">User Management</h2>
-            <p className="mt-1 text-sm text-slate-500">View, search, filter, add, update, deactivate, and reactivate user accounts.</p>
+            <p className="mt-1 text-sm text-slate-500">{actorRole === 'SBO_OFFICER' ? 'Manage Student accounts and view other organization members without changing their records.' : 'View, search, filter, add, update, deactivate, and reactivate user accounts.'}</p>
           </div>
           <div className="flex gap-2"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>
         </div>
@@ -854,7 +876,7 @@ export default function AdminUsersPage() {
               ['Major / Specialization', profileUser.major || 'Not recorded'], ['Section', profileUser.section || 'Not recorded'], ['Organization position', profileUser.position_title || 'Not assigned'],
             ].map(([label, value]) => <div key={label}><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></div>)}
           </div>
-          {profileUser.role === 'STUDENT' && <section>
+          {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section>
             <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Financial standing</p><h3 className="mt-1 text-lg font-black text-[#0F172A]">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
             {profileLoading && <div className="mt-3 h-24 animate-pulse rounded-xl bg-slate-100" />}
             {profileError && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{profileError}</p>}

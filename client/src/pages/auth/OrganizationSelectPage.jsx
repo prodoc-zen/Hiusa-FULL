@@ -111,7 +111,7 @@ export default function OrganizationSelectPage() {
                 Organization records, elections, events, merchandise, and announcements stay grouped under the selected workspace.
               </div>
               <div className="rounded-md border border-white/10 bg-white/[0.04] p-4">
-                Use your student ID for student accounts, or your email for officer, adviser, and admin access.
+                Every account signs in with its assigned school ID or ID number.
               </div>
             </div>
           </div>

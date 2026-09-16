@@ -46,16 +46,16 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/users', [UserController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::put('/users/{id}', [UserController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/users', [UserController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::put('/users/{id}', [UserController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/sbo-positions', [SboPositionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/sbo-positions', [SboPositionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/sbo-positions/{position}', [SboPositionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/sbo-positions/{position}', [SboPositionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::get('/academic-structure', [AcademicStructureController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN']);
+    Route::get('/academic-structure', [AcademicStructureController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/academic-structure/programs', [AcademicStructureController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/academic-structure/programs/{program}', [AcademicStructureController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/academic-structure/programs/{program}', [AcademicStructureController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
@@ -87,10 +87,11 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     // DigitalPersona capture is performed in the browser. Laravel sends the
     // transient PNG samples to the private SourceAFIS service and stores only
     // encrypted templates. Event identification intentionally uses one scan.
-    Route::post('/users/{id}/fingerprint', [FingerprintController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::delete('/users/{id}/fingerprint', [FingerprintController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/users/{id}/fingerprint', [FingerprintController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::delete('/users/{id}/fingerprint', [FingerprintController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/fingerprints/identify', [FingerprintController::class, 'identify'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/events/{id}/attendance/fingerprint', [FingerprintController::class, 'attend'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/events/{id}/attendance/fingerprint/confirm', [FingerprintController::class, 'confirmAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
@@ -104,7 +105,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::post('/events/{id}/workflows/{aiOutput}/confirm', [EventController::class, 'confirmWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/events/{id}/workflows/{aiOutput}/discard', [EventController::class, 'discardWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
 
     // Task Routes
     Route::get('/tasks', [TaskController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);

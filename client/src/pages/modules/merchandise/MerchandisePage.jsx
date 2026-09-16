@@ -198,7 +198,7 @@ function ConfirmModal({
     <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
       <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-extrabold text-[#0F172A]">{title}</h3>
-        <p className="mt-2 text-sm text-slate-600">{message}</p>
+        <p className="mt-2 whitespace-pre-line text-sm text-slate-600">{message}</p>
         <div className="mt-5 flex justify-end gap-3">
           <button
             type="button"
@@ -273,6 +273,167 @@ function AddStockModal({
         </div>
       </div>
     </div>
+  );
+}
+
+function reviewTone(status) {
+  if (status === "approved") return "bg-emerald-50 text-emerald-700";
+  if (status === "rejected") return "bg-red-50 text-red-700";
+  return "bg-amber-50 text-amber-700";
+}
+
+function FulfillmentOrderRow({
+  order,
+  role,
+  onDetails,
+  onApprove,
+  onReject,
+  onViewProof,
+}) {
+  const studentName = order.student
+    ? `${order.student.first_name} ${order.student.last_name}`
+    : "Unknown buyer";
+  const academicProfile = [
+    order.student?.program,
+    order.student?.year_level,
+    order.student?.section,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  return (
+    <article className="p-4 transition hover:bg-[#F8FBFD] sm:p-5">
+      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.2fr)_minmax(190px,1fr)_minmax(170px,.8fr)_minmax(210px,1fr)_auto] xl:items-center">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-xs font-black text-[#0B8ED0]">
+              ORD-{order.id}
+            </span>
+            <span
+              className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${orderBadge[order.status] || "bg-slate-100 text-slate-600"}`}
+            >
+              {capitalize(order.status)}
+            </span>
+            <span className="text-[11px] font-medium text-slate-400">
+              {fmtDate(order.created_at)}
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={() => onDetails(order)}
+            className="mt-2 block max-w-full truncate text-left text-sm font-extrabold text-[#0F172A] hover:text-[#0B8ED0]"
+          >
+            {studentName}
+          </button>
+          <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
+            {order.student?.school_id || "No school ID"}
+          </p>
+          <p className="mt-1 truncate text-[11px] text-slate-400">
+            {academicProfile || order.student?.department || "No academic profile"}
+          </p>
+        </div>
+
+        <div className="min-w-0 border-t border-[#EEF2F7] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          <p className="truncate text-sm font-bold text-[#0F172A]">
+            {order.merchandise?.name || "Unavailable item"}
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            {order.quantity} x {fmt(order.merchandise?.price)}
+          </p>
+          <p className="mt-1 text-sm font-black tabular-nums text-[#0B8ED0]">
+            {fmt(order.total_price)}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
+            <span className="uppercase">{order.payment_method || "No method"}</span>
+            <span aria-hidden="true">·</span>
+            <span className="max-w-32 truncate font-mono">
+              {order.payment_reference || "No reference"}
+            </span>
+            {order.payment_proof_url && (
+              <button
+                type="button"
+                onClick={() => onViewProof(order.id)}
+                className="inline-flex items-center gap-1 font-bold text-[#0B8ED0] hover:text-[#0878B7]"
+              >
+                <Eye size={12} /> Proof
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div className="border-t border-[#EEF2F7] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+            Payment review
+          </p>
+          <div className="mt-2 flex flex-wrap gap-2">
+            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${reviewTone(order.officer_review_status)}`}>
+              Officer: {capitalize(order.officer_review_status)}
+            </span>
+            <span className={`rounded-full px-2 py-1 text-[10px] font-bold ${reviewTone(order.admin_review_status)}`}>
+              Admin: {capitalize(order.admin_review_status)}
+            </span>
+          </div>
+        </div>
+
+        <div className="border-t border-[#EEF2F7] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          {order.status === "paid" && order.claim_token ? (
+            <div className="rounded-lg border border-[#B9D9E9] bg-[#EEF6FB] px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0B8ED0]">
+                <Ticket size={13} /> Ready for pickup
+              </p>
+              <p className="mt-1 break-all font-mono text-sm font-black tracking-wider text-[#0B1831]">
+                {order.claim_token}
+              </p>
+            </div>
+          ) : order.status === "claimed" ? (
+            <div className="rounded-lg bg-emerald-50 px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-xs font-bold text-emerald-700">
+                <CheckCircle size={14} /> Claimed {fmtDate(order.claimed_at)}
+              </p>
+              <p className="mt-1 text-[10px] text-emerald-700/80">
+                Released by {order.claim_verifier ? `${order.claim_verifier.first_name} ${order.claim_verifier.last_name}` : "authorized staff"}
+              </p>
+            </div>
+          ) : order.status === "cancelled" ? (
+            <p className="rounded-lg bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">
+              Order cancelled
+            </p>
+          ) : (
+            <p className="rounded-lg bg-amber-50 px-3 py-2.5 text-xs font-semibold text-amber-700">
+              Token unlocks after Admin approval
+            </p>
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-2 border-t border-[#EEF2F7] pt-4 md:col-span-2 xl:col-span-1 xl:w-40 xl:flex-col xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          <button
+            type="button"
+            onClick={() => onDetails(order)}
+            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"
+          >
+            <Eye size={14} /> Details
+          </button>
+          {order.status === "pending" && (
+            <>
+              <button
+                type="button"
+                onClick={() => onApprove(order)}
+                className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold ${role === "ADMIN" ? "bg-[#0B8ED0] text-white hover:bg-[#0878B7]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+              >
+                {role === "ADMIN" ? "Approve" : "Verify"} <ArrowRight size={13} />
+              </button>
+              <button
+                type="button"
+                onClick={() => onReject(order)}
+                className="h-9 flex-1 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 hover:bg-red-50"
+              >
+                Reject
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </article>
   );
 }
 
@@ -470,6 +631,9 @@ export default function MerchandisePage({ initialTab }) {
   function load() {
     setLoading(true);
     setError(null);
+    const managerOrderFilters = activeTab === "tokens"
+      ? { ...EMPTY_ORDER_FILTERS, status: "paid", sort: "oldest" }
+      : EMPTY_ORDER_FILTERS;
     const calls = isPersonalShoppingView
       ? [
           fetchAllPages((p) => getMerchandise(p).then((r) => r.data)).then((rows) => ({ data: rows })),
@@ -481,7 +645,7 @@ export default function MerchandisePage({ initialTab }) {
           // unlike a full-table walk) rather than trust a filtered request.
           fetchAllPages((p) => getOrders({ mine: 1, ...p }).then((r) => r.data), {}, { perPage: 10 }),
         ]
-      : [fetchAllPages((p) => getMerchandise(p).then((r) => r.data)).then((rows) => ({ data: rows })), getOrders({ page: 1, ...EMPTY_ORDER_FILTERS })];
+      : [fetchAllPages((p) => getMerchandise(p).then((r) => r.data)).then((rows) => ({ data: rows })), getOrders({ page: 1, ...managerOrderFilters })];
     Promise.all(calls)
       .then(([mRes, oRes, gcashRes, allMineOrders]) => {
         const merch = Array.isArray(mRes.data?.data)
@@ -524,7 +688,7 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
-  useEffect(load, [isPersonalShoppingView]);
+  useEffect(load, [activeTab, isPersonalShoppingView]);
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
@@ -838,6 +1002,25 @@ export default function MerchandisePage({ initialTab }) {
         error: err.response?.data?.message ?? "Failed to submit payment proof.",
       }));
     }
+  }
+
+  function openPaymentVerification(order) {
+    setVerificationModal({
+      open: true,
+      order,
+      amount: String(order.total_price),
+      busy: false,
+      error: "",
+    });
+  }
+
+  function openOrderRejection(order) {
+    setRejectionModal({
+      open: true,
+      order,
+      remarks: "",
+      busy: false,
+    });
   }
 
   function confirmBuyerCancellation(order) {
@@ -2381,6 +2564,7 @@ export default function MerchandisePage({ initialTab }) {
   return (
     <div className="space-y-6">
       {feedbackPopup}
+      {activeTab === "inventory" && (
       <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           {
@@ -2412,7 +2596,7 @@ export default function MerchandisePage({ initialTab }) {
             key={stat.label}
             className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/20 hover:shadow-md"
           >
-            <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-rose-50 text-rose-600 transition group-hover:bg-rose-600 group-hover:text-white">
+            <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0] transition group-hover:bg-[#0B8ED0] group-hover:text-white">
               <stat.icon size={19} />
             </div>
             <p className="text-sm font-semibold text-slate-500">{stat.label}</p>
@@ -2425,6 +2609,7 @@ export default function MerchandisePage({ initialTab }) {
           </article>
         ))}
       </section>
+      )}
 
       {activeTab === "inventory" && (
         <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
@@ -2567,15 +2752,15 @@ export default function MerchandisePage({ initialTab }) {
 
       {activeTab === "orders" && (
         <section className="space-y-4">
-          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">
-                  Merchandise Order Intelligence
+                  Manage Orders
                 </h2>
                 <p className="text-sm font-medium text-slate-500">
-                  Filter cohorts, monitor payments and claims, and drill into
-                  the users behind each result.
+                  Review payments, release approved orders, and track every
+                  pickup from one queue.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2879,62 +3064,74 @@ export default function MerchandisePage({ initialTab }) {
             )}
           </div>
           {orderSummary && (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6">
-              {[
-                [
-                  "Total Users",
-                  orderSummary.total_users,
-                  null,
-                  "Active users in cohort",
-                ],
-                [
-                  "Purchased",
-                  orderSummary.purchased_users,
-                  "purchased",
-                  `${orderSummary.purchase_rate}% participation`,
-                ],
-                [
-                  "Did Not Purchase",
-                  orderSummary.not_purchased_users,
-                  "not_purchased",
-                  "Users without matching orders",
-                ],
-                [
-                  "Paid Orders",
-                  orderSummary.paid_orders,
-                  "paid",
-                  fmt(orderSummary.total_collected),
-                ],
-                [
-                  "Pending Payment",
-                  orderSummary.pending_orders,
-                  "pending",
-                  `${fmt(orderSummary.outstanding_balance)} outstanding`,
-                ],
-                [
-                  "Claimed",
-                  orderSummary.claimed_orders,
-                  "claimed",
-                  `${orderSummary.unclaimed_orders} still unclaimed`,
-                ],
-              ].map(([label, value, group, helper]) => (
-                <button
-                  type="button"
-                  disabled={!group}
-                  onClick={() => group && openOrderAnalytics(group, label)}
-                  key={label}
-                  className="rounded-xl border border-[#DDE7EF] bg-white p-4 text-left shadow-sm transition enabled:hover:border-[#0B8ED0] enabled:hover:bg-[#F8FBFD]"
-                >
-                  <p className="text-xs font-bold text-slate-500">{label}</p>
-                  <p className="mt-1 text-2xl font-black text-[#0F172A]">
-                    {value}
-                  </p>
-                  <p className="mt-1 text-[10px] font-semibold text-slate-400">
-                    {helper}
-                  </p>
-                </button>
-              ))}
-            </div>
+            <>
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                {[
+                  {
+                    label: "Pending review",
+                    value: orderSummary.pending_orders,
+                    group: "pending",
+                    helper: `${fmt(orderSummary.outstanding_balance)} awaiting approval`,
+                    icon: DollarSign,
+                    tone: "bg-amber-50 text-amber-700",
+                  },
+                  {
+                    label: "Ready for pickup",
+                    value: orderSummary.unclaimed_orders,
+                    group: "unclaimed",
+                    helper: "Approved orders with active tokens",
+                    icon: Ticket,
+                    tone: "bg-[#E6F6FD] text-[#0B8ED0]",
+                  },
+                  {
+                    label: "Claimed",
+                    value: orderSummary.claimed_orders,
+                    group: "claimed",
+                    helper: "Successfully released orders",
+                    icon: CheckCircle,
+                    tone: "bg-emerald-50 text-emerald-700",
+                  },
+                  {
+                    label: "Collected",
+                    value: fmt(orderSummary.total_collected),
+                    group: "paid",
+                    helper: `${orderSummary.paid_orders} paid orders`,
+                    icon: ShoppingBag,
+                    tone: "bg-[#EEF6FB] text-[#0F2F62]",
+                  },
+                ].map((metric) => (
+                  <button
+                    type="button"
+                    onClick={() => openOrderAnalytics(metric.group, metric.label)}
+                    key={metric.label}
+                    className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-4 text-left shadow-sm transition hover:border-[#0B8ED0] hover:bg-[#F8FBFD]"
+                  >
+                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${metric.tone}`}>
+                      <metric.icon size={17} />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-xs font-bold text-slate-500">{metric.label}</span>
+                      <span className="mt-0.5 block text-xl font-black text-[#0F172A]">{metric.value}</span>
+                      <span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{metric.helper}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-xs shadow-sm sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-slate-500">
+                  <span className="font-bold text-[#0F172A]">Cohort:</span>{" "}
+                  {orderSummary.purchased_users} of {orderSummary.total_users} users purchased ({orderSummary.purchase_rate}%).
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" onClick={() => openOrderAnalytics("purchased", "Purchased users")} className="font-bold text-[#0B8ED0] hover:text-[#0878B7]">
+                    View purchasers
+                  </button>
+                  <button type="button" onClick={() => openOrderAnalytics("not_purchased", "Users without purchases")} className="font-bold text-slate-600 hover:text-[#0B8ED0]">
+                    View non-buyers
+                  </button>
+                </div>
+              </div>
+            </>
           )}
           {orderSummary?.breakdown?.length > 0 && (
             <div className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
@@ -2955,12 +3152,17 @@ export default function MerchandisePage({ initialTab }) {
               </div>
             </div>
           )}
-          <div className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="border-b border-[#DDE7EF] px-5 py-4">
-              <h3 className="font-bold text-[#0F172A]">Filtered Orders</h3>
-              <p className="text-xs text-slate-500">
-                Showing operational, payment, academic, and fulfillment details.
-              </p>
+          <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+            <div className="flex flex-col gap-1 border-b border-[#DDE7EF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+              <div>
+                <h3 className="font-bold text-[#0F172A]">Order queue</h3>
+                <p className="text-xs text-slate-500">
+                  Review payment, approval, and pickup status. Open Details for the full audit trail.
+                </p>
+              </div>
+              <span className="mt-2 w-fit rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0B8ED0] sm:mt-0">
+                {ordersMeta.total} {ordersMeta.total === 1 ? "order" : "orders"}
+              </span>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -2976,19 +3178,33 @@ export default function MerchandisePage({ initialTab }) {
                 No orders yet.
               </p>
             ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[1720px] text-left">
+              <>
+              <div className="divide-y divide-[#E5EDF3] xl:hidden">
+                {filteredOfficerOrders.map((order) => (
+                  <FulfillmentOrderRow
+                    key={order.id}
+                    order={order}
+                    role={role}
+                    onDetails={openOrderDetails}
+                    onApprove={openPaymentVerification}
+                    onReject={openOrderRejection}
+                    onViewProof={handleViewPaymentProof}
+                  />
+                ))}
+              </div>
+              <div className="hidden overflow-x-auto xl:block">
+                <table className="w-full min-w-[1100px] text-left">
                   <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Order / Reference</th>
                       <th className="px-4 py-3">Student / User</th>
-                      <th className="px-4 py-3">Academic Profile</th>
+                      <th className="hidden px-4 py-3">Academic Profile</th>
                       <th className="px-5 py-3">Item</th>
                       <th className="px-4 py-3">Quantity / Amount</th>
                       <th className="px-4 py-3">Payment</th>
-                      <th className="px-4 py-3">Review Trail</th>
+                      <th className="hidden px-4 py-3">Review Trail</th>
                       <th className="px-4 py-3">Fulfillment</th>
-                      <th className="px-4 py-3">Dates</th>
+                      <th className="hidden px-4 py-3">Dates</th>
                       <th className="px-4 py-3">Actions</th>
                     </tr>
                   </thead>
@@ -3024,8 +3240,13 @@ export default function MerchandisePage({ initialTab }) {
                               {o.student.position_title}
                             </p>
                           )}
+                          <p className="mt-1 max-w-52 truncate text-[10px] text-slate-400">
+                            {[o.student?.program, o.student?.year_level, o.student?.section]
+                              .filter(Boolean)
+                              .join(" · ") || "No academic profile"}
+                          </p>
                         </td>
-                        <td className="px-4 py-4 text-xs">
+                        <td className="hidden px-4 py-4 text-xs">
                           <p className="font-semibold text-slate-700">
                             {o.student?.program || "Program not recorded"}
                           </p>
@@ -3075,8 +3296,16 @@ export default function MerchandisePage({ initialTab }) {
                                 ? "Cancelled"
                                 : "Pending"}
                           </span>
+                          <div className="mt-2 flex flex-wrap gap-1">
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${reviewTone(o.officer_review_status)}`}>
+                              Officer: {capitalize(o.officer_review_status)}
+                            </span>
+                            <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold ${reviewTone(o.admin_review_status)}`}>
+                              Admin: {capitalize(o.admin_review_status)}
+                            </span>
+                          </div>
                         </td>
-                        <td className="px-4 py-4 text-[10px] text-slate-500">
+                        <td className="hidden px-4 py-4 text-[10px] text-slate-500">
                           <p>
                             <strong>Officer:</strong>{" "}
                             {capitalize(o.officer_review_status)}
@@ -3110,8 +3339,18 @@ export default function MerchandisePage({ initialTab }) {
                               ? `${o.claim_verifier.first_name} ${o.claim_verifier.last_name}`
                               : "-"}
                           </p>
+                          {o.status === "paid" && o.claim_token && (
+                            <div className="mt-2 rounded-lg border border-[#B9D9E9] bg-[#EEF6FB] px-2.5 py-2">
+                              <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#0B8ED0]">
+                                <Ticket size={11} /> Claim token
+                              </p>
+                              <p className="mt-1 font-mono text-xs font-black tracking-wide text-[#0B1831]">
+                                {o.claim_token}
+                              </p>
+                            </div>
+                          )}
                         </td>
-                        <td className="px-4 py-4 text-[10px] text-slate-500">
+                        <td className="hidden px-4 py-4 text-[10px] text-slate-500">
                           <p>
                             <strong>Ordered:</strong> {fmtDate(o.created_at)}
                           </p>
@@ -3187,6 +3426,7 @@ export default function MerchandisePage({ initialTab }) {
                   </tbody>
                 </table>
               </div>
+              </>
             )}
             {ordersMeta.total > ordersMeta.per_page && (
               <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
@@ -3624,15 +3864,25 @@ export default function MerchandisePage({ initialTab }) {
 
       {activeTab === "tokens" && isFulfillmentRole && (
         <section className="space-y-4">
-          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <h2 className="mb-1 text-lg font-bold text-[#0F172A]">
-              Claim by Token
-            </h2>
-            <p className="mb-4 text-sm font-medium text-slate-500">
-              Enter the claim token from a paid order to mark it as claimed
-            </p>
-            <form onSubmit={handleClaim} className="flex gap-3">
+          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                <Ticket size={19} />
+              </span>
+              <div>
+                <h2 className="text-lg font-bold text-[#0F172A]">
+                  Validate a claim token
+                </h2>
+                <p className="mt-1 text-sm font-medium text-slate-500">
+                  Match the buyer and item below, then confirm before releasing merchandise.
+                </p>
+              </div>
+            </div>
+            <form onSubmit={handleClaim} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
+              <label htmlFor="claim-token" className="min-w-0 flex-1 text-xs font-bold text-[#0F172A]">
+                16-character claim token
               <input
+                id="claim-token"
                 maxLength={16}
                 value={claimToken}
                 onChange={(e) => {
@@ -3642,12 +3892,13 @@ export default function MerchandisePage({ initialTab }) {
                   setClaimError(null);
                 }}
                 placeholder="16-character token"
-                className="h-11 flex-1 rounded-lg border border-[#DDE7EF] px-3 font-mono text-sm uppercase outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 font-mono text-sm uppercase tracking-wider outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
               />
+              </label>
               <button
                 type="submit"
                 disabled={claiming || !claimToken.trim()}
-                className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
               >
                 <Ticket size={16} />
                 {claiming ? "Processing..." : "Claim"}
@@ -3715,6 +3966,13 @@ export default function MerchandisePage({ initialTab }) {
                 </table>
               </div>
             )}
+            <PaginationControls
+              currentPage={ordersMeta.current_page}
+              totalItems={ordersMeta.total}
+              pageSize={ordersMeta.per_page}
+              onPageChange={(page) => loadOrders(page, { ...EMPTY_ORDER_FILTERS, status: "paid", sort: "oldest" })}
+              label="paid orders"
+            />
           </div>
         </section>
       )}

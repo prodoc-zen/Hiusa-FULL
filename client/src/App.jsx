@@ -209,7 +209,7 @@ function App() {
           <Route path="approval-requests/new/event" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" startEventRequest /></ProtectedRoute>} />
           <Route path="approval-requests/new/election" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionsHub startCreateElection /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
-          <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminUsersPage /></ProtectedRoute>} />
+          <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><AdminUsersPage /></ProtectedRoute>} />
           <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
           <Route path="admin/positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
           <Route path="admin/programs-sections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageAcademicStructurePage /></ProtectedRoute>} />
@@ -228,7 +228,7 @@ function App() {
             <Route path="manage-events" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
             <Route path="event-planner" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="tasks" /></ProtectedRoute>} />
             <Route path="event-operations" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
-            <Route path="check-in" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
+            <Route path="check-in" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
             <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
           </Route>
 

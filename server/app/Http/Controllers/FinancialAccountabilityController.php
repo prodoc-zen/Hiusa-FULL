@@ -378,11 +378,11 @@ class FinancialAccountabilityController extends Controller
             $affectedUser = User::where('organization_id', $organizationId)->find($log->record_id);
             $subject = $affectedUser ? 'User account: '.$this->userLabel($affectedUser) : 'User account #'.$log->record_id;
         } elseif ($recordType === Transaction::class) {
-            $record = Transaction::with('payer:school_id,first_name,last_name,department,program,year_level')->where('organization_id', $organizationId)->find($log->record_id);
+            $record = Transaction::with('payer:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId)->find($log->record_id);
             $affectedUser = $record?->payer;
             $subject = $record ? 'Ledger entry: '.$record->description : 'Ledger entry #'.$log->record_id;
         } elseif ($recordType === Order::class) {
-            $record = Order::with(['student:school_id,first_name,last_name,department,program,year_level', 'merchandise:id,name'])->where('organization_id', $organizationId)->find($log->record_id);
+            $record = Order::with(['student:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at', 'merchandise:id,name'])->where('organization_id', $organizationId)->find($log->record_id);
             $affectedUser = $record?->student;
             $subject = $record ? 'Order ORD-'.$record->id.' — '.($record->merchandise?->name ?? 'Merchandise') : 'Order #'.$log->record_id;
         } elseif ($recordType === Invoice::class) {
@@ -417,7 +417,10 @@ class FinancialAccountabilityController extends Controller
 
     private function profileData(User $user): array
     {
-        return ['school_id' => $user->school_id, 'name' => $this->userLabel($user), 'role' => $user->role, 'role_label' => $this->identifierLabel($user->role), 'position_title' => $user->position_title, 'account_status' => $user->account_status, 'account_status_label' => $this->identifierLabel($user->account_status), 'department' => $user->department, 'program' => $user->program, 'major' => $user->major, 'section' => $user->section, 'year_level' => $user->year_level, 'email' => $user->email, 'created_at' => $user->created_at];
+        $role = $user->getAttribute('role');
+        $accountStatus = $user->getAttribute('account_status');
+
+        return ['school_id' => $user->school_id, 'name' => $this->userLabel($user), 'role' => $role, 'role_label' => filled($role) ? $this->identifierLabel($role) : null, 'position_title' => $user->position_title, 'account_status' => $accountStatus, 'account_status_label' => filled($accountStatus) ? $this->identifierLabel($accountStatus) : null, 'department' => $user->department, 'program' => $user->program, 'major' => $user->major, 'section' => $user->section, 'year_level' => $user->year_level, 'email' => $user->email, 'created_at' => $user->created_at];
     }
 
     private function userLabel(User $user): string

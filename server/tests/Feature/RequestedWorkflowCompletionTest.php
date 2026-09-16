@@ -165,7 +165,7 @@ class RequestedWorkflowCompletionTest extends TestCase
                 ? Order::findOrFail($orderId)->claim_token
                 : null;
             Sanctum::actingAs($officer);
-            $this->getJson('/api/orders')->assertOk()->assertJsonPath('data.0.claim_token', null);
+            $this->getJson('/api/orders')->assertOk()->assertJsonPath('data.0.claim_token', $token);
             $this->postJson('/api/orders/claim', ['claim_token' => $token])->assertOk();
             $this->postJson('/api/orders/claim', ['claim_token' => $token])->assertConflict();
         } finally {
