@@ -162,10 +162,10 @@ Set-EnvironmentValue $serverEnvironment 'QUEUE_CONNECTION' 'sync'
 
 Set-EnvironmentValue $serverEnvironment 'APP_URL' "http://${HostAddress}:8000"
 Set-EnvironmentValue $serverEnvironment 'FRONTEND_URL' "http://${HostAddress}:5173"
-Set-EnvironmentValue $serverEnvironment 'FRONTEND_URLS' "http://localhost:5173,http://127.0.0.1:5173,http://${HostAddress}:5173,http://localhost:5174,http://127.0.0.1:5174,http://${HostAddress}:5174"
-# Keep the template loopback-based. The browser replaces localhost with the
-# hostname used to open Vite, so DHCP address changes do not stale this file.
-Set-EnvironmentValue $clientEnvironment 'VITE_API_URL' 'http://localhost:8000/api'
+Set-EnvironmentValue $serverEnvironment 'FRONTEND_URLS' ''
+Set-EnvironmentValue $serverEnvironment 'FRONTEND_ORIGIN_PATTERNS' ''
+# Write the selected host explicitly. The frontend uses this value as-is.
+Set-EnvironmentValue $clientEnvironment 'VITE_API_URL' "http://${HostAddress}:8000/api"
 
 if ($PromptForGroqKey) {
     $secureGroqKey = Read-Host 'Enter the Groq API key (input is hidden)' -AsSecureString
@@ -209,7 +209,7 @@ if ($phpCommand -and (Test-Path -LiteralPath $vendorAutoload)) {
 Write-Host ''
 Write-Host 'Environment preparation complete.'
 Write-Host "Host address: $HostAddress"
-Write-Host 'Frontend API address: follows the hostname used to open Vite on port 8000.'
+Write-Host "Frontend API address: http://${HostAddress}:8000/api"
 Write-Host 'The Laravel/AI and fingerprint-matcher service keys were generated and synchronized without printing them.'
 if (-not $PromptForGroqKey -and (Get-EnvironmentValue $serverEnvironment 'GROQ_API_KEY') -eq '') {
     Write-Host 'Next: add GROQ_API_KEY to server/.env or rerun with -PromptForGroqKey.'

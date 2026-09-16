@@ -211,7 +211,7 @@ The resulting `client/.env` contains:
 VITE_API_URL=http://localhost:8000/api
 ```
 
-The localhost value also works when another PC opens HIUSA through the host PC's LAN address because the frontend automatically substitutes the browser's current hostname.
+The frontend uses this value exactly as written. It does not substitute the browser's hostname. For LAN access, set `VITE_API_URL` to the backend PC's address (for example, `http://192.168.1.102:8000/api`) and restart Vite.
 
 ---
 
@@ -235,7 +235,7 @@ Make sure the matching values exist in `server/.env`:
 
 ```env
 HIUSA_AI_SERVICE_ENABLED=true
-HIUSA_AI_SERVICE_URL=http://127.0.0.1:8001
+HIUSA_AI_SERVICE_URL=http://localhost:8001
 HIUSA_AI_SERVICE_KEY=the-same-long-random-key-used-by-python
 ```
 

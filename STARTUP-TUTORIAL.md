@@ -61,8 +61,8 @@ The script prints the detected address. Confirm it matches the active adapter sh
 The setup script:
 
 - configures Laravel's application and frontend URLs;
-- adds the LAN frontend addresses to the CORS allowlist;
-- configures the React API URL to follow the hostname used to open Vite, preventing a later DHCP address change from leaving requests pointed at the old host;
+- writes that exact frontend address to Laravel's CORS allowlist;
+- writes the detected host directly into React's `VITE_API_URL`; the frontend uses that value as-is;
 - synchronizes the Laravel/FastAPI service key;
 - synchronizes the Laravel/fingerprint-matcher service key;
 - selects the synchronous local queue driver so no worker terminal is needed; and
@@ -293,7 +293,7 @@ php artisan config:clear
 - Confirm the AI service terminal is still running.
 - Open `http://127.0.0.1:8001/health` on the host.
 - Confirm `HIUSA_AI_SERVICE_ENABLED=true` in `server/.env`.
-- Confirm `HIUSA_AI_SERVICE_URL=http://127.0.0.1:8001` in `server/.env`.
+- Confirm `HIUSA_AI_SERVICE_URL=http://localhost:8001` in `server/.env`.
 - Rerun `setup-env.ps1` if the Laravel and Python service keys do not match.
 
 ### Fingerprint matching is unavailable

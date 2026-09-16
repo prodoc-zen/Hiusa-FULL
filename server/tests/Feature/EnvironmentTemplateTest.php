@@ -23,25 +23,42 @@ class EnvironmentTemplateTest extends TestCase
         $this->assertSame('openai/gpt-oss-20b', $server['GROQ_MODEL']);
         $this->assertSame('', $server['GROQ_API_KEY']);
         $this->assertSame($server['HIUSA_AI_SERVICE_KEY'], $ai['HIUSA_AI_SERVICE_KEY']);
-        $this->assertSame('0.0.0.0', $ai['HIUSA_AI_HOST']);
+        $this->assertSame('127.0.0.1', $ai['HIUSA_AI_HOST']);
         $this->assertSame('http://localhost:8000/api', $client['VITE_API_URL']);
-
-        $this->assertSame(1, preg_match($server['FRONTEND_ORIGIN_PATTERNS'], 'http://192.168.50.25:5173'));
-        $this->assertSame(1, preg_match($server['FRONTEND_ORIGIN_PATTERNS'], 'http://10.0.0.20:5174'));
-        $this->assertSame(0, preg_match($server['FRONTEND_ORIGIN_PATTERNS'], 'https://public.example.com'));
+        $this->assertSame('http://localhost:8001', $server['HIUSA_AI_SERVICE_URL']);
+        $this->assertSame('http://localhost:5173', $server['FRONTEND_URL']);
+        $this->assertSame('', $server['FRONTEND_URLS']);
+        $this->assertSame('', $server['FRONTEND_ORIGIN_PATTERNS']);
 
         $environment = Env::getRepository();
+        $originalFrontendUrl = $environment->get('FRONTEND_URL');
+        $originalFrontendUrls = $environment->get('FRONTEND_URLS');
         $originalPatterns = $environment->get('FRONTEND_ORIGIN_PATTERNS');
 
         try {
+            $environment->clear('FRONTEND_URL');
+            $environment->clear('FRONTEND_URLS');
             $environment->clear('FRONTEND_ORIGIN_PATTERNS');
+            $environment->set('FRONTEND_URL', $server['FRONTEND_URL']);
+            $environment->set('FRONTEND_URLS', $server['FRONTEND_URLS']);
             $environment->set('FRONTEND_ORIGIN_PATTERNS', $server['FRONTEND_ORIGIN_PATTERNS']);
 
             $cors = require config_path('cors.php');
 
-            $this->assertSame([$server['FRONTEND_ORIGIN_PATTERNS']], $cors['allowed_origins_patterns']);
+            $this->assertSame([$server['FRONTEND_URL']], $cors['allowed_origins']);
+            $this->assertSame([], $cors['allowed_origins_patterns']);
         } finally {
+            $environment->clear('FRONTEND_URL');
+            $environment->clear('FRONTEND_URLS');
             $environment->clear('FRONTEND_ORIGIN_PATTERNS');
+
+            if ($originalFrontendUrl !== null) {
+                $environment->set('FRONTEND_URL', $originalFrontendUrl);
+            }
+
+            if ($originalFrontendUrls !== null) {
+                $environment->set('FRONTEND_URLS', $originalFrontendUrls);
+            }
 
             if ($originalPatterns !== null) {
                 $environment->set('FRONTEND_ORIGIN_PATTERNS', $originalPatterns);
