@@ -1,31 +1,9 @@
 import axios from 'axios';
 import { createApiGetCache } from './apiCache';
-
-function resolveApiUrl() {
-  const configuredUrl = import.meta.env.VITE_API_URL?.trim();
-
-  if (!configuredUrl) {
-    return `${window.location.protocol}//${window.location.hostname}:8000/api`;
-  }
-
-  try {
-    const parsed = new URL(configuredUrl);
-    const configuredIsLocal = ['localhost', '127.0.0.1'].includes(parsed.hostname);
-    const browserIsRemote = !['localhost', '127.0.0.1'].includes(window.location.hostname);
-
-    if (configuredIsLocal && browserIsRemote) {
-      parsed.hostname = window.location.hostname;
-      return parsed.toString().replace(/\/$/, '');
-    }
-  } catch {
-    // Keep relative API URLs unchanged.
-  }
-
-  return configuredUrl;
-}
+import { resolveRuntimeApiUrl } from '../utils/runtimeApiUrl';
 
 const api = axios.create({
-  baseURL: resolveApiUrl(),
+  baseURL: resolveRuntimeApiUrl(import.meta.env.VITE_API_URL),
   headers: {
     Accept: 'application/json',
   },

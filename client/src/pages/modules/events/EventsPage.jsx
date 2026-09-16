@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import {
   Calendar,
+  CalendarCheck2,
   CheckCircle2,
   ChevronLeft,
+  ChevronRight,
   Clock,
   Download,
   Eye,
@@ -15,20 +17,22 @@ import {
   Plus,
   Search,
   UserCheck,
+  UserRoundCheck,
   Users,
   Wallet,
   X,
 } from 'lucide-react';
 import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getTasks } from '../../../services/taskService';
-import { getUsers } from '../../../services/userService';
+import { getAcademicStructure, getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
+import Modal from '../../../components/Modal';
 import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIsoDateTimes } from '../../../utils/dateTime';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
-import { identifyAndAttend } from '../../../services/fingerprintService';
+import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../../../services/fingerprintService';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 
 const statusBadge = {
@@ -57,6 +61,13 @@ const budgetStatusBadge = {
   pending: 'bg-amber-50 text-amber-700',
   approved: 'bg-emerald-50 text-emerald-700',
   rejected: 'bg-red-50 text-red-700',
+};
+
+const attendanceStatusBadge = {
+  present: 'border-emerald-200 bg-emerald-50 text-emerald-700',
+  late: 'border-amber-200 bg-amber-50 text-amber-700',
+  excused: 'border-sky-200 bg-sky-50 text-sky-700',
+  absent: 'border-red-200 bg-red-50 text-red-700',
 };
 
 const allowedStatusTransitions = {
@@ -111,22 +122,80 @@ const emptyEventForm = () => ({
   proposed_budget_id: null,
 });
 
-function BiometricCheckIn({ eventId, onRecorded }) {
+const attendanceYearLevels = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+
+function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', academicStructure = null, academicStructureError = '' }) {
   const reader = useFingerprintReader();
   const [busy, setBusy] = useState(false);
   const [result, setResult] = useState(null);
+  const [pendingConfirmation, setPendingConfirmation] = useState(null);
+  const [selectedYearLevels, setSelectedYearLevels] = useState([]);
+  const [selectedProgram, setSelectedProgram] = useState('');
+  const [selectedSection, setSelectedSection] = useState('');
+
+  const scopedUsers = users.filter((user) => user.role === 'STUDENT' && (!department || user.department === department));
+  const configuredPrograms = Array.isArray(academicStructure?.programs) ? academicStructure.programs : null;
+  const programOptions = configuredPrograms
+    ? configuredPrograms.map((program) => program.name).filter(Boolean).sort()
+    : [...new Set(scopedUsers.map((user) => user.program).filter(Boolean))].sort();
+  const configuredSections = configuredPrograms
+    ? configuredPrograms
+      .filter((program) => !selectedProgram || program.name === selectedProgram)
+      .flatMap((program) => program.sections || [])
+      .filter((section) => !selectedYearLevels.length || selectedYearLevels.includes(attendanceYearLevels[Number(section.year_level) - 1]))
+      .map((section) => section.name)
+    : scopedUsers
+      .filter((user) => (!selectedProgram || user.program === selectedProgram)
+        && (!selectedYearLevels.length || selectedYearLevels.includes(user.year_level)))
+      .map((user) => user.section);
+  const sectionOptions = [...new Set(configuredSections.filter(Boolean))].sort((left, right) => left.localeCompare(right, undefined, { numeric: true }));
+
+  useEffect(() => {
+    if (!Array.isArray(academicStructure?.programs)) return;
+
+    const configuredProgramNames = academicStructure.programs.map((program) => program.name).filter(Boolean);
+    if (selectedProgram && !configuredProgramNames.includes(selectedProgram)) {
+      setSelectedProgram('');
+      setSelectedSection('');
+      return;
+    }
+
+    const validSections = academicStructure.programs
+      .filter((program) => !selectedProgram || program.name === selectedProgram)
+      .flatMap((program) => program.sections || [])
+      .filter((section) => !selectedYearLevels.length || selectedYearLevels.includes(attendanceYearLevels[Number(section.year_level) - 1]))
+      .map((section) => section.name);
+    if (selectedSection && !validSections.includes(selectedSection)) setSelectedSection('');
+  }, [academicStructure, selectedProgram, selectedSection, selectedYearLevels]);
+
+  function clearCandidate() {
+    setPendingConfirmation(null);
+    setResult(null);
+  }
+
+  function toggleYearLevel(yearLevel) {
+    clearCandidate();
+    setSelectedYearLevels((current) => current.includes(yearLevel)
+      ? current.filter((value) => value !== yearLevel)
+      : [...current, yearLevel]);
+    setSelectedSection('');
+  }
 
   async function scan() {
     if (!reader.connected || busy) return;
     setBusy(true);
     setResult(null);
+    setPendingConfirmation(null);
     try {
       // Fscanner identification extracts one probe and compares it to every
       // compatible enrollment. No account needs to be selected first.
       const capture = await reader.identifyFingerprint();
-      const response = await identifyAndAttend(eventId, capture);
-      setResult({ type: 'success', message: response.data.message, user: response.data.user });
-      await onRecorded();
+      const response = await identifyAttendanceFingerprint(eventId, capture, {
+        ...(selectedYearLevels.length ? { year_levels: selectedYearLevels } : {}),
+        ...(selectedProgram ? { programs: [selectedProgram] } : {}),
+        ...(selectedSection ? { sections: [selectedSection] } : {}),
+      });
+      setPendingConfirmation(response.data);
     } catch (scanError) {
       setResult({
         type: scanError?.response?.status === 409 ? 'warning' : 'error',
@@ -138,30 +207,119 @@ function BiometricCheckIn({ eventId, onRecorded }) {
     }
   }
 
+  async function confirm() {
+    if (!pendingConfirmation?.confirmation_token || busy) return;
+    setBusy(true);
+    setResult(null);
+    try {
+      const response = await confirmFingerprintAttendance(eventId, pendingConfirmation.confirmation_token);
+      setPendingConfirmation(null);
+      setResult({ type: 'success', message: response.data.message, user: response.data.user });
+      await onRecorded();
+    } catch (confirmationError) {
+      setPendingConfirmation(null);
+      setResult({
+        type: confirmationError?.response?.status === 409 ? 'warning' : 'error',
+        message: getApiErrorMessage(confirmationError, 'Fingerprint attendance confirmation failed. Scan again.'),
+        user: confirmationError?.response?.data?.user,
+      });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const rejectCandidate = () => {
+    setPendingConfirmation(null);
+    setResult({ type: 'warning', message: 'Candidate rejected. Scan the correct Student’s finger.' });
+  };
+
+  const confirmationAction = pendingConfirmation?.action === 'check_out' ? 'Checkout' : 'Check-In';
+
   return (
-    <div className="mb-5 rounded-xl border border-[#B9D9E9] bg-[#F8FBFD] p-4">
-      <div className="mb-3 flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]"><Fingerprint size={20} /></span>
-        <div><p className="text-[13px] font-bold text-[#0F172A]">One-scan fingerprint check-in</p><p className="mt-0.5 text-xs font-medium text-slate-500">Place the enrolled finger once. HIUSA identifies the member and records attendance automatically.</p></div>
+    <>
+    <div className="flex h-full flex-col rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-4 sm:p-5">
+      <div className="mb-4 flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#0B8ED0] text-white"><Fingerprint size={19} /></span>
+        <div><p className="text-[13px] font-bold text-[#0F172A]">Fingerprint check-in / checkout</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Scan, verify the matched Student, then confirm check-in or checkout.</p></div>
       </div>
       <ScannerStatus reader={reader} />
+      <fieldset disabled={busy || Boolean(pendingConfirmation)} className="mt-4 border-t border-[#DDE7EF] pt-4 disabled:opacity-60">
+        <legend className="sr-only">Narrow fingerprint candidates</legend>
+        <div className="flex items-start gap-2 rounded-lg border border-[#B9D9E9] bg-white px-3 py-2.5">
+          <UserCheck size={15} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+          <p className="text-[11px] font-semibold leading-4 text-slate-600"><span className="font-bold text-[#0F172A]">Required scope:</span> active Students in {department || 'this organization’s configured department'} only.</p>
+        </div>
+        <p className="mt-3 text-[11px] font-bold uppercase tracking-wide text-slate-500">Optional candidate filters</p>
+        {academicStructureError && <p role="alert" className="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold text-amber-800">{academicStructureError}</p>}
+        <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {attendanceYearLevels.map((yearLevel) => (
+            <label key={yearLevel} className={`flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-2.5 text-[11px] font-bold transition ${selectedYearLevels.includes(yearLevel) ? 'border-[#0B8ED0] bg-[#E6F6FD] text-[#0878B7]' : 'border-[#DDE7EF] bg-white text-slate-600'}`}>
+              <input type="checkbox" checked={selectedYearLevels.includes(yearLevel)} onChange={() => toggleYearLevel(yearLevel)} className="h-4 w-4 accent-[#0B8ED0]" /> {yearLevel}
+            </label>
+          ))}
+        </div>
+        <div className="mt-2 grid gap-2 sm:grid-cols-2">
+          <label className="text-[11px] font-bold text-slate-600">Program
+            <select aria-label="Fingerprint program filter" value={selectedProgram} onChange={(event) => { clearCandidate(); setSelectedProgram(event.target.value); setSelectedSection(''); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+              <option value="">All programs</option>
+              {programOptions.map((program) => <option key={program} value={program}>{program}</option>)}
+            </select>
+          </label>
+          <label className="text-[11px] font-bold text-slate-600">Section
+            <select aria-label="Fingerprint section filter" value={selectedSection} onChange={(event) => { clearCandidate(); setSelectedSection(event.target.value); }} className="mt-1 h-10 w-full rounded-lg border border-[#DDE7EF] bg-white px-2.5 text-xs font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
+              <option value="">All sections</option>
+              {sectionOptions.map((section) => <option key={section} value={section}>{section}</option>)}
+            </select>
+          </label>
+        </div>
+      </fieldset>
       {result && <div className={`mt-3 rounded-lg border px-3 py-2.5 text-xs font-semibold ${result.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : result.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
         {result.user && <p className="mb-0.5 font-black">{result.user.first_name} {result.user.last_name} · {result.user.school_id}</p>}
         <p>{result.message}</p>
       </div>}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <button type="button" onClick={scan} disabled={!reader.connected || busy} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] disabled:opacity-40">
-          <Fingerprint size={16} /> {busy ? 'Scanning and identifying...' : 'Scan Fingerprint Once'}
+      <div className="mt-auto flex flex-wrap gap-2 pt-4">
+        <button type="button" onClick={scan} disabled={!reader.connected || busy || Boolean(pendingConfirmation)} className="inline-flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
+          <Fingerprint size={16} /> {busy ? 'Scanning and identifying...' : 'Scan Fingerprint'}
         </button>
-        {busy && <button type="button" onClick={reader.cancelCapture} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-[13px] font-bold text-slate-600">Cancel</button>}
+        {busy && !pendingConfirmation && <button type="button" onClick={reader.cancelCapture} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-[13px] font-bold text-slate-600">Cancel</button>}
       </div>
     </div>
+
+    <Modal
+      open={Boolean(pendingConfirmation)}
+      title={`Confirm Fingerprint ${confirmationAction}`}
+      description="Verify the matched Student before changing the attendance register."
+      onClose={busy ? undefined : rejectCandidate}
+      closeOnBackdrop={false}
+      closeOnEscape={!busy}
+      maxWidth="max-w-md"
+      footer={pendingConfirmation ? <>
+        <button type="button" onClick={rejectCandidate} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">No, Scan Again</button>
+        <button type="button" data-autofocus onClick={confirm} disabled={busy} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"><CheckCircle2 size={16} /> {busy ? 'Confirming...' : `Confirm ${confirmationAction}`}</button>
+      </> : null}
+    >
+      {pendingConfirmation && (
+        <div className="space-y-4">
+          <div className="flex items-start gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-xs font-black text-white">{pendingConfirmation.user?.first_name?.[0]}{pendingConfirmation.user?.last_name?.[0]}</span>
+            <div className="min-w-0"><p className="text-sm font-black text-[#0F172A]">Is this the correct Student?</p><p className="mt-1 truncate text-base font-black text-[#0F172A]">{pendingConfirmation.user?.first_name} {pendingConfirmation.user?.last_name}</p><p className="text-xs font-semibold leading-5 text-slate-500">School ID {pendingConfirmation.user?.school_id} · {[pendingConfirmation.user?.program, pendingConfirmation.user?.year_level, pendingConfirmation.user?.section].filter(Boolean).join(' · ') || 'Academic profile unavailable'}</p></div>
+          </div>
+          <div className="grid grid-cols-2 gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-[11px]">
+            <div><p className="font-bold uppercase tracking-wide text-slate-400">Action</p><p className="mt-1 font-black text-[#0B8ED0]">{pendingConfirmation.action === 'check_out' ? 'Check out' : 'Check in'}</p></div>
+            <div><p className="font-bold uppercase tracking-wide text-slate-400">Match score</p><p className="mt-1 font-black text-[#0F172A]">{Number(pendingConfirmation.match?.score ?? 0).toFixed(1)} <span className="font-semibold text-slate-400">/ required {Number(pendingConfirmation.match?.threshold ?? 60).toFixed(0)}</span></p></div>
+          </div>
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs font-semibold leading-5 text-amber-800">Only confirm when the Student’s face and School ID match the person at the reader.</p>
+        </div>
+      )}
+    </Modal>
+    </>
   );
 }
 
 export default function EventsPage({ initialTab = 'events', startEventRequest = false }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const isCheckInRoute = location.pathname.endsWith('/check-in');
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [eventsView, setEventsView] = useState(() => (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list'));
@@ -206,6 +364,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [attendanceLoading, setAttendanceLoading] = useState(false);
   const [allUsers, setAllUsers] = useState([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
+  const [attendanceAcademicStructure, setAttendanceAcademicStructure] = useState(null);
+  const [attendanceAcademicStructureError, setAttendanceAcademicStructureError] = useState('');
   const [checkInSearch, setCheckInSearch] = useState('');
   const [checkInUserId, setCheckInUserId] = useState(null);
   const [checkInStatus, setCheckInStatus] = useState('present');
@@ -213,7 +373,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [checkInError, setCheckInError] = useState(null);
   const [checkInSuccess, setCheckInSuccess] = useState(null);
   const [attendanceSearch, setAttendanceSearch] = useState('');
+  const [debouncedAttendanceSearch, setDebouncedAttendanceSearch] = useState('');
   const [attendanceStatusFilter, setAttendanceStatusFilter] = useState('all');
+  const [attendanceMeta, setAttendanceMeta] = useState({ currentPage: 1, lastPage: 1, perPage: 10, total: 0 });
+  const [attendanceReload, setAttendanceReload] = useState(0);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   let currentUser = {};
@@ -296,7 +459,26 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }
   }, [activeTab, canManageAttendance, usersLoaded]);
 
-  async function handleSelectAttEvent(id) {
+  useEffect(() => {
+    if (activeTab !== 'attendance' || !canManageAttendance) return undefined;
+
+    let active = true;
+    getAcademicStructure()
+      .then((structure) => {
+        if (!active) return;
+        setAttendanceAcademicStructure(structure);
+        setAttendanceAcademicStructureError('');
+      })
+      .catch(() => {
+        if (!active) return;
+        setAttendanceAcademicStructure(null);
+        setAttendanceAcademicStructureError('Program and section settings could not be refreshed. The fallback choices come from existing Student records.');
+      });
+
+    return () => { active = false; };
+  }, [activeTab, attendanceReload, canManageAttendance]);
+
+  function handleSelectAttEvent(id) {
     setSelectedAttEventId(id);
     setAttendanceData(null);
     setAttendanceLoading(true);
@@ -306,33 +488,26 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setCheckInError(null);
     setCheckInSuccess(null);
     setAttendanceSearch('');
+    setDebouncedAttendanceSearch('');
     setAttendanceStatusFilter('all');
-    try {
-      const res = await getAttendance(id);
-      setAttendanceData(res.data);
-    } catch {
-      setAttendanceData(null);
-    } finally {
-      setAttendanceLoading(false);
-    }
+    setAttendancePage(1);
   }
 
   async function handleCheckIn() {
-    if (canManageAttendance && !checkInUserId) return;
+    if (!canManageAttendance || !checkInUserId) return;
     setCheckInSubmitting(true);
     setCheckInError(null);
     setCheckInSuccess(null);
     try {
       await recordAttendance(selectedAttEventId, {
-        user_id: canManageAttendance ? checkInUserId : currentUser.id,
+        user_id: checkInUserId,
         method: 'manual',
-        status: canManageAttendance ? checkInStatus : 'present',
+        status: checkInStatus,
       });
       setCheckInUserId(null);
       setCheckInSearch('');
       setCheckInSuccess('Check-in recorded.');
-      const res = await getAttendance(selectedAttEventId);
-      setAttendanceData(res.data);
+      setAttendanceReload((value) => value + 1);
     } catch (err) {
       setCheckInError(getApiErrorMessage(err, 'We could not record this check-in. Please try again.'));
     } finally {
@@ -565,31 +740,46 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const selectedPlanningEvent = events.find((event) => String(event.id) === String(planForm.event_id));
 
   const checkedInUserIds = new Set((attendanceData?.records ?? []).map((r) => r.user_id));
-  const filteredAttendanceRecords = (attendanceData?.records ?? []).filter((record) => {
-    const query = attendanceSearch.trim().toLowerCase();
-    const haystack = [record.user?.school_id, record.user?.first_name, record.user?.last_name, record.user?.email, record.user?.program, record.user?.year_level, record.user?.section, record.recorder?.first_name, record.recorder?.last_name].filter(Boolean).join(' ').toLowerCase();
-    return (!query || haystack.includes(query)) && (attendanceStatusFilter === 'all' || record.status === attendanceStatusFilter);
-  });
-  const pagedAttendanceRecords = filteredAttendanceRecords.slice((attendancePage - 1) * pageSize, attendancePage * pageSize);
+  const filteredAttendanceRecords = attendanceData?.records ?? [];
+  const pagedAttendanceRecords = filteredAttendanceRecords;
 
-  const exportAttendance = () => {
-    const event = attendanceData?.event;
+  const exportAttendance = async () => {
+    const exportParams = {
+      per_page: 100,
+      ...(debouncedAttendanceSearch ? { search: debouncedAttendanceSearch } : {}),
+      ...(attendanceStatusFilter !== 'all' ? { status: attendanceStatusFilter } : {}),
+    };
+    const firstResponse = await getAttendance(selectedAttEventId, { ...exportParams, page: 1 });
+    const firstPayload = firstResponse.data;
+    const lastPage = Number(firstPayload?.pagination?.last_page ?? 1);
+    const remaining = lastPage > 1
+      ? await Promise.all(Array.from({ length: lastPage - 1 }, (_, index) => getAttendance(selectedAttEventId, { ...exportParams, page: index + 2 }).then((response) => response.data?.records ?? [])))
+      : [];
+    const exportRecords = [...(firstPayload?.records ?? []), ...remaining.flat()];
+    const event = firstPayload?.event ?? attendanceData?.event;
     const headers = ['Attendance ID', 'Event ID', 'Event', 'School ID', 'Name', 'Email', 'Role', 'Position', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Status', 'Method', 'Check In', 'Check Out', 'Recorded By', 'Remarks'];
-    const rows = filteredAttendanceRecords.map((record) => [record.id, event?.id, event?.title, record.user?.school_id, `${record.user?.first_name || ''} ${record.user?.last_name || ''}`.trim(), record.user?.email, record.user?.role, record.user?.position_title, record.user?.department, record.user?.program, record.user?.major, record.user?.year_level, record.user?.section, record.status, record.method, record.check_in_time, record.check_out_time, `${record.recorder?.first_name || ''} ${record.recorder?.last_name || ''}`.trim(), record.remarks]);
+    const rows = exportRecords.map((record) => [record.id, event?.id, event?.title, record.user?.school_id, `${record.user?.first_name || ''} ${record.user?.last_name || ''}`.trim(), record.user?.email, record.user?.role, record.user?.position_title, record.user?.department, record.user?.program, record.user?.major, record.user?.year_level, record.user?.section, record.status, record.method, record.check_in_time, record.check_out_time, `${record.recorder?.first_name || ''} ${record.recorder?.last_name || ''}`.trim(), record.remarks]);
     const csv = [headers, ...rows].map((row) => row.map((value) => `"${String(value ?? '').replaceAll('"', '""')}"`).join(',')).join('\n');
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `attendance-${event?.id || 'event'}-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
   };
   const attendanceEvents = events.filter((event) => {
-    if (canManageAttendance) return ['approved', 'ongoing', 'completed'].includes(event.status);
+    if (canManageAttendance) {
+      return (isCheckInRoute ? ['approved', 'ongoing'] : ['approved', 'ongoing', 'completed']).includes(event.status);
+    }
     const start = new Date(event.start_time).getTime();
     const end = new Date(event.end_time).getTime();
     return ['approved', 'ongoing'].includes(event.status) && Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime <= end;
   });
+  const attendanceEvent = attendanceData?.event ?? attendanceEvents.find((event) => String(event.id) === String(selectedAttEventId));
+  const attendanceCount = Number(attendanceData?.count ?? attendanceData?.records?.length ?? 0);
+  const currentlyInside = Number(attendanceData?.checked_in_count ?? attendanceCount);
+  const expectedAttendance = Number(attendanceEvent?.planning_details?.expected_participants ?? 0);
+  const attendanceRate = expectedAttendance > 0 ? Math.min(100, Math.round((attendanceCount / expectedAttendance) * 100)) : null;
   const filteredCheckInUsers = allUsers
     .filter(
       (u) =>
-        !checkedInUserIds.has(u.id) &&
+        !checkedInUserIds.has(u.school_id ?? u.id) &&
         (checkInSearch.trim() === '' ||
           `${u.first_name} ${u.last_name}`.toLowerCase().includes(checkInSearch.toLowerCase()) ||
           String(u.school_id ?? '').toLowerCase().includes(checkInSearch.toLowerCase()))
@@ -600,7 +790,40 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setEventsPage(1);
   }, [search, dateFilter, eventStatusFilter, eventSort]);
 
-  useEffect(() => { setAttendancePage(1); }, [attendanceSearch, attendanceStatusFilter, selectedAttEventId]);
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setDebouncedAttendanceSearch(attendanceSearch.trim()), 250);
+    return () => window.clearTimeout(timeout);
+  }, [attendanceSearch]);
+
+  useEffect(() => {
+    setAttendancePage(1);
+  }, [debouncedAttendanceSearch, attendanceStatusFilter]);
+
+  useEffect(() => {
+    if (!selectedAttEventId) return undefined;
+    let active = true;
+    setAttendanceLoading(true);
+    getAttendance(selectedAttEventId, {
+      page: attendancePage,
+      per_page: pageSize,
+      ...(debouncedAttendanceSearch ? { search: debouncedAttendanceSearch } : {}),
+      ...(attendanceStatusFilter !== 'all' ? { status: attendanceStatusFilter } : {}),
+    })
+      .then((response) => {
+        if (!active) return;
+        setAttendanceData(response.data);
+        setAttendanceMeta({
+          currentPage: Number(response.data?.pagination?.current_page ?? 1),
+          lastPage: Number(response.data?.pagination?.last_page ?? 1),
+          perPage: Number(response.data?.pagination?.per_page ?? pageSize),
+          total: Number(response.data?.pagination?.total ?? response.data?.records?.length ?? 0),
+        });
+      })
+      .catch(() => { if (active) setAttendanceData(null); })
+      .finally(() => { if (active) setAttendanceLoading(false); });
+
+    return () => { active = false; };
+  }, [attendancePage, attendanceReload, attendanceStatusFilter, debouncedAttendanceSearch, selectedAttEventId]);
 
   useEffect(() => {
     setTasksPage(1);
@@ -608,7 +831,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   return (
     <div className="space-y-6">
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      {activeTab !== 'attendance' && <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
         {[
           { label: 'Total Events', value: events.length, helper: 'This academic year', icon: Calendar },
           { label: 'Upcoming', value: upcoming, helper: 'Scheduled', icon: Clock },
@@ -624,7 +847,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
             <p className="mt-1 text-xs font-medium text-slate-400">{stat.helper}</p>
           </article>
         ))}
-      </section>
+      </section>}
 
       {error && (
         <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center">
@@ -979,51 +1202,82 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       )}
 
       {activeTab === 'attendance' && (
-        <section className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
-          <div className="border-b border-[#DDE7EF] p-5">
-            <h2 className="text-lg font-bold text-[#0F172A]">Attendance Tracking</h2>
-            <p className="text-sm font-medium text-slate-500">Record and view event check-ins</p>
-          </div>
+        <section aria-labelledby="attendance-workspace-title" className="space-y-4">
+          <header className="overflow-hidden rounded-lg bg-[#0B1831] text-white shadow-sm">
+            <div className="flex flex-col gap-5 px-5 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
+              <div className="max-w-2xl">
+                <div className="mb-3 flex items-center gap-2 text-[#16C7F3]">
+                  <span className="relative flex h-2.5 w-2.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#16C7F3] opacity-50" />
+                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#16C7F3]" />
+                  </span>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.16em]">Live attendance workspace</p>
+                </div>
+                <h2 id="attendance-workspace-title" className="text-2xl font-black sm:text-[28px]">
+                  {isCheckInRoute ? 'Event Check-In' : 'Event Operations'}
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  {isCheckInRoute
+                    ? 'Choose an active event, verify your identity, and record your arrival.'
+                    : 'Run the entry desk, monitor arrivals, and keep the attendance register accurate.'}
+                </p>
+              </div>
+              <div className="flex items-center gap-3 rounded-lg border border-white/15 bg-white/5 px-4 py-3">
+                <CalendarCheck2 size={20} className="text-[#16C7F3]" />
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Available events</p>
+                  <p className="mt-0.5 text-sm font-bold text-white">{attendanceEvents.length} {isCheckInRoute ? 'open for check-in' : 'in the operations queue'}</p>
+                </div>
+              </div>
+            </div>
+          </header>
           {loading ? (
-            <div className="space-y-2 p-5">
+            <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-white p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : attendanceEvents.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">{canManageAttendance ? 'No approved events are available for attendance.' : 'No event is currently open for check-in.'}</p>
+            <div className="rounded-lg border border-[#DDE7EF] bg-white px-5 py-14 text-center shadow-sm">
+              <span className="mx-auto grid h-12 w-12 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><CalendarCheck2 size={24} /></span>
+              <h3 className="mt-4 text-base font-bold text-[#0F172A]">No events ready for check-in</h3>
+              <p className="mx-auto mt-1 max-w-md text-sm leading-6 text-slate-500">{canManageAttendance ? 'Approved and ongoing events will appear here. Completed events remain available from Event Operations.' : 'An event appears here only while its approved check-in window is open.'}</p>
+            </div>
           ) : (
-            <div className="flex min-h-[400px]">
+            <div className="grid min-h-[560px] overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm xl:grid-cols-[310px_minmax(0,1fr)]">
               {/* Left panel - event list */}
-              <div className={`border-r border-[#DDE7EF] lg:flex lg:w-72 lg:shrink-0 lg:flex-col ${selectedAttEventId ? 'hidden' : 'flex w-full flex-col'}`}>
-                <div className="border-b border-[#DDE7EF] px-4 py-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-slate-500">Select Event</p>
+              <div className={`border-[#DDE7EF] bg-[#F8FBFD] xl:flex xl:min-h-[560px] xl:flex-col xl:border-r ${selectedAttEventId ? 'hidden' : 'flex min-h-[440px] flex-col'}`}>
+                <div className="border-b border-[#DDE7EF] bg-white px-4 py-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">Event queue</p>
+                  <p className="mt-1 text-xs font-medium text-slate-500">Select where attendance is being recorded.</p>
                 </div>
-                <div className="flex-1 overflow-y-auto">
+                <div className="flex-1 space-y-2 overflow-y-auto p-3">
                   {attendanceEvents.map((evt) => (
                     <button
                       key={evt.id}
                       type="button"
+                      aria-label={`Open attendance for ${evt.title}`}
                       onClick={() => handleSelectAttEvent(evt.id)}
-                      className={`flex w-full items-start gap-3 border-b border-[#E5EDF3] px-4 py-3 text-left transition last:border-b-0 hover:bg-[#F8FBFD] ${selectedAttEventId === evt.id ? 'bg-[#EEF6FB]' : ''}`}
+                      className={`group flex w-full items-start gap-3 rounded-lg border px-3.5 py-3.5 text-left transition focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/40 ${selectedAttEventId === evt.id ? 'border-[#0B8ED0] bg-[#EEF6FB] shadow-sm' : 'border-transparent bg-white hover:border-[#B9D9E9]'}`}
                     >
+                      <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${evt.status === 'ongoing' ? 'bg-emerald-500 ring-4 ring-emerald-100' : evt.status === 'completed' ? 'bg-slate-400' : 'bg-[#0B8ED0]'}`} />
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-[13px] font-bold text-[#0F172A]">{evt.title}</p>
-                        <p className="mt-0.5 text-[11px] font-medium text-slate-400">{formatDateTime(evt.start_time)}</p>
+                        <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><Clock size={12} /> {formatDateTime(evt.start_time)}</p>
+                        {evt.location && <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] font-medium text-slate-400"><MapPin size={12} /> {evt.location}</p>}
                       </div>
-                      <span className={`mt-0.5 shrink-0 rounded-full px-2 py-0.5 text-[10px] font-black ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
-                        {capitalize(evt.status)}
-                      </span>
+                      <ChevronRight size={16} className={`mt-1 shrink-0 transition ${selectedAttEventId === evt.id ? 'text-[#0B8ED0]' : 'text-slate-300 group-hover:text-[#0B8ED0]'}`} />
                     </button>
                   ))}
                 </div>
               </div>
 
               {/* Right panel - detail */}
-              <div className={`min-w-0 flex-1 flex-col ${selectedAttEventId ? 'flex' : 'hidden lg:flex'}`}>
+              <div className={`min-w-0 flex-col ${selectedAttEventId ? 'flex' : 'hidden xl:flex'}`}>
                 {!selectedAttEventId ? (
                   <div className="flex flex-1 items-center justify-center p-10 text-center">
                     <div>
-                      <Users size={36} className="mx-auto mb-3 text-slate-200" />
-                      <p className="text-sm text-slate-400">Select an event to view attendance</p>
+                      <span className="mx-auto grid h-14 w-14 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><UserRoundCheck size={26} /></span>
+                      <p className="mt-4 text-sm font-bold text-[#0F172A]">Choose an event to begin</p>
+                      <p className="mt-1 text-xs text-slate-500">Live controls and attendance records will appear here.</p>
                     </div>
                   </div>
                 ) : attendanceLoading ? (
@@ -1033,7 +1287,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 ) : (
                   <>
                     {/* Mobile back button */}
-                    <div className="flex items-center border-b border-[#DDE7EF] p-4 lg:hidden">
+                    <div className="flex items-center border-b border-[#DDE7EF] p-4 xl:hidden">
                       <button
                         type="button"
                         onClick={() => setSelectedAttEventId(null)}
@@ -1044,120 +1298,155 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       </button>
                     </div>
 
-                    {/* Event header */}
-                    <div className="border-b border-[#DDE7EF] p-5">
-                      <p className="text-[11px] font-bold uppercase tracking-wider text-slate-400">Attendance</p>
-                      <h3 className="mt-1 text-base font-black text-[#0F172A]">{attendanceData?.event?.title ?? '-'}</h3>
-                      <p className="mt-0.5 text-xs font-medium text-slate-500">{formatDateTime(attendanceData?.event?.start_time)}</p>
-                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                        <UserCheck size={12} />
-                        {attendanceData?.count ?? 0} checked in
+                    {/* Event command header */}
+                    <div className="border-b border-[#DDE7EF] px-4 py-5 sm:px-6">
+                      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadge[attendanceEvent?.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[attendanceEvent?.status] || capitalize(attendanceEvent?.status)}</span>
+                            {attendanceEvent?.status === 'ongoing' && <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live now</span>}
+                          </div>
+                          <h3 className="mt-2 truncate text-lg font-black text-[#0F172A] sm:text-xl">{attendanceEvent?.title ?? '-'}</h3>
+                          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
+                            <span className="inline-flex items-center gap-1.5"><Clock size={13} className="text-[#0B8ED0]" />{formatDateTime(attendanceEvent?.start_time)}</span>
+                            {attendanceEvent?.location && <span className="inline-flex items-center gap-1.5"><MapPin size={13} className="text-[#0B8ED0]" />{attendanceEvent.location}</span>}
+                          </div>
+                        </div>
+                        <button type="button" onClick={() => setAttendanceReload((value) => value + 1)} className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 transition hover:border-[#B9D9E9] hover:bg-[#F8FBFD] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/40">
+                          <Clock size={14} /> Refresh live data
+                        </button>
                       </div>
-                      <div className="mt-3 flex flex-wrap gap-2">
-                        {['present', 'late', 'excused', 'absent'].map((status) => (
-                          <span key={status} className="rounded-md border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-[11px] font-bold text-[#64748B]">
-                            {capitalize(status)}: {attendanceData?.summary?.[status] ?? 0}
-                          </span>
+
+                      <div className="mt-5 grid grid-cols-2 overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] lg:grid-cols-4">
+                        {[
+                          ['Currently inside', currentlyInside, 'Not checked out'],
+                          ['Attendance records', attendanceCount, 'Total arrivals'],
+                          ['Late', attendanceData?.summary?.late ?? 0, 'After start'],
+                          ['Check-in rate', attendanceRate === null ? '—' : `${attendanceRate}%`, expectedAttendance > 0 ? `of ${expectedAttendance} expected` : 'No target set'],
+                        ].map(([label, value, helper], index) => (
+                          <div key={label} className={`px-4 py-3.5 ${index % 2 ? 'border-l border-[#DDE7EF]' : ''} ${index > 1 ? 'border-t border-[#DDE7EF] lg:border-t-0' : ''} ${index > 0 ? 'lg:border-l' : ''}`}>
+                            <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p>
+                            <p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p>
+                            <p className="mt-0.5 text-[10px] font-medium text-slate-500">{helper}</p>
+                          </div>
                         ))}
                       </div>
                     </div>
 
                     {/* Check-in form - officer only */}
                     {canManageAttendance && ['approved', 'ongoing'].includes(attendanceData?.event?.status) ? (
-                      <div className="border-b border-[#DDE7EF] p-5">
-                        <BiometricCheckIn eventId={selectedAttEventId} onRecorded={async () => {
-                          const response = await getAttendance(selectedAttEventId);
-                          setAttendanceData(response.data);
-                        }} />
-                        <p className="mb-3 text-[13px] font-bold text-[#0F172A]">Record Manual Attendance</p>
-                        <div className="grid grid-cols-1 gap-2 sm:grid-cols-[minmax(0,1fr)_130px_auto]">
-                          <div className="relative flex-1">
-                            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-                            <input
-                              value={checkInSearch}
-                              onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); }}
-                              type="text"
-                              placeholder="Search name or student ID..."
-                              className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                            />
-                          </div>
-                          <select value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} aria-label="Attendance status" className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]">
-                            <option value="present">Present</option>
-                            <option value="late">Late</option>
-                            <option value="excused">Excused</option>
-                            <option value="absent">Absent</option>
-                          </select>
-                          <button
-                            type="button"
-                            onClick={handleCheckIn}
-                            disabled={!checkInUserId || checkInSubmitting}
-                            className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
-                          >
-                            <UserCheck size={15} />
-                            <span className="hidden sm:inline">{checkInSubmitting ? 'Recording...' : 'Check In'}</span>
-                          </button>
+                      <div className="border-b border-[#DDE7EF] px-4 py-5 sm:px-6">
+                        <div className="mb-4">
+                          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">Door controls</p>
+                          <h4 className="mt-1 text-base font-bold text-[#0F172A]">Record an arrival</h4>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">Use the fingerprint reader for the fastest entry, or look up a member for a manual record.</p>
                         </div>
-                        {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length > 0 && (
-                          <div className="mt-1 overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-lg">
-                            {filteredCheckInUsers.map((u) => (
-                              <button
-                                key={u.id}
-                                type="button"
-                                onClick={() => {
-                                  setCheckInUserId(u.id);
-                                  setCheckInSearch(`${u.first_name} ${u.last_name} (${u.school_id})`);
-                                }}
-                                className="flex w-full items-center gap-3 border-b border-[#E5EDF3] px-4 py-2.5 text-left transition last:border-b-0 hover:bg-[#EEF6FB]"
-                              >
-                                <div className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-[10px] font-black text-white">
-                                  {u.first_name?.[0]}{u.last_name?.[0]}
-                                </div>
-                                <div>
-                                  <p className="text-[13px] font-semibold text-[#0F172A]">{u.first_name} {u.last_name}</p>
-                                  <p className="text-[11px] font-medium text-slate-400">{u.school_id} - {capitalize(u.role)}</p>
-                                </div>
-                              </button>
-                            ))}
+                        <div className="grid items-stretch gap-4 lg:grid-cols-2">
+                          <BiometricCheckIn
+                            eventId={selectedAttEventId}
+                            users={allUsers}
+                            academicStructure={attendanceAcademicStructure}
+                            academicStructureError={attendanceAcademicStructureError}
+                            department={attendanceAcademicStructure?.department || currentUser.department || currentUser.organization?.college || allUsers.find((user) => user.department)?.department || ''}
+                            onRecorded={async () => setAttendanceReload((value) => value + 1)}
+                          />
+                          <div className="relative flex flex-col rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
+                            <div className="mb-4 flex items-start gap-3">
+                              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><Search size={18} /></span>
+                              <div><p className="text-[13px] font-bold text-[#0F172A]">Manual check-in</p><p className="mt-0.5 text-xs font-medium leading-5 text-slate-500">Find the member by name or School ID, then confirm their attendance status.</p></div>
+                            </div>
+                            <label htmlFor="attendance-member-search" className="text-xs font-bold text-[#0F172A]">Member</label>
+                            <div className="relative mt-1.5">
+                              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                              <input
+                                id="attendance-member-search"
+                                value={checkInSearch}
+                                onChange={(e) => { setCheckInSearch(e.target.value); setCheckInUserId(null); setCheckInSuccess(null); }}
+                                type="text"
+                                autoComplete="off"
+                                placeholder="Search name or School ID"
+                                className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-8 pr-3 text-[13px] outline-none transition placeholder:text-slate-400 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20"
+                              />
+                              {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length > 0 && (
+                              <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 max-h-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white shadow-xl">
+                                {filteredCheckInUsers.map((u) => (
+                                  <button
+                                    key={u.school_id ?? u.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setCheckInUserId(u.school_id ?? u.id);
+                                      setCheckInSearch(`${u.first_name} ${u.last_name} (${u.school_id})`);
+                                    }}
+                                    className="flex w-full items-center gap-3 border-b border-[#E5EDF3] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#EEF6FB]"
+                                  >
+                                    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-[10px] font-black text-white">{u.first_name?.[0]}{u.last_name?.[0]}</span>
+                                    <span className="min-w-0"><span className="block truncate text-[13px] font-semibold text-[#0F172A]">{u.first_name} {u.last_name}</span><span className="block text-[11px] font-medium text-slate-400">{u.school_id} · {capitalize(u.role)}</span></span>
+                                  </button>
+                                ))}
+                              </div>
+                              )}
+                            </div>
+                            {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length === 0 && <p className="mt-2 text-xs font-medium text-slate-400">No matching members found.</p>}
+                            <label htmlFor="attendance-status" className="mt-3 text-xs font-bold text-[#0F172A]">Attendance status</label>
+                            <select id="attendance-status" value={checkInStatus} onChange={(event) => setCheckInStatus(event.target.value)} className="mt-1.5 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-[#0F172A] outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                              <option value="present">Present</option>
+                              <option value="late">Late</option>
+                              <option value="excused">Excused</option>
+                              <option value="absent">Absent</option>
+                            </select>
+                            {checkInError && <p role="alert" className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
+                            {checkInSuccess && <p role="status" className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
+                            <button type="button" onClick={handleCheckIn} disabled={!checkInUserId || checkInSubmitting} className="mt-auto flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-40">
+                              <UserCheck size={15} /> {checkInSubmitting ? 'Recording...' : 'Confirm Check-In'}
+                            </button>
                           </div>
-                        )}
-                        {checkInSearch.trim() !== '' && !checkInUserId && filteredCheckInUsers.length === 0 && (
-                          <p className="mt-2 text-xs font-medium text-slate-400">No matching members found.</p>
-                        )}
-                        {checkInError && <p className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
-                        {checkInSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
+                        </div>
                       </div>
                     ) : canManageAttendance ? (
-                      <div className="border-b border-[#DDE7EF] bg-slate-50 p-5 text-sm font-medium text-slate-500">
-                        This event is closed for new attendance records. Its attendance summary remains available above.
+                      <div className="flex items-start gap-3 border-b border-[#DDE7EF] bg-slate-50 px-5 py-4 text-sm font-medium text-slate-600">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-white text-slate-500"><CheckCircle2 size={18} /></span>
+                        <div><p className="font-bold text-[#0F172A]">Check-in is closed</p><p className="mt-0.5 text-xs leading-5">This event no longer accepts attendance records. The final register remains available below.</p></div>
                       </div>
-                    ) : (
-                      <div className="border-b border-[#DDE7EF] p-5">
-                        <button
-                          type="button"
-                          onClick={handleCheckIn}
-                          disabled={checkInSubmitting || (attendanceData?.records?.length ?? 0) > 0}
-                          className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40"
-                        >
-                          <UserCheck size={15} />
-                          {checkInSubmitting ? 'Recording...' : 'Check In'}
-                        </button>
-                        {checkInError && <p className="mt-2 text-xs font-semibold text-red-600">{checkInError}</p>}
-                        {checkInSuccess && <p className="mt-2 text-xs font-semibold text-emerald-600">{checkInSuccess}</p>}
-                      </div>
-                    )}
+                    ) : null}
 
                     {/* Attendees table */}
                     {(attendanceData?.records?.length ?? 0) === 0 ? (
-                      <p className="p-8 text-center text-sm text-slate-400">No check-ins recorded yet.</p>
+                      <div className="px-5 py-12 text-center">
+                        <span className="mx-auto grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-400"><Users size={21} /></span>
+                        <p className="mt-3 text-sm font-bold text-[#0F172A]">No attendance records yet</p>
+                        <p className="mt-1 text-xs text-slate-500">New arrivals will appear here after check-in.</p>
+                      </div>
                     ) : (
                       <div>
-                        <div className="grid gap-2 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-[minmax(0,1fr)_150px_auto]">
-                          <label className="relative"><Search size={14} className="absolute left-3 top-3 text-slate-400" /><input value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder="Search attendee or academic profile..." className="h-10 w-full rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs" /></label>
-                          <select value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</select>
-                          <button type="button" onClick={exportAttendance} disabled={!filteredAttendanceRecords.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> Export CSV</button>
+                        <div className="border-b border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:p-5">
+                          <div className="mb-3 flex items-center justify-between gap-3">
+                            <div><p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">Attendance log</p><p className="mt-1 text-xs font-medium text-slate-500">Search, review, and export recorded arrivals.</p></div>
+                            <span className="shrink-0 rounded-full border border-[#DDE7EF] bg-white px-2.5 py-1 text-[11px] font-bold text-slate-600">{attendanceMeta.total} matching</span>
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_150px_auto]">
+                            <label className="relative"><span className="sr-only">Search attendance</span><Search size={14} className="absolute left-3 top-3 text-slate-400" /><input value={attendanceSearch} onChange={(event) => setAttendanceSearch(event.target.value)} placeholder="Search attendee or academic profile" className="h-10 w-full rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></label>
+                            <select aria-label="Filter attendance status" value={attendanceStatusFilter} onChange={(event) => setAttendanceStatusFilter(event.target.value)} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-semibold outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option>{['present', 'late', 'excused', 'absent'].map((status) => <option key={status} value={status}>{capitalize(status)}</option>)}</select>
+                            {canManageAttendance && <button type="button" onClick={exportAttendance} disabled={!filteredAttendanceRecords.length} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0] bg-white px-3 text-xs font-bold text-[#0B8ED0] transition hover:bg-[#EEF6FB] disabled:opacity-50"><Download size={14} /> Export CSV</button>}
+                          </div>
                         </div>
-                        <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1040px] text-left">
+                        <div className="divide-y divide-[#E5EDF3] lg:hidden">
+                          {pagedAttendanceRecords.map((rec) => (
+                            <article key={rec.id} className="p-4">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0"><p className="truncate text-[13px] font-bold text-[#0F172A]">{rec.user ? `${rec.user.first_name} ${rec.user.last_name}` : '-'}</p><p className="mt-0.5 text-[11px] font-medium text-slate-500">School ID {rec.user?.school_id ?? '-'}</p></div>
+                                <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
+                              </div>
+                              <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg bg-[#F8FBFD] p-3 text-[11px]">
+                                <div><p className="font-bold uppercase tracking-wide text-slate-400">Check-in</p><p className="mt-1 font-semibold text-slate-700">{formatDateTime(rec.check_in_time)}</p></div>
+                                <div><p className="font-bold uppercase tracking-wide text-slate-400">Method</p><p className="mt-1 font-semibold text-slate-700">{capitalize(rec.method)}</p></div>
+                              </div>
+                              <p className="mt-3 text-[11px] leading-5 text-slate-500">{[rec.user?.program, rec.user?.major, rec.user?.year_level, rec.user?.section].filter(Boolean).join(' · ') || 'No academic profile provided'}</p>
+                            </article>
+                          ))}
+                          {!filteredAttendanceRecords.length && <p className="px-5 py-10 text-center text-sm text-slate-400">No attendance records match the filters.</p>}
+                        </div>
+                        <div className="hidden overflow-x-auto lg:block">
+                        <table className="w-full min-w-[980px] text-left">
                           <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                             <tr>
                               <th className="px-5 py-3">Member</th>
@@ -1183,7 +1472,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                   </span>
                                 </td>
                                 <td className="px-5 py-3.5">
-                                  <span className="rounded-full bg-[#EEF6FB] px-2.5 py-0.5 text-[11px] font-bold text-[#0B8ED0]">{capitalize(rec.status || 'present')}</span>
+                                  <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
                                 </td>
                                 <td className="px-5 py-3.5 text-xs font-medium text-slate-600"><p>{formatDateTime(rec.check_in_time)}</p><p className="text-[10px] text-slate-400">Out: {formatDateTime(rec.check_out_time)}</p></td>
                                 <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold">{rec.recorder ? `${rec.recorder.first_name} ${rec.recorder.last_name}` : '-'}</p><p className="text-[10px]">{rec.recorder?.position_title || rec.recorder?.role || '-'}</p></td>
@@ -1193,7 +1482,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           </tbody>
                         </table>
                         </div>
-                        <PaginationControls currentPage={attendancePage} totalItems={filteredAttendanceRecords.length} pageSize={pageSize} onPageChange={setAttendancePage} label="attendance records" />
+                        <PaginationControls currentPage={attendanceMeta.currentPage} totalItems={attendanceMeta.total} pageSize={attendanceMeta.perPage} onPageChange={setAttendancePage} label="attendance records" />
                       </div>
                     )}
                   </>

@@ -54,15 +54,11 @@ class OrderController extends Controller
         $summary = $personalView ? null : $this->orderSummary($request, $filters);
         $orders = $query->paginate(10)->withQueryString();
 
-        if ($personalView) {
-            $orders->getCollection()->each(function (Order $order) {
-                if (! in_array($order->status, ['paid', 'claimed'], true)) {
-                    $order->setAttribute('claim_token', null);
-                }
-            });
-        } else {
-            $orders->getCollection()->each(fn (Order $order) => $order->setAttribute('claim_token', null));
-        }
+        $orders->getCollection()->each(function (Order $order) {
+            if (! in_array($order->status, ['paid', 'claimed'], true)) {
+                $order->setAttribute('claim_token', null);
+            }
+        });
 
         return response()->json([
             ...$orders->toArray(),

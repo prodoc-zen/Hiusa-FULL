@@ -97,7 +97,7 @@ class MerchandiseOrderAnalyticsTest extends TestCase
 
         Sanctum::actingAs($admin);
         $query = '?program=BS%20Information%20Technology&year_level=4th%20Year&section=4-A';
-        $this->getJson('/api/orders'.$query)
+        $response = $this->getJson('/api/orders'.$query)
             ->assertOk()
             ->assertJsonCount(2, 'data')
             ->assertJsonPath('summary.total_users', 2)
@@ -108,8 +108,12 @@ class MerchandiseOrderAnalyticsTest extends TestCase
             ->assertJsonPath('summary.pending_orders', 1)
             ->assertJsonPath('summary.total_quantity', 3)
             ->assertJsonPath('summary.total_collected', 200)
-            ->assertJsonPath('summary.outstanding_balance', 100)
-            ->assertJsonPath('data.0.claim_token', null);
+            ->assertJsonPath('summary.outstanding_balance', 100);
+
+        $paidOrder = collect($response->json('data'))->firstWhere('status', 'paid');
+        $pendingOrder = collect($response->json('data'))->firstWhere('status', 'pending');
+        $this->assertSame('ANALYTICSTEST01', $paidOrder['claim_token']);
+        $this->assertNull($pendingOrder['claim_token']);
 
         $this->getJson('/api/orders/analytics/users'.$query.'&group=not_purchased')
             ->assertOk()

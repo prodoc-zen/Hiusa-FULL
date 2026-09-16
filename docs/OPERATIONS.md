@@ -7,9 +7,9 @@ undo a bad change, start here.
 For how to stand this up on a real server for the first time, see
 [`../EC2-DEPLOYMENT.md`](../EC2-DEPLOYMENT.md) (the actual deployment procedure) and
 [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) (the go-live checklist and smoke test that wrap
-it). This document assumes the three services are already installed somewhere (a
+it). This document assumes the four application services are already installed somewhere (a
 laptop, a lab PC, or a deployed server) and covers running and operating them day to
-day — including, for the Docker Compose deployment, what changes when those "three
+day — including, for the Docker Compose deployment, what changes when those four
 services" are containers instead of terminal windows (see the Docker Compose mapping
 section below).
 
@@ -20,9 +20,9 @@ stale; they are the source of truth, this document is not.
 
 ---
 
-## 1. The three services
+## 1. The four application services
 
-HIUSA is three independent processes. All three must be running for the app to work
+HIUSA is four independent application processes. All four must be running for the app to work
 end to end; the frontend and Laravel degrade in specific, checkable ways when the
 others are down (see §2 and §7).
 
@@ -31,11 +31,12 @@ others are down (see §2 and §7).
 | 1 | **Laravel API** | PHP 8.2 / Laravel 12, the system of record | `http://127.0.0.1:8000` |
 | 2 | **Python AI service** | FastAPI, deterministic OLS forecasting + budget rules + task-delegation scoring | `http://127.0.0.1:8001` |
 | 3 | **Frontend** | React 19 / Vite | `http://localhost:5173` (dev) |
+| 4 | **Fingerprint matcher** | Private SourceAFIS matching service | `http://127.0.0.1:9100` |
 
 ### Starting each service (local development)
 
 Running this on an EC2/Docker Compose deployment instead? See "Production
-(Docker Compose): mapping this runbook onto the EC2 stack" below — these three
+(Docker Compose): mapping this runbook onto the EC2 stack" below — these four
 processes are containers there, not terminal windows.
 
 ```powershell
@@ -51,19 +52,23 @@ python run.py
 # Terminal 3 - Frontend
 cd client
 npm run dev
+
+# Terminal 4 - Fingerprint matcher
+cd fingerprint-matcher
+.\start.ps1
 ```
 
 Order does not matter for startup — each one waits for the others rather than
 crashing when they are absent — but Laravel calling the AI service before it is up
 will simply fall back (see §7).
 
-### A queue worker is also required, not optional
+### Queue behavior: local sync, production worker
 
 Password-reset email (`PasswordResetMail`) and approval-request notification fan-out
-(`NotifyApproversJob`) are both queued jobs. `QUEUE_CONNECTION=database` is the
-default in `server/.env.example`, which means those jobs land in the `jobs` table and
-sit there **until something processes them**. Nobody receives the password-reset
-email and no approver gets notified until a worker runs:
+(`NotifyApproversJob`) are both queued jobs. Local development uses
+`QUEUE_CONNECTION=sync`, so Laravel performs these jobs during the API request and
+does not need a fifth terminal. Production uses `QUEUE_CONNECTION=database`; there,
+jobs land in the `jobs` table and require the managed queue worker:
 
 ```powershell
 cd server
@@ -81,13 +86,11 @@ php artisan queue:monitor database:default
 php artisan tinker --execute="echo DB::table('jobs')->count();"
 ```
 
-A non-zero and growing `jobs` count with no worker running is exactly this failure
-mode. Use `queue:work` for a running deployment (add `--tries=3` if you want failed
-jobs retried before landing in `failed_jobs`); `queue:listen` is fine for local
-development because it picks up code changes without a restart, but it is slower and
-not meant for production.
+A non-zero and growing `jobs` count with no worker running is exactly this production
+failure mode. Use `queue:work` for a running deployment and keep local development on
+the synchronous driver when using the four-service startup.
 
-### Scheduled work that must be running
+### Scheduled work in production
 
 `server/routes/console.php` registers two scheduled commands:
 
@@ -96,8 +99,10 @@ Schedule::command(MarkOverdueTasks::class)->dailyAt('00:05');
 Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping();
 ```
 
-Nothing runs these automatically unless the Laravel scheduler itself is running.
-Locally, confirm they exist and see what would fire next with:
+Nothing runs these automatically unless the Laravel scheduler itself is running. The
+four-service local startup intentionally omits it; local demos do not automatically
+publish scheduled items or send timed reminders. You can still inspect registered
+tasks with:
 
 ```bash
 php artisan schedule:list
@@ -121,28 +126,29 @@ checking `storage/logs/laravel.log` after the scheduled time, or by watching the
 
 ## Production (Docker Compose): mapping this runbook onto the EC2 stack
 
-Everything above in §1 (three terminals, `php artisan serve`, `npm run dev`, a
-manual `queue:work`, an OS cron entry) is the **local-development** path. The
+Everything above in §1 (four application terminals with the synchronous queue and no
+local scheduler) is the **local-development** path. The
 production path is [`../EC2-DEPLOYMENT.md`](../EC2-DEPLOYMENT.md)'s single
 Docker Compose stack, defined in `compose.production.yml`. This section
 translates the rest of this runbook onto that stack using its real service
 names — read it alongside §1 rather than instead of it.
 
-### The three services, as containers
+### The four application services, as containers
 
 | Local process (§1) | Compose service | Notes |
 |---|---|---|
 | `php artisan serve` (Laravel API) | `laravel` | PHP-Apache; depends on `mysql` and `ai-service` reporting healthy before it starts |
 | `python run.py` (AI service) | `ai-service` | FastAPI on Uvicorn; never public — only containers on the private `application` network can reach it |
 | `npm run dev` (frontend) | `frontend` | Not a Vite dev server — this container serves the React build (compiled at image-build time) through Caddy, which is also the stack's only public container (ports 80/443) |
+| `.\start.ps1` (fingerprint matcher) | `fingerprint-matcher` | SourceAFIS service on the private application network; port 9100 is never public |
 
 Two more containers exist with no local single-command equivalent, because
 locally they're manual workflows rather than standing processes:
 
 | Compose service | Command it runs | Local equivalent (§1) |
 |---|---|---|
-| `queue-worker` | `php artisan queue:work --sleep=3 --tries=3 --timeout=120` | the manual `php artisan queue:work` |
-| `scheduler` | `php artisan schedule:work` | the OS cron entry (or `schedule:work`) described in §1 — this stack never needs a separate cron job; the container's only command is the persistent `schedule:work` process |
+| `queue-worker` | `php artisan queue:work --sleep=3 --tries=3 --timeout=120` | not needed locally with `QUEUE_CONNECTION=sync` |
+| `scheduler` | `php artisan schedule:work` | intentionally omitted from the four-service local startup |
 
 `mysql` (image `mysql:8.4`) has no row above because locally you're pointed at
 XAMPP MariaDB instead (see `server/.env.example`). It has no `ports:` mapping
@@ -370,7 +376,7 @@ sessions on this codebase.
 | `FinancialAccountabilityTest` (or any GCash QR / candidate photo upload) fails, or image uploads silently fail | The `gd` PHP extension is disabled. | Enable it in `php.ini` (`extension=gd`, uncomment/add the line) and restart PHP/the dev server. Confirm with `php -m \| findstr gd`. |
 | AI-backed features (forecasts, task delegation, announcement drafts) quietly use the local/fallback calculation with no visible error | One or more of the AI-related env vars is missing or wrong: `HIUSA_AI_SERVICE_ENABLED`, `HIUSA_AI_SERVICE_URL`, `HIUSA_AI_SERVICE_KEY` (must match `ai-service/.env` exactly), or `GROQ_API_KEY`. This degrades silently by design (see §3) rather than erroring, which makes a misconfigured install look correct. | Confirm `/health` on the Python service reports `"authentication": "api-key"`, confirm `server/.env` has all five `HIUSA_AI_SERVICE_*` vars and the four `GROQ_*` vars set, and grep the log per §4 to see which fallback is firing. |
 | Candidate photos, partylist images, merchandise images, or GCash QR images return 404 even though the upload appeared to succeed | The `storage` symlink is missing — Laravel serves `public/storage` as a symlink into `storage/app/public`, and a fresh clone or a fresh deployment does not create it automatically. | `cd server && php artisan storage:link` |
-| Password reset / approval-notification changes don't appear to have any effect | No queue worker is running (§1). Jobs sit in the `jobs` table until one runs. | Start `php artisan queue:work` (or verify whatever process supervisor is meant to be running it, actually is). |
+| Password reset / approval-notification changes don't appear to have any effect | Local configuration is accidentally using the database queue, or a production queue worker is down (§1). | Locally, set `QUEUE_CONNECTION=sync`, clear Laravel config, and restart Laravel. In production, verify the managed queue worker. |
 | Client dev dependencies (`vitest`, `playwright`, testing-library, `jsdom`) appear missing after a clone or a `node_modules` change | These are devDependencies in `client/package.json`; a partial/interrupted `npm install` or a stale `node_modules` can leave them out. | `cd client && npm install` (or `npm ci` for a clean, lockfile-exact install). |
 | CORS errors in the browser console | `FRONTEND_URL` / `FRONTEND_URLS` in `server/.env` don't include the origin the browser is actually loading from. | Add the exact origin (scheme + host + port) to `FRONTEND_URLS`, restart `php artisan serve`. See `docs/DEPLOYMENT.md` for the production-origin version of this. |
 | A migration passes every test locally, then aborts partway on MySQL/MariaDB with error 1553, leaving tables created but the migration unrecorded — a retry then fails with "table already exists" | `server/phpunit.xml` pins the test suite to SQLite (`DB_CONNECTION=sqlite`, `DB_DATABASE=:memory:`), which allows a migration that MySQL/InnoDB refuses. **Found and fixed on 2026-09-03 (commit 5a786bf):** `server/database/migrations/2026_08_31_000004_make_positions_role_aware.php` dropped the unique index on `sbo_positions` that an InnoDB foreign key depends on before creating its replacement — SQLite permits this, MySQL does not. | Fixed by reordering: the replacement unique index is created first, then the one the foreign key relied on is dropped, so a covering index always exists. CI now has a `migrations-mysql` job that runs `migrate:fresh --seed` plus a rollback against both `mysql:8.4` (what `compose.production.yml` deploys) and `mariadb:10.4` (the XAMPP dev database), so a green SQLite run alone no longer decides whether a migration is safe. |

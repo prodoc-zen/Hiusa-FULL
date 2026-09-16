@@ -22,7 +22,9 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 });
 
 var apiKey = Environment.GetEnvironmentVariable("MATCHER_API_KEY") ?? string.Empty;
-var matchThreshold = ReadDouble("MATCH_THRESHOLD", 40);
+// Campus-scale 1:N identification needs a stricter floor than SourceAFIS's
+// general-purpose starting point. Deployments can raise this after calibration.
+var matchThreshold = Math.Max(ReadDouble("MATCH_THRESHOLD", 60), 60);
 var enrollmentThreshold = ReadDouble("ENROLLMENT_CONSISTENCY_THRESHOLD", 25);
 var fingerprintDpi = ReadDouble("FINGERPRINT_DPI", 512);
 var templateCacheSize = ReadInt("TEMPLATE_CACHE_SIZE", 10000);

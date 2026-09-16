@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Building2, Eye, EyeOff, Lock, Mail } from 'lucide-react';
+import { ArrowRight, Building2, Eye, EyeOff, Hash, Lock } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { login } from '../../services/authService';
 
@@ -31,7 +31,7 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
   const [selectedOrganization, setSelectedOrganization] = useState(null);
-  const [email, setEmail] = useState('');
+  const [schoolId, setSchoolId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -59,7 +59,7 @@ export default function LoginPage() {
 
     const credentials = {
       organization_id: selectedOrganization?.id,
-      email: email.trim().toLowerCase(),
+      school_id: schoolId.trim(),
       password,
     };
 
@@ -140,16 +140,20 @@ export default function LoginPage() {
 
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1.5">
-                <label className="block text-[13px] font-semibold text-slate-800">Email address</label>
+                <label className="block text-[13px] font-semibold text-slate-800">School ID / ID Number</label>
                 <div className="group relative">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 transition-colors group-focus-within:text-[#0b8ed0]">
-                    <Mail size={17} />
+                    <Hash size={17} />
                   </div>
                   <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Enter your email address"
+                    type="text"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={8}
+                    autoComplete="username"
+                    value={schoolId}
+                    onChange={(e) => setSchoolId(e.target.value.replace(/\D/g, '').slice(0, 8))}
+                    placeholder="Enter your school ID or ID number"
                     required
                     className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0b8ed0] focus:ring-4 focus:ring-[#16c7f3]/15"
                   />

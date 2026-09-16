@@ -56,7 +56,7 @@ From the project root, this creates all three local environment files, generates
 For access from other PCs on the same trusted network, pass the host PC's current IPv4 address once:
 
 ```powershell
-.\scripts\setup-env.ps1 -HostAddress 192.168.1.50 -PromptForGroqKey
+.\scripts\setup-env.ps1 -HostAddress auto -PromptForGroqKey
 ```
 
 The script preserves existing `.env` files by default. Use `-Force` only on a new installation or when you intentionally want to replace all local environment files. `-PromptForGroqKey` accepts the Groq key through hidden input so it does not appear in terminal history. After it finishes, configure the chosen database.
@@ -247,9 +247,9 @@ GROQ_API_URL=https://api.groq.com/openai/v1/responses
 GROQ_MODEL=openai/gpt-oss-20b
 ```
 
-## Step 5 — Run the Laravel and Frontend Servers
+## Step 5 — Run the Remaining Services
 
-You need **three terminal windows open at the same time** — Python AI, Laravel, and the frontend.
+You need **four terminal windows open at the same time** — Python AI, Laravel, the frontend, and the fingerprint matcher. Local queued jobs run synchronously, and no scheduler is required for this development setup.
 
 ### Terminal 2 — Backend (Laravel)
 
@@ -281,6 +281,15 @@ You should see:
 
 Keep this window open. Do not close it.
 
+### Terminal 4 — Fingerprint matcher
+
+```powershell
+cd fingerprint-matcher
+.\start.ps1
+```
+
+Keep this window open. Do not close it.
+
 ### Open the app
 
 Go to **http://localhost:5173** in your browser.
@@ -299,74 +308,68 @@ Go to **http://localhost:5173** in your browser.
 > ([`EC2-DEPLOYMENT.md`](EC2-DEPLOYMENT.md)), this is enforced by
 > `scripts/setup-ec2.sh`'s opt-in `--seed-demo` flag rather than left to memory.
 
-All passwords are shown below. The **Login** field differs by role.
+Every demo account signs in with its **School ID / ID Number** and password. Email addresses are for account recovery and contact information, not login.
 
 ### Super Admin
 | Field | Value |
 |---|---|
 | Login field | School ID |
 | School ID | `990001` |
-| Account email | `admin@hiusa.local` |
 | Password | `Admin@123456` |
 
-### Organization Admin
-| Field | Value |
-|---|---|
-| Login field | School ID |
-| School ID | `990002` |
-| Account email | `org.admin@hiusa.local` |
-| Password | `Admin@123456` |
+### SAO-assigned Organization Advisers
+| Organization | School ID | Password |
+|---|---|---|
+| PSITS-CCS | `990002` | `Admin@123456` |
+| JPIA-CBE | `990012` | `Admin@123456` |
+| FES-CTE | `990022` | `Admin@123456` |
+| NSC-CHS | `990032` | `Admin@123456` |
+| EIG-COE | `990042` | `Admin@123456` |
 
 ### Organization Leadership Admins
-| Name | Email | Password |
+| Name | School ID | Password |
 |---|---|---|
-| Marco Dela Cruz | `officer1@hiusa.local` | `Demo@12345` |
-| Angela Santos | `officer2@hiusa.local` | `Demo@12345` |
-| Bianca Fernandez | `officer3@hiusa.local` | `Demo@12345` |
-| Mika Salcedo | `mika.salcedo@cbe.hiusa.local` | `Demo@12345` |
+| Marco Dela Cruz | `900001` | `Demo@12345` |
+| Angela Santos | `900002` | `Demo@12345` |
+| Bianca Fernandez | `900003` | `Demo@12345` |
+| Mika Salcedo | `920011` | `Demo@12345` |
 
 ### Officers
-| Name | Email | Password |
+| Name | School ID | Password |
 |---|---|---|
-| Diego Villanueva | `officer4@hiusa.local` | `Demo@12345` |
-| Ellaine Morales | `officer5@hiusa.local` | `Demo@12345` |
-| Franco Cruz | `officer6@hiusa.local` | `Demo@12345` |
-| Grace Ibanez | `officer7@hiusa.local` | `Demo@12345` |
-
-### Advisers
-| Name | Email | Password |
-|---|---|---|
-| Ricardo Lim | `adviser1@hiusa.local` | `Demo@12345` |
-| Maria Reyes | `adviser2@hiusa.local` | `Demo@12345` |
+| Diego Villanueva | `900004` | `Demo@12345` |
+| Ellaine Morales | `900005` | `Demo@12345` |
+| Franco Cruz | `900006` | `Demo@12345` |
+| Grace Ibanez | `900007` | `Demo@12345` |
 
 ### Department Heads
-| Name | Email | School ID | Password |
-|---|---|---|---|
-| Ramon Castillo | `dean.ccs@hiusa.local` | `940001` | `Demo@12345` |
-| Corazon Villareal | `dean.cbe@hiusa.local` | `940002` | `Demo@12345` |
-| Benjamin Torres | `dean.cte@hiusa.local` | `940003` | `Demo@12345` |
-| Marilou Santos | `dean.chs@hiusa.local` | `940004` | `Demo@12345` |
-| Eduardo Ramos | `dean.coe@hiusa.local` | `940005` | `Demo@12345` |
+| Name | School ID | Password |
+|---|---|---|
+| Ramon Castillo | `940001` | `Demo@12345` |
+| Corazon Villareal | `940002` | `Demo@12345` |
+| Benjamin Torres | `940003` | `Demo@12345` |
+| Marilou Santos | `940004` | `Demo@12345` |
+| Eduardo Ramos | `940005` | `Demo@12345` |
 
 ### Students — login with **School ID**, not email
 | Name | School ID | Password |
 |---|---|---|
-| Juan Dela Vega | `2021-00142` | `Demo@12345` |
-| Sofia Bautista | `2021-00217` | `Demo@12345` |
-| Carlo Mendoza | `2021-00389` | `Demo@12345` |
-| Pia Torres | `2022-00055` | `Demo@12345` |
-| Luis Ramos | `2022-00134` | `Demo@12345` |
-| Gabrielle Villanueva | `2022-00298` | `Demo@12345` |
-| Rafael Aquino | `2022-00451` | `Demo@12345` |
-| Camille Garcia | `2023-00078` | `Demo@12345` |
-| Andrei Navarro | `2023-00163` | `Demo@12345` |
-| Beatrice Castillo | `2023-00247` | `Demo@12345` |
-| Miguel Pascual | `2023-00312` | `Demo@12345` |
-| Trisha Herrera | `2024-00019` | `Demo@12345` |
-| Jerome Evangelista | `2024-00067` | `Demo@12345` |
-| Alyssa Domingo | `2024-00093` | `Demo@12345` |
-| Nico Valdez | `2024-00118` | `Demo@12345` |
-| Paolo Marquez | `2024-00133` | `Demo@12345` |
+| Juan Dela Vega | `2100142` | `Demo@12345` |
+| Sofia Bautista | `2100217` | `Demo@12345` |
+| Carlo Mendoza | `2100389` | `Demo@12345` |
+| Pia Torres | `2200055` | `Demo@12345` |
+| Luis Ramos | `2200134` | `Demo@12345` |
+| Gabrielle Villanueva | `2200298` | `Demo@12345` |
+| Rafael Aquino | `2200451` | `Demo@12345` |
+| Camille Garcia | `2300078` | `Demo@12345` |
+| Andrei Navarro | `2300163` | `Demo@12345` |
+| Beatrice Castillo | `2300247` | `Demo@12345` |
+| Miguel Pascual | `2300312` | `Demo@12345` |
+| Trisha Herrera | `2400019` | `Demo@12345` |
+| Jerome Evangelista | `2400067` | `Demo@12345` |
+| Alyssa Domingo | `2400093` | `Demo@12345` |
+| Nico Valdez | `2400118` | `Demo@12345` |
+| Paolo Marquez | `2400133` | `Demo@12345` |
 
 ---
 
@@ -452,11 +455,9 @@ Hiusa-FULL/
 
 ## Quick Reference — Daily Workflow
 
-Every time you sit down to work or demo, you need **five** terminals, not two —
-skipping the AI service or the queue worker doesn't error, it just silently
-degrades: AI-backed features fall back to local calculations, and password
-resets / approval notifications never go out (see Troubleshooting and
-`docs/OPERATIONS.md` §1 for both symptoms).
+Every time you sit down to work or demo, start these **four** services. Local
+queued jobs use the synchronous queue driver, so a separate queue-worker process
+is not required. The scheduler is intentionally omitted for local demos.
 
 ```bash
 # Terminal 1 - Python AI service
@@ -472,11 +473,7 @@ php artisan serve
 cd client
 npm run dev
 
-# Terminal 4 - Queue worker (password resets, approval notifications)
-cd server
-php artisan queue:work
-
-# Terminal 5 - Fscanner-derived SourceAFIS matcher
+# Terminal 4 - Fscanner-derived SourceAFIS matcher
 cd fingerprint-matcher
 # First run: copy .env.example to .env; scripts/setup-env.ps1 synchronizes its key.
 .\start.ps1
@@ -488,7 +485,10 @@ http://localhost:5173
 Fingerprint capture also requires a DigitalPersona reader, the device driver,
 and HID Authentication Device Client on the workstation running the browser.
 Enrollment uses four captures for template quality; attendance identification
-uses one scan. The browser SDK assets are synchronized automatically by
+uses one scan, shows the matched Student and score for confirmation, and only
+then records check-in or checkout. Event matching is restricted to the current
+organization/department and can be narrowed by year level, program, and section.
+The browser SDK assets are synchronized automatically by
 `npm install`.
 
 If you pulled new changes from git:

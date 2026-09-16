@@ -957,27 +957,65 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
+        $filters = $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'status' => ['nullable', 'in:present,late,excused,absent'],
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
         $recordsQuery = Attendance::with([
             'user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section',
             'recorder:school_id,first_name,last_name,email,role,position_title',
         ])
-            ->where('event_id', $id)
-            ->orderBy('check_in_time', 'asc');
+            ->where('event_id', $id);
 
         $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
         if (! $canManageAttendance) {
             $recordsQuery->where('user_id', $request->user()->id);
         }
 
-        $records = $recordsQuery->get();
+        $recordCount = (clone $recordsQuery)->count();
+        $checkedInCount = (clone $recordsQuery)
+            ->whereIn('status', ['present', 'late'])
+            ->whereNull('check_out_time')
+            ->count();
         $summary = collect(['present', 'late', 'excused', 'absent'])
-            ->mapWithKeys(fn (string $status) => [$status => $records->where('status', $status)->count()]);
+            ->mapWithKeys(fn (string $status) => [$status => (clone $recordsQuery)->where('status', $status)->count()]);
+
+        if (! empty($filters['status'])) {
+            $recordsQuery->where('status', $filters['status']);
+        }
+        if (! empty($filters['search'])) {
+            $search = trim($filters['search']);
+            $recordsQuery->whereHas('user', function ($userQuery) use ($search) {
+                $userQuery->where('first_name', 'like', "%{$search}%")
+                    ->orWhere('last_name', 'like', "%{$search}%")
+                    ->orWhere('school_id', 'like', "%{$search}%")
+                    ->orWhere('program', 'like', "%{$search}%")
+                    ->orWhere('major', 'like', "%{$search}%")
+                    ->orWhere('year_level', 'like', "%{$search}%")
+                    ->orWhere('section', 'like', "%{$search}%");
+            });
+        }
+
+        $records = $recordsQuery
+            ->orderBy('check_in_time')
+            ->orderBy('id')
+            ->paginate($filters['per_page'] ?? 10);
 
         return response()->json([
-            'event' => $event->only(['id', 'title', 'start_time', 'end_time', 'status']),
-            'count' => $records->count(),
+            'event' => $event->only(['id', 'title', 'start_time', 'end_time', 'status', 'location', 'planning_details']),
+            'count' => $recordCount,
+            'checked_in_count' => $checkedInCount,
             'summary' => $summary,
-            'records' => $records,
+            'records' => $records->items(),
+            'pagination' => [
+                'current_page' => $records->currentPage(),
+                'last_page' => $records->lastPage(),
+                'per_page' => $records->perPage(),
+                'total' => $records->total(),
+            ],
             'can_manage_attendance' => $canManageAttendance,
             'biometric_adapter' => [
                 'configured' => config('fingerprint.matcher') === 'http' && filled(config('fingerprint.http.url')),
@@ -988,6 +1026,10 @@ class EventController extends Controller
 
     public function recordAttendance(Request $request, $id)
     {
+        if (! in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true)) {
+            return response()->json(['message' => 'Only administrators and SBO officers can record attendance.'], 403);
+        }
+
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
 
         if (! $event) {
@@ -995,7 +1037,7 @@ class EventController extends Controller
         }
 
         $data = $request->validate([
-            'user_id' => ['nullable', 'exists:users,school_id'],
+            'user_id' => ['required', 'integer'],
             'method' => ['required', 'in:biometric,manual'],
             'status' => ['nullable', 'in:present,late,excused,absent'],
             'check_out_time' => ['nullable', 'date'],
@@ -1004,17 +1046,6 @@ class EventController extends Controller
 
         if (! in_array($event->status, ['approved', 'ongoing'], true)) {
             return response()->json(['message' => 'Only approved or ongoing events can accept attendance.'], 422);
-        }
-
-        $canManageAttendance = in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER'], true);
-        $data['user_id'] = $canManageAttendance ? ($data['user_id'] ?? $request->user()->id) : $request->user()->id;
-
-        if (! $canManageAttendance && (now()->lt($event->start_time) || now()->gt($event->end_time))) {
-            return response()->json(['message' => 'Self check-in is only available during the scheduled event period.'], 422);
-        }
-
-        if (! $canManageAttendance && (($data['status'] ?? 'present') !== 'present' || $data['method'] !== 'manual')) {
-            return response()->json(['message' => 'Self check-in can only be recorded as present using manual check-in.'], 403);
         }
 
         if ($data['method'] === 'biometric') {
@@ -1047,7 +1078,7 @@ class EventController extends Controller
                 'status' => $data['status'] ?? 'present',
                 'check_in_time' => now(),
                 'check_out_time' => $data['check_out_time'] ?? null,
-                'recorded_by' => $request->user()->id,
+                'recorded_by' => $request->user()->school_id,
                 'remarks' => $data['remarks'] ?? null,
             ]);
         } catch (UniqueConstraintViolationException $e) {

@@ -15,7 +15,7 @@ export function useFingerprintReader() {
 
   return {
     ...state,
-    retry: () => digitalPersonaService.refreshReaders(),
+    retry: () => digitalPersonaService.retry(),
     enrollFingerprint: (count, onProgress) => digitalPersonaService.enrollFingerprint(count, onProgress),
     identifyFingerprint: () => digitalPersonaService.identifyFingerprint(),
     cancelCapture: () => digitalPersonaService.cancelCapture(),

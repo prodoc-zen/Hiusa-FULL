@@ -22,7 +22,7 @@
 ## Implementation Coverage
 
 - **Role Access:** all five documented roles authenticate through the shared login route; `SUPER_ADMIN` is the canonical SAO role.
-- **Enter Login Credentials:** login accepts organization plus email or school ID and password.
+- **Enter Login Credentials:** every role signs in with an organization, school ID or assigned ID number, and password. Email is reserved for account recovery and profile contact information.
 - **Validate Credentials:** `UserController@login` retrieves the organization-scoped account, verifies the password, and blocks inactive accounts.
 - **Establish User Session:** successful login issues a Laravel Sanctum bearer token.
 - **Verify User Role:** optional selected role is compared with the stored account role before login succeeds.

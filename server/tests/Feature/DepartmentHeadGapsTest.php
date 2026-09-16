@@ -200,14 +200,14 @@ class DepartmentHeadGapsTest extends TestCase
         $expected = [
             'President', 'Vice President – Internal', 'Vice President – External',
             'Secretary', 'Assistant Secretary', 'Treasurer', 'Auditor',
-            'Public Information Officer', 'Representative', 'Business Manager', 'Adviser',
+            'Public Information Officer', 'Representative', 'Business Manager',
         ];
 
         foreach ([$orgA, $orgB] as $organization) {
             foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
                 $titles = SboPosition::where('organization_id', $organization->id)->where('role', $role)->pluck('title')->sort()->values();
                 $this->assertSame(collect($expected)->sort()->values()->all(), $titles->all());
-                $this->assertTrue(SboPosition::where('organization_id', $organization->id)->where('role', $role)->where('title', 'Adviser')->where('is_active', true)->exists());
+                $this->assertFalse(SboPosition::where('organization_id', $organization->id)->where('role', $role)->where('title', 'Adviser')->exists());
             }
         }
     }

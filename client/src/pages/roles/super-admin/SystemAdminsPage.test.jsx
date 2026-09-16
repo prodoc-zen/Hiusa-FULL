@@ -22,7 +22,7 @@ describe('SystemAdminsPage', () => {
       email: 'ana@example.test',
       organization_id: 8,
       account_status: 'active',
-      position_title: 'President',
+      position_title: 'Adviser',
       organization: { id: 8, name: 'Computing Council', acronym: 'CC' },
     }] });
     serviceMocks.getSystemOrganizations.mockResolvedValue({ data: [{ id: 8, name: 'Computing Council', acronym: 'CC', is_active: true }] });
@@ -37,6 +37,8 @@ describe('SystemAdminsPage', () => {
 
     expect(document.querySelector('input[type="password"]')).not.toBeInTheDocument();
     expect(screen.getByText(/SAO cannot view or set it/i)).toBeInTheDocument();
+    expect(document.querySelector('datalist option[value="Adviser"]')).toBeInTheDocument();
+    expect(document.querySelector('datalist option[value="Organization Adviser"]')).not.toBeInTheDocument();
   });
 
   it('initiates a secure password reset after confirmation', async () => {

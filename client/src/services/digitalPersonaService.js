@@ -91,6 +91,14 @@ class DigitalPersonaService {
     }
   }
 
+  async retry() {
+    if (!this.api) {
+      this.initializing = null;
+      return this.initialize();
+    }
+    return this.refreshReaders();
+  }
+
   async startCapture() {
     await this.initialize();
     if (this.state.scanning) throw new Error('Scanner is already in use.');
@@ -137,7 +145,7 @@ class DigitalPersonaService {
       };
       const onQuality = (event) => { lastQuality = Number(event.quality); this.setState({ quality: lastQuality }); };
       const onSample = (event) => {
-        if (lastQuality !== 0) { finish(new Error(QUALITY_MESSAGES[lastQuality] || 'Fingerprint quality is too low.')); return; }
+        if (lastQuality !== null && lastQuality !== 0) { finish(new Error(QUALITY_MESSAGES[lastQuality] || 'Fingerprint quality is too low.')); return; }
         const samples = this.parseSamples(event.samples);
         if (!samples.length) { finish(new Error('No fingerprint sample was returned by the reader.')); return; }
         finish(null, { samples: samples.slice(0, 1), sampleFormat: SAMPLE_FORMAT_PNG, deviceId: event.deviceUid, quality: lastQuality });
@@ -209,4 +217,4 @@ class DigitalPersonaService {
 }
 
 export const digitalPersonaService = new DigitalPersonaService();
-export { QUALITY_MESSAGES, SAMPLE_FORMAT_PNG };
+export { DigitalPersonaService, QUALITY_MESSAGES, SAMPLE_FORMAT_PNG };

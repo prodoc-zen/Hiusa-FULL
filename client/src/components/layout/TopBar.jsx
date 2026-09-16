@@ -95,9 +95,6 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
   useEffect(() => {
     loadNotifications();
-    const onFocus = () => loadNotifications();
-    window.addEventListener('focus', onFocus);
-    return () => window.removeEventListener('focus', onFocus);
   }, [loadNotifications]);
 
   useEffect(() => {

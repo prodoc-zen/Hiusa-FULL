@@ -123,6 +123,10 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
+        if ($actor->role === 'SBO_OFFICER' && $validatedData['role'] !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can create Student accounts only.'], 403);
+        }
+
         if ($validatedData['role'] === 'ADMIN') {
             return response()->json(['message' => 'Administrator accounts are created only from SAO Administration.'], 403);
         }
@@ -163,6 +167,10 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
+        }
+
         if ($user->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
@@ -195,7 +203,15 @@ class UserController extends Controller
             'password' => 'sometimes|required|string|min:8',
         ]);
 
+        if ($request->user()->role === 'SBO_OFFICER' && ($validatedData['role'] ?? 'STUDENT') !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers cannot assign or promote users to another role.'], 403);
+        }
+
         if ($user->role === 'ADMIN') {
+            if ($this->isAdviserPosition($user->position_title) || (array_key_exists('position_title', $validatedData) && $this->isAdviserPosition($validatedData['position_title']))) {
+                return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
+            }
+
             if (isset($validatedData['role']) && $validatedData['role'] !== 'ADMIN') {
                 return response()->json(['message' => 'Only the SAO Director can change an administrator role.'], 403);
             }
@@ -261,6 +277,10 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
+        }
+
         if ($user->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be deactivated.'], 403);
         }
@@ -302,6 +322,10 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
+        }
+
         if ($user->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
@@ -332,6 +356,10 @@ class UserController extends Controller
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
+        }
+
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
         }
 
         if ($user->role === 'SUPER_ADMIN') {
@@ -412,21 +440,17 @@ class UserController extends Controller
     {
         $request->validate([
             'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
-            'school_id' => ['nullable', 'integer', 'min:1', 'max:99999999', 'required_without:email'],
-            'email' => ['nullable', 'email', 'max:255', 'required_without:school_id'],
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
             'password' => 'required|string',
         ]);
 
         $user = User::where('organization_id', $request->organization_id)
-            ->when(
-                $request->filled('email'),
-                fn ($query) => $query->where('email', strtolower(trim((string) $request->email))),
-                fn ($query) => $query->where('school_id', $request->school_id),
-            )->first();
+            ->where('school_id', $request->school_id)
+            ->first();
 
         if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             throw ValidationException::withMessages([
-                ($request->filled('email') ? 'email' : 'school_id') => ['The provided credentials are incorrect.'],
+                'school_id' => ['The provided credentials are incorrect.'],
             ]);
         }
 
@@ -667,6 +691,11 @@ class UserController extends Controller
         $data['position_title'] = $positionTitle;
 
         return $data;
+    }
+
+    private function isAdviserPosition(mixed $title): bool
+    {
+        return in_array(strtolower(trim((string) $title)), ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true);
     }
 
     private function normalizeAcademicPayload(array $data, User $actor, ?User $existingUser = null): array

@@ -33,10 +33,6 @@ class UserSeeder extends Seeder
             ['school_id' => 900006, 'role' => 'SBO_OFFICER',  'position_title' => 'Public Information Officer', 'first_name' => 'Franco',     'last_name' => 'Cruz',        'email' => 'officer6@hiusa.local'],
             ['school_id' => 900007, 'role' => 'SBO_OFFICER',  'position_title' => 'Business Manager',          'first_name' => 'Grace',      'last_name' => 'Ibanez',      'email' => 'officer7@hiusa.local'],
 
-            // Advisers - exec-board members, role ADMIN with position_title 'Adviser' (login with email)
-            ['school_id' => 910001, 'role' => 'ADMIN',  'position_title' => 'Adviser', 'first_name' => 'Ricardo',    'last_name' => 'Lim',         'email' => 'adviser1@hiusa.local'],
-            ['school_id' => 910002, 'role' => 'ADMIN',  'position_title' => 'Adviser', 'first_name' => 'Maria',      'last_name' => 'Reyes',       'email' => 'adviser2@hiusa.local'],
-
             // Students (login with school_id, password: Demo@12345)
             ['school_id' => 2100142, 'role' => 'STUDENT', 'first_name' => 'Juan',       'last_name' => 'Dela Vega',   'email' => 'juan.delavega@student.hiusa.local'],
             ['school_id' => 2100217, 'role' => 'STUDENT', 'first_name' => 'Sofia',      'last_name' => 'Bautista',    'email' => 'sofia.bautista@student.hiusa.local'],
@@ -66,10 +62,9 @@ class UserSeeder extends Seeder
         }
 
         $sampleOtherOrgUsers = [
-            ['school_id' => 920011, 'role' => 'ADMIN', 'position_title' => 'President', 'first_name' => 'Mika', 'last_name' => 'Salcedo', 'email' => 'mika.salcedo@cbe.hiusa.local'],
-            ['school_id' => 2400118, 'role' => 'STUDENT', 'first_name' => 'Nico', 'last_name' => 'Valdez', 'email' => 'nico.valdez@cte.hiusa.local'],
-            ['school_id' => 930027, 'role' => 'ADMIN', 'position_title' => 'Adviser', 'first_name' => 'Elena', 'last_name' => 'Soriano', 'email' => 'elena.soriano@chs.hiusa.local'],
-            ['school_id' => 2400133, 'role' => 'STUDENT', 'first_name' => 'Paolo', 'last_name' => 'Marquez', 'email' => 'paolo.marquez@coe.hiusa.local'],
+            0 => ['school_id' => 920011, 'role' => 'ADMIN', 'position_title' => 'President', 'first_name' => 'Mika', 'last_name' => 'Salcedo', 'email' => 'mika.salcedo@cbe.hiusa.local'],
+            1 => ['school_id' => 2400118, 'role' => 'STUDENT', 'first_name' => 'Nico', 'last_name' => 'Valdez', 'email' => 'nico.valdez@cte.hiusa.local'],
+            3 => ['school_id' => 2400133, 'role' => 'STUDENT', 'first_name' => 'Paolo', 'last_name' => 'Marquez', 'email' => 'paolo.marquez@coe.hiusa.local'],
         ];
 
         foreach ($sampleOtherOrgUsers as $index => $u) {

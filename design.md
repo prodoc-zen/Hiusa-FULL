@@ -240,6 +240,8 @@ Mobile top bar:
 
 Tables should be dense but readable.
 
+- Every user-facing list of data rows must be paginated. Use 10 rows per page by default and apply search/filtering before pagination on the server. Small fixed option lists used only as selectors are the exception.
+
 - Header background: `#F8FBFD`.
 - Header text: 12px to 13px, weight 700, uppercase optional.
 - Row height: 52px to 60px.
