@@ -28,7 +28,7 @@ Configure the same key and URL in `server/.env`:
 
 ```env
 HIUSA_AI_SERVICE_ENABLED=true
-HIUSA_AI_SERVICE_URL=http://127.0.0.1:8001
+HIUSA_AI_SERVICE_URL=http://localhost:8001
 HIUSA_AI_SERVICE_KEY=the-same-long-random-key-used-by-python
 HIUSA_AI_SERVICE_TIMEOUT=10
 ```
@@ -98,4 +98,4 @@ From another computer connected to the same router, use:
 - Laravel API: `http://YOUR_HOST_IP:8000/api`
 - Python documentation: `http://YOUR_HOST_IP:8001/docs`
 
-On a new PC, run `.\scripts\setup-env.ps1 -HostAddress YOUR_HOST_IP -PromptForGroqKey` from the project root. Laravel should continue using `HIUSA_AI_SERVICE_URL=http://127.0.0.1:8001` while Python and Laravel run on the same computer. Do not configure router port forwarding; these development servers are intended only for the trusted home network.
+On a new PC, run `.\scripts\setup-env.ps1 -HostAddress YOUR_HOST_IP -PromptForGroqKey` from the project root. Laravel should continue using `HIUSA_AI_SERVICE_URL=http://localhost:8001` while Python and Laravel run on the same computer. Do not configure router port forwarding; these development servers are intended only for the trusted home network.

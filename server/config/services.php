@@ -37,7 +37,7 @@ return [
 
     'hiusa_ai' => [
         'enabled' => env('HIUSA_AI_SERVICE_ENABLED', true),
-        'url' => env('HIUSA_AI_SERVICE_URL', 'http://127.0.0.1:8001'),
+        'url' => env('HIUSA_AI_SERVICE_URL', 'http://localhost:8001'),
         'key' => env('HIUSA_AI_SERVICE_KEY'),
         'connect_timeout' => env('HIUSA_AI_SERVICE_CONNECT_TIMEOUT', 1),
         'timeout' => env('HIUSA_AI_SERVICE_TIMEOUT', 3),
