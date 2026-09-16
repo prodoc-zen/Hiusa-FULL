@@ -106,7 +106,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const menuRef = useRef(null);
   const name = `${user.first_name} ${user.last_name}`;
   const officerCanManageTarget = actorRole !== 'SBO_OFFICER' || user.role === 'STUDENT';
-  const canManageAccount = officerCanManageTarget && user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
+  const canManageAccount = actorRole !== 'SBO_OFFICER' && officerCanManageTarget && user.role !== 'SUPER_ADMIN' && (user.role !== 'ADMIN' || actorRole === 'SUPER_ADMIN');
   const canManageFingerprint = officerCanManageTarget && user.role !== 'SUPER_ADMIN';
   const actions = [
     canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
@@ -396,6 +396,7 @@ export default function AdminUsersPage() {
     actorRole = actor?.role || '';
   } catch {}
   const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : actorRole === 'SUPER_ADMIN' ? accountRoles : accountRoles.filter((role) => role !== 'ADMIN');
+  const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
@@ -745,10 +746,10 @@ export default function AdminUsersPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">{actorRole === 'SBO_OFFICER' ? 'SBO Officer' : 'Administrator'}</p>
-            <h2 className="mt-1 text-2xl font-black text-[#0F172A]">User Management</h2>
-            <p className="mt-1 text-sm text-slate-500">{actorRole === 'SBO_OFFICER' ? 'Manage Student accounts and view other organization members without changing their records.' : 'View, search, filter, add, update, deactivate, and reactivate user accounts.'}</p>
+            <h2 className="mt-1 text-2xl font-black text-[#0F172A]">{actorRole === 'SBO_OFFICER' ? 'Participant Biometrics' : 'User Management'}</h2>
+            <p className="mt-1 text-sm text-slate-500">{actorRole === 'SBO_OFFICER' ? 'Find Students and manage consent-based fingerprint enrollment for event attendance.' : 'View, search, filter, add, update, deactivate, and reactivate user accounts.'}</p>
           </div>
-          <div className="flex gap-2"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>
+          {actorRole !== 'SBO_OFFICER' && <div className="flex gap-2"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>}
         </div>
 
         <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
@@ -764,7 +765,7 @@ export default function AdminUsersPage() {
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           >
             <option value="all">All roles</option>
-            {filterRoles.map((role) => (
+            {visibleFilterRoles.map((role) => (
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </select>
@@ -775,9 +776,11 @@ export default function AdminUsersPage() {
           <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{(actorRole === 'SBO_OFFICER' ? [
+          ['Students', meta.total], ['Fingerprint directory', 'Attendance use only'],
+        ] : [
           ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['Admins', roleSummary.ADMIN ?? 0], ['Super admins', roleSummary.SUPER_ADMIN ?? 0],
-        ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p></div>)}</div>
+        ]).map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p></div>)}</div>
         <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setDepartmentFilter('all'); setProgramFilter('all'); setYearLevelFilter('all'); setSectionFilter('all'); setStatusFilter('all'); setSort('name'); }} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-slate-600">Reset filters</button></div>
       </section>
 

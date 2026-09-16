@@ -38,6 +38,12 @@ class UserController extends Controller
             ->withExists(['fingerprints as fingerprint_enrolled'])
             ->where('organization_id', $request->user()->organization_id);
 
+        // SBO Officers use this directory only to select Students for attendance
+        // and biometric enrollment. Account administration remains Admin-only.
+        if ($request->user()->role === 'SBO_OFFICER') {
+            $query->where('role', 'STUDENT');
+        }
+
         if (! empty($filters['role'])) {
             $query->where('role', $filters['role']);
         }

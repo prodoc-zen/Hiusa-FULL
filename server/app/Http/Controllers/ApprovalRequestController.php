@@ -8,8 +8,10 @@ use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Election;
 use App\Models\Event;
+use App\Models\FinancialReport;
 use App\Models\Notification;
 use App\Models\Order;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Services\OrderFulfillmentService;
 use DomainException;
@@ -30,7 +32,7 @@ class ApprovalRequestController extends Controller
 
         $filters = $request->validate([
             'status' => ['nullable', 'in:pending,approved,rejected,all'],
-            'entity_type' => ['nullable', 'in:event,budget,election,announcement,payment'],
+            'entity_type' => ['nullable', 'in:event,budget,election,announcement,payment,financial_report'],
             'search' => ['nullable', 'string', 'max:120'],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
@@ -137,7 +139,7 @@ class ApprovalRequestController extends Controller
                     'decision' => $data['status'],
                     'active_key' => null,
                     'remarks' => $data['remarks'] ?? null,
-                    'reviewed_by' => $request->user()->id,
+                    'reviewed_by' => $request->user()->school_id,
                     'reviewed_at' => now(),
                 ]);
 
@@ -186,8 +188,42 @@ class ApprovalRequestController extends Controller
                 Order::where('organization_id', $approval->organization_id)->findOrFail($approval->entity_id),
                 $request->user()
             ),
+            'financial_report' => $this->approveFinancialReport($approval, $request),
             default => null,
         };
+    }
+
+    private function approveFinancialReport(ApprovalRequest $approval, Request $request): void
+    {
+        $report = FinancialReport::where('organization_id', $approval->organization_id)
+            ->lockForUpdate()
+            ->findOrFail($approval->entity_id);
+
+        if ($request->user()->role === 'DEPARTMENT_HEAD') {
+            $report->update([
+                'submission_status' => 'pending_sao',
+                'department_head_approved_by' => $request->user()->school_id,
+                'department_head_approved_at' => now(),
+            ]);
+            ApprovalRequest::create([
+                'organization_id' => $report->organization_id,
+                'entity_type' => 'financial_report',
+                'entity_id' => $report->id,
+                'requested_by' => $approval->requested_by,
+                'required_role' => 'SUPER_ADMIN',
+                'status' => 'pending',
+                'active_key' => 'financial_report:'.$report->organization_id.':'.$report->id,
+                'requested_at' => now(),
+            ]);
+
+            return;
+        }
+
+        $report->update([
+            'submission_status' => 'approved',
+            'sao_approved_by' => $request->user()->school_id,
+            'sao_approved_at' => now(),
+        ]);
     }
 
     private function approveElection(ApprovalRequest $approval): void
@@ -264,7 +300,7 @@ class ApprovalRequestController extends Controller
         match ($approval->entity_type) {
             'announcement' => Announcement::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
                 'approval_status' => 'rejected',
-                'reviewed_by' => $request->user()->id,
+                'reviewed_by' => $request->user()->school_id,
                 'review_remarks' => $approval->remarks,
                 'is_published' => false,
             ]),
@@ -273,6 +309,9 @@ class ApprovalRequestController extends Controller
                 $request->user(),
                 (string) $approval->remarks
             ),
+            'financial_report' => FinancialReport::where('organization_id', $approval->organization_id)
+                ->where('id', $approval->entity_id)
+                ->update(['submission_status' => 'rejected']),
             default => null,
         };
     }
@@ -287,6 +326,8 @@ class ApprovalRequestController extends Controller
                 'election' => Election::where('organization_id', $approval->organization_id)->find($approval->entity_id),
                 'announcement' => Announcement::where('organization_id', $approval->organization_id)->find($approval->entity_id),
                 'payment' => Order::with(['merchandise:id,name', 'student:school_id,first_name,last_name'])->where('organization_id', $approval->organization_id)->find($approval->entity_id),
+                'financial_report' => FinancialReport::with(['organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name'])
+                    ->where('organization_id', $approval->organization_id)->find($approval->entity_id),
                 default => null,
             };
             $approval->title = $this->entityTitle($approval, $entity);
@@ -302,6 +343,7 @@ class ApprovalRequestController extends Controller
 
         return match ($approval->entity_type) {
             'payment' => 'Merchandise payment #'.$entity->id,
+            'financial_report' => $entity->title,
             default => $entity->title ?? $entity->name ?? Str::headline($approval->entity_type).' Request #'.$approval->entity_id,
         };
     }
@@ -344,8 +386,30 @@ class ApprovalRequestController extends Controller
                 'payment_reference' => $entity->payment_reference,
                 'status' => $entity->status,
             ],
+            'financial_report' => $this->financialReportSummary($entity),
             default => null,
         };
+    }
+
+    private function financialReportSummary(FinancialReport $report): array
+    {
+        $transactions = Transaction::where('organization_id', $report->organization_id)
+            ->whereIn('id', $report->source_transaction_ids ?? [])
+            ->get(['type', 'amount']);
+
+        return [
+            'organization' => $report->organization?->only(['id', 'name', 'acronym']),
+            'report_type' => $report->report_type,
+            'period_start' => $report->period_start,
+            'period_end' => $report->period_end,
+            'summary_text' => $report->summary_text,
+            'submission_status' => $report->submission_status,
+            'signatories' => $report->signatories,
+            'supporting_documents' => $report->supporting_documents ?? [],
+            'total_income' => round((float) $transactions->where('type', 'income')->sum('amount'), 2),
+            'total_expense' => round((float) $transactions->where('type', 'expense')->sum('amount'), 2),
+            'net_balance' => round((float) $transactions->where('type', 'income')->sum('amount') - (float) $transactions->where('type', 'expense')->sum('amount'), 2),
+        ];
     }
 
     private function approveAnnouncement(ApprovalRequest $approval, Request $request): void
@@ -358,7 +422,7 @@ class ApprovalRequestController extends Controller
 
         $announcement->update([
             'approval_status' => 'approved',
-            'reviewed_by' => $request->user()->id,
+            'reviewed_by' => $request->user()->school_id,
             'review_remarks' => $approval->remarks,
             'is_published' => true,
             'published_at' => now(),
@@ -430,6 +494,7 @@ class ApprovalRequestController extends Controller
             'election' => Election::query(),
             'announcement' => Announcement::query(),
             'payment' => Order::query(),
+            'financial_report' => FinancialReport::query(),
             default => null,
         };
 

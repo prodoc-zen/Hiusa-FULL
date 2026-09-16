@@ -41,4 +41,9 @@ class Transaction extends Model
     {
         return $this->belongsTo(User::class, 'payer_id', 'school_id');
     }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
 }

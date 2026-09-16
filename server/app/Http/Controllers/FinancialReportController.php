@@ -3,16 +3,20 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
+use App\Models\FinancialReportDeadline;
 use App\Models\Transaction;
 use App\Services\GroqResponsesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class FinancialReportController extends Controller
 {
@@ -20,21 +24,54 @@ class FinancialReportController extends Controller
 
     public function index(Request $request)
     {
-        $paging = $request->validate([
+        $filters = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
+            'status' => ['nullable', 'in:draft,pending_department_head,pending_sao,approved,rejected'],
+            'search' => ['nullable', 'string', 'max:120'],
         ]);
 
-        return response()->json(
-            FinancialReport::with([
-                'event:id,title',
-                'generator:school_id,first_name,last_name',
-            ])
-                ->where('organization_id', $request->user()->organization_id)
-                ->orderByDesc('generated_at')
-                ->orderByDesc('id')
-                ->paginate($paging['per_page'] ?? 20)
-        );
+        $query = FinancialReport::with([
+            'organization:id,name,acronym',
+            'event:id,title',
+            'generator:school_id,first_name,last_name',
+            'deadline:id,deadline_at',
+            'departmentHeadApprover:school_id,first_name,last_name',
+            'saoApprover:school_id,first_name,last_name',
+        ]);
+        if ($request->user()->role === 'SUPER_ADMIN') {
+            $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
+        } else {
+            $query->where('organization_id', $request->user()->organization_id);
+        }
+        $query
+            ->when($filters['status'] ?? null, fn ($builder, $status) => $builder->where('submission_status', $status))
+            ->when($filters['search'] ?? null, fn ($builder, $search) => $builder->where('title', 'like', '%'.trim($search).'%'));
+
+        return response()->json($query->orderByDesc('generated_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20));
+    }
+
+    public function show(Request $request, FinancialReport $financialReport)
+    {
+        if ($request->user()->role !== 'SUPER_ADMIN' && $financialReport->organization_id !== $request->user()->organization_id) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+
+        $transactionIds = $financialReport->source_transaction_ids ?? [];
+
+        return response()->json([
+            'report' => $financialReport->load([
+                'organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name',
+                'deadline:id,deadline_at', 'departmentHeadApprover:school_id,first_name,last_name',
+                'saoApprover:school_id,first_name,last_name',
+            ]),
+            'transactions' => Transaction::with(['event:id,title', 'budget:id,title'])
+                ->where('organization_id', $financialReport->organization_id)
+                ->whereIn('id', $transactionIds)
+                ->orderBy('transaction_date')
+                ->get(),
+        ]);
     }
 
     public function generate(Request $request)
@@ -44,6 +81,11 @@ class FinancialReportController extends Controller
             'period_start' => ['nullable', 'date', 'required_if:report_type,custom'],
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start', 'required_if:report_type,custom'],
             'event_id' => ['nullable', 'integer', 'required_if:report_type,event'],
+            'signatories' => ['required', 'array:treasurer,president,adviser,sbo_adviser'],
+            'signatories.treasurer' => ['required', 'string', 'max:255'],
+            'signatories.president' => ['required', 'string', 'max:255'],
+            'signatories.adviser' => ['required', 'string', 'max:255'],
+            'signatories.sbo_adviser' => ['required', 'string', 'max:255'],
         ]);
 
         $organizationId = $request->user()->organization_id;
@@ -144,7 +186,9 @@ class FinancialReportController extends Controller
                 'period_start' => $start,
                 'period_end' => $end,
                 'summary_text' => $summary['text'],
+                'signatories' => $data['signatories'],
                 'source_transaction_ids' => $transactions->pluck('id')->all(),
+                'submission_status' => 'draft',
                 'ai_output_id' => $aiOutput->id,
                 'generated_by' => $request->user()->school_id,
                 'generated_at' => now(),
@@ -189,6 +233,88 @@ class FinancialReportController extends Controller
         });
 
         return response()->json($result, 201);
+    }
+
+    public function submit(Request $request, FinancialReport $financialReport)
+    {
+        if ($financialReport->organization_id !== $request->user()->organization_id) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+        if (! in_array($financialReport->submission_status, ['draft', 'rejected'], true)) {
+            return response()->json(['message' => 'Only draft or rejected reports can be submitted.'], 409);
+        }
+
+        $deadline = FinancialReportDeadline::latest('id')->first();
+        if (! $deadline) {
+            return response()->json(['message' => 'SAO has not set a financial report submission deadline yet.'], 422);
+        }
+        if (now()->greaterThan($deadline->deadline_at)) {
+            return response()->json(['message' => 'The financial report submission deadline has passed.'], 422);
+        }
+
+        $data = $request->validate([
+            'supporting_documents' => ['nullable', 'array', 'max:10'],
+            'supporting_documents.*' => ['file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
+        ]);
+        unset($data);
+
+        $documents = collect($financialReport->supporting_documents ?? []);
+        foreach ($request->file('supporting_documents', []) as $file) {
+            $path = $file->store('financial-reports/'.$financialReport->organization_id, 'public');
+            $documents->push([
+                'name' => $file->getClientOriginalName(),
+                'path' => $path,
+                'url' => Storage::disk('public')->url($path),
+                'mime_type' => $file->getClientMimeType(),
+                'size' => $file->getSize(),
+            ]);
+        }
+
+        DB::transaction(function () use ($request, $financialReport, $deadline, $documents) {
+            ApprovalRequest::where('organization_id', $financialReport->organization_id)
+                ->where('entity_type', 'financial_report')
+                ->where('entity_id', $financialReport->id)
+                ->where('status', 'pending')
+                ->update(['status' => 'rejected', 'active_key' => null, 'remarks' => 'Superseded by a new submission.', 'reviewed_at' => now()]);
+
+            $financialReport->update([
+                'supporting_documents' => $documents->values()->all(),
+                'submission_status' => 'pending_department_head',
+                'deadline_id' => $deadline->id,
+                'submitted_at' => now(),
+                'department_head_approved_by' => null,
+                'department_head_approved_at' => null,
+                'sao_approved_by' => null,
+                'sao_approved_at' => null,
+            ]);
+
+            ApprovalRequest::create([
+                'organization_id' => $financialReport->organization_id,
+                'entity_type' => 'financial_report',
+                'entity_id' => $financialReport->id,
+                'requested_by' => $request->user()->school_id,
+                'required_role' => 'DEPARTMENT_HEAD',
+                'status' => 'pending',
+                'active_key' => 'financial_report:'.$financialReport->organization_id.':'.$financialReport->id,
+                'requested_at' => now(),
+            ]);
+
+            AuditLog::create([
+                'organization_id' => $financialReport->organization_id,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'financial_reports',
+                'action' => 'submitted',
+                'description' => 'Financial report submitted to the Department Head for first-stage review.',
+                'record_type' => FinancialReport::class,
+                'record_id' => $financialReport->id,
+                'new_values' => ['deadline_id' => $deadline->id, 'document_count' => $documents->count()],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+        });
+
+        return response()->json($financialReport->fresh()->load(['deadline:id,deadline_at']));
     }
 
     private function period(array $data, ?Event $event): array

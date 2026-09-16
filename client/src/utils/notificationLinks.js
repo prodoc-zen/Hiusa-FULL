@@ -13,5 +13,11 @@ export function getNotificationDestination(notification, role) {
       : '/dashboard/announcements/view-announcements';
   }
 
+  if (referenceType === 'financial_report_deadline') {
+    return role === 'SUPER_ADMIN'
+      ? '/dashboard/super-admin/financial-reports'
+      : '/dashboard/finance/transaction-history';
+  }
+
   return null;
 }

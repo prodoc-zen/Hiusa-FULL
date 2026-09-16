@@ -15,7 +15,7 @@ const REQUEST_TYPES = [
     id: 'budget',
     title: 'Budget proposal',
     description: 'Enter the allocation, warning threshold, and optional event link.',
-    roles: ['ADMIN', 'SBO_OFFICER'],
+    roles: ['ADMIN'],
     path: '/dashboard/approval-requests/new/budget',
     icon: WalletCards,
   },
