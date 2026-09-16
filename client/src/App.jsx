@@ -12,6 +12,7 @@ const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
 const SuperAdminFinancialApprovalsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialApprovalsPage'));
+const SuperAdminFinancialReportsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialReportsPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
@@ -203,9 +204,10 @@ function App() {
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="super-admin/approvals" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminFinancialApprovalsPage /></ProtectedRoute>} />
+          <Route path="super-admin/financial-reports" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminFinancialReportsPage /></ProtectedRoute>} />
           <Route path="approval-requests/new" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SubmitApprovalRequestPage /></ProtectedRoute>} />
           <Route path="approval-requests/new/announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
-          <Route path="approval-requests/new/budget" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><FinancePage initialTab="budgets" startBudgetProposal /></ProtectedRoute>} />
+          <Route path="approval-requests/new/budget" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="budgets" startBudgetProposal /></ProtectedRoute>} />
           <Route path="approval-requests/new/event" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" startEventRequest /></ProtectedRoute>} />
           <Route path="approval-requests/new/election" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionsHub startCreateElection /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />

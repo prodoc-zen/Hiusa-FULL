@@ -34,6 +34,8 @@ import {
   generateBudgetAdvice,
   getFinancialReports,
   generateFinancialReport,
+  getFinancialReportDeadline,
+  submitFinancialReport,
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
 import { fetchAllPages } from '../../../services/pagination';
@@ -220,7 +222,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [reports, setReports] = useState([]);
   const [generatedReport, setGeneratedReport] = useState(null);
   const [reportGenerating, setReportGenerating] = useState(false);
-  const [reportForm, setReportForm] = useState({ report_type: 'monthly', event_id: '', period_start: '', period_end: '' });
+  const [reportForm, setReportForm] = useState({ report_type: 'monthly', event_id: '', period_start: '', period_end: '', treasurer: '', president: '', adviser: '', sbo_adviser: '' });
+  const [reportDeadline, setReportDeadline] = useState(null);
+  const [reportFiles, setReportFiles] = useState({});
+  const [reportSubmitting, setReportSubmitting] = useState(null);
 
   const [form, setForm] = useState({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -243,7 +248,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canViewTransactions = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const canViewForecasts = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
   const canViewBudgets = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
-  const canProposeBudget = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const canProposeBudget = currentUserRole === 'ADMIN';
+  const canGenerateBudgetAdvice = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
 
   const closeFeedback = useCallback(() => {
     setFeedback((current) => ({ ...current, open: false }));
@@ -272,8 +278,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       getInvoices(),
       ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data)) : Promise.resolve([]),
+      getFinancialReportDeadline(),
     ])
-      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports]) => {
+      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports, deadlineRes]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -292,6 +299,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
         setAuditLogs(Array.isArray(auditRes.data?.data) ? auditRes.data.data : []);
         setReports(reports);
+        setReportDeadline(deadlineRes.data);
       })
       .catch(() => setError('Failed to load financial data.'))
       .finally(() => setLoading(false));
@@ -450,6 +458,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       showFeedback('error', 'Select the start and end dates for the custom report.');
       return;
     }
+    if (['treasurer', 'president', 'adviser', 'sbo_adviser'].some((role) => !reportForm[role].trim())) {
+      showFeedback('error', 'Enter all four required signatories before generating the report.');
+      return;
+    }
 
     setReportGenerating(true);
     try {
@@ -458,6 +470,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         event_id: reportForm.report_type === 'event' ? reportForm.event_id : null,
         period_start: reportForm.report_type === 'custom' ? reportForm.period_start : null,
         period_end: reportForm.report_type === 'custom' ? reportForm.period_end : null,
+        signatories: {
+          treasurer: reportForm.treasurer,
+          president: reportForm.president,
+          adviser: reportForm.adviser,
+          sbo_adviser: reportForm.sbo_adviser,
+        },
       };
       const response = await generateFinancialReport(payload);
       setGeneratedReport(response.data);
@@ -467,6 +485,19 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       showFeedback('error', getApiErrorMessage(err, 'Failed to generate the financial report.'));
     } finally {
       setReportGenerating(false);
+    }
+  }
+
+  async function handleSubmitReport(report) {
+    setReportSubmitting(report.id);
+    try {
+      const response = await submitFinancialReport(report.id, reportFiles[report.id] || []);
+      setReports((current) => current.map((item) => item.id === report.id ? response.data : item));
+      showFeedback('success', 'Financial report submitted to the Department Head. SAO review follows Department Head approval.');
+    } catch (err) {
+      showFeedback('error', getApiErrorMessage(err, 'Failed to submit the financial report.'));
+    } finally {
+      setReportSubmitting(null);
     }
   }
 
@@ -890,7 +921,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </p>
                     )}
                     {b.advisory_note && <p className="mt-1 max-w-3xl text-xs leading-5 text-slate-500">{b.advisory_note}</p>}
-                    {budgetAdviceErrors[b.id] && (
+                    {canGenerateBudgetAdvice && budgetAdviceErrors[b.id] && (
                       <div className="mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-semibold text-red-700">
                         <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{budgetAdviceErrors[b.id]}</span>
                         <button type="button" onClick={() => handleGenerateBudgetAdvice(b.id)} className="shrink-0 font-bold underline">Retry</button>
@@ -934,15 +965,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
                     <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</p>
-                    <button
-                      type="button"
-                      onClick={() => handleGenerateBudgetAdvice(b.id)}
-                      disabled={budgetAdviceGenerating === b.id}
-                      className="flex h-9 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
-                    >
-                      <Sparkles size={14} />
-                      {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
-                    </button>
+                    {canGenerateBudgetAdvice && <button
+                        type="button"
+                        onClick={() => handleGenerateBudgetAdvice(b.id)}
+                        disabled={budgetAdviceGenerating === b.id}
+                        className="flex h-9 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+                      >
+                        <Sparkles size={14} />
+                        {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
+                      </button>}
                   </div>
                 </div>
               ))}
@@ -1066,7 +1097,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'reports' && (
         <div className="space-y-5">
-          <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <section className={`rounded-xl border p-4 ${reportDeadline && new Date(reportDeadline.deadline_at) >= new Date() ? 'border-cyan-200 bg-cyan-50' : 'border-amber-200 bg-amber-50'}`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#0B8ED0]">SAO submission deadline</p>
+            <p className="mt-1 font-bold text-[#0F172A]">{reportDeadline ? new Date(reportDeadline.deadline_at).toLocaleString('en-PH', { dateStyle: 'full', timeStyle: 'short' }) : 'Not set yet'}</p>
+            {reportDeadline?.instructions && <p className="mt-1 text-sm text-slate-600">{reportDeadline.instructions}</p>}
+          </section>
+          {currentUserRole === 'ADMIN' && <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">Generate Financial Report</h2>
               <p className="text-sm font-medium text-slate-500">Build and save a ledger-backed report with a financial summary</p>
@@ -1114,6 +1150,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 {reportGenerating ? 'Generating...' : 'Generate'}
               </button>
             </form>
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[['treasurer', 'Treasurer'], ['president', 'President'], ['adviser', 'Adviser'], ['sbo_adviser', 'SBO Adviser']].map(([key, label]) => <label key={key} className="text-xs font-bold text-slate-600">{label}<input required value={reportForm[key]} onChange={(event) => setReportForm({ ...reportForm, [key]: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder={`${label} full name`} /></label>)}
+            </div>
 
             {generatedReport && (
               <div className="mt-5 border-t border-[#DDE7EF] pt-5">
@@ -1139,7 +1178,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </p>
               </div>
             )}
-          </section>
+          </section>}
 
           <section className="grid gap-4 sm:grid-cols-2">
           {[
@@ -1191,6 +1230,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <span className="text-xs text-slate-400">{String(report.generated_at || '').slice(0, 10)}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{report.summary_text}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-400">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id || !reportDeadline} onClick={() => handleSubmitReport(report)} className="h-9 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for approval'}</button></>}</div>
                   </div>
                 ))}
               </div>

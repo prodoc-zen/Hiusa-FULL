@@ -12,8 +12,8 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', payment: 'Merchandise Orders' };
-const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'payment'];
+const APPROVAL_TYPE_LABEL = { event: 'Events', election: 'Elections', announcement: 'Announcements', payment: 'Merchandise Orders', financial_report: 'Financial Reports' };
+const APPROVAL_TYPE_ORDER = ['event', 'election', 'announcement', 'payment', 'financial_report'];
 
 export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
@@ -91,7 +91,7 @@ export default function DepartmentHeadHomePage() {
             </div>
             <div>
               <p className="font-bold text-[#0F172A]">{totalPendingApprovals} item{totalPendingApprovals === 1 ? '' : 's'} awaiting your approval</p>
-              <p className="text-sm text-amber-700">Events, budgets, and elections need your sign-off before they go live.</p>
+              <p className="text-sm text-amber-700">Events, elections, and first-stage financial reports need your sign-off.</p>
             </div>
           </div>
           <span className="shrink-0 text-sm font-bold text-amber-700">Review</span>

@@ -26,6 +26,8 @@ class TransactionController extends Controller
             'per_page' => ['nullable', 'integer', 'in:10'],
             'page' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:150'],
+            'event_search' => ['nullable', 'string', 'max:150'],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
         ]);
 
         $query = Transaction::with([
@@ -33,9 +35,14 @@ class TransactionController extends Controller
             'event:id,title',
             'recorder:school_id,first_name,last_name',
             'payer:school_id,first_name,last_name,department,program,year_level',
-        ])
-            ->where('organization_id', $request->user()->organization_id)
-            ->orderBy('transaction_date', 'desc');
+            'organization:id,name,acronym',
+        ])->orderBy('transaction_date', 'desc');
+
+        if ($request->user()->role === 'SUPER_ADMIN') {
+            $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
+        } else {
+            $query->where('organization_id', $request->user()->organization_id);
+        }
 
         if (! empty($filters['budget_id'])) {
             $query->where('budget_id', $filters['budget_id']);
@@ -43,6 +50,11 @@ class TransactionController extends Controller
 
         if (! empty($filters['event_id'])) {
             $query->where('event_id', $filters['event_id']);
+        }
+
+        if (! empty($filters['event_search'])) {
+            $eventSearch = trim($filters['event_search']);
+            $query->whereHas('event', fn ($event) => $event->where('title', 'like', "%{$eventSearch}%"));
         }
 
         if (! empty($filters['type'])) {
@@ -83,14 +95,25 @@ class TransactionController extends Controller
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'event_id' => ['nullable', 'integer'],
+            'event_search' => ['nullable', 'string', 'max:150'],
             'type' => ['nullable', 'in:income,expense'],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
         ]);
 
-        $query = Transaction::query()
-            ->where('organization_id', $request->user()->organization_id);
+        $query = Transaction::query();
+        if ($request->user()->role === 'SUPER_ADMIN') {
+            $query->when($request->integer('organization_id'), fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
+        } else {
+            $query->where('organization_id', $request->user()->organization_id);
+        }
 
         if ($request->filled('event_id')) {
             $query->where('event_id', $request->event_id);
+        }
+
+        if ($request->filled('event_search')) {
+            $eventSearch = trim($request->string('event_search')->toString());
+            $query->whereHas('event', fn ($event) => $event->where('title', 'like', "%{$eventSearch}%"));
         }
 
         if ($request->filled('type')) {

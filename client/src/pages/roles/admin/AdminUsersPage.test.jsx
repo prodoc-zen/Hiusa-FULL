@@ -82,7 +82,7 @@ describe('UserActionDock', () => {
     expect(screen.queryByRole('menuitem', { name: 'Delete Organization Adviser' })).not.toBeInTheDocument();
   });
 
-  it('allows an SBO Officer to manage a Student account', () => {
+  it('allows an SBO Officer to manage Student biometrics without account controls', () => {
     const student = {
       school_id: 2400019,
       first_name: 'Trisha',
@@ -107,10 +107,10 @@ describe('UserActionDock', () => {
     );
 
     fireEvent.click(screen.getByRole('button', { name: 'Open actions for Trisha Herrera' }));
-    expect(screen.getByRole('menuitem', { name: 'Edit Trisha Herrera' })).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: 'Enroll fingerprint for Trisha Herrera' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Deactivate Trisha Herrera' })).toBeInTheDocument();
-    expect(screen.getByRole('menuitem', { name: 'Delete Trisha Herrera' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit Trisha Herrera' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Deactivate Trisha Herrera' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete Trisha Herrera' })).not.toBeInTheDocument();
   });
 
   it('keeps another SBO Officer read-only to an SBO Officer', () => {

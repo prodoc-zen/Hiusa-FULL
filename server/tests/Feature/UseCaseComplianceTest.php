@@ -516,6 +516,7 @@ class UseCaseComplianceTest extends TestCase
         $response = $this->postJson('/api/financial-reports/generate', [
             'report_type' => 'event',
             'event_id' => $event->id,
+            'signatories' => $this->financialReportSignatories(),
         ])->assertCreated()
             ->assertJsonPath('totals.income', 1000)
             ->assertJsonPath('totals.expense', 350)
@@ -528,6 +529,16 @@ class UseCaseComplianceTest extends TestCase
         $this->assertSame("Report summary\n\n- Income is 1000, expenses are 350, and the balance is 650.", $report->summary_text);
         $this->assertStringNotContainsString('*', $report->summary_text);
         $this->assertDatabaseHas('ai_outputs', ['reference_type' => FinancialReport::class, 'reference_id' => $report->id]);
+    }
+
+    private function financialReportSignatories(): array
+    {
+        return [
+            'treasurer' => 'Taylor Treasurer',
+            'president' => 'Pat President',
+            'adviser' => 'Alex Adviser',
+            'sbo_adviser' => 'Sam SBO Adviser',
+        ];
     }
 
     public function test_approved_event_changes_reopen_department_head_approval(): void

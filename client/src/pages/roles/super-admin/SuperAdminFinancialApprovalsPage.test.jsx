@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SuperAdminFinancialApprovalsPage from './SuperAdminFinancialApprovalsPage';
 
@@ -19,21 +19,15 @@ vi.mock('../../../services/financeService', () => financeMocks);
 describe('SuperAdminFinancialApprovalsPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    approvalMocks.getApprovalRequests.mockResolvedValue({
+    approvalMocks.getApprovalRequests.mockImplementation(({ entity_type: entityType }) => Promise.resolve({
       data: {
-        data: [{
-          id: 10,
-          title: 'Leadership summit budget',
-          requested_at: '2026-09-13T08:00:00Z',
-          requester: { first_name: 'Ada', last_name: 'Santos' },
-          summary: { allocated_amount: 25000 },
-        }],
-        current_page: 1,
-        last_page: 1,
-        per_page: 100,
-        total: 1,
+        data: entityType === 'budget' ? [{
+          id: 10, title: 'Leadership summit budget', requested_at: '2026-09-13T08:00:00Z',
+          requester: { first_name: 'Ada', last_name: 'Santos' }, summary: { allocated_amount: 25000 },
+        }] : [],
+        current_page: 1, last_page: 1, per_page: 100, total: entityType === 'budget' ? 1 : 0,
       },
-    });
+    }));
     financeMocks.getCollections.mockResolvedValue({ data: [{ id: 20, source: 'Membership fees', reference: 'COL-20', amount_collected: 5000, status: 'pending', collected_at: '2026-09-13T09:00:00Z' }] });
     financeMocks.getCashAdvances.mockResolvedValue({ data: [{ id: 30, purpose: 'Venue deposit', reference: 'ADV-30', amount: 8000, status: 'pending', created_at: '2026-09-13T10:00:00Z' }] });
     approvalMocks.reviewApprovalRequest.mockResolvedValue({});
@@ -50,10 +44,11 @@ describe('SuperAdminFinancialApprovalsPage', () => {
     expect(screen.getByRole('button', { name: 'Verify' })).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
-    const submit = screen.getByRole('button', { name: 'Reject budget' });
+    const dialog = screen.getByRole('dialog');
+    const submit = within(dialog).getByRole('button', { name: 'Reject' });
     expect(submit).toBeDisabled();
 
-    fireEvent.change(screen.getByLabelText('Rejection reason'), { target: { value: 'Attach the supplier quotation.' } });
+    fireEvent.change(within(dialog).getByLabelText('Rejection reason'), { target: { value: 'Attach the supplier quotation.' } });
     fireEvent.click(submit);
 
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(10, {

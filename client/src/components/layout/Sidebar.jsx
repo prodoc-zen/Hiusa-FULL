@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, ShieldCheck, Users, Vote, X } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, FileText, Home, LogOut, Megaphone, Package, ShieldCheck, Users, Vote, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
@@ -33,7 +33,8 @@ const NAV_STRUCTURE = [
     icon: Users,
     roles: ['ADMIN', 'SBO_OFFICER'],
     children: [
-      { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['ADMIN'] },
+      { id: 'participant-biometrics', label: 'Participant Biometrics', path: '/dashboard/admin/users', roles: ['SBO_OFFICER'] },
       { id: 'manage-positions', label: 'Manage Positions', path: '/dashboard/admin/positions', roles: ['ADMIN'] },
       { id: 'manage-programs-sections', label: 'Programs & Sections', path: '/dashboard/admin/programs-sections', roles: ['ADMIN'] },
     ],
@@ -149,6 +150,7 @@ const SUPER_ADMIN_NAV = [
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
       { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'Official Notices', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-financial-reports', label: 'Financial Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-approvals', label: 'Financial Approvals', path: '/dashboard/super-admin/approvals', roles: ['SUPER_ADMIN'] },
       { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },
     ],

@@ -12,7 +12,7 @@ class SboOfficerStudentManagementTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sbo_officer_can_manage_students_in_their_organization(): void
+    public function test_sbo_officer_can_view_students_and_manage_their_biometrics_without_managing_accounts(): void
     {
         $organization = Organization::factory()->create();
         $officer = User::factory()->create([
@@ -22,30 +22,26 @@ class SboOfficerStudentManagementTest extends TestCase
         ]);
         Sanctum::actingAs($officer);
 
-        $created = $this->postJson('/api/users', $this->payload(77000001, 'STUDENT'))
-            ->assertCreated()
-            ->assertJsonPath('role', 'STUDENT')
-            ->assertJsonPath('organization_id', $organization->id);
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        User::factory()->admin()->create(['organization_id' => $organization->id]);
 
-        $schoolId = $created->json('school_id');
-        $this->putJson("/api/users/{$schoolId}", ['first_name' => 'Updated'])
+        $this->getJson('/api/users')
             ->assertOk()
-            ->assertJsonPath('first_name', 'Updated');
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.school_id', $student->school_id);
 
-        $this->postJson("/api/users/{$schoolId}/disable")->assertOk();
-        $this->postJson("/api/users/{$schoolId}/reactivate")
-            ->assertOk()
-            ->assertJsonPath('account_status', 'active');
+        $this->postJson('/api/users', $this->payload(77000001, 'STUDENT'))->assertForbidden();
+        $this->putJson("/api/users/{$student->school_id}", ['first_name' => 'Updated'])->assertForbidden();
+        $this->postJson("/api/users/{$student->school_id}/disable")->assertForbidden();
+        $this->postJson("/api/users/{$student->school_id}/reactivate")->assertForbidden();
+        $this->deleteJson("/api/users/{$student->school_id}")->assertForbidden();
 
-        $this->postJson("/api/users/{$schoolId}/fingerprint", [])
+        $this->postJson("/api/users/{$student->school_id}/fingerprint", [])
             ->assertUnprocessable()
             ->assertJsonValidationErrors('samples');
-
-        $this->deleteJson("/api/users/{$schoolId}")->assertOk();
-        $this->assertDatabaseMissing('users', ['school_id' => $schoolId]);
     }
 
-    public function test_sbo_officer_cannot_create_promote_or_modify_non_student_accounts(): void
+    public function test_sbo_officer_directory_never_exposes_non_student_accounts(): void
     {
         $organization = Organization::factory()->create();
         $otherOrganization = Organization::factory()->create();
@@ -56,28 +52,17 @@ class SboOfficerStudentManagementTest extends TestCase
         $foreignStudent = User::factory()->create(['organization_id' => $otherOrganization->id, 'role' => 'STUDENT']);
         Sanctum::actingAs($actor);
 
-        $this->postJson('/api/users', $this->payload(77000002, 'SBO_OFFICER'))
-            ->assertForbidden()
-            ->assertJsonPath('message', 'SBO Officers can create Student accounts only.');
-
-        $this->putJson("/api/users/{$student->school_id}", ['role' => 'SBO_OFFICER'])
-            ->assertForbidden()
-            ->assertJsonPath('message', 'SBO Officers cannot assign or promote users to another role.');
+        $this->getJson('/api/users?role=ADMIN')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/users?role=SBO_OFFICER')->assertOk()->assertJsonCount(0, 'data');
+        $this->getJson('/api/users?role=STUDENT')->assertOk()->assertJsonCount(1, 'data');
 
         foreach ([$otherOfficer, $admin] as $protectedUser) {
-            $this->putJson("/api/users/{$protectedUser->school_id}", ['first_name' => 'Changed'])
-                ->assertForbidden()
-                ->assertJsonPath('message', 'SBO Officers can manage Student accounts only.');
-            $this->postJson("/api/users/{$protectedUser->school_id}/disable")->assertForbidden();
-            $this->postJson("/api/users/{$protectedUser->school_id}/reactivate")->assertForbidden();
-            $this->deleteJson("/api/users/{$protectedUser->school_id}")->assertForbidden();
             $this->postJson("/api/users/{$protectedUser->school_id}/fingerprint", [])
                 ->assertForbidden()
                 ->assertJsonPath('message', 'SBO Officers can manage Student fingerprints only.');
         }
 
-        $this->putJson("/api/users/{$foreignStudent->school_id}", ['first_name' => 'Leaked'])
-            ->assertNotFound();
+        $this->postJson("/api/users/{$foreignStudent->school_id}/fingerprint", [])->assertNotFound();
         $this->assertDatabaseHas('users', ['school_id' => $student->school_id, 'role' => 'STUDENT']);
         $this->assertDatabaseHas('users', ['school_id' => $otherOfficer->school_id, 'first_name' => $otherOfficer->first_name]);
     }

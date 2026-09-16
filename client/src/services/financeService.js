@@ -68,3 +68,18 @@ export const getFinancialReports = (params) =>
 
 export const generateFinancialReport = (data) =>
   api.post('/financial-reports/generate', data);
+
+export const getFinancialReport = (id) =>
+  api.get(`/financial-reports/${id}`);
+
+export const submitFinancialReport = (id, files = []) => {
+  const formData = new FormData();
+  files.forEach((file) => formData.append('supporting_documents[]', file));
+  return api.post(`/financial-reports/${id}/submit`, formData);
+};
+
+export const getFinancialReportDeadline = () =>
+  api.get('/financial-reports/deadline');
+
+export const setFinancialReportDeadline = (data) =>
+  api.post('/financial-reports/deadline', data);

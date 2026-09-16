@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { CalendarDays, Check, Clock, Coins, Download, Eye, Megaphone, Package, Search, Vote, X } from 'lucide-react';
+import { CalendarDays, Check, Clock, Coins, Download, Eye, FileText, Megaphone, Package, Search, Vote, X } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const ENTITY_ICON = {
   event: CalendarDays,
@@ -10,6 +11,7 @@ const ENTITY_ICON = {
   election: Vote,
   announcement: Megaphone,
   payment: Package,
+  financial_report: FileText,
 };
 
 const ENTITY_LABEL = {
@@ -18,6 +20,7 @@ const ENTITY_LABEL = {
   election: 'Election',
   announcement: 'Announcement',
   payment: 'Payment',
+  financial_report: 'Financial Report',
 };
 
 const STATUS_BADGE = {
@@ -67,6 +70,10 @@ function summaryLine(entityType, summary) {
   if (entityType === 'payment') {
     const total = Number(summary.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
     return `${summary.item || 'Merchandise'} | Buyer: ${summary.buyer || 'Unknown'} | PHP ${total}${summary.payment_reference ? ` | Ref: ${summary.payment_reference}` : ''}`;
+  }
+
+  if (entityType === 'financial_report') {
+    return `${summary.organization?.acronym || 'Organization'} | ${formatDate(summary.period_start)} - ${formatDate(summary.period_end)} | Inflows PHP ${Number(summary.total_income || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} | Outflows PHP ${Number(summary.total_expense || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
   }
 
   return null;
@@ -379,6 +386,7 @@ export default function DepartmentHeadApprovalsPage() {
               ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value || '-'}</p></div>)}
             </div>
             <div className="mt-4 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Record summary</p><p className="mt-2 text-sm text-slate-600">{summaryLine(details.entity_type, details.summary) || 'No additional summary available.'}</p></div>
+            {details.entity_type === 'financial_report' && <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0B8ED0]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-400">No supporting documents.</p>}</div></div>}
             <div className="mt-3 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Review remarks</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{details.remarks || 'No remarks recorded.'}</p></div>
           </div>
         </div>

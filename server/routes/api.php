@@ -9,6 +9,7 @@ use App\Http\Controllers\EventController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\FinancialReportDeadlineController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
@@ -46,11 +47,11 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/users', [UserController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
-    Route::put('/users/{id}', [UserController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
-    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/users', [UserController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::put('/users/{id}', [UserController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/users/{id}/reactivate', [UserController::class, 'reactivate'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/sbo-positions', [SboPositionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/sbo-positions', [SboPositionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/sbo-positions/{position}', [SboPositionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
@@ -116,15 +117,15 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
 
     // Finance Routes - Budgets
     Route::get('/budgets', [BudgetController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::post('/budgets', [BudgetController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::post('/budgets/{id}/advice', [BudgetController::class, 'advice'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::put('/budgets/{id}', [BudgetController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::post('/budgets', [BudgetController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/budgets/{id}/advice', [BudgetController::class, 'advice'])->middleware(['throttle:ai-generation', 'role:ADMIN,SBO_OFFICER']);
+    Route::put('/budgets/{id}', [BudgetController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/budgets/{id}', [BudgetController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Finance Routes - Transactions
-    Route::get('/transactions/summary', [TransactionController::class, 'summary'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/transactions/summary', [TransactionController::class, 'summary'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/transactions/personal-receipts', [TransactionController::class, 'personalReceipts'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::get('/transactions', [TransactionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/transactions', [TransactionController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/transactions', [TransactionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/transactions/{id}', [TransactionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/transactions/{id}', [TransactionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
@@ -155,7 +156,11 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
 
     // Finance Routes - Reports
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/financial-reports/deadline', [FinancialReportDeadlineController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::post('/financial-reports/deadline', [FinancialReportDeadlineController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::get('/financial-reports/{financialReport}', [FinancialReportController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::post('/financial-reports/{financialReport}/submit', [FinancialReportController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Merchandise Routes
     Route::get('/merchandise', [MerchandiseController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
