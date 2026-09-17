@@ -115,7 +115,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $created['id'], 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_deactivated']);
     }
 
-    public function test_sao_creates_admin_without_setting_password_and_can_initiate_secure_reset(): void
+    public function test_sao_sets_initial_admin_password_and_can_later_initiate_secure_reset(): void
     {
         Mail::fake();
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
@@ -130,6 +130,8 @@ class SaoDirectorAdministrationTest extends TestCase
             'last_name' => 'Adviser',
             'email' => 'adviser@example.test',
             'position_title' => 'Adviser',
+            'password' => 'Initial-Admin-Password-123!',
+            'password_confirmation' => 'Initial-Admin-Password-123!',
         ])->assertCreated()
             ->assertJsonPath('role', 'ADMIN')
             ->assertJsonPath('position_title', 'Adviser')
@@ -137,8 +139,9 @@ class SaoDirectorAdministrationTest extends TestCase
 
         $admin = User::findOrFail($response->json('school_id'));
         $initialHash = $admin->password_hash;
-        Mail::assertQueued(PasswordResetMail::class, fn (PasswordResetMail $mail) => $mail->hasTo($admin->email));
-        $this->assertDatabaseHas('password_reset_tokens', ['organization_id' => $organization->id, 'email' => $admin->email]);
+        $this->assertTrue(Hash::check('Initial-Admin-Password-123!', $initialHash));
+        Mail::assertNothingOutgoing();
+        $this->assertDatabaseMissing('password_reset_tokens', ['organization_id' => $organization->id, 'email' => $admin->email]);
 
         $this->putJson('/api/system/admins/'.$admin->school_id, [
             'password' => 'SAO-must-not-set-this',
@@ -150,9 +153,41 @@ class SaoDirectorAdministrationTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Password reset instructions were sent to the administrator email address.');
 
-        Mail::assertQueuedCount(2);
+        Mail::assertQueued(PasswordResetMail::class, fn (PasswordResetMail $mail) => $mail->hasTo($admin->email));
+        Mail::assertQueuedCount(1);
+        $this->assertDatabaseHas('password_reset_tokens', ['organization_id' => $organization->id, 'email' => $admin->email]);
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'administrator_password_reset_initiated']);
         $this->assertFalse(Hash::check('SAO-must-not-set-this', $admin->fresh()->password_hash));
+    }
+
+    public function test_sao_admin_creation_requires_a_confirmed_password(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $organization = Organization::factory()->create();
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        Sanctum::actingAs($director);
+
+        $payload = [
+            'organization_id' => $organization->id,
+            'school_id' => 78001123,
+            'first_name' => 'New',
+            'last_name' => 'Administrator',
+            'email' => 'new-administrator@example.test',
+            'position_title' => 'President',
+        ];
+
+        $this->postJson('/api/system/admins', $payload)
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+
+        $this->postJson('/api/system/admins', [
+            ...$payload,
+            'password' => 'Initial-Admin-Password-123!',
+            'password_confirmation' => 'different-password',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['password']);
+
+        $this->assertDatabaseMissing('users', ['school_id' => 78001123]);
     }
 
     public function test_sao_admin_management_excludes_the_system_administration_organization(): void

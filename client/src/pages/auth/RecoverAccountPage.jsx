@@ -37,12 +37,13 @@ export default function RecoverAccountPage() {
     setLoading(true);
 
     try {
+      const normalizedEmail = email.trim().toLowerCase();
       await requestPasswordReset({
         organization_id: selectedOrganization?.id,
-        email: email.trim(),
+        email: normalizedEmail,
       });
 
-      setSubmittedEmail(email.trim());
+      setSubmittedEmail(normalizedEmail);
       setNoticeOpen(true);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Unable to send reset instructions.'));

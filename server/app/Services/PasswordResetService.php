@@ -26,7 +26,7 @@ class PasswordResetService
             ]
         );
 
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
+        $frontendUrl = rtrim((string) config('app.frontend_url'), '/');
         $resetUrl = $frontendUrl.'/reset-password?'.http_build_query([
             'organization_id' => $user->organization_id,
             'email' => $user->email,

@@ -145,11 +145,8 @@ class SystemAdministrationController extends Controller
 
     public function storeAdmin(Request $request)
     {
-        if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
-            return response()->json(['message' => 'SAO cannot set administrator passwords. A secure setup link is sent by email.'], 422);
-        }
         $this->normalizeAdminInput($request);
-        $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100']]);
+        $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
         $organization = Organization::whereKey($data['organization_id'])->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->first();
         if (! $organization) {
             return response()->json(['message' => 'Choose an active student organization.'], 422);
@@ -164,20 +161,17 @@ class SystemAdministrationController extends Controller
                 'email' => $data['email'],
                 'contact_number' => $data['contact_number'] ?? null,
                 'position_title' => $data['position_title'] ?? null,
-                'password_hash' => Str::password(32),
+                'password_hash' => $data['password'],
                 'role' => 'ADMIN',
                 'account_status' => 'active',
                 'is_member' => true,
                 'department' => $organization->college,
             ]);
-            Notification::create(['organization_id' => $organization->id, 'user_id' => $admin->school_id, 'notification_type' => 'general', 'title' => 'Administrator account created', 'message' => 'Your HIUSA administrator account has been created by the Student Affairs Office. Use the secure email link to set your password.', 'is_read' => false, 'sent_at' => now()]);
+            Notification::create(['organization_id' => $organization->id, 'user_id' => $admin->school_id, 'notification_type' => 'general', 'title' => 'Administrator account created', 'message' => 'Your HIUSA administrator account has been created by the Student Affairs Office. Sign in using the credentials provided by SAO and change your password from your profile if needed.', 'is_read' => false, 'sent_at' => now()]);
             $this->audit($request, 'administrator_created', $admin, ['administrator_id' => $admin->school_id, 'organization_id' => $organization->id], 'SAO created an organization Admin account.');
 
             return $admin;
         });
-
-        $this->passwordResetService->issue($admin);
-        $this->audit($request, 'administrator_password_reset_initiated', $admin, ['email' => $admin->email], 'SAO initiated a secure password setup for an organization Admin.');
 
         return response()->json($admin->load('organization:id,name,acronym'), 201);
     }

@@ -31,14 +31,31 @@ describe('SystemAdminsPage', () => {
     serviceMocks.initiateSystemAdminPasswordReset.mockResolvedValue({ message: 'Password reset instructions were sent.' });
   });
 
-  it('does not expose password fields when SAO creates an Admin', async () => {
+  it('requires and submits the initial password when SAO creates an Admin', async () => {
     render(<SystemAdminsPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'New Admin User' }));
 
-    expect(document.querySelector('input[type="password"]')).not.toBeInTheDocument();
-    expect(screen.getByText(/SAO cannot view or set it/i)).toBeInTheDocument();
+    expect(document.querySelectorAll('input[type="password"]')).toHaveLength(2);
+    expect(screen.getByText(/SAO sets the initial password/i)).toBeInTheDocument();
     expect(document.querySelector('datalist option[value="Adviser"]')).toBeInTheDocument();
     expect(document.querySelector('datalist option[value="Organization Adviser"]')).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText(/School ID/i), { target: { value: '20260001' } });
+    fireEvent.change(screen.getByLabelText(/First name/i), { target: { value: 'Maria' } });
+    fireEvent.change(screen.getByLabelText(/Last name/i), { target: { value: 'Santos' } });
+    fireEvent.change(screen.getByLabelText(/Email address/i), { target: { value: 'MARIA@example.test' } });
+    fireEvent.change(screen.getByLabelText(/Assigned organization/i), { target: { value: '8' } });
+    fireEvent.change(screen.getByLabelText(/^Password/i), { target: { value: 'Initial-Password-123!' } });
+    fireEvent.change(screen.getByLabelText(/Confirm password/i), { target: { value: 'Initial-Password-123!' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Create Admin User' }));
+
+    await waitFor(() => expect(serviceMocks.createSystemAdmin).toHaveBeenCalledWith(expect.objectContaining({
+      school_id: 20260001,
+      organization_id: 8,
+      email: 'maria@example.test',
+      password: 'Initial-Password-123!',
+      password_confirmation: 'Initial-Password-123!',
+    })));
   });
 
   it('initiates a secure password reset after confirmation', async () => {
