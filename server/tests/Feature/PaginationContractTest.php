@@ -16,6 +16,7 @@ use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -546,7 +547,19 @@ class PaginationContractTest extends TestCase
         Sanctum::actingAs($admin);
 
         // 24 students + the acting admin = 25 organization-scoped users.
+        DB::flushQueryLog();
+        DB::enableQueryLog();
         $page1 = $this->getJson('/api/users');
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $roleSummarySql = collect($queries)
+            ->pluck('query')
+            ->first(fn (string $sql) => str_contains(strtolower($sql), 'count(*) as aggregate'));
+
+        $this->assertNotNull($roleSummarySql);
+        $this->assertDoesNotMatchRegularExpression('/["`]?users["`]?\.\*/i', $roleSummarySql);
+        $this->assertStringNotContainsString('fingerprint_enrolled', strtolower($roleSummarySql));
         $this->assertPaginationEnvelope($page1, 20, 25);
         $page1->assertJsonCount(20, 'data');
         $this->assertSame(24, (int) $page1->json('summary.by_role.STUDENT'));

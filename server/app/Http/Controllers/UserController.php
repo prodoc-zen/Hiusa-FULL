@@ -76,8 +76,13 @@ class UserController extends Controller
 
         // Counted on the filtered-but-unordered clone so an admin dashboard can
         // show organization-wide role totals without paging through every user.
+        // select() deliberately replaces users.* and the fingerprint EXISTS
+        // projection; MySQL's ONLY_FULL_GROUP_BY rejects either in this grouped
+        // aggregate even though SQLite permits the ambiguous query.
         $roleCounts = (clone $query)
-            ->selectRaw('role, count(*) as aggregate')
+            ->reorder()
+            ->select('role')
+            ->selectRaw('count(*) as aggregate')
             ->groupBy('role')
             ->pluck('aggregate', 'role');
 
