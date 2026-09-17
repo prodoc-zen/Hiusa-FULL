@@ -163,6 +163,7 @@ class AuthRoutesTest extends TestCase
     public function test_user_can_recover_account_and_set_new_password(): void
     {
         Mail::fake();
+        config(['app.frontend_url' => 'https://hiusa.example.test']);
 
         $user = User::factory()->create([
             'email' => 'recover@example.com',
@@ -187,7 +188,7 @@ class AuthRoutesTest extends TestCase
             $resetUrl = $mail->resetUrl;
 
             return $mail->hasTo('recover@example.com')
-                && str_contains($mail->resetUrl, '/reset-password?')
+                && str_starts_with($mail->resetUrl, 'https://hiusa.example.test/reset-password?')
                 && $mail->expiresInMinutes === 60;
         });
 
@@ -226,6 +227,31 @@ class AuthRoutesTest extends TestCase
             'email' => 'recover@example.com',
             'token' => $token,
         ])->assertUnprocessable();
+    }
+
+    public function test_every_supported_role_can_request_an_organization_scoped_password_reset(): void
+    {
+        Mail::fake();
+
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] as $index => $role) {
+            $user = User::factory()->create([
+                'role' => $role,
+                'email' => 'recovery-role-'.$index.'@example.test',
+                'account_status' => 'active',
+            ]);
+
+            $this->postJson('/api/password/forgot', [
+                'organization_id' => $user->organization_id,
+                'email' => $user->email,
+            ])->assertOk();
+
+            $this->assertDatabaseHas('password_reset_tokens', [
+                'organization_id' => $user->organization_id,
+                'email' => $user->email,
+            ]);
+        }
+
+        Mail::assertQueued(PasswordResetMail::class, 5);
     }
 
     public function test_expired_password_reset_token_is_rejected(): void

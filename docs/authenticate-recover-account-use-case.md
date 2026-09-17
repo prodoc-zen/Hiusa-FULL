@@ -27,4 +27,4 @@
 - **Establish User Session:** successful login issues a Laravel Sanctum bearer token.
 - **Verify User Role:** optional selected role is compared with the stored account role before login succeeds.
 - **Redirect to Role-Based Dashboard:** `App.jsx` routes SAO to its dedicated university-oversight dashboard and routes every other user to the matching role dashboard.
-- **Recover Account:** password reset endpoints request a reset, send the reset link, validate the reset token, confirm the new password, update the stored password, and revoke existing tokens.
+- **Recover Account:** password reset endpoints request a reset, send the reset link, validate the reset token, confirm the new password, update the stored password, and revoke existing tokens. Reset links use the configuration-cached `app.frontend_url`, so queued production mail points to the deployed HTTPS frontend. Production must use a real mail transport; `MAIL_MAILER=log` records mail but does not deliver it.

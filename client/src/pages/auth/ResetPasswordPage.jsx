@@ -64,6 +64,12 @@ export default function ResetPasswordPage() {
     event.preventDefault();
     setError('');
     setSuccess('');
+
+    if (password !== passwordConfirmation) {
+      setError('Password confirmation does not match.');
+      return;
+    }
+
     setSaving(true);
 
     try {
@@ -74,6 +80,7 @@ export default function ResetPasswordPage() {
       });
 
       setSuccess(response.data?.message || 'Password updated successfully.');
+      setTokenValid(false);
       window.setTimeout(() => navigate('/login', { replace: true }), 1200);
     } catch (err) {
       setError(getApiErrorMessage(err, 'Unable to update password.'));

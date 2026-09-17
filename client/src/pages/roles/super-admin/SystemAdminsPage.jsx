@@ -2,6 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  Eye,
+  EyeOff,
   KeyRound,
   PencilLine,
   Search,
@@ -38,6 +40,8 @@ const emptyForm = () => ({
   organization_id: "",
   position_title: "",
   account_status: "active",
+  password: "",
+  password_confirmation: "",
 });
 
 function statusStyle(status) {
@@ -58,6 +62,7 @@ export default function SystemAdminsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resetTarget, setResetTarget] = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -126,6 +131,7 @@ export default function SystemAdminsPage() {
   function openCreate() {
     setError("");
     setSuccess("");
+    setShowPassword(false);
     setForm(emptyForm());
   }
 
@@ -150,6 +156,11 @@ export default function SystemAdminsPage() {
     event.preventDefault();
     if (!form) return;
 
+    if (!isEditing && form.password !== form.password_confirmation) {
+      setError("Password confirmation does not match.");
+      return;
+    }
+
     const payload = {
       first_name: form.first_name.trim(),
       last_name: form.last_name.trim(),
@@ -163,6 +174,8 @@ export default function SystemAdminsPage() {
       payload.account_status = form.account_status;
     } else {
       payload.school_id = Number(form.school_id);
+      payload.password = form.password;
+      payload.password_confirmation = form.password_confirmation;
     }
 
     setBusy(true);
@@ -173,9 +186,7 @@ export default function SystemAdminsPage() {
         setSuccess("Administrator account updated successfully.");
       } else {
         await createSystemAdmin(payload);
-        setSuccess(
-          "New Admin user created. A secure password setup link was sent to their email address.",
-        );
+        setSuccess("New Admin user created with the password set by SAO.");
       }
       setForm(null);
       await load();
@@ -467,9 +478,47 @@ export default function SystemAdminsPage() {
                 </select>
               </label>
               {!isEditing && (
-                <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 text-xs font-medium leading-5 text-slate-600 sm:col-span-2">
-                  HIUSA generates an unusable temporary secret and emails this Admin a secure link to choose their own password. SAO cannot view or set it.
-                </div>
+                <>
+                  <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
+                    Password *
+                    <span className="relative block">
+                      <input
+                        required
+                        type={showPassword ? "text" : "password"}
+                        minLength={8}
+                        autoComplete="new-password"
+                        value={form.password}
+                        onChange={(event) => updateField("password", event.target.value)}
+                        placeholder="At least 8 characters"
+                        className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 pr-11 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                      />
+                      <button
+                        type="button"
+                        aria-label={showPassword ? "Hide administrator password" : "Show administrator password"}
+                        onClick={() => setShowPassword((visible) => !visible)}
+                        className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 transition hover:text-[#0B8ED0]"
+                      >
+                        {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                      </button>
+                    </span>
+                  </label>
+                  <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
+                    Confirm password *
+                    <input
+                      required
+                      type={showPassword ? "text" : "password"}
+                      minLength={8}
+                      autoComplete="new-password"
+                      value={form.password_confirmation}
+                      onChange={(event) => updateField("password_confirmation", event.target.value)}
+                      placeholder="Enter the password again"
+                      className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                    />
+                  </label>
+                  <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 text-xs font-medium leading-5 text-slate-600 sm:col-span-2">
+                    SAO sets the initial password. It is securely hashed and is never shown again, so provide it to the Admin through an approved private channel.
+                  </div>
+                </>
               )}
               {isEditing && (
                 <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
