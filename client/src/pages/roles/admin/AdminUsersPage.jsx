@@ -5,6 +5,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
+import TableFilterBar from '../../../components/TableFilterBar';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
@@ -74,10 +75,10 @@ function firstError(error) {
 
 const ACTION_ICON_COLORS = {
   edit: 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
-  view: 'border-[#B9D9E9] bg-[#EEF6FB] text-[#0878B7] hover:bg-[#DDF2FB]',
-  fingerprint: 'border-violet-200 bg-violet-50 text-violet-700 hover:bg-violet-100',
+  view: 'border-[#DDE7EF] bg-[#EEF6FB] text-[#0F2F62] hover:bg-[#E6F6FD]',
+  fingerprint: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62] hover:bg-[#E6F6FD]',
   enrolledFingerprint: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
-  verify: 'border-cyan-200 bg-cyan-50 text-cyan-700 hover:bg-cyan-100',
+  verify: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62] hover:bg-[#F8FBFD]',
   deactivate: 'border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100',
   reactivate: 'border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-100',
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
@@ -180,10 +181,10 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       aria-label={`Actions for ${name}`}
       aria-hidden={!expanded}
       style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
-      className={`fixed z-[100] max-h-[calc(100vh-24px)] w-56 overflow-y-auto rounded-2xl border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
+      className={`fixed z-[100] max-h-[calc(100vh-24px)] w-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
     >
       <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0B8ED0]">User actions</p>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">User actions</p>
         <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{name}</p>
       </div>
       <div className="space-y-0.5">
@@ -198,7 +199,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
               aria-label={action.label}
               tabIndex={expanded ? 0 : -1}
               onClick={() => run(action)}
-              className={`group flex h-10 w-full items-center gap-3 rounded-xl px-2.5 text-left text-[13px] font-semibold transition-colors duration-150 ${destructive ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-[#EEF6FB] hover:text-[#0878B7]'}`}
+              className={`group flex h-10 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold transition-colors duration-150 ${destructive ? 'text-red-600 hover:bg-red-50' : 'text-slate-700 hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
             >
               <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border transition-colors duration-150 ${ACTION_ICON_COLORS[action.color]}`}><Icon size={14} strokeWidth={2.1} /></span>
               <span className="min-w-0 flex-1 truncate">{action.menuLabel}</span>
@@ -221,7 +222,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
         aria-haspopup="menu"
         aria-controls={`user-actions-${user.school_id}`}
         onClick={toggleMenu}
-        className={`grid h-9 w-9 place-items-center rounded-xl border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-[#8CCCE8] bg-[#E6F6FD] text-[#0878B7] shadow-[#16C7F3]/15' : 'border-[#DDE7EF] bg-white text-slate-500 hover:border-[#B9D9E9] hover:bg-[#F3FAFD] hover:text-[#0B8ED0]'}`}
+        className={`grid h-9 w-9 place-items-center rounded-lg border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-[#16C7F3] bg-[#E6F6FD] text-[#0F2F62] shadow-[#16C7F3]/15' : 'border-[#DDE7EF] bg-white text-slate-500 hover:border-[#DDE7EF] hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
       >
         <MoreHorizontal size={18} className={`transition-transform duration-200 ${expanded ? 'rotate-90' : 'rotate-0'}`} />
       </button>
@@ -291,26 +292,26 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
       footer={<>
         <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
         {user.fingerprint_enrolled && <button type="button" onClick={() => setConfirmRemove(true)} disabled={busy} className="h-10 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700 disabled:opacity-50">Remove</button>}
-        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start Re-enrollment' : 'Start 4-Scan Enrollment'}</button>
+        <button type="button" onClick={handleEnroll} disabled={busy || !reader.connected || !consentConfirmed} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Capturing...' : user.fingerprint_enrolled ? 'Start Re-enrollment' : 'Start 4-Scan Enrollment'}</button>
       </>}
       maxWidth="max-w-lg"
     >
       <div className="space-y-4">
         <div className="flex items-center gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0B8ED0] text-xs font-black text-white">{user.first_name?.[0]}{user.last_name?.[0]}</span>
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">{user.first_name?.[0]}{user.last_name?.[0]}</span>
           <div className="min-w-0"><p className="truncate text-sm font-black text-[#0F172A]">{user.first_name} {user.last_name}</p><p className="text-xs font-semibold text-slate-500">School ID {user.school_id} · {ROLE_LABELS[user.role] || user.role}</p></div>
         </div>
         <ScannerStatus reader={reader} />
         <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-          <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#0F172A]">Capture progress</p><span className="text-xs font-bold text-[#0B8ED0]">{captured} / 4</span></div>
-          <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-[#0B8ED0]' : 'bg-[#DDE7EF]'}`} />)}</div>
+          <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#0F172A]">Capture progress</p><span className="text-xs font-bold text-[#0878B7]">{captured} / 4</span></div>
+          <div className="mt-3 grid grid-cols-4 gap-2">{[1, 2, 3, 4].map((step) => <span key={step} className={`h-2 rounded-full ${captured >= step ? 'bg-[#0878B7]' : 'bg-[#DDE7EF]'}`} />)}</div>
           <p className="mt-3 text-xs leading-5 text-slate-500">Use the same finger four times, lifting it fully after each accepted capture. Only the encrypted SourceAFIS template is stored.</p>
         </div>
         <label className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-3 text-xs font-medium leading-5 text-slate-600">
-          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#B9CBD8]" />
+          <input type="checkbox" data-autofocus checked={consentConfirmed} onChange={(event) => setConsentConfirmed(event.target.checked)} disabled={busy} className="mt-0.5 h-4 w-4 shrink-0 rounded border-[#DDE7EF]" />
           <span>I confirm the user consented to biometric enrollment and understands they may request removal of the stored template.</span>
         </label>
-        {busy && <p className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-800">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
+        {busy && <p className="rounded-lg border border-[#DDE7EF] bg-[#E6F6FD] px-3 py-2 text-xs font-semibold text-[#0F2F62]">{captured ? 'Sample accepted. Lift your finger, then place the same finger again.' : 'Place the selected finger flat on the reader.'}</p>}
         {error && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
       </div>
     </Modal>
@@ -358,22 +359,22 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
       maxWidth="max-w-xl"
       footer={<>
         <button type="button" onClick={onClose} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Close</button>
-        <button type="button" onClick={handleVerify} disabled={busy || !reader.connected} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0878B7] disabled:opacity-50"><Fingerprint size={15} /> {busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</button>
+        <button type="button" onClick={handleVerify} disabled={busy || !reader.connected} className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0F2F62] disabled:opacity-50"><Fingerprint size={15} /> {busy ? 'Scanning once...' : result ? 'Scan again' : 'Scan once to verify'}</button>
       </>}
     >
       <div className="space-y-4">
         <ScannerStatus reader={reader} />
-        <div className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0B8ED0]">Expected account</p>
+        <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">Expected account</p>
           <div className="mt-2 flex items-center gap-3">
-            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E6F6FD] text-sm font-black text-[#0878B7]">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
+            <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E6F6FD] text-sm font-black text-[#0F2F62]">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
             <div><p className="text-sm font-black text-[#0F172A]">{expectedUser.first_name} {expectedUser.last_name}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
           </div>
         </div>
 
-        {busy && <div className="rounded-xl border border-cyan-200 bg-cyan-50 px-4 py-3"><p className="text-sm font-bold text-cyan-800">Place one finger flat on the reader.</p><p className="mt-1 text-xs text-cyan-700">HIUSA will search the organization’s enrolled fingerprint directory automatically.</p></div>}
-        {error && <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
-        {result && <div className={`rounded-xl border p-4 ${result.matchesExpected ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
+        {busy && <div className="rounded-lg border border-[#DDE7EF] bg-[#E6F6FD] px-4 py-3"><p className="text-sm font-bold text-[#0F2F62]">Place one finger flat on the reader.</p><p className="mt-1 text-xs text-[#0F2F62]">HIUSA will search the organization’s enrolled fingerprint directory automatically.</p></div>}
+        {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{error}</div>}
+        {result && <div className={`rounded-lg border p-4 ${result.matchesExpected ? 'border-emerald-200 bg-emerald-50' : 'border-amber-200 bg-amber-50'}`}>
           <div className="flex items-start gap-3">
             <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-full ${result.matchesExpected ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}><UserCheck size={19} /></span>
             <div className="min-w-0 flex-1">
@@ -703,7 +704,7 @@ export default function AdminUsersPage() {
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
           disabled={!['ADMIN', 'SBO_OFFICER'].includes(form.role)}
-          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-400"
+          className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500"
         >
           <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
           {sboPositions.filter((position) => position.is_active && position.role === form.role).map((position) => (
@@ -738,27 +739,53 @@ export default function AdminUsersPage() {
     </form>
   );
 
+  const activeUserFilters = [
+    search.trim() && `Search: ${search.trim()}`,
+    roleFilter !== 'all' && `Role: ${ROLE_LABELS[roleFilter] || roleFilter}`,
+    departmentFilter !== 'all' && `Department: ${departmentFilter}`,
+    programFilter !== 'all' && `Program: ${programFilter}`,
+    yearLevelFilter !== 'all' && `Year: ${yearLevelFilter}`,
+    sectionFilter !== 'all' && `Section: ${sectionFilter}`,
+    statusFilter !== 'all' && `Status: ${statusFilter}`,
+    sort !== 'name' && `Sort: ${sort.replaceAll('_', ' ')}`,
+  ].filter(Boolean);
+
+  const clearUserFilters = () => {
+    setSearch('');
+    setRoleFilter('all');
+    setDepartmentFilter('all');
+    setProgramFilter('all');
+    setYearLevelFilter('all');
+    setSectionFilter('all');
+    setStatusFilter('all');
+    setSort('name');
+    setPage(1);
+  };
+
   return (
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-4 bg-[#0F2F62] p-5 text-white sm:p-6">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">{actorRole === 'SBO_OFFICER' ? 'SBO Officer' : 'Administrator'}</p>
-            <h2 className="mt-1 text-2xl font-black text-[#0F172A]">{actorRole === 'SBO_OFFICER' ? 'Participant Biometrics' : 'User Management'}</h2>
-            <p className="mt-1 text-sm text-slate-500">{actorRole === 'SBO_OFFICER' ? 'Find Students and manage consent-based fingerprint enrollment for event attendance.' : 'View, search, filter, add, update, deactivate, and reactivate user accounts.'}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">{actorRole === 'SBO_OFFICER' ? 'SBO Officer' : 'Administrator'}</p>
+            <h2 className="mt-1 text-2xl font-black text-white">{actorRole === 'SBO_OFFICER' ? 'Participant Biometrics' : 'Manage Users'}</h2>
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">{actorRole === 'SBO_OFFICER' ? 'Find students and manage consent-based fingerprint enrollment for event attendance.' : 'Search the organization directory, maintain account access, and review academic and financial context.'}</p>
           </div>
-          {actorRole !== 'SBO_OFFICER' && <div className="flex gap-2"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2.5 text-sm font-bold text-white hover:bg-[#0878B7]"><UserPlus size={15} /> New User</button></div>}
+          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white hover:bg-white/15 disabled:opacity-50 sm:flex-none"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#EEF6FB] sm:flex-none"><UserPlus size={15} /> New User</button></div>}
         </div>
 
-        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <input
-            value={search}
-            onChange={(event) => { setSearch(event.target.value); setPage(1); }}
-            placeholder="Search by name, school ID, department, program, or email"
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-          />
+        <TableFilterBar
+          searchValue={search}
+          onSearchChange={(value) => { setSearch(value); setPage(1); }}
+          searchPlaceholder="Search name, school ID, program, or email"
+          activeFilters={activeUserFilters}
+          onClear={clearUserFilters}
+          resultCount={meta.total}
+          resultLabel={meta.total === 1 ? 'user' : 'users'}
+          secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
+        >
           <select
             value={roleFilter}
             onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
@@ -775,20 +802,19 @@ export default function AdminUsersPage() {
           <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === YEAR_LEVELS.indexOf(yearLevelFilter) + 1).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
           <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
-        </div>
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{(actorRole === 'SBO_OFFICER' ? [
+        </TableFilterBar>
+        <div className={`grid gap-px border-b border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 ${actorRole === 'SBO_OFFICER' ? '' : 'lg:grid-cols-4'}`}>{(actorRole === 'SBO_OFFICER' ? [
           ['Students', meta.total], ['Fingerprint directory', 'Attendance use only'],
         ] : [
           ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['Admins', roleSummary.ADMIN ?? 0], ['Super admins', roleSummary.SUPER_ADMIN ?? 0],
-        ]).map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">{value}</p></div>)}</div>
-        <div className="mt-3 flex justify-end"><button type="button" onClick={() => { setSearch(''); setRoleFilter('all'); setDepartmentFilter('all'); setProgramFilter('all'); setYearLevelFilter('all'); setSectionFilter('all'); setStatusFilter('all'); setSort('name'); }} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-slate-600">Reset filters</button></div>
+        ]).map(([label, value]) => <dl key={label} className="bg-white p-4"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}</div>
       </section>
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
       )}
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[940px] text-left">
             <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
@@ -803,7 +829,7 @@ export default function AdminUsersPage() {
                 <th className="w-[72px] px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-[#E5EDF3] text-sm">
+            <tbody className="divide-y divide-[#DDE7EF] text-sm">
               {loading && Array.from({ length: 6 }, (_, index) => (
                 <tr key={`user-skeleton-${index}`} aria-hidden="true">
                   {Array.from({ length: 8 }, (__, cellIndex) => (
@@ -818,7 +844,7 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
                   <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
                   <td className="px-4 py-3.5">
-                    <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0B8ED0]">{ROLE_LABELS[user.role] || user.role}</span>
+                    <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
                   <td className="px-4 py-3.5 text-xs text-[#64748B]"><p className="font-semibold text-slate-700">{user.program || '-'}</p>{user.major && <p className="mt-0.5">{user.major}</p>}</td>
                   <td className="px-4 py-3.5 text-xs font-semibold text-slate-600">{user.year_level || '-'}</td>
@@ -826,7 +852,7 @@ export default function AdminUsersPage() {
                   <td className="px-4 py-3.5">
                     <div className="flex items-center gap-2">
                       {user.account_status === 'active' ? <CircleCheck aria-label="Active" size={20} className="text-emerald-600" /> : <CircleX aria-label="Inactive" size={20} className="text-red-600" />}
-                      {user.fingerprint_enrolled && <Fingerprint aria-label="Fingerprint enrolled" size={16} className="text-[#0B8ED0]" />}
+                      {user.fingerprint_enrolled && <Fingerprint aria-label="Fingerprint enrolled" size={16} className="text-[#0878B7]" />}
                     </div>
                   </td>
                   <td className="px-4 py-3.5">
@@ -872,7 +898,7 @@ export default function AdminUsersPage() {
         footer={<button type="button" onClick={closeProfile} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Close</button>}
       >
         {profileUser && <div className="space-y-5">
-          <div className="grid gap-3 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
@@ -880,11 +906,11 @@ export default function AdminUsersPage() {
             ].map(([label, value]) => <div key={label}><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 text-sm font-semibold text-[#0F172A]">{value}</p></div>)}
           </div>
           {profileUser.role === 'STUDENT' && actorRole !== 'SBO_OFFICER' && <section>
-            <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Financial standing</p><h3 className="mt-1 text-lg font-black text-[#0F172A]">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
-            {profileLoading && <div className="mt-3 h-24 animate-pulse rounded-xl bg-slate-100" />}
+            <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Financial standing</p><h3 className="mt-1 text-lg font-black text-[#0F172A]">Live Student Debt Summary</h3></div>{profileDebt && <span className={`rounded-full px-3 py-1 text-xs font-bold ${profileDebt.clearance_status === 'financially_cleared' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{profileDebt.clearance_status === 'financially_cleared' ? 'Financially cleared' : 'Pending clearance'}</span>}</div>
+            {profileLoading && <div className="mt-3 h-24 animate-pulse rounded-lg bg-slate-100" />}
             {profileError && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800">{profileError}</p>}
             {!profileLoading && profileDebt && <>
-              <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-xl border border-[#DDE7EF] bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">PHP {Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">PHP {Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
               {profileDebt.total_debt > 0 && <div className="mt-4 space-y-3">
                 {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Unsettled invoices</p>{profileDebt.invoices.map((invoice) => <div key={invoice.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>{invoice.reference}</strong><br /><span className="text-xs text-slate-500">{invoice.description}</span></span><strong>PHP {Number(invoice.remaining_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></div>)}</div>}
                 {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{order.merchandise?.name || 'Merchandise item'}</span></span><strong>PHP {Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}</strong></div>)}</div>}
@@ -920,7 +946,7 @@ export default function AdminUsersPage() {
         footer={(
           <>
             <button type="button" onClick={closeCreate} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="create-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Creating...' : 'Create User'}</button>
+            <button type="submit" form="create-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Creating...' : 'Create User'}</button>
           </>
         )}
       >
@@ -937,7 +963,7 @@ export default function AdminUsersPage() {
         footer={(
           <>
             <button type="button" onClick={closeEdit} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="edit-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Saving...' : 'Save Changes'}</button>
+            <button type="submit" form="edit-user-form" disabled={busy} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Saving...' : 'Save Changes'}</button>
           </>
         )}
       >

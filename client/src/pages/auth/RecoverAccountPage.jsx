@@ -4,6 +4,7 @@ import { ArrowLeft, Building2, CheckCircle2, Mail, Send, X } from 'lucide-react'
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { requestPasswordReset } from '../../services/authService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import AccessibleOverlay from '../../components/AccessibleOverlay';
 
 export default function RecoverAccountPage() {
   const navigate = useNavigate();
@@ -59,14 +60,14 @@ export default function RecoverAccountPage() {
           <img src={hiusaLogo} alt="HIUSA" className="h-10 w-10 object-contain" />
           <div>
             <p className="text-lg font-black text-[#0B1831]">HIUSA</p>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">Recover account</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0878B7]">Recover account</p>
           </div>
         </div>
 
         {selectedOrganization && (
           <div className="mb-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#E9F7FD] text-[#0B8ED0]">
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#E6F6FD] text-[#0F2F62]">
                 <Building2 size={17} />
               </div>
               <div className="min-w-0">
@@ -86,14 +87,14 @@ export default function RecoverAccountPage() {
           <label className="block space-y-1.5">
             <span className="block text-[13px] font-semibold text-slate-800">Email address</span>
             <span className="relative block">
-              <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+              <Mail className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
               <input
                 type="email"
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="you@university.edu"
                 required
-                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
               />
             </span>
           </label>
@@ -103,7 +104,7 @@ export default function RecoverAccountPage() {
           <button
             type="submit"
             disabled={loading || !selectedOrganization}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0B8ED0] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0878B7] active:scale-[0.99] disabled:opacity-60"
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0878B7] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0F2F62] active:scale-[0.99] disabled:opacity-60"
           >
             {loading ? 'Sending...' : 'Send reset link'}
             {!loading && <Send size={17} />}
@@ -117,7 +118,7 @@ export default function RecoverAccountPage() {
       </section>
 
       {noticeOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-[#0B1831]/55 px-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Password reset confirmation" onClose={() => setNoticeOpen(false)} className="fixed inset-0 z-50 grid place-items-center bg-[#0B1831]/55 px-4 backdrop-blur-sm">
           <section className="w-full max-w-[390px] rounded-lg border border-emerald-100 bg-white p-6 shadow-2xl shadow-[#0B1831]/20">
             <div className="flex items-start justify-between gap-4">
               <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-emerald-50 text-emerald-600">
@@ -127,7 +128,7 @@ export default function RecoverAccountPage() {
                 type="button"
                 aria-label="Close confirmation"
                 onClick={() => setNoticeOpen(false)}
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-slate-400 transition hover:bg-slate-100 hover:text-slate-700"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-md text-slate-500 transition hover:bg-slate-100 hover:text-slate-700"
               >
                 <X size={17} />
               </button>
@@ -140,7 +141,7 @@ export default function RecoverAccountPage() {
               <button
                 type="button"
                 onClick={() => navigate('/login')}
-                className="h-10 rounded-md bg-[#0B8ED0] px-4 text-sm font-bold text-white transition hover:bg-[#0878B7]"
+                className="h-10 rounded-md bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
               >
                 Back to login
               </button>
@@ -153,7 +154,7 @@ export default function RecoverAccountPage() {
               </button>
             </div>
           </section>
-        </div>
+        </AccessibleOverlay>
       )}
     </main>
   );

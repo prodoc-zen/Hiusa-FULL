@@ -21,6 +21,7 @@ import {
 } from "../../../services/systemAdministrationService";
 import { getApiErrorMessage } from "../../../utils/apiError";
 import ConfirmModal from "../../../components/ConfirmModal";
+import AccessibleOverlay from "../../../components/AccessibleOverlay";
 
 const LEADERSHIP_TITLES = [
   "Adviser",
@@ -237,7 +238,7 @@ export default function SystemAdminsPage() {
         <button
           type="button"
           onClick={openCreate}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition hover:bg-[#0878B7]"
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
         >
           <UserPlus size={17} /> New Admin User
         </button>
@@ -253,7 +254,7 @@ export default function SystemAdminsPage() {
             key={label}
             className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm"
           >
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
               <Icon size={17} />
             </span>
             <p className="mt-3 text-xs font-semibold text-slate-500">{label}</p>
@@ -281,7 +282,7 @@ export default function SystemAdminsPage() {
       <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_180px]">
           <label className="flex h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
-            <Search size={16} className="shrink-0 text-slate-400" />
+            <Search size={16} className="shrink-0 text-slate-500" />
             <span className="sr-only">Search administrators</span>
             <input
               type="search"
@@ -300,7 +301,7 @@ export default function SystemAdminsPage() {
             <option value="">All organizations</option>
             {organizations.map((organization) => (
               <option key={organization.id} value={organization.id}>
-                {organization.acronym} — {organization.name}
+                {organization.acronym}: {organization.name}
               </option>
             ))}
           </select>
@@ -349,7 +350,7 @@ export default function SystemAdminsPage() {
               </thead>
               <tbody>
                 {visibleAdmins.map((admin) => (
-                  <tr key={admin.school_id} className="border-t border-[#E5EDF3] hover:bg-[#F8FBFD]">
+                  <tr key={admin.school_id} className="border-t border-[#DDE7EF] hover:bg-[#F8FBFD]">
                     <td className="p-4">
                       <p className="font-bold text-[#0F172A]">
                         {admin.first_name} {admin.last_name}
@@ -359,7 +360,7 @@ export default function SystemAdminsPage() {
                       </p>
                     </td>
                     <td className="p-4 font-semibold text-slate-600">
-                      {admin.organization?.acronym || admin.organization?.name || "—"}
+                      {admin.organization?.acronym || admin.organization?.name || "Not assigned"}
                     </td>
                     <td className="p-4 text-slate-600">
                       {admin.position_title || "Organization Admin"}
@@ -376,7 +377,7 @@ export default function SystemAdminsPage() {
                           onClick={() => setResetTarget(admin)}
                           disabled={admin.account_status !== "active"}
                           aria-label={`Initiate password reset for ${admin.first_name} ${admin.last_name}`}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-50"
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <KeyRound size={14} /> Reset access
                         </button>
@@ -384,7 +385,7 @@ export default function SystemAdminsPage() {
                           type="button"
                           onClick={() => openEdit(admin)}
                           aria-label={`Edit ${admin.first_name} ${admin.last_name}`}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"
+                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
                         >
                           <PencilLine size={14} /> Edit
                         </button>
@@ -399,14 +400,14 @@ export default function SystemAdminsPage() {
       </section>
 
       {form && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label={isEditing ? "Edit administrator" : "Create administrator"} onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <form
             onSubmit={save}
             className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white shadow-2xl"
           >
             <div className="flex items-start justify-between border-b border-[#DDE7EF] px-5 py-4">
               <div className="flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                   {isEditing ? <PencilLine size={18} /> : <UserPlus size={18} />}
                 </span>
                 <div>
@@ -422,7 +423,7 @@ export default function SystemAdminsPage() {
                 type="button"
                 onClick={() => setForm(null)}
                 aria-label="Close administrator form"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-400 hover:bg-[#EEF6FB] hover:text-[#0F172A]"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-slate-500 hover:bg-[#F8FBFD] hover:text-[#0F172A]"
               >
                 <X size={18} />
               </button>
@@ -437,7 +438,7 @@ export default function SystemAdminsPage() {
               )}
               {isEditing && (
                 <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 sm:col-span-2">
-                  <p className="text-[11px] font-bold uppercase text-slate-400">School ID</p>
+                  <p className="text-[11px] font-bold uppercase text-slate-500">School ID</p>
                   <p className="mt-0.5 font-bold text-[#0F172A]">{form.school_id}</p>
                 </div>
               )}
@@ -472,7 +473,7 @@ export default function SystemAdminsPage() {
                     .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
                     .map((organization) => (
                       <option key={organization.id} value={organization.id}>
-                        {organization.acronym} — {organization.name}{organization.is_active ? "" : " (inactive)"}
+                        {organization.acronym}: {organization.name}{organization.is_active ? "" : " (inactive)"}
                       </option>
                     ))}
                 </select>
@@ -496,7 +497,7 @@ export default function SystemAdminsPage() {
                         type="button"
                         aria-label={showPassword ? "Hide administrator password" : "Show administrator password"}
                         onClick={() => setShowPassword((visible) => !visible)}
-                        className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-400 transition hover:text-[#0B8ED0]"
+                        className="absolute inset-y-0 right-0 grid w-11 place-items-center text-slate-500 transition hover:text-[#0878B7]"
                       >
                         {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                       </button>
@@ -524,9 +525,9 @@ export default function SystemAdminsPage() {
                 <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
                   Account status
                   <select value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
-                    <option value="active">Active — can sign in</option>
-                    <option value="inactive">Inactive — temporarily unavailable</option>
-                    <option value="disabled">Disabled — access revoked</option>
+                    <option value="active">Active: can sign in</option>
+                    <option value="inactive">Inactive: temporarily unavailable</option>
+                    <option value="disabled">Disabled: access revoked</option>
                   </select>
                 </label>
               )}
@@ -541,12 +542,12 @@ export default function SystemAdminsPage() {
               <button type="button" onClick={() => setForm(null)} disabled={busy} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">
                 Cancel
               </button>
-              <button disabled={busy} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">
+              <button disabled={busy} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">
                 {busy ? "Saving..." : isEditing ? "Save Changes" : "Create Admin User"}
               </button>
             </div>
           </form>
-        </div>
+        </AccessibleOverlay>
       )}
       <ConfirmModal
         open={Boolean(resetTarget)}

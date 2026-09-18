@@ -96,18 +96,18 @@ export default function ElectionDetailPage() {
     <div className="space-y-6">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Election Workspace</p>
-            <h2 className="mt-1 text-2xl font-black text-[#0F172A]">{election.title}</h2>
-            <p className="mt-1 text-sm font-medium text-slate-500">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Ballot configuration</p>
+            <h2 className="mt-1 text-2xl font-black text-white">{election.title}</h2>
+            <p className="mt-1 text-sm font-medium text-slate-200">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
           </div>
           {!ballotLocked && (
             <button
               type="button"
               onClick={openAddPosition}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition hover:bg-[#0878B7]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] transition hover:bg-[#EEF6FB]"
             >
               <CirclePlus size={15} />
               Add Position
@@ -128,14 +128,14 @@ export default function ElectionDetailPage() {
 
       <div className="space-y-4">
         {groupedCandidates.map(({ position, candidates: positionCandidates }) => (
-          <div key={position.id} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div key={position.id} className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
                 <h3 className="text-base font-bold text-[#0F172A]">{position.title}</h3>
                 <p className="text-sm text-slate-500">Up to {position.max_winners} winner{position.max_winners > 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
-                <span className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0B8ED0]">{positionCandidates.length} candidates</span>
+                <span className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0F2F62]">{positionCandidates.length} candidates</span>
                 {!ballotLocked && (
                   <button
                     type="button"
@@ -157,7 +157,7 @@ export default function ElectionDetailPage() {
                       <p className="font-semibold text-[#0F172A]">{name}</p>
                       <p className="text-xs text-slate-500">{candidate.partylist?.name || 'Independent'}</p>
                     </div>
-                    <span className="text-xs font-bold text-[#0B8ED0]">{votes.filter((vote) => vote.candidate_id === candidate.id).length} votes</span>
+                    <span className="text-xs font-bold text-[#0878B7]">{votes.filter((vote) => vote.candidate_id === candidate.id).length} votes</span>
                   </div>
                 );
               })}
@@ -178,7 +178,7 @@ export default function ElectionDetailPage() {
         footer={(
           <>
             <button type="button" onClick={closeAddPosition} disabled={busy} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="add-position-form" disabled={busy || !newPositionTitle.trim()} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">{busy ? 'Adding...' : 'Add Position'}</button>
+            <button type="submit" form="add-position-form" disabled={busy || !newPositionTitle.trim()} className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">{busy ? 'Adding...' : 'Add Position'}</button>
           </>
         )}
       >

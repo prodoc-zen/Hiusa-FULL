@@ -38,6 +38,7 @@ describe('SuperAdminFinancialReportsPage', () => {
     expect(screen.getByText('September Report')).toBeInTheDocument();
     expect(screen.getByText('Orientation')).toBeInTheDocument();
 
+    fireEvent.click(screen.getByRole('button', { name: /filters/i }));
     fireEvent.change(screen.getByLabelText('Event filter'), { target: { value: 'Orientation' } });
 
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith(expect.objectContaining({ event_search: 'Orientation' })));

@@ -59,18 +59,18 @@ export default function SubmitApprovalRequestPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
         <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><ClipboardCheck size={22} /></div>
+          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><ClipboardCheck size={22} /></div>
           <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Approval workflow</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">Approval workflow</p>
             <h1 className="mt-1 text-2xl font-black text-[#0F172A] sm:text-3xl">Submit a request for approval</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#64748B]">Choose the request type first. You will continue to its complete form, where saving creates the record as pending and notifies the authorized approver.</p>
           </div>
         </div>
       </section>
 
-      <form onSubmit={continueToRequest} className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+      <form onSubmit={continueToRequest} className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <div className="border-b border-[#DDE7EF] p-5">
           <h2 className="text-lg font-extrabold text-[#0F172A]">1. Select request type</h2>
           <p className="mt-1 text-sm text-[#64748B]">Only request types available to your role are shown.</p>
@@ -84,7 +84,7 @@ export default function SubmitApprovalRequestPage() {
               <label key={type.id} className={`cursor-pointer rounded-lg border p-4 transition focus-within:ring-4 focus-within:ring-[#16C7F3]/15 ${selected ? 'border-[#0B8ED0] bg-[#EEF6FB]' : 'border-[#DDE7EF] hover:border-[#0B8ED0]/40 hover:bg-[#F8FBFD]'}`}>
                 <input type="radio" name="request_type" value={type.id} checked={selected} onChange={() => setSelectedType(type.id)} className="sr-only" />
                 <span className="flex items-start gap-3">
-                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${selected ? 'bg-[#0B8ED0] text-white' : 'bg-[#EEF6FB] text-[#0B8ED0]'}`}><Icon size={19} /></span>
+                  <span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${selected ? 'bg-[#0878B7] text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}><Icon size={19} /></span>
                   <span>
                     <span className="block text-sm font-extrabold text-[#0F172A]">{type.title}</span>
                     <span className="mt-1 block text-xs font-medium leading-5 text-[#64748B]">{type.description}</span>
@@ -96,7 +96,7 @@ export default function SubmitApprovalRequestPage() {
         </fieldset>
         <div className="flex flex-col gap-3 border-t border-[#DDE7EF] bg-[#F8FBFD] p-5 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-medium text-[#64748B]">The destination form validates all required details before submission.</p>
-          <button type="submit" disabled={!selectedRequest} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:cursor-not-allowed disabled:opacity-40">Continue to request form <ArrowRight size={16} /></button>
+          <button type="submit" disabled={!selectedRequest} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:cursor-not-allowed disabled:opacity-40">Continue to request form <ArrowRight size={16} /></button>
         </div>
       </form>
     </div>

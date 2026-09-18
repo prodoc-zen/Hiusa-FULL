@@ -29,7 +29,7 @@ function PostMedia({ url, title }) {
   const [failed, setFailed] = useState(false);
   if (!url || failed) return null;
   return (
-    <div className="border-y border-[#DDE7EF] bg-[#F2F7FA]">
+    <div className="border-y border-[#DDE7EF] bg-[#EEF6FB]">
       <img
         src={resolveAssetUrl(url)}
         alt={title}
@@ -42,9 +42,9 @@ function PostMedia({ url, title }) {
 }
 
 function typeMeta(type) {
-  if (type === 'event') return { label: 'Event update', Icon: CalendarDays, color: 'text-violet-700 bg-violet-50' };
-  if (type === 'election') return { label: 'Election update', Icon: Vote, color: 'text-[#0B8ED0] bg-[#EEF6FB]' };
-  return { label: 'Announcement', Icon: Megaphone, color: 'text-[#0B8ED0] bg-[#EEF6FB]' };
+  if (type === 'event') return { label: 'Event update', Icon: CalendarDays, color: 'text-[#0F2F62] bg-[#E6F6FD]' };
+  if (type === 'election') return { label: 'Election update', Icon: Vote, color: 'text-[#0F2F62] bg-[#EEF6FB]' };
+  return { label: 'Announcement', Icon: Megaphone, color: 'text-[#0F2F62] bg-[#EEF6FB]' };
 }
 
 export default function FeedPost({ item, organization }) {
@@ -76,11 +76,11 @@ export default function FeedPost({ item, organization }) {
 
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
         <h3 className="text-lg font-black leading-7 text-[#0F172A] sm:text-xl">{post.title}</h3>
-        {body && <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#334155] sm:text-[15px]">{body}</p>}
+        {body && <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#0F172A] sm:text-[15px]">{body}</p>}
         {item.type === 'event' && (
-          <div className="mt-4 space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-semibold text-[#475569]">
-            <p className="flex items-start gap-2"><Clock3 size={15} className="mt-0.5 shrink-0 text-[#0B8ED0]" /> {formatDateTime(post.start_time)}</p>
-            {post.location && <p className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0 text-[#0B8ED0]" /> {post.location}</p>}
+          <div className="mt-4 space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-semibold text-[#64748B]">
+            <p className="flex items-start gap-2"><Clock3 size={15} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(post.start_time)}</p>
+            {post.location && <p className="flex items-start gap-2"><MapPin size={15} className="mt-0.5 shrink-0 text-[#0878B7]" /> {post.location}</p>}
           </div>
         )}
         {item.type === 'election' && (
@@ -95,21 +95,21 @@ export default function FeedPost({ item, organization }) {
 
       <footer className="p-3 sm:px-5 sm:py-4">
         {item.type === 'announcement' && (
-          <Link to="/dashboard/announcements/view-announcements" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-sm font-bold text-[#0B8ED0] hover:bg-[#F8FBFD] sm:w-auto sm:px-5">
+          <Link to="/dashboard/announcements/view-announcements" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:w-auto sm:px-5">
             <Megaphone size={15} /> View announcements
           </Link>
         )}
         {item.type === 'event' && (
-          <Link to="/dashboard/events/activity-calendar" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-sm font-bold text-[#0B8ED0] hover:bg-[#F8FBFD] sm:w-auto sm:px-5">
+          <Link to="/dashboard/events/activity-calendar" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:w-auto sm:px-5">
             <CalendarDays size={15} /> View activity calendar
           </Link>
         )}
         {item.type === 'election' && (post.has_voted ? (
           <span className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 px-5 text-sm font-bold text-emerald-700 sm:w-auto"><CheckCircle2 size={16} /> Vote submitted</span>
         ) : electionClosed ? (
-          <Link to="/dashboard/elections/election-results" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#0B8ED0] hover:bg-[#F8FBFD] sm:w-auto"><Vote size={15} /> View results</Link>
+          <Link to="/dashboard/elections/election-results" className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:w-auto"><Vote size={15} /> View results</Link>
         ) : (
-          <Link to={`/elections/${post.id}/vote`} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] sm:w-auto"><ShieldCheck size={16} /> Enter secure voting</Link>
+          <Link to={`/elections/${post.id}/vote`} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] sm:w-auto"><ShieldCheck size={16} /> Enter secure voting</Link>
         ))}
       </footer>
     </article>

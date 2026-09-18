@@ -176,7 +176,7 @@ function SubNavItem({ label, path, onClick }) {
     <NavLink
       to={path}
       onClick={onClick}
-      className={({ isActive }) => `flex h-8 items-center rounded-lg px-3 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0B8ED0] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+      className={({ isActive }) => `flex min-h-10 items-center rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
     >
       {label}
     </NavLink>
@@ -192,7 +192,7 @@ function OfficerProfile({ user, roleLabel }) {
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-white">{name}</p>
-        <p className="truncate text-xs font-medium text-slate-400 capitalize">{roleLabel}</p>
+        <p className="truncate text-xs font-medium text-slate-500 capitalize">{roleLabel}</p>
       </div>
     </div>
   );
@@ -260,9 +260,9 @@ export default function Sidebar({ isOpen, onClose }) {
         <img src={hiusaLogo} alt="HIUSA logo" className="h-10 w-10 object-contain" />
         <div>
           <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
-          <p className="text-[11px] font-medium text-slate-400">{roleLabel} System</p>
+          <p className="text-[11px] font-medium text-slate-500">{roleLabel} System</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-8 w-8 place-items-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white lg:hidden">
+        <button type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
         </button>
       </div>
@@ -300,7 +300,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 >
                   <item.icon size={18} strokeWidth={2} />
                   {item.label}
-                  <ChevronDown size={13} className={`ml-auto text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={13} className={`ml-auto text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isExpanded && (
@@ -323,7 +323,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavItem {...item} />
             </div>
           ))}
-          <button type="button" onClick={() => setLogoutConfirmOpen(true)} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
+          <button type="button" onClick={() => setLogoutConfirmOpen(true)} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-500 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
             <LogOut size={18} strokeWidth={2} />
             Logout
           </button>
@@ -339,7 +339,7 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[260px] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       <ConfirmModal
         open={logoutConfirmOpen}
         title="Log Out"

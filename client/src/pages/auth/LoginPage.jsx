@@ -6,7 +6,7 @@ import { login } from '../../services/authService';
 
 const BrandingPanel = () => (
   <aside className="relative flex overflow-hidden bg-[#0b1831] px-6 py-5 text-white sm:min-h-[410px] sm:px-10 sm:py-8 lg:min-h-[620px] lg:w-[47%] lg:px-11 lg:py-10">
-    <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(25,211,249,0.20),transparent_34%),linear-gradient(135deg,#0b1831_0%,#0f2f62_52%,#075f93_100%)]" />
+    <div className="absolute inset-0 bg-[radial-gradient(circle_at_22%_18%,rgba(25,211,249,0.20),transparent_34%),linear-gradient(135deg,#0b1831_0%,#0f2f62_52%,#0878B7_100%)]" />
     <div className="absolute bottom-0 right-0 h-52 w-52 translate-x-14 translate-y-10 rotate-45 rounded-md border border-white/10 bg-white/[0.03]" />
     <div className="relative z-10 flex w-full flex-col">
       <div className="flex items-center gap-3">
@@ -118,7 +118,7 @@ export default function LoginPage() {
             {selectedOrganization && (
               <div className="mb-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
                 <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#E9F7FD] text-[#0B8ED0]">
+                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#E6F6FD] text-[#0F2F62]">
                     <Building2 size={17} />
                   </div>
                   <div className="min-w-0 flex-1">
@@ -142,7 +142,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-semibold text-slate-800">School ID / ID Number</label>
                 <div className="group relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 transition-colors group-focus-within:text-[#0b8ed0]">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500 transition-colors group-focus-within:text-[#0b8ed0]">
                     <Hash size={17} />
                   </div>
                   <input
@@ -155,7 +155,7 @@ export default function LoginPage() {
                     onChange={(e) => setSchoolId(e.target.value.replace(/\D/g, '').slice(0, 8))}
                     placeholder="Enter your school ID or ID number"
                     required
-                    className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0b8ed0] focus:ring-4 focus:ring-[#16c7f3]/15"
+                    className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[#0b8ed0] focus:ring-4 focus:ring-[#16c7f3]/15"
                   />
                 </div>
               </div>
@@ -163,7 +163,7 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <label className="block text-[13px] font-semibold text-slate-800">Password</label>
                 <div className="group relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400 transition-colors group-focus-within:text-[#0b8ed0]">
+                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-500 transition-colors group-focus-within:text-[#0b8ed0]">
                     <Lock size={17} />
                   </div>
                   <input
@@ -172,13 +172,13 @@ export default function LoginPage() {
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
                     required
-                    className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-11 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0b8ed0] focus:ring-4 focus:ring-[#16c7f3]/15"
+                    className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-11 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[#0b8ed0] focus:ring-4 focus:ring-[#16c7f3]/15"
                   />
                   <button
                     type="button"
                     aria-label={showPassword ? 'Hide password' : 'Show password'}
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 transition hover:text-[#0b8ed0]"
+                    className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 transition hover:text-[#0b8ed0]"
                   >
                     {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                   </button>

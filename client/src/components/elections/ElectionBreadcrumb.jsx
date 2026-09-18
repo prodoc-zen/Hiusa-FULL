@@ -37,7 +37,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
   ].filter((tab) => tab.roles.includes(role));
 
   return (
-    <section className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+    <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
       <div className="grid min-h-44 md:grid-cols-[240px_minmax(0,1fr)]">
         <div className="relative min-h-36 overflow-hidden bg-[#0B1831] md:min-h-full">
           {election?.image_url ? (
@@ -66,7 +66,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
               {new Date(election?.end_time).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' })}
             </span>
           </div>
-          <p className="mt-3 text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Selected election</p>
+          <p className="mt-3 text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">Selected election</p>
           <h1 className="mt-1 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{election?.title}</h1>
           <p className="mt-2 text-sm font-medium text-[#64748B]">Manage this election from one focused workspace.</p>
         </div>
@@ -75,7 +75,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
       <nav aria-label="Election workspace" className="overflow-x-auto border-t border-[#DDE7EF] bg-[#F8FBFD]">
         <div className="flex min-w-max px-2 sm:px-3">
           {tabs.map((tab) => (
-            <NavLink key={tab.path} to={tab.path} className={({ isActive: tabActive }) => `inline-flex h-12 items-center gap-2 border-b-2 px-3 text-xs font-bold transition sm:px-4 sm:text-sm ${tabActive ? 'border-[#0B8ED0] bg-white text-[#0B8ED0]' : 'border-transparent text-[#64748B] hover:text-[#0F172A]'}`}>
+            <NavLink key={tab.path} to={tab.path} className={({ isActive: tabActive }) => `inline-flex h-12 items-center gap-2 border-b-2 px-3 text-xs font-bold transition sm:px-4 sm:text-sm ${tabActive ? 'border-[#0B8ED0] bg-white text-[#0878B7]' : 'border-transparent text-[#64748B] hover:text-[#0F172A]'}`}>
               <tab.icon size={15} />
               {tab.label}
             </NavLink>

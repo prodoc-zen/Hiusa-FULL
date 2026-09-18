@@ -48,6 +48,7 @@ import {
 import { resolveAssetUrl } from "../../../utils/assetUrl";
 import PaginationControls from "../../../components/PaginationControls";
 import { fetchAllPages } from "../../../services/pagination";
+import AccessibleOverlay from "../../../components/AccessibleOverlay";
 
 const STUDENT_CART_KEY = "hiusa_student_cart";
 const EMPTY_ORDER_FILTERS = {
@@ -99,7 +100,7 @@ const stockLabel = (qty) =>
   qty === 0 ? "Out of Stock" : qty < 10 ? "Low Stock" : "Available";
 
 const orderBadge = {
-  pending: "bg-[#E6F6FD] text-[#0B8ED0]",
+  pending: "bg-[#E6F6FD] text-[#0F2F62]",
   paid: "bg-amber-50 text-amber-700",
   claimed: "bg-emerald-50 text-emerald-700",
   cancelled: "bg-red-50 text-red-700",
@@ -144,7 +145,7 @@ function StepNode({ active, done, label }) {
   return (
     <div className="flex flex-col items-center gap-1">
       <div
-        className={`grid h-7 w-7 place-items-center rounded-full border-2 transition-colors ${done ? "border-emerald-500 bg-emerald-500" : active ? "border-[#0B8ED0] bg-[#0B8ED0]" : "border-slate-200 bg-white"}`}
+        className={`grid h-7 w-7 place-items-center rounded-full border-2 transition-colors ${done ? "border-emerald-500 bg-emerald-500" : active ? "border-[#0B8ED0] bg-[#0878B7]" : "border-slate-200 bg-white"}`}
       >
         {done ? (
           <CheckCircle size={14} className="text-white" />
@@ -156,7 +157,7 @@ function StepNode({ active, done, label }) {
         )}
       </div>
       <span
-        className={`text-[10px] font-bold ${done || active ? "text-[#0F172A]" : "text-slate-400"}`}
+        className={`text-[10px] font-bold ${done || active ? "text-[#0F172A]" : "text-slate-500"}`}
       >
         {label}
       </span>
@@ -195,8 +196,8 @@ function ConfirmModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+    <AccessibleOverlay label={title} onClose={() => !busy && onCancel()} className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-extrabold text-[#0F172A]">{title}</h3>
         <p className="mt-2 whitespace-pre-line text-sm text-slate-600">{message}</p>
         <div className="mt-5 flex justify-end gap-3">
@@ -211,14 +212,14 @@ function ConfirmModal({
           <button
             type="button"
             onClick={onConfirm}
-            className={`h-11 rounded-lg px-5 text-sm font-bold text-white transition disabled:opacity-50 ${danger ? "bg-[#DC2626] hover:bg-[#B91C1C]" : "bg-[#0B8ED0] hover:bg-[#0878B7]"}`}
+            className={`h-11 rounded-lg px-5 text-sm font-bold text-white transition disabled:opacity-50 ${danger ? "bg-[#DC2626] hover:bg-[#B91C1C]" : "bg-[#0878B7] hover:bg-[#0F2F62]"}`}
             disabled={busy}
           >
             {busy ? "Processing..." : confirmText}
           </button>
         </div>
       </div>
-    </div>
+    </AccessibleOverlay>
   );
 }
 
@@ -234,8 +235,8 @@ function AddStockModal({
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+    <AccessibleOverlay label="Add merchandise stock" onClose={() => !busy && onCancel()} className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-extrabold text-[#0F172A]">Add Stock</h3>
         <p className="mt-2 text-sm text-slate-600">
           Enter how many units you want to add for{" "}
@@ -265,14 +266,14 @@ function AddStockModal({
           <button
             type="button"
             onClick={onConfirm}
-            className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+            className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
             disabled={busy}
           >
             Continue
           </button>
         </div>
       </div>
-    </div>
+    </AccessibleOverlay>
   );
 }
 
@@ -306,7 +307,7 @@ function FulfillmentOrderRow({
       <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.2fr)_minmax(190px,1fr)_minmax(170px,.8fr)_minmax(210px,1fr)_auto] xl:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-xs font-black text-[#0B8ED0]">
+            <span className="font-mono text-xs font-black text-[#0878B7]">
               ORD-{order.id}
             </span>
             <span
@@ -314,33 +315,33 @@ function FulfillmentOrderRow({
             >
               {capitalize(order.status)}
             </span>
-            <span className="text-[11px] font-medium text-slate-400">
+            <span className="text-[11px] font-medium text-slate-500">
               {fmtDate(order.created_at)}
             </span>
           </div>
           <button
             type="button"
             onClick={() => onDetails(order)}
-            className="mt-2 block max-w-full truncate text-left text-sm font-extrabold text-[#0F172A] hover:text-[#0B8ED0]"
+            className="mt-2 block max-w-full truncate text-left text-sm font-extrabold text-[#0F172A] hover:text-[#0878B7]"
           >
             {studentName}
           </button>
           <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
             {order.student?.school_id || "No school ID"}
           </p>
-          <p className="mt-1 truncate text-[11px] text-slate-400">
+          <p className="mt-1 truncate text-[11px] text-slate-500">
             {academicProfile || order.student?.department || "No academic profile"}
           </p>
         </div>
 
-        <div className="min-w-0 border-t border-[#EEF2F7] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+        <div className="min-w-0 border-t border-[#EEF6FB] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           <p className="truncate text-sm font-bold text-[#0F172A]">
             {order.merchandise?.name || "Unavailable item"}
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {order.quantity} x {fmt(order.merchandise?.price)}
           </p>
-          <p className="mt-1 text-sm font-black tabular-nums text-[#0B8ED0]">
+          <p className="mt-1 text-sm font-black tabular-nums text-[#0878B7]">
             {fmt(order.total_price)}
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
@@ -353,7 +354,7 @@ function FulfillmentOrderRow({
               <button
                 type="button"
                 onClick={() => onViewProof(order.id)}
-                className="inline-flex items-center gap-1 font-bold text-[#0B8ED0] hover:text-[#0878B7]"
+                className="inline-flex items-center gap-1 font-bold text-[#0878B7] hover:text-[#0878B7]"
               >
                 <Eye size={12} /> Proof
               </button>
@@ -361,8 +362,8 @@ function FulfillmentOrderRow({
           </div>
         </div>
 
-        <div className="border-t border-[#EEF2F7] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+        <div className="border-t border-[#EEF6FB] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
             Payment review
           </p>
           <div className="mt-2 flex flex-wrap gap-2">
@@ -375,10 +376,10 @@ function FulfillmentOrderRow({
           </div>
         </div>
 
-        <div className="border-t border-[#EEF2F7] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+        <div className="border-t border-[#EEF6FB] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           {order.status === "paid" && order.claim_token ? (
-            <div className="rounded-lg border border-[#B9D9E9] bg-[#EEF6FB] px-3 py-2.5">
-              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0B8ED0]">
+            <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-3 py-2.5">
+              <p className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider text-[#0878B7]">
                 <Ticket size={13} /> Ready for pickup
               </p>
               <p className="mt-1 break-all font-mono text-sm font-black tracking-wider text-[#0B1831]">
@@ -405,11 +406,11 @@ function FulfillmentOrderRow({
           )}
         </div>
 
-        <div className="flex flex-wrap gap-2 border-t border-[#EEF2F7] pt-4 md:col-span-2 xl:col-span-1 xl:w-40 xl:flex-col xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
+        <div className="flex flex-wrap gap-2 border-t border-[#EEF6FB] pt-4 md:col-span-2 xl:col-span-1 xl:w-40 xl:flex-col xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           <button
             type="button"
             onClick={() => onDetails(order)}
-            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"
+            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
           >
             <Eye size={14} /> Details
           </button>
@@ -418,7 +419,7 @@ function FulfillmentOrderRow({
               <button
                 type="button"
                 onClick={() => onApprove(order)}
-                className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold ${role === "ADMIN" ? "bg-[#0B8ED0] text-white hover:bg-[#0878B7]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold ${role === "ADMIN" ? "bg-[#0878B7] text-white hover:bg-[#0F2F62]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
               >
                 {role === "ADMIN" ? "Approve" : "Verify"} <ArrowRight size={13} />
               </button>
@@ -1548,7 +1549,7 @@ export default function MerchandisePage({ initialTab }) {
   const feedbackPopup = feedback.open ? (
     <div className="fixed left-1/2 top-20 z-[70] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2">
       <div
-        className={`flex items-start justify-between gap-3 rounded-xl border px-4 py-3 shadow-lg ${feedback.type === "success" ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}
+        className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 shadow-lg ${feedback.type === "success" ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}
       >
         <div className="flex items-start gap-2">
           {feedback.type === "success" ? (
@@ -1605,9 +1606,9 @@ export default function MerchandisePage({ initialTab }) {
           ].map((stat) => (
             <article
               key={stat.label}
-              className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/20 hover:shadow-md"
+              className="group rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/20 hover:shadow-md"
             >
-              <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0] transition group-hover:bg-[#0B8ED0] group-hover:text-white">
+              <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62] transition group-hover:bg-[#0F2F62] group-hover:text-white">
                 <stat.icon size={19} />
               </div>
               <p className="text-sm font-semibold text-slate-500">
@@ -1616,7 +1617,7 @@ export default function MerchandisePage({ initialTab }) {
               <p className="mt-1 text-2xl font-black text-[#0F172A]">
                 {stat.value}
               </p>
-              <p className="mt-1 text-xs font-medium text-slate-400">
+              <p className="mt-1 text-xs font-medium text-slate-500">
                 {stat.helper}
               </p>
             </article>
@@ -1626,10 +1627,10 @@ export default function MerchandisePage({ initialTab }) {
         {/* Order Merchandise tab */}
         {activeTab === "order" && (
           <section className="space-y-5">
-            <div className="overflow-hidden rounded-xl border border-[#173B68] bg-[#0F2F62] text-white shadow-sm">
+            <div className="overflow-hidden rounded-lg border border-[#0F2F62] bg-[#0F2F62] text-white shadow-sm">
               <div className="flex flex-col justify-between gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
                 <div className="max-w-2xl">
-                  <div className="mb-2 flex items-center gap-2 text-[#8DDAF5]">
+                  <div className="mb-2 flex items-center gap-2 text-[#16C7F3]">
                     <ShieldCheck size={16} />
                     <span className="text-xs font-bold uppercase tracking-wider">
                       Official organization store
@@ -1647,7 +1648,7 @@ export default function MerchandisePage({ initialTab }) {
                 <button
                   type="button"
                   onClick={() => setActiveTab("cart")}
-                  className="flex min-h-11 shrink-0 items-center justify-between gap-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-left text-[#0B1831] transition hover:bg-[#EEF6FB] sm:min-w-48"
+                  className="flex min-h-11 shrink-0 items-center justify-between gap-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-left text-[#0B1831] transition hover:bg-[#F8FBFD] sm:min-w-48"
                 >
                   <span>
                     <span className="block text-[11px] font-bold uppercase text-slate-500">
@@ -1657,22 +1658,22 @@ export default function MerchandisePage({ initialTab }) {
                       {cartQuantity} item{cartQuantity === 1 ? "" : "s"} · {fmt(cartTotal)}
                     </span>
                   </span>
-                  <ArrowRight size={18} className="text-[#0B8ED0]" />
+                  <ArrowRight size={18} className="text-[#0878B7]" />
                 </button>
               </div>
             </div>
 
-            <div className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+            <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
                 <label className="flex h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
-                  <Search size={16} className="shrink-0 text-slate-400" />
+                  <Search size={16} className="shrink-0 text-slate-500" />
                   <span className="sr-only">Search merchandise</span>
                   <input
                     value={studentItemSearch}
                     onChange={(e) => setStudentItemSearch(e.target.value)}
                     type="search"
                     placeholder="Search product, category, or description"
-                    className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                    className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-500"
                   />
                 </label>
                 <select
@@ -1699,12 +1700,12 @@ export default function MerchandisePage({ initialTab }) {
                   <option value="price-high">Price: high to low</option>
                 </select>
               </div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEF2F7] pt-3">
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEF6FB] pt-3">
                 <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                  <Boxes size={15} className="text-[#0B8ED0]" />
+                  <Boxes size={15} className="text-[#0878B7]" />
                   {availableUnits} total units available across {availableItems.length} products
                 </p>
-                <p className="text-xs font-medium text-slate-400">
+                <p className="text-xs font-medium text-slate-500">
                   Stock refreshes after every reservation or cancellation.
                 </p>
               </div>
@@ -1715,12 +1716,12 @@ export default function MerchandisePage({ initialTab }) {
                 {[1, 2, 3, 4, 5, 6].map((i) => (
                   <div
                     key={i}
-                    className="h-96 animate-pulse rounded-xl border border-[#DDE7EF] bg-white"
+                    className="h-96 animate-pulse rounded-lg border border-[#DDE7EF] bg-white"
                   />
                 ))}
               </div>
             ) : filteredStudentItems.length === 0 ? (
-              <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
+              <div className="rounded-lg border border-[#DDE7EF] bg-white p-12 text-center">
                 <Package size={36} className="mx-auto mb-3 text-slate-200" />
                 <p className="text-sm font-bold text-[#0F172A]">
                   No merchandise matches your filters.
@@ -1731,7 +1732,7 @@ export default function MerchandisePage({ initialTab }) {
                     setStudentItemSearch("");
                     setStudentCategory("all");
                   }}
-                  className="mt-3 text-xs font-bold text-[#0B8ED0] hover:text-[#0878B7]"
+                  className="mt-3 text-xs font-bold text-[#0878B7] hover:text-[#0878B7]"
                 >
                   Clear search and category
                 </button>
@@ -1741,7 +1742,7 @@ export default function MerchandisePage({ initialTab }) {
                 {filteredStudentItems.map((item) => (
                   <article
                     key={item.id}
-                    className={`group flex min-w-0 flex-col overflow-hidden rounded-xl border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${item.stock_quantity === 0 ? "border-slate-200" : "border-[#DDE7EF] hover:border-[#0B8ED0]/40"}`}
+                    className={`group flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-md ${item.stock_quantity === 0 ? "border-slate-200" : "border-[#DDE7EF] hover:border-[#0B8ED0]/40"}`}
                   >
                     <div className="relative overflow-hidden bg-[#F8FBFD]">
                       {item.image_url ? (
@@ -1771,7 +1772,7 @@ export default function MerchandisePage({ initialTab }) {
                         <h3 className="min-w-0 font-bold leading-snug text-[#0F172A]">
                           {item.name}
                         </h3>
-                        <p className="shrink-0 text-lg font-black text-[#0B8ED0]">
+                        <p className="shrink-0 text-lg font-black text-[#0878B7]">
                           {fmt(item.price)}
                         </p>
                       </div>
@@ -1780,7 +1781,7 @@ export default function MerchandisePage({ initialTab }) {
                           {item.description}
                         </p>
                       )}
-                      <div className="mt-auto flex items-center gap-2 border-t border-[#EEF2F7] pt-4">
+                      <div className="mt-auto flex items-center gap-2 border-t border-[#EEF6FB] pt-4">
                         <button
                           type="button"
                           onClick={() =>
@@ -1793,7 +1794,7 @@ export default function MerchandisePage({ initialTab }) {
                             }))
                           }
                           disabled={item.stock_quantity === 0}
-                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Decrease quantity for ${item.name}`}
                         >
                           <Minus size={14} />
@@ -1815,7 +1816,7 @@ export default function MerchandisePage({ initialTab }) {
                             }));
                           }}
                           disabled={item.stock_quantity === 0}
-                          className="h-11 w-16 rounded-lg border border-[#DDE7EF] text-center text-sm font-bold outline-none focus:border-[#0B8ED0] disabled:bg-slate-50 disabled:text-slate-400"
+                          className="h-11 w-16 rounded-lg border border-[#DDE7EF] text-center text-sm font-bold outline-none focus:border-[#0B8ED0] disabled:bg-slate-50 disabled:text-slate-500"
                         />
                         <button
                           type="button"
@@ -1829,7 +1830,7 @@ export default function MerchandisePage({ initialTab }) {
                             }))
                           }
                           disabled={item.stock_quantity === 0}
-                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                          className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                           aria-label={`Increase quantity for ${item.name}`}
                         >
                           <Plus size={14} />
@@ -1839,7 +1840,7 @@ export default function MerchandisePage({ initialTab }) {
                         type="button"
                         onClick={() => addToCart(item)}
                         disabled={item.stock_quantity === 0}
-                        className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] text-[13px] font-bold text-white transition hover:bg-[#0878B7] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
+                        className="mt-3 flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-[13px] font-bold text-white transition hover:bg-[#0F2F62] disabled:cursor-not-allowed disabled:bg-slate-200 disabled:text-slate-500"
                       >
                         <ShoppingBag size={14} />
                         {item.stock_quantity === 0
@@ -1855,10 +1856,10 @@ export default function MerchandisePage({ initialTab }) {
         )}
 
         {activeTab === "cart" && (
-          <section className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-[#0B8ED0]">
+                <p className="text-xs font-bold uppercase tracking-wider text-[#0878B7]">
                   Review your selection
                 </p>
                 <h2 className="mt-1 text-xl font-extrabold text-[#0F172A]">
@@ -1871,7 +1872,7 @@ export default function MerchandisePage({ initialTab }) {
               <button
                 type="button"
                 onClick={() => setActiveTab("order")}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0B8ED0] hover:bg-[#F8FBFD]"
+                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
               >
                 Continue Shopping
               </button>
@@ -1882,13 +1883,13 @@ export default function MerchandisePage({ initialTab }) {
                   size={36}
                   className="mx-auto mb-2 text-slate-200"
                 />
-                <p className="text-sm font-semibold text-slate-400">
+                <p className="text-sm font-semibold text-slate-500">
                   Your cart is empty.
                 </p>
                 <button
                   type="button"
                   onClick={() => setActiveTab("order")}
-                  className="mt-4 rounded-lg bg-[#0B8ED0] px-5 py-2 text-sm font-bold text-white hover:bg-[#0878B7] transition"
+                  className="mt-4 rounded-lg bg-[#0878B7] px-5 py-2 text-sm font-bold text-white hover:bg-[#0F2F62] transition"
                 >
                   Browse Merchandise
                 </button>
@@ -1927,7 +1928,7 @@ export default function MerchandisePage({ initialTab }) {
                         onClick={() =>
                           changeCartQty(row.item.id, row.quantity - 1)
                         }
-                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]"
+                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD]"
                         aria-label={`Decrease quantity for ${row.item.name}`}
                       >
                         <Minus size={13} />
@@ -1941,7 +1942,7 @@ export default function MerchandisePage({ initialTab }) {
                           changeCartQty(row.item.id, row.quantity + 1)
                         }
                         disabled={row.quantity >= row.item.stock_quantity}
-                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                        className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                         aria-label={`Increase quantity for ${row.item.name}`}
                       >
                         <Plus size={13} />
@@ -1966,7 +1967,7 @@ export default function MerchandisePage({ initialTab }) {
                       {cartQuantity} total item{cartQuantity === 1 ? "" : "s"}
                     </p>
                     <p className="mt-1 text-lg font-black text-[#0F172A]">
-                      Order total: <span className="text-[#0B8ED0]">{fmt(cartTotal)}</span>
+                      Order total: <span className="text-[#0878B7]">{fmt(cartTotal)}</span>
                     </p>
                   </div>
                   <div className="flex gap-2">
@@ -1988,7 +1989,7 @@ export default function MerchandisePage({ initialTab }) {
                     <button
                       type="button"
                       onClick={() => setCheckoutOpen(true)}
-                      className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]"
+                      className="h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]"
                     >
                       Review & Continue
                     </button>
@@ -2003,13 +2004,13 @@ export default function MerchandisePage({ initialTab }) {
         {activeTab === "my-orders" && (
           <section className="space-y-4">
             <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
-              <Search size={15} className="text-slate-400" />
+              <Search size={15} className="text-slate-500" />
               <input
                 value={studentOrderSearch}
                 onChange={(e) => setStudentOrderSearch(e.target.value)}
                 type="text"
                 placeholder="Search orders or token..."
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500"
               />
             </div>
 
@@ -2018,17 +2019,17 @@ export default function MerchandisePage({ initialTab }) {
                 {[1, 2, 3].map((i) => (
                   <div
                     key={i}
-                    className="h-24 animate-pulse rounded-xl bg-slate-100"
+                    className="h-24 animate-pulse rounded-lg bg-slate-100"
                   />
                 ))}
               </div>
             ) : filteredStudentOrders.length === 0 ? (
-              <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
+              <div className="rounded-lg border border-[#DDE7EF] bg-white p-12 text-center">
                 <ShoppingBag
                   size={36}
                   className="mx-auto mb-3 text-slate-200"
                 />
-                <p className="text-sm font-semibold text-slate-400">
+                <p className="text-sm font-semibold text-slate-500">
                   {studentOrderSearch.trim() && ordersMeta.total > 0
                     ? "No orders on this page match your search."
                     : "No orders yet. Browse merchandise to place your first order."}
@@ -2039,7 +2040,7 @@ export default function MerchandisePage({ initialTab }) {
                 {filteredStudentOrders.map((o) => (
                   <div
                     key={o.id}
-                    className={`rounded-xl border bg-white p-5 shadow-sm ${o.status === "claimed" ? "border-emerald-200" : o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
+                    className={`rounded-lg border bg-white p-5 shadow-sm ${o.status === "claimed" ? "border-emerald-200" : o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
@@ -2057,7 +2058,7 @@ export default function MerchandisePage({ initialTab }) {
                           )}
                         </div>
                         <div className="min-w-0">
-                          <p className="font-mono text-xs font-bold text-slate-400">
+                          <p className="font-mono text-xs font-bold text-slate-500">
                             ORD-{o.id}
                           </p>
                           <p className="mt-0.5 truncate font-bold text-[#0F172A]">
@@ -2066,7 +2067,7 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="text-[13px] text-slate-500">
                             Qty: {o.quantity} · Total: {fmt(o.total_price)}
                           </p>
-                          <p className="mt-1 text-[12px] text-slate-400">
+                          <p className="mt-1 text-[12px] text-slate-500">
                             {fmtDate(o.created_at)}
                           </p>
                         </div>
@@ -2086,7 +2087,7 @@ export default function MerchandisePage({ initialTab }) {
                       </div>
                     </div>
                     {o.status !== "cancelled" && (
-                      <div className="mt-4 border-t border-[#EEF2F7] pt-4">
+                      <div className="mt-4 border-t border-[#EEF6FB] pt-4">
                         <StepTracker status={o.status} />
                       </div>
                     )}
@@ -2122,7 +2123,7 @@ export default function MerchandisePage({ initialTab }) {
                                   error: "",
                                 })
                               }
-                              className="h-9 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white hover:bg-[#0878B7]"
+                              className="h-9 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"
                             >
                               {o.payment_proof_url
                                 ? "Replace Proof"
@@ -2179,8 +2180,8 @@ export default function MerchandisePage({ initialTab }) {
         {/* Student Claim Tokens tab */}
         {activeTab === "tokens" && !isFulfillmentRole && (
           <section className="space-y-4">
-            <div className="flex items-start gap-3 rounded-xl border border-[#DDE7EF] bg-[#EEF6FB] p-4">
-              <Info size={18} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+            <div className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-4">
+              <Info size={18} className="mt-0.5 shrink-0 text-[#0878B7]" />
               <p className="text-[13px] font-medium text-[#0B1831]">
                 After payment approval, present the claim token to an authorized
                 officer to release the item.
@@ -2188,13 +2189,13 @@ export default function MerchandisePage({ initialTab }) {
             </div>
 
             <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
-              <Search size={15} className="text-slate-400" />
+              <Search size={15} className="text-slate-500" />
               <input
                 value={studentTokenSearch}
                 onChange={(e) => setStudentTokenSearch(e.target.value)}
                 type="text"
                 placeholder="Filter tokens by code or item..."
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400"
+                className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500"
               />
             </div>
 
@@ -2203,21 +2204,21 @@ export default function MerchandisePage({ initialTab }) {
                 {[1, 2].map((i) => (
                   <div
                     key={i}
-                    className="h-32 animate-pulse rounded-xl bg-slate-100"
+                    className="h-32 animate-pulse rounded-lg bg-slate-100"
                   />
                 ))}
               </div>
             ) : filteredStudentTokens.length === 0 ? (
-              <div className="rounded-xl border border-[#DDE7EF] bg-white p-12 text-center">
+              <div className="rounded-lg border border-[#DDE7EF] bg-white p-12 text-center">
                 <Ticket size={36} className="mx-auto mb-3 text-slate-200" />
-                <p className="text-sm font-semibold text-slate-400">
+                <p className="text-sm font-semibold text-slate-500">
                   {studentTokenSearch.trim()
                     ? "No matching active tokens found."
                     : "No active tokens. Finalize an order list to receive claim tokens."}
                 </p>
                 <button
                   onClick={() => setActiveTab("order")}
-                  className="mt-4 rounded-lg bg-[#0B8ED0] px-5 py-2 text-sm font-bold text-white hover:bg-[#0878B7] transition"
+                  className="mt-4 rounded-lg bg-[#0878B7] px-5 py-2 text-sm font-bold text-white hover:bg-[#0F2F62] transition"
                 >
                   Browse Merchandise
                 </button>
@@ -2227,11 +2228,11 @@ export default function MerchandisePage({ initialTab }) {
                 {filteredStudentTokens.map((o) => (
                   <div
                     key={o.id}
-                    className={`rounded-xl border bg-white p-5 shadow-sm ${o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
+                    className={`rounded-lg border bg-white p-5 shadow-sm ${o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
-                        <p className="font-mono text-xs font-bold text-slate-400">
+                        <p className="font-mono text-xs font-bold text-slate-500">
                           ORD-{o.id}
                         </p>
                         <p className="mt-0.5 font-bold text-[#0F172A]">
@@ -2252,10 +2253,10 @@ export default function MerchandisePage({ initialTab }) {
                       <StepTracker status={o.status} />
                       {o.claim_token && (
                         <div className="text-right">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
                             Your Token
                           </p>
-                          <p className="font-mono text-xl font-black text-[#0B8ED0]">
+                          <p className="font-mono text-xl font-black text-[#0878B7]">
                             {o.claim_token}
                           </p>
                         </div>
@@ -2280,9 +2281,9 @@ export default function MerchandisePage({ initialTab }) {
         )}
 
         {checkoutOpen && (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-            <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-2xl sm:p-6">
-              <p className="text-xs font-bold uppercase tracking-wider text-[#0B8ED0]">
+          <AccessibleOverlay label="Confirm merchandise reservation" onClose={() => !checkoutSubmitting && setCheckoutOpen(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+            <div className="max-h-[92vh] w-full max-w-xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-2xl sm:p-6">
+              <p className="text-xs font-bold uppercase tracking-wider text-[#0878B7]">
                 Final review
               </p>
               <h2 className="mt-1 text-xl font-extrabold text-[#0F172A]">
@@ -2295,7 +2296,7 @@ export default function MerchandisePage({ initialTab }) {
                 {cart.map((row) => (
                   <div
                     key={row.item.id}
-                    className="flex items-center justify-between gap-3 border-b border-[#EEF2F7] pb-2 last:border-b-0 last:pb-0"
+                    className="flex items-center justify-between gap-3 border-b border-[#EEF6FB] pb-2 last:border-b-0 last:pb-0"
                   >
                     <div>
                       <p className="text-sm font-bold text-[#0F172A]">
@@ -2314,11 +2315,11 @@ export default function MerchandisePage({ initialTab }) {
               <div className="mt-3 flex items-end justify-between rounded-lg bg-[#EEF6FB] px-4 py-3">
                 <div>
                   <p className="text-xs font-semibold text-slate-500">Grand total</p>
-                  <p className="text-[11px] font-medium text-slate-400">
+                  <p className="text-[11px] font-medium text-slate-500">
                     {cartQuantity} item{cartQuantity === 1 ? "" : "s"}
                   </p>
                 </div>
-                <p className="text-xl font-black text-[#0B8ED0]">{fmt(cartTotal)}</p>
+                <p className="text-xl font-black text-[#0878B7]">{fmt(cartTotal)}</p>
               </div>
               <div className="mt-4 space-y-3">
                 <div className="space-y-1.5">
@@ -2360,7 +2361,7 @@ export default function MerchandisePage({ initialTab }) {
                 {checkoutPayment.method === "gcash" && (
                   <div className="grid gap-3 sm:grid-cols-2">
                     {gcashSettings?.gcash_qr_url && (
-                      <div className="rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-3 text-center sm:col-span-2">
+                      <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-center sm:col-span-2">
                         <p className="mb-2 text-xs font-bold text-[#0F172A]">
                           Scan the official HIUSA GCash QR code
                         </p>
@@ -2408,8 +2409,8 @@ export default function MerchandisePage({ initialTab }) {
                   </div>
                 )}
               </div>
-              <div className="mt-4 flex items-start gap-2 rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-3">
-                <Info size={15} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+              <div className="mt-4 flex items-start gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+                <Info size={15} className="mt-0.5 shrink-0 text-[#0878B7]" />
                 <p className="text-[11px] font-medium leading-5 text-[#0B1831]">
                   Submitting reserves the stock. You may cancel later from My Orders only while the order remains unpaid and unreviewed.
                 </p>
@@ -2426,19 +2427,19 @@ export default function MerchandisePage({ initialTab }) {
                 <button
                   type="button"
                   onClick={submitCartOrders}
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                   disabled={checkoutSubmitting}
                 >
                   {checkoutSubmitting ? "Reserving..." : "Place Reservation"}
                 </button>
               </div>
             </div>
-          </div>
+          </AccessibleOverlay>
         )}
 
         {paymentModal.open && (
-          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-            <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+          <AccessibleOverlay label="Submit GCash payment" onClose={() => !paymentModal.busy && setPaymentModal({ open: false, order: null, reference: "", proof_file: null, busy: false, error: "" })} className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+            <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
               <h2 className="text-lg font-bold text-[#0F172A]">
                 Submit GCash Payment
               </h2>
@@ -2448,7 +2449,7 @@ export default function MerchandisePage({ initialTab }) {
               </p>
               <div className="mt-4 space-y-3">
                 {gcashSettings?.gcash_qr_url && (
-                  <div className="rounded-lg border border-[#B9D9E9] bg-[#F8FBFD] p-3 text-center">
+                  <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-center">
                     <p className="mb-2 text-xs font-bold text-[#0F172A]">
                       Pay using the official HIUSA GCash QR code
                     </p>
@@ -2522,13 +2523,13 @@ export default function MerchandisePage({ initialTab }) {
                   type="button"
                   disabled={paymentModal.busy}
                   onClick={handlePaymentSubmission}
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white disabled:opacity-50"
                 >
                   {paymentModal.busy ? "Submitting..." : "Submit Payment"}
                 </button>
               </div>
             </div>
-          </div>
+          </AccessibleOverlay>
         )}
 
         <ConfirmModal
@@ -2565,7 +2566,7 @@ export default function MerchandisePage({ initialTab }) {
     <div className="space-y-6">
       {feedbackPopup}
       {activeTab === "inventory" && (
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           {
             label: "Total Items",
@@ -2594,16 +2595,16 @@ export default function MerchandisePage({ initialTab }) {
         ].map((stat) => (
           <article
             key={stat.label}
-            className="group rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/20 hover:shadow-md"
+            className="group rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/20 hover:shadow-md"
           >
-            <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0] transition group-hover:bg-[#0B8ED0] group-hover:text-white">
+            <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62] transition group-hover:bg-[#0F2F62] group-hover:text-white">
               <stat.icon size={19} />
             </div>
             <p className="text-sm font-semibold text-slate-500">{stat.label}</p>
             <p className="mt-1 text-2xl font-black text-[#0F172A]">
               {stat.value}
             </p>
-            <p className="mt-1 text-xs font-medium text-slate-400">
+            <p className="mt-1 text-xs font-medium text-slate-500">
               {stat.helper}
             </p>
           </article>
@@ -2612,7 +2613,7 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {activeTab === "inventory" && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">
@@ -2624,18 +2625,18 @@ export default function MerchandisePage({ initialTab }) {
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
-                <Search size={15} className="text-slate-400" />
+                <Search size={15} className="text-slate-500" />
                 <input
                   value={inventorySearch}
                   onChange={(e) => setInventorySearch(e.target.value)}
                   type="text"
                   placeholder="Search items..."
-                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
+                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500 sm:w-[140px]"
                 />
               </div>
               <button
                 onClick={() => setShowForm(true)}
-                className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition"
+                className="flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition"
               >
                 <Plus size={16} />
                 <span className="hidden sm:inline">Add Product</span>
@@ -2647,12 +2648,12 @@ export default function MerchandisePage({ initialTab }) {
               {[1, 2, 3, 4, 5, 6].map((i) => (
                 <div
                   key={i}
-                  className="h-64 animate-pulse rounded-xl bg-slate-100"
+                  className="h-64 animate-pulse rounded-lg bg-slate-100"
                 />
               ))}
             </div>
           ) : filteredInventoryItems.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">
+            <p className="p-8 text-center text-sm text-slate-500">
               No inventory items yet.
             </p>
           ) : (
@@ -2660,7 +2661,7 @@ export default function MerchandisePage({ initialTab }) {
               {filteredInventoryItems.map((item) => (
                 <article
                   key={item.id}
-                  className={`rounded-xl border bg-white p-4 shadow-sm ${item.stock_quantity < 10 ? "border-red-200" : "border-[#DDE7EF]"}`}
+                  className={`rounded-lg border bg-white p-4 shadow-sm ${item.stock_quantity < 10 ? "border-red-200" : "border-[#DDE7EF]"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-3">
@@ -2672,7 +2673,7 @@ export default function MerchandisePage({ initialTab }) {
                         />
                       ) : (
                         <div className="grid h-14 w-14 place-items-center rounded-lg bg-[#E6F6FD]">
-                          <Package size={20} className="text-[#0B8ED0]" />
+                          <Package size={20} className="text-[#0878B7]" />
                         </div>
                       )}
                       <div className="min-w-0">
@@ -2686,7 +2687,7 @@ export default function MerchandisePage({ initialTab }) {
                     </div>
                     <div className="flex flex-col items-end gap-1">
                       {item.category && (
-                        <span className="rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0B8ED0]">
+                        <span className="rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">
                           {item.category}
                         </span>
                       )}
@@ -2713,7 +2714,7 @@ export default function MerchandisePage({ initialTab }) {
                     <button
                       type="button"
                       onClick={() => openAddStockModal(item)}
-                      className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0B8ED0] transition hover:bg-[#E0F0FA]"
+                      className="rounded-full bg-[#EEF6FB] px-3 py-1 text-xs font-bold text-[#0F2F62] transition hover:bg-[#E6F6FD]"
                     >
                       Add Stock
                     </button>
@@ -2728,7 +2729,7 @@ export default function MerchandisePage({ initialTab }) {
                       <button
                         type="button"
                         onClick={() => openEditForm(item)}
-                        className="inline-flex h-7 items-center gap-1 rounded-md border border-[#DDE7EF] px-2 text-[11px] font-bold text-[#0B8ED0] transition hover:bg-[#EEF6FB]"
+                        className="inline-flex h-7 items-center gap-1 rounded-md border border-[#DDE7EF] px-2 text-[11px] font-bold text-[#0878B7] transition hover:bg-[#F8FBFD]"
                       >
                         <Pencil size={12} />
                         Edit
@@ -2772,7 +2773,7 @@ export default function MerchandisePage({ initialTab }) {
                   <SlidersHorizontal size={15} />
                   Filters
                   {activeOrderFilterCount > 0 && (
-                    <span className="rounded-full bg-[#0B8ED0] px-1.5 py-0.5 text-[10px] text-white">
+                    <span className="rounded-full bg-[#0878B7] px-1.5 py-0.5 text-[10px] text-white">
                       {activeOrderFilterCount}
                     </span>
                   )}
@@ -2781,7 +2782,7 @@ export default function MerchandisePage({ initialTab }) {
                   type="button"
                   onClick={handleOrderExport}
                   disabled={exportingOrders}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"
+                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"
                 >
                   <Download size={15} />
                   {exportingOrders ? "Exporting..." : "Export CSV"}
@@ -2793,7 +2794,7 @@ export default function MerchandisePage({ initialTab }) {
                 <span className="sr-only">Search merchandise orders</span>
                 <Search
                   size={15}
-                  className="absolute left-3 top-3.5 text-slate-400"
+                  className="absolute left-3 top-3.5 text-slate-500"
                 />
                 <input
                   value={orderFilters.search}
@@ -2861,7 +2862,7 @@ export default function MerchandisePage({ initialTab }) {
               </select>
             </div>
             {showAdvancedFilters && (
-              <div className="mt-4 border-t border-[#E5EDF3] pt-4">
+              <div className="mt-4 border-t border-[#DDE7EF] pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                   <select
                     aria-label="Department"
@@ -3056,7 +3057,7 @@ export default function MerchandisePage({ initialTab }) {
                 <button
                   type="button"
                   onClick={() => setOrderFilters(EMPTY_ORDER_FILTERS)}
-                  className="mt-3 text-xs font-bold text-[#0B8ED0] hover:text-[#0878B7]"
+                  className="mt-3 text-xs font-bold text-[#0878B7] hover:text-[#0878B7]"
                 >
                   Clear all filters
                 </button>
@@ -3081,7 +3082,7 @@ export default function MerchandisePage({ initialTab }) {
                     group: "unclaimed",
                     helper: "Approved orders with active tokens",
                     icon: Ticket,
-                    tone: "bg-[#E6F6FD] text-[#0B8ED0]",
+                    tone: "bg-[#E6F6FD] text-[#0F2F62]",
                   },
                   {
                     label: "Claimed",
@@ -3112,7 +3113,7 @@ export default function MerchandisePage({ initialTab }) {
                     <span className="min-w-0">
                       <span className="block text-xs font-bold text-slate-500">{metric.label}</span>
                       <span className="mt-0.5 block text-xl font-black text-[#0F172A]">{metric.value}</span>
-                      <span className="mt-0.5 block text-[10px] font-semibold text-slate-400">{metric.helper}</span>
+                      <span className="mt-0.5 block text-[10px] font-semibold text-slate-500">{metric.helper}</span>
                     </span>
                   </button>
                 ))}
@@ -3123,10 +3124,10 @@ export default function MerchandisePage({ initialTab }) {
                   {orderSummary.purchased_users} of {orderSummary.total_users} users purchased ({orderSummary.purchase_rate}%).
                 </p>
                 <div className="flex flex-wrap gap-3">
-                  <button type="button" onClick={() => openOrderAnalytics("purchased", "Purchased users")} className="font-bold text-[#0B8ED0] hover:text-[#0878B7]">
+                  <button type="button" onClick={() => openOrderAnalytics("purchased", "Purchased users")} className="font-bold text-[#0878B7] hover:text-[#0878B7]">
                     View purchasers
                   </button>
-                  <button type="button" onClick={() => openOrderAnalytics("not_purchased", "Users without purchases")} className="font-bold text-slate-600 hover:text-[#0B8ED0]">
+                  <button type="button" onClick={() => openOrderAnalytics("not_purchased", "Users without purchases")} className="font-bold text-slate-600 hover:text-[#0878B7]">
                     View non-buyers
                   </button>
                 </div>
@@ -3134,7 +3135,7 @@ export default function MerchandisePage({ initialTab }) {
             </>
           )}
           {orderSummary?.breakdown?.length > 0 && (
-            <div className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+            <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
               <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
                 Merchandise breakdown
               </p>
@@ -3160,7 +3161,7 @@ export default function MerchandisePage({ initialTab }) {
                   Review payment, approval, and pickup status. Open Details for the full audit trail.
                 </p>
               </div>
-              <span className="mt-2 w-fit rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0B8ED0] sm:mt-0">
+              <span className="mt-2 w-fit rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62] sm:mt-0">
                 {ordersMeta.total} {ordersMeta.total === 1 ? "order" : "orders"}
               </span>
             </div>
@@ -3174,12 +3175,12 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : filteredOfficerOrders.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-400">
+              <p className="p-8 text-center text-sm text-slate-500">
                 No orders yet.
               </p>
             ) : (
               <>
-              <div className="divide-y divide-[#E5EDF3] xl:hidden">
+              <div className="divide-y divide-[#DDE7EF] xl:hidden">
                 {filteredOfficerOrders.map((order) => (
                   <FulfillmentOrderRow
                     key={order.id}
@@ -3208,14 +3209,14 @@ export default function MerchandisePage({ initialTab }) {
                       <th className="px-4 py-3">Actions</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                  <tbody className="divide-y divide-[#DDE7EF] text-sm">
                     {filteredOfficerOrders.map((o) => (
                       <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
                         <td className="px-4 py-4">
-                          <p className="font-mono text-xs font-black text-[#0B8ED0]">
+                          <p className="font-mono text-xs font-black text-[#0878B7]">
                             ORD-{o.id}
                           </p>
-                          <p className="mt-1 text-[10px] text-slate-400">
+                          <p className="mt-1 text-[10px] text-slate-500">
                             {o.transaction?.receipt_reference ||
                               o.payment_reference ||
                               "No payment reference"}
@@ -3225,22 +3226,22 @@ export default function MerchandisePage({ initialTab }) {
                           <button
                             type="button"
                             onClick={() => openOrderDetails(o)}
-                            className="text-left font-semibold text-[#0F172A] hover:text-[#0B8ED0]"
+                            className="text-left font-semibold text-[#0F172A] hover:text-[#0878B7]"
                           >
                             {o.student
                               ? `${o.student.first_name} ${o.student.last_name}`
                               : "-"}
                           </button>
-                          <p className="mt-0.5 font-mono text-[10px] text-slate-400">
+                          <p className="mt-0.5 font-mono text-[10px] text-slate-500">
                             {o.student?.school_id} ·{" "}
                             {(o.student?.role || "").replaceAll("_", " ")}
                           </p>
                           {o.student?.position_title && (
-                            <p className="text-[10px] font-semibold text-[#0B8ED0]">
+                            <p className="text-[10px] font-semibold text-[#0878B7]">
                               {o.student.position_title}
                             </p>
                           )}
-                          <p className="mt-1 max-w-52 truncate text-[10px] text-slate-400">
+                          <p className="mt-1 max-w-52 truncate text-[10px] text-slate-500">
                             {[o.student?.program, o.student?.year_level, o.student?.section]
                               .filter(Boolean)
                               .join(" · ") || "No academic profile"}
@@ -3250,7 +3251,7 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="font-semibold text-slate-700">
                             {o.student?.program || "Program not recorded"}
                           </p>
-                          <p className="mt-0.5 text-slate-400">
+                          <p className="mt-0.5 text-slate-500">
                             {[
                               o.student?.major,
                               o.student?.year_level,
@@ -3259,7 +3260,7 @@ export default function MerchandisePage({ initialTab }) {
                               .filter(Boolean)
                               .join(" · ") || "No year/section"}
                           </p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-slate-500">
                             {o.student?.department || "Department not recorded"}
                           </p>
                         </td>
@@ -3267,7 +3268,7 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="font-semibold text-slate-700">
                             {o.merchandise?.name ?? "-"}
                           </p>
-                          <p className="text-[10px] text-slate-400">
+                          <p className="text-[10px] text-slate-500">
                             {o.merchandise?.category || "Uncategorized"} ·{" "}
                             {fmt(o.merchandise?.price)} each
                           </p>
@@ -3276,7 +3277,7 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="font-bold tabular-nums text-[#0F172A]">
                             {o.quantity} × {fmt(o.merchandise?.price)}
                           </p>
-                          <p className="text-xs font-black text-[#0B8ED0]">
+                          <p className="text-xs font-black text-[#0878B7]">
                             {fmt(o.total_price)}
                           </p>
                         </td>
@@ -3284,7 +3285,7 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="font-bold uppercase text-slate-600">
                             {o.payment_method || "Not selected"}
                           </p>
-                          <p className="mt-1 text-slate-400">
+                          <p className="mt-1 text-slate-500">
                             {o.payment_reference || "No reference"}
                           </p>
                           <span
@@ -3333,15 +3334,15 @@ export default function MerchandisePage({ initialTab }) {
                           >
                             {capitalize(o.status)}
                           </span>
-                          <p className="mt-2 text-[10px] text-slate-400">
+                          <p className="mt-2 text-[10px] text-slate-500">
                             Released by{" "}
                             {o.claim_verifier
                               ? `${o.claim_verifier.first_name} ${o.claim_verifier.last_name}`
                               : "-"}
                           </p>
                           {o.status === "paid" && o.claim_token && (
-                            <div className="mt-2 rounded-lg border border-[#B9D9E9] bg-[#EEF6FB] px-2.5 py-2">
-                              <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#0B8ED0]">
+                            <div className="mt-2 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-2">
+                              <p className="flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-[#0878B7]">
                                 <Ticket size={11} /> Claim token
                               </p>
                               <p className="mt-1 font-mono text-xs font-black tracking-wide text-[#0B1831]">
@@ -3366,7 +3367,7 @@ export default function MerchandisePage({ initialTab }) {
                           <button
                             type="button"
                             onClick={() => openOrderDetails(o)}
-                            className="mb-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1.5 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"
+                            className="mb-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1.5 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
                           >
                             <Eye size={13} />
                             Details
@@ -3383,7 +3384,7 @@ export default function MerchandisePage({ initialTab }) {
                                     error: "",
                                   })
                                 }
-                                className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-bold transition ${role === "ADMIN" ? "bg-[#0B8ED0] text-white hover:bg-[#0878B7]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                                className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-bold transition ${role === "ADMIN" ? "bg-[#0878B7] text-white hover:bg-[#0F2F62]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
                               >
                                 {role === "ADMIN"
                                   ? "Approve Directly"
@@ -3408,7 +3409,7 @@ export default function MerchandisePage({ initialTab }) {
                                   type="button"
                                   onClick={() => handleViewPaymentProof(o.id)}
                                   title="View payment proof"
-                                  className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"
+                                  className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#F8FBFD]"
                                 >
                                   <Eye size={14} />
                                 </button>
@@ -3430,7 +3431,7 @@ export default function MerchandisePage({ initialTab }) {
             )}
             {ordersMeta.total > ordersMeta.per_page && (
               <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
-                <p className="text-xs font-medium text-slate-400">
+                <p className="text-xs font-medium text-slate-500">
                   Showing{" "}
                   <span className="font-bold text-slate-600">
                     {ordFrom}-{ordTo}
@@ -3444,7 +3445,7 @@ export default function MerchandisePage({ initialTab }) {
                   <button
                     onClick={() => loadOrders(ordersMeta.current_page - 1)}
                     disabled={ordersMeta.current_page === 1}
-                    className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronLeft size={14} />
                   </button>
@@ -3454,7 +3455,7 @@ export default function MerchandisePage({ initialTab }) {
                   <button
                     onClick={() => loadOrders(ordersMeta.current_page + 1)}
                     disabled={ordersMeta.current_page === ordersMeta.last_page}
-                    className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                    className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     <ChevronRight size={14} />
                   </button>
@@ -3466,11 +3467,11 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {analyticsModal.open && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-7xl overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-2xl">
+        <AccessibleOverlay label="Merchandise analytics details" onClose={() => setAnalyticsModal({ open: false, title: "", loading: false, users: [], error: "", group: "", currentPage: 1, totalUsers: 0 })} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-7xl overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-2xl">
             <div className="flex items-start justify-between border-b border-[#DDE7EF] p-5">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">
                   Merchandise drill-down
                 </p>
                 <h2 className="mt-1 text-xl font-black text-[#0F172A]">
@@ -3495,7 +3496,7 @@ export default function MerchandisePage({ initialTab }) {
                     totalUsers: 0,
                   })
                 }
-                className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-[#EEF6FB]"
+                className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-[#F8FBFD]"
               >
                 <X size={18} />
               </button>
@@ -3515,7 +3516,7 @@ export default function MerchandisePage({ initialTab }) {
                   {analyticsModal.error}
                 </p>
               ) : analyticsModal.users.length === 0 ? (
-                <p className="p-12 text-center text-sm text-slate-400">
+                <p className="p-12 text-center text-sm text-slate-500">
                   No users match this drill-down.
                 </p>
               ) : (
@@ -3548,7 +3549,7 @@ export default function MerchandisePage({ initialTab }) {
                       ))}
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5EDF3]">
+                  <tbody className="divide-y divide-[#DDE7EF]">
                     {pagedAnalyticsRows.map(({ user, order }, index) => (
                         <tr
                           key={`${user.school_id}-${order?.id || index}`}
@@ -3559,7 +3560,7 @@ export default function MerchandisePage({ initialTab }) {
                           </td>
                           <td className="px-3 py-3 font-bold text-[#0F172A]">
                             {user.first_name} {user.last_name}
-                            <p className="font-normal text-slate-400">
+                            <p className="font-normal text-slate-500">
                               {user.email}
                             </p>
                           </td>
@@ -3568,7 +3569,7 @@ export default function MerchandisePage({ initialTab }) {
                           </td>
                           <td className="px-3 py-3">
                             {user.program || "-"}
-                            <p className="text-slate-400">
+                            <p className="text-slate-500">
                               {user.major || "No major"}
                             </p>
                           </td>
@@ -3577,7 +3578,7 @@ export default function MerchandisePage({ initialTab }) {
                           </td>
                           <td className="px-3 py-3">
                             {(user.role || "").replaceAll("_", " ")}
-                            <p className="text-[#0B8ED0]">
+                            <p className="text-[#0878B7]">
                               {user.position_title || "-"}
                             </p>
                           </td>
@@ -3595,7 +3596,7 @@ export default function MerchandisePage({ initialTab }) {
                           </td>
                           <td className="px-3 py-3">
                             {order?.payment_method || "-"}
-                            <p className="text-slate-400">
+                            <p className="text-slate-500">
                               {order?.payment_reference || "-"}
                             </p>
                           </td>
@@ -3615,7 +3616,7 @@ export default function MerchandisePage({ initialTab }) {
                             {order?.approver
                               ? `${order.approver.first_name} ${order.approver.last_name}`
                               : "-"}
-                            <p className="text-slate-400">
+                            <p className="text-slate-500">
                               {order?.claim_verifier
                                 ? `${order.claim_verifier.first_name} ${order.claim_verifier.last_name}`
                                 : "-"}
@@ -3654,15 +3655,15 @@ export default function MerchandisePage({ initialTab }) {
               )}
             </div>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       {orderDetails && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-2xl">
+        <AccessibleOverlay label="Merchandise order details" onClose={() => setOrderDetails(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">
                   Order record
                 </p>
                 <h2 className="mt-1 text-xl font-black text-[#0F172A]">
@@ -3676,7 +3677,7 @@ export default function MerchandisePage({ initialTab }) {
                 type="button"
                 aria-label="Close order details"
                 onClick={() => setOrderDetails(null)}
-                className="grid h-9 w-9 place-items-center rounded-lg text-slate-400 hover:bg-[#EEF6FB]"
+                className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-[#F8FBFD]"
               >
                 <X size={18} />
               </button>
@@ -3785,7 +3786,7 @@ export default function MerchandisePage({ initialTab }) {
               <button
                 type="button"
                 onClick={() => handleViewPaymentProof(orderDetails.id)}
-                className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0]"
+                className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7]"
               >
                 <Eye size={14} />
                 View payment proof
@@ -3793,7 +3794,7 @@ export default function MerchandisePage({ initialTab }) {
             )}
             <section className="mt-5 border-t border-[#DDE7EF] pt-5">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">
                   Review trail
                 </p>
                 <h3 className="mt-1 text-base font-black text-[#0F172A]">
@@ -3827,7 +3828,7 @@ export default function MerchandisePage({ initialTab }) {
                       key={entry.id}
                       className="relative rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 pl-11"
                     >
-                      <span className="absolute left-4 top-5 h-3 w-3 rounded-full border-2 border-white bg-[#0B8ED0] ring-2 ring-[#B9D9E9]" />
+                      <span className="absolute left-4 top-5 h-3 w-3 rounded-full border-2 border-white bg-[#0878B7] ring-2 ring-[#DDE7EF]" />
                       <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                         <div>
                           <p className="text-sm font-bold text-[#0F172A]">
@@ -3844,7 +3845,7 @@ export default function MerchandisePage({ initialTab }) {
                                 : ""}
                           </p>
                         </div>
-                        <time className="text-[11px] font-semibold text-slate-400">
+                        <time className="text-[11px] font-semibold text-slate-500">
                           {fmtDateTime(entry.created_at)}
                         </time>
                       </div>
@@ -3859,14 +3860,14 @@ export default function MerchandisePage({ initialTab }) {
               )}
             </section>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       {activeTab === "tokens" && isFulfillmentRole && (
         <section className="space-y-4">
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
             <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                 <Ticket size={19} />
               </span>
               <div>
@@ -3898,7 +3899,7 @@ export default function MerchandisePage({ initialTab }) {
               <button
                 type="submit"
                 disabled={claiming || !claimToken.trim()}
-                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+                className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
               >
                 <Ticket size={16} />
                 {claiming ? "Processing..." : "Claim"}
@@ -3906,7 +3907,7 @@ export default function MerchandisePage({ initialTab }) {
             </form>
           </div>
 
-          <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="border-b border-[#DDE7EF] p-5">
               <h2 className="text-lg font-bold text-[#0F172A]">
                 Paid Orders Awaiting Pickup
@@ -3925,7 +3926,7 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : paidOrders.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-400">
+              <p className="p-8 text-center text-sm text-slate-500">
                 No paid orders awaiting pickup.
               </p>
             ) : (
@@ -3940,10 +3941,10 @@ export default function MerchandisePage({ initialTab }) {
                       <th className="px-5 py-3">Total</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                  <tbody className="divide-y divide-[#DDE7EF] text-sm">
                     {paidOrders.map((o) => (
                       <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
-                        <td className="px-5 py-4 font-mono text-xs font-black text-[#0B8ED0]">
+                        <td className="px-5 py-4 font-mono text-xs font-black text-[#0878B7]">
                           {o.claim_token}
                         </td>
                         <td className="px-5 py-4 font-semibold text-[#0F172A]">
@@ -3978,8 +3979,8 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label="Add merchandise product" onClose={() => { if (!formSubmitting) { setShowForm(false); setImageFile(null); setImagePreview(null); } }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">Add Product</h2>
               <button
@@ -3988,7 +3989,7 @@ export default function MerchandisePage({ initialTab }) {
                   setImageFile(null);
                   setImagePreview(null);
                 }}
-                className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"
+                className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"
               >
                 <X size={18} />
               </button>
@@ -4020,7 +4021,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
                     Unit Price (₱) *
@@ -4086,7 +4087,7 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">
                   Product Image
                 </label>
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                   {imagePreview ? (
                     <img
                       src={imagePreview}
@@ -4096,7 +4097,7 @@ export default function MerchandisePage({ initialTab }) {
                   ) : (
                     <>
                       <ImagePlus size={24} className="mb-1 text-slate-300" />
-                      <span className="text-[13px] font-semibold text-slate-400">
+                      <span className="text-[13px] font-semibold text-slate-500">
                         Click to upload
                       </span>
                       <span className="text-[11px] text-slate-300">
@@ -4132,24 +4133,24 @@ export default function MerchandisePage({ initialTab }) {
                     !form.unit_price ||
                     !form.stock_quantity
                   }
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                 >
                   {formSubmitting ? "Adding..." : "Add Product"}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       {showEditForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label="Edit merchandise product" onClose={() => !formSubmitting && closeEditForm()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">Edit Product</h2>
               <button
                 onClick={closeEditForm}
-                className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"
+                className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"
               >
                 <X size={18} />
               </button>
@@ -4183,7 +4184,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
                     Unit Price (₱) *
@@ -4255,7 +4256,7 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">
                   Product Image
                 </label>
-                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                <label className="flex cursor-pointer flex-col items-center justify-center rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] py-4 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                   {editImagePreview ? (
                     <img
                       src={editImagePreview}
@@ -4265,7 +4266,7 @@ export default function MerchandisePage({ initialTab }) {
                   ) : (
                     <>
                       <ImagePlus size={24} className="mb-1 text-slate-300" />
-                      <span className="text-[13px] font-semibold text-slate-400">
+                      <span className="text-[13px] font-semibold text-slate-500">
                         Click to upload
                       </span>
                       <span className="text-[11px] text-slate-300">
@@ -4302,18 +4303,18 @@ export default function MerchandisePage({ initialTab }) {
                     !editForm.unit_price ||
                     !editForm.stock_quantity
                   }
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                 >
                   {formSubmitting ? "Saving..." : "Save Changes"}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       {verificationModal.open && verificationModal.order && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Verify merchandise payment" onClose={() => !verificationModal.busy && setVerificationModal({ open: false, order: null, amount: "", busy: false, error: "" })} className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-extrabold text-[#0F172A]">
               {role === "ADMIN"
@@ -4333,7 +4334,7 @@ export default function MerchandisePage({ initialTab }) {
                 onClick={() =>
                   handleViewPaymentProof(verificationModal.order.id)
                 }
-                className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"
+                className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
               >
                 <Eye size={14} /> View Payment Proof
               </button>
@@ -4391,7 +4392,7 @@ export default function MerchandisePage({ initialTab }) {
                   (verificationModal.order.payment_method === "gcash" &&
                     !verificationModal.order.payment_proof_url)
                 }
-                className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white disabled:opacity-50"
+                className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white disabled:opacity-50"
               >
                 {verificationModal.busy
                   ? "Submitting..."
@@ -4401,11 +4402,11 @@ export default function MerchandisePage({ initialTab }) {
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       {rejectionModal.open && rejectionModal.order && (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Reject merchandise payment" onClose={() => !rejectionModal.busy && setRejectionModal({ open: false, order: null, remarks: "", busy: false })} className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-extrabold text-[#0F172A]">
               Reject Payment
@@ -4465,7 +4466,7 @@ export default function MerchandisePage({ initialTab }) {
               </button>
             </div>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       <ConfirmModal

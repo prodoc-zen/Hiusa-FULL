@@ -159,8 +159,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
       if (notifRef.current && !notifRef.current.contains(e.target)) setNotifOpen(false);
       if (cartRef.current && !cartRef.current.contains(e.target)) setCartOpen(false);
     }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('pointerdown', handleClickOutside);
+    return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, []);
 
   const recent5 = notifications.slice(0, 5);
@@ -169,20 +169,20 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
   return (
     <header className="sticky top-0 z-30 border-b border-[#DDE7EF] bg-white">
-      <div className="flex min-h-16 items-center gap-3 px-4 sm:px-6">
+      <div className="flex min-h-16 items-center gap-2 px-3 sm:gap-3 sm:px-6">
         {/* Hamburger toggle */}
         <button
           type="button"
           aria-label="Open menu"
           onClick={onMenuToggle}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
         >
           <Menu size={19} />
         </button>
 
         {/* Page title */}
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
+          <p className="truncate text-[9px] font-bold uppercase tracking-wider text-[#0878B7] sm:text-[10px] sm:tracking-widest">
             HIUSA{parentLabel ? ` - ${parentLabel}` : ''}
           </p>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
@@ -193,37 +193,44 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             <button
               type="button"
               aria-label="Cart"
+              aria-expanded={cartOpen}
+              aria-controls="topbar-cart-panel"
               onClick={() => {
                 setCartOpen(!cartOpen);
                 setNotifOpen(false);
                 setProfileOpen(false);
               }}
-              className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+              className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
             >
               <ShoppingCart size={17} />
               {cartTypeCount > 0 && (
-                <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#16C7F3] px-1 text-[10px] font-black text-white ring-2 ring-white">
+                <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#0878B7] px-1 text-[10px] font-black text-white ring-2 ring-white">
                   {cartTypeCount > 9 ? '9+' : cartTypeCount}
                 </span>
               )}
             </button>
 
             {cartOpen && (
-              <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:w-96">
-                <div className="flex items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
+              <div
+                id="topbar-cart-panel"
+                role="region"
+                aria-label="Cart summary"
+                className="fixed left-3 right-3 top-[4.5rem] z-50 flex max-h-[calc(100dvh-5.25rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-3rem)]"
+              >
+                <div className="flex shrink-0 items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
                   <p className="text-sm font-bold text-[#0F172A]">Your Cart</p>
-                  <span className="rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-black text-[#0B8ED0]">{cartTypeCount} item type{cartTypeCount === 1 ? '' : 's'}</span>
+                  <span className="rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[11px] font-black text-[#0F2F62]">{cartTypeCount} item type{cartTypeCount === 1 ? '' : 's'}</span>
                 </div>
 
-                <div className="max-h-[300px] overflow-y-auto">
+                <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[300px]">
                   {cartItems.length === 0 ? (
                     <div className="py-10 text-center">
                       <ShoppingCart size={28} className="mx-auto mb-2 text-slate-200" />
-                      <p className="text-sm text-slate-400">Cart is empty</p>
+                      <p className="text-sm text-slate-500">Cart is empty</p>
                     </div>
                   ) : (
                     cartItems.map((row) => (
-                      <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-[#EEF2F7] px-4 py-3 last:border-b-0">
+                      <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-[#EEF6FB] px-4 py-3 last:border-b-0">
                         <div className="min-w-0">
                           <p className="truncate text-[13px] font-semibold text-[#0F172A]">{row.item?.name || 'Item'}</p>
                           <p className="text-[11px] text-slate-500">Qty: {row.quantity || 0} - {formatMoney(row.item?.price || 0)}</p>
@@ -234,7 +241,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                   )}
                 </div>
 
-                <div className="border-t border-[#DDE7EF] px-4 py-3">
+                <div className="shrink-0 border-t border-[#DDE7EF] px-4 py-3">
                   <p className="mb-2 text-xs font-bold text-slate-500">Total: <span className="text-[#0F172A]">{formatMoney(cartTotal)}</span></p>
                   <button
                     type="button"
@@ -242,7 +249,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                       setCartOpen(false);
                       navigate('/dashboard/merchandise/order-merchandise', { state: { openCartAt: Date.now() } });
                     }}
-                    className="h-9 w-full rounded-lg bg-[#0B8ED0] text-xs font-bold text-white transition hover:bg-[#0878B7]"
+                    className="h-9 w-full rounded-lg bg-[#0878B7] text-xs font-bold text-white transition hover:bg-[#0F2F62]"
                   >
                     Open Cart
                   </button>
@@ -257,49 +264,56 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           <button
             type="button"
             aria-label="Notifications"
+            aria-expanded={notifOpen}
+            aria-controls="topbar-notifications-panel"
             onClick={() => {
               setNotifOpen(!notifOpen);
               setSelectedNotification(null);
               setProfileOpen(false);
               setCartOpen(false);
             }}
-            className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+            className="relative grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
           >
             <Bell size={17} />
             {unreadCount > 0 && (
-              <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#16C7F3] px-1 text-[10px] font-black text-white ring-2 ring-white">
+              <span className="absolute -right-1 -top-1 grid min-w-[18px] place-items-center rounded-full bg-[#0878B7] px-1 text-[10px] font-black text-white ring-2 ring-white">
                 {unreadCount > 9 ? '9+' : unreadCount}
               </span>
             )}
           </button>
 
           {notifOpen && (
-            <div className="absolute right-0 top-full mt-2 w-[calc(100vw-2rem)] rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:w-80">
-              <div className="flex items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
+            <div
+              id="topbar-notifications-panel"
+              role="region"
+              aria-label="Notifications panel"
+              className="fixed left-3 right-3 top-[4.5rem] z-50 flex max-h-[calc(100dvh-5.25rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]"
+            >
+              <div className="flex shrink-0 items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
                 <p className="text-sm font-bold text-[#0F172A]">
                   Notifications
                   {unreadCount > 0 && (
-                    <span className="ml-2 rounded-full bg-[#16C7F3]/15 px-2 py-0.5 text-[11px] font-black text-[#0B8ED0]">{unreadCount} new</span>
+                    <span className="ml-2 rounded-full bg-[#16C7F3]/15 px-2 py-0.5 text-[11px] font-black text-[#0878B7]">{unreadCount} new</span>
                   )}
                 </p>
                 {unreadCount > 0 && (
                   <button
                     type="button"
                     onClick={handleMarkAllRead}
-                    className="text-xs font-bold text-[#0B8ED0] hover:underline"
+                    className="text-xs font-bold text-[#0878B7] hover:underline"
                   >
                     Mark all read
                   </button>
                 )}
               </div>
 
-              <div className="max-h-[340px] overflow-y-auto">
+              <div className="min-h-0 flex-1 overflow-y-auto sm:max-h-[340px]">
                 {selectedNotification ? (
                   <div className="p-4">
                     <button
                       type="button"
                       onClick={() => setSelectedNotification(null)}
-                      className="mb-3 text-xs font-bold text-[#0B8ED0] hover:underline"
+                      className="mb-3 text-xs font-bold text-[#0878B7] hover:underline"
                     >
                       Back to notifications
                     </button>
@@ -314,7 +328,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                           setSelectedNotification(null);
                           navigate(getNotificationDestination(selectedNotification, user?.role));
                         }}
-                        className="mt-4 h-9 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]"
+                        className="mt-4 h-9 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]"
                       >
                         Open related record
                       </button>
@@ -323,7 +337,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                 ) : recent5.length === 0 ? (
                   <div className="py-10 text-center">
                     <Bell size={28} className="mx-auto mb-2 text-slate-200" />
-                    <p className="text-sm text-slate-400">No notifications yet</p>
+                    <p className="text-sm text-slate-500">No notifications yet</p>
                   </div>
                 ) : (
                   recent5.map((n) => (
@@ -336,7 +350,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                       <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.is_read ? 'bg-slate-200' : 'bg-[#16C7F3]'}`} />
                       <div className="min-w-0 flex-1">
                         <p className={`truncate text-[13px] font-semibold ${n.is_read ? 'text-slate-500' : 'text-[#0F172A]'}`}>{n.title}</p>
-                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-400">{n.message}</p>
+                        <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.message}</p>
                         <p className="mt-1 text-[11px] font-medium text-slate-300">{timeAgo(n.created_at)}</p>
                       </div>
                     </button>
@@ -356,28 +370,28 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
               setNotifOpen(false);
               setCartOpen(false);
             }}
-            className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#EEF6FB]"
+            className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#F8FBFD]"
           >
             <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
               {initials}
             </div>
             <div className="hidden min-w-0 text-left sm:block">
               <p className="text-[13px] font-bold text-[#0F172A]">{fullName}</p>
-              <p className="text-[11px] font-medium text-slate-400">{roleLabel}</p>
+              <p className="text-[11px] font-medium text-slate-500">{roleLabel}</p>
             </div>
-            <ChevronDown size={14} className={`hidden text-slate-400 transition-transform sm:block ${profileOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`hidden text-slate-500 transition-transform sm:block ${profileOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 w-56 rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60">
+            <div className="absolute right-0 top-full mt-2 max-h-[calc(100dvh-5rem)] w-56 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60">
               <div className="border-b border-[#DDE7EF] px-3 py-3 mb-1.5">
                 <p className="text-sm font-bold text-[#0F172A]">{fullName}</p>
-                <p className="text-xs font-medium text-slate-400">{user?.email || ''}</p>
+                <p className="break-all text-xs font-medium text-slate-500">{user?.email || ''}</p>
               </div>
               <button
                 type="button"
                 onClick={() => { setProfileOpen(false); navigate('/dashboard/profile'); }}
-                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+                className="flex w-full items-center gap-3 rounded-md px-3 py-2.5 text-[13px] font-semibold text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
               >
                 <User size={16} />
                 View Profile

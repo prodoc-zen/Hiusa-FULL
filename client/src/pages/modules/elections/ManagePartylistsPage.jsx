@@ -167,13 +167,13 @@ export default function ManagePartylistsPage() {
     <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white px-5 py-4">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Elections - Manage Party Lists</p>
+      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] px-5 py-5 text-white sm:p-6">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-[#16C7F3]">Official party register</p>
         <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black text-[#0F172A]">Party Rosters</h2>
-            <p className="mt-1 max-w-2xl text-sm font-medium text-[#64748B]">
-              Review and manage the official candidate line-ups for {election.title}. Ensure all documentation is complete before final ratification.
+            <h2 className="text-2xl font-black text-white sm:text-3xl">Party Rosters</h2>
+            <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-200">
+              Maintain the official party identities and candidate lineups for {election.title}.
             </p>
           </div>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
@@ -190,7 +190,7 @@ export default function ManagePartylistsPage() {
               <button
                 type="button"
                 onClick={() => setShowAdd(true)}
-                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0878B7]"
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] transition-colors hover:bg-[#EEF6FB]"
               >
                 <CirclePlus size={15} />
                 Register New Party
@@ -220,7 +220,7 @@ export default function ManagePartylistsPage() {
         footer={(
           <>
             <button type="button" onClick={() => setShowAdd(false)} disabled={workingId === 'add'} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD] disabled:opacity-50">Cancel</button>
-            <button type="submit" form="add-partylist-form" disabled={workingId === 'add' || !form.name.trim()} className="h-10 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-40">{workingId === 'add' ? 'Registering...' : 'Register Partylist'}</button>
+            <button type="submit" form="add-partylist-form" disabled={workingId === 'add' || !form.name.trim()} className="h-10 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-40">{workingId === 'add' ? 'Registering...' : 'Register Partylist'}</button>
           </>
         )}
       >
@@ -240,14 +240,14 @@ export default function ManagePartylistsPage() {
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
-                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                   {bannerPreview
                     ? <img src={bannerPreview} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
-                    : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
+                    : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0F2F62]" /></div>
                   }
                   <div>
                     <p className="text-[13px] font-medium text-slate-500">{bannerPreview ? 'Change banner' : 'Upload banner image'}</p>
-                    <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 5MB)</p>
+                    <p className="text-[11px] text-slate-500">JPEG, PNG or WebP (max 5MB)</p>
                   </div>
                   <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
                     onChange={(e) => {
@@ -279,7 +279,7 @@ export default function ManagePartylistsPage() {
         maxWidth="max-w-6xl"
       >
         {editing && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] px-5 py-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
@@ -309,7 +309,7 @@ export default function ManagePartylistsPage() {
                   type="button"
                   onClick={(event) => handleUpdate(event)}
                   disabled={workingId === editing.id || !editing.name?.trim()}
-                  className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-40"
+                  className="h-10 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40"
                 >
                   {workingId === editing.id ? 'Saving...' : 'Save Changes'}
                 </button>
@@ -344,7 +344,7 @@ export default function ManagePartylistsPage() {
           <div className="grid grid-cols-1 gap-4 p-5">
             <div className="space-y-4">
               {editTab === 'general' && (
-                <form onSubmit={handleUpdate} className="rounded-xl border border-[#DDE7EF] bg-white p-4">
+                <form onSubmit={handleUpdate} className="rounded-lg border border-[#DDE7EF] bg-white p-4">
                   <h4 className="text-lg font-bold text-[#0F172A]">Party Identity</h4>
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
@@ -379,14 +379,14 @@ export default function ManagePartylistsPage() {
                     </div>
                     <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
-                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#EEF6FB]">
+                      <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                         {editBannerPreview
                           ? <img src={resolveAssetUrl(editBannerPreview)} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
-                          : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0B8ED0]" /></div>
+                          : <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD]"><ImagePlus size={16} className="text-[#0F2F62]" /></div>
                         }
                         <div>
                           <p className="text-[13px] font-medium text-slate-500">{editBannerPreview ? 'Change banner' : 'Upload banner image'}</p>
-                          <p className="text-[11px] text-slate-400">JPEG, PNG or WebP (max 5MB)</p>
+                          <p className="text-[11px] text-slate-500">JPEG, PNG or WebP (max 5MB)</p>
                         </div>
                         <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only"
                           onChange={(e) => {
@@ -411,7 +411,7 @@ export default function ManagePartylistsPage() {
               )}
 
               {editTab === 'roster' && (
-                <div className="rounded-xl border border-[#DDE7EF] bg-white p-4">
+                <div className="rounded-lg border border-[#DDE7EF] bg-white p-4">
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-lg font-bold text-[#0F172A]">Roster Overview</h4>
                     <span className="text-xs font-semibold text-[#64748B]">
@@ -438,7 +438,7 @@ export default function ManagePartylistsPage() {
               )}
 
               {editTab === 'docs' && (
-                <div className="rounded-xl border border-[#DDE7EF] bg-white p-4">
+                <div className="rounded-lg border border-[#DDE7EF] bg-white p-4">
                   <h4 className="text-lg font-bold text-[#0F172A]">Platform & Documents</h4>
                   <p className="mt-2 text-sm text-[#64748B]">
                     Document upload is managed in the current release outside this editor. Save identity and roster updates here first.
@@ -461,17 +461,17 @@ export default function ManagePartylistsPage() {
       {loading ? (
         <div className="grid grid-cols-1 gap-5 xl:grid-cols-2" role="status" aria-label="Loading partylists">
           {[1, 2, 3, 4].map((item) => (
-            <div key={item} className="h-64 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />
+            <div key={item} className="h-64 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />
           ))}
           <span className="sr-only">Loading partylists...</span>
         </div>
       ) : partylistRows.length === 0 ? (
-        <div className="rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
+        <div className="rounded-lg border border-[#DDE7EF] bg-white p-10 text-center">
           <Flag size={36} className="mx-auto mb-3 text-[#DDE7EF]" />
           <p className="text-sm text-[#64748B]">No partylists registered for this election.</p>
         </div>
       ) : filteredPartylists.length === 0 ? (
-        <div className="rounded-xl border border-[#DDE7EF] bg-white p-10 text-center">
+        <div className="rounded-lg border border-[#DDE7EF] bg-white p-10 text-center">
           <Search size={30} className="mx-auto mb-3 text-[#DDE7EF]" />
           <p className="text-sm text-[#64748B]">No partylist matches your search.</p>
         </div>
@@ -483,7 +483,7 @@ export default function ManagePartylistsPage() {
             const slate = partylistCandidates.slice(2);
 
             return (
-              <article key={partylist.id} className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+              <article key={partylist.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
                 {partylist.banner_url
                   ? <img src={resolveAssetUrl(partylist.banner_url)} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
                   : <div className="h-2" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
@@ -493,7 +493,7 @@ export default function ManagePartylistsPage() {
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
                         <h3 className="truncate text-lg font-extrabold text-[#0F172A]">{partylist.name}</h3>
-                        {partylist.acronym && <span className="rounded-md bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0B8ED0]">{partylist.acronym}</span>}
+                        {partylist.acronym && <span className="rounded-md bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">{partylist.acronym}</span>}
                       </div>
                       <p className="mt-1 text-sm text-[#64748B]">{partylist.description || 'No party description provided yet.'}</p>
                     </div>
@@ -507,7 +507,7 @@ export default function ManagePartylistsPage() {
                             setEditBannerPreview(partylist.banner_url || null);
                             setEditing({ id: partylist.id, name: partylist.name || '', acronym: partylist.acronym || '', description: partylist.description || '' });
                           }}
-                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#0B8ED0] transition hover:bg-[#EEF6FB]"
+                          className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-[#0878B7] transition hover:bg-[#F8FBFD]"
                         >
                           <Edit2 size={12} />
                           Edit
@@ -525,7 +525,7 @@ export default function ManagePartylistsPage() {
                     )}
                   </div>
 
-                  <div className="rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+                  <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
                     {featured.length === 0 ? (
                       <p className="text-sm font-medium text-[#94A3B8]">No assigned candidates yet.</p>
                     ) : (
@@ -540,7 +540,7 @@ export default function ManagePartylistsPage() {
                                 : <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">{getInitials(name)}</div>
                               }
                               <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{name}</p>
-                              <span className="mt-1 inline-flex rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0B8ED0]">
+                              <span className="mt-1 inline-flex rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0F2F62]">
                                 {position}
                               </span>
                             </div>
@@ -550,7 +550,7 @@ export default function ManagePartylistsPage() {
                     )}
                   </div>
 
-                  <div className="border-t border-[#E5EDF3] pt-3">
+                  <div className="border-t border-[#DDE7EF] pt-3">
                     <p className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
                       Complete Slate ({partylistCandidates.length} candidate{partylistCandidates.length !== 1 ? 's' : ''})
                     </p>

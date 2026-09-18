@@ -58,7 +58,7 @@ describe('FinancePage transaction search', () => {
     fireEvent.keyDown(search, { key: 'Enter' });
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1, search: 'rent' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
 
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
@@ -129,6 +129,29 @@ describe('FinancePage transaction search', () => {
 
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close' }));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('loads a student\'s own receipts without requesting restricted reporting data', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    financeMocks.getPersonalReceipts.mockResolvedValue({
+      data: [{
+        id: 10,
+        transaction_date: '2026-09-09T10:30:00.000000Z',
+        description: 'Student membership payment',
+        category: 'Membership',
+        type: 'income',
+        amount: 500,
+        receipt_reference: 'HIUSA-1-00000010',
+      }],
+    });
+    financeMocks.getFinancialReportDeadline.mockRejectedValue({ response: { status: 403 } });
+
+    render(<FinancePage initialTab="receipts" />);
+
+    expect(await screen.findByText('Student membership payment')).toBeInTheDocument();
+    expect(screen.getByText('HIUSA-1-00000010')).toBeInTheDocument();
+    expect(financeMocks.getFinancialReportDeadline).not.toHaveBeenCalled();
+    expect(screen.queryByText('Failed to load financial data.')).not.toBeInTheDocument();
   });
 
   it('opens the budget proposal form when launched from the request selector', async () => {

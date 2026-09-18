@@ -78,9 +78,10 @@ export default function ManageVotersPage() {
 
   return (
     <div className="space-y-5">
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6"><p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Voter readiness</p><h1 className="mt-1 text-2xl font-black">Voter Register</h1><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">Review eligibility and turnout for {election.title}. Individual ballot choices are never exposed.</p></section>
+      <div className="grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
         {[
-          { label: 'Total Voters', value: eligibleTotal, icon: Users, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0B8ED0]', border: 'border-[#0B8ED0]/20' } },
+          { label: 'Total Voters', value: eligibleTotal, icon: Users, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0F2F62]', border: 'border-[#0B8ED0]/20' } },
           {
             label: 'Voted',
             value: votedCount,
@@ -100,23 +101,23 @@ export default function ManageVotersPage() {
             value: election.status,
             sub: 'Current state',
             icon: Users,
-            color: { bg: 'bg-purple-50', icon: 'text-purple-600', border: 'border-purple-200' },
+            color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0F2F62]', border: 'border-[#DDE7EF]' },
           },
         ].map((stat) => (
-          <div key={stat.label} className={`flex items-start gap-4 rounded-xl border bg-white p-5 shadow-sm ${stat.color.border}`}>
+          <dl key={stat.label} className="flex items-start gap-4 bg-white p-4 sm:p-5">
             <div className={`rounded-lg p-2.5 ${stat.color.bg}`}>
               <stat.icon size={20} className={stat.color.icon} />
             </div>
             <div className="min-w-0 flex-1">
-              <p className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{stat.label}</p>
-              <p className="mt-0.5 text-2xl font-black text-[#0F172A] tabular-nums">{stat.value}</p>
+              <dt className="text-xs font-medium uppercase tracking-wide text-[#64748B]">{stat.label}</dt>
+              <dd className="mt-0.5 text-2xl font-black text-[#0F172A] tabular-nums">{stat.value}</dd>
               {stat.sub && <p className="mt-1 text-xs text-[#64748B]">{stat.sub}</p>}
             </div>
-          </div>
+          </dl>
         ))}
       </div>
 
-      <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+      <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
           <div>
             <h3 className="text-base font-bold text-[#0F172A]">Voters: {election.title}</h3>
@@ -129,7 +130,7 @@ export default function ManageVotersPage() {
 
         <div className="flex flex-wrap gap-3 p-5 pb-0">
           <div className="relative min-w-[200px] flex-1">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
@@ -143,7 +144,7 @@ export default function ManageVotersPage() {
                 key={s}
                 onClick={() => setFilterStatus(s)}
                 className={`rounded-lg px-3 py-2 text-xs font-bold transition ${
-                  filterStatus === s ? 'bg-[#0B1831] text-white' : 'border border-[#DDE7EF] bg-[#F8FBFD] text-slate-600 hover:bg-[#EEF6FB]'
+                  filterStatus === s ? 'bg-[#0B1831] text-white' : 'border border-[#DDE7EF] bg-[#F8FBFD] text-slate-600 hover:bg-[#F8FBFD]'
                 }`}
               >
                 {s}
@@ -162,7 +163,7 @@ export default function ManageVotersPage() {
           ) : error ? (
             <div className="py-10 text-center">
               <p className="text-sm text-red-600">{error}</p>
-              <button onClick={() => setRetryKey((k) => k + 1)} className="mt-2 text-xs font-semibold text-[#0B8ED0] hover:underline">Retry</button>
+              <button onClick={() => setRetryKey((k) => k + 1)} className="mt-2 text-xs font-semibold text-[#0878B7] hover:underline">Retry</button>
             </div>
           ) : (
             <table className="w-full min-w-[350px] md:min-w-[550px] text-left">
@@ -174,7 +175,7 @@ export default function ManageVotersPage() {
                   <th className="px-4 py-3">Vote Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-[#E5EDF3] text-sm">
+              <tbody className="divide-y divide-[#DDE7EF] text-sm">
                 {filtered.map((voter) => (
                   <tr key={voter.school_id} className="transition hover:bg-[#F8FBFD]">
                     <td className="max-w-[200px] px-4 py-3.5">
@@ -189,7 +190,7 @@ export default function ManageVotersPage() {
                     <td className="hidden md:table-cell px-4 py-3.5 text-xs text-[#64748B]">{voter.email}</td>
                     <td className="px-4 py-3.5">
                       {voter.has_voted ? (
-                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold text-[#0B8ED0]">
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold text-[#0F2F62]">
                           <CheckCircle size={11} />
                           Voted
                         </span>

@@ -26,7 +26,7 @@ export function isoToLocalDateTimeInput(value) {
   ].join('');
 }
 
-export function formatDateTime(value, fallback = '—') {
+export function formatDateTime(value, fallback = 'Not available') {
   if (!value) return fallback;
 
   const date = new Date(value);

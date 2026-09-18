@@ -133,24 +133,24 @@ export default function AnnouncementsPage() {
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
       {error && (
-        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
+        <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>
           <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
         </div>
       )}
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Posts', value: items.length, helper: 'All time', icon: FileText },
           { label: 'Published', value: published, helper: 'Currently visible', icon: Globe },
           { label: 'Drafts', value: drafts, helper: 'Unpublished', icon: Edit3 },
         ].map((stat) => (
-          <article key={stat.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
-            <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-sky-50 text-sky-600 group-hover:bg-sky-600 group-hover:text-white transition">
+          <article key={stat.label} className="group rounded-lg border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition hover:shadow-md hover:border-[#0B8ED0]/20">
+            <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62] transition group-hover:bg-[#0878B7] group-hover:text-white">
               <stat.icon size={19} />
             </div>
             <p className="text-sm font-semibold text-slate-500">{stat.label}</p>
             <p className="mt-1 text-2xl font-black text-[#0F172A]">{stat.value}</p>
-            <p className="mt-1 text-xs font-medium text-slate-400">{stat.helper}</p>
+            <p className="mt-1 text-xs font-medium text-slate-500">{stat.helper}</p>
           </article>
         ))}
       </section>
@@ -162,8 +162,8 @@ export default function AnnouncementsPage() {
             onClick={() => setActiveTab(tab)}
             className={`rounded-lg px-4 py-2.5 text-[13px] font-bold capitalize transition-all ${
               activeTab === tab
-                ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20'
-                : 'bg-white text-slate-600 border border-[#DDE7EF] hover:bg-[#EEF6FB]'
+                ? 'bg-[#0878B7] text-white shadow-lg shadow-[#0B8ED0]/20'
+                : 'bg-white text-slate-600 border border-[#DDE7EF] hover:bg-[#F8FBFD]'
             }`}
           >
             Manage Feed
@@ -171,14 +171,14 @@ export default function AnnouncementsPage() {
         ))}
         <button
           onClick={() => setShowForm(true)}
-          className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-[13px] font-bold text-slate-600 transition hover:bg-[#EEF6FB]"
+          className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-2.5 text-[13px] font-bold text-slate-600 transition hover:bg-[#F8FBFD]"
         >
           + Post Update
         </button>
       </div>
 
       {activeTab === 'feed' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">Announcement Feed</h2>
@@ -186,16 +186,16 @@ export default function AnnouncementsPage() {
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
               <div className="flex h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
-                <Search size={15} className="text-slate-400" />
+                <Search size={15} className="text-slate-500" />
                 <input
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
                   type="text"
                   placeholder="Search posts..."
-                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[140px]"
+                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500 sm:w-[140px]"
                 />
               </div>
-              <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+              <button onClick={() => setShowForm(true)} className="flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition">
                 <Plus size={16} />
                 <span className="hidden sm:inline">New Post</span>
               </button>
@@ -207,14 +207,14 @@ export default function AnnouncementsPage() {
               {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No announcements yet.</p>
+            <p className="p-8 text-center text-sm text-slate-500">No announcements yet.</p>
           ) : (
-            <div className="divide-y divide-[#E5EDF3]">
+            <div className="divide-y divide-[#DDE7EF]">
               {pagedAnnouncements.map((a) => (
                 <div key={a.id} className="flex flex-col gap-3 p-5 transition hover:bg-[#F8FBFD] sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
                     <p className="font-bold text-[#0F172A]">{a.title}</p>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-400">
+                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
                       <span>{formatDate(a.created_at)}</span>
                       <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2 py-0.5 text-[11px] font-bold text-slate-500">
                         {ROLE_LABEL[a.target_role] ?? a.target_role}
@@ -225,10 +225,10 @@ export default function AnnouncementsPage() {
                     <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[a.is_published ? 'Published' : 'Draft']}`}>
                       {a.is_published ? 'Published' : 'Draft'}
                     </span>
-                    <button onClick={() => handleToggle(a.id)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB] hover:text-[#0B8ED0]">
+                    <button onClick={() => handleToggle(a.id)} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD] hover:text-[#0878B7]">
                       <Eye size={15} />
                     </button>
-                    <button onClick={() => setDeleteTarget(a)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-red-50 hover:text-red-500">
+                    <button onClick={() => setDeleteTarget(a)} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-red-50 hover:text-red-500">
                       <Trash2 size={15} />
                     </button>
                   </div>
@@ -261,7 +261,7 @@ export default function AnnouncementsPage() {
               type="submit"
               form="announcement-create-form"
               disabled={formSubmitting || !formTitle.trim() || !formBody.trim()}
-              className="flex h-11 items-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50"
+              className="flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
             >
               <Send size={15} />
               {formSubmitting ? 'Posting...' : 'Post as Draft'}
