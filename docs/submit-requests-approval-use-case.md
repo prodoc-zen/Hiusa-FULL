@@ -15,7 +15,7 @@
 ## Implementation Coverage
 
 - **Role Access:** Admin and SBO Officer open **Submit Request** from the sidebar and only see request types they are authorized to create. Route guards independently protect every destination form.
-- **Select Request Type:** `/dashboard/approval-requests/new` is the common request-type selector. Admin can start announcements, budgets, events, and elections; SBO Officers can start announcements and budgets. Payment approvals continue to originate from submitted merchandise payment proof because the payer owns that submission flow.
+- **Select Request Type:** `/dashboard/approval-requests/new` is the common request-type selector. Admin can start announcements, budgets, events, and elections; SBO Officers can submit announcements. Payment approvals continue to originate from submitted merchandise payment proof because the payer owns that submission flow.
 - **Enter Request Details:** the originating module captures the request details before creating the approval request.
 - **Attach Supporting Information:** modules can attach supporting fields such as event planning details, budget information, announcement content, or payment proof.
 - **Validate Request Information:** originating controllers validate request payloads before saving the target record.

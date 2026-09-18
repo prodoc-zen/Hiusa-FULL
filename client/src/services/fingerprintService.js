@@ -10,4 +10,10 @@ export const enrollFingerprint = (userId, capture) => api.post(`/users/${userId}
 
 export const removeFingerprint = (userId) => api.delete(`/users/${userId}/fingerprint`);
 export const identifyFingerprint = (capture) => api.post('/fingerprints/identify', capturePayload(capture));
-export const identifyAndAttend = (eventId, capture) => api.post(`/events/${eventId}/attendance/fingerprint`, capturePayload(capture));
+export const identifyAttendanceFingerprint = (eventId, capture, filters = {}) => api.post(`/events/${eventId}/attendance/fingerprint`, {
+  ...capturePayload(capture),
+  ...filters,
+});
+export const confirmFingerprintAttendance = (eventId, confirmationToken) => api.post(`/events/${eventId}/attendance/fingerprint/confirm`, {
+  confirmation_token: confirmationToken,
+});

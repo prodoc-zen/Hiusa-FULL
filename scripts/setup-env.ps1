@@ -11,6 +11,30 @@ param(
 $ErrorActionPreference = 'Stop'
 $projectRoot = Split-Path -Parent $PSScriptRoot
 
+if ($HostAddress -eq 'auto') {
+    $lanCandidates = @(
+        Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+            Where-Object { $null -ne $_.IPv4DefaultGateway } |
+            ForEach-Object { $_.IPv4Address.IPAddress } |
+            Where-Object { $_ -and $_ -notlike '169.254.*' }
+    )
+
+    if ($lanCandidates.Count -eq 0) {
+        throw 'No active LAN IPv4 address was detected. Run ipconfig and pass the address with -HostAddress.'
+    }
+
+    $HostAddress = $lanCandidates[0]
+}
+
+$parsedHostAddress = $null
+$isIpAddress = [Net.IPAddress]::TryParse($HostAddress, [ref] $parsedHostAddress)
+if ($isIpAddress -and $parsedHostAddress.AddressFamily -eq [Net.Sockets.AddressFamily]::InterNetwork -and -not [Net.IPAddress]::IsLoopback($parsedHostAddress)) {
+    $assignedAddresses = @(Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty IPAddress)
+    if ($HostAddress -notin $assignedAddresses) {
+        throw "HostAddress $HostAddress is not assigned to this computer. Current IPv4 addresses: $($assignedAddresses -join ', '). Use -HostAddress auto or pass the active Wi-Fi/Ethernet IPv4 address."
+    }
+}
+
 function Copy-EnvironmentTemplate {
     param(
         [Parameter(Mandatory)] [string] $ExamplePath,
@@ -134,10 +158,13 @@ Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_DRIVER' 'http'
 Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_URL' 'http://127.0.0.1:9100'
 Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_TIMEOUT' '15'
 Set-EnvironmentValue $serverEnvironment 'FINGERPRINT_MATCHER_TEMPLATE_FORMAT' 'fscanner-sourceafis-dotnet-3.14.0-png-v1'
+Set-EnvironmentValue $serverEnvironment 'QUEUE_CONNECTION' 'sync'
 
 Set-EnvironmentValue $serverEnvironment 'APP_URL' "http://${HostAddress}:8000"
 Set-EnvironmentValue $serverEnvironment 'FRONTEND_URL' "http://${HostAddress}:5173"
-Set-EnvironmentValue $serverEnvironment 'FRONTEND_URLS' "http://localhost:5173,http://127.0.0.1:5173,http://${HostAddress}:5173,http://localhost:5174,http://127.0.0.1:5174,http://${HostAddress}:5174"
+Set-EnvironmentValue $serverEnvironment 'FRONTEND_URLS' ''
+Set-EnvironmentValue $serverEnvironment 'FRONTEND_ORIGIN_PATTERNS' ''
+# Write the selected host explicitly. The frontend uses this value as-is.
 Set-EnvironmentValue $clientEnvironment 'VITE_API_URL' "http://${HostAddress}:8000/api"
 
 if ($PromptForGroqKey) {
@@ -182,6 +209,7 @@ if ($phpCommand -and (Test-Path -LiteralPath $vendorAutoload)) {
 Write-Host ''
 Write-Host 'Environment preparation complete.'
 Write-Host "Host address: $HostAddress"
+Write-Host "Frontend API address: http://${HostAddress}:8000/api"
 Write-Host 'The Laravel/AI and fingerprint-matcher service keys were generated and synchronized without printing them.'
 if (-not $PromptForGroqKey -and (Get-EnvironmentValue $serverEnvironment 'GROQ_API_KEY') -eq '') {
     Write-Host 'Next: add GROQ_API_KEY to server/.env or rerun with -PromptForGroqKey.'

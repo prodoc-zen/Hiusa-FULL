@@ -28,6 +28,7 @@ class PositionManagementTest extends TestCase
         $this->assertContains('Public Information Officer', $titles);
         $this->assertContains('Representative', $titles);
         $this->assertNotContains('Vice President', $titles);
+        $this->assertNotContains('Adviser', SboPosition::pluck('title'));
     }
 
     public function test_admin_manages_role_aware_positions_with_complete_crud(): void
@@ -95,6 +96,36 @@ class PositionManagementTest extends TestCase
         Sanctum::actingAs($admin);
         $this->putJson("/api/sbo-positions/{$foreignPosition->id}", ['title' => 'Changed'])->assertNotFound();
         $this->deleteJson("/api/sbo-positions/{$foreignPosition->id}")->assertNotFound();
+    }
+
+    public function test_adviser_position_is_reserved_for_sao_assignment(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
+        $otherAdmin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'position_title' => 'President']);
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/sbo-positions', [
+            'role' => 'ADMIN',
+            'title' => 'Adviser',
+        ])->assertUnprocessable()->assertJsonValidationErrors('title');
+
+        $position = SboPosition::create([
+            'organization_id' => $organization->id,
+            'role' => 'ADMIN',
+            'title' => 'Secretary',
+        ]);
+        $this->putJson("/api/sbo-positions/{$position->id}", [
+            'role' => 'ADMIN',
+            'title' => 'Advisor',
+        ])->assertUnprocessable()->assertJsonValidationErrors('title');
+
+        $this->putJson('/api/users/'.$otherAdmin->school_id, [
+            'position_title' => 'Adviser',
+        ])->assertForbidden()
+            ->assertJsonPath('message', 'Adviser accounts and Adviser assignments are managed only by the SAO Director.');
+
+        $this->assertSame('President', $otherAdmin->fresh()->position_title);
     }
 
     private function userPayload(int $schoolId, string $role, ?string $position): array

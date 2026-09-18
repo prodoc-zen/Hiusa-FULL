@@ -12,7 +12,7 @@ class OrganizationLeadershipLoginTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sao_and_each_seeded_organization_leadership_admin_can_select_their_own_login_area(): void
+    public function test_sao_seeded_advisers_and_demo_leaders_can_select_their_own_login_area(): void
     {
         $this->seed();
         $sao = Organization::where('acronym', 'SAO')->firstOrFail();
@@ -27,14 +27,18 @@ class OrganizationLeadershipLoginTest extends TestCase
             ->assertOk()
             ->assertJsonPath('user.role', 'SUPER_ADMIN');
 
-        foreach ([990002 => 'Adviser', 990003 => 'President', 990004 => 'Vice President – Internal', 990005 => 'Secretary'] as $schoolId => $position) {
-            $leader = User::where('organization_id', $psits->id)->where('school_id', $schoolId)->firstOrFail();
-            $this->assertSame('ADMIN', $leader->role);
-            $this->assertSame($position, $leader->position_title);
-            $this->assertTrue(Hash::check('Admin@123456', $leader->password_hash), "Seeded {$position} password is not configured.");
-            $this->postJson('/api/login', ['organization_id' => $psits->id, 'school_id' => $leader->school_id, 'password' => 'Admin@123456'])
+        foreach (Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->get() as $organization) {
+            $advisers = User::where('organization_id', $organization->id)
+                ->where('role', 'ADMIN')
+                ->where('position_title', 'Adviser')
+                ->get();
+            $this->assertCount(1, $advisers, "{$organization->acronym} must have exactly one SAO-seeded Adviser.");
+            $adviser = $advisers->first();
+            $this->assertTrue(Hash::check('Admin@123456', $adviser->password_hash), 'Seeded Adviser password is not configured.');
+            $this->postJson('/api/login', ['organization_id' => $organization->id, 'school_id' => $adviser->school_id, 'password' => 'Admin@123456'])
                 ->assertOk()
-                ->assertJsonPath('user.role', 'ADMIN');
+                ->assertJsonPath('user.role', 'ADMIN')
+                ->assertJsonPath('user.position_title', 'Adviser');
         }
 
         foreach ([900001 => 'President', 900002 => 'Vice President – Internal', 900003 => 'Secretary'] as $schoolId => $position) {

@@ -46,8 +46,8 @@ export const confirmEventWorkflow = (eventId, outputId, tasks) =>
 export const discardEventWorkflow = (eventId, outputId) =>
   api.patch(`/events/${eventId}/workflows/${outputId}/discard`);
 
-export const getAttendance = (id) =>
-  api.get(`/events/${id}/attendance`);
+export const getAttendance = (id, params) =>
+  api.get(`/events/${id}/attendance`, { params });
 
 export const recordAttendance = (id, data) =>
   api.post(`/events/${id}/attendance`, data);

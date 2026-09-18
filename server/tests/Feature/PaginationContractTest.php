@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
+use App\Models\Attendance;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
@@ -15,6 +16,7 @@ use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -545,7 +547,19 @@ class PaginationContractTest extends TestCase
         Sanctum::actingAs($admin);
 
         // 24 students + the acting admin = 25 organization-scoped users.
+        DB::flushQueryLog();
+        DB::enableQueryLog();
         $page1 = $this->getJson('/api/users');
+        $queries = DB::getQueryLog();
+        DB::disableQueryLog();
+
+        $roleSummarySql = collect($queries)
+            ->pluck('query')
+            ->first(fn (string $sql) => str_contains(strtolower($sql), 'count(*) as aggregate'));
+
+        $this->assertNotNull($roleSummarySql);
+        $this->assertDoesNotMatchRegularExpression('/["`]?users["`]?\.\*/i', $roleSummarySql);
+        $this->assertStringNotContainsString('fingerprint_enrolled', strtolower($roleSummarySql));
         $this->assertPaginationEnvelope($page1, 20, 25);
         $page1->assertJsonCount(20, 'data');
         $this->assertSame(24, (int) $page1->json('summary.by_role.STUDENT'));
@@ -571,6 +585,58 @@ class PaginationContractTest extends TestCase
 
         Sanctum::actingAs($this->actor($org->id, 'STUDENT'));
         $this->getJson('/api/users')->assertForbidden();
+    }
+
+    public function test_event_attendance_rows_are_paginated_filterable_and_role_scoped(): void
+    {
+        $org = $this->organization();
+        $admin = $this->actor($org->id, 'ADMIN');
+        $event = Event::factory()->create([
+            'organization_id' => $org->id,
+            'created_by' => $admin->school_id,
+            'status' => 'ongoing',
+        ]);
+        $students = User::factory()->count(23)->create(['organization_id' => $org->id, 'role' => 'STUDENT']);
+
+        foreach ($students->values() as $index => $student) {
+            Attendance::create([
+                'event_id' => $event->id,
+                'user_id' => $student->school_id,
+                'status' => $index % 2 === 0 ? 'present' : 'late',
+                'method' => 'manual',
+                'check_in_time' => now()->addSeconds($index),
+                'recorded_by' => $admin->school_id,
+            ]);
+        }
+
+        Sanctum::actingAs($admin);
+        $page1 = $this->getJson("/api/events/{$event->id}/attendance")
+            ->assertOk()
+            ->assertJsonCount(10, 'records')
+            ->assertJsonPath('count', 23)
+            ->assertJsonPath('checked_in_count', 23)
+            ->assertJsonPath('pagination.current_page', 1)
+            ->assertJsonPath('pagination.per_page', 10)
+            ->assertJsonPath('pagination.total', 23);
+
+        $page2 = $this->getJson("/api/events/{$event->id}/attendance?page=2")
+            ->assertOk()
+            ->assertJsonCount(10, 'records')
+            ->assertJsonPath('pagination.current_page', 2);
+        $this->assertPagesDisjoint($page1->json('records.*.id'), $page2->json('records.*.id'));
+
+        $this->getJson("/api/events/{$event->id}/attendance?status=late&per_page=5")
+            ->assertOk()
+            ->assertJsonCount(5, 'records')
+            ->assertJsonPath('pagination.total', 11)
+            ->assertJsonPath('summary.late', 11);
+        $this->getJson("/api/events/{$event->id}/attendance?per_page=101")->assertUnprocessable();
+
+        Sanctum::actingAs($students->first());
+        $this->getJson("/api/events/{$event->id}/attendance")
+            ->assertOk()
+            ->assertJsonCount(1, 'records')
+            ->assertJsonPath('pagination.total', 1);
     }
 
     // --- 11. Deterministic page boundaries when sort keys tie or are null ---

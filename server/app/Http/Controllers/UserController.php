@@ -2,24 +2,24 @@
 
 namespace App\Http\Controllers;
 
-use App\Mail\PasswordResetMail;
 use App\Models\AcademicProgram;
 use App\Models\AcademicSection;
 use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
+use App\Services\PasswordResetService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Mail;
-use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    public function __construct(private readonly PasswordResetService $passwordResetService) {}
+
     public function index(Request $request)
     {
         $filters = $request->validate([
@@ -37,6 +37,12 @@ class UserController extends Controller
         $query = User::query()
             ->withExists(['fingerprints as fingerprint_enrolled'])
             ->where('organization_id', $request->user()->organization_id);
+
+        // SBO Officers use this directory only to select Students for attendance
+        // and biometric enrollment. Account administration remains Admin-only.
+        if ($request->user()->role === 'SBO_OFFICER') {
+            $query->where('role', 'STUDENT');
+        }
 
         if (! empty($filters['role'])) {
             $query->where('role', $filters['role']);
@@ -70,8 +76,13 @@ class UserController extends Controller
 
         // Counted on the filtered-but-unordered clone so an admin dashboard can
         // show organization-wide role totals without paging through every user.
+        // select() deliberately replaces users.* and the fingerprint EXISTS
+        // projection; MySQL's ONLY_FULL_GROUP_BY rejects either in this grouped
+        // aggregate even though SQLite permits the ambiguous query.
         $roleCounts = (clone $query)
-            ->selectRaw('role, count(*) as aggregate')
+            ->reorder()
+            ->select('role')
+            ->selectRaw('count(*) as aggregate')
             ->groupBy('role')
             ->pluck('aggregate', 'role');
 
@@ -123,6 +134,10 @@ class UserController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
+        if ($actor->role === 'SBO_OFFICER' && $validatedData['role'] !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can create Student accounts only.'], 403);
+        }
+
         if ($validatedData['role'] === 'ADMIN') {
             return response()->json(['message' => 'Administrator accounts are created only from SAO Administration.'], 403);
         }
@@ -163,6 +178,10 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
+        }
+
         if ($user->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
@@ -195,7 +214,15 @@ class UserController extends Controller
             'password' => 'sometimes|required|string|min:8',
         ]);
 
+        if ($request->user()->role === 'SBO_OFFICER' && ($validatedData['role'] ?? 'STUDENT') !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers cannot assign or promote users to another role.'], 403);
+        }
+
         if ($user->role === 'ADMIN') {
+            if ($this->isAdviserPosition($user->position_title) || (array_key_exists('position_title', $validatedData) && $this->isAdviserPosition($validatedData['position_title']))) {
+                return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
+            }
+
             if (isset($validatedData['role']) && $validatedData['role'] !== 'ADMIN') {
                 return response()->json(['message' => 'Only the SAO Director can change an administrator role.'], 403);
             }
@@ -261,6 +288,10 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
+        }
+
         if ($user->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be deactivated.'], 403);
         }
@@ -302,6 +333,10 @@ class UserController extends Controller
             return response()->json(['message' => 'User not found.'], 404);
         }
 
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
+        }
+
         if ($user->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
@@ -332,6 +367,10 @@ class UserController extends Controller
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
+        }
+
+        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+            return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
         }
 
         if ($user->role === 'SUPER_ADMIN') {
@@ -412,7 +451,7 @@ class UserController extends Controller
     {
         $request->validate([
             'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
-            'school_id' => 'required|integer|min:1|max:99999999',
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
             'password' => 'required|string',
         ]);
 
@@ -459,23 +498,7 @@ class UserController extends Controller
             return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
         }
 
-        $token = Str::random(64);
-
-        DB::table('password_reset_tokens')->updateOrInsert(
-            [
-                'organization_id' => $user->organization_id,
-                'email' => $user->email,
-            ],
-            [
-                'token' => Hash::make($token),
-                'created_at' => now(),
-            ]
-        );
-
-        $resetUrl = $this->passwordResetUrl($user->organization_id, $user->email, $token);
-        $expiresInMinutes = (int) config('auth.passwords.users.expire', 60);
-
-        Mail::to($user->email)->send(new PasswordResetMail($user, $resetUrl, $expiresInMinutes));
+        $this->passwordResetService->issue($user);
 
         return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
     }
@@ -600,17 +623,6 @@ class UserController extends Controller
         return Carbon::parse($record->created_at)->addMinutes(config('auth.passwords.users.expire', 60))->isFuture();
     }
 
-    private function passwordResetUrl(int $organizationId, string $email, string $token): string
-    {
-        $frontendUrl = rtrim((string) env('FRONTEND_URL', 'http://localhost:5173'), '/');
-
-        return $frontendUrl.'/reset-password?'.http_build_query([
-            'organization_id' => $organizationId,
-            'email' => $email,
-            'token' => $token,
-        ]);
-    }
-
     private function auditableUserValues(User $user): array
     {
         return [
@@ -690,6 +702,11 @@ class UserController extends Controller
         $data['position_title'] = $positionTitle;
 
         return $data;
+    }
+
+    private function isAdviserPosition(mixed $title): bool
+    {
+        return in_array(strtolower(trim((string) $title)), ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true);
     }
 
     private function normalizeAcademicPayload(array $data, User $actor, ?User $existingUser = null): array

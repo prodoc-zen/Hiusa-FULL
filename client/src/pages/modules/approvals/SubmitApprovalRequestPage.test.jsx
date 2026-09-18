@@ -31,11 +31,11 @@ describe('SubmitApprovalRequestPage', () => {
     expect(screen.getByText('Destination request form')).toBeInTheDocument();
   });
 
-  it('limits an SBO officer to announcement and budget requests', () => {
+  it('limits an SBO officer to announcement requests', () => {
     renderPage('SBO_OFFICER');
 
     expect(screen.getByText('Announcement')).toBeInTheDocument();
-    expect(screen.getByText('Budget proposal')).toBeInTheDocument();
+    expect(screen.queryByText('Budget proposal')).not.toBeInTheDocument();
     expect(screen.queryByText('Event proposal')).not.toBeInTheDocument();
     expect(screen.queryByText('Election')).not.toBeInTheDocument();
   });

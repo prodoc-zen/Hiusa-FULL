@@ -11,6 +11,7 @@ const financeMocks = vi.hoisted(() => ({
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
   getFinancialReports: vi.fn(),
+  getFinancialReportDeadline: vi.fn(),
 }));
 
 vi.mock('../../../services/financeService', () => ({
@@ -21,6 +22,7 @@ vi.mock('../../../services/financeService', () => ({
   createBudget: vi.fn(),
   generateBudgetAdvice: vi.fn(),
   generateFinancialReport: vi.fn(),
+  submitFinancialReport: vi.fn(),
 }));
 
 vi.mock('../../../services/eventService', () => ({
@@ -43,6 +45,7 @@ describe('FinancePage transaction search', () => {
     financeMocks.getForecasts.mockResolvedValue({ data: [] });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReportDeadline.mockResolvedValue({ data: null });
   });
 
   it('clears the search term and reloads the unfiltered ledger', async () => {
@@ -55,7 +58,7 @@ describe('FinancePage transaction search', () => {
     fireEvent.keyDown(search, { key: 'Enter' });
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1, search: 'rent' }));
 
-    fireEvent.click(screen.getByRole('button', { name: 'Clear' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Clear all' }));
 
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
@@ -128,11 +131,48 @@ describe('FinancePage transaction search', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
+  it('loads a student\'s own receipts without requesting restricted reporting data', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    financeMocks.getPersonalReceipts.mockResolvedValue({
+      data: [{
+        id: 10,
+        transaction_date: '2026-09-09T10:30:00.000000Z',
+        description: 'Student membership payment',
+        category: 'Membership',
+        type: 'income',
+        amount: 500,
+        receipt_reference: 'HIUSA-1-00000010',
+      }],
+    });
+    financeMocks.getFinancialReportDeadline.mockRejectedValue({ response: { status: 403 } });
+
+    render(<FinancePage initialTab="receipts" />);
+
+    expect(await screen.findByText('Student membership payment')).toBeInTheDocument();
+    expect(screen.getByText('HIUSA-1-00000010')).toBeInTheDocument();
+    expect(financeMocks.getFinancialReportDeadline).not.toHaveBeenCalled();
+    expect(screen.queryByText('Failed to load financial data.')).not.toBeInTheDocument();
+  });
+
   it('opens the budget proposal form when launched from the request selector', async () => {
     render(<FinancePage initialTab="budgets" startBudgetProposal />);
 
     expect(await screen.findByRole('heading', { name: 'Propose Budget' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit for Approval' })).toBeInTheDocument();
+  });
+
+  it('keeps Department Head budget access read-only', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
+    financeMocks.getBudgets.mockResolvedValue({
+      data: [{ id: 1, title: 'Operating Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' }],
+    });
+
+    render(<FinancePage initialTab="budgets" startBudgetProposal />);
+
+    expect(await screen.findByText('Operating Budget')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Propose Budget' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'AI Advice' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Propose Budget' })).not.toBeInTheDocument();
   });
 });
 
@@ -151,6 +191,7 @@ describe('FinancePage forecast explainability', () => {
     financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReportDeadline.mockResolvedValue({ data: null });
   });
 
   it('shows a weak-fit warning and reports an unknown engine when the forecast metadata is thin', async () => {

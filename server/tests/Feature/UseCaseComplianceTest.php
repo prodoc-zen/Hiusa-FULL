@@ -516,6 +516,7 @@ class UseCaseComplianceTest extends TestCase
         $response = $this->postJson('/api/financial-reports/generate', [
             'report_type' => 'event',
             'event_id' => $event->id,
+            'signatories' => $this->financialReportSignatories(),
         ])->assertCreated()
             ->assertJsonPath('totals.income', 1000)
             ->assertJsonPath('totals.expense', 350)
@@ -528,6 +529,16 @@ class UseCaseComplianceTest extends TestCase
         $this->assertSame("Report summary\n\n- Income is 1000, expenses are 350, and the balance is 650.", $report->summary_text);
         $this->assertStringNotContainsString('*', $report->summary_text);
         $this->assertDatabaseHas('ai_outputs', ['reference_type' => FinancialReport::class, 'reference_id' => $report->id]);
+    }
+
+    private function financialReportSignatories(): array
+    {
+        return [
+            'treasurer' => 'Taylor Treasurer',
+            'president' => 'Pat President',
+            'adviser' => 'Alex Adviser',
+            'sbo_adviser' => 'Sam SBO Adviser',
+        ];
     }
 
     public function test_approved_event_changes_reopen_department_head_approval(): void
@@ -1233,23 +1244,31 @@ class UseCaseComplianceTest extends TestCase
         $this->assertDatabaseHas('merchandise', ['id' => $inactiveItem->id, 'is_active' => false]);
     }
 
-    public function test_self_check_in_requires_the_active_event_period(): void
+    public function test_students_and_department_heads_cannot_record_attendance(): void
     {
         $student = $this->user('STUDENT');
+        $departmentHead = $this->user('DEPARTMENT_HEAD', $student->organization_id);
         $event = Event::factory()->create([
             'organization_id' => $student->organization_id,
             'status' => 'approved',
             'approved_at' => now(),
-            'start_time' => now()->addDay(),
-            'end_time' => now()->addDay()->addHours(2),
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
         ]);
 
         $this->authenticate($student);
         $this->postJson("/api/events/{$event->id}/attendance", [
+            'user_id' => $student->school_id,
             'method' => 'manual',
             'status' => 'present',
-        ])->assertUnprocessable()
-            ->assertJsonPath('message', 'Self check-in is only available during the scheduled event period.');
+        ])->assertForbidden();
+
+        $this->authenticate($departmentHead);
+        $this->postJson("/api/events/{$event->id}/attendance", [
+            'user_id' => $student->school_id,
+            'method' => 'manual',
+            'status' => 'present',
+        ])->assertForbidden();
 
         $this->assertDatabaseMissing('attendance', [
             'event_id' => $event->id,
