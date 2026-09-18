@@ -6,8 +6,8 @@ const MAX_VISIBLE_PER_DAY = 2;
 
 const STATUS_STYLE = {
   planning: { label: 'Pending Approval', dot: '#F59E0B', text: 'text-[#B45309]', bg: 'bg-[#F59E0B]/10' },
-  approved: { label: 'Approved', dot: '#0B8ED0', text: 'text-[#0878B7]', bg: 'bg-[#0B8ED0]/10' },
-  ongoing: { label: 'Ongoing', dot: '#0B8ED0', text: 'text-[#0878B7]', bg: 'bg-[#0B8ED0]/10' },
+  approved: { label: 'Approved', dot: '#0B8ED0', text: 'text-[#0878B7]', bg: 'bg-[#0878B7]/10' },
+  ongoing: { label: 'Ongoing', dot: '#0B8ED0', text: 'text-[#0878B7]', bg: 'bg-[#0878B7]/10' },
   completed: { label: 'Completed', dot: '#16A34A', text: 'text-[#15803D]', bg: 'bg-[#16A34A]/10' },
   cancelled: { label: 'Cancelled', dot: '#DC2626', text: 'text-[#B91C1C]', bg: 'bg-[#DC2626]/10' },
 };
@@ -118,10 +118,10 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
   const dayEvents = eventsByDate[iso] || [];
   const label = new Date(`${iso}T00:00:00`).toLocaleDateString('en-PH', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' });
   return (
-    <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+    <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
       <h3 className="text-sm font-bold text-[#0F172A]">{label}</h3>
       {dayEvents.length === 0 ? (
-        <p className="mt-3 text-sm text-slate-400">No events scheduled on this day.</p>
+        <p className="mt-3 text-sm text-slate-500">No events scheduled on this day.</p>
       ) : (
         <ul className="mt-3 space-y-2">
           {dayEvents.map((event) => {
@@ -136,10 +136,10 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
                   <div className="min-w-0">
                     <p className="truncate font-bold text-[#0F172A]">{event.title}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
-                      <span className="flex items-center gap-1"><Clock size={12} className="text-slate-400" />
+                      <span className="flex items-center gap-1"><Clock size={12} className="text-slate-500" />
                         {event.isMultiDay ? `${shortDate(event.start_time)} - ${shortDate(event.end_time)}` : shortTime(event.start_time)}
                       </span>
-                      {event.location && <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-400" />{event.location}</span>}
+                      {event.location && <span className="flex items-center gap-1"><MapPin size={12} className="text-slate-500" />{event.location}</span>}
                     </div>
                   </div>
                   <span className={`shrink-0 self-start rounded-full px-2.5 py-1 text-[11px] font-bold sm:self-center ${style.bg} ${style.text}`}>
@@ -199,7 +199,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
 
   if (loading) {
     return (
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="mb-4 h-8 w-48 animate-pulse rounded-lg bg-slate-100" />
         <div className="grid grid-cols-7 gap-2">
           {Array.from({ length: 35 }).map((_, i) => (
@@ -212,7 +212,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-lg font-bold text-[#0F172A]">{monthLabel}</h2>
           <div className="flex items-center gap-1.5">
@@ -220,7 +220,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goPrev}
               aria-label="Previous month"
-              className="grid h-11 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+              className="grid h-11 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
             >
               <ChevronLeft size={16} />
             </button>
@@ -228,7 +228,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goToday}
               aria-label="Go to today"
-              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-[13px] font-bold text-slate-600 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+              className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-[13px] font-bold text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
             >
               Today
             </button>
@@ -236,7 +236,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
               type="button"
               onClick={goNext}
               aria-label="Next month"
-              className="grid h-11 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] hover:text-[#0B8ED0]"
+              className="grid h-11 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
             >
               <ChevronRight size={16} />
             </button>
@@ -246,7 +246,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         {monthDaysWithEvents.length === 0 && (
           <div className="mt-4 flex flex-col items-center gap-2 rounded-lg border border-dashed border-[#DDE7EF] py-8 text-center">
             <CalendarDays size={32} className="text-slate-200" />
-            <p className="text-sm text-slate-400">No events scheduled for {monthLabel}.</p>
+            <p className="text-sm text-slate-500">No events scheduled for {monthLabel}.</p>
           </div>
         )}
 
@@ -254,7 +254,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         <div className="mt-4 hidden sm:block" role="grid" aria-label={`Calendar for ${monthLabel}`}>
           <div className="grid grid-cols-7 gap-1.5" role="row">
             {WEEKDAY_LABELS.map((label) => (
-              <div key={label} role="columnheader" className="px-1 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-slate-400">
+              <div key={label} role="columnheader" className="px-1 py-1 text-center text-[11px] font-bold uppercase tracking-wider text-slate-500">
                 {label}
               </div>
             ))}
@@ -273,7 +273,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       key={day.iso}
                       role="gridcell"
                       className={`min-h-[92px] rounded-lg border p-1.5 transition lg:min-h-[104px] ${
-                        isSelected ? 'border-[#0B8ED0] ring-2 ring-[#16C7F3]/25' : 'border-[#E5EDF3]'
+                        isSelected ? 'border-[#0B8ED0] ring-2 ring-[#16C7F3]/25' : 'border-[#DDE7EF]'
                       } ${day.inMonth ? 'bg-white' : 'bg-[#F8FBFD]'}`}
                     >
                       <button
@@ -284,7 +284,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       >
                         <span
                           className={`grid h-6 w-6 place-items-center rounded-full text-[12px] font-bold ${
-                            isToday ? 'bg-[#0B8ED0] text-white' : day.inMonth ? 'text-[#0F172A]' : 'text-slate-300'
+                            isToday ? 'bg-[#0878B7] text-white' : day.inMonth ? 'text-[#0F172A]' : 'text-slate-300'
                           }`}
                         >
                           {day.date.getDate()}
@@ -298,7 +298,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                           <button
                             type="button"
                             onClick={() => selectDay(day.iso)}
-                            className="w-full rounded-md px-1.5 py-0.5 text-left text-[10px] font-bold text-[#0B8ED0] hover:underline"
+                            className="w-full rounded-md px-1.5 py-0.5 text-left text-[10px] font-bold text-[#0878B7] hover:underline"
                           >
                             +{overflow} more
                           </button>
@@ -315,9 +315,9 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         {/* Mobile agenda list */}
         <div className="mt-4 space-y-3 sm:hidden">
           {monthDaysWithEvents.map((day) => (
-            <div key={day.iso} className="rounded-lg border border-[#E5EDF3] p-3">
+            <div key={day.iso} className="rounded-lg border border-[#DDE7EF] p-3">
               <div className="mb-2 flex items-center gap-2">
-                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold ${day.iso === todayIso ? 'bg-[#0B8ED0] text-white' : 'bg-[#F8FBFD] text-[#0F172A]'}`}>
+                <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold ${day.iso === todayIso ? 'bg-[#0878B7] text-white' : 'bg-[#F8FBFD] text-[#0F172A]'}`}>
                   {day.date.getDate()}
                 </span>
                 <p className="text-[13px] font-bold text-[#0F172A]">

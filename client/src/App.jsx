@@ -47,9 +47,9 @@ const ImmersiveVotePage = lazy(() => import('./pages/modules/elections/Immersive
 function RouteLoadingFallback() {
   return (
     <div className="space-y-4 p-1" role="status" aria-label="Loading page">
-      <div className="h-28 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />
+      <div className="h-28 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}
+        {[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}
       </div>
       <span className="sr-only">Loading page...</span>
     </div>

@@ -62,6 +62,67 @@ class RequestedWorkflowCompletionTest extends TestCase
             ->assertJsonPath('data.0.description', 'Leadership summit venue');
     }
 
+    public function test_student_personal_receipts_are_limited_to_their_own_receipt_bearing_transactions(): void
+    {
+        $student = $this->user('STUDENT');
+        $admin = $this->user('ADMIN', $student->organization_id);
+        $otherStudent = $this->user('STUDENT', $student->organization_id);
+        $outsideStudent = $this->user('STUDENT');
+        $outsideAdmin = $this->user('ADMIN', $outsideStudent->organization_id);
+
+        $ownReceipt = Transaction::create([
+            'organization_id' => $student->organization_id,
+            'recorded_by' => $admin->school_id,
+            'payer_id' => $student->school_id,
+            'type' => 'income',
+            'amount' => 500,
+            'category' => 'Membership',
+            'description' => 'Own student receipt',
+            'receipt_reference' => 'HIUSA-OWN-RECEIPT',
+            'transaction_date' => now(),
+        ]);
+        Transaction::create([
+            'organization_id' => $student->organization_id,
+            'recorded_by' => $admin->school_id,
+            'payer_id' => $otherStudent->school_id,
+            'type' => 'income',
+            'amount' => 500,
+            'category' => 'Membership',
+            'description' => 'Another student receipt',
+            'receipt_reference' => 'HIUSA-OTHER-RECEIPT',
+            'transaction_date' => now(),
+        ]);
+        Transaction::create([
+            'organization_id' => $student->organization_id,
+            'recorded_by' => $admin->school_id,
+            'payer_id' => $student->school_id,
+            'type' => 'income',
+            'amount' => 100,
+            'category' => 'Membership',
+            'description' => 'Receiptless transaction',
+            'transaction_date' => now(),
+        ]);
+        Transaction::create([
+            'organization_id' => $outsideStudent->organization_id,
+            'recorded_by' => $outsideAdmin->school_id,
+            'payer_id' => $outsideStudent->school_id,
+            'type' => 'income',
+            'amount' => 500,
+            'category' => 'Membership',
+            'description' => 'Outside organization receipt',
+            'receipt_reference' => 'HIUSA-OUTSIDE-RECEIPT',
+            'transaction_date' => now(),
+        ]);
+
+        Sanctum::actingAs($student);
+
+        $this->getJson('/api/transactions/personal-receipts')
+            ->assertOk()
+            ->assertJsonCount(1)
+            ->assertJsonPath('0.id', $ownReceipt->id)
+            ->assertJsonPath('0.payer.school_id', $student->school_id);
+    }
+
     public function test_forecast_fills_inactive_months_and_uses_approved_available_budget(): void
     {
         $admin = $this->user('ADMIN');

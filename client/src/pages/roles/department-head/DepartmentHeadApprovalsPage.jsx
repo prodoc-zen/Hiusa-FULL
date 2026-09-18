@@ -4,6 +4,7 @@ import { getApprovalRequests, reviewApprovalRequest } from '../../../services/ap
 import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
+import AccessibleOverlay from '../../../components/AccessibleOverlay';
 
 const ENTITY_ICON = {
   event: CalendarDays,
@@ -107,8 +108,8 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
   const isReject = action === 'rejected';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+    <AccessibleOverlay label={`${isReject ? 'Reject' : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-extrabold text-[#0F172A]">
           {isReject ? 'Reject' : 'Approve'} "{request.title}"
         </h3>
@@ -137,13 +138,13 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
             type="button"
             onClick={() => onConfirm(remarks)}
             disabled={busy || (isReject && !remarks.trim())}
-            className={`h-11 rounded-lg px-5 text-sm font-bold text-white transition disabled:opacity-50 ${isReject ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0B8ED0] hover:bg-[#0878B7]'}`}
+            className={`h-11 rounded-lg px-5 text-sm font-bold text-white transition disabled:opacity-50 ${isReject ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0878B7] hover:bg-[#0F2F62]'}`}
           >
             {busy ? 'Processing...' : isReject ? 'Reject' : 'Approve'}
           </button>
         </div>
       </div>
-    </div>
+    </AccessibleOverlay>
   );
 }
 
@@ -233,8 +234,8 @@ export default function DepartmentHeadApprovalsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">{roleLabel(currentUser.role)}</p>
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">{roleLabel(currentUser.role)}</p>
         <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Approvals</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Review approval requests awaiting your role's sign-off.</p>
       </section>
@@ -246,8 +247,8 @@ export default function DepartmentHeadApprovalsPage() {
             onClick={() => { setStatusFilter(tab); setPage(1); }}
             className={`rounded-lg px-4 py-2.5 text-[13px] font-bold capitalize transition-all ${
               statusFilter === tab
-                ? 'bg-[#0B8ED0] text-white shadow-lg shadow-[#0B8ED0]/20'
-                : 'border border-[#DDE7EF] bg-white text-slate-600 hover:bg-[#EEF6FB]'
+                ? 'bg-[#0878B7] text-white shadow-lg shadow-[#0B8ED0]/20'
+                : 'border border-[#DDE7EF] bg-white text-slate-600 hover:bg-[#F8FBFD]'
             }`}
           >
             {tab === 'pending' ? `Pending${pendingTotal ? ` (${pendingTotal})` : ''}` : 'All History'}
@@ -255,10 +256,10 @@ export default function DepartmentHeadApprovalsPage() {
         ))}
       </div>
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
           <label className="relative xl:col-span-2">
-            <Search size={15} className="absolute left-3 top-3.5 text-slate-400" />
+            <Search size={15} className="absolute left-3 top-3.5 text-slate-500" />
             <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search requester, ID, remarks..." className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" />
           </label>
           <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
@@ -272,18 +273,18 @@ export default function DepartmentHeadApprovalsPage() {
           <p className="text-xs font-semibold text-slate-500">{meta.total} matching request{meta.total === 1 ? '' : 's'} · {pendingTotal} awaiting action</p>
           <div className="flex gap-2">
             <button type="button" onClick={() => { setSearch(''); setEntityFilter('all'); setFrom(''); setTo(''); setSort('newest'); }} className="h-9 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Reset</button>
-            <button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button>
+            <button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button>
           </div>
         </div>
       </section>
 
       {error && (
-        <div className="rounded-xl border border-red-100 bg-red-50 p-4 text-center">
+        <div className="rounded-lg border border-red-100 bg-red-50 p-4 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>
         </div>
       )}
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+      <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         {loading ? (
           <div className="space-y-2 p-5">
             {[1, 2, 3].map((item) => <div key={item} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}
@@ -291,18 +292,18 @@ export default function DepartmentHeadApprovalsPage() {
         ) : requests.length === 0 ? (
           <div className="py-14 text-center">
             <Clock size={32} className="mx-auto mb-2 text-slate-200" />
-            <p className="text-sm text-slate-400">
+            <p className="text-sm text-slate-500">
               {statusFilter === 'pending' ? 'Nothing waiting for review.' : 'No approval history yet.'}
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[#E5EDF3]">
+          <div className="divide-y divide-[#DDE7EF]">
             {requests.map((request) => {
               const Icon = ENTITY_ICON[request.entity_type] || Clock;
               return (
                 <div key={request.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                    <div className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                       <Icon size={17} />
                     </div>
                     <div className="min-w-0">
@@ -316,12 +317,12 @@ export default function DepartmentHeadApprovalsPage() {
                         </span>
                       </div>
                       {summaryLine(request.entity_type, request.summary) && (
-                        <p className="mt-1 text-xs text-slate-400">{summaryLine(request.entity_type, request.summary)}</p>
+                        <p className="mt-1 text-xs text-slate-500">{summaryLine(request.entity_type, request.summary)}</p>
                       )}
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Requested by {request.requester ? `${request.requester.first_name} ${request.requester.last_name}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
                       </p>
-                      <p className="mt-1 text-xs text-slate-400">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
+                      <p className="mt-1 text-xs text-slate-500">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
                       {request.status !== 'pending' && request.remarks && (
                         <p className="mt-1.5 rounded-md bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">
                           <span className="font-semibold">Remarks:</span> {request.remarks}
@@ -374,22 +375,22 @@ export default function DepartmentHeadApprovalsPage() {
       />
 
       {details && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm" onMouseDown={() => setDetails(null)}>
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Request #{details.id} · {ENTITY_LABEL[details.entity_type]}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{details.title}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100"><X size={18} /></button></div>
+        <AccessibleOverlay label="Approval request details" onClose={() => setDetails(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Request #{details.id} · {ENTITY_LABEL[details.entity_type]}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{details.title}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
               {[
                 ['Status', details.status], ['Required Role', details.required_role], ['Requested At', formatDateTime(details.requested_at)],
                 ['Requester', `${details.requester?.first_name || ''} ${details.requester?.last_name || ''}`.trim() || '-'], ['School ID', details.requester?.school_id], ['Email', details.requester?.email],
                 ['Role / Position', [details.requester?.role, details.requester?.position_title].filter(Boolean).join(' · ')], ['Department', details.requester?.department], ['Academic Profile', [details.requester?.program, details.requester?.year_level, details.requester?.section].filter(Boolean).join(' · ')],
                 ['Reviewer', `${details.reviewer?.first_name || ''} ${details.reviewer?.last_name || ''}`.trim() || '-'], ['Reviewed At', formatDateTime(details.reviewed_at)], ['Entity ID', details.entity_id],
-              ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value || '-'}</p></div>)}
+              ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value || '-'}</p></div>)}
             </div>
-            <div className="mt-4 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Record summary</p><p className="mt-2 text-sm text-slate-600">{summaryLine(details.entity_type, details.summary) || 'No additional summary available.'}</p></div>
-            {details.entity_type === 'financial_report' && <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0B8ED0]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-400">No supporting documents.</p>}</div></div>}
-            <div className="mt-3 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-400">Review remarks</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{details.remarks || 'No remarks recorded.'}</p></div>
+            <div className="mt-4 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Record summary</p><p className="mt-2 text-sm text-slate-600">{summaryLine(details.entity_type, details.summary) || 'No additional summary available.'}</p></div>
+            {details.entity_type === 'financial_report' && <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents.</p>}</div></div>}
+            <div className="mt-3 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Review remarks</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{details.remarks || 'No remarks recorded.'}</p></div>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
     </div>
   );

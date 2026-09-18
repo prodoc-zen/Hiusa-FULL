@@ -19,11 +19,15 @@ export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
   const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState('');
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
 
     async function load() {
+      setLoading(true);
+      setLoadError('');
       try {
         // /events has no status filter, so the full org event list is walked via
         // fetchAllPages - the endpoint also orders oldest-first, so a single
@@ -48,7 +52,7 @@ export default function DepartmentHeadHomePage() {
         });
         setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
       } catch {
-        if (!cancelled) { setData({ elections: [], events: [], announcements: [], pendingApprovals: [] }); setPendingApprovalsTotal(0); }
+        if (!cancelled) setLoadError('Unable to load department oversight data. Your current records have not been replaced with empty results.');
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -56,7 +60,7 @@ export default function DepartmentHeadHomePage() {
 
     load();
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   const activeElection = data.elections.find((e) => e.status === 'active') || null;
   const upcomingEvents = data.events
@@ -74,16 +78,25 @@ export default function DepartmentHeadHomePage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Department Head Portal</p>
+      <header className="border-b border-[#DDE7EF] pb-5">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Department Head Portal</p>
         <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Oversight Dashboard</h2>
         <p className="mt-1 text-sm font-medium text-slate-500">Review approvals and monitor elections, events, and published announcements.</p>
-      </section>
+      </header>
+
+      {loadError && (
+        <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
+          <p className="font-semibold">{loadError}</p>
+          <button type="button" onClick={() => setReloadKey((value) => value + 1)} className="min-h-11 rounded-lg border border-red-300 bg-white px-4 font-bold text-red-700 hover:bg-red-100">
+            Try again
+          </button>
+        </div>
+      )}
 
       {!loading && totalPendingApprovals > 0 && (
         <NavLink
           to="/dashboard/department-head/approvals"
-          className="flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:bg-amber-100"
+          className="flex items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 p-5 shadow-sm transition hover:bg-amber-100"
         >
           <div className="flex items-center gap-3">
             <div className="grid h-11 w-11 place-items-center rounded-lg bg-white text-amber-600">
@@ -98,83 +111,86 @@ export default function DepartmentHeadHomePage() {
         </NavLink>
       )}
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        {[
-          { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
-          { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
-          { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
-          { label: 'Pending Approvals', value: stat(totalPendingApprovals), icon: ClipboardCheck },
-        ].map((item) => (
-          <article key={item.label} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <div className="mb-4 grid h-11 w-11 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
-              <item.icon size={20} />
+      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
+        <div className="border-b border-[#DDE7EF] px-5 py-4">
+          <h3 className="text-base font-bold text-[#0F172A]">Oversight snapshot</h3>
+          <p className="mt-1 text-xs font-medium text-slate-500">Current election, event, and approval workload.</p>
+        </div>
+        <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: 'Active Elections', value: stat(data.elections.filter((e) => e.status === 'active').length), icon: Vote },
+            { label: 'Closed Elections', value: stat(data.elections.filter((e) => e.status === 'closed').length), icon: BarChart3 },
+            { label: 'Upcoming Events', value: stat(upcomingEvents.length), icon: CalendarDays },
+            { label: 'Pending Approvals', value: stat(totalPendingApprovals), icon: ClipboardCheck },
+          ].map((item) => (
+            <div key={item.label} className="flex min-h-20 items-center justify-between gap-3 bg-white px-4 py-3">
+              <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600"><item.icon size={17} className="text-[#0878B7]" />{item.label}</dt>
+              <dd className="text-xl font-black tabular-nums text-[#0F172A]">{item.value}</dd>
             </div>
-            <p className="text-sm font-semibold text-slate-500">{item.label}</p>
-            <p className="mt-1 text-2xl font-black text-[#0F172A] tabular-nums">{item.value}</p>
-          </article>
-        ))}
+          ))}
+        </dl>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
         <div className="space-y-6">
           {/* Active Election Card */}
           {activeElection ? (
-            <section className="rounded-xl border border-[#0B8ED0]/25 bg-gradient-to-br from-[#E6F6FD] to-white p-5 shadow-sm">
+            <section className="rounded-lg border border-[#0B8ED0]/25 bg-[#E6F6FD] p-5">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">Active Election</p>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Active Election</p>
                   <h3 className="mt-1 text-lg font-black text-[#0F172A]">{activeElection.title}</h3>
                   <p className="mt-1 text-sm text-slate-500">
                     {formatDate(activeElection.start_time)} to {formatDate(activeElection.end_time)}
                   </p>
                 </div>
-                <span className="mt-1 rounded-full bg-[#0B8ED0] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
+                <span className="mt-1 rounded-full bg-[#0878B7] px-3 py-1 text-[11px] font-black text-white">LIVE</span>
               </div>
               <div className="mt-4 flex gap-2">
                 <NavLink to="/dashboard/elections" className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-2 text-xs font-bold text-slate-700 transition hover:bg-[#F8FBFD]">
                   View Details
                 </NavLink>
-                <NavLink to="/dashboard/elections/election-results" className="rounded-lg bg-[#0B8ED0] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0878B7]">
+                <NavLink to="/dashboard/elections/election-results" className="rounded-lg bg-[#0878B7] px-4 py-2 text-xs font-bold text-white transition hover:bg-[#0F2F62]">
                   View Results
                 </NavLink>
               </div>
             </section>
           ) : (
-            <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+            <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
               <div className="flex items-center gap-3">
-                <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-400">
+                <div className="grid h-11 w-11 place-items-center rounded-lg bg-slate-100 text-slate-500">
                   <Vote size={20} />
                 </div>
                 <div>
                   <p className="font-bold text-[#0F172A]">No Active Election</p>
-                  <p className="text-sm text-slate-400">No elections are currently running.</p>
+                  <p className="text-sm text-slate-500">No elections are currently running.</p>
                 </div>
               </div>
             </section>
           )}
 
           {/* Upcoming Events */}
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
               <h3 className="text-base font-bold text-[#0F172A]">Upcoming Events</h3>
-              <NavLink to="/dashboard/events" className="text-xs font-bold text-[#0B8ED0] hover:underline">View all</NavLink>
+              <NavLink to="/dashboard/events" className="text-xs font-bold text-[#0878B7] hover:underline">View all</NavLink>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-10 animate-pulse rounded-lg bg-slate-100" />)}</div>
             ) : upcomingEvents.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">No upcoming events.</p>
+              <p className="py-8 text-center text-sm text-slate-500">No upcoming events.</p>
             ) : (
-              <div className="divide-y divide-[#E5EDF3]">
+              <div className="divide-y divide-[#DDE7EF]">
                 {upcomingEvents.map((ev) => (
                   <div key={ev.id} className="flex items-center gap-4 px-5 py-3.5">
-                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                    <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                       <CalendarDays size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-[#0F172A]">{ev.title}</p>
-                      <p className="text-xs text-slate-400">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
+                      <p className="text-xs text-slate-500">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
                     </div>
-                    <span className="shrink-0 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#0B8ED0]">{ev.status}</span>
+                    <span className="shrink-0 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#0F2F62]">{ev.status}</span>
                   </div>
                 ))}
               </div>
@@ -184,16 +200,16 @@ export default function DepartmentHeadHomePage() {
 
         <div className="space-y-6">
           {/* Pending Approvals by Type */}
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
               <h3 className="text-base font-bold text-[#0F172A]">Pending Approvals by Type</h3>
-              <NavLink to="/dashboard/department-head/approvals" className="text-xs font-bold text-[#0B8ED0] hover:underline">Review</NavLink>
+              <NavLink to="/dashboard/department-head/approvals" className="text-xs font-bold text-[#0878B7] hover:underline">Review</NavLink>
             </div>
             <div className="p-5">
               {loading ? (
                 <div className="space-y-3">{[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}</div>
               ) : totalPendingApprovals === 0 ? (
-                <p className="py-4 text-center text-sm text-slate-400">Nothing awaiting your review.</p>
+                <p className="py-4 text-center text-sm text-slate-500">Nothing awaiting your review.</p>
               ) : (
                 <div className="space-y-3">
                   {approvalsByType.map((row) => {
@@ -205,7 +221,7 @@ export default function DepartmentHeadHomePage() {
                           <span className="tabular-nums text-slate-500">{row.count} ({pct}%)</span>
                         </div>
                         <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
-                          <div className="h-2 rounded-full bg-[#0B8ED0] transition-all" style={{ width: `${pct}%` }} />
+                          <div className="h-2 rounded-full bg-[#0878B7] transition-all" style={{ width: `${pct}%` }} />
                         </div>
                       </div>
                     );
@@ -216,25 +232,25 @@ export default function DepartmentHeadHomePage() {
           </section>
 
           {/* Recent Announcements */}
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
               <h3 className="text-base font-bold text-[#0F172A]">Recent Announcements</h3>
-              <NavLink to="/dashboard/announcements/view-announcements" className="text-xs font-bold text-[#0B8ED0] hover:underline">View all</NavLink>
+              <NavLink to="/dashboard/announcements/view-announcements" className="text-xs font-bold text-[#0878B7] hover:underline">View all</NavLink>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">{[...Array(3)].map((_, i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}</div>
             ) : recentAnnouncements.length === 0 ? (
-              <p className="py-8 text-center text-sm text-slate-400">No announcements yet.</p>
+              <p className="py-8 text-center text-sm text-slate-500">No announcements yet.</p>
             ) : (
-              <div className="divide-y divide-[#E5EDF3]">
+              <div className="divide-y divide-[#DDE7EF]">
                 {recentAnnouncements.map((a) => (
                   <div key={a.id} className="flex items-start gap-3 px-5 py-3.5">
-                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+                    <div className="mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                       <Megaphone size={15} />
                     </div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-semibold text-[#0F172A]">{a.title}</p>
-                      <p className="line-clamp-2 text-xs text-slate-400">{a.body}</p>
+                      <p className="line-clamp-2 text-xs text-slate-500">{a.body}</p>
                     </div>
                   </div>
                 ))}
@@ -243,7 +259,7 @@ export default function DepartmentHeadHomePage() {
           </section>
 
           {/* Actions */}
-          <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h3 className="mb-3 text-base font-bold text-[#0F172A]">Oversight Actions</h3>
             <div className="space-y-2">
               {[
@@ -255,7 +271,7 @@ export default function DepartmentHeadHomePage() {
                 <NavLink
                   key={a.path}
                   to={a.path}
-                  className="flex h-10 w-full items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0B8ED0]/40 hover:bg-white"
+                  className="flex min-h-11 w-full items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0B8ED0]/40 hover:bg-white"
                 >
                   {a.label}
                 </NavLink>

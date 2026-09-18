@@ -119,7 +119,7 @@ export default function OrganizationSelectPage() {
 
         <form onSubmit={handleContinue} className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-7">
           <div className="mb-6">
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">Before sign in</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0878B7]">Before sign in</p>
             <h2 className="mt-2 text-2xl font-black text-slate-950">Find your organization</h2>
             <p className="mt-1.5 text-sm font-medium text-slate-500">
               Choose the student organization or Student Affairs Office connected to your account.
@@ -130,13 +130,13 @@ export default function OrganizationSelectPage() {
             <label className="block">
               <span className="mb-1.5 block text-[13px] font-semibold text-slate-800">Search organizations</span>
               <span className="relative block">
-                <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                <Search className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
                 <input
                   type="search"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                   placeholder="Search by organization, acronym, or college"
-                  className="h-11 w-full rounded-md border border-[#DDE7EF] bg-white pl-10 pr-4 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-400 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-md border border-[#DDE7EF] bg-white pl-10 pr-4 text-sm font-medium text-slate-800 outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </span>
             </label>
@@ -151,7 +151,7 @@ export default function OrganizationSelectPage() {
                     setError(null);
                   }}
                   disabled={loading}
-                  className="h-11 w-full appearance-none rounded-md border border-[#DDE7EF] bg-white pl-3.5 pr-10 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-50 disabled:text-slate-400"
+                  className="h-11 w-full appearance-none rounded-md border border-[#DDE7EF] bg-white pl-3.5 pr-10 text-sm font-semibold text-slate-800 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-50 disabled:text-slate-500"
                 >
                   <option value="">{loading ? 'Loading organizations...' : 'Select your organization...'}</option>
                   {filteredOrganizations.map((organization) => (
@@ -160,7 +160,7 @@ export default function OrganizationSelectPage() {
                     </option>
                   ))}
                 </select>
-                <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
               </span>
             </label>
 
@@ -178,7 +178,7 @@ export default function OrganizationSelectPage() {
                       }}
                       className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
                         String(organization.id) === selectedId
-                          ? 'border-[#0B8ED0] bg-[#E9F7FD] text-[#0878B7]'
+                          ? 'border-[#0B8ED0] bg-[#E6F6FD] text-[#0F2F62]'
                           : 'border-[#DDE7EF] bg-white text-slate-600 hover:border-[#0B8ED0] hover:text-[#0878B7]'
                       }`}
                     >
@@ -198,7 +198,7 @@ export default function OrganizationSelectPage() {
             <button
               type="submit"
               disabled={loading}
-              className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0B8ED0] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0878B7] active:scale-[0.99] disabled:opacity-60"
+              className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0878B7] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0F2F62] active:scale-[0.99] disabled:opacity-60"
             >
               Continue to login
               <ArrowRight size={17} />

@@ -13,12 +13,11 @@ import {
   Pencil,
   Plus,
   Printer,
-  Search,
   Sparkles,
-  TrendingUp,
   Wallet,
   X,
 } from 'lucide-react';
+import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import {
   getTransactions,
   getTransactionSummary,
@@ -43,6 +42,7 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import Modal from '../../../components/Modal';
+import TableFilterBar from '../../../components/TableFilterBar';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
@@ -171,7 +171,7 @@ function reportTable(rows, title) {
   const headers = Object.keys(rows[0] || {});
   const heading = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('');
   const body = rows.map((row) => `<tr>${headers.map((header) => `<td>${escapeHtml(row[header])}</td>`).join('')}</tr>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px}h1{font-size:20px}p{color:#475569;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px}th,td{border:1px solid #cbd5e1;padding:8px;text-align:left}th{background:#eaf4f8}@media print{body{padding:0}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString())}</p><table><thead><tr>${heading}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px}h1{font-size:20px}p{color:#64748B;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px}th,td{border:1px solid #DDE7EF;padding:8px;text-align:left}th{background:#EEF6FB}@media print{body{padding:0}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString())}</p><table><thead><tr>${heading}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
 
 function downloadExcel(rows, filename, title) {
@@ -248,6 +248,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canViewTransactions = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const canViewForecasts = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
   const canViewBudgets = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const canViewPersonalReceipts = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(currentUserRole);
+  const canViewInvoices = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(currentUserRole);
+  const canViewReportDeadline = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const canProposeBudget = currentUserRole === 'ADMIN';
   const canGenerateBudgetAdvice = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
 
@@ -274,11 +277,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data)) : Promise.resolve([]),
       canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data)) : Promise.resolve([]),
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
-      getPersonalReceipts(),
-      getInvoices(),
+      canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
+      canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
       ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data)) : Promise.resolve([]),
-      getFinancialReportDeadline(),
+      canViewReportDeadline ? getFinancialReportDeadline() : Promise.resolve({ data: null }),
     ])
       .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports, deadlineRes]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
@@ -657,62 +660,67 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   const txFrom = (txMeta.current_page - 1) * txMeta.per_page + 1;
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
+  const workspaceCopy = {
+    transactions: { eyebrow: 'Financial oversight', title: 'Digital Ledger', description: 'Trace every income and expense record to its budget, event, payer, receipt, and recorder.', icon: Coins },
+    budgets: { eyebrow: 'Allocation control', title: 'Budget Allocation', description: 'Review proposed funds, approval state, available balance, and spending risk before commitments are made.', icon: Wallet },
+    forecasting: { eyebrow: 'Decision support', title: 'Financial Insights', description: 'Review calculated trends, reliability limits, projected balances, and safe-spending guidance.', icon: Sparkles },
+    reports: { eyebrow: 'Reporting workspace', title: 'Transaction History', description: 'Filter financial records, prepare accountable reports, and track approval and submission status.', icon: FileText },
+    receipts: { eyebrow: 'Personal records', title: 'My Receipts', description: 'Review receipts connected to your own approved payments and transactions.', icon: FileText },
+    invoices: { eyebrow: 'Personal accountability', title: 'Statement of Account', description: 'Review current charges, payments, remaining balances, and clearance standing.', icon: Wallet },
+    audit: { eyebrow: 'Financial accountability', title: 'Financial Audit', description: 'Review recorded administrative actions across financial and approval workflows.', icon: FileSpreadsheet },
+  }[activeTab] || { eyebrow: 'Financial workspace', title: 'Financial Management', description: 'Review organization financial activity and accountability records.', icon: Coins };
+  const activeTransactionFilters = [
+    search.trim() && `Search: ${search.trim()}`,
+    txFilters.type && `Type: ${txFilters.type}`,
+    txFilters.event_id && `Event: ${events.find((event) => String(event.id) === String(txFilters.event_id))?.title || txFilters.event_id}`,
+    txFilters.from && `From: ${txFilters.from}`,
+    txFilters.to && `To: ${txFilters.to}`,
+  ].filter(Boolean);
+
+  const clearTransactionFilters = () => {
+    const cleared = { type: '', event_id: '', from: '', to: '' };
+    setTxFilters(cleared);
+    setSearch('');
+    load(1, cleared, '');
+  };
 
   return (
     <div className="space-y-6">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+      <section className="flex flex-col gap-4 rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10 text-[#16C7F3]"><workspaceCopy.icon size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">{workspaceCopy.eyebrow}</p><h1 className="mt-1 text-2xl font-black">{workspaceCopy.title}</h1><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">{workspaceCopy.description}</p></div></div>
+        <div className="border-t border-white/15 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-300">Current balance</p><p className="mt-1 text-xl font-black tabular-nums">{fmt(summary.net_balance)}</p></div>
+      </section>
+
+      <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Total Income', value: fmt(summary.total_income), helper: 'Recorded income', icon: ArrowUpRight, up: true },
-          { label: 'Total Expenses', value: fmt(summary.total_expense), helper: 'Recorded expenses', icon: ArrowDownRight, up: false },
-          { label: 'Net Balance', value: fmt(summary.net_balance), helper: 'Income minus expenses', icon: Coins, up: summary.net_balance >= 0 },
-          { label: 'Transactions', value: txMeta.total || transactions.length, helper: 'All records', icon: Wallet, up: true },
+          { label: 'Total Income', value: fmt(summary.total_income), helper: 'Recorded income', icon: ArrowUpRight, tone: 'text-emerald-700 bg-emerald-50' },
+          { label: 'Total Expenses', value: fmt(summary.total_expense), helper: 'Recorded expenses', icon: ArrowDownRight, tone: 'text-red-700 bg-red-50' },
+          { label: 'Net Balance', value: fmt(summary.net_balance), helper: 'Income minus expenses', icon: Coins, tone: 'text-[#0F2F62] bg-[#E6F6FD]' },
+          { label: 'Transactions', value: txMeta.total || transactions.length, helper: 'All records', icon: Wallet, tone: 'text-[#0F2F62] bg-[#E6F6FD]' },
         ].map((card) => (
-          <article key={card.label} className="group rounded-xl border border-[#DDE7EF] bg-white p-3 sm:p-5 shadow-sm transition-all hover:shadow-md hover:border-[#0B8ED0]/20">
-            <div className="mb-3 flex items-center justify-between">
-              <div className="grid h-10 w-10 place-items-center rounded-lg bg-emerald-50 text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition">
-                <card.icon size={19} />
-              </div>
-              <span className={`flex items-center gap-1 text-[11px] font-bold ${card.up ? 'text-emerald-600' : 'text-red-500'}`}>
-                <TrendingUp size={12} className={card.up ? '' : 'rotate-180'} />
-              </span>
-            </div>
-            <p className="text-sm font-semibold text-slate-500">{card.label}</p>
-            <p className="mt-1 text-2xl font-black text-[#0F172A]">{card.value}</p>
-            <p className="mt-1 text-xs font-medium text-slate-400">{card.helper}</p>
-          </article>
+          <dl key={card.label} className="flex items-start justify-between gap-4 bg-white p-4 sm:p-5"><div><dt className="text-xs font-semibold text-slate-500">{card.label}</dt><dd className="mt-2 text-2xl font-black tabular-nums text-[#0F172A]">{card.value}</dd><p className="mt-1 text-xs font-medium text-slate-500">{card.helper}</p></div><span className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${card.tone}`}><card.icon size={19} /></span></dl>
         ))}
       </section>
 
       {error && (
-        <div className="rounded-xl border border-red-100 bg-red-50 p-5 text-center">
+        <div className="rounded-lg border border-red-100 bg-red-50 p-5 text-center">
           <p className="text-sm font-semibold text-red-700">{error}</p>
           <button onClick={() => load()} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
         </div>
       )}
 
       {activeTab === 'transactions' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">Digital Ledger</h2>
               <p className="text-sm font-medium text-slate-500">Trace each transaction to its source, receipt, payer, and recorder</p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
-              <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
-                <Search size={15} className="text-slate-400" />
-                <input
-                  value={search}
-                  onChange={(e) => setSearch(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') load(1, txFilters, search); }}
-                  type="text"
-                  placeholder="Search transactions..."
-                  className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-400 sm:w-[160px]"
-                />
-              </div>
               {canManageLedger && (
-                <button onClick={() => openTransactionForm()} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+                <button onClick={() => openTransactionForm()} className="flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition">
                   <Plus size={16} />
                   <span className="hidden sm:inline">Record Transaction</span>
                 </button>
@@ -720,7 +728,20 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             </div>
           </div>
 
-          <div className="grid gap-2 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]">
+          <TableFilterBar
+            searchValue={search}
+            onSearchChange={(value) => {
+              setSearch(value);
+              if (!value) load(1, txFilters, '');
+            }}
+            onSearchSubmit={() => load(1, txFilters, search)}
+            searchPlaceholder="Search transactions..."
+            activeFilters={activeTransactionFilters}
+            onClear={clearTransactionFilters}
+            resultCount={txMeta.total}
+            resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
+            secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]"
+          >
             <select
               value={txFilters.type}
               onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
@@ -755,28 +776,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               aria-label="Filter to date"
             />
             <div className="flex gap-2">
-              <button type="button" onClick={() => load(1, txFilters)} className="h-10 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7]">Apply</button>
-              <button
-                type="button"
-                onClick={() => {
-                  const cleared = { type: '', event_id: '', from: '', to: '' };
-                  setTxFilters(cleared);
-                  setSearch('');
-                  load(1, cleared, '');
-                }}
-                className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-xs font-bold text-slate-600 hover:bg-slate-50"
-              >
-                Clear
-              </button>
+              <button type="button" onClick={() => load(1, txFilters)} className="h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62]">Apply</button>
             </div>
-          </div>
+          </TableFilterBar>
 
           {loading ? (
             <div className="space-y-2 p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No transactions recorded yet.</p>
+            <p className="p-8 text-center text-sm text-slate-500">No transactions recorded yet.</p>
           ) : (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[760px] lg:min-w-[1120px] text-left">
@@ -792,7 +801,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {canManageLedger && <th className="px-5 py-3">Actions</th>}
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-[#E5EDF3] text-sm">
+                <tbody className="divide-y divide-[#DDE7EF] text-sm">
                   {filtered.map((tx) => {
                     const sources = ledgerSource(tx);
                     const receipt = receiptLabel(tx);
@@ -801,18 +810,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-600">{formatLedgerDate(tx.transaction_date)}</td>
                       <td className="px-5 py-4">
                         <p className="font-semibold text-[#0F172A]">{tx.description}</p>
-                        {receipt && <p className="mt-1 text-xs font-medium text-[#0B8ED0]">{receipt}</p>}
+                        {receipt && <p className="mt-1 text-xs font-medium text-[#0878B7]">{receipt}</p>}
                         <div className="mt-1 space-y-0.5 text-[11px] text-slate-500 lg:hidden">
                           <p>{sources.length ? sources.join(' · ') : 'General ledger'}</p>
                           <p>Payer: {personName(tx.payer, 'No payer linked')} · Recorded by: {personName(tx.recorder, 'Unknown recorder')}</p>
                         </div>
                       </td>
                       <td className="hidden px-5 py-4 lg:table-cell">
-                        {sources.length ? sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate font-semibold text-slate-700">{source}</p>) : <span className="text-xs text-slate-400">General ledger</span>}
+                        {sources.length ? sources.map((source, sourceIndex) => <p key={`${source}-${sourceIndex}`} className="max-w-48 truncate font-semibold text-slate-700">{source}</p>) : <span className="text-xs text-slate-500">General ledger</span>}
                       </td>
                       <td className="hidden px-5 py-4 text-xs lg:table-cell">
                         <p className="font-semibold text-slate-700">{personName(tx.payer, 'No payer linked')}</p>
-                        <p className="mt-1 text-slate-400">Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
+                        <p className="mt-1 text-slate-500">Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                       </td>
                       <td className="hidden md:table-cell px-5 py-4">
                         <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2.5 py-1 text-xs font-bold text-slate-600">{tx.category}</span>
@@ -830,7 +839,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                           <button
                             type="button"
                             onClick={() => openTransactionForm(tx)}
-                            className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 hover:bg-[#EEF6FB]"
+                            className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 hover:bg-[#F8FBFD]"
                             aria-label="Edit transaction"
                           >
                             <Pencil size={14} />
@@ -847,14 +856,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
           {txMeta.total > txMeta.per_page && (
             <div className="flex items-center justify-between border-t border-[#DDE7EF] px-5 py-3">
-              <p className="text-xs font-medium text-slate-400">
+              <p className="text-xs font-medium text-slate-500">
                 Showing <span className="font-bold text-slate-600">{txFrom}-{txTo}</span> of <span className="font-bold text-slate-600">{txMeta.total}</span>
               </p>
               <div className="flex items-center gap-1">
                 <button
                   onClick={() => load(txMeta.current_page - 1)}
                   disabled={txMeta.current_page === 1}
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronLeft size={14} />
                 </button>
@@ -864,7 +873,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <button
                   onClick={() => load(txMeta.current_page + 1)}
                   disabled={txMeta.current_page === txMeta.last_page}
-                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#EEF6FB] disabled:cursor-not-allowed disabled:opacity-40"
+                  className="grid h-8 w-8 place-items-center rounded-lg border border-[#DDE7EF] text-slate-500 transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   <ChevronRight size={14} />
                 </button>
@@ -875,14 +884,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {activeTab === 'budgets' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">Budget Allocation</h2>
               <p className="text-sm font-medium text-slate-500">Propose fund allocations for events and projects</p>
             </div>
             {canProposeBudget && (
-              <button onClick={() => setShowBudgetForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-[13px] font-bold text-white hover:bg-[#0878B7] transition">
+              <button onClick={() => setShowBudgetForm(true)} className="flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition">
                 <Plus size={16} />
                 <span className="hidden sm:inline">Propose Budget</span>
               </button>
@@ -894,9 +903,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : budgets.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No budgets proposed yet.</p>
+            <p className="p-8 text-center text-sm text-slate-500">No budgets proposed yet.</p>
           ) : (
-            <div className="divide-y divide-[#E5EDF3]">
+            <div className="divide-y divide-[#DDE7EF]">
               {budgets.map((b) => (
                 <div key={b.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
                   <div className="min-w-0">
@@ -906,7 +915,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {b.approval_status || 'pending'}
                       </span>
                     </div>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500">
                       Allocated {fmt(b.allocated_amount)} - Remaining {fmt(b.remaining_amount)} - Warning threshold {fmt(b.warning_threshold)}
                       {b.event ? ` - ${b.event.title}` : ''}
                     </p>
@@ -916,7 +925,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </p>
                     )}
                     {b.recommended_allocation != null && (
-                      <p className="mt-1 text-xs font-semibold text-violet-700">
+                      <p className="mt-1 text-xs font-semibold text-[#0878B7]">
                         AI recommended allocation {fmt(b.recommended_allocation)} · Safe spending ceiling {fmt(b.safe_spending_limit)}
                       </p>
                     )}
@@ -937,7 +946,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                             </span>
                           )}
                           {budgetAdviceDetails[b.id].advice.xai_model && (
-                            <span className="text-[11px] font-semibold text-slate-400">Explained by {budgetAdviceDetails[b.id].advice.xai_model}</span>
+                            <span className="text-[11px] font-semibold text-slate-500">Explained by {budgetAdviceDetails[b.id].advice.xai_model}</span>
                           )}
                           {budgetAdviceDetails[b.id].advice.xai_status === 'unavailable' && (
                             <span className="text-[11px] font-semibold text-amber-700">AI explanation unavailable. The displayed figures and advice are deterministic; use AI Advice to retry.</span>
@@ -969,7 +978,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         type="button"
                         onClick={() => handleGenerateBudgetAdvice(b.id)}
                         disabled={budgetAdviceGenerating === b.id}
-                        className="flex h-9 items-center gap-1.5 rounded-lg border border-violet-200 bg-violet-50 px-3 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:opacity-50"
+                        className="flex h-9 items-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62] transition hover:bg-[#F8FBFD] disabled:opacity-50"
                       >
                         <Sparkles size={14} />
                         {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
@@ -984,7 +993,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'forecasting' && (
         <section className="grid gap-4 xl:grid-cols-[1.5fr_1fr]">
-          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">Financial Forecast</h2>
@@ -994,7 +1003,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 type="button"
                 onClick={handleGenerateForecast}
                 disabled={forecastGenerating}
-                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7] disabled:opacity-50"
+                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"
               >
                 <Sparkles size={15} />
                 {forecastGenerating ? 'Generating...' : 'Generate Forecast'}
@@ -1011,7 +1020,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 {[1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
               </div>
             ) : forecasts.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-400">No forecasts recorded yet.</p>
+              <p className="py-6 text-center text-sm text-slate-500">No forecasts recorded yet.</p>
             ) : (
               <div className="space-y-3">
                 <ForecastLineGraph forecasts={forecasts} />
@@ -1028,7 +1037,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <div className="mt-3 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
                         <span className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(f.predicted_income)}</strong></span>
                         <span className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(f.predicted_balance)}</strong></span>
-                        <span className="text-slate-500">Safe spend <strong className="block text-[#0B8ED0]">{fmt(f.safe_spending_limit)}</strong></span>
+                        <span className="text-slate-500">Safe spend <strong className="block text-[#0878B7]">{fmt(f.safe_spending_limit)}</strong></span>
                         <span className="text-slate-500">Risk <strong className="block capitalize text-[#0F172A]">{f.model_details?.risk || 'Not set'}</strong></span>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
@@ -1070,22 +1079,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             )}
           </div>
 
-          <div className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h3 className="text-base font-bold text-[#0F172A]">Summary by Category</h3>
             <div className="mt-4 space-y-3">
               {(summary.by_category || []).length === 0 ? (
-                <p className="text-sm text-slate-400">No category data available.</p>
+                <p className="text-sm text-slate-500">No category data available.</p>
               ) : (
                 (summary.by_category || []).map((cat) => (
                   <div key={cat.category + cat.type} className="rounded-lg bg-[#F8FBFD] p-3.5">
                     <div className="flex items-center justify-between">
                       <div>
                         <span className="text-[13px] font-bold text-[#0F172A]">{cat.category}</span>
-                        <span className={`ml-2 text-[11px] font-bold ${cat.type === 'income' ? 'text-emerald-600' : 'text-slate-400'}`}>
+                        <span className={`ml-2 text-[11px] font-bold ${cat.type === 'income' ? 'text-emerald-600' : 'text-slate-500'}`}>
                           {cat.type}
                         </span>
                       </div>
-                      <span className="text-[13px] font-bold tabular-nums text-[#0B8ED0]">{fmt(cat.total)}</span>
+                      <span className="text-[13px] font-bold tabular-nums text-[#0878B7]">{fmt(cat.total)}</span>
                     </div>
                   </div>
                 ))
@@ -1097,12 +1106,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'reports' && (
         <div className="space-y-5">
-          <section className={`rounded-xl border p-4 ${reportDeadline && new Date(reportDeadline.deadline_at) >= new Date() ? 'border-cyan-200 bg-cyan-50' : 'border-amber-200 bg-amber-50'}`}>
-            <p className="text-xs font-bold uppercase tracking-wide text-[#0B8ED0]">SAO submission deadline</p>
+          <section className={`rounded-lg border p-4 ${reportDeadline && new Date(reportDeadline.deadline_at) >= new Date() ? 'border-[#DDE7EF] bg-[#E6F6FD]' : 'border-amber-200 bg-amber-50'}`}>
+            <p className="text-xs font-bold uppercase tracking-wide text-[#0878B7]">SAO submission deadline</p>
             <p className="mt-1 font-bold text-[#0F172A]">{reportDeadline ? new Date(reportDeadline.deadline_at).toLocaleString('en-PH', { dateStyle: 'full', timeStyle: 'short' }) : 'Not set yet'}</p>
             {reportDeadline?.instructions && <p className="mt-1 text-sm text-slate-600">{reportDeadline.instructions}</p>}
           </section>
-          {currentUserRole === 'ADMIN' && <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          {currentUserRole === 'ADMIN' && <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">Generate Financial Report</h2>
               <p className="text-sm font-medium text-slate-500">Build and save a ledger-backed report with a financial summary</p>
@@ -1123,7 +1132,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 value={reportForm.event_id}
                 onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })}
                 disabled={reportForm.report_type !== 'event'}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100 disabled:text-slate-400"
+                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100 disabled:text-slate-500"
                 aria-label="Report event"
               >
                 <option value="">Select event</option>
@@ -1145,7 +1154,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100"
                 aria-label="Report end date"
               />
-              <button type="submit" disabled={reportGenerating} className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-xs font-bold text-white hover:bg-[#0878B7] disabled:opacity-50">
+              <button type="submit" disabled={reportGenerating} className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">
                 <Sparkles size={15} />
                 {reportGenerating ? 'Generating...' : 'Generate'}
               </button>
@@ -1163,7 +1172,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {generatedReport.ai_summary_status === 'unavailable' && <p className="mt-2 text-xs font-semibold text-amber-700">AI summary was unavailable. This report was saved with backend-calculated totals and a deterministic summary; generate it again to retry.</p>}
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex h-9 items-center gap-2 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>
+                    <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex h-9 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>
                     <button type="button" onClick={() => exportGeneratedReport('pdf')} className="flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600"><FileText size={14} />PDF</button>
                   </div>
                 </div>
@@ -1187,8 +1196,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             { key: 'log',      title: 'Full Transaction Log', desc: 'Complete ledger of all recorded transactions',   period: 'All time' },
             { key: 'category', title: 'Category Breakdown',   desc: 'Spending totals grouped by category and type',   period: 'All time' },
           ].map((report) => (
-            <div key={report.key} className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:shadow-md">
-              <span className="inline-block rounded-full bg-[#E6F6FD] px-2.5 py-1 text-[11px] font-bold text-[#0878B7] mb-3">
+            <div key={report.key} className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:shadow-md">
+              <span className="mb-3 inline-block rounded-full bg-[#E6F6FD] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">
                 {report.period}
               </span>
               <h3 className="text-base font-bold text-[#0F172A]">{report.title}</h3>
@@ -1197,7 +1206,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <button
                   type="button"
                   onClick={() => handleExport(report.key, 'excel')}
-                  className="flex items-center gap-2 rounded-lg bg-[#0B8ED0] px-4 py-2 text-[13px] font-bold text-white transition hover:bg-[#0878B7]"
+                  className="flex items-center gap-2 rounded-lg bg-[#0878B7] px-4 py-2 text-[13px] font-bold text-white transition hover:bg-[#0F2F62]"
                 >
                   <FileSpreadsheet size={15} />
                   Export Excel
@@ -1215,22 +1224,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           ))}
           </section>
 
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="border-b border-[#DDE7EF] p-5">
               <h2 className="text-lg font-bold text-[#0F172A]">Report History</h2>
             </div>
             {reports.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-400">No saved reports yet.</p>
+              <p className="p-8 text-center text-sm text-slate-500">No saved reports yet.</p>
             ) : (
-              <div className="divide-y divide-[#E5EDF3]">
+              <div className="divide-y divide-[#DDE7EF]">
                 {reports.map((report) => (
                   <div key={report.id} className="p-5">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <p className="font-bold text-[#0F172A]">{report.title}</p>
-                      <span className="text-xs text-slate-400">{String(report.generated_at || '').slice(0, 10)}</span>
+                      <span className="text-xs text-slate-500">{String(report.generated_at || '').slice(0, 10)}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{report.summary_text}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-400">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id || !reportDeadline} onClick={() => handleSubmitReport(report)} className="h-9 rounded-lg bg-[#0B8ED0] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for approval'}</button></>}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id || !reportDeadline} onClick={() => handleSubmitReport(report)} className="h-9 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for approval'}</button></>}</div>
                   </div>
                 ))}
               </div>
@@ -1240,7 +1249,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {activeTab === 'receipts' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] p-5">
             <h2 className="text-lg font-bold text-[#0F172A]">Personal Receipts</h2>
           </div>
@@ -1249,17 +1258,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : personalReceipts.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-400">No receipts available yet.</p>
+            <p className="p-8 text-center text-sm text-slate-500">No receipts available yet.</p>
           ) : (
-            <div className="divide-y divide-[#E5EDF3]">
+            <div className="divide-y divide-[#DDE7EF]">
               {personalReceipts.map((receipt) => (
                 <div key={receipt.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0">
                     <p className="font-bold text-[#0F172A]">{receipt.description}</p>
-                    <p className="mt-1 text-xs text-slate-400">
+                    <p className="mt-1 text-xs text-slate-500">
                       {formatLedgerDate(receipt.transaction_date)} - {receipt.event?.title || receipt.budget?.title || receipt.category}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-[#0B8ED0]">
+                    <p className="mt-1 text-xs font-semibold text-[#0878B7]">
                       {receiptLabel(receipt) || `Receipt #${receipt.id}`}
                     </p>
                   </div>
@@ -1299,9 +1308,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <button type="button" onClick={() => setSelectedReceipt(null)} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Close</button>
             {selectedReceipt.receipt_file_url && (
-              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0]/30 px-4 text-sm font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Download size={15} /> Open receipt file</a>
+              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0]/30 px-4 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Download size={15} /> Open receipt file</a>
             )}
-            <button type="button" onClick={() => printReport([receiptReportRow(selectedReceipt)], `${receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}`} - HIUSA`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7]"><Printer size={15} /> Print receipt</button>
+            <button type="button" onClick={() => printReport([receiptReportRow(selectedReceipt)], `${receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}`} - HIUSA`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><Printer size={15} /> Print receipt</button>
           </div>
         ) : null}
       >
@@ -1333,16 +1342,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       </Modal>
 
       {activeTab === 'invoices' && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] p-5">
             <h2 className="text-lg font-bold text-[#0F172A]">Statement of Account & Financial Clearance</h2>
             <p className="mt-1 text-sm text-slate-500">Approved payments are reflected in your balance.</p>
           </div>
-          {invoices.length === 0 ? <p className="p-8 text-center text-sm text-emerald-700">Financially cleared — no outstanding invoices.</p> : (
-            <div className="divide-y divide-[#E5EDF3]">{invoices.map((invoice) => (
+          {invoices.length === 0 ? <p className="p-8 text-center text-sm text-emerald-700">Financially cleared. No outstanding invoices.</p> : (
+            <div className="divide-y divide-[#DDE7EF]">{invoices.map((invoice) => (
               <div key={invoice.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
                 <div><p className="font-bold text-[#0F172A]">{invoice.description}</p><p className="mt-1 text-xs text-slate-500">{invoice.reference} · Due {invoice.due_date || 'Not set'} · {String(invoice.status).replace('_', ' ')}</p></div>
-                <div className="grid grid-cols-3 gap-4 text-right text-xs text-slate-500"><span>Due<strong className="block text-sm text-[#0F172A]">{fmt(invoice.amount_due)}</strong></span><span>Paid<strong className="block text-sm text-emerald-700">{fmt(invoice.amount_paid)}</strong></span><span>Balance<strong className="block text-sm text-red-600">{fmt(invoice.remaining_balance)}</strong></span></div>
+                <div className="grid grid-cols-1 gap-2 text-left text-xs text-slate-500 sm:grid-cols-3 sm:gap-4 sm:text-right"><span>Due<strong className="block text-sm text-[#0F172A]">{fmt(invoice.amount_due)}</strong></span><span>Paid<strong className="block text-sm text-emerald-700">{fmt(invoice.amount_paid)}</strong></span><span>Balance<strong className="block text-sm text-red-600">{fmt(invoice.remaining_balance)}</strong></span></div>
               </div>
             ))}</div>
           )}
@@ -1350,18 +1359,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {activeTab === 'audit' && ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && (
-        <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+        <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] p-5"><h2 className="text-lg font-bold text-[#0F172A]">Admin Audit Logs</h2><p className="mt-1 text-sm text-slate-500">Read-only activity history across financial, approval, order, and system modules.</p></div>
-          {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-400">No audit activity recorded.</p> : <div className="divide-y divide-[#E5EDF3]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0B8ED0]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-400">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {log.actor?.name || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {log.affected_user.name} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
+          {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No audit activity recorded.</p> : <div className="divide-y divide-[#DDE7EF]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0878B7]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-500">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {log.actor?.name || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {log.affected_user.name} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
         </section>
       )}
 
       {showForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label={editingTransaction ? 'Edit transaction' : 'Record transaction'} onClose={() => { setShowForm(false); setEditingTransaction(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">{editingTransaction ? 'Edit Transaction' : 'Record Transaction'}</h2>
-              <button onClick={() => { setShowForm(false); setEditingTransaction(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+              <button onClick={() => { setShowForm(false); setEditingTransaction(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
             <form className="space-y-4" onSubmit={handleCreate}>
               <div className="space-y-1.5">
@@ -1472,22 +1481,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <button
                   type="submit"
                   disabled={formSubmitting || !form.description || !form.amount || !form.transaction_date}
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
                 >
                   {formSubmitting ? 'Saving...' : editingTransaction ? 'Update Transaction' : 'Save Transaction'}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
 
       {showBudgetForm && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-xl bg-white p-6 shadow-2xl">
+        <AccessibleOverlay label="Propose budget" onClose={() => setShowBudgetForm(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
               <h2 className="text-lg font-bold text-[#0F172A]">Propose Budget</h2>
-              <button onClick={() => setShowBudgetForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-400 hover:bg-[#EEF6FB]"><X size={18} /></button>
+              <button onClick={() => setShowBudgetForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
             <p className="mb-4 text-xs font-medium text-slate-500">
               New budgets await Super Admin approval before funds can be tracked against them.
@@ -1548,14 +1557,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <button
                   type="submit"
                   disabled={budgetFormSubmitting || !budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === ''}
-                  className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] transition disabled:opacity-50"
+                  className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
                 >
                   {budgetFormSubmitting ? 'Submitting...' : 'Submit for Approval'}
                 </button>
               </div>
             </form>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
     </div>
   );

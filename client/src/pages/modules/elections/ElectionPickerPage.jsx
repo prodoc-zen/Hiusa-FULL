@@ -25,7 +25,7 @@ import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/date
 
 const statusStyles = {
   pending_approval: 'border-amber-200 bg-amber-50 text-amber-700',
-  upcoming: 'border-blue-200 bg-blue-50 text-[#0B8ED0]',
+  upcoming: 'border-[#DDE7EF] bg-[#E6F6FD] text-[#0F2F62]',
   active: 'border-emerald-200 bg-emerald-50 text-emerald-700',
   closed: 'border-slate-200 bg-slate-100 text-slate-600',
 };
@@ -138,7 +138,7 @@ function ElectionFormFields({ form, setForm, editing = false }) {
         <fieldset className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div><legend className="text-[13px] font-bold text-[#0F172A]">Ballot positions *</legend><p className="mt-0.5 text-xs text-[#64748B]">Add every position voters will see.</p></div>
-            <button type="button" onClick={() => setForm((current) => ({ ...current, positions: [...current.positions, { title: '', max_winners: 1 }] }))} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#0B8ED0]/30 bg-white px-3 text-xs font-bold text-[#0B8ED0] hover:bg-[#EEF6FB]"><Plus size={14} /> Add position</button>
+            <button type="button" onClick={() => setForm((current) => ({ ...current, positions: [...current.positions, { title: '', max_winners: 1 }] }))} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#0B8ED0]/30 bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Plus size={14} /> Add position</button>
           </div>
           <div className="mt-3 space-y-3">
             {form.positions.map((position, index) => (
@@ -264,25 +264,33 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   return (
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
+        <div className="flex flex-col gap-4 bg-[#0F2F62] p-5 text-white sm:p-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-2xl">
-            <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]"><Vote size={20} /></div>
-            <p className="mt-4 text-[11px] font-bold uppercase tracking-widest text-[#0B8ED0]">Election workspace</p>
-            <h1 className="mt-1 text-2xl font-black text-[#0F172A] sm:text-3xl">Choose an election first</h1>
-            <p className="mt-2 text-sm leading-6 text-[#64748B]">Select one election to open its candidates, ballot setup, voters, and results in a focused workspace.</p>
+            <p className="text-[11px] font-bold uppercase tracking-widest text-[#16C7F3]">Election administration</p>
+            <h1 className="mt-1 text-2xl font-black sm:text-3xl">Election Workspace</h1>
+            <p className="mt-2 text-sm leading-6 text-slate-200">Select an election to manage its ballot, candidates, party lists, voter readiness, voting period, and official results.</p>
           </div>
-          {canManageElections && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] sm:w-auto"><Plus size={16} /> Create election</button>}
+          {canManageElections && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-bold text-[#0F2F62] hover:bg-[#EEF6FB] sm:w-auto"><Plus size={16} /> Create election</button>}
         </div>
-        <div className="mt-5 grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+        <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px] sm:p-5">
           <label className="relative"><span className="sr-only">Search elections</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by election title..." className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
           <select aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></select>
         </div>
       </section>
 
+      <section className="grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4" aria-label="Election summary">
+        {[
+          ['Total elections', elections.length],
+          ['Live voting', elections.filter((item) => item.status === 'active').length],
+          ['Awaiting approval', elections.filter((item) => item.status === 'pending_approval').length],
+          ['Closed', elections.filter((item) => item.status === 'closed').length],
+        ].map(([label, value]) => <dl key={label} className="bg-white p-4"><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-2 text-2xl font-black tabular-nums text-[#0F172A]">{loading ? '...' : value}</dd></dl>)}
+      </section>
+
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
-      {loading && <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading elections">{[1, 2, 3, 4].map((item) => <div key={item} className="h-96 animate-pulse rounded-xl border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading elections...</span></div>}
-      {!loading && filteredElections.length === 0 && <section className="rounded-xl border border-dashed border-[#DDE7EF] bg-white p-10 text-center"><Vote size={36} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-bold text-[#0F172A]">No elections found</h2><p className="mt-1 text-sm text-[#64748B]">Try another search or create the first election.</p></section>}
+      {loading && <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading elections">{[1, 2, 3, 4].map((item) => <div key={item} className="h-96 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading elections...</span></div>}
+      {!loading && filteredElections.length === 0 && <section className="rounded-lg border border-dashed border-[#DDE7EF] bg-white p-10 text-center"><Vote size={36} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-bold text-[#0F172A]">No elections found</h2><p className="mt-1 text-sm text-[#64748B]">Try another search or create the first election.</p></section>}
 
       {!loading && pagedElections.length > 0 && (
         <section className="grid gap-4 lg:grid-cols-2">
@@ -290,7 +298,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
             const votes = getElectionVoteCount(election);
             const isBusy = statusBusy.id === election.id;
             return (
-              <article key={election.id} className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm transition hover:border-[#0B8ED0]/40">
+              <article key={election.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm transition hover:border-[#0B8ED0]/40">
                 <div className="relative aspect-[16/7] overflow-hidden bg-[#0F2F62]">
                   {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-white/70"><Vote size={46} /></div>}
                   <div className="absolute inset-0 bg-[#0B1831]/20" />
@@ -299,9 +307,9 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
                 <div className="p-4 sm:p-5">
                   <h2 className="text-xl font-black leading-tight text-[#0F172A]">{election.title}</h2>
                   <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B]"><Clock3 size={13} /> {formatTimeline(election)}</p>
-                  <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0B8ED0]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div></div>
+                  <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
-                  <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-4 text-sm font-bold text-white hover:bg-[#0878B7]">Select election <ChevronRight size={16} /></button>
+                  <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Select election <ChevronRight size={16} /></button>
                   {canManageElections && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EEF6FB] pt-3">
                       <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> Edit</button>
@@ -318,12 +326,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
         </section>
       )}
 
-      {!loading && filteredElections.length > pageSize && <div className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm"><PaginationControls currentPage={page} totalItems={filteredElections.length} pageSize={pageSize} onPageChange={setPage} label="elections" /></div>}
+      {!loading && filteredElections.length > pageSize && <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm"><PaginationControls currentPage={page} totalItems={filteredElections.length} pageSize={pageSize} onPageChange={setPage} label="elections" /></div>}
 
-      <Modal open={showCreate && canManageElections} title="Create election" description="Build the ballot and submit it for Department Head approval." onClose={() => !submitting && setShowCreate(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowCreate(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="create-election-form" disabled={submitting || !form.title.trim() || !form.start_time || !form.end_time} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit for approval'}</button></div>}>
+      <Modal open={showCreate && canManageElections} title="Create election" description="Build the ballot and submit it for Department Head approval." onClose={() => !submitting && setShowCreate(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowCreate(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="create-election-form" disabled={submitting || !form.title.trim() || !form.start_time || !form.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit for approval'}</button></div>}>
         <form id="create-election-form" onSubmit={handleCreate}><ElectionFormFields form={form} setForm={setForm} />{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</div>}</form>
       </Modal>
-      <Modal open={showEdit && canManageElections} title="Edit election" description="Update election branding and schedule." onClose={() => !submitting && setShowEdit(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowEdit(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="edit-election-form" disabled={submitting || !editForm.title || !editForm.start_time || !editForm.end_time} className="h-11 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white hover:bg-[#0878B7] disabled:opacity-40">{submitting ? 'Saving...' : 'Save changes'}</button></div>}>
+      <Modal open={showEdit && canManageElections} title="Edit election" description="Update election branding and schedule." onClose={() => !submitting && setShowEdit(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowEdit(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="edit-election-form" disabled={submitting || !editForm.title || !editForm.start_time || !editForm.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Saving...' : 'Save changes'}</button></div>}>
         <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</div>}</form>
       </Modal>
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete Election" message={getElectionVoteCount(deleteTarget) > 0 ? `This permanently removes the election and ${getElectionVoteCount(deleteTarget)} cast vote${getElectionVoteCount(deleteTarget) === 1 ? '' : 's'}.` : 'This permanently removes the election setup, candidates, and approval request.'} recordName={deleteTarget?.title || ''} confirmText={getElectionVoteCount(deleteTarget) > 0 ? 'Delete Anyway' : 'Delete'} variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />

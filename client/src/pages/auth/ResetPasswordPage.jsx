@@ -96,7 +96,7 @@ export default function ResetPasswordPage() {
           <img src={hiusaLogo} alt="HIUSA" className="h-10 w-10 object-contain" />
           <div>
             <p className="text-lg font-black text-[#0B1831]">HIUSA</p>
-            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0B8ED0]">New password</p>
+            <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#0878B7]">New password</p>
           </div>
         </div>
 
@@ -127,7 +127,7 @@ export default function ResetPasswordPage() {
             <label className="block space-y-1.5">
               <span className="block text-[13px] font-semibold text-slate-800">New password</span>
               <span className="relative block">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
@@ -135,13 +135,13 @@ export default function ResetPasswordPage() {
                   placeholder="Enter new password"
                   required
                   minLength={8}
-                  className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-11 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-11 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
                 <button
                   type="button"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                   onClick={() => setShowPassword(!showPassword)}
-                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-400 transition hover:text-[#0B8ED0]"
+                  className="absolute inset-y-0 right-0 flex items-center pr-3.5 text-slate-500 transition hover:text-[#0878B7]"
                 >
                   {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
                 </button>
@@ -151,7 +151,7 @@ export default function ResetPasswordPage() {
             <label className="block space-y-1.5">
               <span className="block text-[13px] font-semibold text-slate-800">Confirm new password</span>
               <span className="relative block">
-                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400" size={17} />
+                <Lock className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={passwordConfirmation}
@@ -159,7 +159,7 @@ export default function ResetPasswordPage() {
                   placeholder="Confirm new password"
                   required
                   minLength={8}
-                  className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-400 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-md border border-slate-200 bg-white pl-10 pr-4 text-sm font-medium text-slate-800 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </span>
             </label>
@@ -167,7 +167,7 @@ export default function ResetPasswordPage() {
             <button
               type="submit"
               disabled={saving}
-              className="flex h-11 w-full items-center justify-center rounded-md bg-[#0B8ED0] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0878B7] active:scale-[0.99] disabled:opacity-60"
+              className="flex h-11 w-full items-center justify-center rounded-md bg-[#0878B7] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0F2F62] active:scale-[0.99] disabled:opacity-60"
             >
               {saving ? 'Updating...' : 'Update password'}
             </button>

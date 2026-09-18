@@ -12,7 +12,7 @@ export default function RulesDisclosure({ label, items, defaultOpen = false }) {
         type="button"
         onClick={() => setOpen((current) => !current)}
         aria-expanded={open}
-        className="flex items-center gap-1.5 text-xs font-bold text-[#0B8ED0]"
+        className="flex items-center gap-1.5 text-xs font-bold text-[#0878B7]"
       >
         <ChevronDown size={14} className={`transition-transform ${open ? 'rotate-180' : ''}`} />
         {label}
