@@ -292,7 +292,16 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertSame('850.00', $budget->fresh()->remaining_amount);
         $this->postJson('/api/forecasts/generate', ['months' => 12])->assertCreated()->assertJsonPath('model_details.algorithm', 'ordinary_least_squares');
         $this->postJson("/api/budgets/{$budget->id}/advice")->assertOk();
-        $this->postJson('/api/financial-reports/generate', ['report_type' => 'event', 'event_id' => $event->id])->assertCreated()->assertJsonPath('totals.expense', 150);
+        $this->postJson('/api/financial-reports/generate', [
+            'report_type' => 'event',
+            'event_id' => $event->id,
+            'signatories' => [
+                'treasurer' => 'Taylor Treasurer',
+                'president' => 'Pat President',
+                'adviser' => 'Alex Adviser',
+                'sbo_adviser' => 'Sam SBO Adviser',
+            ],
+        ])->assertCreated()->assertJsonPath('totals.expense', 150);
 
         $this->assertDatabaseHas('financial_reports', ['event_id' => $event->id]);
         $this->assertDatabaseHas('attendance', ['event_id' => $event->id, 'user_id' => $student->school_id]);

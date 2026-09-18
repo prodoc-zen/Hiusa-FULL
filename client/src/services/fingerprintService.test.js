@@ -7,7 +7,7 @@ const api = vi.hoisted(() => ({
 
 vi.mock('./api', () => ({ default: api }));
 
-import { enrollFingerprint, identifyAndAttend, identifyFingerprint, removeFingerprint } from './fingerprintService';
+import { confirmFingerprintAttendance, enrollFingerprint, identifyAttendanceFingerprint, identifyFingerprint, removeFingerprint } from './fingerprintService';
 
 describe('fingerprint API contract', () => {
   beforeEach(() => vi.clearAllMocks());
@@ -27,11 +27,12 @@ describe('fingerprint API contract', () => {
     expect(api.delete).toHaveBeenCalledWith('/users/20260001/fingerprint');
   });
 
-  it('sends exactly one probe for identification and attendance', () => {
+  it('separates attendance identification from operator confirmation', () => {
     const capture = { samples: ['single-probe'], sampleFormat: 5 };
 
     identifyFingerprint(capture);
-    identifyAndAttend(44, capture);
+    identifyAttendanceFingerprint(44, capture, { year_levels: ['4th Year'], programs: ['BSIT'] });
+    confirmFingerprintAttendance(44, 'signed-confirmation');
 
     expect(api.post).toHaveBeenNthCalledWith(1, '/fingerprints/identify', {
       samples: ['single-probe'],
@@ -40,6 +41,11 @@ describe('fingerprint API contract', () => {
     expect(api.post).toHaveBeenNthCalledWith(2, '/events/44/attendance/fingerprint', {
       samples: ['single-probe'],
       sample_format: 5,
+      year_levels: ['4th Year'],
+      programs: ['BSIT'],
+    });
+    expect(api.post).toHaveBeenNthCalledWith(3, '/events/44/attendance/fingerprint/confirm', {
+      confirmation_token: 'signed-confirmation',
     });
   });
 });

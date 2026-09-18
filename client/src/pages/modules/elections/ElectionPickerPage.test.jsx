@@ -31,7 +31,7 @@ describe('ElectionPickerPage', () => {
     const onSelect = vi.fn();
     render(<ElectionPickerPage onSelect={onSelect} />);
 
-    expect(screen.getByRole('heading', { name: 'Choose an election first' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Election Workspace' })).toBeInTheDocument();
     await screen.findByText('HIUSA General Election 2026');
     fireEvent.click(screen.getByRole('button', { name: /Select election/ }));
     expect(onSelect).toHaveBeenCalledWith(7);

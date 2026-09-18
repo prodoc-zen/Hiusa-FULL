@@ -22,4 +22,6 @@ FINGERPRINT_MATCHER_TIMEOUT=15
 FINGERPRINT_MATCHER_TEMPLATE_FORMAT=fscanner-sourceafis-dotnet-3.14.0-png-v1
 ```
 
-The browser requires HID Authentication Device Client and the DigitalPersona 4500 driver. Enrollment uses four scans of one finger for template quality. Attendance identification uses exactly one scan.
+The browser requires HID Authentication Device Client and the DigitalPersona 4500 driver. Enrollment uses four scans of one finger for template quality. Attendance identification uses exactly one scan and requires operator confirmation before Laravel records check-in or checkout.
+
+`MATCH_THRESHOLD` has a hard minimum of `60` for campus-scale one-to-many searches. Laravel independently enforces `FINGERPRINT_MIN_MATCH_SCORE=60` and `FINGERPRINT_MIN_SCORE_MARGIN=10` by default. Raise these only after testing genuine and impostor captures from the actual reader population; a higher score lowers false matches but increases rejected genuine scans.

@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminHomePage from './AdminHomePage';
@@ -9,11 +9,11 @@ const announcementMocks = vi.hoisted(() => ({ getAnnouncements: vi.fn() }));
 vi.mock('../../../services/userService', () => userMocks);
 vi.mock('../../../services/announcementService', () => announcementMocks);
 
-function pillValue(label) {
+function summaryValue(label) {
   return screen.getByText(label).parentElement?.querySelector('.tabular-nums')?.textContent;
 }
 
-describe('AdminHomePage role pills', () => {
+describe('AdminHomePage dashboard', () => {
   beforeEach(() => {
     vi.clearAllMocks();
 
@@ -45,17 +45,41 @@ describe('AdminHomePage role pills', () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
 
     await waitFor(() => expect(screen.getByText('214 total accounts')).toBeInTheDocument());
-    expect(pillValue('Students')).toBe('180');
-    expect(pillValue('Officers')).toBe('20');
-    expect(pillValue('Admins')).toBe('4');
-    expect(pillValue('Dept. Heads')).toBe('10');
+    expect(summaryValue('Students')).toBe('180');
+    expect(summaryValue('Officers')).toBe('20');
+    expect(summaryValue('Admins')).toBe('4');
+    expect(summaryValue('Dept. Heads')).toBe('10');
   });
 
   it('derives published/draft announcement counts from server totals, not a loaded page', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
 
-    await waitFor(() => expect(pillValue('Published Announcements')).toBe('30'));
-    expect(pillValue('Draft Announcements')).toBe('12');
-    expect(pillValue('Total Announcements')).toBe('42');
+    await waitFor(() => expect(summaryValue('Published Announcements')).toBe('30'));
+    expect(summaryValue('Draft Announcements')).toBe('12');
+    expect(summaryValue('Total Announcements')).toBe('42');
+  });
+
+  it('keeps every existing administration destination available', async () => {
+    render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
+
+    await waitFor(() => expect(screen.getByText('214 total accounts')).toBeInTheDocument());
+    expect(screen.getByRole('link', { name: /manage user accounts/i })).toHaveAttribute('href', '/dashboard/admin/users');
+    expect(screen.getByRole('link', { name: /create announcement/i })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+    expect(screen.getByRole('link', { name: /manage announcements/i })).toHaveAttribute('href', '/dashboard/announcements/manage-announcements');
+    expect(screen.getByRole('link', { name: /view feed/i })).toHaveAttribute('href', '/dashboard/announcements/view-announcements');
+  });
+
+  it('keeps administration tools available and retries when totals fail to load', async () => {
+    userMocks.getUsers.mockRejectedValueOnce(new Error('network unavailable'));
+
+    render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Dashboard totals could not be loaded');
+    expect(screen.getByRole('link', { name: /manage user accounts/i })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+
+    await waitFor(() => expect(userMocks.getUsers).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(screen.getByText('214 total accounts')).toBeInTheDocument());
   });
 });

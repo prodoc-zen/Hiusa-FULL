@@ -25,9 +25,9 @@
 
 - **Generate Announcement Draft:** `POST /announcements/generate-draft` sends only supplied title/audience/category/details to Groq, records structured context and output, and returns a retryable error instead of placeholder copy when Groq fails.
 - **Accept Generated Draft:** saving the editable announcement links the versioned AI output to the new announcement and marks it accepted.
-- **Create Announcement:** Super Admin, Admin, and SBO Officer can create announcements from the create page.
+- **Create Announcement:** Admin and SBO Officer use organization announcements. SAO uses the separate official-announcement endpoints and page, with no AI generation or organization approval step.
 - **Edit Announcement:** manage announcements now opens existing details, updates content, and saves the record.
 - **Submit Announcement for Approval:** SBO Officer announcements create an Admin approval request.
 - **Review Approval Request:** Admin reviews announcement approval requests through the approval workflow.
-- **Publish Approved Announcement:** Super Admin and Admin can publish directly; approval publishing also updates status and dispatches notifications.
+- **Publish Approved Announcement:** Admin publishes organization announcements according to the existing workflow. SAO can publish or schedule an identifiable official SAO announcement to selected organizations, departments, or roles.
 - **Record Audit Log:** draft generation, create, update, delete, publish, and unpublish actions write audit log entries.

@@ -8,6 +8,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SboPositionController extends Controller
 {
@@ -35,6 +36,7 @@ class SboPositionController extends Controller
     public function store(Request $request)
     {
         $request->merge(['title' => trim((string) $request->input('title'))]);
+        $this->rejectSaoReservedAdviserTitle($request->input('title'));
         $organizationId = $request->user()->organization_id;
         $data = $request->validate([
             'role' => ['required', 'in:ADMIN,SBO_OFFICER'],
@@ -53,6 +55,7 @@ class SboPositionController extends Controller
         abort_unless($position->organization_id === $request->user()->organization_id, 404);
         if ($request->has('title')) {
             $request->merge(['title' => trim((string) $request->input('title'))]);
+            $this->rejectSaoReservedAdviserTitle($request->input('title'));
         }
         $old = $position->getAttributes();
         $organizationId = $request->user()->organization_id;
@@ -101,5 +104,16 @@ class SboPositionController extends Controller
     private function audit(Request $request, string $action, SboPosition $position, ?array $oldValues, ?array $newValues): void
     {
         AuditLog::create(['organization_id' => $position->organization_id, 'user_id' => $request->user()->school_id, 'module' => 'positions', 'action' => $action, 'record_type' => SboPosition::class, 'record_id' => $position->id, 'old_values' => $oldValues, 'new_values' => $newValues, 'ip_address' => $request->ip(), 'created_at' => now()]);
+    }
+
+    private function rejectSaoReservedAdviserTitle(mixed $title): void
+    {
+        $normalized = strtolower(trim((string) $title));
+
+        if (in_array($normalized, ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true)) {
+            throw ValidationException::withMessages([
+                'title' => ['The Adviser position is assigned only by the Student Affairs Office.'],
+            ]);
+        }
     }
 }

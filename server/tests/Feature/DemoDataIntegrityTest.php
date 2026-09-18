@@ -64,7 +64,9 @@ class DemoDataIntegrityTest extends TestCase
         $this->assertDatabaseHas('users', [
             'school_id' => 990002,
             'role' => 'ADMIN',
+            'position_title' => 'Adviser',
         ]);
+        $this->assertSame(1, User::where('organization_id', Organization::where('acronym', 'PSITS-CCS')->value('id'))->where('role', 'ADMIN')->where('position_title', 'Adviser')->count());
     }
 
     private function assertAnnouncementTargetingIsValid(): void

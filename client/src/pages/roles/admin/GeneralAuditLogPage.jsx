@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, Eye, Search, ShieldCheck, X } from "lucide-react";
+import { Clock3, Eye, ShieldCheck, X } from "lucide-react";
 import PaginationControls from "../../../components/PaginationControls";
+import TableFilterBar from "../../../components/TableFilterBar";
 import { getAuditLogs } from "../../../services/financeService";
 import { displayAuditValue, humanizeIdentifier, ROLE_LABELS } from "../../../utils/displayText";
+import AccessibleOverlay from "../../../components/AccessibleOverlay";
 
 const MODULE_OPTIONS = [
   "users", "positions", "orders", "merchandise", "invoices", "transactions",
@@ -88,44 +90,55 @@ export default function GeneralAuditLogPage() {
     () => [...new Set(logs.map((log) => log.actor?.program).filter(Boolean))],
     [logs],
   );
+  const activeAuditFilters = [
+    filters.search.trim() && `Search: ${filters.search.trim()}`,
+    filters.module && `Module: ${humanizeIdentifier(filters.module)}`,
+    filters.category && `Action: ${humanizeIdentifier(filters.category)}`,
+    filters.role && `Role: ${ROLE_LABELS[filters.role] || filters.role}`,
+    filters.department && `Department: ${filters.department}`,
+    filters.program && `Program: ${filters.program}`,
+    filters.from && `From: ${filters.from}`,
+    filters.to && `To: ${filters.to}`,
+    filters.sort !== 'newest' && `Sort: ${humanizeIdentifier(filters.sort)}`,
+  ].filter(Boolean);
+
+  const clearAuditFilters = () => {
+    setFilters(EMPTY_FILTERS);
+    setPage(1);
+  };
 
   return (
     <div className="space-y-5">
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6">
         <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0B8ED0]">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10 text-[#16C7F3]">
             <ShieldCheck size={21} />
           </span>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0B8ED0]">
-              System-wide history
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">
+              Administrative accountability
             </p>
-            <h1 className="mt-1 text-2xl font-black text-[#0F172A]">
+            <h1 className="mt-1 text-2xl font-black text-white">
               General Audit Log
             </h1>
-            <p className="mt-1 text-sm text-slate-500">
-              Trace actors, records, academic context, approvals, payments, and
-              before/after values across HIUSA.
+            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">
+              Trace who changed a record, what changed, and when it happened across organization workflows.
             </p>
           </div>
         </div>
       </section>
 
-      <section className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <label className="relative md:col-span-2">
-            <span className="sr-only">Search audit activity</span>
-            <Search
-              size={16}
-              className="absolute left-3 top-3.5 text-slate-400"
-            />
-            <input
-              value={filters.search}
-              onChange={(event) => update("search", event.target.value)}
-              placeholder="Search actor, action, module, or record ID..."
-              className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]"
-            />
-          </label>
+      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+        <TableFilterBar
+          searchValue={filters.search}
+          onSearchChange={(value) => update('search', value)}
+          searchPlaceholder="Search actor, action, module, or record ID"
+          activeFilters={activeAuditFilters}
+          onClear={clearAuditFilters}
+          resultCount={meta.total}
+          resultLabel={meta.total === 1 ? 'entry' : 'entries'}
+          secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+        >
           <select
             aria-label="Module"
             value={filters.module}
@@ -216,20 +229,7 @@ export default function GeneralAuditLogPage() {
             <option value="module">Module</option>
             <option value="action">Action</option>
           </select>
-          <div className="flex h-11 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-xs font-bold text-slate-500">
-            10 rows per page
-          </div>
-          <button
-            type="button"
-            onClick={() => {
-              setFilters(EMPTY_FILTERS);
-              setPage(1);
-            }}
-            className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0B8ED0]"
-          >
-            Clear filters
-          </button>
-        </div>
+        </TableFilterBar>
       </section>
 
       {error && (
@@ -237,7 +237,7 @@ export default function GeneralAuditLogPage() {
           {error}
         </p>
       )}
-      <section className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         {loading ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 6 }, (_, index) => (
@@ -255,7 +255,7 @@ export default function GeneralAuditLogPage() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[#E5EDF3]">
+          <div className="divide-y divide-[#DDE7EF]">
             {logs.map((log) => (
               <article
                 key={log.id}
@@ -264,13 +264,13 @@ export default function GeneralAuditLogPage() {
                 <div className="flex flex-col justify-between gap-3 sm:flex-row">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[10px] font-bold text-[#0B8ED0]">
+                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[10px] font-bold text-[#0F2F62]">
                         {log.module_label || log.module}
                       </span>
                       <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
                         {log.action_category_label || humanizeIdentifier(log.action_category)}
                       </span>
-                      <span className="font-mono text-[10px] text-slate-400">
+                      <span className="font-mono text-[10px] text-slate-500">
                         LOG-{log.id} · Record {log.record_id}
                       </span>
                     </div>
@@ -290,7 +290,7 @@ export default function GeneralAuditLogPage() {
                         : ""}
                     </p>
                     {log.actor?.department && (
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Actor profile:{" "}
                         {[
                           log.actor.department,
@@ -303,7 +303,7 @@ export default function GeneralAuditLogPage() {
                       </p>
                     )}
                     {log.affected_user && (
-                      <p className="mt-1 text-xs text-slate-400">
+                      <p className="mt-1 text-xs text-slate-500">
                         Affected: {log.affected_user.name} ·{" "}
                         {[
                           log.affected_user.department,
@@ -317,7 +317,7 @@ export default function GeneralAuditLogPage() {
                     )}
                   </div>
                   <div className="shrink-0 text-right">
-                    <time className="block text-xs font-medium text-slate-400">
+                    <time className="block text-xs font-medium text-slate-500">
                       {log.created_at
                         ? new Date(log.created_at).toLocaleString("en-PH")
                         : "Unknown time"}
@@ -328,7 +328,7 @@ export default function GeneralAuditLogPage() {
                         setSelectedLog(log);
                         setChangesPage(1);
                       }}
-                      className="mt-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2 py-1 text-[10px] font-bold text-[#0B8ED0]"
+                      className="mt-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2 py-1 text-[10px] font-bold text-[#0878B7]"
                     >
                       <Eye size={12} />
                       View details
@@ -361,11 +361,11 @@ export default function GeneralAuditLogPage() {
       </section>
 
       {selectedLog && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4">
-          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl">
+        <AccessibleOverlay label="Audit record details" onClose={() => setSelectedLog(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
             <div className="flex justify-between gap-3">
               <div>
-                <p className="text-[10px] font-bold uppercase text-[#0B8ED0]">
+                <p className="text-[10px] font-bold uppercase text-[#0878B7]">
                   Audit record LOG-{selectedLog.id}
                 </p>
                 <h2 className="mt-1 text-xl font-black text-[#0F172A]">
@@ -380,7 +380,7 @@ export default function GeneralAuditLogPage() {
                 type="button"
                 aria-label="Close audit details"
                 onClick={() => setSelectedLog(null)}
-                className="grid h-9 w-9 place-items-center rounded-lg hover:bg-[#EEF6FB]"
+                className="grid h-9 w-9 place-items-center rounded-lg hover:bg-[#F8FBFD]"
               >
                 <X size={18} />
               </button>
@@ -443,7 +443,7 @@ export default function GeneralAuditLogPage() {
                         <th className="px-3 py-2">After</th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-[#E5EDF3]">
+                    <tbody className="divide-y divide-[#DDE7EF]">
                       {selectedLog.changes
                         .slice((changesPage - 1) * 10, changesPage * 10)
                         .map((change) => (
@@ -470,13 +470,13 @@ export default function GeneralAuditLogPage() {
                   />
                 </div>
               ) : (
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="mt-2 text-xs text-slate-500">
                   No field-level change payload was recorded for this action.
                 </p>
               )}
             </div>
           </div>
-        </div>
+        </AccessibleOverlay>
       )}
     </div>
   );

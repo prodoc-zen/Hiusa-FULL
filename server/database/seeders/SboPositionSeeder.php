@@ -21,7 +21,6 @@ class SboPositionSeeder extends Seeder
             'Public Information Officer',
             'Representative',
             'Business Manager',
-            'Adviser',
         ];
 
         Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->get(['id'])->each(function (Organization $organization) use ($positions) {

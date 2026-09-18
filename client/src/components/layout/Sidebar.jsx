@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, Home, LogOut, Megaphone, Package, ShieldCheck, Users, Vote, X } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, FileText, Home, LogOut, Megaphone, Package, ShieldCheck, Users, Vote, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
@@ -31,9 +31,10 @@ const NAV_STRUCTURE = [
     id: 'users',
     label: 'Users & Positions',
     icon: Users,
-    roles: ['SUPER_ADMIN', 'ADMIN'],
+    roles: ['ADMIN', 'SBO_OFFICER'],
     children: [
-      { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['ADMIN'] },
+      { id: 'participant-biometrics', label: 'Participant Biometrics', path: '/dashboard/admin/users', roles: ['SBO_OFFICER'] },
       { id: 'manage-positions', label: 'Manage Positions', path: '/dashboard/admin/positions', roles: ['ADMIN'] },
       { id: 'manage-programs-sections', label: 'Programs & Sections', path: '/dashboard/admin/programs-sections', roles: ['ADMIN'] },
     ],
@@ -47,59 +48,59 @@ const NAV_STRUCTURE = [
       ADMIN: '/dashboard/approvals',
       DEPARTMENT_HEAD: '/dashboard/department-head/approvals',
     },
-    roles: ['SUPER_ADMIN', 'ADMIN', 'DEPARTMENT_HEAD'],
+    roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
   { id: 'submit-request', label: 'Submit Request', icon: ClipboardCheck, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
-  { id: 'audit-logs', label: 'General Audit Log', icon: ClipboardCheck, path: '/dashboard/audit-logs', roles: ['SUPER_ADMIN', 'ADMIN'] },
+  { id: 'audit-logs', label: 'General Audit Log', icon: ClipboardCheck, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
   {
     id: 'announcements',
     label: 'Announcements',
     icon: Megaphone,
-    roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'],
+    roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
-      { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'] },
-      { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
     id: 'elections',
     label: 'Elections',
     icon: Vote,
-    roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
       { id: 'manage-elections', label: 'Election Workspace', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
       { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'manage-voters', label: 'Voters', path: '/dashboard/elections/manage-voters', roles: ['SBO_OFFICER'] },
       { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['ADMIN'] },
       { id: 'cast-vote', label: 'Cast Vote', path: '/dashboard/elections/cast-vote', roles: ['STUDENT'] },
-      { id: 'election-results', label: 'Results', path: '/dashboard/elections/election-results', roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'election-results', label: 'Results', path: '/dashboard/elections/election-results', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
   {
     id: 'events',
     label: 'Events',
     icon: CalendarDays,
-    roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
       { id: 'manage-events', label: 'Manage Events', path: '/dashboard/events/manage-events', roles: ['ADMIN'] },
       { id: 'event-planner', label: 'Event Planner', path: '/dashboard/events/event-planner', roles: ['ADMIN'] },
-      { id: 'event-operations', label: 'Event Operations', path: '/dashboard/events/event-operations', roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN'] },
-      { id: 'check-in', label: 'Check In', path: '/dashboard/events/check-in', roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'] },
-      { id: 'activity-calendar', label: 'Activity Calendar', path: '/dashboard/events/activity-calendar', roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'event-operations', label: 'Event Operations', path: '/dashboard/events/event-operations', roles: ['SBO_OFFICER', 'ADMIN'] },
+      { id: 'check-in', label: 'Check In', path: '/dashboard/events/check-in', roles: ['SBO_OFFICER', 'ADMIN'] },
+      { id: 'activity-calendar', label: 'Activity Calendar', path: '/dashboard/events/activity-calendar', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
     id: 'financial',
     label: 'Financial',
     icon: Coins,
-    roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
-      { id: 'financial-ledger', label: 'Financial Oversight', path: '/dashboard/finance/financial-ledger', roles: ['SUPER_ADMIN', 'ADMIN'] },
+      { id: 'financial-ledger', label: 'Financial Oversight', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN'] },
       { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
-      { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
+      { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
       { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['SBO_OFFICER', 'ADMIN'] },
-      { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['SUPER_ADMIN', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
+      { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'] },
       { id: 'personal-receipts', label: 'My Receipts', path: '/dashboard/finance/personal-receipts', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
       { id: 'statement-of-account', label: 'Statement of Account', path: '/dashboard/finance/statement-of-account', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
@@ -149,7 +150,9 @@ const SUPER_ADMIN_NAV = [
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
       { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'Official Notices', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-financial-reports', label: 'Financial Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-approvals', label: 'Financial Approvals', path: '/dashboard/super-admin/approvals', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },
     ],
   },
 ];
@@ -173,7 +176,7 @@ function SubNavItem({ label, path, onClick }) {
     <NavLink
       to={path}
       onClick={onClick}
-      className={({ isActive }) => `flex h-8 items-center rounded-lg px-3 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0B8ED0] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+      className={({ isActive }) => `flex min-h-10 items-center rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
     >
       {label}
     </NavLink>
@@ -189,7 +192,7 @@ function OfficerProfile({ user, roleLabel }) {
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-white">{name}</p>
-        <p className="truncate text-xs font-medium text-slate-400 capitalize">{roleLabel}</p>
+        <p className="truncate text-xs font-medium text-slate-500 capitalize">{roleLabel}</p>
       </div>
     </div>
   );
@@ -257,9 +260,9 @@ export default function Sidebar({ isOpen, onClose }) {
         <img src={hiusaLogo} alt="HIUSA logo" className="h-10 w-10 object-contain" />
         <div>
           <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
-          <p className="text-[11px] font-medium text-slate-400">{roleLabel} System</p>
+          <p className="text-[11px] font-medium text-slate-500">{roleLabel} System</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-8 w-8 place-items-center rounded-md text-slate-400 transition hover:bg-white/10 hover:text-white lg:hidden">
+        <button type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
         </button>
       </div>
@@ -297,7 +300,7 @@ export default function Sidebar({ isOpen, onClose }) {
                 >
                   <item.icon size={18} strokeWidth={2} />
                   {item.label}
-                  <ChevronDown size={13} className={`ml-auto text-slate-400 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                  <ChevronDown size={13} className={`ml-auto text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isExpanded && (
@@ -320,7 +323,7 @@ export default function Sidebar({ isOpen, onClose }) {
               <NavItem {...item} />
             </div>
           ))}
-          <button type="button" onClick={() => setLogoutConfirmOpen(true)} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-400 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
+          <button type="button" onClick={() => setLogoutConfirmOpen(true)} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-500 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
             <LogOut size={18} strokeWidth={2} />
             Logout
           </button>
@@ -336,7 +339,7 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[260px] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[260px] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       <ConfirmModal
         open={logoutConfirmOpen}
         title="Log Out"

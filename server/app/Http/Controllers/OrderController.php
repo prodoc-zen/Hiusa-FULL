@@ -54,15 +54,11 @@ class OrderController extends Controller
         $summary = $personalView ? null : $this->orderSummary($request, $filters);
         $orders = $query->paginate(10)->withQueryString();
 
-        if ($personalView) {
-            $orders->getCollection()->each(function (Order $order) {
-                if (! in_array($order->status, ['paid', 'claimed'], true)) {
-                    $order->setAttribute('claim_token', null);
-                }
-            });
-        } else {
-            $orders->getCollection()->each(fn (Order $order) => $order->setAttribute('claim_token', null));
-        }
+        $orders->getCollection()->each(function (Order $order) {
+            if (! in_array($order->status, ['paid', 'claimed'], true)) {
+                $order->setAttribute('claim_token', null);
+            }
+        });
 
         return response()->json([
             ...$orders->toArray(),
@@ -642,7 +638,7 @@ class OrderController extends Controller
                         'entity_type' => 'payment',
                         'entity_id' => $lockedOrder->id,
                         'requested_by' => $request->user()->id,
-                        'required_role' => 'ADMIN',
+                        'required_role' => config('approvals.routes.payment'),
                         'status' => 'pending',
                         'active_key' => 'payment:'.$lockedOrder->organization_id.':'.$lockedOrder->id,
                     ]);

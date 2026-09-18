@@ -29,44 +29,35 @@ class AdministratorSeeder extends Seeder
             ]
         );
 
-        // Every student organization has its own leadership team. These are
-        // regular organization-scoped ADMIN accounts, not SAO accounts.
-        // They sign in by selecting their own organization first.
-        $leadership = [
-            ['title' => 'Adviser', 'first_name' => 'Organization', 'last_name' => 'Adviser'],
-            ['title' => 'President', 'first_name' => 'Organization', 'last_name' => 'President'],
-            ['title' => 'Vice President – Internal', 'first_name' => 'Organization', 'last_name' => 'Vice President'],
-            ['title' => 'Secretary', 'first_name' => 'Organization', 'last_name' => 'Secretary'],
-        ];
-
+        // Adviser is an organization-scoped ADMIN position assigned by SAO.
+        // Other demo organization leaders belong in UserSeeder; creating them
+        // here too would duplicate the same ADMIN accounts and positions.
         Organization::query()
             ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
             ->orderBy('id')
             ->get()
             ->values()
-            ->each(function (Organization $organization, int $organizationIndex) use ($leadership): void {
-                foreach ($leadership as $leadershipIndex => $leader) {
-                    $schoolId = 990002 + ($organizationIndex * 10) + $leadershipIndex;
-                    $email = $organization->acronym === 'PSITS-CCS' && $leader['title'] === 'Adviser'
-                        ? 'org.admin@hiusa.local'
-                        : 'admin.'.($organization->slug ?: $organization->id).'.'.($leadershipIndex + 1).'@hiusa.local';
+            ->each(function (Organization $organization, int $organizationIndex): void {
+                $schoolId = 990002 + ($organizationIndex * 10);
+                $email = $organization->acronym === 'PSITS-CCS'
+                    ? 'org.admin@hiusa.local'
+                    : 'adviser.'.($organization->slug ?: $organization->id).'@hiusa.local';
 
-                    User::updateOrCreate(
-                        ['school_id' => $schoolId],
-                        [
-                            'organization_id' => $organization->id,
-                            'first_name' => $leader['first_name'],
-                            'last_name' => $leader['last_name'],
-                            'email' => $email,
-                            'password_hash' => 'Admin@123456',
-                            'role' => 'ADMIN',
-                            'position_title' => $leader['title'],
-                            'account_status' => 'active',
-                            'is_member' => true,
-                            'department' => $organization->college,
-                        ]
-                    );
-                }
+                User::updateOrCreate(
+                    ['school_id' => $schoolId],
+                    [
+                        'organization_id' => $organization->id,
+                        'first_name' => 'Organization',
+                        'last_name' => 'Adviser',
+                        'email' => $email,
+                        'password_hash' => 'Admin@123456',
+                        'role' => 'ADMIN',
+                        'position_title' => 'Adviser',
+                        'account_status' => 'active',
+                        'is_member' => true,
+                        'department' => $organization->college,
+                    ]
+                );
             });
     }
 }

@@ -8,12 +8,42 @@
 
 html {
   font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  min-height: 100%;
+  max-width: 100%;
 }
 
 body {
   margin: 0;
   min-width: 320px;
+  min-height: 100%;
+  max-width: 100%;
+  overflow-x: hidden;
   font-family: inherit;
+}
+
+#root {
+  min-height: 100%;
+  max-width: 100%;
+}
+
+img,
+svg,
+video,
+canvas {
+  max-width: 100%;
+}
+
+input,
+select,
+textarea {
+  max-width: 100%;
+}
+
+.overflow-x-auto {
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: #94A3B8 #EEF6FB;
 }
 
 select {
@@ -28,4 +58,95 @@ select:focus {
   border-color: #0B8ED0;
   box-shadow: 0 0 0 4px rgba(22, 199, 243, 0.15);
   outline: none;
+}
+
+:where(button, a[href], input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid #0878B7;
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  :where(button, a[href], [role='button']) {
+    min-height: 44px;
+  }
+
+  :where(button, [role='button']):has(> svg:only-child) {
+    min-width: 44px;
+  }
+
+  :where(input:not([type='checkbox']):not([type='radio']), select) {
+    min-height: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px;
+  }
+
+  main :where(h1, h2, h3, h4, p, a) {
+    overflow-wrap: anywhere;
+  }
+
+  main .p-5,
+  main .p-6 {
+    padding: 1rem;
+  }
+
+  main .px-5,
+  main .px-6 {
+    padding-left: 1rem;
+    padding-right: 1rem;
+  }
+
+  main .py-5,
+  main .py-6 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  pre,
+  code {
+    max-width: 100%;
+    overflow-x: auto;
+  }
+
+  .overflow-x-auto:has(> table)::before {
+    content: 'Swipe horizontally to view all columns';
+    position: sticky;
+    left: 0;
+    display: block;
+    width: max-content;
+    padding: 0.625rem 0.875rem;
+    color: #64748B;
+    font-size: 0.6875rem;
+    font-weight: 600;
+  }
+
+  .overflow-x-auto:has(> table) > table th,
+  .overflow-x-auto:has(> table) > table td {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .hiusa-overlay {
+    padding: 0.5rem !important;
+  }
+
+  .hiusa-overlay > :where(form, section, div) {
+    max-height: calc(100dvh - 1rem);
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .hiusa-overlay :where(.justify-end) {
+    flex-wrap: wrap;
+  }
+
+  .hiusa-overlay :where(.justify-end) > button {
+    flex: 1 1 10rem;
+  }
 }

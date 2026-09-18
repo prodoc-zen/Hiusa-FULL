@@ -182,7 +182,7 @@ class ElectionController extends Controller
                     'entity_type' => 'election',
                     'entity_id' => $election->id,
                     'requested_by' => $request->user()->id,
-                    'required_role' => 'DEPARTMENT_HEAD',
+                    'required_role' => config('approvals.routes.election'),
                 ]);
 
                 return $election;
@@ -334,7 +334,7 @@ class ElectionController extends Controller
             ->where('organization_id', $election->organization_id)
             ->latest('id')
             ->first()
-            ?->reopen($request->user()->id, 'DEPARTMENT_HEAD');
+            ?->reopen($request->user()->id, config('approvals.routes.election'));
     }
 
     private function ballotIsLockedResponse(Election $election)

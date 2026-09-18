@@ -13,6 +13,6 @@
 
 - **Identify User Role:** `DashboardIndexRedirect` and `ProtectedRoute` read the stored authenticated user role.
 - **Load Authorized Modules:** `Sidebar` filters the module list by role and only renders links allowed for that role.
-- **Load Role-Based Summary:** Super Admin, Admin, SBO Officer, Department Head, and Student each have their own dashboard page with role-specific summary data. Super Admin sees organization users, administrator accounts, published announcements, and all financial items awaiting final action.
+- **Load Role-Based Summary:** Super Admin, Admin, SBO Officer, Department Head, and Student each have their own dashboard page with role-specific summary data. SAO sees registered, active, and inactive SBO totals, requests routed to SAO, unread notifications, relevant financial totals, and recent audited activity.
 - **Display Dashboard:** `DashboardLayout` renders the dashboard shell and the role page through React Router's outlet.
-- **Open Selected Module:** module routes are guarded with matching `allowedRoles`, including Department Head oversight and Super Admin access to announcements, events, election results, financial records, and the Super Admin approval queue.
+- **Open Selected Module:** module routes are guarded with matching `allowedRoles`. SAO receives only its dedicated organizations, administrators, official announcements, notifications, profile, and financial-approval routes—not ordinary SBO operational modules.

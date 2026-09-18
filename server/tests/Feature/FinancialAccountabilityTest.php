@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\AuditLog;
 use App\Models\Merchandise;
+use App\Models\Order;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -94,6 +95,36 @@ class FinancialAccountabilityTest extends TestCase
             ->assertJsonPath('data.0.action_category_label', 'Create')
             ->assertJsonPath('data.0.actor.role_label', 'Admin')
             ->assertJsonPath('data.0.record_type_label', 'Invoice');
+    }
+
+    public function test_general_audit_log_handles_partial_affected_user_profiles(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $item = Merchandise::factory()->create(['organization_id' => $admin->organization_id]);
+        $order = Order::factory()->create([
+            'organization_id' => $admin->organization_id,
+            'student_id' => $student->school_id,
+            'merchandise_id' => $item->id,
+            'processed_by' => null,
+            'approved_by' => null,
+        ]);
+        AuditLog::create([
+            'organization_id' => $admin->organization_id,
+            'user_id' => $admin->school_id,
+            'module' => 'merchandise',
+            'action' => 'order_created',
+            'record_type' => Order::class,
+            'record_id' => $order->id,
+            'created_at' => now(),
+        ]);
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/audit-logs')->assertOk()
+            ->assertJsonPath('data.0.affected_user.school_id', $student->school_id)
+            ->assertJsonPath('data.0.affected_user.role', 'STUDENT')
+            ->assertJsonPath('data.0.affected_user.role_label', 'Student')
+            ->assertJsonPath('data.0.affected_user.account_status_label', 'Active');
     }
 
     public function test_status_change_audit_filter_returns_fallback_workflow_actions(): void

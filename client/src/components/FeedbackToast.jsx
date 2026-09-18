@@ -18,10 +18,10 @@ const typeConfig = {
   },
   info: {
     icon: Info,
-    box: 'border-sky-200 bg-sky-50',
-    iconClass: 'text-sky-600',
-    text: 'text-sky-800',
-    button: 'text-sky-700 hover:text-sky-900',
+    box: 'border-[#DDE7EF] bg-[#E6F6FD]',
+    iconClass: 'text-[#0878B7]',
+    text: 'text-[#0F2F62]',
+    button: 'text-[#0878B7] hover:text-[#0B1831]',
   },
 };
 
@@ -42,7 +42,7 @@ export default function FeedbackToast({ feedback, onClose, duration = 3600 }) {
   }
 
   return (
-    <div className="fixed right-4 top-4 z-[70] w-[calc(100%-2rem)] max-w-sm">
+    <div className="fixed inset-x-3 top-3 z-[80] sm:left-auto sm:right-4 sm:top-4 sm:w-[calc(100%-2rem)] sm:max-w-sm">
       <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 shadow-xl shadow-slate-900/10 ${config.box}`}>
         <Icon size={18} className={`mt-0.5 shrink-0 ${config.iconClass}`} />
         <p className={`min-w-0 flex-1 text-sm font-semibold leading-5 ${config.text}`}>{feedback.message}</p>

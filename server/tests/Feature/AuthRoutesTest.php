@@ -91,6 +91,41 @@ class AuthRoutesTest extends TestCase
             ->assertJsonStructure(['access_token', 'token_type', 'user']);
     }
 
+    public function test_sao_can_login_with_school_id_and_receives_the_super_admin_role(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $director = User::factory()->create([
+            'organization_id' => $sao->id,
+            'role' => 'SUPER_ADMIN',
+            'school_id' => 99000001,
+            'email' => 'director@sao.example',
+            'password_hash' => 'password123',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $sao->id,
+            'school_id' => $director->school_id,
+            'password' => 'password123',
+        ])->assertOk()
+            ->assertJsonPath('user.role', 'SUPER_ADMIN')
+            ->assertJsonMissing(['password_hash']);
+    }
+
+    public function test_email_cannot_be_used_in_place_of_school_id_for_login(): void
+    {
+        $user = User::factory()->create([
+            'email' => 'email-login-is-disabled@example.com',
+            'password_hash' => 'password123',
+        ]);
+
+        $this->postJson('/api/login', [
+            'organization_id' => $user->organization_id,
+            'email' => $user->email,
+            'password' => 'password123',
+        ])->assertUnprocessable()
+            ->assertJsonValidationErrors(['school_id']);
+    }
+
     public function test_inactive_user_cannot_login(): void
     {
         $user = User::factory()->create([
@@ -128,6 +163,7 @@ class AuthRoutesTest extends TestCase
     public function test_user_can_recover_account_and_set_new_password(): void
     {
         Mail::fake();
+        config(['app.frontend_url' => 'https://hiusa.example.test']);
 
         $user = User::factory()->create([
             'email' => 'recover@example.com',
@@ -152,7 +188,7 @@ class AuthRoutesTest extends TestCase
             $resetUrl = $mail->resetUrl;
 
             return $mail->hasTo('recover@example.com')
-                && str_contains($mail->resetUrl, '/reset-password?')
+                && str_starts_with($mail->resetUrl, 'https://hiusa.example.test/reset-password?')
                 && $mail->expiresInMinutes === 60;
         });
 
@@ -191,6 +227,31 @@ class AuthRoutesTest extends TestCase
             'email' => 'recover@example.com',
             'token' => $token,
         ])->assertUnprocessable();
+    }
+
+    public function test_every_supported_role_can_request_an_organization_scoped_password_reset(): void
+    {
+        Mail::fake();
+
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] as $index => $role) {
+            $user = User::factory()->create([
+                'role' => $role,
+                'email' => 'recovery-role-'.$index.'@example.test',
+                'account_status' => 'active',
+            ]);
+
+            $this->postJson('/api/password/forgot', [
+                'organization_id' => $user->organization_id,
+                'email' => $user->email,
+            ])->assertOk();
+
+            $this->assertDatabaseHas('password_reset_tokens', [
+                'organization_id' => $user->organization_id,
+                'email' => $user->email,
+            ]);
+        }
+
+        Mail::assertQueued(PasswordResetMail::class, 5);
     }
 
     public function test_expired_password_reset_token_is_rejected(): void
@@ -232,7 +293,7 @@ class AuthRoutesTest extends TestCase
 
     public function test_all_roles_can_update_their_own_profile(): void
     {
-        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
             $this->flushHeaders();
             $this->app['auth']->forgetGuards();
 
@@ -255,7 +316,7 @@ class AuthRoutesTest extends TestCase
 
     public function test_all_roles_can_change_their_password(): void
     {
-        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
             $this->flushHeaders();
             $this->app['auth']->forgetGuards();
 

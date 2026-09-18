@@ -61,6 +61,9 @@ class GlobalAnnouncementController extends Controller
                 $this->notifyRecipients($announcement);
             }
             $this->audit($request, 'global_announcement_created', $announcement, ['target_scope' => $announcement->target_scope, 'recipient_count' => $announcement->recipients()->count(), 'published' => $publishNow]);
+            if ($publishNow) {
+                $this->audit($request, 'global_announcement_published', $announcement, ['recipient_count' => $announcement->recipients()->count()]);
+            }
 
             return $announcement;
         });
@@ -92,6 +95,9 @@ class GlobalAnnouncementController extends Controller
             $this->notifyRecipients($announcement->fresh());
         }
         $this->audit($request, 'global_announcement_updated', $announcement, ['before' => $old, 'after' => $announcement->fresh()->only(array_keys($old))]);
+        if ($publishNow) {
+            $this->audit($request, 'global_announcement_published', $announcement, ['recipient_count' => $announcement->recipients()->count()]);
+        }
 
         return response()->json($announcement->fresh()->load('sourceOrganization:id,name,acronym')->loadCount('recipients'));
     }
@@ -113,6 +119,7 @@ class GlobalAnnouncementController extends Controller
         foreach ($announcements as $announcement) {
             $announcement->update(['published_at' => now(), 'reviewed_by' => $announcement->created_by]);
             $this->notifyRecipients($announcement->fresh());
+            AuditLog::create(['organization_id' => $announcement->organization_id, 'user_id' => $announcement->created_by, 'actor_role' => 'SUPER_ADMIN', 'module' => 'global_announcements', 'action' => 'global_announcement_published', 'description' => 'A scheduled official SAO announcement was published.', 'record_type' => Announcement::class, 'record_id' => $announcement->id, 'new_values' => ['recipient_count' => $announcement->recipients()->count()], 'created_at' => now()]);
         }
 
         return $announcements->count();
@@ -120,11 +127,11 @@ class GlobalAnnouncementController extends Controller
 
     private function validatedPayload(Request $request, bool $updating = false): array
     {
-        $required = $updating ? 'sometimes|required' : 'required';
+        $required = $updating ? ['sometimes', 'required'] : ['required'];
         $data = $request->validate([
-            'title' => [$required, 'string', 'max:255'], 'body' => [$required, 'string'],
+            'title' => [...$required, 'string', 'max:255'], 'body' => [...$required, 'string'],
             'category' => ['nullable', 'in:general,election,training,events,merchandise'], 'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
-            'target_scope' => [$required, Rule::in(self::SCOPES)],
+            'target_scope' => [...$required, Rule::in(self::SCOPES)],
             'target_organization_ids' => ['nullable', 'array', 'max:200'], 'target_organization_ids.*' => ['integer', 'exists:organizations,id'],
             'target_departments' => ['nullable', 'array', 'max:100'], 'target_departments.*' => ['string', 'max:255'],
             'target_roles' => ['nullable', 'array', 'max:4'], 'target_roles.*' => [Rule::in(self::ROLES)],
@@ -181,6 +188,8 @@ class GlobalAnnouncementController extends Controller
 
     private function audit(Request $request, string $action, Announcement $announcement, array $values): void
     {
-        AuditLog::create(['organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'module' => 'global_announcements', 'action' => $action, 'record_type' => Announcement::class, 'record_id' => $announcement->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
+        AuditLog::create(['organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'global_announcements', 'action' => $action, 'description' => match ($action) {
+            'global_announcement_created' => 'SAO created an official announcement.', 'global_announcement_published' => 'SAO published an official announcement.', 'global_announcement_archived' => 'SAO archived an official announcement.', default => 'SAO updated an official announcement.'
+        }, 'record_type' => Announcement::class, 'record_id' => $announcement->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
     }
 }

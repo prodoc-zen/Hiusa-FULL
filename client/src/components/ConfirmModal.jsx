@@ -39,7 +39,7 @@ export default function ConfirmModal({
             onClick={onConfirm}
             disabled={busy}
             className={`h-10 rounded-lg px-4 text-sm font-bold text-white transition disabled:opacity-50 ${
-              isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0B8ED0] hover:bg-[#0878B7]'
+              isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0878B7] hover:bg-[#0F2F62]'
             }`}
           >
             {busy ? 'Working...' : confirmText}
@@ -48,7 +48,7 @@ export default function ConfirmModal({
       )}
     >
       <div className="flex gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${isDanger ? 'bg-red-50 text-red-600' : 'bg-[#E9F7FD] text-[#0B8ED0]'}`}>
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${isDanger ? 'bg-red-50 text-red-600' : 'bg-[#E6F6FD] text-[#0F2F62]'}`}>
           <AlertCircle size={18} />
         </div>
         <div>

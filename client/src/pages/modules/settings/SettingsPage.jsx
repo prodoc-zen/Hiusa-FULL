@@ -160,7 +160,7 @@ export default function SettingsPage() {
 
       <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0B8ED0]">Account settings</p>
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0878B7]">Account settings</p>
           <h1 className="mt-1 text-2xl font-black text-[#0F172A] sm:text-3xl">Manage your profile</h1>
           <p className="mt-1 text-sm font-medium text-[#64748B]">Keep your personal details current and protect your HIUSA account.</p>
         </div>
@@ -170,33 +170,33 @@ export default function SettingsPage() {
       </header>
 
       <div className="grid items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="overflow-hidden rounded-xl border border-[#DDE7EF] bg-white shadow-sm lg:sticky lg:top-6">
+        <aside className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm lg:sticky lg:top-6">
           <div className="bg-[#0B1831] px-5 py-6 text-center">
-            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border-4 border-white/20 bg-[#0B8ED0] text-2xl font-black text-white shadow-sm">
+            <div className="mx-auto grid h-20 w-20 place-items-center rounded-full border-4 border-white/20 bg-[#0878B7] text-2xl font-black text-white shadow-sm">
               {initials}
             </div>
             <h2 className="mt-4 break-words text-lg font-extrabold text-white">{fullName}</h2>
-            <span className="mt-2 inline-flex rounded-full bg-[#16C7F3]/15 px-3 py-1 text-[11px] font-bold text-[#7DDEFA]">{roleLabel(currentUser.role)}</span>
+            <span className="mt-2 inline-flex rounded-full bg-[#16C7F3]/15 px-3 py-1 text-[11px] font-bold text-[#16C7F3]">{roleLabel(currentUser.role)}</span>
             {currentUser.position_title && <p className="mt-2 text-xs font-medium text-slate-300">{currentUser.position_title}</p>}
           </div>
 
-          <div className="divide-y divide-[#E5EDF3] px-5">
+          <div className="divide-y divide-[#DDE7EF] px-5">
             <div className="flex gap-3 py-4">
-              <IdCard size={17} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+              <IdCard size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">School ID</p>
                 <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">{schoolId}</p>
               </div>
             </div>
             <div className="flex gap-3 py-4">
-              <Building2 size={17} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+              <Building2 size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Organization</p>
                 <p className="mt-1 break-words text-sm font-bold leading-5 text-[#0F172A]">{organizationName}</p>
               </div>
             </div>
             <div className="flex gap-3 py-4">
-              <Mail size={17} className="mt-0.5 shrink-0 text-[#0B8ED0]" />
+              <Mail size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
               <div className="min-w-0">
                 <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Email address</p>
                 <p className="mt-1 break-all text-sm font-bold text-[#0F172A]">{currentUser.email || 'Not provided'}</p>
@@ -216,9 +216,9 @@ export default function SettingsPage() {
         </aside>
 
         <div className="space-y-6">
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-start gap-3 border-b border-[#DDE7EF] p-5 sm:p-6">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                 <UserRound size={19} />
               </div>
               <div>
@@ -253,16 +253,16 @@ export default function SettingsPage() {
 
               <div className="flex flex-col-reverse gap-2 border-t border-[#DDE7EF] bg-[#F8FBFD] px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
                 <button type="button" onClick={resetProfileForm} disabled={!profileDirty || profileSaving} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-5 text-sm font-bold text-[#64748B] transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40">Discard changes</button>
-                <button type="submit" disabled={!profileDirty || profileSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:cursor-not-allowed disabled:opacity-40">
+                <button type="submit" disabled={!profileDirty || profileSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:cursor-not-allowed disabled:opacity-40">
                   <Save size={15} /> {profileSaving ? 'Saving...' : 'Save profile'}
                 </button>
               </div>
             </form>
           </section>
 
-          <section className="rounded-xl border border-[#DDE7EF] bg-white shadow-sm">
+          <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex items-start gap-3 border-b border-[#DDE7EF] p-5 sm:p-6">
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0B8ED0]">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]">
                 <LockKeyhole size={19} />
               </div>
               <div>
@@ -278,7 +278,7 @@ export default function SettingsPage() {
                   <span className="relative block">
                     <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                     <input type={passwordVisibility.current ? 'text' : 'password'} autoComplete="current-password" value={pwForm.current_password} onChange={(event) => setPwForm({ ...pwForm, current_password: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                    <button type="button" aria-label={passwordVisibility.current ? 'Hide current password' : 'Show current password'} onClick={() => togglePasswordVisibility('current')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0B8ED0]">{passwordVisibility.current ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                    <button type="button" aria-label={passwordVisibility.current ? 'Hide current password' : 'Show current password'} onClick={() => togglePasswordVisibility('current')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0878B7]">{passwordVisibility.current ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                   </span>
                 </label>
 
@@ -288,7 +288,7 @@ export default function SettingsPage() {
                     <span className="relative block">
                       <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                       <input type={passwordVisibility.next ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password} onChange={(event) => setPwForm({ ...pwForm, password: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                      <button type="button" aria-label={passwordVisibility.next ? 'Hide new password' : 'Show new password'} onClick={() => togglePasswordVisibility('next')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0B8ED0]">{passwordVisibility.next ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      <button type="button" aria-label={passwordVisibility.next ? 'Hide new password' : 'Show new password'} onClick={() => togglePasswordVisibility('next')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0878B7]">{passwordVisibility.next ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                     </span>
                   </label>
                   <label className="space-y-1.5">
@@ -296,7 +296,7 @@ export default function SettingsPage() {
                     <span className="relative block">
                       <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                       <input type={passwordVisibility.confirmation ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password_confirmation} onChange={(event) => setPwForm({ ...pwForm, password_confirmation: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-                      <button type="button" aria-label={passwordVisibility.confirmation ? 'Hide password confirmation' : 'Show password confirmation'} onClick={() => togglePasswordVisibility('confirmation')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0B8ED0]">{passwordVisibility.confirmation ? <EyeOff size={16} /> : <Eye size={16} />}</button>
+                      <button type="button" aria-label={passwordVisibility.confirmation ? 'Hide password confirmation' : 'Show password confirmation'} onClick={() => togglePasswordVisibility('confirmation')} className="absolute inset-y-0 right-0 grid w-11 place-items-center text-[#94A3B8] transition hover:text-[#0878B7]">{passwordVisibility.confirmation ? <EyeOff size={16} /> : <Eye size={16} />}</button>
                     </span>
                   </label>
                 </div>
@@ -311,7 +311,7 @@ export default function SettingsPage() {
 
               <div className="flex flex-col gap-3 border-t border-[#DDE7EF] bg-[#F8FBFD] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <p className="flex items-center gap-2 text-[11px] font-medium text-[#64748B]"><ShieldCheck size={15} /> Updating your password signs you out on every device.</p>
-                <button type="submit" disabled={pwSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0B8ED0] px-5 text-sm font-bold text-white transition hover:bg-[#0878B7] disabled:opacity-50">
+                <button type="submit" disabled={pwSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50">
                   <LockKeyhole size={15} /> {pwSaving ? 'Updating...' : 'Update password'}
                 </button>
               </div>

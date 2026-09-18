@@ -29,22 +29,33 @@ class NotifyApproversJob implements ShouldQueue
     public function handle(): void
     {
         $approvers = User::query()
-            ->where('organization_id', $this->approval->organization_id)
             ->where('role', $this->approval->required_role)
             ->where('account_status', 'active')
-            ->get(['school_id']);
+            ->when(
+                $this->approval->required_role === 'SUPER_ADMIN',
+                fn ($query) => $query->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'SYSTEM_ADMINISTRATION')),
+            )
+            ->when(
+                $this->approval->assigned_approver,
+                fn ($query) => $query->whereKey($this->approval->assigned_approver),
+                fn ($query) => $query->when(
+                    $this->approval->required_role !== 'SUPER_ADMIN',
+                    fn ($scoped) => $scoped->where('organization_id', $this->approval->organization_id),
+                ),
+            )
+            ->get(['school_id', 'organization_id']);
 
         foreach ($approvers as $approver) {
             // firstOrCreate rather than create: a retried attempt (this job has
             // $tries = 3) must not re-notify an approver it already wrote to on a
             // prior, partially-completed run.
             Notification::firstOrCreate([
-                'organization_id' => $this->approval->organization_id,
+                'organization_id' => $approver->organization_id,
                 'user_id' => $approver->school_id,
                 'reference_type' => 'approval_request',
                 'reference_id' => $this->approval->id,
             ], [
-                'title' => 'Approval Request Submitted',
+                'title' => $this->approval->required_role === 'SUPER_ADMIN' ? 'New SAO Approval Request' : 'Approval Request Submitted',
                 'message' => Str::headline($this->approval->entity_type).' request #'.$this->approval->entity_id.' requires your review.',
                 'notification_type' => 'general',
                 'is_read' => false,

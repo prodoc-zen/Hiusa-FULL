@@ -140,3 +140,99 @@ describe("MerchandisePage buyer experience", () => {
     expect(await screen.findByText("Cancelled by buyer.")).toBeInTheDocument();
   });
 });
+
+describe("MerchandisePage fulfillment experience", () => {
+  const paidOrder = {
+    id: 28,
+    merchandise: products[0],
+    student: {
+      school_id: 2200451,
+      first_name: "Rafael",
+      last_name: "Aquino",
+      role: "STUDENT",
+      program: "BS Information Technology",
+      year_level: "4th Year",
+      section: "4-A",
+    },
+    quantity: 1,
+    total_price: "350.00",
+    payment_method: "gcash",
+    payment_reference: "1234567890123",
+    officer_review_status: "approved",
+    admin_review_status: "approved",
+    status: "paid",
+    claim_token: "CLAIMTOKEN123456",
+    created_at: "2026-09-13T10:00:00Z",
+  };
+
+  function managerOrdersResponse() {
+    return {
+      data: {
+        ...paginatedOrders([paidOrder]),
+        summary: {
+          total_users: 1,
+          purchased_users: 1,
+          not_purchased_users: 0,
+          purchase_rate: 100,
+          paid_orders: 1,
+          pending_orders: 0,
+          claimed_orders: 0,
+          unclaimed_orders: 1,
+          total_collected: 350,
+          outstanding_balance: 0,
+          breakdown: [],
+        },
+        filter_options: {
+          departments: [],
+          programs: [],
+          majors: [],
+          roles: ["STUDENT"],
+          positions: [],
+          merchandise: products,
+          statuses: ["pending", "paid", "claimed", "cancelled"],
+          payment_statuses: ["pending", "paid", "cancelled"],
+          payment_methods: ["cash", "gcash"],
+        },
+      },
+    };
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({
+      data: { data: products, current_page: 1, last_page: 1 },
+    });
+    orderMocks.getOrders.mockResolvedValue(managerOrdersResponse());
+  });
+
+  it("shows an approved order's claim token in the modern order queue", async () => {
+    render(
+      <MemoryRouter>
+        <MerchandisePage initialTab="orders" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Manage Orders" })).toBeInTheDocument();
+    expect(screen.getAllByText("Ready for pickup").length).toBeGreaterThan(0);
+    expect((await screen.findAllByText("CLAIMTOKEN123456")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Rafael Aquino").length).toBeGreaterThan(0);
+  });
+
+  it("loads only paid orders in the token validation queue", async () => {
+    render(
+      <MemoryRouter>
+        <MerchandisePage initialTab="tokens" />
+      </MemoryRouter>,
+    );
+
+    expect(await screen.findByRole("heading", { name: "Validate a claim token" })).toBeInTheDocument();
+    expect(await screen.findByText("CLAIMTOKEN123456")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(orderMocks.getOrders).toHaveBeenCalledWith(
+        expect.objectContaining({ status: "paid", sort: "oldest" }),
+      ),
+    );
+  });
+});
