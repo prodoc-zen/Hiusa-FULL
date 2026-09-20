@@ -28,7 +28,8 @@ class AnnouncementAiWorkflowTest extends TestCase
             'details' => 'Venue is not confirmed. Do not invent one.',
         ])->assertOk()
             ->assertJsonPath('model_name', 'test-model')
-            ->assertJsonPath('output_text', "Assembly update\n\n- Venue details are pending confirmation.");
+            ->assertJsonPath('output_text', "Assembly update\n\n- Venue details are pending confirmation.")
+            ->assertJsonPath('quota.remaining', 19);
 
         $outputId = $generated->json('ai_output_id');
         $editedBody = $generated->json('output_text')."\n\nPlease wait for the official venue notice.";
@@ -110,5 +111,41 @@ class AnnouncementAiWorkflowTest extends TestCase
             'required_role' => 'ADMIN',
             'status' => 'pending',
         ]);
+    }
+
+    public function test_daily_announcement_generation_quota_is_reported_and_enforced_per_user(): void
+    {
+        config([
+            'services.groq.key' => 'test-key',
+            'services.groq.announcement_daily_limit' => 2,
+        ]);
+        Http::fake(['*' => Http::response(['id' => 'draft', 'model' => 'test-model', 'output_text' => 'Generated announcement.'])]);
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
+        $otherAdmin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
+        Sanctum::actingAs($admin);
+
+        $this->getJson('/api/announcements/generation-quota')
+            ->assertOk()
+            ->assertJsonPath('limit', 2)
+            ->assertJsonPath('remaining', 2);
+
+        foreach ([1, 0] as $remaining) {
+            $this->postJson('/api/announcements/generate-draft', [
+                'title' => 'Quota check',
+                'target_role' => 'all',
+                'details' => 'Use only supplied information.',
+            ])->assertOk()->assertJsonPath('quota.remaining', $remaining);
+        }
+
+        $this->postJson('/api/announcements/generate-draft', [
+            'title' => 'One too many',
+            'target_role' => 'all',
+        ])->assertStatus(429)->assertJsonPath('quota.remaining', 0);
+
+        Sanctum::actingAs($otherAdmin);
+        $this->getJson('/api/announcements/generation-quota')
+            ->assertOk()
+            ->assertJsonPath('remaining', 2);
     }
 }

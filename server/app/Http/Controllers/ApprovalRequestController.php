@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\ApprovalEntityLabel;
 use App\Services\OrderFulfillmentService;
 use DomainException;
 use Illuminate\Http\Request;
@@ -21,7 +22,10 @@ use Illuminate\Support\Str;
 
 class ApprovalRequestController extends Controller
 {
-    public function __construct(private readonly OrderFulfillmentService $fulfillmentService) {}
+    public function __construct(
+        private readonly OrderFulfillmentService $fulfillmentService,
+        private readonly ApprovalEntityLabel $entityLabels,
+    ) {}
 
     public function index(Request $request)
     {
@@ -473,14 +477,15 @@ class ApprovalRequestController extends Controller
 
     private function notifyRequester(ApprovalRequest $approval, string $status): void
     {
+        $label = $this->entityLabels->for($approval);
         Notification::create([
             'organization_id' => $approval->organization_id,
             'user_id' => $approval->requested_by,
             'title' => 'Approval Request '.Str::headline($status),
-            'message' => Str::headline($approval->entity_type).' request #'.$approval->entity_id.' was '.$status.'.',
+            'message' => Str::headline($approval->entity_type).' "'.$label.'" was '.$status.'.',
             'notification_type' => 'general',
-            'reference_type' => 'approval_request',
-            'reference_id' => $approval->id,
+            'reference_type' => $approval->entity_type,
+            'reference_id' => $approval->entity_id,
             'is_read' => false,
             'sent_at' => now(),
         ]);

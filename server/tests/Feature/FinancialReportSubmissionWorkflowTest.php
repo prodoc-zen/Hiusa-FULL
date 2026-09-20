@@ -121,6 +121,45 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
             ->assertJsonValidationErrors(['signatories.president', 'signatories.adviser', 'signatories.sbo_adviser']);
     }
 
+    public function test_admin_can_generate_and_submit_a_custom_date_range_report(): void
+    {
+        $organization = Organization::factory()->create();
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        FinancialReportDeadline::create(['deadline_at' => now()->addWeek(), 'set_by' => $superAdmin->school_id]);
+        $included = $this->createTransaction($organization, $admin, 'Inside custom period');
+        $included->update(['transaction_date' => '2026-08-15']);
+        $excluded = $this->createTransaction($organization, $admin, 'Outside custom period');
+        $excluded->update(['transaction_date' => '2026-09-01']);
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/financial-reports/generate', [
+            'report_type' => 'custom',
+            'period_start' => '2026-08-01',
+            'period_end' => '2026-08-31',
+            'signatories' => $this->signatories(),
+        ])->assertCreated()
+            ->assertJsonCount(1, 'transactions')
+            ->assertJsonPath('transactions.0.id', $included->id);
+
+        $report = FinancialReport::findOrFail($response->json('report.id'));
+        $this->assertSame([$included->id], $report->source_transaction_ids);
+        $this->assertSame('2026-08-01', $report->period_start->toDateString());
+        $this->assertSame('2026-08-31', $report->period_end->toDateString());
+
+        $this->postJson('/api/financial-reports/'.$report->id.'/submit')
+            ->assertOk()
+            ->assertJsonPath('submission_status', 'pending_department_head');
+        $this->assertDatabaseHas('approval_requests', [
+            'entity_type' => 'financial_report',
+            'entity_id' => $report->id,
+            'required_role' => 'DEPARTMENT_HEAD',
+            'status' => 'pending',
+        ]);
+    }
+
     public function test_sao_can_filter_cross_organization_transactions_and_reports(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);

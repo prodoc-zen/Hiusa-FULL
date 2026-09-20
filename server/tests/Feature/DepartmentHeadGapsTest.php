@@ -37,7 +37,8 @@ class DepartmentHeadGapsTest extends TestCase
         $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER']);
         $election = Election::factory()->create(['organization_id' => $organization->id, 'status' => 'active']);
 
-        // 25 eligible students in this org so pagination (10 rows per page) is exercised.
+        // 25 students plus the authenticated officer are eligible voters, so
+        // pagination (10 rows per page) is exercised across all voting roles.
         $students = User::factory()->count(25)->create([
             'organization_id' => $organization->id,
             'role' => 'STUDENT',
@@ -66,16 +67,16 @@ class DepartmentHeadGapsTest extends TestCase
 
         $page1 = $this->getJson("/api/elections/{$election->id}/voters")->assertOk();
         $page1->assertJsonPath('per_page', 10);
-        $page1->assertJsonPath('total', 25);
+        $page1->assertJsonPath('total', 26);
         $page1->assertJsonCount(10, 'data');
-        $page1->assertJsonPath('summary.eligible_total', 25);
+        $page1->assertJsonPath('summary.eligible_total', 26);
         $page1->assertJsonPath('summary.voted_count', 1);
-        $this->assertEquals(4.0, $page1->json('summary.turnout_percent'));
+        $this->assertEquals(3.8, $page1->json('summary.turnout_percent'));
 
         $page2 = $this->getJson("/api/elections/{$election->id}/voters?page=2")->assertOk();
         $page2->assertJsonCount(10, 'data');
         $page3 = $this->getJson("/api/elections/{$election->id}/voters?page=3")->assertOk();
-        $page3->assertJsonCount(5, 'data');
+        $page3->assertJsonCount(6, 'data');
 
         // has_voted correctness is checked across both pages since the
         // alphabetical sort (last_name, first_name) can place either
@@ -91,7 +92,7 @@ class DepartmentHeadGapsTest extends TestCase
         $this->assertFalse($notVotedRow['has_voted']);
 
         $allSchoolIds = $allRows->pluck('school_id');
-        $this->assertTrue($allSchoolIds->every(fn ($id) => $students->pluck('school_id')->contains($id)));
+        $this->assertTrue($allSchoolIds->every(fn ($id) => $students->pluck('school_id')->push($officer->school_id)->contains($id)));
     }
 
     public function test_voters_endpoint_is_blocked_for_students(): void

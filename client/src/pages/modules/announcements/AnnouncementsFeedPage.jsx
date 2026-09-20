@@ -5,6 +5,7 @@ import { getAnnouncements } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
 import PaginationControls from '../../../components/PaginationControls';
 import { listMeta, unwrapList } from '../../../services/pagination';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -134,6 +135,7 @@ export default function AnnouncementsFeedPage() {
               <span className="rounded-full border border-white/20 px-3 py-1 text-[11px] font-bold">{CATEGORY_LABEL[featured.category] || 'General'}</span>
             </div>
             <h2 className="mt-5 text-2xl font-black leading-tight sm:text-3xl">{featured.title}</h2>
+            {featured.image_url && <img src={resolveAssetUrl(featured.image_url)} alt={featured.title} loading="lazy" className="mt-5 max-h-[560px] w-full rounded-lg border border-white/15 bg-white/5 object-contain" />}
             <p className={`mt-4 whitespace-pre-wrap text-sm leading-7 text-slate-200 ${expandedId === featured.id ? '' : 'line-clamp-4'}`}>{featured.body}</p>
             <button type="button" onClick={() => setExpandedId(expandedId === featured.id ? null : featured.id)} className="mt-5 inline-flex h-11 items-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0B1831] hover:bg-[#F8FBFD]">{expandedId === featured.id ? 'Show less' : 'Read full update'} <ArrowUpRight size={15} /></button>
           </div>
@@ -156,6 +158,7 @@ export default function AnnouncementsFeedPage() {
               <article key={announcement.id} className="flex min-h-64 flex-col rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/40 sm:p-6">
                 <div className="flex flex-wrap items-center gap-2"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[10px] font-bold uppercase text-[#0F2F62]">{CATEGORY_LABEL[announcement.category] || 'General'}</span><span className="text-[11px] font-semibold text-[#64748B]">For {ROLE_LABEL[announcement.target_role] ?? announcement.target_role}</span></div>
                 <h3 className="mt-4 text-lg font-black leading-snug text-[#0F172A]">{announcement.title}</h3>
+                {announcement.image_url && <img src={resolveAssetUrl(announcement.image_url)} alt={announcement.title} loading="lazy" className="mt-3 max-h-80 w-full rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] object-contain" />}
                 <p className={`mt-3 flex-1 whitespace-pre-wrap text-sm leading-6 text-[#64748B] ${expandedId === announcement.id ? '' : 'line-clamp-4'}`}>{announcement.body}</p>
                 <button type="button" onClick={() => setExpandedId(expandedId === announcement.id ? null : announcement.id)} className="mt-4 inline-flex h-10 w-fit items-center gap-1.5 text-xs font-bold text-[#0878B7] hover:underline">{expandedId === announcement.id ? 'Show less' : 'Read more'} <ArrowUpRight size={13} /></button>
                 <div className="mt-4 border-t border-[#DDE7EF] pt-4"><Author announcement={announcement} /></div>

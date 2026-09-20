@@ -171,6 +171,7 @@ export default function ManageVotersPage() {
                 <tr>
                   <th className="px-4 py-3">Name</th>
                   <th className="px-4 py-3">School ID</th>
+                  <th className="hidden lg:table-cell px-4 py-3">Role</th>
                   <th className="hidden md:table-cell px-4 py-3">Email</th>
                   <th className="px-4 py-3">Vote Status</th>
                 </tr>
@@ -187,6 +188,7 @@ export default function ManageVotersPage() {
                       </div>
                     </td>
                     <td className="max-w-[120px] truncate px-4 py-3.5 font-mono text-xs text-[#64748B]">{voter.school_id}</td>
+                    <td className="hidden lg:table-cell px-4 py-3.5 text-xs font-semibold text-slate-600">{String(voter.role || '').replaceAll('_', ' ')}</td>
                     <td className="hidden md:table-cell px-4 py-3.5 text-xs text-[#64748B]">{voter.email}</td>
                     <td className="px-4 py-3.5">
                       {voter.has_voted ? (
@@ -204,9 +206,9 @@ export default function ManageVotersPage() {
                 ))}
                 {filtered.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
+                    <td colSpan={5} className="px-4 py-10 text-center text-sm text-[#94A3B8]">
                       {eligibleTotal === 0
-                        ? 'No students are registered in this organization yet.'
+                        ? 'No eligible voters are registered in this organization yet.'
                         : eligibleTotal > perPage
                           ? 'No voters on this page match your search. Search and filters apply to the current page.'
                           : 'No voters match your search.'}

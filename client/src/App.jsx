@@ -108,7 +108,7 @@ function EventsIndexRedirect() {
   }
 
   if (role === 'SBO_OFFICER') {
-    return <Navigate to="event-operations" replace />;
+    return <Navigate to="check-in" replace />;
   }
 
   return <Navigate to="manage-events" replace />;
@@ -122,14 +122,10 @@ function FinanceIndexRedirect() {
   }
 
   if (role === 'DEPARTMENT_HEAD') {
-    return <Navigate to="transaction-history" replace />;
-  }
-
-  if (role === 'STUDENT') {
     return <Navigate to="personal-receipts" replace />;
   }
 
-  return <Navigate to="financial-insights" replace />;
+  return <Navigate to="personal-receipts" replace />;
 }
 
 function TasksIndexRedirect() {
@@ -229,7 +225,7 @@ function App() {
             <Route index element={<EventsIndexRedirect />} />
             <Route path="manage-events" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
             <Route path="event-planner" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="tasks" /></ProtectedRoute>} />
-            <Route path="event-operations" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
+            <Route path="event-operations" element={<Navigate to="../check-in" replace />} />
             <Route path="check-in" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
             <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
           </Route>
@@ -238,9 +234,9 @@ function App() {
             <Route index element={<FinanceIndexRedirect />} />
             <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
             <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
-            <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "DEPARTMENT_HEAD"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
-            <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
-            <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "DEPARTMENT_HEAD"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
+            <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
+            <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
+            <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
             <Route path="personal-receipts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><FinancePage initialTab="receipts" /></ProtectedRoute>} />
             <Route path="statement-of-account" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><FinancePage initialTab="invoices" /></ProtectedRoute>} />
           </Route>
@@ -276,7 +272,7 @@ function App() {
             <Route path="manage-candidates" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><ManageCandidatesPage /></ProtectedRoute>} />
             <Route path="manage-partylists" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManagePartylistsPage /></ProtectedRoute>} />
             <Route path="manage-voters" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><ManageVotersPage /></ProtectedRoute>} />
-            <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["STUDENT"]}><CastVoteRedirectPage /></ProtectedRoute>} />
+            <Route path="cast-vote" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><CastVoteRedirectPage /></ProtectedRoute>} />
             <Route path="election-results" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><ElectionResultsPage /></ProtectedRoute>} />
 
             {/* Legacy election links redirected to REFERENCE view IDs */}
@@ -289,7 +285,7 @@ function App() {
 
         </Route>
       </Route>
-      <Route element={<ProtectedRoute allowedRoles={["STUDENT"]} />}>
+      <Route element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]} />}>
         <Route path="/elections/:electionId/vote" element={<ImmersiveVotePage />} />
       </Route>
       <Route path="*" element={<NotFoundRedirect />} />

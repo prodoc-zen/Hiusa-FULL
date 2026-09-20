@@ -11,19 +11,13 @@ import {
   Plus,
   RefreshCw,
   ShieldCheck,
-  UserCheck,
   Users,
 } from 'lucide-react';
 import { getUsers } from '../../../services/userService';
 import { getAnnouncements } from '../../../services/announcementService';
-import { listMeta } from '../../../services/pagination';
-
-const ROLE_CONFIG = [
-  { key: 'STUDENT', label: 'Students', icon: GraduationCap },
-  { key: 'SBO_OFFICER', label: 'SBO officers', icon: Briefcase },
-  { key: 'ADMIN', label: 'Admins', icon: ShieldCheck },
-  { key: 'DEPARTMENT_HEAD', label: 'Dept. Heads', icon: UserCheck },
-];
+import { getForecasts } from '../../../services/financeService';
+import { listMeta, unwrapList } from '../../../services/pagination';
+import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 
 const ADMIN_TOOLS = [
   {
@@ -73,6 +67,7 @@ export default function AdminHomePage() {
   const [usersByRole, setUsersByRole] = useState({});
   const [published, setPublished] = useState(0);
   const [drafts, setDrafts] = useState(0);
+  const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
@@ -88,10 +83,11 @@ export default function AdminHomePage() {
       try {
         // These endpoints are paginated. Their server totals and role summary
         // provide the complete organization counts without loading every row.
-        const [usersRes, publishedRes, draftRes] = await Promise.all([
+        const [usersRes, publishedRes, draftRes, forecastsRes] = await Promise.all([
           getUsers({ per_page: 1 }),
           getAnnouncements({ publication_status: 'published', per_page: 1 }),
           getAnnouncements({ publication_status: 'draft', per_page: 1 }),
+          getForecasts({ per_page: 12 }),
         ]);
 
         if (cancelled) return;
@@ -100,6 +96,7 @@ export default function AdminHomePage() {
         setUsersByRole(usersRes?.summary?.by_role ?? {});
         setPublished(listMeta(publishedRes?.data).total);
         setDrafts(listMeta(draftRes?.data).total);
+        setForecasts(unwrapList(forecastsRes?.data));
       } catch {
         if (!cancelled) {
           setLoadError('Dashboard totals could not be loaded. Your administration tools are still available.');
@@ -182,44 +179,12 @@ export default function AdminHomePage() {
           <section className="rounded-lg border border-[#DDE7EF] bg-white p-5">
             <div className="flex flex-col gap-2 border-b border-[#DDE7EF] pb-4 sm:flex-row sm:items-end sm:justify-between">
               <div>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Organization access</p>
-                <h3 className="mt-1 text-lg font-black text-[#0F172A]">Account distribution</h3>
+                <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Financial outlook</p>
+                <h3 className="mt-1 text-lg font-black text-[#0F172A]">Income, expenses, and projected balance</h3>
               </div>
-              {loading
-                ? <span className="h-4 w-28 animate-pulse rounded bg-slate-100" aria-hidden="true" />
-                : <p className="text-xs font-semibold text-slate-500">{totalUsers} total accounts</p>}
+              <NavLink to="/dashboard/finance/financial-insights" className="inline-flex min-h-11 items-center text-xs font-bold text-[#0878B7] hover:underline">Open Financial Insights <ArrowRight size={14} className="ml-1" /></NavLink>
             </div>
-
-            <dl className="mt-5 space-y-5">
-              {ROLE_CONFIG.map((role) => {
-                const count = countByRole(role.key);
-                const percentage = totalUsers > 0 ? Math.round((count / totalUsers) * 100) : 0;
-                const Icon = role.icon;
-
-                return (
-                  <div key={role.key}>
-                    <div className="flex items-center justify-between gap-4">
-                      <dt className="flex items-center gap-2.5 text-sm font-semibold text-[#0F172A]">
-                        <Icon size={16} className="text-[#0878B7]" />
-                        {role.label}
-                      </dt>
-                      <div className="flex items-baseline gap-2">
-                        <dd className="text-sm font-black tabular-nums text-[#0F172A]">
-                          {loading ? '...' : count.toLocaleString()}
-                        </dd>
-                        {!loading && <span className="text-[11px] font-semibold text-slate-500">{percentage}%</span>}
-                      </div>
-                    </div>
-                    <div className="mt-2 h-2 overflow-hidden rounded-full bg-[#EEF6FB]" aria-hidden="true">
-                      <div
-                        className={`h-full rounded-full ${loading ? 'animate-pulse bg-[#DDE7EF]' : 'bg-[#0878B7]'}`}
-                        style={{ width: loading ? '38%' : `${percentage}%` }}
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-            </dl>
+            {loading ? <div className="mt-5 h-64 animate-pulse rounded-lg bg-slate-100" role="status"><span className="sr-only">Loading financial forecast</span></div> : forecasts.length ? <FinancialForecastChart forecasts={forecasts} /> : <div className="py-10 text-center"><p className="text-sm font-semibold text-slate-600">No financial forecast has been generated yet.</p><NavLink to="/dashboard/finance/financial-insights" className="mt-3 inline-flex min-h-11 items-center text-sm font-bold text-[#0878B7] hover:underline">Generate the first forecast</NavLink></div>}
           </section>
 
           <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">

@@ -56,6 +56,7 @@ return [
         'reasoning_effort' => env('GROQ_REASONING_EFFORT', 'low'),
         'timeout' => env('GROQ_TIMEOUT', 25),
         'connect_timeout' => env('GROQ_CONNECT_TIMEOUT', 5),
+        'announcement_daily_limit' => env('ANNOUNCEMENT_AI_DAILY_LIMIT', 20),
     ],
 
 ];
