@@ -11,6 +11,7 @@ import {
 } from '../../../services/announcementService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import DataDonutChart from '../../../components/DataDonutChart';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -84,6 +85,7 @@ function getCurrentUserId() {
 export default function ManageAnnouncementsPage() {
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
+  const [summary, setSummary] = useState({ total: 0, published: 0, unpublished: 0, pending: 0, views: 0 });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -123,6 +125,7 @@ export default function ManageAnnouncementsPage() {
         if (cancelled) return;
         setItems(unwrapList(res.data));
         setMeta(listMeta(res.data));
+        setSummary(res.data?.summary ?? { total: 0, published: 0, unpublished: 0, pending: 0, views: 0 });
       })
       .catch(() => { if (!cancelled) setError('Failed to load announcements.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
@@ -172,6 +175,7 @@ export default function ManageAnnouncementsPage() {
     try {
       const res = await togglePublish(id);
       setItems((prev) => prev.map((a) => (a.id === id ? res.data : a)));
+      loadAnnouncements();
     } catch (err) {
       setError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
     }
@@ -265,8 +269,20 @@ export default function ManageAnnouncementsPage() {
       </div>
       <div className="mb-4 grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ['Matching records', items.length], ['Published', items.filter((item) => item.is_published).length], ['Pending approval', items.filter((item) => item.approval_status === 'pending').length], ['Recorded views', items.reduce((sum, item) => sum + Number(item.views_count || 0), 0)],
+          ['Matching records', summary.total], ['Published', summary.published], ['Pending approval', summary.pending], ['Recorded views', summary.views],
         ].map(([label, value]) => <dl key={label} className="bg-white p-3.5"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}
+      </div>
+      <div className="mb-4">
+        <DataDonutChart
+          title="Publication distribution"
+          description="Published and unpublished announcements matching the active filters."
+          centerValue={summary.total}
+          centerLabel="matching records"
+          segments={[
+            { label: 'Published', value: summary.published, color: '#0B8ED0' },
+            { label: 'Unpublished / draft', value: summary.unpublished, color: '#64748B' },
+          ]}
+        />
       </div>
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-500">

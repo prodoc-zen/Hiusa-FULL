@@ -38,7 +38,6 @@ const pageTitles = {
   '/dashboard/events': 'Events',
   '/dashboard/events/manage-events': 'Manage Events',
   '/dashboard/events/event-planner': 'Event Planner',
-  '/dashboard/events/event-operations': 'Event Operations',
   '/dashboard/events/activity-calendar': 'Activity Calendar',
   '/dashboard/tasks': 'Task Management',
   '/dashboard/tasks/task-board': 'Task Board',

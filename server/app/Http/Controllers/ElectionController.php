@@ -120,26 +120,25 @@ class ElectionController extends Controller
             if ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible)) {
                 return response()->json(['message' => 'Students can only access active elections or visible election results.'], 403);
             }
-
-            // Only return this student's own votes (never expose other voters' identities)
-            $myVotes = Vote::where('election_id', $id)
-                ->where('voter_id', $user->id)
-                ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id']);
-
-            $data = $election->toArray();
-            $data['my_votes'] = $myVotes;
-            $data['vote_counts'] = Vote::where('election_id', $id)
-                ->selectRaw('candidate_id, COUNT(*) as vote_count')
-                ->groupBy('candidate_id')
-                ->pluck('vote_count', 'candidate_id');
-            $data['voters_count'] = Vote::where('election_id', $id)
-                ->distinct('voter_id')
-                ->count('voter_id');
-
-            return response()->json($data);
         }
 
-        return response()->json($election);
+        // Every eligible role receives only its own ballot records. Other voter
+        // identities are never exposed by this endpoint.
+        $myVotes = Vote::where('election_id', $id)
+            ->where('voter_id', $user->school_id)
+            ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id']);
+
+        $data = $election->toArray();
+        $data['my_votes'] = $myVotes;
+        $data['vote_counts'] = Vote::where('election_id', $id)
+            ->selectRaw('candidate_id, COUNT(*) as vote_count')
+            ->groupBy('candidate_id')
+            ->pluck('vote_count', 'candidate_id');
+        $data['voters_count'] = Vote::where('election_id', $id)
+            ->distinct('voter_id')
+            ->count('voter_id');
+
+        return response()->json($data);
     }
 
     public function store(Request $request)
@@ -920,14 +919,6 @@ class ElectionController extends Controller
 
     public function vote(Request $request, $id)
     {
-        // Only students are the electorate (this matches the eligibility roll in
-        // voters()). Enforced here as well as in the route middleware so widening
-        // the route later cannot silently let an officer, adviser or admin cast a
-        // counted ballot.
-        if ($request->user()->role !== 'STUDENT') {
-            return response()->json(['message' => 'Only students may cast a ballot in this election.'], 403);
-        }
-
         $this->synchronizeScheduledStatuses($request->user()->organization_id, (int) $id);
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (! $election) {
@@ -1043,19 +1034,20 @@ class ElectionController extends Controller
             ->distinct()
             ->pluck('voter_id');
 
-        $studentsQuery = User::where('role', 'STUDENT')
-            ->where('organization_id', $organizationId);
+        $votersQuery = User::where('organization_id', $organizationId)
+            ->where('account_status', 'active')
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']);
 
-        $eligibleTotal = (clone $studentsQuery)->count();
-        $votedCount = (clone $studentsQuery)->whereIn('school_id', $voterIds)->count();
+        $eligibleTotal = (clone $votersQuery)->count();
+        $votedCount = (clone $votersQuery)->whereIn('school_id', $voterIds)->count();
 
-        $paginated = $studentsQuery
+        $paginated = $votersQuery
             ->orderBy('last_name')
             ->orderBy('first_name')
-            ->select(['school_id', 'first_name', 'last_name', 'email'])
+            ->select(['school_id', 'first_name', 'last_name', 'email', 'role'])
             ->paginate(10)
-            ->through(fn ($student) => array_merge($student->toArray(), [
-                'has_voted' => $voterIds->contains($student->school_id),
+            ->through(fn ($voter) => array_merge($voter->toArray(), [
+                'has_voted' => $voterIds->contains($voter->school_id),
             ]));
 
         return response()->json(array_merge($paginated->toArray(), [

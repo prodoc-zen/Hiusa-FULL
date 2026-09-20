@@ -18,8 +18,9 @@ Audit date: August 28, 2026 (supersedes the August 23, 2026 pass; re-verified ag
 | AI | Task Delegation | Implemented | Eligibility rules run before weighted scoring. Weights are Role 40%, Workload 35%, Performance 25%; Groq explains the winning score. |
 | AI | Workflow Automation | Implemented | Event planning can create workflow tasks; tasks track assignee, progress, status, and deadline; overdue tasks are marked daily. |
 | AI | Event Planning Assistant | Implemented | Groq produces timeline, resources, checklist, delays, and conflicts from saved event details. Regeneration preserves budget/vendor/logistics fields. |
+| AI | Announcement Drafting | Implemented | Admins and SBO officers can provide a title, announcement details, and separate drafting instructions. Each user receives 20 generation attempts per day by default, with the remaining count shown in the form. |
 | Finance | Automated Digital Ledger | Implemented | Transactions update the linked approved budget and create immutable financial audit entries. |
-| Finance | Financial Reports | Implemented | Monthly, semester, custom, and event reports combine income statement, categories, ledger rows, latest OLS output, budget advice, and financial audit-log summary. Export is available as Excel-compatible `.xls` and browser Print/Save as PDF. |
+| Finance | Financial Reports | Implemented | Admins generate monthly, semester, custom-date, and event reports containing income statements, categories, ledger rows, latest OLS output, budget advice, and financial audit-log summaries. Department Heads review submitted reports before SAO gives the final decision. Export is available as Excel-compatible `.xls` and browser Print/Save as PDF. |
 | Finance | Digital Receipts | Implemented | Every new transaction automatically receives a unique receipt reference and scoped receipt number. Existing transactions were backfilled. Personal receipts remain available in the UI. |
 | Finance | Budget Allocation Manager | Implemented | Budgets can be linked to an event, approved, monitored dynamically, and evaluated for recommended allocation and overspending risk. |
 | Finance | Transaction History | Implemented | Complete tenant-scoped ledger with type, event, budget, date filters, search, pagination, and exports. |
@@ -58,10 +59,11 @@ Audit date: August 28, 2026 (supersedes the August 23, 2026 pass; re-verified ag
 
 1. In the sidebar, click **Announcements**.
 2. Click **Create**.
-3. Enter a title, audience, category, and details.
-4. Click the AI draft button.
-5. Confirm a polished announcement body appears.
-6. Save it and confirm the approval/publishing rules still apply.
+3. Enter a title, audience, category, details, and any optional AI drafting instructions.
+4. Confirm the form shows today's remaining generation allowance, then click the AI draft button.
+5. Confirm a polished announcement body appears and the remaining allowance decreases.
+6. Add an image, save the announcement, and confirm the approval/publishing rules still apply.
+7. Sign in as a targeted student and confirm the image appears with the announcement in the feed.
 
 ### 3. Verify event planning and workflow automation
 
@@ -130,7 +132,7 @@ Audit date: August 28, 2026 (supersedes the August 23, 2026 pass; re-verified ag
 
 ### 8. Verify attendance and notifications
 
-1. Open **Events → Event Operations** as Admin/Officer.
+1. Open **Events → Check-In** as Admin/Officer.
 2. Select an approved or ongoing event and record manual attendance.
 3. Confirm counts and statuses update and duplicate check-in is blocked.
 4. Open the notification bell and confirm event approval updates appear.

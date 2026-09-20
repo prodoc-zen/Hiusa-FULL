@@ -22,6 +22,9 @@ export const createAnnouncement = (data) =>
 export const generateAnnouncementDraft = (data) =>
   api.post('/announcements/generate-draft', data);
 
+export const getAnnouncementGenerationQuota = () =>
+  api.get('/announcements/generation-quota');
+
 export const updateAnnouncement = (id, data) => {
   if (data.imageFile || data.remove_image) {
     return api.post(`/announcements/${id}`, toAnnouncementFormData(data, 'PUT'));

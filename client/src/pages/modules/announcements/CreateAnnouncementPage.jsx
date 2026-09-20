@@ -1,6 +1,6 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Bot, CheckCircle, ImagePlus, Megaphone, Send } from 'lucide-react';
-import { createAnnouncement, generateAnnouncementDraft } from '../../../services/announcementService';
+import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
 import { useNavigate } from 'react-router-dom';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 
@@ -47,7 +47,10 @@ export default function CreateAnnouncementPage() {
   const [targetRole, setTargetRole] = useState('all');
   const [category, setCategory] = useState('general');
   const [body, setBody] = useState('');
+  const [aiInstructions, setAiInstructions] = useState('');
   const [aiOutputId, setAiOutputId] = useState(null);
+  const [generationQuota, setGenerationQuota] = useState({ limit: 20, used: 0, remaining: 20 });
+  const [quotaLoading, setQuotaLoading] = useState(true);
   const [imageFile, setImageFile] = useState(null);
   const [isPinned, setIsPinned] = useState(false);
   const [isImportant, setIsImportant] = useState(false);
@@ -57,6 +60,15 @@ export default function CreateAnnouncementPage() {
   const [posted, setPosted] = useState(false);
   const [lastPublishState, setLastPublishState] = useState(true);
   const [confirmState, setConfirmState] = useState({ open: false, isPublished: true });
+
+  useEffect(() => {
+    let cancelled = false;
+    getAnnouncementGenerationQuota()
+      .then((response) => { if (!cancelled) setGenerationQuota(response.data); })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setQuotaLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
 
   async function handleSubmit(isPublished) {
     if (!title.trim() || !body.trim()) return;
@@ -86,11 +98,13 @@ export default function CreateAnnouncementPage() {
         title,
         target_role: targetRole,
         category,
-        details: body,
+        details: aiInstructions,
       });
       setBody(res.data?.output_text || '');
       setAiOutputId(res.data?.ai_output_id || null);
+      if (res.data?.quota) setGenerationQuota(res.data.quota);
     } catch (err) {
+      if (err.response?.data?.quota) setGenerationQuota(err.response.data.quota);
       setError(err.response?.data?.message ?? 'Failed to generate announcement draft.');
     } finally {
       setGenerating(false);
@@ -111,7 +125,7 @@ export default function CreateAnnouncementPage() {
         </p>
         <div className="flex flex-col gap-2">
           <button
-            onClick={() => { setTitle(''); setBody(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
+            onClick={() => { setTitle(''); setBody(''); setAiInstructions(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
             className="rounded-lg bg-[#0878B7] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
           >
             Create Another
@@ -157,6 +171,13 @@ export default function CreateAnnouncementPage() {
           </div>
 
           <div className="mt-5">
+            <div className="mb-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div><label htmlFor="announcement-ai-instructions" className="block text-[13px] font-semibold text-[#0F172A]">Instructions for AI draft <span className="font-medium text-slate-500">(optional)</span></label><p className="mt-0.5 text-xs leading-5 text-slate-500">Add known dates, venue, tone, required action, or facts the draft must include. This stays separate from the editable announcement.</p></div>
+                <p className="shrink-0 text-xs font-bold text-[#0878B7]">{quotaLoading ? 'Checking daily limit…' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}</p>
+              </div>
+              <textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Example: Formal tone. Assembly is on September 30 at 2:00 PM. Ask students to bring their ID." className="mt-3 w-full resize-y rounded-lg border border-[#DDE7EF] bg-white p-3 text-sm leading-6 text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+            </div>
             <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <label htmlFor="announcement-content" className="block text-[13px] font-semibold text-[#0F172A]">Content <span className="text-red-500">*</span></label>
@@ -165,11 +186,11 @@ export default function CreateAnnouncementPage() {
               <button
                 type="button"
                 onClick={handleGenerateDraft}
-                disabled={generating || !title.trim()}
+                disabled={generating || !title.trim() || generationQuota.remaining < 1}
                 className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-3 text-xs font-bold text-[#0F2F62] transition hover:bg-[#E6F6FD] disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
               >
                 <Bot size={15} />
-                {generating ? 'Generating draft...' : 'Generate Draft'}
+                {generating ? 'Generating draft...' : generationQuota.remaining < 1 ? 'Daily limit reached' : 'Generate Draft'}
               </button>
             </div>
             <textarea

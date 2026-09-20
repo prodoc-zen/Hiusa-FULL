@@ -1,6 +1,6 @@
 # Manage Budget Allocation and Monitoring
 
-**Users:** Super Admin, Admin, Department Head, SBO Officer
+**Users:** Admin; Super Admin for approval decisions
 
 **Manage Budget Allocation and Monitoring**
 |-- <<extend>> Create Budget Allocation [Admin Only]
@@ -16,7 +16,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** Admin, Department Head, and SBO Officer can monitor budgets. Only Admin can create or edit proposals; Super Admin performs final approval through its financial approval queue.
+- **Role Access:** Admin can monitor, create, and edit budget proposals. Super Admin performs final approval through its financial approval queue; other organization roles cannot access budget records.
 - **Create Budget Allocation:** the Admin-only budget form captures title, amount, warning threshold, and optional linked event. Admin event creation can also atomically create an event-linked proposal from the same validated budget fields.
 - **Validate Budget Details:** server validation enforces non-negative amounts and organization-scoped event links.
 - **Submit Request for Approval:** every budget proposal requires Super Admin review. The requester cannot approve their own request.

@@ -144,7 +144,7 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.getByText('The system will check for the best available officer when you save this task.')).toBeInTheDocument();
   });
 
-  it('presents event operations as a live door-management workspace', async () => {
+  it('presents check-in as a live door-management workspace', async () => {
     const event = { id: 21, title: 'Foundation Day', status: 'ongoing', start_time: '2026-10-12T08:00:00Z', end_time: '2026-10-12T17:00:00Z', location: 'University Gym', planning_details: { expected_participants: 200 } };
     const attendance = {
       event,
@@ -155,9 +155,9 @@ describe('EventsPage approval-request launch', () => {
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
     eventMocks.getAttendance.mockResolvedValue({ data: attendance });
 
-    render(<MemoryRouter initialEntries={['/dashboard/events/event-operations']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
 
-    expect(await screen.findByRole('heading', { name: 'Event Operations' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Event Check-In' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Foundation Day' }));
 
     expect(await screen.findByText('Door controls')).toBeInTheDocument();
@@ -198,7 +198,7 @@ describe('EventsPage approval-request launch', () => {
     } });
     fingerprintMocks.confirmFingerprintAttendance.mockResolvedValue({ data: { user: student, action: 'checked_in', message: 'Ana Reyes was identified and checked in.' } });
 
-    render(<MemoryRouter initialEntries={['/dashboard/events/event-operations']}><EventsPage initialTab="attendance" /></MemoryRouter>);
+    render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for General Assembly' }));
     await screen.findByText('Door controls');
     await screen.findByRole('option', { name: 'BSIT' });

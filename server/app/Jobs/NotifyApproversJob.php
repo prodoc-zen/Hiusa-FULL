@@ -5,6 +5,7 @@ namespace App\Jobs;
 use App\Models\ApprovalRequest;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\ApprovalEntityLabel;
 use Illuminate\Bus\Queueable;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
@@ -26,8 +27,9 @@ class NotifyApproversJob implements ShouldQueue
         $this->afterCommit();
     }
 
-    public function handle(): void
+    public function handle(ApprovalEntityLabel $labels): void
     {
+        $entityLabel = $labels->for($this->approval);
         $approvers = User::query()
             ->where('role', $this->approval->required_role)
             ->where('account_status', 'active')
@@ -56,7 +58,7 @@ class NotifyApproversJob implements ShouldQueue
                 'reference_id' => $this->approval->id,
             ], [
                 'title' => $this->approval->required_role === 'SUPER_ADMIN' ? 'New SAO Approval Request' : 'Approval Request Submitted',
-                'message' => Str::headline($this->approval->entity_type).' request #'.$this->approval->entity_id.' requires your review.',
+                'message' => Str::headline($this->approval->entity_type).' "'.$entityLabel.'" requires your review.',
                 'notification_type' => 'general',
                 'is_read' => false,
                 'sent_at' => now(),

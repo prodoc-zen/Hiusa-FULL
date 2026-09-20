@@ -15,7 +15,7 @@ describe('AnnouncementsFeedPage', () => {
   it('uses a full-width featured feed and a responsive updates grid', async () => {
     mocks.getNotifications.mockResolvedValue({ data: { notifications: [] } });
     mocks.getAnnouncements.mockResolvedValue({ data: [
-      { id: 1, title: 'General Assembly', body: 'All members are invited.', category: 'general', target_role: 'all', is_published: true, created_at: '2026-09-01T08:00:00Z' },
+      { id: 1, title: 'General Assembly', body: 'All members are invited.', image_url: '/storage/announcements/assembly.png', category: 'general', target_role: 'all', is_published: true, created_at: '2026-09-01T08:00:00Z' },
       { id: 2, title: 'Election Schedule', body: 'Voting opens next week.', category: 'election', target_role: 'STUDENT', is_published: true, created_at: '2026-08-30T08:00:00Z' },
     ] });
 
@@ -24,5 +24,6 @@ describe('AnnouncementsFeedPage', () => {
     expect(await screen.findByRole('heading', { name: 'General Assembly' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Election Schedule' })).toBeInTheDocument();
     expect(screen.getByText('Latest announcement')).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'General Assembly' })).toHaveAttribute('src', expect.stringContaining('/storage/announcements/assembly.png'));
   });
 });

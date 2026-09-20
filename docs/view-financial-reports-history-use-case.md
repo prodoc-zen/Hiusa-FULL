@@ -1,6 +1,6 @@
 # View Financial Reports and Transaction History
 
-**Users:** Admin, Department Head, SBO Officer, SAO / Super Admin
+**Users:** Admin; SAO / Super Admin for final review
 
 **View Financial Reports and Transaction History**
 |-- <<include>> Load Financial Records
@@ -31,7 +31,7 @@
 
 ## Implementation Coverage
 
-- **Role Access:** Admin, Department Head, and SBO Officer can read their organization's records. SAO / Super Admin has a dedicated cross-organization financial workspace. Report generation and submission are Admin-only.
+- **Role Access:** Admin can read the organization's financial workspace and generate or submit reports. SAO / Super Admin has a dedicated cross-organization final-review workspace. Department Heads review routed report requests through the approval center without receiving general finance access; SBO Officers cannot access organization financial records.
 - **Load Financial Records:** transaction and summary endpoints load organization-scoped records. SAO can view all organizations or filter to one organization.
 - **Display Transaction History:** `FinancePage` renders transaction tables and summary cards.
 - **Search and Filter Transactions:** the UI and API support text search plus event, type, from-date, and to-date filters.
