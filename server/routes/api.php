@@ -4,6 +4,7 @@ use App\Http\Controllers\AcademicStructureController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
+use App\Http\Controllers\DashboardBriefingController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FinancialAccountabilityController;
@@ -44,6 +45,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::put('/user/profile', [UserController::class, 'updateProfile'])->middleware('throttle:api-write');
     Route::put('/user/password', [UserController::class, 'updatePassword'])->middleware('throttle:api-write');
     Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
+    Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
