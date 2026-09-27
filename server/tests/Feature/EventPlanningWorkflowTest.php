@@ -263,9 +263,14 @@ class EventPlanningWorkflowTest extends TestCase
         $eventApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->firstOrFail();
         $budgetApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->firstOrFail();
         $this->patchJson("/api/approval-requests/{$eventApproval->id}", ['status' => 'approved'])->assertOk();
-        $this->assertSame('SUPER_ADMIN', $budgetApproval->required_role);
-        Sanctum::actingAs($superAdmin);
+        $this->assertSame('DEPARTMENT_HEAD', $budgetApproval->required_role);
         $this->patchJson("/api/approval-requests/{$budgetApproval->id}", ['status' => 'approved'])->assertOk();
+        $this->assertDatabaseHas('budgets', ['id' => $budget->id, 'submission_status' => 'pending_sao', 'department_head_approved_by' => $departmentHead->school_id]);
+
+        $saoApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->where('required_role', 'SUPER_ADMIN')->where('status', 'pending')->firstOrFail();
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/approval-requests/{$saoApproval->id}", ['status' => 'approved'])->assertOk();
+        $this->assertDatabaseHas('budgets', ['id' => $budget->id, 'submission_status' => 'approved']);
         $event->refresh();
 
         Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode($this->workflowPayload($event))])]);

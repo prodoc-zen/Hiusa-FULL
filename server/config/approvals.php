@@ -3,7 +3,7 @@
 return [
     'routes' => [
         'announcement' => 'ADMIN',
-        'budget' => 'SUPER_ADMIN',
+        'budget' => 'DEPARTMENT_HEAD',
         'event' => 'DEPARTMENT_HEAD',
         'election' => 'DEPARTMENT_HEAD',
         'payment' => 'ADMIN',

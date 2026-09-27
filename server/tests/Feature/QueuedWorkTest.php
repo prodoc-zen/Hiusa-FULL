@@ -120,7 +120,12 @@ class QueuedWorkTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => 55,
             'requested_by' => $requester->school_id,
-            'required_role' => config('approvals.routes.budget'),
+            // Budgets only reach this second, SAO-facing stage after the
+            // Department Head approves (see ApprovalRequestController::
+            // approveBudget()) - hardcoded here since this test exercises
+            // NotifyApproversJob's cross-organization SUPER_ADMIN reach
+            // directly, independent of which entity type triggers it.
+            'required_role' => 'SUPER_ADMIN',
             'status' => 'pending',
         ]);
 

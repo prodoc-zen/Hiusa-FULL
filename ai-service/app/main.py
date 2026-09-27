@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 from pathlib import Path
 
@@ -23,6 +24,8 @@ from app.schemas import (
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
 
+logger = logging.getLogger("hiusa.ai_service")
+
 app = FastAPI(
     title="HIUSA AI Service",
     version="1.0.0",
@@ -36,19 +39,43 @@ service_key_header = APIKeyHeader(
 )
 
 
+def _auth_disabled() -> bool:
+    return os.getenv("HIUSA_AI_SERVICE_AUTH_DISABLED", "").strip().lower() in {"1", "true", "yes"}
+
+
+if _auth_disabled():
+    logger.warning(
+        "HIUSA_AI_SERVICE_AUTH_DISABLED is set - every AI service endpoint is "
+        "accepting requests with no credential check. Use this only on a "
+        "machine where 127.0.0.1 access is already fully trusted."
+    )
+
+
 def require_service_key(x_ai_service_key: str | None = Security(service_key_header)) -> None:
+    if _auth_disabled():
+        return
+
     expected = os.getenv("HIUSA_AI_SERVICE_KEY", "").strip()
-    if expected and (not x_ai_service_key or not hmac.compare_digest(x_ai_service_key, expected)):
+    if not expected:
+        raise HTTPException(status_code=401, detail="AI service key is not configured")
+    if not x_ai_service_key or not hmac.compare_digest(x_ai_service_key, expected):
         raise HTTPException(status_code=401, detail="Invalid AI service key")
 
 
 @app.get("/health")
 def health() -> dict:
+    if _auth_disabled():
+        authentication = "disabled (opt-out)"
+    elif os.getenv("HIUSA_AI_SERVICE_KEY", "").strip():
+        authentication = "api-key"
+    else:
+        authentication = "locked (no key configured)"
+
     return {
         "status": "ok",
         "service": "hiusa-ai",
         "version": app.version,
-        "authentication": "api-key" if os.getenv("HIUSA_AI_SERVICE_KEY", "").strip() else "disabled",
+        "authentication": authentication,
     }
 
 
