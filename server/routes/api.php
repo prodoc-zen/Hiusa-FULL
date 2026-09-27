@@ -24,6 +24,8 @@ use App\Http\Controllers\SystemAdministrationController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VenueBookingController;
+use App\Http\Controllers\VenueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -230,4 +232,15 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/compliance/submissions/{submission}/review', [ComplianceController::class, 'reviewSubmission'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/compliance/submissions/{submission}/document', [ComplianceController::class, 'downloadSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+
+    // SAO venues and bookings: SUPER_ADMIN owns the venue catalog; ADMIN and
+    // SBO_OFFICER request bookings for their own organization only. Overlap
+    // detection only ever compares against APPROVED bookings for the venue.
+    Route::get('/venues', [VenueController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::post('/venues', [VenueController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/venues/{venue}', [VenueController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/venues/{venue}', [VenueController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/venue-bookings', [VenueBookingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::post('/venue-bookings', [VenueBookingController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::patch('/venue-bookings/{venueBooking}/review', [VenueBookingController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
 });
