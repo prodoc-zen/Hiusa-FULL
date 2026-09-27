@@ -23,7 +23,9 @@ const ROLE_LABELS = {
   ADMIN: 'Admin',
   DEPARTMENT_HEAD: 'Department Head',
 };
-const YEAR_LEVELS = ['1st Year', '2nd Year', '3rd Year', '4th Year'];
+const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
+const yearNumber = (label) => Number(String(label).match(/^(\d+)/)?.[1]);
+const programYears = (program) => Array.from({ length: Number(program?.duration_years) || 4 }, (_, index) => yearLabel(index + 1));
 
 const emptyCreateForm = {
   school_id: '',
@@ -397,7 +399,7 @@ export default function AdminUsersPage() {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
   } catch {}
-  const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : actorRole === 'SUPER_ADMIN' ? accountRoles : accountRoles.filter((role) => role !== 'ADMIN');
+  const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles;
   const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
@@ -708,7 +710,7 @@ export default function AdminUsersPage() {
           className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500"
         >
           <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
-          {sboPositions.filter((position) => position.is_active && position.role === form.role).map((position) => (
+          {sboPositions.filter((position) => position.is_active && position.role === form.role && !/^adviser$/i.test(position.title.trim())).map((position) => (
             <option key={position.id} value={position.title}>{position.title}</option>
           ))}
         </select>
@@ -718,10 +720,10 @@ export default function AdminUsersPage() {
         <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
       </Field>
       <Field label="Year Level">
-        <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a year level</option>{YEAR_LEVELS.map((year) => <option key={year}>{year}</option>)}</select>
+        <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</select>
       </Field>
       <Field label="Major / Specialization"><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
-      <Field label="Section"><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === YEAR_LEVELS.indexOf(form.year_level) + 1).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
+      <Field label="Section"><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
       {mode === 'create' && (
         <>
           <Field label="Password">
@@ -799,8 +801,8 @@ export default function AdminUsersPage() {
           </select>
           <select aria-label="Filter by department" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All departments</option>{academicStructure.department && <option value={academicStructure.department}>{academicStructure.department}</option>}</select>
           <select aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
-          <select aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{YEAR_LEVELS.map((year) => <option key={year}>{year}</option>)}</select>
-          <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === YEAR_LEVELS.indexOf(yearLevelFilter) + 1).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
+          <select aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</select>
+          <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
           <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </TableFilterBar>

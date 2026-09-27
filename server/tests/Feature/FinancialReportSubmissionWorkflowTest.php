@@ -2,10 +2,8 @@
 
 namespace Tests\Feature;
 
-use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\FinancialReport;
-use App\Models\FinancialReportDeadline;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Transaction;
@@ -20,31 +18,6 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sao_deadline_publishes_an_announcement_and_notifies_each_active_admin(): void
-    {
-        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
-        $firstOrganization = Organization::factory()->create();
-        $secondOrganization = Organization::factory()->create();
-        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        $firstAdmin = User::factory()->admin()->create(['organization_id' => $firstOrganization->id]);
-        $secondAdmin = User::factory()->admin()->create(['organization_id' => $secondOrganization->id]);
-        User::factory()->admin()->create(['organization_id' => $secondOrganization->id, 'account_status' => 'disabled']);
-
-        Sanctum::actingAs($superAdmin);
-        $response = $this->postJson('/api/financial-reports/deadline', [
-            'deadline_at' => now()->addWeek()->toISOString(),
-            'instructions' => 'Attach receipts and signed supporting documents.',
-        ]);
-
-        $response->assertCreated()->assertJsonPath('instructions', 'Attach receipts and signed supporting documents.');
-        $announcement = Announcement::where('announcement_source', 'SAO')->firstOrFail();
-        $this->assertTrue($announcement->is_published);
-        $this->assertSame(['ADMIN'], $announcement->target_roles);
-        $this->assertDatabaseHas('announcement_recipients', ['announcement_id' => $announcement->id, 'user_id' => $firstAdmin->school_id]);
-        $this->assertDatabaseHas('announcement_recipients', ['announcement_id' => $announcement->id, 'user_id' => $secondAdmin->school_id]);
-        $this->assertSame(2, Notification::where('reference_type', 'financial_report_deadline')->count());
-    }
-
     public function test_financial_report_moves_from_admin_to_department_head_then_sao(): void
     {
         Storage::fake('public');
@@ -53,7 +26,6 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
         $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        $deadline = FinancialReportDeadline::create(['deadline_at' => now()->addWeek(), 'set_by' => $superAdmin->school_id]);
         $report = FinancialReport::create([
             'organization_id' => $organization->id,
             'report_type' => 'monthly',
@@ -73,7 +45,7 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
 
         $departmentApproval = ApprovalRequest::where('entity_type', 'financial_report')
             ->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
-        $this->assertSame($deadline->id, $report->fresh()->deadline_id);
+        $this->assertNull($report->fresh()->deadline_id);
         $this->assertCount(1, $report->fresh()->supporting_documents);
         $this->assertDatabaseHas('notifications', [
             'user_id' => $departmentHead->school_id,
@@ -124,11 +96,8 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
     public function test_admin_can_generate_and_submit_a_custom_date_range_report(): void
     {
         $organization = Organization::factory()->create();
-        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
-        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
-        FinancialReportDeadline::create(['deadline_at' => now()->addWeek(), 'set_by' => $superAdmin->school_id]);
         $included = $this->createTransaction($organization, $admin, 'Inside custom period');
         $included->update(['transaction_date' => '2026-08-15']);
         $excluded = $this->createTransaction($organization, $admin, 'Outside custom period');
@@ -160,7 +129,94 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
         ]);
     }
 
-    public function test_sao_can_filter_cross_organization_transactions_and_reports(): void
+    public function test_income_statement_and_financial_report_are_saved_as_separate_documents(): void
+    {
+        Storage::fake('local');
+        $organization = Organization::factory()->create(['name' => 'Computing Students Society', 'acronym' => 'CSS']);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $income = $this->createTransaction($organization, $admin, 'Membership collection');
+        $income->update(['transaction_date' => '2026-09-05']);
+        Transaction::create([
+            'organization_id' => $organization->id,
+            'recorded_by' => $admin->school_id,
+            'type' => 'expense',
+            'category' => 'Office Supplies',
+            'amount' => 250,
+            'description' => 'Printer paper',
+            'transaction_date' => '2026-09-06',
+        ]);
+
+        Sanctum::actingAs($admin);
+        $incomeStatement = $this->post('/api/financial-reports/generate', [
+            'document_type' => 'income_statement',
+            'report_type' => 'custom',
+            'period_start' => '2026-09-01',
+            'period_end' => '2026-09-30',
+            'letter_subject' => 'Submission of September Income Statement',
+            'letter_body' => 'Please review the attached September income statement.',
+            'letterhead' => UploadedFile::fake()->image('official-letterhead.png', 1200, 180),
+            'signatories' => $this->signatories(),
+        ])->assertCreated()
+            ->assertJsonPath('report.document_type', 'income_statement')
+            ->assertJsonPath('report.has_letterhead', true)
+            ->assertJsonMissingPath('report.letterhead_path')
+            ->assertJsonPath('totals.balance', 750);
+
+        $financialReport = $this->postJson('/api/financial-reports/generate', [
+            'document_type' => 'financial_report',
+            'report_type' => 'custom',
+            'period_start' => '2026-09-01',
+            'period_end' => '2026-09-30',
+            'signatories' => $this->signatories(),
+        ])->assertCreated()
+            ->assertJsonPath('report.document_type', 'financial_report');
+
+        $incomeModel = FinancialReport::findOrFail($incomeStatement->json('report.id'));
+        $financialModel = FinancialReport::findOrFail($financialReport->json('report.id'));
+        Storage::disk('local')->assertExists($incomeModel->letterhead_path);
+        $this->assertStringContainsString('Income Statement', $incomeModel->title);
+        $this->assertStringContainsString('Financial Report', $financialModel->title);
+        $this->assertNotSame($incomeModel->id, $financialModel->id);
+
+        $incomePdf = $this->get('/api/financial-reports/'.$incomeModel->id.'/pdf')->assertOk();
+        $financialPdf = $this->get('/api/financial-reports/'.$financialModel->id.'/pdf')->assertOk();
+        $incomePdf->assertHeader('content-type', 'application/pdf');
+        $financialPdf->assertHeader('content-type', 'application/pdf');
+        $this->assertStringStartsWith('%PDF-', $incomePdf->getContent());
+        $this->assertStringStartsWith('%PDF-', $financialPdf->getContent());
+        $this->assertNotSame($incomePdf->getContent(), $financialPdf->getContent());
+    }
+
+    public function test_pdf_download_is_organization_scoped_and_letterhead_rejects_non_images(): void
+    {
+        $organization = Organization::factory()->create();
+        $otherOrganization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $otherAdmin = User::factory()->admin()->create(['organization_id' => $otherOrganization->id]);
+        $report = FinancialReport::create([
+            'organization_id' => $organization->id,
+            'document_type' => 'financial_report',
+            'report_type' => 'monthly',
+            'title' => 'Monthly Financial Report',
+            'source_transaction_ids' => [],
+            'signatories' => $this->signatories(),
+            'generated_by' => $admin->school_id,
+            'generated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($otherAdmin);
+        $this->get('/api/financial-reports/'.$report->id.'/pdf')->assertNotFound();
+
+        Sanctum::actingAs($admin);
+        $this->withHeader('Accept', 'application/json')->post('/api/financial-reports/generate', [
+            'document_type' => 'income_statement',
+            'report_type' => 'monthly',
+            'letterhead' => UploadedFile::fake()->create('letterhead.pdf', 20, 'application/pdf'),
+            'signatories' => $this->signatories(),
+        ])->assertUnprocessable()->assertJsonValidationErrors('letterhead');
+    }
+
+    public function test_sao_receives_reviewed_reports_without_ledger_access(): void
     {
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $firstOrganization = Organization::factory()->create();
@@ -170,13 +226,45 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
         $secondAdmin = User::factory()->admin()->create(['organization_id' => $secondOrganization->id]);
         $this->createTransaction($firstOrganization, $firstAdmin, 'First organization income');
         $this->createTransaction($secondOrganization, $secondAdmin, 'Second organization income');
-        FinancialReport::create(['organization_id' => $firstOrganization->id, 'report_type' => 'monthly', 'title' => 'First report', 'source_transaction_ids' => [], 'signatories' => $this->signatories(), 'generated_by' => $firstAdmin->school_id, 'generated_at' => now()]);
+        FinancialReport::create([
+            'organization_id' => $firstOrganization->id,
+            'report_type' => 'monthly',
+            'title' => 'First report',
+            'source_transaction_ids' => [],
+            'signatories' => $this->signatories(),
+            'submission_status' => 'pending_sao',
+            'generated_by' => $firstAdmin->school_id,
+            'generated_at' => now(),
+            'submitted_at' => now()->subHour(),
+            'department_head_approved_by' => User::factory()->departmentHead()->create(['organization_id' => $firstOrganization->id])->school_id,
+            'department_head_approved_at' => now(),
+        ]);
 
         Sanctum::actingAs($superAdmin);
         $this->getJson('/api/transactions?organization_id='.$firstOrganization->id)
-            ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.organization_id', $firstOrganization->id);
+            ->assertForbidden();
         $this->getJson('/api/financial-reports?organization_id='.$firstOrganization->id)
             ->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.organization.id', $firstOrganization->id);
+    }
+
+    public function test_department_head_receives_only_submitted_reports_from_their_organization(): void
+    {
+        $organization = Organization::factory()->create();
+        $otherOrganization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $otherAdmin = User::factory()->admin()->create(['organization_id' => $otherOrganization->id]);
+        $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+        $draft = FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Draft report', 'source_transaction_ids' => [], 'signatories' => $this->signatories(), 'generated_by' => $admin->school_id, 'generated_at' => now()]);
+        $submitted = FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Submitted report', 'source_transaction_ids' => [], 'signatories' => $this->signatories(), 'submission_status' => 'pending_department_head', 'generated_by' => $admin->school_id, 'generated_at' => now(), 'submitted_at' => now()]);
+        $otherReport = FinancialReport::create(['organization_id' => $otherOrganization->id, 'report_type' => 'monthly', 'title' => 'Other report', 'source_transaction_ids' => [], 'signatories' => $this->signatories(), 'submission_status' => 'pending_department_head', 'generated_by' => $otherAdmin->school_id, 'generated_at' => now(), 'submitted_at' => now()]);
+
+        Sanctum::actingAs($departmentHead);
+        $this->getJson('/api/financial-reports')->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $submitted->id);
+        $this->getJson('/api/financial-reports/'.$draft->id)->assertNotFound();
+        $this->getJson('/api/financial-reports/'.$otherReport->id)->assertNotFound();
+        $this->get('/api/financial-reports/'.$submitted->id.'/pdf')->assertOk()->assertHeader('content-type', 'application/pdf');
     }
 
     private function signatories(): array

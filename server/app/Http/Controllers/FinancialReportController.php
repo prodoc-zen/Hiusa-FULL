@@ -9,18 +9,22 @@ use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
-use App\Models\FinancialReportDeadline;
 use App\Models\Transaction;
+use App\Services\FinancialReportPdfService;
 use App\Services\GroqResponsesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class FinancialReportController extends Controller
 {
-    public function __construct(private readonly GroqResponsesService $groq) {}
+    public function __construct(
+        private readonly GroqResponsesService $groq,
+        private readonly FinancialReportPdfService $pdf,
+    ) {}
 
     public function index(Request $request)
     {
@@ -29,6 +33,7 @@ class FinancialReportController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
             'status' => ['nullable', 'in:draft,pending_department_head,pending_sao,approved,rejected'],
+            'document_type' => ['nullable', 'in:financial_report,income_statement'],
             'search' => ['nullable', 'string', 'max:120'],
         ]);
 
@@ -42,11 +47,16 @@ class FinancialReportController extends Controller
         ]);
         if ($request->user()->role === 'SUPER_ADMIN') {
             $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
+            $query->whereNotNull('department_head_approved_at');
+        } elseif ($request->user()->role === 'DEPARTMENT_HEAD') {
+            $query->where('organization_id', $request->user()->organization_id)
+                ->whereNotNull('submitted_at');
         } else {
             $query->where('organization_id', $request->user()->organization_id);
         }
         $query
             ->when($filters['status'] ?? null, fn ($builder, $status) => $builder->where('submission_status', $status))
+            ->when($filters['document_type'] ?? null, fn ($builder, $documentType) => $builder->where('document_type', $documentType))
             ->when($filters['search'] ?? null, fn ($builder, $search) => $builder->where('title', 'like', '%'.trim($search).'%'));
 
         return response()->json($query->orderByDesc('generated_at')->orderByDesc('id')->paginate($filters['per_page'] ?? 20));
@@ -54,7 +64,7 @@ class FinancialReportController extends Controller
 
     public function show(Request $request, FinancialReport $financialReport)
     {
-        if ($request->user()->role !== 'SUPER_ADMIN' && $financialReport->organization_id !== $request->user()->organization_id) {
+        if (! $this->canAccessReport($request, $financialReport)) {
             return response()->json(['message' => 'Financial report not found.'], 404);
         }
 
@@ -76,7 +86,19 @@ class FinancialReportController extends Controller
 
     public function generate(Request $request)
     {
+        $missingColumns = collect(['document_type', 'letterhead_path', 'letter_details'])
+            ->reject(fn (string $column) => Schema::hasColumn('financial_reports', $column))
+            ->values();
+
+        if ($missingColumns->isNotEmpty()) {
+            return response()->json([
+                'error_code' => 'FINANCIAL_REPORT_SCHEMA_OUTDATED',
+                'message' => 'Financial report generation is unavailable because this server has not applied the latest database migration. Run "php artisan migrate" and try again.',
+            ], 503);
+        }
+
         $data = $request->validate([
+            'document_type' => ['nullable', 'in:financial_report,income_statement'],
             'report_type' => ['required', 'in:monthly,semester,custom,event'],
             'period_start' => ['nullable', 'date', 'required_if:report_type,custom'],
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start', 'required_if:report_type,custom'],
@@ -86,7 +108,14 @@ class FinancialReportController extends Controller
             'signatories.president' => ['required', 'string', 'max:255'],
             'signatories.adviser' => ['required', 'string', 'max:255'],
             'signatories.sbo_adviser' => ['required', 'string', 'max:255'],
+            'letterhead' => ['nullable', 'image', 'mimes:jpg,jpeg,png', 'max:5120'],
+            'letter_date' => ['nullable', 'date'],
+            'letter_subject' => ['nullable', 'string', 'max:255'],
+            'letter_recipient' => ['nullable', 'string', 'max:255'],
+            'letter_body' => ['nullable', 'string', 'max:2000'],
+            'letter_closing' => ['nullable', 'string', 'max:255'],
         ]);
+        $data['document_type'] ??= 'financial_report';
 
         $organizationId = $request->user()->organization_id;
         $event = null;
@@ -110,7 +139,9 @@ class FinancialReportController extends Controller
         $income = (float) $transactions->where('type', 'income')->sum('amount');
         $expense = (float) $transactions->where('type', 'expense')->sum('amount');
         $balance = $income - $expense;
-        $title = $this->title($data['report_type'], $start, $end, $event);
+        $openingBalance = $event ? 0.0 : $this->openingBalance($organizationId, $start);
+        $closingBalance = $openingBalance + $balance;
+        $title = $this->title($data['document_type'], $data['report_type'], $start, $end, $event);
         $byCategory = $transactions
             ->groupBy(fn (Transaction $transaction) => $transaction->category.'|'.$transaction->type)
             ->map(fn ($rows) => [
@@ -138,11 +169,14 @@ class FinancialReportController extends Controller
             ->get(['id', 'user_id', 'module', 'action', 'record_type', 'record_id', 'created_at']);
         $reportContext = [
             'report_title' => $title,
+            'document_type' => $data['document_type'],
             'income_statement' => [
                 'record_count' => $transactions->count(),
                 'total_income' => round($income, 2),
                 'total_expense' => round($expense, 2),
                 'net_balance' => round($balance, 2),
+                'opening_balance' => round($openingBalance, 2),
+                'closing_balance' => round($closingBalance, 2),
             ],
             'expense_and_income_by_category' => $byCategory->all(),
             'latest_ols_forecast' => $latestForecast?->only([
@@ -157,82 +191,133 @@ class FinancialReportController extends Controller
         ];
         $summary = $this->summary($reportContext);
 
-        $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext) {
-            $aiOutput = AiOutput::create([
-                'organization_id' => $organizationId,
-                'feature_type' => 'FINANCIAL_SUMMARY',
-                'reference_type' => FinancialReport::class,
-                'reference_id' => null,
-                'prompt_text' => json_encode($reportContext, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
-                'output_text' => $summary['ai_generated'] ? $summary['text'] : '',
-                'model_name' => $summary['model'],
-                'context_version' => 'financial-report-v2',
-                'structured_input' => $reportContext,
-                'structured_output' => ['deterministic_summary' => $summary['text']],
-                'status' => $summary['ai_generated'] ? 'completed' : 'failed',
-                'error_message' => $summary['ai_generated'] ? null : 'Groq summary was unavailable; the calculated financial report was still saved.',
-                'decision_status' => $summary['ai_generated'] ? 'accepted' : 'rejected',
-                'decided_by' => $summary['ai_generated'] ? $request->user()->school_id : null,
-                'decided_at' => $summary['ai_generated'] ? now() : null,
-                'requested_by' => $request->user()->school_id,
-                'created_at' => now(),
-            ]);
+        $letterheadPath = $request->hasFile('letterhead')
+            ? $request->file('letterhead')->store('financial-report-letterheads/'.$organizationId, 'local')
+            : null;
+        $letterDetails = [
+            'date' => $data['letter_date'] ?? now()->toDateString(),
+            'subject' => trim((string) ($data['letter_subject'] ?? '')),
+            'recipient' => trim((string) ($data['letter_recipient'] ?? '')),
+            'body' => trim((string) ($data['letter_body'] ?? '')),
+            'closing' => trim((string) ($data['letter_closing'] ?? '')),
+            'letterhead_name' => $request->file('letterhead')?->getClientOriginalName(),
+        ];
 
-            $report = FinancialReport::create([
-                'organization_id' => $organizationId,
-                'event_id' => $event?->id,
-                'report_type' => $data['report_type'],
-                'title' => $title,
-                'period_start' => $start,
-                'period_end' => $end,
-                'summary_text' => $summary['text'],
-                'signatories' => $data['signatories'],
-                'source_transaction_ids' => $transactions->pluck('id')->all(),
-                'submission_status' => 'draft',
-                'ai_output_id' => $aiOutput->id,
-                'generated_by' => $request->user()->school_id,
-                'generated_at' => now(),
-            ]);
+        try {
+            $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $openingBalance, $closingBalance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
+                $aiOutput = AiOutput::create([
+                    'organization_id' => $organizationId,
+                    'feature_type' => 'FINANCIAL_SUMMARY',
+                    'reference_type' => FinancialReport::class,
+                    'reference_id' => null,
+                    'prompt_text' => json_encode($reportContext, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
+                    'output_text' => $summary['ai_generated'] ? $summary['text'] : '',
+                    'model_name' => $summary['model'],
+                    'context_version' => 'financial-report-v2',
+                    'structured_input' => $reportContext,
+                    'structured_output' => ['deterministic_summary' => $summary['text']],
+                    'status' => $summary['ai_generated'] ? 'completed' : 'failed',
+                    'error_message' => $summary['ai_generated'] ? null : 'Groq summary was unavailable; the calculated financial report was still saved.',
+                    'decision_status' => $summary['ai_generated'] ? 'accepted' : 'rejected',
+                    'decided_by' => $summary['ai_generated'] ? $request->user()->school_id : null,
+                    'decided_at' => $summary['ai_generated'] ? now() : null,
+                    'requested_by' => $request->user()->school_id,
+                    'created_at' => now(),
+                ]);
 
-            $aiOutput->update(['reference_id' => $report->id]);
-
-            AuditLog::create([
-                'organization_id' => $organizationId,
-                'user_id' => $request->user()->school_id,
-                'module' => 'financial_reports',
-                'action' => 'generated',
-                'record_type' => FinancialReport::class,
-                'record_id' => $report->id,
-                'new_values' => [
-                    'title' => $title,
+                $report = FinancialReport::create([
+                    'organization_id' => $organizationId,
+                    'event_id' => $event?->id,
                     'report_type' => $data['report_type'],
+                    'document_type' => $data['document_type'],
+                    'title' => $title,
                     'period_start' => $start,
                     'period_end' => $end,
-                    'transaction_count' => $transactions->count(),
-                    'audit_entry_count' => $auditLogs->count(),
-                    'forecast_id' => $latestForecast?->id,
-                ],
-                'ip_address' => $request->ip(),
-                'created_at' => now(),
-            ]);
+                    'summary_text' => $summary['text'],
+                    'letterhead_path' => $letterheadPath,
+                    'letter_details' => $letterDetails,
+                    'signatories' => $data['signatories'],
+                    'source_transaction_ids' => $transactions->pluck('id')->all(),
+                    'submission_status' => 'draft',
+                    'ai_output_id' => $aiOutput->id,
+                    'generated_by' => $request->user()->school_id,
+                    'generated_at' => now(),
+                ]);
 
-            return [
-                'report' => $report->load(['event:id,title', 'generator:school_id,first_name,last_name']),
-                'totals' => [
-                    'income' => round($income, 2),
-                    'expense' => round($expense, 2),
-                    'balance' => round($balance, 2),
-                ],
-                'by_category' => $byCategory,
-                'latest_ols_forecast' => $latestForecast,
-                'budget_advisories' => $budgets,
-                'audit_logs' => $auditLogs,
-                'transactions' => $transactions,
-                'ai_summary_status' => $summary['ai_generated'] ? 'generated' : 'unavailable',
-            ];
-        });
+                $aiOutput->update(['reference_id' => $report->id]);
+
+                AuditLog::create([
+                    'organization_id' => $organizationId,
+                    'user_id' => $request->user()->school_id,
+                    'module' => 'financial_reports',
+                    'action' => 'generated',
+                    'record_type' => FinancialReport::class,
+                    'record_id' => $report->id,
+                    'new_values' => [
+                        'title' => $title,
+                        'report_type' => $data['report_type'],
+                        'document_type' => $data['document_type'],
+                        'period_start' => $start,
+                        'period_end' => $end,
+                        'transaction_count' => $transactions->count(),
+                        'audit_entry_count' => $auditLogs->count(),
+                        'forecast_id' => $latestForecast?->id,
+                    ],
+                    'ip_address' => $request->ip(),
+                    'created_at' => now(),
+                ]);
+
+                return [
+                    'report' => $report->load(['event:id,title', 'generator:school_id,first_name,last_name']),
+                    'totals' => [
+                        'income' => round($income, 2),
+                        'expense' => round($expense, 2),
+                        'balance' => round($balance, 2),
+                        'opening_balance' => round($openingBalance, 2),
+                        'closing_balance' => round($closingBalance, 2),
+                    ],
+                    'by_category' => $byCategory,
+                    'latest_ols_forecast' => $latestForecast,
+                    'budget_advisories' => $budgets,
+                    'audit_logs' => $auditLogs,
+                    'transactions' => $transactions,
+                    'ai_summary_status' => $summary['ai_generated'] ? 'generated' : 'unavailable',
+                ];
+            });
+        } catch (\Throwable $exception) {
+            if ($letterheadPath) {
+                Storage::disk('local')->delete($letterheadPath);
+            }
+            throw $exception;
+        }
 
         return response()->json($result, 201);
+    }
+
+    public function downloadPdf(Request $request, FinancialReport $financialReport)
+    {
+        if (! $this->canAccessReport($request, $financialReport)) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+
+        $financialReport->load(['organization:id,name,acronym', 'event:id,title']);
+        $transactions = Transaction::with(['event:id,title', 'budget:id,title'])
+            ->where('organization_id', $financialReport->organization_id)
+            ->whereIn('id', $financialReport->source_transaction_ids ?? [])
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
+        $openingBalance = $financialReport->event_id || ! $financialReport->period_start
+            ? 0.0
+            : $this->openingBalance($financialReport->organization_id, $financialReport->period_start->toDateString());
+        $pdf = $this->pdf->render($financialReport, $transactions, $openingBalance);
+
+        return response($pdf['content'], 200, [
+            'Content-Type' => 'application/pdf',
+            'Content-Disposition' => 'attachment; filename="'.$pdf['filename'].'"',
+            'Cache-Control' => 'private, no-store, max-age=0',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
     public function submit(Request $request, FinancialReport $financialReport)
@@ -242,14 +327,6 @@ class FinancialReportController extends Controller
         }
         if (! in_array($financialReport->submission_status, ['draft', 'rejected'], true)) {
             return response()->json(['message' => 'Only draft or rejected reports can be submitted.'], 409);
-        }
-
-        $deadline = FinancialReportDeadline::latest('id')->first();
-        if (! $deadline) {
-            return response()->json(['message' => 'SAO has not set a financial report submission deadline yet.'], 422);
-        }
-        if (now()->greaterThan($deadline->deadline_at)) {
-            return response()->json(['message' => 'The financial report submission deadline has passed.'], 422);
         }
 
         $data = $request->validate([
@@ -270,7 +347,7 @@ class FinancialReportController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $financialReport, $deadline, $documents) {
+        DB::transaction(function () use ($request, $financialReport, $documents) {
             ApprovalRequest::where('organization_id', $financialReport->organization_id)
                 ->where('entity_type', 'financial_report')
                 ->where('entity_id', $financialReport->id)
@@ -280,7 +357,6 @@ class FinancialReportController extends Controller
             $financialReport->update([
                 'supporting_documents' => $documents->values()->all(),
                 'submission_status' => 'pending_department_head',
-                'deadline_id' => $deadline->id,
                 'submitted_at' => now(),
                 'department_head_approved_by' => null,
                 'department_head_approved_at' => null,
@@ -308,13 +384,24 @@ class FinancialReportController extends Controller
                 'description' => 'Financial report submitted to the Department Head for first-stage review.',
                 'record_type' => FinancialReport::class,
                 'record_id' => $financialReport->id,
-                'new_values' => ['deadline_id' => $deadline->id, 'document_count' => $documents->count()],
+                'new_values' => ['document_count' => $documents->count()],
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
         });
 
-        return response()->json($financialReport->fresh()->load(['deadline:id,deadline_at']));
+        return response()->json($financialReport->fresh());
+    }
+
+    private function canAccessReport(Request $request, FinancialReport $report): bool
+    {
+        return match ($request->user()->role) {
+            'ADMIN' => $report->organization_id === $request->user()->organization_id,
+            'DEPARTMENT_HEAD' => $report->organization_id === $request->user()->organization_id
+                && $report->submitted_at !== null,
+            'SUPER_ADMIN' => $report->department_head_approved_at !== null,
+            default => false,
+        };
     }
 
     private function period(array $data, ?Event $event): array
@@ -327,14 +414,28 @@ class FinancialReportController extends Controller
         };
     }
 
-    private function title(string $type, string $start, string $end, ?Event $event): string
+    private function title(string $documentType, string $type, string $start, string $end, ?Event $event): string
     {
+        $label = $documentType === 'income_statement' ? 'Income Statement' : 'Financial Report';
+
         return match ($type) {
-            'monthly' => 'Monthly Financial Report - '.Carbon::parse($start)->format('F Y'),
-            'semester' => 'Semester Financial Report - '.Carbon::parse($start)->format('M Y').' to '.Carbon::parse($end)->format('M Y'),
-            'event' => 'Event Financial Report - '.$event->title,
-            default => 'Custom Financial Report - '.Carbon::parse($start)->format('M j, Y').' to '.Carbon::parse($end)->format('M j, Y'),
+            'monthly' => 'Monthly '.$label.' - '.Carbon::parse($start)->format('F Y'),
+            'semester' => 'Semester '.$label.' - '.Carbon::parse($start)->format('M Y').' to '.Carbon::parse($end)->format('M Y'),
+            'event' => 'Event '.$label.' - '.$event->title,
+            default => 'Custom '.$label.' - '.Carbon::parse($start)->format('M j, Y').' to '.Carbon::parse($end)->format('M j, Y'),
         };
+    }
+
+    private function openingBalance(int $organizationId, string $periodStart): float
+    {
+        $totals = Transaction::query()
+            ->where('organization_id', $organizationId)
+            ->whereDate('transaction_date', '<', $periodStart)
+            ->selectRaw("SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END) as income_total")
+            ->selectRaw("SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END) as expense_total")
+            ->first();
+
+        return (float) ($totals?->income_total ?? 0) - (float) ($totals?->expense_total ?? 0);
     }
 
     private function summary(array $context): array

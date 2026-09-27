@@ -123,7 +123,7 @@ public entry point, so every path below goes through it on port 443.
 5. **Tasks** — create one task, assign it (accept the AI-recommended assignee
    or assign manually), confirm the assignee sees it and can update its
    status.
-6. **Finance** — create one budget, approve it as Super Admin, record one
+6. **Finance** — create one budget, approve it with a different Admin account, record one
    transaction against it, confirm the remaining balance updates correctly.
 7. **Merchandise** — create one item, place one cash order as a student
    account, approve/fulfill it as an officer, confirm the claim token flow

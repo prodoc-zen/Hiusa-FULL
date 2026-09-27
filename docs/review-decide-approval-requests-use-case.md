@@ -15,7 +15,6 @@
 |   |-- <<include>> View Inflows and Outflows
 |   |-- <<include>> View Required Signatories
 |   `-- <<include>> View Supporting Documents
-|-- <<extend>> Set Financial Report Submission Deadline [Super Admin Only]
 |   |-- <<include>> Select Submission Deadline
 |   |-- <<include>> Publish Official Announcement
 |   `-- <<include>> Notify Organization Admins
@@ -31,10 +30,9 @@
 
 ## Implementation Coverage
 
-- **Role Access:** Super Admin, Admin, and Department Head can access approval review; the backend returns only requests requiring the authenticated reviewer's exact role. Budget requests require Super Admin.
+- **Role Access:** Super Admin, Admin, and Department Head can access approval review; the backend returns only requests requiring the authenticated reviewer's exact role. Budget requests require another Admin, while Super Admin receives only final-stage financial report requests.
 - **Explicit Routing:** request-type routing is defined in `config/approvals.php`. An approval stores its required role and optional assigned approver; reviewers see only requests routed to their exact role and, when assigned, their own account.
-- **Final Financial Review:** the Super Admin Financial Approval Center combines pending budget requests, financial reports approved by Department Heads, unverified collections, and pending cash advances. Financial-report details include calculated inflows/outflows, signatories, and supporting documents.
-- **Financial Report Deadline:** Super Admin can set or update the submission deadline. Saving it publishes an important SAO announcement to all organizations and creates a notification for every active organization Admin.
+- **Final Financial Review:** Super Admin receives only financial reports approved by Department Heads. Report details include the generated PDF, calculated summary, signatories, and supporting documents.
 - **Validate Approver Permission:** `ApprovalRequestController@review` checks the required role and prevents requesters from reviewing their own submissions.
 - **Load Pending Approval Requests:** the approval list loads pending requests for the current reviewer role by default.
 - **Open Request Details:** approval responses include derived title and summary details for each request.

@@ -7,7 +7,7 @@ const pageTitles = {
   '/dashboard': 'Officer Dashboard',
   '/dashboard/admin': 'Admin Dashboard',
   '/dashboard/super-admin': 'Super Admin Dashboard',
-  '/dashboard/super-admin/approvals': 'Financial Approvals',
+  '/dashboard/super-admin/approvals': 'Received Reports',
   '/dashboard/super-admin/organizations': 'Organizations',
   '/dashboard/super-admin/admins': 'Administrators',
   '/dashboard/super-admin/announcements': 'Official SAO Announcements',

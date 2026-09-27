@@ -11,7 +11,6 @@ const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
-const SuperAdminFinancialApprovalsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialApprovalsPage'));
 const SuperAdminFinancialReportsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialReportsPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
@@ -121,10 +120,6 @@ function FinanceIndexRedirect() {
     return <Navigate to="financial-ledger" replace />;
   }
 
-  if (role === 'DEPARTMENT_HEAD') {
-    return <Navigate to="personal-receipts" replace />;
-  }
-
   return <Navigate to="personal-receipts" replace />;
 }
 
@@ -199,7 +194,7 @@ function App() {
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
-          <Route path="super-admin/approvals" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminFinancialApprovalsPage /></ProtectedRoute>} />
+          <Route path="super-admin/approvals" element={<Navigate to="/dashboard/super-admin/financial-reports" replace />} />
           <Route path="super-admin/financial-reports" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminFinancialReportsPage /></ProtectedRoute>} />
           <Route path="approval-requests/new" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SubmitApprovalRequestPage /></ProtectedRoute>} />
           <Route path="approval-requests/new/announcement" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><CreateAnnouncementPage /></ProtectedRoute>} />
@@ -230,15 +225,15 @@ function App() {
             <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
           </Route>
 
-          <Route path="finance">
+          <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]} />}>
             <Route index element={<FinanceIndexRedirect />} />
             <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
             <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
             <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
             <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
             <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
-            <Route path="personal-receipts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><FinancePage initialTab="receipts" /></ProtectedRoute>} />
-            <Route path="statement-of-account" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><FinancePage initialTab="invoices" /></ProtectedRoute>} />
+            <Route path="personal-receipts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><FinancePage initialTab="receipts" /></ProtectedRoute>} />
+            <Route path="statement-of-account" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><FinancePage initialTab="invoices" /></ProtectedRoute>} />
           </Route>
 
           <Route path="merchandise">

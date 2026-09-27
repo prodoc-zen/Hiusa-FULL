@@ -16,7 +16,7 @@ function renderPage() {
     <MemoryRouter initialEntries={['/dashboard/super-admin/notifications']}>
       <Routes>
         <Route path="/dashboard/super-admin/notifications" element={<SaoNotificationsPage />} />
-        <Route path="/dashboard/super-admin/approvals" element={<p>SAO approval destination</p>} />
+        <Route path="/dashboard/super-admin/financial-reports" element={<p>Received reports destination</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -27,8 +27,8 @@ describe('SaoNotificationsPage', () => {
     vi.clearAllMocks();
     notificationMocks.getNotifications.mockResolvedValue({ data: { data: [{
       id: 44,
-      title: 'New SAO Approval Request',
-      message: 'A budget requires review.',
+      title: 'Financial Report Ready for Review',
+      message: 'A financial report requires final review.',
       reference_type: 'approval_request',
       reference_id: 90,
       is_read: false,
@@ -38,12 +38,12 @@ describe('SaoNotificationsPage', () => {
     notificationMocks.markAllRead.mockResolvedValue({});
   });
 
-  it('marks an approval notification read and opens the SAO approval queue', async () => {
+  it('marks a report notification read and opens the received-reports inbox', async () => {
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: /New SAO Approval Request/i }));
+    fireEvent.click(await screen.findByRole('button', { name: /Financial Report Ready for Review/i }));
 
     await waitFor(() => expect(notificationMocks.markRead).toHaveBeenCalledWith(44));
-    expect(await screen.findByText('SAO approval destination')).toBeInTheDocument();
+    expect(await screen.findByText('Received reports destination')).toBeInTheDocument();
   });
 
   it('marks every SAO notification as read', async () => {

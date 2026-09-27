@@ -27,20 +27,14 @@ class AcademicStructureController extends Controller
     public function store(Request $request)
     {
         $organizationId = $request->user()->organization_id;
-        $data = $request->validate([
-            'name' => [
-                'required', 'string', 'max:120',
-                Rule::unique('academic_programs', 'name')->where(fn ($query) => $query->where('organization_id', $organizationId)),
-            ],
-            'sections' => ['required', 'array:1,2,3,4'],
-            'sections.1' => ['required', 'integer', 'min:0', 'max:26'],
-            'sections.2' => ['required', 'integer', 'min:0', 'max:26'],
-            'sections.3' => ['required', 'integer', 'min:0', 'max:26'],
-            'sections.4' => ['required', 'integer', 'min:0', 'max:26'],
-        ]);
+        $data = $this->validateProgram($request, $organizationId);
 
         $program = DB::transaction(function () use ($data, $organizationId) {
-            $program = AcademicProgram::create(['organization_id' => $organizationId, 'name' => trim($data['name'])]);
+            $program = AcademicProgram::create([
+                'organization_id' => $organizationId,
+                'name' => trim($data['name']),
+                'duration_years' => $data['duration_years'],
+            ]);
             $this->syncSections($program, $data['sections']);
 
             return $program->load('sections');
@@ -76,7 +70,7 @@ class AcademicStructureController extends Controller
 
         $program = DB::transaction(function () use ($program, $data, $organizationId, $oldName) {
             $this->ensureSectionsCanBeRemoved($program, $data['sections']);
-            $program->update(['name' => trim($data['name'])]);
+            $program->update(['name' => trim($data['name']), 'duration_years' => $data['duration_years']]);
 
             if ($oldName !== $program->name) {
                 DB::table('users')
@@ -123,25 +117,37 @@ class AcademicStructureController extends Controller
 
     private function validateProgram(Request $request, int $organizationId, ?int $ignoreId = null): array
     {
-        return $request->validate([
+        $data = $request->validate([
             'name' => [
                 'required', 'string', 'max:120',
                 Rule::unique('academic_programs', 'name')
                     ->where(fn ($query) => $query->where('organization_id', $organizationId))
                     ->ignore($ignoreId),
             ],
-            'sections' => ['required', 'array:1,2,3,4'],
-            'sections.1' => ['required', 'integer', 'min:0', 'max:26'],
-            'sections.2' => ['required', 'integer', 'min:0', 'max:26'],
-            'sections.3' => ['required', 'integer', 'min:0', 'max:26'],
-            'sections.4' => ['required', 'integer', 'min:0', 'max:26'],
+            'duration_years' => ['nullable', 'integer', 'min:1', 'max:8'],
+            'sections' => ['required', 'array'],
+            'sections.*' => ['required', 'integer', 'min:0', 'max:26'],
         ]);
+
+        $data['duration_years'] = (int) ($data['duration_years'] ?? 4);
+        $expectedYears = array_map('strval', range(1, $data['duration_years']));
+        $submittedYears = array_map('strval', array_keys($data['sections']));
+        sort($expectedYears);
+        sort($submittedYears);
+
+        if ($submittedYears !== $expectedYears) {
+            throw ValidationException::withMessages([
+                'sections' => ['Provide a section count for every year in the program duration.'],
+            ]);
+        }
+
+        return $data;
     }
 
     private function desiredSectionNames(array $counts): array
     {
         $names = [];
-        foreach ([1, 2, 3, 4] as $yearLevel) {
+        foreach (array_keys($counts) as $yearLevel) {
             $names[$yearLevel] = ["{$yearLevel} - Non Block"];
             for ($index = 0; $index < $counts[$yearLevel]; $index++) {
                 $names[$yearLevel][] = sprintf('%d-%s', $yearLevel, chr(65 + $index));
@@ -171,9 +177,7 @@ class AcademicStructureController extends Controller
         $removed = $program->sections()->whereNotIn('name', $desired)->get();
 
         foreach ($removed as $section) {
-            $yearLabel = match ((int) $section->year_level) {
-                1 => '1st Year', 2 => '2nd Year', 3 => '3rd Year', 4 => '4th Year',
-            };
+            $yearLabel = $this->yearLabel((int) $section->year_level);
             $isAssigned = DB::table('users')
                 ->where('organization_id', $program->organization_id)
                 ->where('program', $program->name)
@@ -187,6 +191,18 @@ class AcademicStructureController extends Controller
                 ]);
             }
         }
+    }
+
+    private function yearLabel(int $yearLevel): string
+    {
+        $suffix = match ($yearLevel % 100) {
+            11, 12, 13 => 'th',
+            default => match ($yearLevel % 10) {
+                1 => 'st', 2 => 'nd', 3 => 'rd', default => 'th',
+            },
+        };
+
+        return "{$yearLevel}{$suffix} Year";
     }
 
     private function recordAudit(Request $request, string $action, AcademicProgram $program, ?array $oldValues, ?array $newValues): void

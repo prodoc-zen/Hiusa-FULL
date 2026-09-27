@@ -432,6 +432,11 @@ export default function TasksPage({ initialTab = 'board' }) {
                               Complete
                             </button>
                           )}
+                          {canManageTasks && t.status === 'completed' && (
+                            <button onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 transition hover:bg-amber-100">
+                              Reopen
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -661,6 +666,13 @@ export default function TasksPage({ initialTab = 'board' }) {
                   </div>
                 </div>
                 <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="mt-3 h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
+              </div>
+            )}
+            {canManageTasks && selectedTask.status === 'completed' && (
+              <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <h3 className="text-sm font-bold text-amber-900">Reopen task</h3>
+                <p className="mt-1 text-xs leading-5 text-amber-800">Reset this completed task to Not Started and clear its completion progress.</p>
+                <button type="button" onClick={async () => { const updated = await handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0); setSelectedTask(updated); }} className="mt-3 h-10 rounded-lg border border-amber-300 bg-white px-4 text-xs font-bold text-amber-800 hover:bg-amber-100">Set to Not Started</button>
               </div>
             )}
 

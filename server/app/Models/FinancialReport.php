@@ -11,6 +11,10 @@ class FinancialReport extends Model
 
     protected $guarded = [];
 
+    protected $hidden = ['letterhead_path'];
+
+    protected $appends = ['has_letterhead'];
+
     protected function casts(): array
     {
         return [
@@ -23,7 +27,13 @@ class FinancialReport extends Model
             'source_transaction_ids' => 'array',
             'signatories' => 'array',
             'supporting_documents' => 'array',
+            'letter_details' => 'array',
         ];
+    }
+
+    public function getHasLetterheadAttribute(): bool
+    {
+        return filled($this->letterhead_path);
     }
 
     public function aiOutput(): BelongsTo

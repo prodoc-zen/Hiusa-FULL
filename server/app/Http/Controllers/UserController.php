@@ -30,7 +30,7 @@ class UserController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'department' => ['nullable', 'string', 'max:120'],
             'program' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'],
+            'year_level' => ['nullable', 'string', 'max:30'],
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
@@ -138,8 +138,8 @@ class UserController extends Controller
             return response()->json(['message' => 'SBO Officers can create Student accounts only.'], 403);
         }
 
-        if ($validatedData['role'] === 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are created only from SAO Administration.'], 403);
+        if ($validatedData['role'] === 'ADMIN' && $this->isAdviserPosition($validatedData['position_title'] ?? null)) {
+            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
@@ -236,8 +236,9 @@ class UserController extends Controller
             }
         }
 
-        if (($validatedData['role'] ?? $user->role) === 'ADMIN' && $user->role !== 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+        if (($validatedData['role'] ?? $user->role) === 'ADMIN'
+            && $this->isAdviserPosition($validatedData['position_title'] ?? $user->position_title)) {
+            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
         if (
@@ -749,13 +750,9 @@ class UserController extends Controller
         }
 
         if ($section) {
-            $yearNumber = match ($yearLevel) {
-                '1st Year' => 1,
-                '2nd Year' => 2,
-                '3rd Year' => 3,
-                '4th Year' => 4,
-                default => null,
-            };
+            $yearNumber = preg_match('/^(\d+)(?:st|nd|rd|th) Year$/', (string) $yearLevel, $matches)
+                ? (int) $matches[1]
+                : null;
             $validSection = $yearNumber && AcademicSection::where('academic_program_id', $configuredProgram->id)
                 ->where('year_level', $yearNumber)
                 ->where('name', $section)

@@ -3,13 +3,16 @@ import { BookOpen, Check, Layers, Pencil, Plus, Save, Trash2, X } from 'lucide-r
 import { createAcademicProgram, deleteAcademicProgram, getAcademicStructure, updateAcademicProgram } from '../../../services/userService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 
-const YEARS = [['1', '1st Year'], ['2', '2nd Year'], ['3', '3rd Year'], ['4', '4th Year']];
-const EMPTY_FORM = { name: '', sections: { 1: 0, 2: 0, 3: 0, 4: 0 } };
+const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
+const yearsFor = (durationYears = 4) => Array.from({ length: Number(durationYears) || 4 }, (_, index) => index + 1);
+const emptyForm = (durationYears = 4) => ({ name: '', duration_years: durationYears, sections: Object.fromEntries(yearsFor(durationYears).map((year) => [year, 0])) });
 
 function programForm(program) {
   return {
+    ...emptyForm(program.duration_years || 4),
     name: program.name,
-    sections: Object.fromEntries(YEARS.map(([year]) => [year, program.sections?.filter((section) => Number(section.year_level) === Number(year) && !section.name.includes('Non Block')).length || 0])),
+    duration_years: program.duration_years || 4,
+    sections: Object.fromEntries(yearsFor(program.duration_years || 4).map((year) => [year, program.sections?.filter((section) => Number(section.year_level) === year && !section.name.includes('Non Block')).length || 0])),
   };
 }
 
@@ -19,14 +22,15 @@ function firstError(error, fallback) {
 }
 
 function SectionCountFields({ form, setForm }) {
-  return <fieldset><legend className="text-[13px] font-semibold text-[#0F172A]">Number of block sections by year level</legend><p className="mt-1 text-xs text-slate-500">A Non Block section is always included in every year and does not count toward these block totals.</p><div className="mt-2 grid grid-cols-2 gap-3 sm:grid-cols-4">{YEARS.map(([year, label]) => <label key={year} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><span className="block text-xs font-bold text-slate-600">{label}</span><input aria-label={`${label} sections`} type="number" min="0" max="26" value={form.sections[year]} onChange={(event) => setForm({ ...form, sections: { ...form.sections, [year]: Number(event.target.value) } })} className="mt-2 h-10 w-full rounded-md border border-[#DDE7EF] bg-white px-2 text-sm font-bold outline-none focus:border-[#0B8ED0]" /></label>)}</div></fieldset>;
+  const updateDuration = (durationYears) => setForm({ ...form, duration_years: durationYears, sections: Object.fromEntries(yearsFor(durationYears).map((year) => [year, form.sections[year] ?? 0])) });
+  return <fieldset><legend className="text-[13px] font-semibold text-[#0F172A]">Program duration and block sections</legend><p className="mt-1 text-xs text-slate-500">Choose the number of years first. A Non Block section is included in every year and does not count toward these totals.</p><label className="mt-3 block max-w-48 text-xs font-bold text-slate-600">Years in this program<input aria-label="Program duration in years" type="number" min="1" max="8" value={form.duration_years} onChange={(event) => updateDuration(Math.min(8, Math.max(1, Number(event.target.value) || 1)))} className="mt-1 h-10 w-full rounded-md border border-[#DDE7EF] bg-white px-2 text-sm font-bold outline-none focus:border-[#0B8ED0]" /></label><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">{yearsFor(form.duration_years).map((year) => <label key={year} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><span className="block text-xs font-bold text-slate-600">{yearLabel(year)}</span><input aria-label={`${yearLabel(year)} sections`} type="number" min="0" max="26" value={form.sections[year]} onChange={(event) => setForm({ ...form, sections: { ...form.sections, [year]: Number(event.target.value) } })} className="mt-2 h-10 w-full rounded-md border border-[#DDE7EF] bg-white px-2 text-sm font-bold outline-none focus:border-[#0B8ED0]" /></label>)}</div></fieldset>;
 }
 
 export default function ManageAcademicStructurePage() {
   const [structure, setStructure] = useState({ department: '', programs: [] });
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState(emptyForm());
   const [editing, setEditing] = useState(null);
-  const [editForm, setEditForm] = useState(EMPTY_FORM);
+  const [editForm, setEditForm] = useState(emptyForm());
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -41,8 +45,8 @@ export default function ManageAcademicStructurePage() {
   const submit = async (event) => {
     event.preventDefault(); setBusy(true); setError(''); setSuccess('');
     try {
-      await createAcademicProgram({ name: form.name.trim(), sections: form.sections });
-      setForm(EMPTY_FORM); setSuccess('Program and its required Non Block sections were created.'); await load();
+      await createAcademicProgram({ name: form.name.trim(), duration_years: form.duration_years, sections: form.sections });
+      setForm(emptyForm()); setSuccess('Program and its required Non Block sections were created.'); await load();
     } catch (requestError) { setError(firstError(requestError, 'Unable to save the program.')); } finally { setBusy(false); }
   };
 
@@ -50,7 +54,7 @@ export default function ManageAcademicStructurePage() {
   const saveEdit = async (event) => {
     event.preventDefault(); setBusy(true); setError(''); setSuccess('');
     try {
-      await updateAcademicProgram(editing.id, { name: editForm.name.trim(), sections: editForm.sections });
+      await updateAcademicProgram(editing.id, { name: editForm.name.trim(), duration_years: editForm.duration_years, sections: editForm.sections });
       setEditing(null); setSuccess('Program and section settings were updated.'); await load();
     } catch (requestError) { setError(firstError(requestError, 'Unable to update the program.')); } finally { setBusy(false); }
   };
@@ -80,7 +84,7 @@ export default function ManageAcademicStructurePage() {
 
     <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#DDE7EF] p-5"><BookOpen size={18} className="text-[#0878B7]" /><div><h3 className="font-bold text-[#0F172A]">Configured programs</h3><p className="text-xs text-slate-500">Block sections use letter labels; each year always keeps its Non Block option.</p></div></div>
-      {loading ? <div className="space-y-2 p-5">{[1, 2].map((row) => <div key={row} className="h-20 animate-pulse rounded-lg bg-slate-100" />)}</div> : <div className="divide-y divide-[#DDE7EF]">{structure.programs?.length ? structure.programs.map((program) => <article key={program.id} className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Layers size={16} className="text-[#0878B7]" /><h4 className="font-bold text-[#0F172A]">{program.name}</h4></div><div className="flex gap-1"><button type="button" aria-label={`Edit ${program.name}`} title="Edit program" onClick={() => beginEdit(program)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-[#0878B7] hover:bg-[#F8FBFD]"><Pencil size={15} /></button><button type="button" aria-label={`Delete ${program.name}`} title="Delete program" onClick={() => setDeleteTarget(program)} className="grid h-9 w-9 place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{YEARS.map(([year, label]) => { const sections = program.sections?.filter((section) => Number(section.year_level) === Number(year)) || []; return <div key={year} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5"><p className="text-[10px] font-bold uppercase text-slate-500">{label}</p><p className="mt-1 text-sm font-bold text-[#0F172A]">{sections.map((section) => section.name).join(', ')}</p></div>; })}</div></article>) : <p className="p-10 text-center text-sm text-slate-500">No programs have been configured yet.</p>}</div>}
+      {loading ? <div className="space-y-2 p-5">{[1, 2].map((row) => <div key={row} className="h-20 animate-pulse rounded-lg bg-slate-100" />)}</div> : <div className="divide-y divide-[#DDE7EF]">{structure.programs?.length ? structure.programs.map((program) => <article key={program.id} className="p-5"><div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-2"><Layers size={16} className="text-[#0878B7]" /><div><h4 className="font-bold text-[#0F172A]">{program.name}</h4><p className="text-xs text-slate-500">{program.duration_years || 4}-year program</p></div></div><div className="flex gap-1"><button type="button" aria-label={`Edit ${program.name}`} title="Edit program" onClick={() => beginEdit(program)} className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-[#0878B7] hover:bg-[#F8FBFD]"><Pencil size={15} /></button><button type="button" aria-label={`Delete ${program.name}`} title="Delete program" onClick={() => setDeleteTarget(program)} className="grid h-9 w-9 place-items-center rounded-lg border border-red-200 text-red-600 hover:bg-red-50"><Trash2 size={15} /></button></div></div><div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">{yearsFor(program.duration_years || 4).map((year) => { const sections = program.sections?.filter((section) => Number(section.year_level) === year) || []; return <div key={year} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5"><p className="text-[10px] font-bold uppercase text-slate-500">{yearLabel(year)}</p><p className="mt-1 text-sm font-bold text-[#0F172A]">{sections.map((section) => section.name).join(', ')}</p></div>; })}</div></article>) : <p className="p-10 text-center text-sm text-slate-500">No programs have been configured yet.</p>}</div>}
     </section>
 
     {editing && <AccessibleOverlay label="Edit academic program" onClose={() => !busy && setEditing(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm"><form onSubmit={saveEdit} onMouseDown={(event) => event.stopPropagation()} className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"><div className="flex items-start justify-between"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Update academic structure</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">Edit Program</h3></div><button type="button" aria-label="Close edit program" onClick={() => setEditing(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div><label className="mt-5 block text-[13px] font-semibold text-[#0F172A]">Course / Program<input value={editForm.name} onChange={(event) => setEditForm({ ...editForm, name: event.target.value })} required className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label><div className="mt-4"><SectionCountFields form={editForm} setForm={setEditForm} /></div><p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-xs font-medium text-amber-800">A section cannot be removed while user accounts are assigned to it. Renaming a program safely updates assigned user profiles.</p><div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setEditing(null)} disabled={busy} className="h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-600">Cancel</button><button disabled={busy || !editForm.name.trim()} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white disabled:opacity-50"><Save size={15} />{busy ? 'Saving...' : 'Save Changes'}</button></div></form></AccessibleOverlay>}
