@@ -30,7 +30,7 @@ export default function ConfirmModal({
             type="button"
             onClick={onCancel}
             disabled={busy}
-            className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 transition hover:bg-[#F8FBFD] disabled:opacity-50"
+            className="h-10 rounded-control border border-line bg-surface px-4 text-sm font-bold text-ink-muted transition-[transform,background-color,color] duration-[120ms] ease-out active:scale-[0.97] hover:bg-subtle disabled:opacity-50"
           >
             {cancelText}
           </button>
@@ -38,8 +38,8 @@ export default function ConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={busy}
-            className={`h-10 rounded-lg px-4 text-sm font-bold text-white transition disabled:opacity-50 ${
-              isDanger ? 'bg-red-600 hover:bg-red-700' : 'bg-[#0878B7] hover:bg-[#0F2F62]'
+            className={`h-10 rounded-control px-4 text-sm font-bold text-white transition-[transform,background-color] duration-[120ms] ease-out active:scale-[0.97] disabled:opacity-50 ${
+              isDanger ? 'bg-danger hover:bg-danger-strong' : 'bg-brand-700 hover:bg-navy-800'
             }`}
           >
             {busy ? 'Working...' : confirmText}
@@ -47,13 +47,13 @@ export default function ConfirmModal({
         </>
       )}
     >
-      <div className="flex gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${isDanger ? 'bg-red-50 text-red-600' : 'bg-[#E6F6FD] text-[#0F2F62]'}`}>
+      <div className="flex gap-3 rounded-card border border-line bg-subtle p-4">
+        <div className={`grid h-10 w-10 shrink-0 place-items-center rounded-control ${isDanger ? 'bg-danger-tint text-danger-strong' : 'bg-brand-50 text-navy-800'}`}>
           <AlertCircle size={18} />
         </div>
         <div>
-          {recordName && <p className="text-sm font-extrabold text-[#0F172A]">{recordName}</p>}
-          <p className="mt-1 text-sm font-medium leading-5 text-slate-600">
+          {recordName && <p className="text-sm font-extrabold text-ink">{recordName}</p>}
+          <p className="mt-1 text-sm font-medium leading-5 text-ink-muted">
             {isDanger ? 'This action may be irreversible. Please confirm before continuing.' : 'Please confirm this action before continuing.'}
           </p>
         </div>
