@@ -40,3 +40,6 @@ server/public/uploads/*/*
 
 # graphify code-graph output: generated, rebuilt on demand, never source.
 graphify-out/
+
+# Agent worktrees are ephemeral build sandboxes.
+/.claude/worktrees/
