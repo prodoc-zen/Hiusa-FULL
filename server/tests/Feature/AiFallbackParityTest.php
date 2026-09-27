@@ -360,6 +360,21 @@ class AiFallbackParityTest extends TestCase
         $this->assertBudgetAdviceFallsBackToPhpEngine();
     }
 
+    /**
+     * The AI service now fails closed: a missing or mismatched
+     * HIUSA_AI_SERVICE_KEY makes it reject every request with 401 instead of
+     * silently accepting it. Laravel must treat that 401 exactly like any
+     * other failed response and still fall back to the deterministic engine.
+     */
+    public function test_budget_advice_falls_back_to_php_engine_when_the_ai_service_rejects_the_key(): void
+    {
+        Http::fake([
+            'http://127.0.0.1:8001/api/v1/budget-advice' => Http::response(['detail' => 'Invalid AI service key'], 401),
+        ]);
+
+        $this->assertBudgetAdviceFallsBackToPhpEngine();
+    }
+
     public function test_budget_advice_falls_back_to_php_engine_on_malformed_payload(): void
     {
         Http::fake([
