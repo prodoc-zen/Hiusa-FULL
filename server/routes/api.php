@@ -4,6 +4,7 @@ use App\Http\Controllers\AcademicStructureController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
+use App\Http\Controllers\ClearanceController;
 use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
@@ -253,4 +254,15 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // Digital clearances: SUPER_ADMIN defines a period's required signatory
+    // roles. The "sao" role is university-wide and signed only by
+    // SUPER_ADMIN; every other role is signed only by its own organization's
+    // ADMIN or SBO_OFFICER. See ClearanceController docblock.
+    Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/clearance-periods', [ClearanceController::class, 'periodsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::get('/clearances/mine', [ClearanceController::class, 'mine'])->middleware(['throttle:api-read', 'role:STUDENT']);
+    Route::get('/clearance-signatures', [ClearanceController::class, 'signaturesIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::patch('/clearance-signatures/{clearanceSignature}', [ClearanceController::class, 'sign'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
 });
