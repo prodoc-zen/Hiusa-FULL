@@ -321,7 +321,6 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
 export default function EventsPage({ initialTab = 'events', startEventRequest = false }) {
   const navigate = useNavigate();
   const location = useLocation();
-  const isCheckInRoute = location.pathname.endsWith('/check-in');
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const [eventsView, setEventsView] = useState(() => (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list'));
@@ -772,7 +771,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   };
   const attendanceEvents = events.filter((event) => {
     if (canManageAttendance) {
-      return (isCheckInRoute ? ['approved', 'ongoing'] : ['approved', 'ongoing', 'completed']).includes(event.status);
+      return ['approved', 'ongoing'].includes(event.status);
     }
     const start = new Date(event.start_time).getTime();
     const end = new Date(event.end_time).getTime();
@@ -952,7 +951,32 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               ) : filteredEvents.length === 0 ? (
                 <p className="p-8 text-center text-sm text-slate-500">No events found.</p>
               ) : (
-                <div className="overflow-x-auto">
+                <>
+                <div className="divide-y divide-[#DDE7EF] lg:hidden">
+                  {pagedEvents.map((evt) => {
+                    const budgetStatus = getEventBudgetStatus(evt);
+                    return (
+                      <article key={evt.id} className="p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{evt.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{evt.description || 'No description provided'}</p></div>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{statusLabel[evt.status] || capitalize(evt.status)}</span>
+                        </div>
+                        <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
+                          <div><dt className="font-bold uppercase tracking-wide text-slate-500">Schedule</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{formatDateTime(evt.start_time)}<span className="block font-normal text-slate-500">Ends {formatDateTime(evt.end_time)}</span></dd></div>
+                          <div><dt className="font-bold uppercase tracking-wide text-slate-500">Venue</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{evt.location || 'Not specified'}</dd></div>
+                          <div><dt className="font-bold uppercase tracking-wide text-slate-500">Operations</dt><dd className="mt-1 font-semibold text-slate-700">{evt.present_count || 0} present / late · {evt.tasks_count || 0} tasks</dd></div>
+                          {canCreateEvents && <div><dt className="font-bold uppercase tracking-wide text-slate-500">Budget</dt><dd className="mt-1"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${budgetStatus.tone}`}>{budgetStatus.label}</span></dd></div>}
+                        </dl>
+                        {evt.approval_status === 'rejected' && evt.approval_remarks && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-5 text-red-700">Rejected: {evt.approval_remarks}</p>}
+                        <div className="mt-4 flex gap-2 border-t border-[#DDE7EF] pt-3">
+                          <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-xs font-bold text-[#0878B7]"><Eye size={15} /> View details</button>
+                          {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="hidden overflow-x-auto lg:block">
                   <table className="w-full min-w-[1280px] text-left">
                     <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                       <tr>
@@ -1025,6 +1049,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     </tbody>
                   </table>
                 </div>
+                </>
               )}
               <PaginationControls
                 currentPage={eventsPage}
@@ -1237,19 +1262,17 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   <p className="text-[11px] font-bold uppercase tracking-[0.16em]">Live attendance workspace</p>
                 </div>
                 <h2 id="attendance-workspace-title" className="text-2xl font-black sm:text-[28px]">
-                  {isCheckInRoute ? 'Event Check-In' : 'Event Operations'}
+                  Event Check-In
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-slate-300">
-                  {isCheckInRoute
-                    ? 'Choose an active event, verify your identity, and record your arrival.'
-                    : 'Run the entry desk, monitor arrivals, and keep the attendance register accurate.'}
+                  Run the entry desk, verify participants, and keep the attendance register accurate.
                 </p>
               </div>
               <div className="flex items-center gap-3 rounded-lg border border-white/15 bg-white/5 px-4 py-3">
                 <CalendarCheck2 size={20} className="text-[#16C7F3]" />
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Available events</p>
-                  <p className="mt-0.5 text-sm font-bold text-white">{attendanceEvents.length} {isCheckInRoute ? 'open for check-in' : 'in the operations queue'}</p>
+                  <p className="mt-0.5 text-sm font-bold text-white">{attendanceEvents.length} open for check-in</p>
                 </div>
               </div>
             </div>

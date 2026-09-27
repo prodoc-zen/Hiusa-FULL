@@ -240,7 +240,7 @@ class SaoDirectorAdministrationTest extends TestCase
             ->assertJsonPath('decision', 'rejected')
             ->assertJsonPath('reviewed_by', $director->school_id);
 
-        $this->assertDatabaseHas('notifications', ['organization_id' => $organization->id, 'user_id' => $requester->school_id, 'reference_type' => 'approval_request', 'reference_id' => $approval->id]);
+        $this->assertDatabaseHas('notifications', ['organization_id' => $organization->id, 'user_id' => $requester->school_id, 'reference_type' => 'budget', 'reference_id' => $budget->id]);
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'reviewed_rejected', 'record_id' => $approval->id]);
     }
 }

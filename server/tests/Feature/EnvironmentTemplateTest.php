@@ -22,6 +22,7 @@ class EnvironmentTemplateTest extends TestCase
         $this->assertSame('https://api.groq.com/openai/v1/responses', $server['GROQ_API_URL']);
         $this->assertSame('openai/gpt-oss-20b', $server['GROQ_MODEL']);
         $this->assertSame('', $server['GROQ_API_KEY']);
+        $this->assertSame('20', $server['ANNOUNCEMENT_AI_DAILY_LIMIT']);
         $this->assertSame($server['HIUSA_AI_SERVICE_KEY'], $ai['HIUSA_AI_SERVICE_KEY']);
         $this->assertSame('127.0.0.1', $ai['HIUSA_AI_HOST']);
         $this->assertSame('http://localhost:8000/api', $client['VITE_API_URL']);

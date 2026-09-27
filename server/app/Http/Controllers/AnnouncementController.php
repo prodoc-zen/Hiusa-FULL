@@ -9,6 +9,7 @@ use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\User;
+use App\Services\ApprovalEntityLabel;
 use App\Services\GroqResponsesService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
@@ -18,7 +19,15 @@ use Illuminate\Support\Str;
 
 class AnnouncementController extends Controller
 {
-    public function __construct(private readonly GroqResponsesService $groq) {}
+    public function __construct(
+        private readonly GroqResponsesService $groq,
+        private readonly ApprovalEntityLabel $entityLabels,
+    ) {}
+
+    public function generationQuota(Request $request)
+    {
+        return response()->json($this->announcementGenerationQuota($request));
+    }
 
     public function generateDraft(Request $request)
     {
@@ -31,6 +40,14 @@ class AnnouncementController extends Controller
             'category' => ['nullable', 'in:general,election,training,events,merchandise'],
             'details' => ['nullable', 'string'],
         ]);
+
+        $quota = $this->announcementGenerationQuota($request);
+        if ($quota['remaining'] < 1) {
+            return response()->json([
+                'message' => 'You have used all announcement drafts available today. Try again after the daily reset.',
+                'quota' => $quota,
+            ], 429);
+        }
 
         $prompt = "Write a concise school organization announcement.\n"
             ."Title: {$data['title']}\n"
@@ -70,7 +87,10 @@ class AnnouncementController extends Controller
                 'created_at' => now(),
             ]);
 
-            return response()->json(['message' => 'AI service is temporarily unavailable. Unable to generate the announcement draft.'], 503);
+            return response()->json([
+                'message' => 'AI service is temporarily unavailable. Unable to generate the announcement draft.',
+                'quota' => $this->announcementGenerationQuota($request),
+            ], 503);
         }
 
         $output = $generated['text'];
@@ -105,6 +125,7 @@ class AnnouncementController extends Controller
             'output_text' => $output,
             'ai_output_id' => $aiOutput->id,
             'model_name' => $model,
+            'quota' => $this->announcementGenerationQuota($request),
         ]);
     }
 
@@ -201,6 +222,15 @@ class AnnouncementController extends Controller
         };
         $query->orderBy('id');
 
+        $summaryQuery = clone $query;
+        $summary = [
+            'total' => (clone $summaryQuery)->count(),
+            'published' => (clone $summaryQuery)->where('is_published', true)->count(),
+            'unpublished' => (clone $summaryQuery)->where('is_published', false)->count(),
+            'pending' => (clone $summaryQuery)->where('approval_status', 'pending')->count(),
+            'views' => (int) (clone $summaryQuery)->sum('views_count'),
+        ];
+
         $announcements = $query->paginate($filters['per_page'] ?? 20);
 
         // Reach is officer/admin-facing reporting data, not something other
@@ -209,7 +239,10 @@ class AnnouncementController extends Controller
             $announcements->getCollection()->each->makeHidden('views_count');
         }
 
-        return response()->json($announcements);
+        return response()->json([
+            ...$announcements->toArray(),
+            'summary' => $summary,
+        ]);
     }
 
     public function recordView(Request $request, $id)
@@ -619,6 +652,24 @@ class AnnouncementController extends Controller
         return "{$title}\n\nPlease be informed of this important HIUSA announcement. Kindly review the details, take note of any required action, and watch for further updates from the organization.\n\nThank you for your attention and cooperation.";
     }
 
+    private function announcementGenerationQuota(Request $request): array
+    {
+        $limit = max(1, (int) config('services.groq.announcement_daily_limit', 20));
+        $used = AiOutput::query()
+            ->where('organization_id', $request->user()->organization_id)
+            ->where('requested_by', $request->user()->school_id)
+            ->where('feature_type', 'ANNOUNCEMENT_DRAFT')
+            ->whereDate('created_at', now()->toDateString())
+            ->count();
+
+        return [
+            'limit' => $limit,
+            'used' => $used,
+            'remaining' => max(0, $limit - $used),
+            'resets_at' => now()->addDay()->startOfDay()->toIso8601String(),
+        ];
+    }
+
     private function auditableAnnouncementValues(Announcement $announcement): array
     {
         return [
@@ -653,14 +704,15 @@ class AnnouncementController extends Controller
 
     private function notifyApprovalRequester(ApprovalRequest $approval, string $status): void
     {
+        $label = $this->entityLabels->for($approval);
         Notification::create([
             'organization_id' => $approval->organization_id,
             'user_id' => $approval->requested_by,
             'title' => 'Approval Request '.Str::headline($status),
-            'message' => Str::headline($approval->entity_type).' request #'.$approval->entity_id.' was '.$status.'.',
+            'message' => Str::headline($approval->entity_type).' "'.$label.'" was '.$status.'.',
             'notification_type' => 'general',
-            'reference_type' => 'approval_request',
-            'reference_id' => $approval->id,
+            'reference_type' => $approval->entity_type,
+            'reference_id' => $approval->entity_id,
             'is_read' => false,
             'sent_at' => now(),
         ]);

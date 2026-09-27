@@ -98,6 +98,7 @@ class StudentFeedTest extends TestCase
     {
         Storage::fake('public');
         $admin = User::factory()->admin()->create();
+        $student = User::factory()->student()->create(['organization_id' => $admin->organization_id]);
         Sanctum::actingAs($admin);
 
         $announcement = $this->post('/api/announcements', [
@@ -123,6 +124,15 @@ class StudentFeedTest extends TestCase
         ])->assertCreated();
         $this->assertNotNull($event->json('image_url'));
 
+        Sanctum::actingAs($student);
+        $this->getJson('/api/student/feed?page=1&per_page=12')
+            ->assertOk()
+            ->assertJsonFragment([
+                'title' => 'Poster advisory',
+                'image_url' => $announcement->json('image_url'),
+            ]);
+
+        Sanctum::actingAs($admin);
         $this->withHeader('Accept', 'application/json')->post('/api/announcements', [
             'title' => 'Invalid file',
             'body' => 'Invalid file must be rejected.',
