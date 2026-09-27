@@ -139,6 +139,13 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
   async function handleNotificationClick(notification) {
     await handleMarkRead(notification.id);
+    const destination = getNotificationDestination(notification, user?.role);
+    if (destination) {
+      setNotifOpen(false);
+      setSelectedNotification(null);
+      navigate(destination);
+      return;
+    }
     setSelectedNotification({ ...notification, is_read: true });
   }
 

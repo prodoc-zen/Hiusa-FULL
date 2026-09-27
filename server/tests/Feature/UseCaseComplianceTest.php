@@ -595,6 +595,36 @@ class UseCaseComplianceTest extends TestCase
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertUnprocessable();
     }
 
+    public function test_all_documented_organization_roles_can_cast_one_ballot(): void
+    {
+        $organization = Organization::factory()->create();
+        $candidateUser = $this->user('STUDENT', $organization->id);
+        $election = Election::create([
+            'organization_id' => $organization->id,
+            'title' => 'Organization Election',
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+            'status' => 'active',
+            'approved_at' => now()->subDay(),
+        ]);
+        $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $candidate = Candidate::create([
+            'election_id' => $election->id,
+            'position_id' => $position->id,
+            'user_id' => $candidateUser->school_id,
+        ]);
+
+        foreach (['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] as $role) {
+            $voter = $this->user($role, $organization->id);
+            $this->authenticate($voter);
+            $this->postJson("/api/elections/{$election->id}/vote", [
+                'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+            ])->assertOk();
+        }
+
+        $this->assertSame(4, Vote::where('election_id', $election->id)->distinct('voter_id')->count('voter_id'));
+    }
+
     public function test_approved_elections_follow_their_scheduled_opening_and_closing_times(): void
     {
         $student = $this->user('STUDENT');

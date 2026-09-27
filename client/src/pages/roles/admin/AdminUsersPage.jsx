@@ -12,6 +12,7 @@ import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../..
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
+import DataDonutChart from '../../../components/DataDonutChart';
 
 const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const filterRoles = ['SUPER_ADMIN', ...accountRoles];
@@ -809,6 +810,20 @@ export default function AdminUsersPage() {
           ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['Admins', roleSummary.ADMIN ?? 0], ['Super admins', roleSummary.SUPER_ADMIN ?? 0],
         ]).map(([label, value]) => <dl key={label} className="bg-white p-4"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}</div>
       </section>
+
+      <DataDonutChart
+        title="Filtered user distribution"
+        description={`${Number(roleSummary.STUDENT ?? 0).toLocaleString()} student${Number(roleSummary.STUDENT ?? 0) === 1 ? '' : 's'} match the current search and academic filters.`}
+        centerValue={meta.total}
+        centerLabel="matching users"
+        segments={[
+          { label: 'Students', value: roleSummary.STUDENT ?? 0, color: '#0B8ED0' },
+          { label: 'SBO officers', value: roleSummary.SBO_OFFICER ?? 0, color: '#0F2F62' },
+          { label: 'Admins', value: roleSummary.ADMIN ?? 0, color: '#16A34A' },
+          { label: 'Department heads', value: roleSummary.DEPARTMENT_HEAD ?? 0, color: '#F59E0B' },
+          { label: 'Super admins', value: roleSummary.SUPER_ADMIN ?? 0, color: '#64748B' },
+        ]}
+      />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>

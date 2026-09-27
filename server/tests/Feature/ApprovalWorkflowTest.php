@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
 use App\Models\Election;
+use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -35,6 +36,7 @@ class ApprovalWorkflowTest extends TestCase
     public function test_event_creation_starts_in_planning_and_creates_a_pending_approval_request(): void
     {
         $admin = User::factory()->create(['role' => 'ADMIN', 'password_hash' => 'password123']);
+        $departmentHead = User::factory()->create(['role' => 'DEPARTMENT_HEAD', 'organization_id' => $admin->organization_id]);
         $token = $this->loginAs($admin);
 
         $response = $this->withToken($token)->postJson('/api/events', [
@@ -50,6 +52,10 @@ class ApprovalWorkflowTest extends TestCase
             'entity_id' => $response->json('id'),
             'status' => 'pending',
             'requested_by' => $admin->school_id,
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $departmentHead->school_id,
+            'message' => 'Event "General Assembly" requires your review.',
         ]);
     }
 
@@ -76,6 +82,10 @@ class ApprovalWorkflowTest extends TestCase
             ->assertJsonPath('status', 'approved');
 
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
+        $notification = Notification::where('user_id', $admin->school_id)->latest('id')->firstOrFail();
+        $this->assertSame('event', $notification->reference_type);
+        $this->assertSame($eventId, $notification->reference_id);
+        $this->assertStringContainsString('Leadership Seminar', $notification->message);
     }
 
     public function test_department_head_rejection_keeps_event_in_planning_and_records_remarks(): void

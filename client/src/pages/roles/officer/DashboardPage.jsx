@@ -12,7 +12,6 @@ import {
 } from 'lucide-react';
 import { getTasks } from '../../../services/taskService';
 import { getEvents } from '../../../services/eventService';
-import { getTransactionSummary, getBudgets } from '../../../services/financeService';
 import { getOrders } from '../../../services/orderService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 
@@ -32,20 +31,14 @@ const TASK_STATUS_COLOR = {
 
 const TASK_STATUS_ORDER = ['pending', 'in_progress', 'completed', 'overdue'];
 
-function fmt(n) {
-  return `₱${Number(n || 0).toLocaleString('en-PH', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
-}
-
 function capitalize(s) {
   return (s || '').replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 export default function DashboardPage() {
-  const [stats, setStats] = useState({ openTasks: 0, upcomingEvents: 0, budgetBalance: 0, pendingOrders: 0 });
+  const [stats, setStats] = useState({ openTasks: 0, completedTasks: 0, upcomingEvents: 0, pendingOrders: 0 });
   const [urgentTasks, setUrgentTasks] = useState([]);
   const [taskStatusTotals, setTaskStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
-  const [expensesByCategory, setExpensesByCategory] = useState([]);
-  const [budgets, setBudgets] = useState([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -59,23 +52,20 @@ export default function DashboardPage() {
         // the nearest few deadlines, so pending/in_progress are fetched with a
         // small per_page (already deadline-ascending) and merged. Events has no
         // status filter at all, so the full org event list is walked once via
-        // fetchAllPages - the same is true for budgets, which also back the
-        // utilization widget below.
+        // fetchAllPages so the upcoming-event count is not limited to one page.
         const [
           pendingRes, inProgressRes, completedRes, overdueRes,
-          events, summaryRes, pendingOrdersRes, budgetsList,
+          events, pendingOrdersRes,
         ] = await Promise.all([
           getTasks({ status: 'pending', per_page: 10 }),
           getTasks({ status: 'in_progress', per_page: 10 }),
           getTasks({ status: 'completed', per_page: 1 }),
           getTasks({ status: 'overdue', per_page: 1 }),
           fetchAllPages((p) => getEvents(p).then((r) => r.data)),
-          getTransactionSummary(),
           // /orders only accepts per_page=10 (its validation rejects any other
           // value with a 422); the true pending count still comes from
           // pendingOrdersMeta.total regardless of the page size requested.
           getOrders({ status: 'pending', per_page: 10 }),
-          fetchAllPages((p) => getBudgets(p).then((r) => r.data)),
         ]);
 
         if (cancelled) return;
@@ -84,13 +74,12 @@ export default function DashboardPage() {
         const inProgressMeta = listMeta(inProgressRes?.data);
         const completedMeta = listMeta(completedRes?.data);
         const overdueMeta = listMeta(overdueRes?.data);
-        const summary = summaryRes?.data ?? summaryRes ?? {};
         const pendingOrdersMeta = listMeta(pendingOrdersRes?.data);
 
         setStats({
           openTasks: pendingMeta.total + inProgressMeta.total,
+          completedTasks: completedMeta.total,
           upcomingEvents: events.filter((e) => e.status === 'upcoming' || e.status === 'approved').length,
-          budgetBalance: Number(summary.net_balance ?? 0),
           pendingOrders: pendingOrdersMeta.total,
         });
 
@@ -106,13 +95,8 @@ export default function DashboardPage() {
           overdue: overdueMeta.total,
         });
 
-        const byCategory = Array.isArray(summary.by_category) ? summary.by_category : [];
-        setExpensesByCategory(
-          byCategory.filter((c) => c.type === 'expense').slice(0, 5)
-        );
-        setBudgets(budgetsList);
       } catch {
-        if (!cancelled) setStats({ openTasks: 0, upcomingEvents: 0, budgetBalance: 0, pendingOrders: 0 });
+        if (!cancelled) setStats({ openTasks: 0, completedTasks: 0, upcomingEvents: 0, pendingOrders: 0 });
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -121,28 +105,6 @@ export default function DashboardPage() {
     load();
     return () => { cancelled = true; };
   }, []);
-
-  const maxExpense = Math.max(...expensesByCategory.map((c) => Number(c.total)), 1);
-
-  const budgetUtilization = budgets
-    .filter((b) => b.approval_status === 'approved')
-    .map((b) => {
-      const allocated = Number(b.allocated_amount || 0);
-      const remaining = b.remaining_amount != null ? Number(b.remaining_amount) : allocated;
-      const transacted = Number(b.transactions_sum_amount || 0);
-      // remaining = allocated + income - expense, transacted = income + expense,
-      // so (allocated + transacted - remaining) / 2 isolates expense (actual spend).
-      const spent = Math.max(0, (allocated + transacted - remaining) / 2);
-      return {
-        id: b.id,
-        title: b.title,
-        allocated,
-        spent,
-        warning: Number(b.warning_threshold || 0),
-      };
-    })
-    .sort((a, b) => b.allocated - a.allocated)
-    .slice(0, 6);
 
   const taskStatusCounts = TASK_STATUS_ORDER.map((status) => ({
     status,
@@ -153,12 +115,12 @@ export default function DashboardPage() {
   const statCards = [
     { label: 'Open Tasks', value: loading ? '-' : stats.openTasks, helper: 'Pending and in progress', icon: ClipboardList },
     { label: 'Upcoming Events', value: loading ? '-' : stats.upcomingEvents, helper: 'Scheduled and approved', icon: CalendarDays },
-    { label: 'Budget Balance', value: loading ? '-' : fmt(stats.budgetBalance), helper: 'Net income minus expenses', icon: Coins },
+    { label: 'Completed Tasks', value: loading ? '-' : stats.completedTasks, helper: 'Finished assignments', icon: ClipboardList },
     { label: 'Pending Orders', value: loading ? '-' : stats.pendingOrders, helper: 'Merchandise awaiting action', icon: Package },
   ];
 
   const modules = [
-    { label: 'Finance', desc: 'Budgets, insights, and reports', path: '/dashboard/finance', icon: Coins },
+    { label: 'My Receipts', desc: 'Personal receipts and payment records', path: '/dashboard/finance/personal-receipts', icon: Coins },
     { label: 'Events', desc: 'Attendance and event operations', path: '/dashboard/events', icon: CalendarDays },
     { label: 'Tasks', desc: 'View and update assigned tasks', path: '/dashboard/tasks', icon: ClipboardList },
     { label: 'Elections', desc: 'Candidates, voters, ballots, and results', path: '/dashboard/elections', icon: Vote },
@@ -168,8 +130,8 @@ export default function DashboardPage() {
 
   const quickActions = [
     { label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', icon: ClipboardList },
-    { label: 'Event Operations', path: '/dashboard/events/event-operations', icon: CalendarDays },
-    { label: 'Financial Insights', path: '/dashboard/finance/financial-insights', icon: Coins },
+    { label: 'Event Check-In', path: '/dashboard/events/check-in', icon: CalendarDays },
+    { label: 'My Receipts', path: '/dashboard/finance/personal-receipts', icon: Coins },
     { label: 'Post Announcement', path: '/dashboard/announcements/create-announcement', icon: Megaphone },
   ];
 
@@ -246,40 +208,8 @@ export default function DashboardPage() {
           )}
         </section>
 
-        {/* Budget Utilization + Task Status + Quick Actions */}
+        {/* Task status and quick actions */}
         <div className="space-y-6">
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-[#0F172A]">Budget Utilization</h2>
-              <NavLink to="/dashboard/finance/budget-allocation" className="text-xs font-bold text-[#0878B7] hover:underline">View</NavLink>
-            </div>
-            {loading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
-              </div>
-            ) : budgetUtilization.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-500">No approved budgets yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {budgetUtilization.map((b) => {
-                  const pct = b.allocated > 0 ? Math.min(100, Math.round((b.spent / b.allocated) * 100)) : 0;
-                  const barColor = b.spent >= b.allocated ? '#DC2626' : (b.warning > 0 && b.spent >= b.warning) ? '#F59E0B' : '#0B8ED0';
-                  return (
-                    <div key={b.id}>
-                      <div className="mb-1 flex items-center justify-between text-xs font-semibold">
-                        <span className="truncate text-[#0F172A]">{b.title}</span>
-                        <span className="ml-2 shrink-0 tabular-nums text-slate-500">{fmt(b.spent)} / {fmt(b.allocated)} ({pct}%)</span>
-                      </div>
-                      <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
-                        <div className="h-2 rounded-full transition-all" style={{ width: `${pct}%`, backgroundColor: barColor }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </section>
-
           <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <h2 className="mb-4 text-base font-bold text-[#0F172A]">Task Status Distribution</h2>
             {loading ? (
@@ -304,37 +234,6 @@ export default function DashboardPage() {
                     </div>
                   );
                 })}
-              </div>
-            )}
-          </section>
-
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <div className="flex items-center justify-between mb-4">
-              <h2 className="text-base font-bold text-[#0F172A]">Expenses by Category</h2>
-              <NavLink to="/dashboard/finance" className="text-xs font-bold text-[#0878B7] hover:underline">View</NavLink>
-            </div>
-            {loading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
-              </div>
-            ) : expensesByCategory.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-500">No expense data yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {expensesByCategory.map((c) => (
-                  <div key={c.category}>
-                    <div className="mb-1 flex items-center justify-between text-xs font-semibold">
-                      <span className="truncate text-[#0F172A]">{c.category}</span>
-                      <span className="ml-2 shrink-0 tabular-nums text-slate-500">{fmt(c.total)}</span>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-[#EEF6FB]">
-                      <div
-                        className="h-2 rounded-full bg-[#0878B7] transition-all"
-                        style={{ width: `${Math.round((Number(c.total) / maxExpense) * 100)}%` }}
-                      />
-                    </div>
-                  </div>
-                ))}
               </div>
             )}
           </section>

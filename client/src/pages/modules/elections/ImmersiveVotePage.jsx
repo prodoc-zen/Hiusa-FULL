@@ -47,7 +47,7 @@ export default function ImmersiveVotePage() {
     return () => window.removeEventListener('beforeunload', warnBeforeUnload);
   }, [dirty]);
 
-  const leaveVoting = () => navigate('/dashboard/student', { replace: true });
+  const leaveVoting = () => navigate('/dashboard/elections', { replace: true });
   const requestExit = () => dirty ? setConfirmExit(true) : leaveVoting();
 
   return (

@@ -23,17 +23,17 @@ class FinancialAccountabilityTest extends TestCase
 
     public function test_verified_collection_can_be_partially_remitted_without_double_counting_ledger_income(): void
     {
-        $officer = $this->user('SBO_OFFICER');
+        $admin = $this->user('ADMIN');
         $superAdmin = $this->user('SUPER_ADMIN');
-        Sanctum::actingAs($officer);
+        Sanctum::actingAs($admin);
         $collection = $this->postJson('/api/collections', ['expected_amount' => '1000.00', 'amount_collected' => '850.00', 'source' => 'Event fee'])->assertCreated()->json();
         Sanctum::actingAs($superAdmin);
         $this->getJson('/api/collections?status=pending')
             ->assertOk()
             ->assertJsonPath('0.id', $collection['id'])
-            ->assertJsonPath('0.organization_id', $officer->organization_id);
+            ->assertJsonPath('0.organization_id', $admin->organization_id);
         $this->patchJson('/api/collections/'.$collection['id'].'/verify')->assertOk();
-        Sanctum::actingAs($officer);
+        Sanctum::actingAs($admin);
         $this->postJson('/api/collections/'.$collection['id'].'/remittances', ['amount' => '700.00'])->assertCreated();
         $this->postJson('/api/collections/'.$collection['id'].'/remittances', ['amount' => '151.00'])->assertUnprocessable();
         $this->getJson('/api/collections')->assertOk()->assertJsonPath('0.total_remitted', 700)->assertJsonPath('0.unremitted_balance', 150);
@@ -43,20 +43,17 @@ class FinancialAccountabilityTest extends TestCase
 
     public function test_cash_advance_requires_other_approver_and_repayment_cannot_exceed_balance(): void
     {
-        $officer = $this->user('SBO_OFFICER');
-        $admin = $this->user('ADMIN', $officer->organization_id);
+        $admin = $this->user('ADMIN');
         $superAdmin = $this->user('SUPER_ADMIN');
-        Sanctum::actingAs($officer);
+        Sanctum::actingAs($admin);
         $advanceId = $this->postJson('/api/cash-advances', ['amount' => '500.00', 'purpose' => 'Venue deposit'])->assertCreated()->json('id');
-        Sanctum::actingAs($officer);
-        $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertForbidden();
         Sanctum::actingAs($admin);
         $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertForbidden();
         Sanctum::actingAs($superAdmin);
         $this->getJson('/api/cash-advances?status=pending')
             ->assertOk()
             ->assertJsonPath('0.id', $advanceId)
-            ->assertJsonPath('0.organization_id', $officer->organization_id);
+            ->assertJsonPath('0.organization_id', $admin->organization_id);
         $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertOk();
         Sanctum::actingAs($admin);
         $this->patchJson("/api/cash-advances/{$advanceId}/release")->assertOk();

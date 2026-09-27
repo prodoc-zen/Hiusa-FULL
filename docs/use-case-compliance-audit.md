@@ -28,10 +28,10 @@ Status meanings:
 | Manage Attendance | Admin, SBO Officer | Verified* | manual status/summary flows work; biometric capture/matching uses a safe integration boundary until scanner hardware is selected |
 | Manage Tasks and Workflow | Admin | Verified | weighted eligibility scoring, best-fit SBO recommendation, Groq/fallback explanation test |
 | View and Update Assigned Tasks | SBO Officer | Verified | assignee-scoped list, progress/completion, Admin notification |
-| Manage Budget Allocation and Monitoring | Admin, SBO Officer, Department Head | Verified | reciprocal approval roles, approved-only spending, remaining/risk tracking tests |
+| Manage Budget Allocation and Monitoring | Admin; Super Admin approval | Verified | Admin-only records, Super Admin approval, approved-only spending, remaining/risk tracking tests |
 | Manage Financial Transactions and Ledger | Admin | Verified | scoped CRUD, receipts, budget movement and exact rollback test |
-| Generate Financial Forecasts and Budget Advice | Admin, SBO Officer | Verified | historical monthly aggregation, OLS model, risk/safe limit, Groq/fallback test |
-| View Financial Reports and Transaction History | Admin, SBO Officer, Department Head | Verified | persisted monthly/semester/custom/event reports, Groq/fallback summary, history, Excel and print/PDF |
+| Generate Financial Forecasts and Budget Advice | Admin | Verified | historical monthly aggregation, OLS model, risk/safe limit, Groq/fallback test |
+| View Financial Reports and Transaction History | Admin; Super Admin final review | Verified | persisted monthly/semester/custom/event reports, Groq/fallback summary, approval-center review, history, Excel and print/PDF |
 | View Personal Receipts | All roles | Verified | ownership-scoped receipt API and print action |
 | Manage Merchandise Inventory | Admin | Verified | image/item CRUD, stock adjustment, deactivation audit |
 | Order Merchandise and Claim Items | All roles | Verified | reservation, GCash image proof, personal tracking, post-approval token release test, admin-gated GCash QR precondition |

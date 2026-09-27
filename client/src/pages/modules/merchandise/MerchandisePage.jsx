@@ -949,6 +949,9 @@ export default function MerchandisePage({ initialTab }) {
     try {
       const res = await updateOrderStatus(id, status, remarks, verifiedAmount);
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
+      if (orderDetails?.id === id) {
+        await openOrderDetails(res.data);
+      }
       setTransactionMessage(
         role === "SBO_OFFICER" && status === "paid"
           ? `Order ORD-${id} submitted for Admin approval.`
