@@ -44,6 +44,16 @@ const ElectionResultsPage = lazy(() => import('./pages/modules/elections/Electio
 const CastVoteRedirectPage = lazy(() => import('./pages/modules/elections/CastVoteRedirectPage'));
 const ImmersiveVotePage = lazy(() => import('./pages/modules/elections/ImmersiveVotePage'));
 
+// SAO Extensions
+const SaoCompliancePage = lazy(() => import('./pages/modules/sao/SaoCompliancePage'));
+const OrganizationCompliancePage = lazy(() => import('./pages/modules/sao/OrganizationCompliancePage'));
+const ManageVenuesPage = lazy(() => import('./pages/modules/venues/ManageVenuesPage'));
+const VenueBookingPage = lazy(() => import('./pages/modules/venues/VenueBookingPage'));
+const GrievancesPage = lazy(() => import('./pages/modules/sao/GrievancesPage'));
+const StudentGrievancePage = lazy(() => import('./pages/modules/sao/StudentGrievancePage'));
+const ManageClearancesPage = lazy(() => import('./pages/modules/sao/ManageClearancesPage'));
+const ClearanceSignaturesPage = lazy(() => import('./pages/modules/sao/ClearanceSignaturesPage'));
+
 function RouteLoadingFallback() {
   return (
     <div className="space-y-4 p-1" role="status" aria-label="Loading page">
@@ -285,6 +295,28 @@ function App() {
             <Route path="partylists" element={<Navigate to="../manage-partylists" replace />} />
             <Route path="voters" element={<Navigate to="../manage-voters" replace />} />
             <Route path="results" element={<Navigate to="../election-results" replace />} />
+          </Route>
+
+          {/* SAO / University-Wide Modules */}
+          <Route path="super-admin/compliance" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoCompliancePage /></ProtectedRoute>} />
+          <Route path="compliance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><OrganizationCompliancePage /></ProtectedRoute>} />
+          
+          <Route path="venues">
+            <Route index element={<Navigate to="book" replace />} />
+            <Route path="manage" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><ManageVenuesPage /></ProtectedRoute>} />
+            <Route path="book" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><VenueBookingPage /></ProtectedRoute>} />
+          </Route>
+          
+          <Route path="grievances">
+            <Route index element={<Navigate to="review" replace />} />
+            <Route path="review" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN"]}><GrievancesPage /></ProtectedRoute>} />
+            <Route path="submit" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentGrievancePage /></ProtectedRoute>} />
+          </Route>
+          
+          <Route path="clearances">
+            <Route index element={<Navigate to="signatures" replace />} />
+            <Route path="manage" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><ManageClearancesPage /></ProtectedRoute>} />
+            <Route path="signatures" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><ClearanceSignaturesPage /></ProtectedRoute>} />
           </Route>
 
         </Route>

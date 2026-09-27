@@ -16,6 +16,8 @@ class Organization extends Model
     {
         return [
             'is_active' => 'boolean',
+            'accredited_at' => 'datetime',
+            'expires_at' => 'datetime',
         ];
     }
 
@@ -27,5 +29,15 @@ class Organization extends Model
     public function administrators(): HasMany
     {
         return $this->hasMany(User::class)->where('role', 'ADMIN');
+    }
+
+    public function complianceRequirements(): HasMany
+    {
+        return $this->hasMany(OrganizationCompliance::class);
+    }
+
+    public function grievances(): HasMany
+    {
+        return $this->hasMany(Grievance::class);
     }
 }

@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from app.engines.budget_advisory import advise_budget
 from app.engines.financial_forecasting import forecast_finances
 from app.engines.task_delegation import delegate_task
+from app.engines.grievance_classification import classify_grievance
 from app.schemas import (
     BudgetAdviceRequest,
     BudgetAdviceResponse,
@@ -18,6 +19,8 @@ from app.schemas import (
     ForecastResponse,
     TaskDelegationRequest,
     TaskDelegationResponse,
+    GrievanceClassificationRequest,
+    GrievanceClassificationResponse,
 )
 
 
@@ -85,3 +88,11 @@ def task_delegation(request: TaskDelegationRequest) -> dict:
         return delegate_task(request)
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
+
+@app.post(
+    "/api/v1/grievance-classification",
+    response_model=GrievanceClassificationResponse,
+    dependencies=[Depends(require_service_key)],
+)
+def grievance_classification(request: GrievanceClassificationRequest) -> dict:
+    return classify_grievance(request)

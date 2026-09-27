@@ -23,6 +23,11 @@ use App\Http\Controllers\SystemAdministrationController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\SaoComplianceController;
+use App\Http\Controllers\VenueController;
+use App\Http\Controllers\VenueBookingController;
+use App\Http\Controllers\GrievanceController;
+use App\Http\Controllers\ClearanceController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -84,6 +89,36 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::post('/system/announcements', [GlobalAnnouncementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/announcements/{announcement}', [GlobalAnnouncementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/announcements/{announcement}/archive', [GlobalAnnouncementController::class, 'archive'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // SAO Compliance Routes
+    Route::get('/system/organizations/{organization}/compliance', [SaoComplianceController::class, 'indexAdmin'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/system/organizations/{organization}/compliance', [SaoComplianceController::class, 'storeRequirement'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/system/organizations/{organization}/compliance/{id}', [SaoComplianceController::class, 'updateRequirement'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/system/organizations/{organization}/compliance/{id}/review', [SaoComplianceController::class, 'reviewRequirement'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    Route::get('/compliance', [SaoComplianceController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/compliance/{id}/submit', [SaoComplianceController::class, 'submitDocument'])->middleware(['throttle:api-write', 'role:ADMIN']);
+
+    // Venues & Bookings
+    Route::get('/venues', [VenueController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/venues', [VenueController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/venues/{venue}', [VenueController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/venues/{venue}', [VenueController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    
+    Route::get('/venue-bookings', [VenueBookingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/venue-bookings', [VenueBookingController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::patch('/system/venue-bookings/{id}/review', [VenueBookingController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // Grievances
+    Route::get('/grievances', [GrievanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
+    Route::patch('/system/grievances/{id}', [GrievanceController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // Clearances
+    Route::get('/clearances', [ClearanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/system/clearances', [ClearanceController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/clearances/{id}/signatures', [ClearanceController::class, 'signatures'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::patch('/system/clearances/{id}/signatures/{signatureId}', [ClearanceController::class, 'reviewSignature'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
 
     // DigitalPersona capture is performed in the browser. Laravel sends the
     // transient PNG samples to the private SourceAFIS service and stores only

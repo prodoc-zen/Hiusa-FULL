@@ -89,6 +89,9 @@ class SystemAdministrationController extends Controller
         if (($filters['status'] ?? 'all') !== 'all') {
             $query->where('is_active', $filters['status'] === 'active');
         }
+        if ($request->has('accreditation_status')) {
+            $query->where('accreditation_status', $request->input('accreditation_status'));
+        }
 
         return response()->json($query->orderBy('name')->paginate($filters['per_page'] ?? 20));
     }
@@ -107,7 +110,17 @@ class SystemAdministrationController extends Controller
         if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') {
             return response()->json(['message' => 'The SAO system organization is not managed as an SBO.'], 403);
         }
-        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
+        $data = $request->validate([
+            'name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 
+            'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 
+            'college' => ['nullable', 'string', 'max:255'], 
+            'description' => ['nullable', 'string', 'max:3000'], 
+            'logo_url' => ['nullable', 'url', 'max:2048'], 
+            'is_active' => ['sometimes', 'boolean'],
+            'accreditation_status' => ['sometimes', 'string', 'in:Active,Suspended,Probation'],
+            'accredited_at' => ['nullable', 'date'],
+            'expires_at' => ['nullable', 'date']
+        ]);
         $old = $organization->toArray();
         if (isset($data['name'])) {
             $data['slug'] = Str::slug($data['name']);
