@@ -10,11 +10,11 @@ export default function BarList({ items = [], max, valueFormat, title, descripti
 
   return (
     <section aria-label={title}>
-      {title && <h3 className="text-sm font-bold text-[#0F172A]">{title}</h3>}
-      {description && <p className="mt-0.5 text-xs text-[#64748B]">{description}</p>}
+      {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+      {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
 
       {safeItems.length === 0 ? (
-        <p className="py-8 text-center text-sm font-medium text-[#64748B]">No data for this period yet</p>
+        <p className="py-8 text-center text-sm font-medium text-ink-muted">No data for this period yet</p>
       ) : (
         <>
           <ul className={title || description ? 'mt-3 space-y-3' : 'space-y-3'}>
@@ -23,23 +23,23 @@ export default function BarList({ items = [], max, valueFormat, title, descripti
               const color = (item.tone && TONE[item.tone]?.fill) || item.color || seriesColor(index);
               return (
                 <li key={item.label}>
-                  <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-[#0F172A]">
+                  <div className="mb-1 flex items-center justify-between gap-3 text-xs font-semibold text-ink">
                     <span className="min-w-0 truncate" title={item.label}>{item.label}</span>
                     <span className="shrink-0 tabular-nums">
                       {format(item.value)}
                       {item.secondaryValue !== undefined && (
-                        <span className="ml-1.5 font-medium text-[#64748B]">{format(item.secondaryValue)}</span>
+                        <span className="ml-1.5 font-medium text-ink-muted">{format(item.secondaryValue)}</span>
                       )}
                     </span>
                   </div>
-                  <div className="h-2.5 w-full rounded-full bg-[#E5EDF3]">
+                  <div className="h-2.5 w-full rounded-full bg-line-soft">
                     <div className="h-full rounded-full" style={{ width: `${widthPct}%`, backgroundColor: color }} />
                   </div>
                 </li>
               );
             })}
           </ul>
-          <table className="sr-only">
+          <table className="sr-only table-fixed">
             <caption>{title}</caption>
             <thead>
               <tr>
