@@ -32,3 +32,11 @@ server/public/uploads/*/*
 # demo-* assets ARE tracked: the seeders reference them by path, so a fresh
 # clone needs them present or the app stores a URL that 404s.
 !server/public/uploads/*/demo-*
+
+# Local credential bundle for the abandoned hiusa-v2 port (tokens, service keys). Never commit.
+/.env.hiusa-v2
+# Abandoned Next.js port; it has its own repository.
+/hiusa-v2/
+
+# graphify code-graph output: generated, rebuilt on demand, never source.
+graphify-out/
