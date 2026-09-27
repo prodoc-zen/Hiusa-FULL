@@ -6,6 +6,12 @@ export function getApiErrorMessage(error, fallback = 'Something went wrong. Plea
 
   const status = Number(error?.response?.status || 0);
   const message = firstValidationError || error?.response?.data?.message;
+  const errorCode = error?.response?.data?.error_code;
+
+  if (errorCode === 'FINANCIAL_REPORT_SCHEMA_OUTDATED') {
+    return message;
+  }
+
   const containsTechnicalDetails = typeof message === 'string' && (
     /SQLSTATE|PDOException|QueryException|Unknown column|Connection:\s*\w+|Stack trace|vendor[\\/].*\.php|select\s+(?:exists|\*|.+\sfrom\s)/i.test(message)
   );

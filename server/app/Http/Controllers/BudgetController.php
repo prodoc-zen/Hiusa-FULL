@@ -310,7 +310,7 @@ class BudgetController extends Controller
             ->first()
             ?->reopen(
                 $request->user()->id,
-                'SUPER_ADMIN'
+                config('approvals.routes.budget')
             );
     }
 

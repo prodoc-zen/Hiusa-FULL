@@ -286,7 +286,7 @@ class TaskController extends Controller
             'progress_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        if (! $this->canTransition($task->status, $data['status'])) {
+        if (! $this->canTransition($task->status, $data['status'], $isAdmin)) {
             return response()->json([
                 'message' => 'Invalid task transition from '.str_replace('_', ' ', $task->status).' to '.str_replace('_', ' ', $data['status']).'.',
             ], 422);
@@ -305,7 +305,7 @@ class TaskController extends Controller
         $task = DB::transaction(function () use ($task, $data, $request, $progressNote) {
             $lockedTask = Task::whereKey($task->id)->lockForUpdate()->firstOrFail();
 
-            if (! $this->canTransition($lockedTask->status, $data['status'])) {
+            if (! $this->canTransition($lockedTask->status, $data['status'], $request->user()->role === 'ADMIN')) {
                 abort(422, 'The task status changed before this update was saved. Refresh and try again.');
             }
 
@@ -361,9 +361,13 @@ class TaskController extends Controller
         return $data;
     }
 
-    private function canTransition(string $current, string $next): bool
+    private function canTransition(string $current, string $next, bool $isAdmin = false): bool
     {
         if ($current === $next) {
+            return true;
+        }
+
+        if ($isAdmin && $next === 'pending') {
             return true;
         }
 

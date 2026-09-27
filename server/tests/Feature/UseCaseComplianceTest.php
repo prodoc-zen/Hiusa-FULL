@@ -235,7 +235,7 @@ class UseCaseComplianceTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => $linkedBudget->id,
             'requested_by' => $admin->school_id,
-            'required_role' => 'SUPER_ADMIN',
+            'required_role' => 'ADMIN',
             'status' => 'approved',
         ]);
         Attendance::create([
@@ -271,7 +271,7 @@ class UseCaseComplianceTest extends TestCase
     public function test_only_approved_budgets_are_spendable_and_overspending_is_reversible(): void
     {
         $admin = $this->user('ADMIN');
-        $superAdmin = $this->user('SUPER_ADMIN', $admin->organization_id);
+        $approver = $this->user('ADMIN', $admin->organization_id);
         $this->authenticate($admin);
         $budgetId = $this->postJson('/api/budgets', [
             'title' => 'Operations Budget',
@@ -289,7 +289,7 @@ class UseCaseComplianceTest extends TestCase
 
         $this->postJson('/api/transactions', $transaction)->assertUnprocessable();
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
-        $this->authenticate($superAdmin);
+        $this->authenticate($approver);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
@@ -323,7 +323,7 @@ class UseCaseComplianceTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => $budget->id,
             'requested_by' => $admin->school_id,
-            'required_role' => 'SUPER_ADMIN',
+            'required_role' => 'ADMIN',
             'status' => 'approved',
         ]);
         $this->authenticate($admin);
@@ -348,7 +348,7 @@ class UseCaseComplianceTest extends TestCase
     public function test_approved_budget_changes_reopen_approval_before_more_spending(): void
     {
         $admin = $this->user('ADMIN');
-        $superAdmin = $this->user('SUPER_ADMIN', $admin->organization_id);
+        $approver = $this->user('ADMIN', $admin->organization_id);
         $this->authenticate($admin);
 
         $budgetId = $this->postJson('/api/budgets', [
@@ -358,7 +358,7 @@ class UseCaseComplianceTest extends TestCase
         ])->assertCreated()->json('id');
 
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
-        $this->authenticate($superAdmin);
+        $this->authenticate($approver);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
@@ -1125,7 +1125,7 @@ class UseCaseComplianceTest extends TestCase
             'quantity' => 2,
             'payment_method' => 'cash',
         ])->assertCreated()->assertJsonPath('claim_token', null)->json('id');
-        $this->assertDatabaseHas('merchandise', ['id' => $item->id, 'stock_quantity' => 3]);
+        $this->assertDatabaseHas('merchandise', ['id' => $item->id, 'stock_quantity' => 5]);
         $this->assertSame(2, Notification::where('title', 'New Merchandise Order')->count());
 
         $this->authenticate($officer);
@@ -1139,6 +1139,7 @@ class UseCaseComplianceTest extends TestCase
         $order = Order::findOrFail($orderId);
         $this->assertSame('paid', $order->status);
         $this->assertNotNull($order->transaction_id);
+        $this->assertDatabaseHas('merchandise', ['id' => $item->id, 'stock_quantity' => 3]);
 
         $this->authenticate($buyer);
         $this->getJson('/api/orders?mine=1')->assertOk()->assertJsonPath('data.0.claim_token', $order->claim_token);

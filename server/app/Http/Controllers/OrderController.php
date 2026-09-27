@@ -379,8 +379,6 @@ class OrderController extends Controller
                 ], 422);
             }
 
-            $item->decrement('stock_quantity', $data['quantity']);
-
             $paymentProofUrl = $request->hasFile('payment_proof') ? $this->storePaymentProof($request) : null;
 
             try {
@@ -521,15 +519,6 @@ class OrderController extends Controller
                     throw new DomainException('This order already has payment activity. Contact merchandise staff so they can review the payment before cancelling it.');
                 }
 
-                $item = Merchandise::where('organization_id', $order->organization_id)
-                    ->whereKey($order->merchandise_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $item) {
-                    throw new DomainException('The merchandise item for this order could not be found.');
-                }
-
                 $remarks = trim($data['reason'] ?? '');
                 $order->update([
                     'status' => 'cancelled',
@@ -537,12 +526,10 @@ class OrderController extends Controller
                         ? 'Cancelled by buyer: '.$remarks
                         : 'Cancelled by buyer.',
                 ]);
-                $item->increment('stock_quantity', $order->quantity);
-
                 $this->notifyFulfillmentTeam(
                     $order,
                     'Merchandise Order Cancelled',
-                    'Order ORD-'.$order->id.' was cancelled by the buyer and its reserved stock was returned.'
+                    'Order ORD-'.$order->id.' was cancelled by the buyer before payment approval.'
                 );
                 $this->audit($request, 'cancelled_by_buyer', $order->fresh());
 

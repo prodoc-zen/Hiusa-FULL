@@ -15,7 +15,14 @@ describe('getNotificationDestination', () => {
 
   it('keeps approval queues role-specific', () => {
     const notification = { reference_type: 'approval_request' };
-    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/approvals');
+    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
     expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals');
+  });
+
+  it('routes financial reports to recipient inboxes without exposing finance workspaces', () => {
+    const notification = { reference_type: 'financial_report' };
+    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
+    expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals');
+    expect(getNotificationDestination({ reference_type: 'budget' }, 'SUPER_ADMIN')).toBeNull();
   });
 });

@@ -52,6 +52,8 @@ class ApprovalRequestController extends Controller
             ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id));
         if ($request->user()->role !== 'SUPER_ADMIN') {
             $query->where('organization_id', $request->user()->organization_id);
+        } else {
+            $query->where('entity_type', 'financial_report');
         }
 
         $status = $filters['status'] ?? 'pending';
@@ -103,6 +105,10 @@ class ApprovalRequestController extends Controller
 
         if (! $approval) {
             return response()->json(['message' => 'Approval request not found.'], 404);
+        }
+
+        if ($request->user()->role === 'SUPER_ADMIN' && $approval->entity_type !== 'financial_report') {
+            return response()->json(['message' => 'Super Admin can only review financial reports.'], 403);
         }
 
         if ($approval->status !== 'pending') {

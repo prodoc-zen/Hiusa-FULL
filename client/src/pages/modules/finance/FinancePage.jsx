@@ -33,7 +33,7 @@ import {
   generateBudgetAdvice,
   getFinancialReports,
   generateFinancialReport,
-  getFinancialReportDeadline,
+  downloadFinancialReportPdf,
   submitFinancialReport,
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
@@ -194,6 +194,17 @@ function printReport(rows, title) {
   return true;
 }
 
+function downloadBlobResponse(response, fallbackName) {
+  const disposition = response.headers?.['content-disposition'] || '';
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || fallbackName;
+  const url = URL.createObjectURL(response.data);
+  const link = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
 export default function FinancePage({ initialTab = 'transactions', startBudgetProposal = false }) {
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -214,10 +225,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [reports, setReports] = useState([]);
   const [generatedReport, setGeneratedReport] = useState(null);
   const [reportGenerating, setReportGenerating] = useState(false);
-  const [reportForm, setReportForm] = useState({ report_type: 'monthly', event_id: '', period_start: '', period_end: '', treasurer: '', president: '', adviser: '', sbo_adviser: '' });
-  const [reportDeadline, setReportDeadline] = useState(null);
+  const [reportForm, setReportForm] = useState({ document_type: 'financial_report', report_type: 'monthly', event_id: '', period_start: '', period_end: '', treasurer: '', president: '', adviser: '', sbo_adviser: '', letterhead: null, letter_date: '', letter_subject: '', letter_recipient: '', letter_body: '', letter_closing: '' });
   const [reportFiles, setReportFiles] = useState({});
   const [reportSubmitting, setReportSubmitting] = useState(null);
+  const [reportPdfDownloading, setReportPdfDownloading] = useState(null);
 
   const [form, setForm] = useState({ description: '', amount: '', type: 'expense', category: 'Operations', transaction_date: '', budget_id: '', event_id: '', receipt_reference: '' });
   const [editingTransaction, setEditingTransaction] = useState(null);
@@ -237,14 +248,13 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
-  const canViewTransactions = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
-  const canViewForecasts = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
-  const canViewBudgets = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
-  const canViewPersonalReceipts = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(currentUserRole);
-  const canViewInvoices = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(currentUserRole);
-  const canViewReportDeadline = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const canViewTransactions = currentUserRole === 'ADMIN';
+  const canViewForecasts = currentUserRole === 'ADMIN';
+  const canViewBudgets = currentUserRole === 'ADMIN';
+  const canViewPersonalReceipts = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
+  const canViewInvoices = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canProposeBudget = currentUserRole === 'ADMIN';
-  const canGenerateBudgetAdvice = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
+  const canGenerateBudgetAdvice = currentUserRole === 'ADMIN';
 
   const closeFeedback = useCallback(() => {
     setFeedback((current) => ({ ...current, open: false }));
@@ -271,11 +281,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
-      ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
+      currentUserRole === 'ADMIN' ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data)) : Promise.resolve([]),
-      canViewReportDeadline ? getFinancialReportDeadline() : Promise.resolve({ data: null }),
     ])
-      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports, deadlineRes]) => {
+      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -294,7 +303,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
         setAuditLogs(Array.isArray(auditRes.data?.data) ? auditRes.data.data : []);
         setReports(reports);
-        setReportDeadline(deadlineRes.data);
       })
       .catch(() => setError('Failed to load financial data.'))
       .finally(() => setLoading(false));
@@ -461,6 +469,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setReportGenerating(true);
     try {
       const payload = {
+        document_type: reportForm.document_type,
         report_type: reportForm.report_type,
         event_id: reportForm.report_type === 'event' ? reportForm.event_id : null,
         period_start: reportForm.report_type === 'custom' ? reportForm.period_start : null,
@@ -471,15 +480,34 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           adviser: reportForm.adviser,
           sbo_adviser: reportForm.sbo_adviser,
         },
+        letterhead: reportForm.letterhead,
+        letter_date: reportForm.letter_date,
+        letter_subject: reportForm.letter_subject,
+        letter_recipient: reportForm.letter_recipient,
+        letter_body: reportForm.letter_body,
+        letter_closing: reportForm.letter_closing,
       };
       const response = await generateFinancialReport(payload);
       setGeneratedReport(response.data);
       setReports((current) => [response.data.report, ...current.filter((report) => report.id !== response.data.report.id)]);
-      showFeedback('success', 'Financial report generated and saved to report history.');
+      showFeedback('success', `${reportForm.document_type === 'income_statement' ? 'Income statement' : 'Financial report'} generated and saved to report history.`);
     } catch (err) {
       showFeedback('error', getApiErrorMessage(err, 'Failed to generate the financial report.'));
     } finally {
       setReportGenerating(false);
+    }
+  }
+
+  async function handleDownloadReportPdf(report) {
+    setReportPdfDownloading(report.id);
+    try {
+      const response = await downloadFinancialReportPdf(report.id);
+      downloadBlobResponse(response, `${report.document_type === 'income_statement' ? 'income-statement' : 'financial-report'}-${report.id}.pdf`);
+      showFeedback('success', 'PDF downloaded.');
+    } catch (err) {
+      showFeedback('error', getApiErrorMessage(err, 'Failed to generate the PDF.'));
+    } finally {
+      setReportPdfDownloading(null);
     }
   }
 
@@ -497,6 +525,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   }
 
   function exportGeneratedReport(format) {
+    if (format === 'pdf') {
+      handleDownloadReportPdf(generatedReport.report);
+      return;
+    }
     const rows = [
       {
         Section: 'AI financial summary',
@@ -549,11 +581,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       })),
     ];
     const title = generatedReport?.report?.title || 'Financial Report';
-    const exported = format === 'excel'
-      ? downloadExcel(rows, `hiusa-financial-report-${generatedReport?.report?.id || 'new'}.xls`, title)
-      : printReport(rows, title);
+    const exported = downloadExcel(rows, `hiusa-${generatedReport?.report?.document_type === 'income_statement' ? 'income-statement' : 'financial-report'}-${generatedReport?.report?.id || 'new'}.xls`, title);
     showFeedback(exported ? 'success' : 'info', exported
-      ? (format === 'excel' ? 'Excel report exported.' : 'Print-ready report opened. Choose Save as PDF in the print dialog.')
+      ? 'Excel report exported.'
       : 'This report has no rows to export.');
   }
 
@@ -1098,62 +1128,87 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       {activeTab === 'reports' && (
         <div className="space-y-5">
-          <section className={`rounded-lg border p-4 ${reportDeadline && new Date(reportDeadline.deadline_at) >= new Date() ? 'border-[#DDE7EF] bg-[#E6F6FD]' : 'border-amber-200 bg-amber-50'}`}>
-            <p className="text-xs font-bold uppercase tracking-wide text-[#0878B7]">SAO submission deadline</p>
-            <p className="mt-1 font-bold text-[#0F172A]">{reportDeadline ? new Date(reportDeadline.deadline_at).toLocaleString('en-PH', { dateStyle: 'full', timeStyle: 'short' }) : 'Not set yet'}</p>
-            {reportDeadline?.instructions && <p className="mt-1 text-sm text-slate-600">{reportDeadline.instructions}</p>}
-          </section>
           {currentUserRole === 'ADMIN' && <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">Generate Financial Report</h2>
-              <p className="text-sm font-medium text-slate-500">Build and save a ledger-backed report with a financial summary</p>
+              <h2 className="text-lg font-bold text-[#0F172A]">Create a report document</h2>
+              <p className="text-sm font-medium text-slate-500">Choose the document first. Each format has its own PDF layout and report history entry.</p>
             </div>
-            <form onSubmit={handleGenerateReport} className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[180px_minmax(180px,1fr)_160px_160px_auto]">
-              <select
-                value={reportForm.report_type}
-                onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
-                aria-label="Report type"
-              >
-                <option value="monthly">Monthly</option>
-                <option value="semester">Semester</option>
-                <option value="event">Event-specific</option>
-                <option value="custom">Custom period</option>
-              </select>
-              <select
-                value={reportForm.event_id}
-                onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })}
-                disabled={reportForm.report_type !== 'event'}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100 disabled:text-slate-500"
-                aria-label="Report event"
-              >
-                <option value="">Select event</option>
-                {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
-              </select>
-              <input
-                type="date"
-                value={reportForm.period_start}
-                onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })}
-                disabled={reportForm.report_type !== 'custom'}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100"
-                aria-label="Report start date"
-              />
-              <input
-                type="date"
-                value={reportForm.period_end}
-                onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })}
-                disabled={reportForm.report_type !== 'custom'}
-                className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100"
-                aria-label="Report end date"
-              />
-              <button type="submit" disabled={reportGenerating} className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">
-                <Sparkles size={15} />
-                {reportGenerating ? 'Generating...' : 'Generate'}
-              </button>
+            <form onSubmit={handleGenerateReport} className="mt-4 space-y-4">
+              <fieldset>
+                <legend className="text-xs font-bold text-[#0F172A]">Document</legend>
+                <div className="mt-2 grid gap-2 md:grid-cols-2">
+                  {[
+                    { value: 'financial_report', title: 'Financial Report', text: 'Detailed inflow and cash-outflow ledger with opening and closing balances.' },
+                    { value: 'income_statement', title: 'Income Statement', text: 'Category totals, net income, and a formal submission letter.' },
+                  ].map((option) => (
+                    <label key={option.value} className={`min-h-20 cursor-pointer rounded-lg border p-3 transition focus-within:ring-2 focus-within:ring-[#16C7F3] ${reportForm.document_type === option.value ? 'border-[#0B8ED0] bg-[#EEF6FB]' : 'border-[#DDE7EF] bg-white hover:bg-[#F8FBFD]'}`}>
+                      <input type="radio" name="document_type" value={option.value} checked={reportForm.document_type === option.value} onChange={(event) => setReportForm({ ...reportForm, document_type: event.target.value })} className="sr-only" />
+                      <span className="block text-sm font-bold text-[#0F172A]">{option.title}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-500">{option.text}</span>
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <label className="text-xs font-bold text-slate-600">Covered period
+                  <select value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                    <option value="monthly">Current month</option>
+                    <option value="semester">Last six months</option>
+                    <option value="event">One event</option>
+                    <option value="custom">Custom dates</option>
+                  </select>
+                </label>
+                <label className="text-xs font-bold text-slate-600">Event
+                  <select value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} disabled={reportForm.report_type !== 'event'} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20 disabled:bg-slate-100 disabled:text-slate-500">
+                    <option value="">Select event</option>
+                    {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+                  </select>
+                </label>
+                <label className="text-xs font-bold text-slate-600">Start date
+                  <input type="date" value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} disabled={reportForm.report_type !== 'custom'} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20 disabled:bg-slate-100" />
+                </label>
+                <label className="text-xs font-bold text-slate-600">End date
+                  <input type="date" value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} disabled={reportForm.report_type !== 'custom'} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20 disabled:bg-slate-100" />
+                </label>
+              </div>
+
+              <div className="border-t border-[#DDE7EF] pt-4">
+                <label className="block max-w-xl text-xs font-bold text-slate-600">Letterhead image
+                  <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={(event) => {
+                    const file = event.target.files?.[0] || null;
+                    if (file && file.size > 5 * 1024 * 1024) {
+                      event.target.value = '';
+                      showFeedback('error', 'The letterhead image must be 5 MB or smaller.');
+                      return;
+                    }
+                    setReportForm({ ...reportForm, letterhead: file });
+                  }} className="mt-1 block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 py-2 text-sm file:mr-3 file:rounded-md file:border-0 file:bg-[#EEF6FB] file:px-3 file:py-1.5 file:text-xs file:font-bold file:text-[#0F2F62]" />
+                </label>
+                <p className="mt-1 text-xs text-slate-500">PNG or JPG, up to 5 MB. The PDF repeats it at the top of every page.</p>
+              </div>
+
+              {reportForm.document_type === 'income_statement' && (
+                <div className="grid gap-3 border-t border-[#DDE7EF] pt-4 sm:grid-cols-2">
+                  <label className="text-xs font-bold text-slate-600">Letter date<input type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
+                  <label className="text-xs font-bold text-slate-600">Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Letter body<textarea value={reportForm.letter_body} onChange={(event) => setReportForm({ ...reportForm, letter_body: event.target.value })} rows={4} className="mt-1 w-full rounded-lg border border-[#DDE7EF] p-3 text-sm leading-6" placeholder="Leave blank to use a factual period and balance summary." /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Closing<input value={reportForm.letter_closing} onChange={(event) => setReportForm({ ...reportForm, letter_closing: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Thank you." /></label>
+                </div>
+              )}
+
+              <div className="grid gap-3 border-t border-[#DDE7EF] pt-4 sm:grid-cols-2 xl:grid-cols-4">
+                {[['treasurer', 'Treasurer'], ['president', 'President'], ['adviser', 'Adviser'], ['sbo_adviser', 'SBO Adviser']].map(([key, label]) => <label key={key} className="text-xs font-bold text-slate-600">{label}<input required value={reportForm[key]} onChange={(event) => setReportForm({ ...reportForm, [key]: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder={`${label} full name`} /></label>)}
+              </div>
+
+              <div className="flex justify-end">
+                <button type="submit" disabled={reportGenerating} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#16C7F3] disabled:opacity-50 sm:w-auto">
+                  <FileText size={16} />
+                  {reportGenerating ? 'Generating PDF data...' : `Generate ${reportForm.document_type === 'income_statement' ? 'Income Statement' : 'Financial Report'}`}
+                </button>
+              </div>
             </form>
-            <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {[['treasurer', 'Treasurer'], ['president', 'President'], ['adviser', 'Adviser'], ['sbo_adviser', 'SBO Adviser']].map(([key, label]) => <label key={key} className="text-xs font-bold text-slate-600">{label}<input required value={reportForm[key]} onChange={(event) => setReportForm({ ...reportForm, [key]: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder={`${label} full name`} /></label>)}
-            </div>
 
             {generatedReport && (
               <div className="mt-5 border-t border-[#DDE7EF] pt-5">
@@ -1164,14 +1219,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {generatedReport.ai_summary_status === 'unavailable' && <p className="mt-2 text-xs font-semibold text-amber-700">AI summary was unavailable. This report was saved with backend-calculated totals and a deterministic summary; generate it again to retry.</p>}
                   </div>
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex h-9 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>
-                    <button type="button" onClick={() => exportGeneratedReport('pdf')} className="flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600"><FileText size={14} />PDF</button>
+                    <button type="button" onClick={() => exportGeneratedReport('excel')} className="flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white"><FileSpreadsheet size={14} />Excel</button>
+                    <button type="button" disabled={reportPdfDownloading === generatedReport.report.id} onClick={() => exportGeneratedReport('pdf')} className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 disabled:opacity-50"><FileText size={14} />{reportPdfDownloading === generatedReport.report.id ? 'Preparing...' : 'Download PDF'}</button>
                   </div>
                 </div>
-                <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+                <div className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-3">
                   <p className="text-slate-500">Income <strong className="block text-emerald-700">{fmt(generatedReport.totals.income)}</strong></p>
                   <p className="text-slate-500">Expenses <strong className="block text-red-600">{fmt(generatedReport.totals.expense)}</strong></p>
-                  <p className="text-slate-500">Balance <strong className="block text-[#0F172A]">{fmt(generatedReport.totals.balance)}</strong></p>
+                  <p className="text-slate-500">{generatedReport.report.document_type === 'income_statement' ? 'Net income' : 'Closing balance'} <strong className="block text-[#0F172A]">{fmt(generatedReport.report.document_type === 'income_statement' ? generatedReport.totals.balance : generatedReport.totals.closing_balance)}</strong></p>
                 </div>
                 <p className="mt-3 text-xs text-slate-500">
                   Includes {(generatedReport.transactions || []).length} ledger entries, {(generatedReport.audit_logs || []).length} audit entries,
@@ -1221,7 +1276,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <h2 className="text-lg font-bold text-[#0F172A]">Report History</h2>
             </div>
             {reports.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">No saved reports yet.</p>
+              <p className="p-8 text-center text-sm text-slate-500">No saved reports yet. Generate a Financial Report or Income Statement above.</p>
             ) : (
               <div className="divide-y divide-[#DDE7EF]">
                 {reports.map((report) => (
@@ -1231,7 +1286,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <span className="text-xs text-slate-500">{String(report.generated_at || '').slice(0, 10)}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{report.summary_text}</p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex h-9 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id || !reportDeadline} onClick={() => handleSubmitReport(report)} className="h-9 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for approval'}</button></>}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{report.document_type === 'income_statement' ? 'Income Statement' : 'Financial Report'}</span>
+                      <button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handleDownloadReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Download size={14} />{reportPdfDownloading === report.id ? 'Preparing...' : 'Download PDF'}</button>
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id} onClick={() => handleSubmitReport(report)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for review'}</button></>}</div>
                   </div>
                 ))}
               </div>
@@ -1350,7 +1409,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         </section>
       )}
 
-      {activeTab === 'audit' && ['SUPER_ADMIN', 'ADMIN'].includes(currentUserRole) && (
+      {activeTab === 'audit' && currentUserRole === 'ADMIN' && (
         <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] p-5"><h2 className="text-lg font-bold text-[#0F172A]">Admin Audit Logs</h2><p className="mt-1 text-sm text-slate-500">Read-only activity history across financial, approval, order, and system modules.</p></div>
           {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No audit activity recorded.</p> : <div className="divide-y divide-[#DDE7EF]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0878B7]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-500">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {log.actor?.name || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {log.affected_user.name} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}

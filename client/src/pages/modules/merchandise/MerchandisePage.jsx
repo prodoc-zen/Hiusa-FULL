@@ -170,7 +170,7 @@ function StepTracker({ status }) {
   const done2 = status === "claimed";
   return (
     <div className="flex items-start gap-0">
-      <StepNode active={status === "pending"} done={done1} label="Reserved" />
+      <StepNode active={status === "pending"} done={done1} label="Ordered" />
       <div
         className={`mt-3 h-px w-10 ${done1 ? "bg-emerald-400" : "bg-slate-200"}`}
       />
@@ -1030,7 +1030,7 @@ export default function MerchandisePage({ initialTab }) {
   function confirmBuyerCancellation(order) {
     openConfirm({
       title: "Cancel this order?",
-      message: `Cancel ORD-${order.id} for ${order.merchandise?.name ?? "this item"}? The reserved ${order.quantity} unit${order.quantity === 1 ? "" : "s"} will immediately return to available stock.`,
+      message: `Cancel ORD-${order.id} for ${order.merchandise?.name ?? "this item"}? This unpaid order has not reserved stock.`,
       confirmText: "Cancel Order",
       danger: true,
       action: async () => {
@@ -1039,28 +1039,8 @@ export default function MerchandisePage({ initialTab }) {
           current.map((row) => (row.id === order.id ? response.data : row)),
         );
         setPendingOrdersTotal((current) => Math.max(0, current - 1));
-        setItems((current) =>
-          current.map((item) =>
-            item.id === order.merchandise?.id
-              ? { ...item, stock_quantity: item.stock_quantity + order.quantity }
-              : item,
-          ),
-        );
-        setCart((current) =>
-          current.map((row) =>
-            row.item.id === order.merchandise?.id
-              ? {
-                  ...row,
-                  item: {
-                    ...row.item,
-                    stock_quantity: row.item.stock_quantity + order.quantity,
-                  },
-                }
-              : row,
-          ),
-        );
         setTransactionMessage(
-          `Order ORD-${order.id} was cancelled. Reserved stock is available again.`,
+          `Order ORD-${order.id} was cancelled.`,
         );
       },
     });
@@ -1643,7 +1623,7 @@ export default function MerchandisePage({ initialTab }) {
                     Choose it now, decide before payment
                   </h2>
                   <p className="mt-2 text-[13px] font-medium leading-6 text-slate-200">
-                    Stock is shown live and reserved after checkout. You can
+                    Stock is shown live. It is reserved only after payment is approved. You can
                     cancel a pending unpaid order from My Orders if you change
                     your mind.
                   </p>
@@ -1869,7 +1849,7 @@ export default function MerchandisePage({ initialTab }) {
                   Your merchandise cart
                 </h2>
                 <p className="mt-1 text-sm font-medium text-slate-500">
-                  Nothing is reserved until you submit the order.
+                  Placing an order does not reserve stock. Stock is reserved after payment approval.
                 </p>
               </div>
               <button

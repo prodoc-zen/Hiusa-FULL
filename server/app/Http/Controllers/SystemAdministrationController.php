@@ -8,7 +8,6 @@ use App\Models\Election;
 use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Organization;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use Illuminate\Http\Request;
@@ -30,7 +29,6 @@ class SystemAdministrationController extends Controller
         }
         $selectedIds = $organizationId ? collect([$organizationId]) : $organizationIds;
         $userBase = User::whereIn('organization_id', $selectedIds);
-        $transactionBase = Transaction::whereIn('organization_id', $selectedIds);
 
         return response()->json([
             'filter_organization_id' => $organizationId,
@@ -48,15 +46,11 @@ class SystemAdministrationController extends Controller
                 'upcoming_events' => Event::whereIn('organization_id', $selectedIds)->where('start_time', '>=', now())->count(),
                 'active_elections' => Election::whereIn('organization_id', $selectedIds)->where('status', 'active')->count(),
                 'pending_approvals' => ApprovalRequest::whereIn('organization_id', $selectedIds)
-                    ->where('required_role', config('approvals.routes.budget'))
+                    ->where('required_role', 'SUPER_ADMIN')
+                    ->where('entity_type', 'financial_report')
                     ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id))
                     ->where('status', 'pending')
                     ->count(),
-            ],
-            'financials' => [
-                'income' => (float) (clone $transactionBase)->where('type', 'income')->sum('amount'),
-                'expenses' => (float) (clone $transactionBase)->where('type', 'expense')->sum('amount'),
-                'net' => (float) (clone $transactionBase)->where('type', 'income')->sum('amount') - (float) (clone $transactionBase)->where('type', 'expense')->sum('amount'),
             ],
             'notifications' => [
                 'unread' => Notification::where('organization_id', $request->user()->organization_id)
@@ -69,12 +63,6 @@ class SystemAdministrationController extends Controller
                     ->limit(5)
                     ->get(),
             ],
-            'recent_activity' => AuditLog::query()
-                ->leftJoin('organizations', 'audit_logs.organization_id', '=', 'organizations.id')
-                ->leftJoin('users', 'audit_logs.user_id', '=', 'users.school_id')
-                ->when($organizationId, fn ($query) => $query->where('audit_logs.organization_id', $organizationId))
-                ->select('audit_logs.*', 'organizations.name as organization_name', 'users.first_name', 'users.last_name')
-                ->latest('audit_logs.created_at')->limit(12)->get(),
         ]);
     }
 

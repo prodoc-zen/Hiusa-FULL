@@ -66,20 +66,27 @@ export const deleteForecast = (id) =>
 export const getFinancialReports = (params) =>
   api.get('/financial-reports', { params });
 
-export const generateFinancialReport = (data) =>
-  api.post('/financial-reports/generate', data);
+export const generateFinancialReport = (data) => {
+  const formData = new FormData();
+  Object.entries(data).forEach(([key, value]) => {
+    if (value === null || value === undefined || value === '') return;
+    if (key === 'signatories') {
+      Object.entries(value).forEach(([role, name]) => formData.append(`signatories[${role}]`, name));
+      return;
+    }
+    formData.append(key, value);
+  });
+  return api.post('/financial-reports/generate', formData);
+};
 
 export const getFinancialReport = (id) =>
   api.get(`/financial-reports/${id}`);
+
+export const downloadFinancialReportPdf = (id) =>
+  api.get(`/financial-reports/${id}/pdf`, { responseType: 'blob' });
 
 export const submitFinancialReport = (id, files = []) => {
   const formData = new FormData();
   files.forEach((file) => formData.append('supporting_documents[]', file));
   return api.post(`/financial-reports/${id}/submit`, formData);
 };
-
-export const getFinancialReportDeadline = () =>
-  api.get('/financial-reports/deadline');
-
-export const setFinancialReportDeadline = (data) =>
-  api.post('/financial-reports/deadline', data);

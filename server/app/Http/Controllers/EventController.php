@@ -527,7 +527,7 @@ class EventController extends Controller
         }
 
         $data = $request->validate([
-            'requirements' => ['required', 'string', 'max:4000'],
+            'requirements' => ['nullable', 'string', 'max:4000'],
             'model' => ['nullable', 'string', 'max:100'],
         ]);
 
@@ -551,7 +551,7 @@ class EventController extends Controller
             ->toArray();
         $context = [
             'event' => $event->only(['id', 'title', 'description', 'start_time', 'end_time', 'location', 'requires_budget']),
-            'requirements' => $data['requirements'],
+            'requirements' => trim($data['requirements'] ?? ''),
             'existing_planning_details' => $event->planning_details ?? [],
             'linked_budgets' => $event->budgets->map->only(['id', 'title', 'allocated_amount', 'remaining_amount', 'approval_status'])->values()->all(),
             'schedule_conflicts' => $conflicts,
@@ -564,7 +564,7 @@ class EventController extends Controller
                 ->all(),
         ];
         $generated = $this->groq->generateStructured(
-            'Create a practical student-organization event plan from only the supplied facts. Do not invent fees, names, vendors, venues, dates, or approvals. Use null or identify an item as unresolved when information is missing. Produce realistic, editable workflow tasks in dependency order. Pre-event deadlines must be before the event, event-day deadlines must fall during the event, and post-event deadlines must be after it ends but within 30 days.',
+            'Create a practical student-organization event plan using the supplied facts as constraints. Independently identify sensible preparation, operations, safety, accessibility, contingency, and closeout tasks even when they were not explicitly requested; every recommendation remains editable before it is saved. Do not invent fees, names, vendors, venues, dates, or approvals. Use null or identify an item as unresolved when information is missing. Produce realistic, editable workflow tasks in dependency order. Pre-event deadlines must be before the event, event-day deadlines must fall during the event, and post-event deadlines must be after it ends but within 30 days.',
             $context,
             'hiusa_event_workflow',
             $this->eventWorkflowSchema(),

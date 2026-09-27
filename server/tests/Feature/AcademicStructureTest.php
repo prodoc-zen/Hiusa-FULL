@@ -103,6 +103,35 @@ class AcademicStructureTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['module' => 'academic_structure', 'action' => 'deleted', 'record_id' => $unassignedId]);
     }
 
+    public function test_program_duration_controls_the_available_year_levels(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        Sanctum::actingAs($admin);
+
+        $programId = $this->postJson('/api/academic-structure/programs', [
+            'name' => 'Five Year Program',
+            'duration_years' => 5,
+            'sections' => ['1' => 0, '2' => 0, '3' => 0, '4' => 0, '5' => 1],
+        ])->assertCreated()
+            ->assertJsonPath('duration_years', 5)
+            ->assertJsonFragment(['name' => '5-A'])
+            ->json('id');
+
+        $this->postJson('/api/users', [
+            'school_id' => 87654324,
+            'first_name' => 'Fifth', 'last_name' => 'Year', 'email' => 'fifth.year@example.test',
+            'password' => 'password123', 'password_confirmation' => 'password123', 'role' => 'STUDENT',
+            'program' => 'Five Year Program', 'year_level' => '5th Year', 'section' => '5-A',
+        ])->assertCreated();
+
+        $this->putJson("/api/academic-structure/programs/{$programId}", [
+            'name' => 'Five Year Program',
+            'duration_years' => 4,
+            'sections' => ['1' => 0, '2' => 0, '3' => 0, '4' => 0],
+        ])->assertUnprocessable()->assertJsonValidationErrors('sections.5');
+    }
+
     public function test_academic_setup_is_admin_only_and_sections_cannot_cross_program_or_organization_boundaries(): void
     {
         $organization = Organization::factory()->create();
@@ -177,5 +206,22 @@ class AcademicStructureTest extends TestCase
             'action' => 'deleted',
             'record_id' => $studentId,
         ]);
+    }
+
+    public function test_admin_can_create_an_admin_but_cannot_create_an_adviser_assignment(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/users', [
+            'school_id' => 87654351, 'first_name' => 'Second', 'last_name' => 'Admin', 'email' => 'second.admin@example.test',
+            'password' => 'password123', 'password_confirmation' => 'password123', 'role' => 'ADMIN',
+        ])->assertCreated()->assertJsonPath('role', 'ADMIN');
+
+        $this->postJson('/api/users', [
+            'school_id' => 87654352, 'first_name' => 'Restricted', 'last_name' => 'Adviser', 'email' => 'restricted.adviser@example.test',
+            'password' => 'password123', 'password_confirmation' => 'password123', 'role' => 'ADMIN', 'position_title' => 'Adviser',
+        ])->assertForbidden();
     }
 }
