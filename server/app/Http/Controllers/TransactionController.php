@@ -291,7 +291,7 @@ class TransactionController extends Controller
             return 'The selected event does not belong to this organization.';
         }
 
-        if (! empty($data['payer_id']) && ! User::where('organization_id', $organizationId)->where('school_id', $data['payer_id'])->exists()) {
+        if (! empty($data['payer_id']) && ! User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('account_status', 'active'))->where('school_id', $data['payer_id'])->exists()) {
             return 'The selected payer does not belong to this organization.';
         }
 

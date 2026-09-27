@@ -21,9 +21,7 @@ describe('password recovery pages', () => {
     authMocks.resetPassword.mockResolvedValue({ data: { message: 'Password updated successfully.' } });
   });
 
-  it('requests a reset for the selected organization without revealing account existence', async () => {
-    localStorage.setItem('selected_organization', JSON.stringify({ id: 14, name: 'Computing Council' }));
-
+  it('requests a reset by school ID without revealing account existence', async () => {
     render(
       <MemoryRouter initialEntries={['/recover-account']}>
         <Routes>
@@ -33,11 +31,12 @@ describe('password recovery pages', () => {
       </MemoryRouter>,
     );
 
+    fireEvent.change(screen.getByLabelText('School ID / ID number'), { target: { value: '12345678' } });
     fireEvent.change(screen.getByLabelText('Email address'), { target: { value: 'admin@example.test' } });
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
 
     await waitFor(() => expect(authMocks.requestPasswordReset).toHaveBeenCalledWith({
-      organization_id: 14,
+      school_id: '12345678',
       email: 'admin@example.test',
     }));
     expect(await screen.findByRole('heading', { name: 'Check your email' })).toBeInTheDocument();

@@ -7,6 +7,7 @@ import {
   KeyRound,
   PencilLine,
   Search,
+  Trash2,
   ShieldCheck,
   UserPlus,
   Users,
@@ -14,6 +15,7 @@ import {
 } from "lucide-react";
 import {
   createSystemAdmin,
+  deleteSystemAdmin,
   getSystemAdmins,
   getSystemOrganizations,
   initiateSystemAdminPasswordReset,
@@ -63,6 +65,7 @@ export default function SystemAdminsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resetTarget, setResetTarget] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const load = useCallback(async () => {
@@ -90,6 +93,23 @@ export default function SystemAdminsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  async function removeAdmin() {
+    if (!deleteTarget) return;
+    setBusy(true);
+    setError('');
+    try {
+      await deleteSystemAdmin(deleteTarget.school_id);
+      setDeleteTarget(null);
+      setSuccess('Administrator account removed.');
+      await load();
+    } catch (cause) {
+      setError(getApiErrorMessage(cause, 'Could not delete this administrator.'));
+      setDeleteTarget(null);
+    } finally {
+      setBusy(false);
+    }
+  }
 
   const visibleAdmins = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -389,6 +409,7 @@ export default function SystemAdminsPage() {
                         >
                           <PencilLine size={14} /> Edit
                         </button>
+                        <button type="button" onClick={() => setDeleteTarget(admin)} aria-label={`Delete ${admin.first_name} ${admin.last_name}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700 hover:bg-red-50"><Trash2 size={14} /> Delete</button>
                       </div>
                     </td>
                   </tr>
@@ -559,6 +580,7 @@ export default function SystemAdminsPage() {
         onCancel={() => !busy && setResetTarget(null)}
         onConfirm={initiatePasswordReset}
       />
+      <ConfirmModal open={Boolean(deleteTarget)} title="Delete administrator" message="This removes the administrator profile. Accounts with linked records cannot be deleted." recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''} confirmText="Delete administrator" busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={removeAdmin} />
     </div>
   );
 }

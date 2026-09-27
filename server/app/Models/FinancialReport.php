@@ -46,6 +46,11 @@ class FinancialReport extends Model
         return $this->belongsTo(Event::class);
     }
 
+    public function semester(): BelongsTo
+    {
+        return $this->belongsTo(FinancialSemester::class, 'financial_semester_id');
+    }
+
     public function generator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'generated_by', 'school_id');

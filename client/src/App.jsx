@@ -5,7 +5,6 @@ import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
-const OrganizationSelectPage = lazy(() => import('./pages/auth/OrganizationSelectPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
@@ -13,6 +12,7 @@ const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
 const SuperAdminFinancialReportsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialReportsPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
+const SaoEventRequirementsPage = lazy(() => import('./pages/roles/super-admin/SaoEventRequirementsPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
 const SaoNotificationsPage = lazy(() => import('./pages/roles/super-admin/SaoNotificationsPage'));
@@ -162,7 +162,7 @@ function AnnouncementsIndexRedirect() {
 }
 
 function NotFoundRedirect() {
-  return <Navigate to={localStorage.getItem('auth_token') ? '/dashboard' : '/select-organization'} replace />;
+  return <Navigate to={localStorage.getItem('auth_token') ? '/dashboard' : '/login'} replace />;
 }
 
 function App() {
@@ -170,9 +170,9 @@ function App() {
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
       {/* Authentication */}
-      <Route path="/" element={<Navigate to="/select-organization" replace />} />
+      <Route path="/" element={<Navigate to="/login" replace />} />
       <Route element={<LoggedInRoute />}>
-        <Route path="/select-organization" element={<OrganizationSelectPage />} />
+        <Route path="/select-organization" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/recover-account" element={<RecoverAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />
@@ -186,6 +186,7 @@ function App() {
           <Route index element={<DashboardIndexRedirect />} />
           <Route path="super-admin" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminHomePage /></ProtectedRoute>} />
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
+          <Route path="super-admin/event-requirements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEventRequirementsPage /></ProtectedRoute>} />
           <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
           <Route path="super-admin/notifications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoNotificationsPage /></ProtectedRoute>} />

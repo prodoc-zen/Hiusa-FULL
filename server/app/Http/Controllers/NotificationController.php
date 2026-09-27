@@ -81,9 +81,8 @@ class NotificationController extends Controller
         ]);
 
         if (! empty($data['user_id'])) {
-            $recipientBelongsToOrganization = User::where('organization_id', $request->user()->organization_id)
+            $recipientBelongsToOrganization = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('account_status', 'active'))
                 ->where('school_id', $data['user_id'])
-                ->where('account_status', 'active')
                 ->exists();
 
             if (! $recipientBelongsToOrganization) {
@@ -96,9 +95,7 @@ class NotificationController extends Controller
         }
 
         if (! empty($data['target_role'])) {
-            $userIds = User::where('organization_id', $request->user()->organization_id)
-                ->where('role', $data['target_role'])
-                ->where('account_status', 'active')
+            $userIds = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', $data['target_role'])->where('account_status', 'active'))
                 ->pluck('school_id');
 
             Notification::insert(

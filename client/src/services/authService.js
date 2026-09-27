@@ -35,6 +35,12 @@ export const getCurrentUser = async () => {
   localStorage.setItem("user", JSON.stringify(user));
   return user;
 };
+
+export const getAccountProfiles = () => api.get('/user/profiles');
+
+export const switchAccountProfile = (profileId) => api.post(`/user/profiles/${profileId}/switch`);
+
+export const inviteAccountProfile = (data) => api.post('/account-profiles/invite', data);
  
 
 

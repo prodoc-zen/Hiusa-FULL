@@ -9,6 +9,7 @@ const pageTitles = {
   '/dashboard/super-admin': 'Super Admin Dashboard',
   '/dashboard/super-admin/approvals': 'Received Reports',
   '/dashboard/super-admin/organizations': 'Organizations',
+  '/dashboard/super-admin/event-requirements': 'Event Requirements',
   '/dashboard/super-admin/admins': 'Administrators',
   '/dashboard/super-admin/announcements': 'Official SAO Announcements',
   '/dashboard/super-admin/notifications': 'SAO Notifications',
@@ -79,13 +80,32 @@ function getTitle(pathname) {
 
 export default function DashboardLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [desktopCollapsed, setDesktopCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem('hiusa_desktop_sidebar_collapsed') === 'true';
+    } catch {
+      return false;
+    }
+  });
   const location = useLocation();
   const title = getTitle(location.pathname);
 
+  function toggleDesktopSidebar() {
+    setDesktopCollapsed((current) => {
+      const next = !current;
+      try {
+        localStorage.setItem('hiusa_desktop_sidebar_collapsed', String(next));
+      } catch {
+        // The rail still works when browser storage is unavailable.
+      }
+      return next;
+    });
+  }
+
   return (
     <div className="flex h-[100dvh] min-h-screen max-w-full overflow-hidden bg-[#EEF6FB] font-sans text-[#0F172A]">
-      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
-      <div className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 ${sidebarOpen ? 'lg:pl-[260px]' : 'lg:pl-0'}`}>
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} desktopCollapsed={desktopCollapsed} onToggleDesktop={toggleDesktopSidebar} />
+      <div className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 motion-reduce:transition-none ${desktopCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'}`}>
         <TopBar
           title={title}
           pathname={location.pathname}

@@ -6,6 +6,20 @@ export const getEvents = (params) =>
 export const getEvent = (id) =>
   api.get(`/events/${id}`);
 
+export const getEventRequirements = () => api.get('/event-requirements');
+export const createEventRequirement = (data) => api.post('/event-requirements', data);
+export const updateEventRequirement = (id, data) => api.put(`/event-requirements/${id}`, data);
+export const getEventSubmission = (id) => api.get(`/events/${id}/submission`);
+export const submitEventRequirements = (id, files) => {
+  const data = new FormData();
+  Object.entries(files).forEach(([requirementId, file]) => {
+    if (file) data.append(`documents[${requirementId}]`, file);
+  });
+  return api.post(`/events/${id}/submission`, data);
+};
+export const downloadEventRequirementFile = (eventId, fileId) =>
+  api.get(`/events/${eventId}/submission/files/${fileId}`, { responseType: 'blob' });
+
 function toEventFormData(data, method = null) {
   const formData = new FormData();
   if (method) formData.append('_method', method);

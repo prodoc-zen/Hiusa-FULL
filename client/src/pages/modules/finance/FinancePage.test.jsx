@@ -11,6 +11,8 @@ const financeMocks = vi.hoisted(() => ({
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
   getFinancialReports: vi.fn(),
+  getFinancialSemesters: vi.fn(),
+  createFinancialSemester: vi.fn(),
   generateFinancialReport: vi.fn(),
   downloadFinancialReportPdf: vi.fn(),
   submitFinancialReport: vi.fn(),
@@ -48,6 +50,7 @@ describe('FinancePage transaction search', () => {
     financeMocks.getForecasts.mockResolvedValue({ data: [] });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
   });
 
   it('clears the search term and reloads the unfiltered ledger', async () => {
@@ -64,6 +67,19 @@ describe('FinancePage transaction search', () => {
 
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
+  });
+
+  it('keeps the record action visible and offers a reset for an empty filtered ledger', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    expect(await screen.findByRole('button', { name: 'Record transaction' })).toBeInTheDocument();
+    const search = screen.getByPlaceholderText('Search transactions...');
+    fireEvent.change(search, { target: { value: 'missing' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(await screen.findByText('No matching transactions')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(search).toHaveValue('');
   });
 
   it('shows the complete traceable data for each digital-ledger entry', async () => {
@@ -91,9 +107,13 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="transactions" />);
 
-    expect(await screen.findByText('Venue reservation')).toBeInTheDocument();
-    expect(screen.getByText('Sep 8, 2026')).toBeInTheDocument();
-    expect(screen.getByText('HIUSA-1-00000007')).toBeInTheDocument();
+    const ledgerTable = await screen.findByRole('table');
+    expect(within(ledgerTable).getByText('Venue reservation')).toBeInTheDocument();
+    expect(within(ledgerTable).getByText('Sep 8, 2026')).toBeInTheDocument();
+    expect(within(ledgerTable).getByText('HIUSA-1-00000007')).toBeInTheDocument();
+    const mobileLedger = screen.getByRole('list', { name: 'Transactions' });
+    expect(within(mobileLedger).getByText('Venue reservation')).toBeInTheDocument();
+    expect(within(mobileLedger).getByRole('button', { name: 'Edit transaction' })).toBeInTheDocument();
     expect(screen.getAllByText('Sports Fest').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sports Fest Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
@@ -151,6 +171,7 @@ describe('FinancePage transaction search', () => {
     expect(await screen.findByText('Student membership payment')).toBeInTheDocument();
     expect(screen.getByText('HIUSA-1-00000010')).toBeInTheDocument();
     expect(financeMocks.getFinancialReports).not.toHaveBeenCalled();
+    expect(screen.queryByText('Net balance')).not.toBeInTheDocument();
     expect(screen.queryByText('Failed to load financial data.')).not.toBeInTheDocument();
   });
 
@@ -182,7 +203,7 @@ describe('FinancePage transaction search', () => {
   it('creates an income statement as a separate document with a letterhead image', async () => {
     financeMocks.generateFinancialReport.mockResolvedValue({
       data: {
-        report: { id: 41, document_type: 'income_statement', title: 'Monthly Income Statement - September 2026', summary_text: 'Recorded totals for the selected period.' },
+        report: { id: 41, document_type: 'income_statement', title: 'Income Statement - Semester 2026-2027', summary_text: 'Recorded totals for the selected period.' },
         totals: { income: 1000, expense: 250, balance: 750, opening_balance: 0, closing_balance: 750 },
         transactions: [],
         audit_logs: [],
@@ -192,9 +213,11 @@ describe('FinancePage transaction search', () => {
       },
     });
 
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [{ id: 3, name: 'Semester 2026-2027', starts_on: '2026-06-01', ends_on: '2026-09-27' }] });
     render(<FinancePage initialTab="reports" />);
 
     fireEvent.click(await screen.findByRole('radio', { name: /Income Statement/i }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
     expect(screen.getByLabelText('Letter body')).toBeInTheDocument();
     const header = new File(['header'], 'organization-header.png', { type: 'image/png' });
     fireEvent.change(screen.getByLabelText('Letterhead image'), { target: { files: [header] } });
@@ -206,10 +229,11 @@ describe('FinancePage transaction search', () => {
 
     await waitFor(() => expect(financeMocks.generateFinancialReport).toHaveBeenCalledWith(expect.objectContaining({
       document_type: 'income_statement',
-      report_type: 'monthly',
+      report_type: 'semester',
+      financial_semester_id: '3',
       letterhead: header,
     })));
-    expect((await screen.findAllByText('Monthly Income Statement - September 2026')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Income Statement - Semester 2026-2027')).length).toBeGreaterThan(0);
   });
 });
 
@@ -228,6 +252,7 @@ describe('FinancePage forecast explainability', () => {
     financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
   });
 
   it('shows a weak-fit warning and reports an unknown engine when the forecast metadata is thin', async () => {
@@ -277,7 +302,7 @@ describe('FinancePage forecast explainability', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Generate Forecast' }));
 
-    expect((await screen.findAllByText(/at least two different calendar months/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Not enough history/i)).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });

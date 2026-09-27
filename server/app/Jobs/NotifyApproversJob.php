@@ -31,19 +31,17 @@ class NotifyApproversJob implements ShouldQueue
     {
         $entityLabel = $labels->for($this->approval);
         $approvers = User::query()
-            ->where('role', $this->approval->required_role)
-            ->where('account_status', 'active')
-            ->when(
-                $this->approval->required_role === 'SUPER_ADMIN',
-                fn ($query) => $query->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'SYSTEM_ADMINISTRATION')),
-            )
+            ->whereHas('accountProfiles', function ($profiles) {
+                $profiles->where('role', $this->approval->required_role)->where('account_status', 'active');
+                if ($this->approval->required_role === 'SUPER_ADMIN') {
+                    $profiles->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'SYSTEM_ADMINISTRATION'));
+                } else {
+                    $profiles->where('organization_id', $this->approval->organization_id);
+                }
+            })
             ->when(
                 $this->approval->assigned_approver,
                 fn ($query) => $query->whereKey($this->approval->assigned_approver),
-                fn ($query) => $query->when(
-                    $this->approval->required_role !== 'SUPER_ADMIN',
-                    fn ($scoped) => $scoped->where('organization_id', $this->approval->organization_id),
-                ),
             )
             ->get(['school_id', 'organization_id']);
 
@@ -52,7 +50,7 @@ class NotifyApproversJob implements ShouldQueue
             // $tries = 3) must not re-notify an approver it already wrote to on a
             // prior, partially-completed run.
             Notification::firstOrCreate([
-                'organization_id' => $approver->organization_id,
+                'organization_id' => $this->approval->required_role === 'SUPER_ADMIN' ? $approver->organization_id : $this->approval->organization_id,
                 'user_id' => $approver->school_id,
                 'reference_type' => 'approval_request',
                 'reference_id' => $this->approval->id,

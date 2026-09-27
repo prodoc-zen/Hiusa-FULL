@@ -9,6 +9,7 @@ use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
+use App\Models\FinancialSemester;
 use App\Models\Transaction;
 use App\Services\FinancialReportPdfService;
 use App\Services\GroqResponsesService;
@@ -100,6 +101,7 @@ class FinancialReportController extends Controller
         $data = $request->validate([
             'document_type' => ['nullable', 'in:financial_report,income_statement'],
             'report_type' => ['required', 'in:monthly,semester,custom,event'],
+            'financial_semester_id' => ['nullable', 'integer'],
             'period_start' => ['nullable', 'date', 'required_if:report_type,custom'],
             'period_end' => ['nullable', 'date', 'after_or_equal:period_start', 'required_if:report_type,custom'],
             'event_id' => ['nullable', 'integer', 'required_if:report_type,event'],
@@ -118,6 +120,13 @@ class FinancialReportController extends Controller
         $data['document_type'] ??= 'financial_report';
 
         $organizationId = $request->user()->organization_id;
+        $semester = null;
+        if ($data['report_type'] === 'semester' && ! empty($data['financial_semester_id'])) {
+            $semester = FinancialSemester::where('organization_id', $organizationId)->find($data['financial_semester_id']);
+            if (! $semester) {
+                return response()->json(['message' => 'Selected semester does not belong to this organization.'], 422);
+            }
+        }
         $event = null;
         if (! empty($data['event_id'])) {
             $event = Event::where('organization_id', $organizationId)->find($data['event_id']);
@@ -126,7 +135,9 @@ class FinancialReportController extends Controller
             }
         }
 
-        [$start, $end] = $this->period($data, $event);
+        [$start, $end] = $semester
+            ? [$semester->starts_on->toDateString(), $semester->ends_on->toDateString()]
+            : $this->period($data, $event);
         $transactions = Transaction::with(['event:id,title', 'budget:id,title'])
             ->where('organization_id', $organizationId)
             ->when($event, fn ($query) => $query->where('event_id', $event->id))
@@ -142,6 +153,9 @@ class FinancialReportController extends Controller
         $openingBalance = $event ? 0.0 : $this->openingBalance($organizationId, $start);
         $closingBalance = $openingBalance + $balance;
         $title = $this->title($data['document_type'], $data['report_type'], $start, $end, $event);
+        if ($semester) {
+            $title = ($data['document_type'] === 'income_statement' ? 'Income Statement' : 'Financial Report').' - '.$semester->name;
+        }
         $byCategory = $transactions
             ->groupBy(fn (Transaction $transaction) => $transaction->category.'|'.$transaction->type)
             ->map(fn ($rows) => [
@@ -204,7 +218,7 @@ class FinancialReportController extends Controller
         ];
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $event, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $openingBalance, $closingBalance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
+            $result = DB::transaction(function () use ($request, $data, $event, $semester, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $openingBalance, $closingBalance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
                 $aiOutput = AiOutput::create([
                     'organization_id' => $organizationId,
                     'feature_type' => 'FINANCIAL_SUMMARY',
@@ -228,6 +242,7 @@ class FinancialReportController extends Controller
                 $report = FinancialReport::create([
                     'organization_id' => $organizationId,
                     'event_id' => $event?->id,
+                    'financial_semester_id' => $semester?->id,
                     'report_type' => $data['report_type'],
                     'document_type' => $data['document_type'],
                     'title' => $title,
@@ -314,7 +329,7 @@ class FinancialReportController extends Controller
 
         return response($pdf['content'], 200, [
             'Content-Type' => 'application/pdf',
-            'Content-Disposition' => 'attachment; filename="'.$pdf['filename'].'"',
+            'Content-Disposition' => ($request->boolean('inline') ? 'inline' : 'attachment').'; filename="'.$pdf['filename'].'"',
             'Cache-Control' => 'private, no-store, max-age=0',
             'X-Content-Type-Options' => 'nosniff',
         ]);

@@ -63,6 +63,10 @@ export const deleteForecast = (id) =>
   api.delete(`/forecasts/${id}`);
 
 // Reports
+export const getFinancialSemesters = () => api.get('/financial-semesters');
+
+export const createFinancialSemester = (data) => api.post('/financial-semesters', data);
+
 export const getFinancialReports = (params) =>
   api.get('/financial-reports', { params });
 
@@ -82,8 +86,8 @@ export const generateFinancialReport = (data) => {
 export const getFinancialReport = (id) =>
   api.get(`/financial-reports/${id}`);
 
-export const downloadFinancialReportPdf = (id) =>
-  api.get(`/financial-reports/${id}/pdf`, { responseType: 'blob' });
+export const downloadFinancialReportPdf = (id, inline = false) =>
+  api.get(`/financial-reports/${id}/pdf`, { params: inline ? { inline: 1 } : undefined, responseType: 'blob' });
 
 export const submitFinancialReport = (id, files = []) => {
   const formData = new FormData();

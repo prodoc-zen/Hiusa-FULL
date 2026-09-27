@@ -25,6 +25,34 @@ class User extends Authenticatable
 
     protected $rememberTokenName = '';
 
+    private ?AccountProfile $activeAccountProfile = null;
+
+    protected static function booted(): void
+    {
+        static::created(function (User $user): void {
+            $user->accountProfiles()->create([
+                'organization_id' => $user->getAttributes()['organization_id'],
+                'role' => $user->getAttributes()['role'],
+                'account_status' => $user->getAttributes()['account_status'],
+                'position_title' => $user->getAttributes()['position_title'] ?? null,
+            ]);
+        });
+
+        static::updated(function (User $user): void {
+            if (! $user->isDirty(['organization_id', 'role', 'account_status', 'position_title'])) {
+                return;
+            }
+
+            $user->accountProfiles()->where('organization_id', $user->getRawOriginal('organization_id'))
+                ->update([
+                    'organization_id' => $user->getAttributes()['organization_id'],
+                    'role' => $user->getAttributes()['role'],
+                    'account_status' => $user->getAttributes()['account_status'],
+                    'position_title' => $user->getAttributes()['position_title'] ?? null,
+                ]);
+        });
+    }
+
     protected $fillable = [
         'organization_id',
         'school_id',
@@ -46,7 +74,7 @@ class User extends Authenticatable
         'section',
     ];
 
-    protected $with = ['organization:id,name,slug,college,acronym'];
+    protected $with = ['organization:id,name,slug,college,acronym,parent_organization_id'];
 
     protected $appends = ['id'];
 
@@ -68,6 +96,42 @@ class User extends Authenticatable
     public function getIdAttribute(): int
     {
         return $this->school_id;
+    }
+
+    public function getRoleAttribute($value): string
+    {
+        return $this->activeAccountProfile?->role ?? $value;
+    }
+
+    public function getOrganizationIdAttribute($value): ?int
+    {
+        return $this->activeAccountProfile?->organization_id ?? $value;
+    }
+
+    public function getAccountStatusAttribute($value): ?string
+    {
+        return $this->activeAccountProfile?->account_status ?? $value;
+    }
+
+    public function getPositionTitleAttribute($value): ?string
+    {
+        return $this->activeAccountProfile?->position_title ?? $value;
+    }
+
+    public function getActiveProfileIdAttribute(): ?int
+    {
+        return $this->activeAccountProfile?->id ?? $this->accountProfiles()->where('organization_id', $this->getRawOriginal('organization_id'))->value('id');
+    }
+
+    public function activateProfile(AccountProfile $profile): void
+    {
+        $this->activeAccountProfile = $profile;
+        $this->setRelation('organization', $profile->organization);
+    }
+
+    public function accountProfiles(): HasMany
+    {
+        return $this->hasMany(AccountProfile::class, 'user_school_id', 'school_id');
     }
 
     public function announcements(): HasMany

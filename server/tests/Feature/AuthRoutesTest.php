@@ -82,7 +82,6 @@ class AuthRoutesTest extends TestCase
         ]);
 
         $this->postJson('/api/login', [
-            'organization_id' => $admin->organization_id,
             'school_id' => 99887766,
             'password' => 'password123',
         ])
@@ -157,7 +156,17 @@ class AuthRoutesTest extends TestCase
             'organization_id' => $organization->id,
             'school_id' => $user->school_id,
             'password' => 'password123',
-        ])->assertUnprocessable();
+        ])->assertUnprocessable()->assertJsonValidationErrors(['school_id']);
+    }
+
+    public function test_login_does_not_require_an_organization(): void
+    {
+        $user = User::factory()->create(['password_hash' => 'password123']);
+
+        $this->postJson('/api/login', [
+            'school_id' => $user->school_id,
+            'password' => 'password123',
+        ])->assertOk()->assertJsonPath('user.organization_id', $user->organization_id);
     }
 
     public function test_user_can_recover_account_and_set_new_password(): void

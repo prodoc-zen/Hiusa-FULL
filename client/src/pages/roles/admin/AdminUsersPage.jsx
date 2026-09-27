@@ -8,6 +8,7 @@ import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
+import { inviteAccountProfile } from '../../../services/authService';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
@@ -395,9 +396,11 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
 
 export default function AdminUsersPage() {
   let actorRole = '';
+  let isSuborganization = false;
   try {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
+    isSuborganization = Boolean(actor?.organization?.parent_organization_id);
   } catch {}
   const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles;
   const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
@@ -417,6 +420,8 @@ export default function AdminUsersPage() {
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
   const [showCreate, setShowCreate] = useState(false);
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteForm, setInviteForm] = useState({ school_id: '', role: 'STUDENT' });
   const [selectedUser, setSelectedUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
   const [profileDebt, setProfileDebt] = useState(null);
@@ -438,6 +443,23 @@ export default function AdminUsersPage() {
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [editForm, setEditForm] = useState(emptyEditForm);
+
+  async function handleInvite(event) {
+    event.preventDefault();
+    setBusy(true);
+    setModalError('');
+    try {
+      await inviteAccountProfile(inviteForm);
+      setShowInvite(false);
+      setInviteForm({ school_id: '', role: 'STUDENT' });
+      setFeedback({ open: true, type: 'success', message: 'Account invited to this suborganization.' });
+      await load();
+    } catch (cause) {
+      setModalError(firstError(cause) || 'Could not invite this account.');
+    } finally {
+      setBusy(false);
+    }
+  }
 
   // Debounced so typing doesn't fire a request per keystroke - role/search are
   // now server-side filters (the endpoint paginates), not a client-side scan.
@@ -776,7 +798,7 @@ export default function AdminUsersPage() {
             <h2 className="mt-1 text-2xl font-black text-white">{actorRole === 'SBO_OFFICER' ? 'Participant Biometrics' : 'Manage Users'}</h2>
             <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">{actorRole === 'SBO_OFFICER' ? 'Find students and manage consent-based fingerprint enrollment for event attendance.' : 'Search the organization directory, maintain account access, and review academic and financial context.'}</p>
           </div>
-          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white hover:bg-white/15 disabled:opacity-50 sm:flex-none"><Download size={15} /> Export</button><button onClick={openCreate} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#EEF6FB] sm:flex-none"><UserPlus size={15} /> New User</button></div>}
+          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-wrap gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white hover:bg-white/15 disabled:opacity-50 sm:flex-none"><Download size={15} /> Export</button>{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-bold text-white hover:bg-white/10 sm:flex-none"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#EEF6FB] sm:flex-none"><UserPlus size={15} /> New User</button></div>}
         </div>
 
         <TableFilterBar
@@ -968,6 +990,14 @@ export default function AdminUsersPage() {
         )}
       >
         {userForm(createForm, setCreateForm, 'create')}
+      </Modal>
+
+      <Modal open={showInvite} title="Invite existing account" description="Add one profile for this suborganization. The person's login stays the same." onClose={() => !busy && setShowInvite(false)} footer={<><button type="button" disabled={busy} onClick={() => setShowInvite(false)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold">Cancel</button><button type="submit" form="invite-account-form" disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Inviting…' : 'Invite'}</button></>}>
+        <form id="invite-account-form" onSubmit={handleInvite} className="space-y-4">
+          <label className="block text-sm font-semibold text-[#0F172A]">School ID<input required inputMode="numeric" pattern="[0-9]*" maxLength={8} value={inviteForm.school_id} onChange={(event) => setInviteForm({ ...inviteForm, school_id: event.target.value.replace(/\D/g, '').slice(0, 8) })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3" /></label>
+          <label className="block text-sm font-semibold text-[#0F172A]">Role in this suborganization<select value={inviteForm.role} onChange={(event) => setInviteForm({ ...inviteForm, role: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3"><option value="STUDENT">Student</option><option value="SBO_OFFICER">SBO Officer</option><option value="DEPARTMENT_HEAD">Department Head</option></select></label>
+          {modalError && <p role="alert" className="text-sm text-red-600">{modalError}</p>}
+        </form>
       </Modal>
 
       <Modal
