@@ -14,6 +14,7 @@ use App\Http\Controllers\FinancialReportDeadlineController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
+use App\Http\Controllers\GrievanceController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
@@ -243,4 +244,13 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/venue-bookings', [VenueBookingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::post('/venue-bookings', [VenueBookingController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::patch('/venue-bookings/{venueBooking}/review', [VenueBookingController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // Confidential grievances: STUDENT files against own org or directly to
+    // SAO; organization_id is always derived from the authenticated student,
+    // never accepted from input. See GrievanceController docblock for the
+    // anonymity rule.
+    Route::get('/grievances', [GrievanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
+    Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
 });
