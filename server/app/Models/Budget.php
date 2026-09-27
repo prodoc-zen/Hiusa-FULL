@@ -24,6 +24,7 @@ class Budget extends Model
             'recommended_allocation' => 'decimal:2',
             'safe_spending_limit' => 'decimal:2',
             'advice_generated_at' => 'datetime',
+            'department_head_approved_at' => 'datetime',
         ];
     }
 

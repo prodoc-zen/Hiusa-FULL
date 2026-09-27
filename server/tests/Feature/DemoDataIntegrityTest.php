@@ -175,7 +175,7 @@ class DemoDataIntegrityTest extends TestCase
         // reason as events above.
         $this->assertTrue(
             ApprovalRequest::where('entity_type', 'budget')->where('status', 'pending')->exists(),
-            'No pending budget ApprovalRequest exists for the Super Admin to act on.'
+            'No pending budget ApprovalRequest exists for the Department Head to act on.'
         );
 
         // POST /api/transactions is ADMIN-only (routes/api.php), and must be an
