@@ -27,6 +27,7 @@ class EventImageCleanupTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'image_url' => Storage::disk('public')->url('events/poster.jpg'),
         ]);
         Sanctum::actingAs($admin);

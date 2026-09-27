@@ -8,9 +8,14 @@ const notificationMocks = vi.hoisted(() => ({
   markRead: vi.fn(),
   markAllRead: vi.fn(),
 }));
+const authMocks = vi.hoisted(() => ({
+  logout: vi.fn(),
+  getAccountProfiles: vi.fn(),
+  switchAccountProfile: vi.fn(),
+}));
 
 vi.mock('../../services/notificationService', () => notificationMocks);
-vi.mock('../../services/authService', () => ({ logout: vi.fn() }));
+vi.mock('../../services/authService', () => authMocks);
 
 describe('TopBar notifications', () => {
   beforeEach(() => {
@@ -18,6 +23,7 @@ describe('TopBar notifications', () => {
     localStorage.clear();
     localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', first_name: 'Test', last_name: 'User' }));
     notificationMocks.getNotifications.mockResolvedValue({ data: { data: [], unread_count: 0 } });
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [{ id: 1, role: 'STUDENT', account_status: 'active', organization: { id: 1, name: 'Main Campus', acronym: 'MC', is_active: true } }] } });
   });
 
   it('loads once and does not refetch whenever the window regains focus', async () => {
@@ -65,5 +71,49 @@ describe('TopBar notifications', () => {
     const panel = await screen.findByRole('region', { name: 'Notifications panel' });
     expect(panel).toHaveClass('fixed', 'left-3', 'right-3', 'sm:absolute');
     expect(screen.getByRole('button', { name: 'Notifications' })).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  it('shows the current profile and makes the switch menu usable on mobile', async () => {
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [
+      { id: 1, role: 'STUDENT', account_status: 'active', organization: { id: 1, name: 'Main Campus', acronym: 'MC', is_active: true } },
+      { id: 2, role: 'SBO_OFFICER', account_status: 'active', organization: { id: 2, name: 'Student Council', acronym: 'SC', is_active: true } },
+    ] } });
+
+    render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
+    const trigger = screen.getByRole('button', { name: 'Account menu for Test User' });
+    fireEvent.click(trigger);
+
+    const panel = await screen.findByRole('region', { name: 'Account and profiles' });
+    expect(panel).toHaveClass('fixed', 'left-3', 'right-3', 'sm:absolute');
+    expect(trigger).toHaveAttribute('aria-expanded', 'true');
+    expect(await screen.findByRole('button', { name: /Student Council/ })).toBeEnabled();
+    expect(screen.getByRole('button', { name: /Main Campus/ })).toBeDisabled();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(trigger).toHaveAttribute('aria-expanded', 'false');
+    expect(trigger).toHaveFocus();
+  });
+
+  it('calls the profile switch API and reports a failed switch', async () => {
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [
+      { id: 1, role: 'STUDENT', account_status: 'active', organization: { id: 1, name: 'Main Campus', is_active: true } },
+      { id: 2, role: 'SBO_OFFICER', account_status: 'active', organization: { id: 2, name: 'Student Council', is_active: true } },
+    ] } });
+    authMocks.switchAccountProfile.mockRejectedValue(new Error('Network failure'));
+    render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu for Test User' }));
+    fireEvent.click(await screen.findByRole('button', { name: /Student Council/ }));
+
+    await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(2));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch organization. Try again.');
+  });
+
+  it('explains when there is only one profile and can retry a failed load', async () => {
+    authMocks.getAccountProfiles.mockRejectedValueOnce(new Error('Network failure'));
+    render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu for Test User' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not load your profiles.');
+    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
+    expect(await screen.findByText(/This is your only active profile/)).toBeInTheDocument();
   });
 });

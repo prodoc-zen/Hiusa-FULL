@@ -6,7 +6,7 @@
     <style>
         @page { margin: 106px 52px 54px; }
         * { box-sizing: border-box; }
-        body { margin: 0; color: #111827; font-family: "DejaVu Sans", sans-serif; font-size: 10px; line-height: 1.45; }
+        body { margin: 0; color: #111827; font-family: "Times New Roman", "Times", serif; font-size: 11px; line-height: 1.45; }
         .letterhead { position: fixed; top: -82px; left: 0; right: 0; height: 68px; border-bottom: 1px solid #64748b; padding: 0 8px 8px; text-align: left; }
         .letterhead img { display: block; max-width: 100%; max-height: 56px; }
         .letterhead-fallback { padding-top: 10px; color: #0f2f62; }

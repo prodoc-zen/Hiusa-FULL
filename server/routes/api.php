@@ -1,14 +1,17 @@
 <?php
 
 use App\Http\Controllers\AcademicStructureController;
+use App\Http\Controllers\AccountProfileController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
+use App\Http\Controllers\EventRequirementController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\FinancialSemesterController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
@@ -27,7 +30,7 @@ use Illuminate\Support\Facades\Route;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware(['auth:sanctum', 'throttle:api-read', 'cache.api']);
+})->middleware(['auth:sanctum', 'account.profile', 'throttle:api-read', 'cache.api']);
 
 Route::post('/register', [UserController::class, 'register'])->middleware('throttle:registration');
 Route::post('/login', [UserController::class, 'login'])->middleware('throttle:login');
@@ -36,7 +39,10 @@ Route::post('/password/reset/validate', [UserController::class, 'validatePasswor
 Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:password');
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
 
-Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
+Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(function () {
+    Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
+    Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
+    Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/logout', [UserController::class, 'logout'])->middleware('throttle:api-write');
 
     // Profile Routes (authenticated user updates own profile/password)
@@ -79,6 +85,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/system/admins', [SystemAdministrationController::class, 'admins'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/admins', [SystemAdministrationController::class, 'storeAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/admins/{user}', [SystemAdministrationController::class, 'updateAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/system/admins/{user}', [SystemAdministrationController::class, 'destroyAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::get('/system/announcements', [GlobalAnnouncementController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/announcements', [GlobalAnnouncementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -96,6 +103,12 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::get('/event-requirements', [EventRequirementController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/event-requirements', [EventRequirementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/event-requirements/{requirement}', [EventRequirementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/events/{event}/submission', [EventRequirementController::class, 'showSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/events/{event}/submission', [EventRequirementController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::get('/events/{event}/submission/files/{file}', [EventRequirementController::class, 'download'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::get('/events/{id}', [EventController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::post('/events', [EventController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/events/{id}', [EventController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
@@ -156,6 +169,8 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
 
     // Finance Routes - Reports
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/financial-semesters', [FinancialSemesterController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN']);
+    Route::post('/financial-semesters', [FinancialSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/financial-reports/{financialReport}', [FinancialReportController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::get('/financial-reports/{financialReport}/pdf', [FinancialReportController::class, 'downloadPdf'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);

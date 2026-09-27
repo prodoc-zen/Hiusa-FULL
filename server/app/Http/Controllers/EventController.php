@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
+use App\Models\EventRequirement;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Budget;
@@ -51,7 +52,11 @@ class EventController extends Controller
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ]);
 
-        if ($user->role !== 'ADMIN') {
+        if ($user->role === 'DEPARTMENT_HEAD') {
+            $submittedEventIds = ApprovalRequest::where('organization_id', $user->organization_id)
+                ->where('entity_type', 'event')->pluck('entity_id');
+            $query->where(fn ($events) => $events->whereIn('status', ['approved', 'ongoing', 'completed'])->orWhereIn('id', $submittedEventIds));
+        } elseif ($user->role !== 'ADMIN') {
             $query->whereIn('status', ['approved', 'ongoing', 'completed']);
         }
 
@@ -126,7 +131,8 @@ class EventController extends Controller
             return response()->json(['message' => 'Event not found.'], 404);
         }
 
-        if ($request->user()->role !== 'ADMIN' && ! in_array($event->status, ['approved', 'ongoing', 'completed'], true)) {
+        if ($request->user()->role !== 'ADMIN' && ! in_array($event->status, ['approved', 'ongoing', 'completed'], true)
+            && ! ($request->user()->role === 'DEPARTMENT_HEAD' && ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->exists())) {
             return response()->json(['message' => 'Event not available.'], 403);
         }
 
@@ -253,13 +259,15 @@ class EventController extends Controller
                 'organization_id' => $request->user()->organization_id,
             ]);
 
-            ApprovalRequest::create([
-                'organization_id' => $request->user()->organization_id,
-                'entity_type' => 'event',
-                'entity_id' => $event->id,
-                'requested_by' => $request->user()->id,
-                'required_role' => config('approvals.routes.event'),
-            ]);
+            if (! EventRequirement::where('is_active', true)->exists()) {
+                ApprovalRequest::create([
+                    'organization_id' => $request->user()->organization_id,
+                    'entity_type' => 'event',
+                    'entity_id' => $event->id,
+                    'requested_by' => $request->user()->id,
+                    'required_role' => config('approvals.routes.event'),
+                ]);
+            }
 
             if ($proposedBudget > 0) {
                 $budget = Budget::create([
@@ -404,6 +412,9 @@ class EventController extends Controller
 
     private function resubmitIfRejected(Event $event): void
     {
+        if (EventRequirement::where('is_active', true)->exists()) {
+            return;
+        }
         ApprovalRequest::where('entity_type', 'event')
             ->where('entity_id', $event->id)
             ->where('status', 'rejected')
@@ -442,6 +453,9 @@ class EventController extends Controller
 
     private function reopenApproval(Event $event, Request $request): void
     {
+        if (EventRequirement::where('is_active', true)->exists()) {
+            return;
+        }
         ApprovalRequest::where('entity_type', 'event')
             ->where('entity_id', $event->id)
             ->where('organization_id', $event->organization_id)
@@ -463,6 +477,7 @@ class EventController extends Controller
         }
 
         $imageUrl = $event->image_url;
+        $requirementPaths = \App\Models\EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
         DB::transaction(function () use ($event) {
             ApprovalRequest::where('organization_id', $event->organization_id)
                 ->where('entity_type', 'event')
@@ -473,6 +488,7 @@ class EventController extends Controller
         if ($imageUrl) {
             Storage::disk('public')->delete($this->publicStoragePath($imageUrl));
         }
+        Storage::disk('local')->delete($requirementPaths);
 
         return response()->json(['message' => 'Event deleted successfully.']);
     }
@@ -1055,7 +1071,7 @@ class EventController extends Controller
             ], 422);
         }
 
-        $attendeeBelongsToOrganization = User::where('organization_id', $request->user()->organization_id)
+        $attendeeBelongsToOrganization = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('account_status', 'active'))
             ->where('school_id', $data['user_id'])
             ->exists();
 

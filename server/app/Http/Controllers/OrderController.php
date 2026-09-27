@@ -74,8 +74,7 @@ class OrderController extends Controller
         $group = $request->validate(['group' => ['required', 'in:purchased,not_purchased,paid,pending,claimed,unclaimed']])['group'];
 
         $users = User::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->where('account_status', 'active');
+            ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('account_status', 'active'));
         $this->applyUserFilters($users, $filters);
 
         $orderConstraint = function ($query) use ($request, $filters, $group) {
@@ -278,8 +277,7 @@ class OrderController extends Controller
         $this->applyOrderFilters($orders, $filters);
 
         $cohort = User::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->where('account_status', 'active');
+            ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('account_status', 'active'));
         $this->applyUserFilters($cohort, $filters);
 
         $totalUsers = (clone $cohort)->count();
@@ -322,7 +320,7 @@ class OrderController extends Controller
         return [
             'departments' => array_values(array_filter([$organization?->college ?: 'College of Computer Studies'])),
             'programs' => AcademicProgram::where('organization_id', $organizationId)->with('sections')->orderBy('name')->get(),
-            'majors' => User::where('organization_id', $organizationId)->whereNotNull('major')->where('major', '!=', '')->distinct()->orderBy('major')->pluck('major'),
+            'majors' => User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('account_status', 'active'))->whereNotNull('major')->where('major', '!=', '')->distinct()->orderBy('major')->pluck('major'),
             'roles' => ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'],
             'positions' => SboPosition::where('organization_id', $organizationId)->where('is_active', true)->orderBy('title')->pluck('title'),
             'merchandise' => Merchandise::where('organization_id', $organizationId)->orderBy('name')->get(['id', 'name', 'category', 'price']),
@@ -828,9 +826,7 @@ class OrderController extends Controller
         string $title = 'New Merchandise Order',
         ?string $message = null
     ): void {
-        $reviewers = User::where('organization_id', $order->organization_id)
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
-            ->where('account_status', 'active')
+        $reviewers = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $order->organization_id)->whereIn('role', ['ADMIN', 'SBO_OFFICER'])->where('account_status', 'active'))
             ->get(['school_id']);
 
         foreach ($reviewers as $reviewer) {

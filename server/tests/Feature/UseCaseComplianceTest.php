@@ -412,14 +412,15 @@ class UseCaseComplianceTest extends TestCase
         ]);
     }
 
-    public function test_ols_forecast_rejects_empty_or_single_month_history(): void
+    public function test_ols_forecast_warns_for_empty_or_single_month_history(): void
     {
         $admin = $this->user('ADMIN');
         $this->authenticate($admin);
 
         $this->postJson('/api/forecasts/generate', ['months' => 12])
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'At least two months of transaction history are required to generate an OLS forecast.');
+            ->assertCreated()
+            ->assertJsonPath('model_details.is_reliable', false)
+            ->assertJsonPath('model_details.populated_months', 0);
 
         Transaction::create([
             'organization_id' => $admin->organization_id,
@@ -431,11 +432,12 @@ class UseCaseComplianceTest extends TestCase
             'transaction_date' => now(),
         ]);
         $this->postJson('/api/forecasts/generate', ['months' => 12])
-            ->assertUnprocessable()
-            ->assertJsonPath('message', 'At least two months of transaction history are required to generate an OLS forecast.');
+            ->assertCreated()
+            ->assertJsonPath('model_details.is_reliable', false)
+            ->assertJsonPath('model_details.populated_months', 1);
 
-        $this->assertDatabaseCount('financial_forecasts', 0);
-        $this->assertDatabaseCount('ai_outputs', 0);
+        $this->assertDatabaseCount('financial_forecasts', 1);
+        $this->assertDatabaseCount('ai_outputs', 2);
     }
 
     public function test_task_assignment_recommends_an_active_sbo_officer_and_calculates_scores(): void

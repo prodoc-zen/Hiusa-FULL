@@ -236,7 +236,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->getJson('/api/approval-requests')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $approval->id);
         $this->patchJson('/api/approval-requests/'.$nonReportApproval->id, ['status' => 'approved'])
             ->assertForbidden()
-            ->assertJsonPath('message', 'Super Admin can only review financial reports.');
+            ->assertJsonPath('message', 'Super Admin can only review financial reports and events.');
         $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'rejected'])->assertUnprocessable()->assertJsonValidationErrors('remarks');
         $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'rejected', 'remarks' => 'Attach the approved quotation.'])
             ->assertOk()

@@ -644,8 +644,7 @@ class TaskController extends Controller
         }
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
-        $candidates = User::where('organization_id', $request->user()->organization_id)
-            ->where('role', 'SBO_OFFICER')
+        $candidates = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('account_status', 'active'))
             ->orderBy('school_id')
             ->get();
         $result = $this->aiService->taskDelegation(
@@ -875,8 +874,7 @@ class TaskController extends Controller
             return;
         }
 
-        $admins = User::where('organization_id', $request->user()->organization_id)
-            ->where('role', 'ADMIN')
+        $admins = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'ADMIN')->where('account_status', 'active'))
             ->get(['school_id']);
 
         foreach ($admins as $admin) {
