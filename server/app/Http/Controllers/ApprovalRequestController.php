@@ -183,9 +183,7 @@ class ApprovalRequestController extends Controller
     {
         match ($approval->entity_type) {
             'event' => $this->approveEvent($approval),
-            'budget' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
-                'remaining_amount' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->value('allocated_amount'),
-            ]),
+            'budget' => $this->approveBudget($approval, $request),
             'election' => $this->approveElection($approval),
             'announcement' => $this->approveAnnouncement($approval, $request),
             'payment' => $this->fulfillmentService->approvePayment(
@@ -195,6 +193,37 @@ class ApprovalRequestController extends Controller
             'financial_report' => $this->approveFinancialReport($approval, $request),
             default => null,
         };
+    }
+
+    private function approveBudget(ApprovalRequest $approval, Request $request): void
+    {
+        $budget = Budget::where('organization_id', $approval->organization_id)
+            ->lockForUpdate()
+            ->findOrFail($approval->entity_id);
+
+        if ($request->user()->role === 'DEPARTMENT_HEAD') {
+            $budget->update([
+                'submission_status' => 'pending_sao',
+                'department_head_approved_by' => $request->user()->school_id,
+                'department_head_approved_at' => now(),
+            ]);
+            ApprovalRequest::create([
+                'organization_id' => $budget->organization_id,
+                'entity_type' => 'budget',
+                'entity_id' => $budget->id,
+                'requested_by' => $approval->requested_by,
+                'required_role' => 'SUPER_ADMIN',
+                'status' => 'pending',
+                'requested_at' => now(),
+            ]);
+
+            return;
+        }
+
+        $budget->update([
+            'submission_status' => 'approved',
+            'remaining_amount' => $budget->allocated_amount,
+        ]);
     }
 
     private function approveFinancialReport(ApprovalRequest $approval, Request $request): void
@@ -313,6 +342,9 @@ class ApprovalRequestController extends Controller
                 $request->user(),
                 (string) $approval->remarks
             ),
+            'budget' => Budget::where('organization_id', $approval->organization_id)
+                ->where('id', $approval->entity_id)
+                ->update(['submission_status' => 'rejected']),
             'financial_report' => FinancialReport::where('organization_id', $approval->organization_id)
                 ->where('id', $approval->entity_id)
                 ->update(['submission_status' => 'rejected']),
