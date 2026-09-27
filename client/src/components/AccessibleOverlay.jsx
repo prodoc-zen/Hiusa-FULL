@@ -78,7 +78,7 @@ export default function AccessibleOverlay({
       aria-modal="true"
       aria-label={label}
       tabIndex={-1}
-      className={`hiusa-overlay max-w-full overflow-x-hidden ${className || ''}`}
+      className={`hiusa-overlay overlay-fade-in max-w-full overflow-x-hidden ${className || ''}`}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onCloseRef.current?.();

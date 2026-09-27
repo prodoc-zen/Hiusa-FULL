@@ -87,7 +87,7 @@ export default function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex items-end justify-center bg-[#0B1831]/55 p-0 backdrop-blur-sm transition-opacity duration-200 sm:items-center sm:p-4"
+      className="overlay-fade-in fixed inset-0 z-[70] flex items-end justify-center bg-navy-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
@@ -100,20 +100,20 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
-        className={`flex max-h-[calc(100dvh-0.75rem)] w-full ${maxWidth} scale-100 flex-col overflow-hidden rounded-t-lg border border-[#DDE7EF] bg-white shadow-2xl shadow-[#0B1831]/25 transition duration-200 sm:max-h-[calc(100dvh-2rem)] sm:rounded-lg`}
+        className={`modal-pop-in flex max-h-[calc(100dvh-0.75rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-t-card border border-line bg-surface shadow-raised sm:max-h-[calc(100dvh-2rem)] sm:rounded-card`}
       >
         {(title || description || onClose) && (
-          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#DDE7EF] px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
+          <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
             <div>
-              {title && <h2 id="modal-title" className="text-lg font-extrabold text-[#0F172A]">{title}</h2>}
-              {description && <p className="mt-1 text-sm font-medium leading-5 text-slate-500">{description}</p>}
+              {title && <h2 id="modal-title" className="text-lg font-extrabold text-ink">{title}</h2>}
+              {description && <p className="mt-1 text-sm font-medium leading-5 text-ink-muted">{description}</p>}
             </div>
             {onClose && (
               <button
                 type="button"
                 aria-label="Close modal"
                 onClick={onClose}
-                className="grid h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-500 transition hover:bg-red-50 hover:text-red-600"
+                className="grid h-11 w-11 shrink-0 place-items-center rounded-control text-ink-muted transition-colors duration-150 hover:bg-danger-tint hover:text-danger-strong"
               >
                 <X size={17} />
               </button>
@@ -126,7 +126,7 @@ export default function Modal({
         </div>
 
         {footer && (
-          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-[#DDE7EF] bg-[#F8FBFD] px-4 py-3 [&>button]:w-full sm:flex-row sm:flex-wrap sm:justify-end sm:px-5 sm:py-4 sm:[&>button]:w-auto">
+          <footer className="flex shrink-0 flex-col-reverse gap-2 border-t border-line bg-subtle px-4 py-3 [&>button]:w-full sm:flex-row sm:flex-wrap sm:justify-end sm:px-5 sm:py-4 sm:[&>button]:w-auto">
             {footer}
           </footer>
         )}
