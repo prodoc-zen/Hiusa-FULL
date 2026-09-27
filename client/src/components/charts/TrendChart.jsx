@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
-import { seriesColor } from './palette';
+import { GRID_LINE, GRID_LINE_SOFT, TEXT_MUTED, seriesColor } from './palette';
 
-const VIEW_WIDTH = 760;
+const FALLBACK_WIDTH = 760;
 const PAD = { top: 16, right: 84, bottom: 32, left: 56 };
 const MIN_LABEL_PX = 56;
 const DRAW_DURATION_MS = 400;
 const DRAW_EASING = 'cubic-bezier(0.23, 1, 0.32, 1)';
+const LABEL_LINE_HEIGHT = 13;
+const LABEL_CLUSTER_GAP_PX = 70;
 
 function truncateLabel(text, maxChars = 12) {
   const value = String(text ?? '');
@@ -26,6 +28,68 @@ function connectForecastSeries(allSeries) {
     if (firstForecastPoint && String(firstForecastPoint.x) === String(lastActualPoint.x)) return entry;
     return { ...entry, points: [lastActualPoint, ...entry.points] };
   });
+}
+
+// Rounds a range to a "nice" step (1, 2 or 5 times a power of ten) the way
+// D3 and most charting libraries pick axis ticks, so labels read 10K/20K
+// instead of 10.1K/20.3K.
+function niceNumber(range, round) {
+  if (!Number.isFinite(range) || range <= 0) return 1;
+  const exponent = Math.floor(Math.log10(range));
+  const fraction = range / 10 ** exponent;
+  let niceFraction;
+  if (round) {
+    if (fraction < 1.5) niceFraction = 1;
+    else if (fraction < 3) niceFraction = 2;
+    else if (fraction < 7) niceFraction = 5;
+    else niceFraction = 10;
+  } else if (fraction <= 1) niceFraction = 1;
+  else if (fraction <= 2) niceFraction = 2;
+  else if (fraction <= 5) niceFraction = 5;
+  else niceFraction = 10;
+  return niceFraction * 10 ** exponent;
+}
+
+function niceTicks(min, max, tickCount = 5) {
+  const safeMin = Number.isFinite(min) ? min : 0;
+  const safeMax = Number.isFinite(max) && max > safeMin ? max : safeMin + 1;
+  const step = niceNumber(niceNumber(safeMax - safeMin, false) / Math.max(1, tickCount - 1), true);
+  const niceMin = Math.floor(safeMin / step) * step;
+  const niceMax = Math.ceil(safeMax / step) * step;
+  const ticks = [];
+  for (let value = niceMin; value <= niceMax + step / 2; value += step) {
+    ticks.push(Math.round((value + Number.EPSILON) * 1e6) / 1e6);
+  }
+  return { ticks, min: niceMin, max: niceMax };
+}
+
+// Greedily stacks end labels that fall within the same horizontal cluster so
+// none of them overlap vertically, then drops whatever still can't fit inside
+// the plot's vertical bounds instead of letting it spill over the chart.
+function layoutEndLabels(rawLabels, topBound, bottomBound) {
+  const sortedByX = [...rawLabels].sort((a, b) => a.x - b.x);
+  const clusters = [];
+  for (const label of sortedByX) {
+    const cluster = clusters[clusters.length - 1];
+    if (cluster && label.x - cluster[cluster.length - 1].x < LABEL_CLUSTER_GAP_PX) {
+      cluster.push(label);
+    } else {
+      clusters.push([label]);
+    }
+  }
+
+  const placed = [];
+  for (const cluster of clusters) {
+    const byY = [...cluster].sort((a, b) => a.y - b.y);
+    let prevY = -Infinity;
+    for (const label of byY) {
+      const y = prevY === -Infinity || label.y - prevY >= LABEL_LINE_HEIGHT ? label.y : prevY + LABEL_LINE_HEIGHT;
+      prevY = y;
+      placed.push({ ...label, y });
+    }
+  }
+
+  return placed.map((label) => ({ ...label, visible: label.y >= topBound && label.y <= bottomBound }));
 }
 
 function usePrefersReducedMotion() {
@@ -55,6 +119,13 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
 
   const formatX = xFormat || ((value) => String(value));
   const formatY = yFormat || ((value) => String(value));
+
+  useLayoutEffect(() => {
+    const node = containerRef.current;
+    if (!node) return;
+    const width = node.getBoundingClientRect().width;
+    if (width > 0) setMeasuredWidth(width);
+  }, []);
 
   useEffect(() => {
     const node = containerRef.current;
@@ -96,16 +167,22 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
   }
   const minY = Math.min(...allY);
   const maxY = Math.max(1, ...allY);
-  const yRange = maxY - minY || 1;
+  const { ticks: yTicks, min: niceMinY, max: niceMaxY } = niceTicks(minY, maxY, 5);
+  const yRange = niceMaxY - niceMinY || 1;
 
-  const plotWidth = VIEW_WIDTH - PAD.left - PAD.right;
+  // The viewBox width is pinned to the real measured pixel width of the
+  // container (instead of a fixed design-time width), so the browser never
+  // has to scale the whole coordinate space up or down. That keeps every
+  // font-size in the SVG rendering at its true physical size on any screen.
+  const svgWidth = measuredWidth > 0 ? Math.round(measuredWidth) : FALLBACK_WIDTH;
+  const plotWidth = svgWidth - PAD.left - PAD.right;
   const plotHeight = height - PAD.top - PAD.bottom;
 
   const scaleX = (x) => {
     const index = xIndexByKey.get(String(x)) ?? 0;
     return xKeys.length <= 1 ? PAD.left + plotWidth / 2 : PAD.left + (index * plotWidth) / (xKeys.length - 1);
   };
-  const scaleY = (y) => PAD.top + ((maxY - y) / yRange) * plotHeight;
+  const scaleY = (y) => PAD.top + ((niceMaxY - y) / yRange) * plotHeight;
 
   const buildLinePath = (points) => points
     .map((point, index) => `${index === 0 ? 'M' : 'L'} ${scaleX(point.x).toFixed(2)} ${scaleY(point.y).toFixed(2)}`)
@@ -126,8 +203,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
     return `${upper} ${lower} Z`;
   };
 
-  const availableWidth = measuredWidth || VIEW_WIDTH;
-  const maxTicks = Math.max(2, Math.floor(availableWidth / MIN_LABEL_PX));
+  const maxTicks = Math.max(2, Math.floor(svgWidth / MIN_LABEL_PX));
   const tickStep = xKeys.length > maxTicks ? Math.ceil(xKeys.length / maxTicks) : 1;
 
   const dataSignature = JSON.stringify(connectedSeries.map((entry) => entry.points.map((point) => [point.x, point.y])));
@@ -159,19 +235,55 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
   if (!hasData) {
     return (
       <section aria-label={title}>
-        {title && <h3 className="text-sm font-bold text-[#0F172A]">{title}</h3>}
-        {description && <p className="mt-0.5 text-xs text-[#64748B]">{description}</p>}
-        <p className="py-8 text-center text-sm font-medium text-[#64748B]">No data for this period yet</p>
+        {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+        {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
+        <p className="py-8 text-center text-sm font-medium text-ink-muted">No data for this period yet</p>
       </section>
     );
   }
 
+  // Forecast series are drawn continuing from the last actual point, so the
+  // actual series' end label would otherwise sit right on top of that line.
+  // Nudge it away from whichever direction the forecast heads.
+  const forecastStartByKey = new Map();
+  for (const entry of connectedSeries) {
+    if (entry.variant === 'forecast' && entry.points.length > 0) {
+      const first = entry.points[0];
+      forecastStartByKey.set(`${first.x}|${first.y}`, entry);
+    }
+  }
+
+  const rawEndLabels = connectedSeries
+    .filter((entry) => entry.points.length > 0)
+    .map((entry, index) => {
+      const color = entry.color || seriesColor(index);
+      const lastPoint = entry.points[entry.points.length - 1];
+      let y = scaleY(lastPoint.y);
+      if (entry.variant !== 'forecast') {
+        const forecastEntry = forecastStartByKey.get(`${lastPoint.x}|${lastPoint.y}`);
+        const directionPoint = forecastEntry?.points[1];
+        if (directionPoint) {
+          const dy = scaleY(directionPoint.y) - y;
+          y += dy < 0 ? LABEL_LINE_HEIGHT : LABEL_LINE_HEIGHT * -1;
+        }
+      }
+      return {
+        key: entry.key,
+        text: truncateLabel(entry.label, 12),
+        fullText: entry.label,
+        x: scaleX(lastPoint.x) + 8,
+        y,
+        color,
+      };
+    });
+  const endLabels = layoutEndLabels(rawEndLabels, 6, height - 4);
+
   return (
     <section aria-label={title}>
-      {title && <h3 className="text-sm font-bold text-[#0F172A]">{title}</h3>}
-      {description && <p className="mt-0.5 text-xs text-[#64748B]">{description}</p>}
+      {title && <h3 className="text-sm font-bold text-ink">{title}</h3>}
+      {description && <p className="mt-0.5 text-xs text-ink-muted">{description}</p>}
 
-      <div className="mb-3 flex flex-wrap gap-4 text-xs font-semibold text-[#64748B]">
+      <div className="mb-3 flex flex-wrap gap-4 text-xs font-semibold text-ink-muted">
         {connectedSeries.map((entry, index) => (
           <span key={entry.key} className="inline-flex items-center gap-1.5">
             <i
@@ -188,14 +300,13 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
       </div>
 
       <div ref={containerRef} className="relative">
-        <svg viewBox={`0 0 ${VIEW_WIDTH} ${height}`} className="h-auto w-full" role="img" aria-label={title || 'Trend chart'}>
-          {[0, 0.25, 0.5, 0.75, 1].map((step) => {
-            const value = maxY - yRange * step;
+        <svg viewBox={`0 0 ${svgWidth} ${height}`} className="h-auto w-full">
+          {yTicks.map((value) => {
             const lineY = scaleY(value);
             return (
-              <g key={step}>
-                <line x1={PAD.left} x2={VIEW_WIDTH - PAD.right} y1={lineY} y2={lineY} stroke="#E5EDF3" />
-                <text x={PAD.left - 8} y={lineY + 4} textAnchor="end" className="fill-[#64748B] text-[10px]">
+              <g key={value}>
+                <line x1={PAD.left} x2={svgWidth - PAD.right} y1={lineY} y2={lineY} stroke={GRID_LINE} />
+                <text x={PAD.left - 8} y={lineY + 4} textAnchor="end" className="text-[10px]" fill={TEXT_MUTED}>
                   {formatY(value)}
                 </text>
               </g>
@@ -203,7 +314,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
           })}
 
           {minY < 0 && (
-            <line x1={PAD.left} x2={VIEW_WIDTH - PAD.right} y1={scaleY(0)} y2={scaleY(0)} stroke="#DDE7EF" strokeWidth="1.5" />
+            <line x1={PAD.left} x2={svgWidth - PAD.right} y1={scaleY(0)} y2={scaleY(0)} stroke={GRID_LINE_SOFT} strokeWidth="1.5" />
           )}
 
           {xKeys.map((key, index) => {
@@ -211,7 +322,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
             const raw = xRawByKey.get(key);
             const label = truncateLabel(formatX(raw), 10);
             return (
-              <text key={key} x={scaleX(raw)} y={height - PAD.bottom + 18} textAnchor="middle" className="fill-[#64748B] text-[10px]">
+              <text key={key} x={scaleX(raw)} y={height - PAD.bottom + 18} textAnchor="middle" className="text-[10px]" fill={TEXT_MUTED}>
                 {label}
                 <title>{formatX(raw)}</title>
               </text>
@@ -258,7 +369,7 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
                   r={isActive ? 5 : 3.5}
                   fill={color}
                   tabIndex={0}
-                  role="button"
+                  role="img"
                   aria-label={`${entry.label}, ${formatX(point.x)}, ${formatY(point.y)}`}
                   onMouseEnter={() => setActivePoint({ seriesKey: entry.key, pointIndex })}
                   onMouseLeave={() => setActivePoint(null)}
@@ -269,45 +380,41 @@ export default function TrendChart({ series = [], yFormat, xFormat, height = 240
             });
           })}
 
-          {connectedSeries.map((entry, index) => {
-            if (!entry.points.length) return null;
-            const color = entry.color || seriesColor(index);
-            const lastPoint = entry.points[entry.points.length - 1];
-            return (
-              <text
-                key={`${entry.key}-end-label`}
-                x={scaleX(lastPoint.x) + 8}
-                y={scaleY(lastPoint.y) + 4}
-                className="text-[10px] font-bold"
-                fill={color}
-              >
-                {truncateLabel(entry.label, 12)}
-                <title>{entry.label}</title>
-              </text>
-            );
-          })}
+          {endLabels.map((label) => (label.visible ? (
+            <text
+              key={`${label.key}-end-label`}
+              data-end-label={label.key}
+              x={label.x}
+              y={label.y + 4}
+              className="text-[10px] font-bold"
+              fill={label.color}
+            >
+              {label.text}
+              <title>{label.fullText}</title>
+            </text>
+          ) : null))}
         </svg>
 
         {activePoint && (() => {
           const entry = connectedSeries.find((candidate) => candidate.key === activePoint.seriesKey);
           const point = entry?.points[activePoint.pointIndex];
           if (!entry || !point) return null;
-          const leftPct = (scaleX(point.x) / VIEW_WIDTH) * 100;
+          const leftPct = (scaleX(point.x) / svgWidth) * 100;
           const topPct = (scaleY(point.y) / height) * 100;
           return (
             <div
-              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-[#DDE7EF] bg-white px-2.5 py-1.5 text-xs font-medium text-[#0F172A] shadow-[0_1px_2px_rgb(15_23_42_/_0.04),0_1px_3px_rgb(15_23_42_/_0.06)]"
+              className="pointer-events-none absolute z-10 -translate-x-1/2 -translate-y-full whitespace-nowrap rounded-md border border-line bg-surface px-2.5 py-1.5 text-xs font-medium text-ink shadow-card"
               style={{ left: `${leftPct}%`, top: `${topPct}%`, marginTop: '-10px' }}
             >
               <p className="font-bold">{entry.label}</p>
-              <p className="text-[#64748B]">{formatX(point.x)}</p>
+              <p className="text-ink-muted">{formatX(point.x)}</p>
               <p className="tabular-nums">{formatY(point.y)}</p>
             </div>
           );
         })()}
       </div>
 
-      <table className="sr-only">
+      <table className="sr-only table-fixed">
         <caption>{title}</caption>
         <thead>
           <tr>
