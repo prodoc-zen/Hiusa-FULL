@@ -2,9 +2,15 @@ from fastapi.testclient import TestClient
 
 from app.engines.budget_advisory import advise_budget
 from app.engines.financial_forecasting import forecast_finances
+from app.engines.grievance_classification import classify_grievance
 from app.engines.task_delegation import delegate_task, infer_task_area
 from app.main import app
-from app.schemas import BudgetAdviceRequest, ForecastRequest, TaskDelegationRequest
+from app.schemas import (
+    BudgetAdviceRequest,
+    ForecastRequest,
+    GrievanceClassificationRequest,
+    TaskDelegationRequest,
+)
 
 
 def test_ols_forecast_matches_linear_monthly_history() -> None:
@@ -232,6 +238,64 @@ def test_http_api_exposes_health_and_versioned_endpoints(monkeypatch) -> None:
     assert response.json()["forecast_risk"] == "stable"
     openapi = client.get("/openapi.json").json()
     assert "HIUSA AI service key" in openapi["components"]["securitySchemes"]
+
+
+def test_grievance_classification_flags_critical_urgency_and_safety_category() -> None:
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({
+        "title": "Harassment near the guard post",
+        "description": "A security guard threatened a student late at night; this feels unsafe.",
+    }))
+
+    assert result["urgency"] == "Critical"
+    assert result["category"] == "Safety & Security"
+    assert result["confidence_score"] == 0.95
+
+
+def test_grievance_classification_word_boundaries_avoid_bare_substrings() -> None:
+    # "danger" must not fire merely because it appears inside "dangerously".
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({
+        "title": "Dangerously parked bikes",
+        "description": "Bikes are dangerously parked outside the classroom door every morning.",
+    }))
+
+    assert result["urgency"] != "Critical"
+
+
+def test_grievance_classification_defaults_to_low_urgency_and_general_category() -> None:
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({
+        "title": "Suggestion for the student lounge",
+        "description": "It would be nice to have more seating in the student lounge.",
+    }))
+
+    assert result["urgency"] == "Low"
+    assert result["category"] == "General"
+    assert result["confidence_score"] == 0.5
+
+
+def test_grievance_classification_detects_financial_integrity_category() -> None:
+    result = classify_grievance(GrievanceClassificationRequest.model_validate({
+        "title": "Missing organization fund",
+        "description": "The treasurer cannot account for a payment and the receipt is missing.",
+    }))
+
+    assert result["urgency"] == "Medium"
+    assert result["category"] == "Financial Integrity"
+
+
+def test_http_api_grievance_classification_requires_the_service_key(monkeypatch) -> None:
+    monkeypatch.setenv("HIUSA_AI_SERVICE_KEY", "test-key")
+    client = TestClient(app)
+    payload = {"title": "Broken aircon", "description": "The room aircon has been broken for a week."}
+
+    assert client.post("/api/v1/grievance-classification", json=payload).status_code == 401
+
+    response = client.post(
+        "/api/v1/grievance-classification",
+        headers={"X-AI-Service-Key": "test-key"},
+        json=payload,
+    )
+    assert response.status_code == 200
+    assert response.json()["category"] == "Facilities & Maintenance"
 
 
 def test_http_api_returns_422_when_no_officer_is_eligible(monkeypatch) -> None:
