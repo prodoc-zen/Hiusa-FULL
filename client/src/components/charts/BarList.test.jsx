@@ -32,4 +32,11 @@ describe('BarList', () => {
 
     expect(screen.getAllByText('12').length).toBeGreaterThan(0);
   });
+
+  it('keeps the sr-only fallback table from forcing horizontal overflow on narrow screens', () => {
+    render(<BarList title="Orders" items={[{ label: 'A very long category label that keeps going', value: 1000 }]} />);
+
+    const table = screen.getByRole('table', { hidden: true });
+    expect(table).toHaveClass('table-fixed');
+  });
 });
