@@ -4,6 +4,47 @@
 
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+
+  --color-navy-950: #0B1831;
+  --color-navy-800: #0F2F62;
+  --color-brand-600: #0B8ED0;
+  --color-brand-700: #0878B7;
+  --color-brand-100: #CDE9F7;
+  --color-brand-50: #E7F4FB;
+  --color-accent: #16C7F3;
+  --color-page: #EEF6FB;
+  --color-surface: #FFFFFF;
+  --color-subtle: #F8FBFD;
+  --color-line: #DDE7EF;
+  --color-line-soft: #E5EDF3;
+  --color-ink: #0F172A;
+  --color-ink-muted: #64748B;
+  --color-ink-soft: #94A3B8;
+  --color-success: #16A34A;
+  --color-success-strong: #15803D;
+  --color-success-tint: #E8F6ED;
+  --color-warning: #F59E0B;
+  --color-warning-strong: #B45309;
+  --color-warning-tint: #FEF3DB;
+  --color-danger: #DC2626;
+  --color-danger-strong: #B91C1C;
+  --color-danger-tint: #FBE9E9;
+
+  --radius-control: 6px;
+  --radius-card: 8px;
+
+  --shadow-card: 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06);
+  --shadow-raised: 0 12px 32px -8px rgb(11 24 49 / 0.20), 0 2px 6px rgb(11 24 49 / 0.06);
+
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
+
+  --duration-press: 120ms;
+  --duration-popover: 180ms;
+  --duration-route: 180ms;
+  --duration-modal: 240ms;
+  --duration-drawer: 300ms;
 }
 
 html {
@@ -61,8 +102,87 @@ select:focus {
 }
 
 :where(button, a[href], input, select, textarea, [tabindex]):focus-visible {
-  outline: 2px solid #0878B7;
+  outline: 2px solid var(--color-brand-600);
   outline-offset: 2px;
+  box-shadow: 0 0 0 3px rgb(22 199 243 / 0.35);
+  border-radius: var(--radius-control);
+}
+
+::selection {
+  background-color: var(--color-brand-100);
+  color: var(--color-ink);
+}
+
+html {
+  caret-color: var(--color-brand-600);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-ink-soft) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: var(--color-line);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--color-ink-soft);
+}
+
+a {
+  text-underline-offset: 3px;
+}
+
+@keyframes skeleton-shimmer {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.skeleton-shimmer {
+  background-image: linear-gradient(90deg, var(--color-line-soft) 25%, var(--color-line) 50%, var(--color-line-soft) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-shimmer 1.6s ease-in-out infinite;
+}
+
+@keyframes route-content-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.route-fade-in {
+  animation: route-content-in var(--duration-route) var(--ease-out) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 120ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .route-fade-in {
+    animation: none;
+    opacity: 1;
+  }
+
+  .skeleton-shimmer {
+    animation: none;
+    background-image: none;
+    background-color: var(--color-line-soft);
+  }
 }
 
 @media (pointer: coarse) {
