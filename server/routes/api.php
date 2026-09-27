@@ -4,6 +4,7 @@ use App\Http\Controllers\AcademicStructureController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
+use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FinancialAccountabilityController;
@@ -217,4 +218,16 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::post('/notifications', [NotificationController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+
+    // SAO organization compliance and accreditation: requirement types are
+    // SAO's per-academic-year catalog; submissions are each org's own
+    // evidence against that catalog, always scoped to the acting org.
+    Route::get('/compliance/requirement-types', [ComplianceController::class, 'requirementTypes'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/compliance/requirement-types', [ComplianceController::class, 'storeRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/compliance/requirement-types/{requirementType}', [ComplianceController::class, 'updateRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::patch('/compliance/submissions/{submission}/review', [ComplianceController::class, 'reviewSubmission'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/compliance/submissions/{submission}/document', [ComplianceController::class, 'downloadSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
 });
