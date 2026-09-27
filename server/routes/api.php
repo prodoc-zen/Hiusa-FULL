@@ -5,6 +5,7 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\ElectionController;
+use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
@@ -217,4 +218,13 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::patch('/notifications/read-all', [NotificationController::class, 'markAllRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::patch('/notifications/{id}/read', [NotificationController::class, 'markRead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::post('/notifications', [NotificationController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+
+    // Evaluation Module Routes (SO1/SO4 governance and acceptability survey)
+    Route::get('/evaluation/current', [EvaluationController::class, 'current'])->middleware(['throttle:api-read', 'role:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/evaluation/responses', [EvaluationController::class, 'storeResponse'])->middleware(['throttle:api-write', 'role:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/evaluation/results', [EvaluationController::class, 'results'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/evaluation/results/export', [EvaluationController::class, 'exportResults'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/evaluation/windows', [EvaluationController::class, 'windowsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/evaluation/windows', [EvaluationController::class, 'windowsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/evaluation/windows/{id}', [EvaluationController::class, 'windowsUpdate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
 });
