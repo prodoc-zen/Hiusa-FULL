@@ -139,3 +139,15 @@ class TaskDelegationResponse(BaseModel):
     recommended_officer_id: int
     rankings: list[OfficerRanking]
     evaluations: list[OfficerEvaluation]
+
+
+class GrievanceClassificationRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    description: str = Field(min_length=1, max_length=5000)
+
+
+class GrievanceClassificationResponse(BaseModel):
+    urgency: Literal["Low", "Medium", "High", "Critical"]
+    category: str
+    confidence_score: float
+    reasoning: str

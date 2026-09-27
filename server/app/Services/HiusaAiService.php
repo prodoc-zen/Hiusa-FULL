@@ -31,6 +31,14 @@ class HiusaAiService
         ]);
     }
 
+    public function grievanceClassification(string $title, string $description): ?array
+    {
+        return $this->post('/api/v1/grievance-classification', [
+            'title' => $title,
+            'description' => $description,
+        ]);
+    }
+
     private function post(string $path, array $payload): ?array
     {
         if (! config('services.hiusa_ai.enabled')) {
