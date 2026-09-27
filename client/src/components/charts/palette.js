@@ -4,6 +4,7 @@ export const TEXT_STRONG = '#0F172A';
 export const TEXT_MUTED = '#64748B';
 export const GRID_LINE = '#E5EDF3';
 export const GRID_LINE_SOFT = '#DDE7EF';
+export const PAGE_TINT = '#EEF6FB';
 
 export const TONE = {
   neutral: { fill: '#0B8ED0', text: '#0F172A' },
