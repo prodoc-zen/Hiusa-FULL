@@ -5,6 +5,8 @@ use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\DashboardBriefingController;
+use App\Http\Controllers\ClearanceController;
+use App\Http\Controllers\ComplianceController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EvaluationController;
 use App\Http\Controllers\EventController;
@@ -15,6 +17,7 @@ use App\Http\Controllers\FinancialReportDeadlineController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
+use App\Http\Controllers\GrievanceController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
@@ -25,6 +28,8 @@ use App\Http\Controllers\SystemAdministrationController;
 use App\Http\Controllers\TaskController;
 use App\Http\Controllers\TransactionController;
 use App\Http\Controllers\UserController;
+use App\Http\Controllers\VenueBookingController;
+use App\Http\Controllers\VenueController;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -229,4 +234,46 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::get('/evaluation/windows', [EvaluationController::class, 'windowsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/evaluation/windows', [EvaluationController::class, 'windowsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/evaluation/windows/{id}', [EvaluationController::class, 'windowsUpdate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    // SAO organization compliance and accreditation: requirement types are
+    // SAO's per-academic-year catalog; submissions are each org's own
+    // evidence against that catalog, always scoped to the acting org.
+    Route::get('/compliance/requirement-types', [ComplianceController::class, 'requirementTypes'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/compliance/requirement-types', [ComplianceController::class, 'storeRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/compliance/requirement-types/{requirementType}', [ComplianceController::class, 'updateRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::patch('/compliance/submissions/{submission}/review', [ComplianceController::class, 'reviewSubmission'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/compliance/submissions/{submission}/document', [ComplianceController::class, 'downloadSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+
+    // SAO venues and bookings: SUPER_ADMIN owns the venue catalog; ADMIN and
+    // SBO_OFFICER request bookings for their own organization only. Overlap
+    // detection only ever compares against APPROVED bookings for the venue.
+    Route::get('/venues', [VenueController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::post('/venues', [VenueController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/venues/{venue}', [VenueController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/venues/{venue}', [VenueController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/venue-bookings', [VenueBookingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::post('/venue-bookings', [VenueBookingController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::patch('/venue-bookings/{venueBooking}/review', [VenueBookingController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // Confidential grievances: STUDENT files against own org or directly to
+    // SAO; organization_id is always derived from the authenticated student,
+    // never accepted from input. See GrievanceController docblock for the
+    // anonymity rule.
+    Route::get('/grievances', [GrievanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
+    Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+
+    // Digital clearances: SUPER_ADMIN defines a period's required signatory
+    // roles. The "sao" role is university-wide and signed only by
+    // SUPER_ADMIN; every other role is signed only by its own organization's
+    // ADMIN or SBO_OFFICER. See ClearanceController docblock.
+    Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/clearance-periods', [ClearanceController::class, 'periodsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::get('/clearances/mine', [ClearanceController::class, 'mine'])->middleware(['throttle:api-read', 'role:STUDENT']);
+    Route::get('/clearance-signatures', [ClearanceController::class, 'signaturesIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::patch('/clearance-signatures/{clearanceSignature}', [ClearanceController::class, 'sign'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
 });
