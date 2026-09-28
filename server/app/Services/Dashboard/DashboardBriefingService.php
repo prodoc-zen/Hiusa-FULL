@@ -893,6 +893,7 @@ class DashboardBriefingService
     private function universityAgenda(Collection $organizationIds): array
     {
         $items = collect();
+        $href = $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations');
 
         DB::table('events')->whereIn('organization_id', $organizationIds)
             ->whereIn('status', ['approved', 'ongoing'])->where('start_time', '>=', now())
@@ -902,7 +903,7 @@ class DashboardBriefingService
                 'title' => $row->title,
                 'starts_at' => Carbon::parse($row->start_time)->toIso8601String(),
                 'location' => $row->location,
-                'href' => '/dashboard/super-admin/organizations',
+                'href' => $href,
             ]));
 
         DB::table('elections')->whereIn('organization_id', $organizationIds)->where('status', 'active')
@@ -912,7 +913,7 @@ class DashboardBriefingService
                 'title' => 'Voting closes: '.$row->title,
                 'starts_at' => Carbon::parse($row->end_time)->toIso8601String(),
                 'location' => null,
-                'href' => '/dashboard/super-admin/organizations',
+                'href' => $href,
             ]));
 
         return $items->sortBy('starts_at')->take(self::AGENDA_LIMIT)->values()->all();
