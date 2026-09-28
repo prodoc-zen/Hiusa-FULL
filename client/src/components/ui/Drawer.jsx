@@ -1,51 +1,42 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
+import AccessibleOverlay from '../AccessibleOverlay';
+
+const EXIT_DURATION_MS = 180;
 
 export default function Drawer({ open, title, description, onClose, children, footer, width = 'max-w-md' }) {
-  const panelRef = useRef(null);
-  const onCloseRef = useRef(onClose);
+  const [rendered, setRendered] = useState(open);
+  const [closing, setClosing] = useState(false);
+  const exitTimerRef = useRef(null);
 
   useEffect(() => {
-    onCloseRef.current = onClose;
-  }, [onClose]);
-
-  useEffect(() => {
-    if (!open) return undefined;
-
-    const previousFocus = document.activeElement;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-
-    const frame = window.requestAnimationFrame(() => {
-      const focusable = panelRef.current?.querySelector(
-        '[data-autofocus], button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled])',
-      );
-      focusable?.focus?.();
-    });
-
-    function handleKeyDown(event) {
-      if (event.key === 'Escape') {
-        onCloseRef.current?.();
-      }
+    if (open) {
+      window.clearTimeout(exitTimerRef.current);
+      setClosing(false);
+      setRendered(true);
+      return undefined;
     }
 
-    document.addEventListener('keydown', handleKeyDown);
+    if (!rendered) return undefined;
 
-    return () => {
-      window.cancelAnimationFrame(frame);
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', handleKeyDown);
-      previousFocus?.focus?.();
-    };
+    const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    setClosing(true);
+    exitTimerRef.current = window.setTimeout(() => {
+      setRendered(false);
+      setClosing(false);
+    }, prefersReducedMotion ? 0 : EXIT_DURATION_MS);
+
+    return () => window.clearTimeout(exitTimerRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  if (!open) {
+  if (!rendered) {
     return null;
   }
 
   return (
     <div
-      className="fixed inset-0 z-[70] flex justify-end bg-navy-950/50 overlay-fade-in"
+      className={`fixed inset-0 z-[70] flex justify-end bg-navy-950/50 transition-opacity duration-150 ${closing ? 'opacity-0' : 'overlay-fade-in'}`}
       role="presentation"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
@@ -53,12 +44,13 @@ export default function Drawer({ open, title, description, onClose, children, fo
         }
       }}
     >
-      <section
-        ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={title ? 'drawer-title' : undefined}
-        className={`drawer-slide-in flex h-full w-full ${width} flex-col overflow-hidden border-l border-line bg-surface shadow-raised`}
+      <AccessibleOverlay
+        label={title}
+        labelledBy={title ? 'drawer-title' : undefined}
+        onClose={onClose}
+        closeOnBackdrop={false}
+        baseClassName={`flex h-full w-full flex-col overflow-hidden ${closing ? 'drawer-slide-out' : 'drawer-slide-in'}`}
+        className={`${width} border-l border-line bg-surface shadow-raised`}
       >
         {(title || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4">
@@ -80,7 +72,7 @@ export default function Drawer({ open, title, description, onClose, children, fo
         )}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-subtle px-5 py-4">{footer}</footer>}
-      </section>
+      </AccessibleOverlay>
     </div>
   );
 }
