@@ -107,14 +107,33 @@ class ClearanceController extends Controller
 
     public function studentsIndex(Request $request, ClearancePeriod $clearancePeriod)
     {
-        $query = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)
-            ->with(['student:school_id,first_name,last_name,organization_id']);
+        $filters = $request->validate([
+            'q' => ['nullable', 'string', 'max:150'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $studentIdsQuery = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)
+            ->select('student_id')
+            ->distinct();
 
         if ($request->user()->role !== 'SUPER_ADMIN') {
-            $query->where('organization_id', $request->user()->organization_id);
+            $studentIdsQuery->where('organization_id', $request->user()->organization_id);
         }
 
-        $rows = $query->get();
+        if (! empty($filters['q'])) {
+            $search = $filters['q'];
+            $studentIdsQuery->whereHas('student', fn ($q) => $q->where('school_id', 'like', "%{$search}%")
+                ->orWhere('first_name', 'like', "%{$search}%")
+                ->orWhere('last_name', 'like', "%{$search}%"));
+        }
+
+        $page = $studentIdsQuery->orderBy('student_id')->paginate($filters['per_page'] ?? 20);
+
+        $rows = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)
+            ->whereIn('student_id', $page->pluck('student_id'))
+            ->with(['student:school_id,first_name,last_name,organization_id'])
+            ->get();
+
         $byStudent = $rows->groupBy('student_id')->map(function ($studentRows) {
             $first = $studentRows->first();
 
@@ -131,7 +150,9 @@ class ClearanceController extends Controller
             ];
         })->values();
 
-        return response()->json($byStudent);
+        $page->setCollection($byStudent);
+
+        return response()->json($page);
     }
 
     public function mine(Request $request)
@@ -196,8 +217,11 @@ class ClearanceController extends Controller
 
         $result = DB::transaction(function () use ($request, $clearanceSignature, $data) {
             $signature = ClearanceSignature::whereKey($clearanceSignature->id)->lockForUpdate()->first();
-            if ($signature->status !== 'pending') {
-                return ['conflict' => 'This clearance line has already been signed.'];
+            if ($signature->status === 'cleared') {
+                return ['conflict' => 'This clearance line has already been cleared.'];
+            }
+            if ($signature->status === 'held' && $data['status'] !== 'cleared') {
+                return ['conflict' => 'This clearance line is already held.'];
             }
 
             $signature->update([

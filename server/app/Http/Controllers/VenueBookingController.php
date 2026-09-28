@@ -24,9 +24,11 @@ class VenueBookingController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate([
-            'status' => ['nullable', 'in:pending,approved,rejected'],
+            'status' => ['nullable', 'in:pending,approved,rejected,withdrawn'],
             'venue_id' => ['nullable', 'integer', 'exists:venues,id'],
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -44,7 +46,9 @@ class VenueBookingController extends Controller
         }
         $query
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
-            ->when($filters['venue_id'] ?? null, fn ($q, $id) => $q->where('venue_id', $id));
+            ->when($filters['venue_id'] ?? null, fn ($q, $id) => $q->where('venue_id', $id))
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)));
 
         return response()->json($query->orderByDesc('start_time')->paginate($filters['per_page'] ?? 20));
     }
@@ -123,8 +127,15 @@ class VenueBookingController extends Controller
                 return ['conflict' => 'Only a pending booking can be reviewed.'];
             }
 
-            if ($data['status'] === 'approved' && $this->hasApprovedOverlap($booking->venue_id, $booking->start_time, $booking->end_time, $booking->id)) {
-                return ['conflict' => 'Another booking for this venue was approved for an overlapping time in the meantime.'];
+            if ($data['status'] === 'approved') {
+                // Lock the venue row itself, not just this booking, so a
+                // concurrent approval of a different overlapping booking for
+                // the same venue cannot pass its own overlap check before
+                // this transaction commits.
+                Venue::whereKey($booking->venue_id)->lockForUpdate()->first();
+                if ($this->hasApprovedOverlap($booking->venue_id, $booking->start_time, $booking->end_time, $booking->id)) {
+                    return ['conflict' => 'Another booking for this venue was approved for an overlapping time in the meantime.'];
+                }
             }
 
             $booking->update([
@@ -168,6 +179,59 @@ class VenueBookingController extends Controller
                 'message' => $data['status'] === 'approved'
                     ? "Your booking request for \"{$venueName}\" was approved."
                     : "Your booking request for \"{$venueName}\" was rejected: ".$data['remarks'],
+                'reference_type' => 'venue_booking',
+                'reference_id' => $booking->id,
+                'is_read' => false,
+                'sent_at' => now(),
+            ]));
+
+        return response()->json($booking->load('venue:id,name,location'));
+    }
+
+    public function withdraw(Request $request, VenueBooking $venueBooking)
+    {
+        if ($venueBooking->organization_id !== $request->user()->organization_id) {
+            return response()->json(['message' => 'Venue booking not found.'], 404);
+        }
+
+        $canWithdraw = $venueBooking->status === 'pending'
+            || ($venueBooking->status === 'approved' && Carbon::parse($venueBooking->start_time)->isFuture());
+        if (! $canWithdraw) {
+            return response()->json(['message' => 'Only a pending booking or a future approved booking can be withdrawn.'], 409);
+        }
+
+        $booking = DB::transaction(function () use ($request, $venueBooking) {
+            $booking = VenueBooking::whereKey($venueBooking->id)->lockForUpdate()->first();
+            $booking->update([
+                'status' => 'withdrawn',
+                'reviewed_by' => $request->user()->school_id,
+                'reviewed_at' => now(),
+            ]);
+
+            AuditLog::create([
+                'organization_id' => $booking->organization_id,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'venue_bookings',
+                'action' => 'booking_withdrawn',
+                'record_type' => VenueBooking::class,
+                'record_id' => $booking->id,
+                'new_values' => ['status' => 'withdrawn'],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
+            return $booking->fresh();
+        });
+
+        $venueName = $booking->venue()->value('name');
+        User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get(['school_id', 'organization_id'])
+            ->each(fn (User $sao) => Notification::create([
+                'organization_id' => $sao->organization_id,
+                'user_id' => $sao->school_id,
+                'notification_type' => 'general',
+                'title' => 'Venue booking withdrawn',
+                'message' => "A booking request for \"{$venueName}\" was withdrawn by the requesting organization.",
                 'reference_type' => 'venue_booking',
                 'reference_id' => $booking->id,
                 'is_read' => false,
