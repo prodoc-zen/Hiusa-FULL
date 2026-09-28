@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import {
   BellRing,
   CalendarDays,
@@ -15,6 +15,7 @@ import {
   Card,
   DataTable,
   Drawer,
+  DrawnCheck,
   EmptyState,
   ErrorState,
   Field,
@@ -39,6 +40,11 @@ import {
 } from '../../components/ui';
 import Modal from '../../components/Modal';
 import ConfirmModal from '../../components/ConfirmModal';
+import TableFilterBar from '../../components/TableFilterBar';
+import PaginationControls from '../../components/PaginationControls';
+import { BarList, Donut, Meter } from '../../components/charts';
+import { peso } from '../../lib/format';
+import notify from '../../lib/notify';
 
 const STATUSES = [
   'paid', 'pending', 'pending_payment', 'payment_submitted', 'verified', 'claimed',
@@ -49,7 +55,7 @@ const STATUSES = [
 ];
 
 const TABLE_COLUMNS = [
-  { key: 'name', header: 'Name' },
+  { key: 'name', header: 'Name', sortable: true },
   { key: 'organization', header: 'Organization' },
   { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
 ];
@@ -58,6 +64,11 @@ const TABLE_ROWS = [
   { id: 1, name: 'Maria Santos', organization: 'CCS Student Council', status: 'active' },
   { id: 2, name: 'Juan Cruz', organization: 'CEA Student Council', status: 'pending' },
   { id: 3, name: 'Liza Reyes', organization: 'CBA Student Council', status: 'disabled' },
+  { id: 4, name: 'Pedro Penduko', organization: 'CAS Student Council', status: 'active' },
+  { id: 5, name: 'Ana Villamor', organization: 'CCJE Student Council', status: 'pending' },
+  { id: 6, name: 'Carlos Diaz', organization: 'CCS Student Council', status: 'active' },
+  { id: 7, name: 'Rosa Lim', organization: 'CTHM Student Council', status: 'disabled' },
+  { id: 8, name: 'Miguel Torres', organization: 'CEA Student Council', status: 'pending' },
 ];
 
 function Section({ title, description, children }) {
@@ -81,6 +92,22 @@ export default function UiKitPage() {
   const [tableLoading, setTableLoading] = useState(false);
   const [tableError, setTableError] = useState(false);
   const [fieldError, setFieldError] = useState(true);
+  const [search, setSearch] = useState('');
+  const [filtersActive, setFiltersActive] = useState(false);
+  const [sort, setSort] = useState({ key: 'name', direction: 'asc' });
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(5);
+
+  const sortedRows = useMemo(() => {
+    const rows = [...TABLE_ROWS];
+    rows.sort((a, b) => {
+      const direction = sort.direction === 'asc' ? 1 : -1;
+      return String(a[sort.key]).localeCompare(String(b[sort.key])) * direction;
+    });
+    return rows;
+  }, [sort]);
+
+  const pagedRows = sortedRows.slice((page - 1) * pageSize, page * pageSize);
 
   return (
     <div className="min-h-screen bg-page px-4 py-8 sm:px-8">
@@ -114,9 +141,6 @@ export default function UiKitPage() {
               <IconButton icon={BellRing} label="Notifications" variant="ghost" />
               <IconButton icon={Plus} label="Add item (small)" size="sm" />
               <IconButton icon={Plus} label="Add item (disabled)" disabled />
-              <Tooltip content="Saves the current form">
-                <IconButton icon={Save} label="Save with tooltip" variant="secondary" />
-              </Tooltip>
             </div>
           </Card>
         </Section>
@@ -135,6 +159,18 @@ export default function UiKitPage() {
                   <option value="admin">Admin</option>
                   <option value="officer">SBO Officer</option>
                   <option value="student">Student</option>
+                </Select>
+              </Field>
+              <Field label="Role (error)" error={fieldError ? 'Choose a role before continuing.' : undefined}>
+                <Select defaultValue="">
+                  <option value="" disabled>Select a role</option>
+                  <option value="officer">SBO Officer</option>
+                  <option value="student">Student</option>
+                </Select>
+              </Field>
+              <Field label="Role (disabled)">
+                <Select disabled defaultValue="officer">
+                  <option value="officer">SBO Officer</option>
                 </Select>
               </Field>
               <Field label="Disabled field">
@@ -179,18 +215,24 @@ export default function UiKitPage() {
                 onChange={setSegment}
               />
             </div>
+            <div className="mt-4 flex items-center gap-3">
+              <Tooltip content="Saves the current form">
+                <Button variant="secondary" size="sm" leftIcon={Save}>Hover for a tooltip</Button>
+              </Tooltip>
+              <span className="text-sm text-ink-muted">Press <Kbd>Esc</Kbd> to dismiss it.</span>
+            </div>
           </Card>
         </Section>
 
         <Section title="Stats and progress">
           <div className="grid gap-4 sm:grid-cols-3">
-            <Stat label="Budget balance" value="₱38,200.00" delta="+12%" deltaDirection="up" period="vs last month" />
-            <Stat label="Open tasks" value="6" delta="-2" deltaDirection="down" period="this week" context="2 overdue" />
+            <Stat label="Budget balance" value="₱38,200.00" delta="+12%" deltaDirection="up" deltaTone="positive" period="vs last month" />
+            <Stat label="Open tasks" value="6" delta="-2" deltaDirection="down" deltaTone="positive" period="this week" context="2 overdue (fewer open tasks is good news)" />
             <Stat label="Merch orders pending" value="14" to="/dev/ui-kit" />
           </div>
           <Card>
             <div className="flex flex-col gap-4">
-              <ProgressMeter label="Operating budget" value={42} max={60000} valueLabel="₱42,000 of ₱60,000" />
+              <ProgressMeter label="Operating budget" value={42000} max={60000} valueLabel="₱42,000 of ₱60,000" />
               <ProgressMeter label="Warning threshold" value={51} max={60} valueLabel="51 of 60" />
               <ProgressMeter label="Over limit" value={62} max={60} valueLabel="62 of 60" />
             </div>
@@ -221,7 +263,12 @@ export default function UiKitPage() {
               />
             </Card>
             <Card title="Filtered">
-              <EmptyState kind="filtered" query="budget report" description="Try a different search term or clear your filters." />
+              <EmptyState
+                kind="filtered"
+                query="budget report"
+                description="Try a different search term or clear your filters."
+                onClearFilters={() => notify.info('Filters cleared.')}
+              />
             </Card>
             <Card title="Restricted">
               <EmptyState kind="restricted" title="Only officers can see this" description="Ask your organization admin for access." />
@@ -243,7 +290,16 @@ export default function UiKitPage() {
           </Card>
         </Section>
 
-        <Section title="Data table" description="Renders as a table at md and up, and as stacked cards below md.">
+        <Section title="Drawn check" description="One celebratory moment for a success that matters, drawn once over 400ms.">
+          <Card>
+            <div className="flex items-center gap-4">
+              <DrawnCheck label="Your vote is in" />
+              <p className="text-sm font-medium text-ink-muted">Used for vote cast, order claimed, and budget approved.</p>
+            </div>
+          </Card>
+        </Section>
+
+        <Section title="Data table" description="Renders as a table at md and up, and as divided rows in the parent Card below md. Sortable, sticky header, with a filter bar and pagination.">
           <Card
             actions={(
               <>
@@ -254,13 +310,126 @@ export default function UiKitPage() {
           >
             <DataTable
               columns={TABLE_COLUMNS}
-              rows={TABLE_ROWS}
+              rows={pagedRows}
               loading={tableLoading}
               error={tableError ? 'Could not load organization members.' : null}
               onRetry={() => setTableError(false)}
               actions={(row) => <Button variant="secondary" size="sm">View {row.name.split(' ')[0]}</Button>}
-              emptyState={<EmptyState kind="filtered" description="No members match your filters." />}
+              sort={sort}
+              onSortChange={setSort}
+              filtersActive={filtersActive}
+              filters={(
+                <TableFilterBar
+                  searchValue={search}
+                  onSearchChange={setSearch}
+                  searchPlaceholder="Search members..."
+                  activeFilters={filtersActive ? ['Status: Active'] : []}
+                  onClear={() => setFiltersActive(false)}
+                  resultCount={sortedRows.length}
+                  resultLabel="members"
+                  actions={(
+                    <Button variant="secondary" size="sm" onClick={() => setFiltersActive((current) => !current)}>
+                      Toggle "Status: Active" filter
+                    </Button>
+                  )}
+                />
+              )}
+              pagination={(
+                <PaginationControls
+                  currentPage={page}
+                  totalItems={sortedRows.length}
+                  pageSize={pageSize}
+                  pageSizeOptions={[5, 10, 25]}
+                  onPageChange={setPage}
+                  onPageSizeChange={(size) => { setPageSize(size); setPage(1); }}
+                  label="members"
+                />
+              )}
             />
+          </Card>
+        </Section>
+
+        <Section title="Charts" description="Hand-built SVG charts from components/charts, used read-only here.">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <Card title="Budget by category">
+              <BarList
+                valueFormat={peso}
+                items={[
+                  { label: 'Events', value: 18000 },
+                  { label: 'Merchandise', value: 9500 },
+                  { label: 'Operations', value: 14200 },
+                ]}
+              />
+            </Card>
+            <Card title="Orders by status">
+              <Donut
+                valueFormat={(value) => String(value)}
+                centerLabel="Total orders"
+                segments={[
+                  { label: 'Paid', value: 14 },
+                  { label: 'Pending', value: 6 },
+                  { label: 'Claimed', value: 9 },
+                ]}
+              />
+            </Card>
+          </div>
+          <Card title="Budget utilization meter">
+            <Meter value={42000} limit={60000} label="Operating budget" format={peso} />
+          </Card>
+        </Section>
+
+        <Section title="Toasts" description="Every kind, routed through notify.js, including a stacked pair.">
+          <Card>
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => notify.success('Transaction recorded', { description: '₱1,250.00 added to Operations.' })}
+              >
+                Success
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => notify.error('We could not save the budget. Try again.')}
+              >
+                Error
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => notify.info('Voting closes in 2 hours.')}
+              >
+                Info
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => notify.warning('This budget is close to its limit.')}
+              >
+                Warning
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => notify.promise(
+                  new Promise((resolve) => window.setTimeout(resolve, 1200)),
+                  { loading: 'Recording transaction...', success: 'Transaction recorded.', error: 'Could not record the transaction.' },
+                )}
+              >
+                Loading (promise)
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                onClick={() => {
+                  notify.success('Transaction recorded', { description: '₱1,250.00 added to Operations.' });
+                  notify.info('Voting closes in 2 hours.');
+                }}
+              >
+                Stack two toasts
+              </Button>
+            </div>
           </Card>
         </Section>
 
