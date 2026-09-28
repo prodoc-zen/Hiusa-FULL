@@ -189,7 +189,7 @@ class ApprovalRequestController extends Controller
     {
         $types = ['financial_report', 'event'];
 
-        if (config('approvals.routes.budget_final') === 'SUPER_ADMIN') {
+        if (config('approvals.budget_final') === 'SUPER_ADMIN') {
             $types[] = 'budget';
         }
 
@@ -218,7 +218,7 @@ class ApprovalRequestController extends Controller
             ->lockForUpdate()
             ->findOrFail($approval->entity_id);
 
-        $finalRole = config('approvals.routes.budget_final');
+        $finalRole = config('approvals.budget_final');
 
         if ($finalRole && $approval->required_role !== $finalRole) {
             $budget->update([
