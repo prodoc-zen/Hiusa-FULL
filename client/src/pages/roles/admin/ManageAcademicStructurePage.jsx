@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BookOpen, Check, Layers, Pencil, Plus, Save, Trash2, X } from 'lucide-react';
 import { createAcademicProgram, deleteAcademicProgram, getAcademicStructure, updateAcademicProgram } from '../../../services/userService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import ClassListImportPanel from '../../../components/users/ClassListImportPanel';
 
 const yearLabel = (year) => `${year}${year % 100 >= 11 && year % 100 <= 13 ? 'th' : ({ 1: 'st', 2: 'nd', 3: 'rd' }[year % 10] || 'th')} Year`;
 const yearsFor = (durationYears = 4) => Array.from({ length: Number(durationYears) || 4 }, (_, index) => index + 1);
@@ -69,7 +70,7 @@ export default function ManageAcademicStructurePage() {
     <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Academic setup</p><h2 className="mt-1 text-2xl font-black text-[#0F172A]">Programs & Sections</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Create, review, update, and remove academic programs. Every program automatically includes 1st–4th Year Non Block options.</p></div>
-        <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-4 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#0F2F62]">Department</p><p className="mt-0.5 text-sm font-bold text-[#0F172A]">{structure.department || 'College of Computer Studies'}</p></div>
+        <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-4 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#0F2F62]">Department</p><p className="mt-0.5 text-sm font-bold text-[#0F172A]">{structure.department || 'Not assigned'}</p></div>
       </div>
       <form onSubmit={submit} className="mt-6 border-t border-[#DDE7EF] pt-5">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.6fr)]">
@@ -81,6 +82,8 @@ export default function ManageAcademicStructurePage() {
       {error && <p className="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{error}</p>}
       {success && <p className="mt-4 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700"><Check size={15} />{success}</p>}
     </section>
+
+    <ClassListImportPanel />
 
     <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
       <div className="flex items-center gap-2 border-b border-[#DDE7EF] p-5"><BookOpen size={18} className="text-[#0878B7]" /><div><h3 className="font-bold text-[#0F172A]">Configured programs</h3><p className="text-xs text-slate-500">Block sections use letter labels; each year always keeps its Non Block option.</p></div></div>

@@ -73,6 +73,12 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const role = user?.role ?? '';
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
   const organizationName = user?.organization?.name || 'Organization';
+  const isAdminHome = pathname === '/dashboard/admin';
+  const headerSubtitle = {
+    '/dashboard/admin/users': 'Search the organization directory and manage account access.',
+    '/dashboard/admin/sbo-positions': 'Maintain titles available to administrators and officers.',
+    '/dashboard/admin/programs-sections': 'Configure programs and update academic records.',
+  }[pathname];
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(role);
 
@@ -222,8 +228,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
 
   return (
-    <header className="sticky top-0 z-30 border-b border-[#DDE7EF] bg-white">
-      <div className="flex min-h-16 items-center gap-2 px-3 sm:gap-3 sm:px-6">
+    <header className="relative z-30 mx-3 mt-3 rounded-3xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6">
+      <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
         {/* Hamburger toggle */}
         <button
           type="button"
@@ -240,6 +246,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             HIUSA{parentLabel ? ` - ${parentLabel}` : ''}
           </p>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
+          {isAdminHome && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">Welcome back, {user?.first_name || 'Administrator'}. Review today’s orders, requests, tasks, and updates.</p>}
+          {headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
         </div>
 
         {canOrderMerchandise && (

@@ -6,7 +6,7 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
-import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser } from '../../../services/userService';
+import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
 import { inviteAccountProfile } from '../../../services/authService';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
@@ -14,6 +14,8 @@ import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import DataDonutChart from '../../../components/DataDonutChart';
+import UserIdentityCard from '../../../components/users/UserIdentityCard';
+import SectionDistributionChart from '../../../components/users/SectionDistributionChart';
 
 const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
 const filterRoles = ['SUPER_ADMIN', ...accountRoles];
@@ -58,10 +60,10 @@ const emptyEditForm = {
   major: '', section: '',
 };
 
-function Field({ label, children, error }) {
+function Field({ label, children, error, required = false }) {
   return (
     <label className="block">
-      <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">{label}</span>
+      <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">{label}{required && <span className="ml-1 text-red-600" aria-label="required">*</span>}</span>
       {children}
       {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
     </label>
@@ -301,10 +303,7 @@ export function FingerprintEnrollmentModal({ user, onClose, onSaved }) {
       maxWidth="max-w-lg"
     >
       <div className="space-y-4">
-        <div className="flex items-center gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">{user.first_name?.[0]}{user.last_name?.[0]}</span>
-          <div className="min-w-0"><p className="truncate text-sm font-black text-[#0F172A]">{user.first_name} {user.last_name}</p><p className="text-xs font-semibold text-slate-500">School ID {user.school_id} · {ROLE_LABELS[user.role] || user.role}</p></div>
-        </div>
+        <UserIdentityCard user={user} compact />
         <ScannerStatus reader={reader} />
         <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
           <div className="flex items-center justify-between gap-3"><p className="text-sm font-bold text-[#0F172A]">Capture progress</p><span className="text-xs font-bold text-[#0878B7]">{captured} / 4</span></div>
@@ -407,6 +406,7 @@ export default function AdminUsersPage() {
   const [users, setUsers] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [roleSummary, setRoleSummary] = useState({});
+  const [sectionSummary, setSectionSummary] = useState([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
@@ -419,6 +419,9 @@ export default function AdminUsersPage() {
   const [sort, setSort] = useState('name');
   const [error, setError] = useState('');
   const [modalError, setModalError] = useState('');
+  const [modalFieldErrors, setModalFieldErrors] = useState({});
+  const [createPhoto, setCreatePhoto] = useState(null);
+  const [editPhoto, setEditPhoto] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
   const [inviteForm, setInviteForm] = useState({ school_id: '', role: 'STUDENT' });
@@ -499,6 +502,7 @@ export default function AdminUsersPage() {
       setUsers(unwrapList(usersRes));
       setMeta(listMeta(usersRes));
       setRoleSummary(usersRes?.summary?.by_role ?? {});
+      setSectionSummary(usersRes?.summary?.by_section ?? []);
       setSboPositions(Array.isArray(positions) ? positions : []);
       if (structure) setAcademicStructure(structure || { department: '', programs: [] });
     } catch {
@@ -540,6 +544,7 @@ export default function AdminUsersPage() {
   const openCreate = () => {
     setCreateForm({ ...emptyCreateForm, department: academicStructure.department || 'College of Computer Studies' });
     setModalError('');
+    setModalFieldErrors({}); setCreatePhoto(null);
     setShowCreate(true);
   };
 
@@ -565,6 +570,7 @@ export default function AdminUsersPage() {
       major: user.major || '', section: user.section || '',
     });
     setModalError('');
+    setModalFieldErrors({}); setEditPhoto(null);
   };
 
   const closeEdit = () => {
@@ -598,20 +604,28 @@ export default function AdminUsersPage() {
 
   const handleCreate = async (event) => {
     event.preventDefault();
+    if (createPhoto && (createPhoto.size > 2 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(createPhoto.type))) { setModalFieldErrors({ photo: ['Choose a JPEG, PNG, or WebP image up to 2 MB.'] }); return; }
     setModalError('');
+    setModalFieldErrors({});
     setBusy(true);
 
     try {
-      await createUser({
+      const created = await createUser({
         ...createForm,
         position_title: ['ADMIN', 'SBO_OFFICER'].includes(createForm.role) ? createForm.position_title : '',
       });
+      let photoError = false;
+      if (createPhoto) {
+        try { await uploadUserPhoto(created.school_id, createPhoto); } catch { photoError = true; }
+      }
       setShowCreate(false);
+      setCreatePhoto(null);
       setCreateForm(emptyCreateForm);
       await refreshUsers();
-      setFeedback({ open: true, type: 'success', message: 'User account created.' });
+      setFeedback({ open: true, type: photoError ? 'error' : 'success', message: photoError ? 'Account created, but its profile photo could not be uploaded.' : 'User account created.' });
     } catch (createError) {
       setModalError(firstError(createError) || 'Unable to create user.');
+      setModalFieldErrors(createError?.response?.data?.errors || {});
     } finally {
       setBusy(false);
     }
@@ -620,8 +634,10 @@ export default function AdminUsersPage() {
   const handleEdit = async (event) => {
     event.preventDefault();
     if (!selectedUser) return;
+    if (editPhoto && (editPhoto.size > 2 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(editPhoto.type))) { setModalFieldErrors({ photo: ['Choose a JPEG, PNG, or WebP image up to 2 MB.'] }); return; }
 
     setModalError('');
+    setModalFieldErrors({});
     setBusy(true);
 
     try {
@@ -631,11 +647,17 @@ export default function AdminUsersPage() {
         ...editableFields,
         position_title: ['ADMIN', 'SBO_OFFICER'].includes(editForm.role) ? editForm.position_title : '',
       });
+      let photoError = false;
+      if (editPhoto) {
+        try { await uploadUserPhoto(selectedUser.id, editPhoto); } catch { photoError = true; }
+      }
       setSelectedUser(null);
+      setEditPhoto(null);
       await refreshUsers();
-      setFeedback({ open: true, type: 'success', message: 'User account updated.' });
+      setFeedback({ open: true, type: photoError ? 'error' : 'success', message: photoError ? 'Account updated, but its profile photo could not be uploaded.' : 'User account updated.' });
     } catch (updateError) {
       setModalError(firstError(updateError) || 'Unable to update user.');
+      setModalFieldErrors(updateError?.response?.data?.errors || {});
     } finally {
       setBusy(false);
     }
@@ -692,8 +714,10 @@ export default function AdminUsersPage() {
   };
 
   const userForm = (form, setForm, mode) => (
-    <form id={`${mode}-user-form`} onSubmit={mode === 'create' ? handleCreate : handleEdit} className="grid gap-3 sm:grid-cols-2">
-      <Field label="School ID">
+    <form id={`${mode}-user-form`} onSubmit={mode === 'create' ? handleCreate : handleEdit} className="grid gap-4 sm:grid-cols-2">
+      <div className="sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Identity and contact</h3><p className="text-xs text-slate-500">Fields marked * are required.</p></div>
+      {mode === 'edit' && selectedUser && <div className="sm:col-span-2"><UserIdentityCard user={selectedUser} compact /></div>}
+      <Field label="School ID" required error={modalFieldErrors.school_id?.[0]}>
         <input
           type="number"
           min="1"
@@ -705,26 +729,27 @@ export default function AdminUsersPage() {
           className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 read-only:bg-slate-100 read-only:text-slate-500 read-only:focus:border-[#DDE7EF] read-only:focus:ring-0"
         />
       </Field>
-      <Field label="Email">
+      <Field label="Email" required error={modalFieldErrors.email?.[0]}>
         <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
-      {form.role === 'STUDENT' && <Field label="Contact Number">
+      {form.role === 'STUDENT' && <Field label="Contact Number" error={modalFieldErrors.contact_number?.[0]}>
         <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>}
-      <Field label="First Name">
+      <Field label="First Name" required error={modalFieldErrors.first_name?.[0]}>
         <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
-      <Field label="Last Name">
+      <Field label="Last Name" required error={modalFieldErrors.last_name?.[0]}>
         <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
-      <Field label="Role">
+      <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Role and academic details</h3></div>
+      <Field label="Role" required error={modalFieldErrors.role?.[0]}>
         <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || (mode === 'edit' && selectedUser?.role === 'ADMIN')} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
           {(mode === 'edit' && selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
         </select>
       </Field>
-      <Field label="Organization Position">
+      <Field label="Organization Position" error={modalFieldErrors.position_title?.[0]}>
         <select
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
@@ -738,20 +763,22 @@ export default function AdminUsersPage() {
         </select>
       </Field>
       <Field label="Department"><input value={academicStructure.department || 'College of Computer Studies'} readOnly className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-slate-100 px-3 text-sm text-slate-500" /></Field>
-      <Field label="Course / Program">
+      <Field label="Course / Program" error={modalFieldErrors.program?.[0]}>
         <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
       </Field>
-      <Field label="Year Level">
+      <Field label="Year Level" error={modalFieldErrors.year_level?.[0]}>
         <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</select>
       </Field>
-      <Field label="Major / Specialization"><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
-      <Field label="Section"><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
+      <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
+      <Field label="Section" error={modalFieldErrors.section?.[0]}><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
+      <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Photo and access</h3></div>
+      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]}><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => (mode === 'create' ? setCreatePhoto : setEditPhoto)(event.target.files?.[0] || null)} className="w-full rounded-xl border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
       {mode === 'create' && (
         <>
-          <Field label="Password">
+          <Field label="Password" required error={modalFieldErrors.password?.[0]}>
             <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
           </Field>
-          <Field label="Confirm Password">
+          <Field label="Confirm Password" required error={modalFieldErrors.password_confirmation?.[0]}>
             <input type="password" value={form.password_confirmation} onChange={(event) => setForm({ ...form, password_confirmation: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
           </Field>
         </>
@@ -791,14 +818,10 @@ export default function AdminUsersPage() {
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-4 bg-[#0F2F62] p-5 text-white sm:p-6">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">{actorRole === 'SBO_OFFICER' ? 'SBO Officer' : 'Administrator'}</p>
-            <h2 className="mt-1 text-2xl font-black text-white">{actorRole === 'SBO_OFFICER' ? 'Participant Biometrics' : 'Manage Users'}</h2>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">{actorRole === 'SBO_OFFICER' ? 'Find students and manage consent-based fingerprint enrollment for event attendance.' : 'Search the organization directory, maintain account access, and review academic and financial context.'}</p>
-          </div>
-          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-wrap gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-sm font-bold text-white hover:bg-white/15 disabled:opacity-50 sm:flex-none"><Download size={15} /> Export</button>{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-white/20 px-4 text-sm font-bold text-white hover:bg-white/10 sm:flex-none"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#EEF6FB] sm:flex-none"><UserPlus size={15} /> New User</button></div>}
+      <section className="overflow-hidden rounded-3xl border border-[#DDE7EF] bg-white shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#DDE7EF] p-5">
+          <p className="text-sm font-semibold text-slate-600">{actorRole === 'SBO_OFFICER' ? 'Find students for consent-based fingerprint enrollment.' : 'Filter accounts, export the directory, or add a member.'}</p>
+          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-wrap gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50 sm:flex-none"><Download size={15} /> Export</button>{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] sm:flex-none"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] sm:flex-none"><UserPlus size={15} /> New User</button></div>}
         </div>
 
         <TableFilterBar
@@ -848,6 +871,8 @@ export default function AdminUsersPage() {
           { label: 'Super admins', value: roleSummary.SUPER_ADMIN ?? 0, color: '#64748B' },
         ]}
       />
+
+      <SectionDistributionChart sections={sectionSummary} loading={loading} />
 
       {error && (
         <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
@@ -937,7 +962,8 @@ export default function AdminUsersPage() {
         footer={<button type="button" onClick={closeProfile} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Close</button>}
       >
         {profileUser && <div className="space-y-5">
-          <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2 lg:grid-cols-3">
+          <UserIdentityCard user={profileUser} />
+          <div className="grid gap-3 rounded-2xl border border-[#DDE7EF] bg-white p-4 sm:grid-cols-2 lg:grid-cols-3">
             {[
               ['Email', profileUser.email], ['Contact number', profileUser.contact_number || 'Not recorded'], ['Role', ROLE_LABELS[profileUser.role] || profileUser.role], ['Account status', profileUser.account_status || 'active'],
               ['Department', profileUser.department || 'Not recorded'], ['Course / Program', profileUser.program || 'Not recorded'], ['Year level', profileUser.year_level || 'Not recorded'],
@@ -1046,6 +1072,7 @@ export default function AdminUsersPage() {
         title="Delete User Permanently"
         message="This removes the account permanently. The system will block deletion if the user has linked operational records."
         recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''}
+        confirmationText={deleteTarget ? String(deleteTarget.school_id) : ''}
         confirmText="Delete User"
         variant="danger"
         busy={busy}

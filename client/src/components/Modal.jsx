@@ -100,7 +100,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
-        className={`flex max-h-[calc(100dvh-0.75rem)] w-full ${maxWidth} scale-100 flex-col overflow-hidden rounded-t-lg border border-[#DDE7EF] bg-white shadow-2xl shadow-[#0B1831]/25 transition duration-200 sm:max-h-[calc(100dvh-2rem)] sm:rounded-lg`}
+        className={`flex max-h-[calc(100dvh-0.75rem)] w-full ${maxWidth} scale-100 flex-col overflow-hidden rounded-t-3xl border border-[#DDE7EF] bg-white shadow-2xl shadow-[#0B1831]/25 transition duration-200 sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl`}
       >
         {(title || description || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-[#DDE7EF] px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">

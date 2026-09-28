@@ -16,7 +16,7 @@ class AcademicStructureController extends Controller
         $organization = $request->user()->organization;
 
         return response()->json([
-            'department' => $organization?->college ?: 'College of Computer Studies',
+            'department' => $organization?->college,
             'programs' => AcademicProgram::where('organization_id', $request->user()->organization_id)
                 ->with('sections')
                 ->orderBy('name')

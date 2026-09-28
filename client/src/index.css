@@ -4,7 +4,52 @@
 
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
+  --radius-lg: 1rem;
+  --radius-xl: 1.25rem;
+  --radius-2xl: 1.5rem;
+  --color-green-50: #DCFCE7;
+  --color-emerald-50: #DCFCE7;
+  --color-green-100: #BBF7D0;
+  --color-emerald-100: #BBF7D0;
+  --color-green-600: #16A34A;
+  --color-emerald-600: #16A34A;
+  --color-green-700: #166534;
+  --color-emerald-700: #166534;
+  --color-red-50: #FEE2E2;
+  --color-rose-50: #FEE2E2;
+  --color-red-700: #B91C1C;
+  --color-rose-700: #B91C1C;
+  --color-hiusa-success: #16A34A;
+  --color-hiusa-warning: #DC2626;
+  --color-hiusa-pending: #B45309;
+  --color-hiusa-danger: #DC2626;
+  --color-hiusa-info: #0878B7;
 }
+
+.status-icon {
+  display: inline-grid;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: none;
+  place-items: center;
+  border-radius: 1rem;
+}
+
+.status-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 9999px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.6875rem;
+  font-weight: 700;
+}
+
+.status-success, .status-chip[data-tone='success'] { background: #DCFCE7; color: #166534; }
+.status-warning, .status-chip[data-tone='warning'] { background: #FEE2E2; color: #B91C1C; }
+.status-pending, .status-chip[data-tone='pending'] { background: #FEF3C7; color: #92400E; }
+.status-danger, .status-chip[data-tone='danger'] { background: #FEE2E2; color: #B91C1C; }
+.status-info, .status-chip[data-tone='info'] { background: #E6F6FD; color: #0F2F62; }
+.status-neutral, .status-chip[data-tone='neutral'] { background: #F1F5F9; color: #475569; }
 
 html {
   font-family: 'Poppins', ui-sans-serif, system-ui, sans-serif;
@@ -49,7 +94,7 @@ textarea {
 select {
   height: 44px;
   border: 1px solid #DDE7EF;
-  border-radius: 6px;
+  border-radius: 12px;
   background-color: #FFFFFF;
   color: #0F172A;
 }

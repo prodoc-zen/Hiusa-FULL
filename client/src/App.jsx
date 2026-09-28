@@ -12,6 +12,7 @@ const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
 const SuperAdminFinancialReportsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialReportsPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
+const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
 const SaoEventRequirementsPage = lazy(() => import('./pages/roles/super-admin/SaoEventRequirementsPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
@@ -25,6 +26,7 @@ const ManageSboPositionsPage = lazy(() => import('./pages/roles/admin/ManageSboP
 const ManageAcademicStructurePage = lazy(() => import('./pages/roles/admin/ManageAcademicStructurePage'));
 const GeneralAuditLogPage = lazy(() => import('./pages/roles/admin/GeneralAuditLogPage'));
 const FinancePage = lazy(() => import('./pages/modules/finance/FinancePage'));
+const FinancialCollectionsPage = lazy(() => import('./pages/modules/finance/FinancialCollectionsPage'));
 const StudentFinancialAccountsPage = lazy(() => import('./pages/modules/finance/StudentFinancialAccountsPage'));
 const EventsPage = lazy(() => import('./pages/modules/events/EventsPage'));
 const TasksPage = lazy(() => import('./pages/modules/tasks/TasksPage'));
@@ -185,6 +187,7 @@ function App() {
           <Route index element={<DashboardIndexRedirect />} />
           <Route path="super-admin" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminHomePage /></ProtectedRoute>} />
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
+          <Route path="super-admin/colleges" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemCollegesPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEventRequirementsPage /></ProtectedRoute>} />
           <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
@@ -228,6 +231,7 @@ function App() {
           <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]} />}>
             <Route index element={<FinanceIndexRedirect />} />
             <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
+            <Route path="collections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancialCollectionsPage /></ProtectedRoute>} />
             <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
             <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
             <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />

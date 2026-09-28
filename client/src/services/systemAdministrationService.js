@@ -6,6 +6,10 @@ export const getSystemOverview = (params) => unwrap(api.get('/system/overview', 
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params }));
 export const createSystemOrganization = (payload) => unwrap(api.post('/system/organizations', payload));
 export const updateSystemOrganization = (id, payload) => unwrap(api.put(`/system/organizations/${id}`, payload));
+export const getSystemColleges = () => unwrap(api.get('/system/colleges'));
+export const createSystemCollege = (payload) => unwrap(api.post('/system/colleges', payload));
+export const updateSystemCollege = (id, payload) => unwrap(api.put(`/system/colleges/${id}`, payload));
+export const deleteSystemCollege = (id) => unwrap(api.delete(`/system/colleges/${id}`));
 export const getSystemAdmins = (params) => unwrap(api.get('/system/admins', { params }));
 export const createSystemAdmin = (payload) => unwrap(api.post('/system/admins', payload));
 export const updateSystemAdmin = (id, payload) => unwrap(api.put(`/system/admins/${id}`, payload));

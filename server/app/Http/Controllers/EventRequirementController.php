@@ -20,12 +20,14 @@ class EventRequirementController extends Controller
     {
         return response()->json(EventRequirement::query()
             ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('is_active', true))
-            ->orderBy('id')->get());
+            ->orderBy('sort_order')->orderBy('id')->get());
     }
 
     public function store(Request $request)
     {
         $data = $this->validateRequirement($request);
+
+        $data['sort_order'] = (int) EventRequirement::max('sort_order') + 1;
 
         return response()->json(EventRequirement::create($data), 201);
     }
@@ -38,10 +40,43 @@ class EventRequirementController extends Controller
         return response()->json($requirement->fresh());
     }
 
+    public function reorder(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['required', 'integer', 'distinct', Rule::exists('event_requirements', 'id')],
+        ]);
+        $current = EventRequirement::pluck('id')->sort()->values()->all();
+        $submitted = collect($data['ids'])->map(fn ($id) => (int) $id)->sort()->values()->all();
+        if ($current !== $submitted) {
+            return response()->json(['message' => 'Include every requirement exactly once when reordering.'], 422);
+        }
+
+        DB::transaction(function () use ($data) {
+            foreach ($data['ids'] as $index => $id) {
+                EventRequirement::whereKey($id)->update(['sort_order' => $index + 1]);
+            }
+        });
+
+        return response()->json(EventRequirement::orderBy('sort_order')->orderBy('id')->get());
+    }
+
+    public function destroy(EventRequirement $requirement)
+    {
+        if (EventRequirementFile::where('requirement_id', $requirement->id)->exists()) {
+            return response()->json(['message' => 'This requirement has submitted files. Deactivate it to preserve those records.'], 409);
+        }
+
+        $requirement->delete();
+
+        return response()->noContent();
+    }
+
     private function validateRequirement(Request $request): array
     {
         return $request->validate([
             'name' => ['required', 'string', 'max:150'],
+            'description' => ['nullable', 'string', 'max:500'],
             'allowed_extensions' => ['required', 'array', 'min:1'],
             'allowed_extensions.*' => ['required', 'string', 'distinct', Rule::in(self::SUPPORTED_EXTENSIONS)],
             'is_active' => ['sometimes', 'boolean'],
@@ -56,7 +91,7 @@ class EventRequirementController extends Controller
 
         return response()->json([
             'event' => $event->only(['id', 'title', 'organization_id', 'status']),
-            'requirements' => EventRequirement::where('is_active', true)->orderBy('id')->get(),
+            'requirements' => EventRequirement::where('is_active', true)->orderBy('sort_order')->orderBy('id')->get(),
             'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions')
                 ->where('event_id', $event->id)->orderBy('requirement_id')->get(),
             'approval_status' => ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->latest('id')->value('status'),
