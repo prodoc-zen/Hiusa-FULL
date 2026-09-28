@@ -305,10 +305,12 @@ class UseCaseComplianceTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'approved',
         ]);
         $otherEvent = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'approved',
         ]);
         $budget = Budget::create([
             'organization_id' => $admin->organization_id,
