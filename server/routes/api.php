@@ -253,9 +253,11 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     Route::post('/venues', [VenueController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/venues/{venue}', [VenueController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/venues/{venue}', [VenueController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/venues/{venue}/availability', [VenueController::class, 'availability'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::get('/venue-bookings', [VenueBookingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::post('/venue-bookings', [VenueBookingController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::patch('/venue-bookings/{venueBooking}/review', [VenueBookingController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/venue-bookings/{venueBooking}/withdraw', [VenueBookingController::class, 'withdraw'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
 
     // Confidential grievances: STUDENT files against own org or directly to
     // SAO; organization_id is always derived from the authenticated student,
