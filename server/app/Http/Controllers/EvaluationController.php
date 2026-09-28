@@ -121,7 +121,26 @@ class EvaluationController extends Controller
             return $scope;
         }
 
-        return response()->json($this->computeResults($scope));
+        $window = $this->resolveResultsWindow($request);
+
+        if ($window instanceof \Illuminate\Http\JsonResponse) {
+            return $window;
+        }
+
+        $windowSummary = $window->only(['id', 'title', 'description', 'opens_at', 'closes_at', 'status']);
+
+        if ($window->status !== 'closed') {
+            return response()->json([
+                'window' => $windowSummary,
+                'counts_only' => true,
+                'groups' => $this->computeCounts($scope, $window->id),
+            ]);
+        }
+
+        return response()->json(array_merge(
+            ['window' => $windowSummary, 'counts_only' => false],
+            $this->computeResults($scope, $window->id)
+        ));
     }
 
     public function exportResults(Request $request): StreamedResponse|\Illuminate\Http\JsonResponse
@@ -132,7 +151,28 @@ class EvaluationController extends Controller
             return $scope;
         }
 
-        $results = $this->computeResults($scope);
+        $window = $this->resolveResultsWindow($request);
+
+        if ($window instanceof \Illuminate\Http\JsonResponse) {
+            return $window;
+        }
+
+        if ($window->status !== 'closed') {
+            $counts = $this->computeCounts($scope, $window->id);
+
+            return response()->streamDownload(function () use ($counts) {
+                $handle = fopen('php://output', 'w');
+                fputcsv($handle, ['Respondent Type', 'N']);
+
+                foreach ($counts as $respondentType => $group) {
+                    fputcsv($handle, [$respondentType, $group['n']]);
+                }
+
+                fclose($handle);
+            }, 'evaluation-results-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
+        }
+
+        $results = $this->computeResults($scope, $window->id);
 
         return response()->streamDownload(function () use ($results) {
             $handle = fopen('php://output', 'w');
@@ -299,9 +339,41 @@ class EvaluationController extends Controller
         ];
     }
 
-    private function computeResults(array $scope): array
+    private function resolveResultsWindow(Request $request): EvaluationWindow|\Illuminate\Http\JsonResponse
     {
-        $query = EvaluationResponse::query();
+        $validated = $request->validate([
+            'evaluation_window_id' => ['nullable', 'integer', 'exists:evaluation_windows,id'],
+        ]);
+
+        if (! empty($validated['evaluation_window_id'])) {
+            return EvaluationWindow::find($validated['evaluation_window_id']);
+        }
+
+        // Default target is the most recently CLOSED window, never the open
+        // one currently collecting responses - see the "no live means" rule
+        // on computeResults()/computeCounts() below.
+        $window = EvaluationWindow::where('status', 'closed')
+            ->orderByDesc('closes_at')
+            ->orderByDesc('id')
+            ->first();
+
+        if (! $window) {
+            return response()->json(['message' => 'No closed evaluation window is available yet. Pass evaluation_window_id to view a specific window.'], 404);
+        }
+
+        return $window;
+    }
+
+    private function respondentTypesForScope(array $scope): Collection
+    {
+        $respondentTypes = $scope['respondent_type'] ? [$scope['respondent_type']] : array_keys(config('evaluation.role_instruments'));
+
+        return collect($respondentTypes)->map(fn ($v) => config("evaluation.role_instruments.{$v}") ?? $v)->unique()->values();
+    }
+
+    private function scopedResponsesQuery(array $scope, int $windowId)
+    {
+        $query = EvaluationResponse::where('evaluation_window_id', $windowId);
 
         if ($scope['organization_id']) {
             $query->where('organization_id', $scope['organization_id']);
@@ -311,22 +383,61 @@ class EvaluationController extends Controller
             $query->where('respondent_type', $scope['respondent_type']);
         }
 
-        $responses = $query->get(['organization_id', 'respondent_type', 'answers', 'feedback']);
+        return $query;
+    }
+
+    private function computeCounts(array $scope, int $windowId): array
+    {
+        $responses = $this->scopedResponsesQuery($scope, $windowId)->get(['respondent_type']);
+        $respondentTypes = $this->respondentTypesForScope($scope);
+
+        $groups = [];
+
+        foreach ($respondentTypes as $type) {
+            $n = $responses->where('respondent_type', $type)->count();
+
+            if ($n === 0) {
+                continue;
+            }
+
+            $groups[$type] = ['n' => $n];
+        }
+
+        return $groups;
+    }
+
+    private function computeResults(array $scope, int $windowId): array
+    {
+        $responses = $this->scopedResponsesQuery($scope, $windowId)->get(['organization_id', 'respondent_type', 'answers', 'feedback']);
         $threshold = (int) config('evaluation.anonymity_threshold');
-        $respondentTypes = $scope['respondent_type'] ? [$scope['respondent_type']] : array_keys(config('evaluation.role_instruments'));
-        $respondentTypes = collect($respondentTypes)->map(fn ($v) => config("evaluation.role_instruments.{$v}") ?? $v)->unique()->values();
+        $respondentTypes = $this->respondentTypesForScope($scope);
+
+        // No single organization was requested, so this figure spans every
+        // org the caller can see. Without this, a small org's mean can be
+        // recovered by subtracting its own single-org view from this
+        // combined one - so any org that alone can't clear the anonymity
+        // threshold is dropped from the combined pool entirely, not just
+        // flagged, and the same applies to the "n" reported alongside it.
+        $combinedAcrossOrgs = $scope['organization_id'] === null;
 
         $groups = [];
 
         foreach ($respondentTypes as $type) {
             $groupResponses = $responses->where('respondent_type', $type);
+
+            if ($combinedAcrossOrgs) {
+                $groupResponses = $groupResponses->groupBy('organization_id')
+                    ->filter(fn ($orgResponses) => $orgResponses->count() >= $threshold)
+                    ->flatten(1);
+            }
+
             $n = $groupResponses->count();
 
             if ($n === 0) {
                 continue;
             }
 
-            if ($n < $threshold) {
+            if (! $combinedAcrossOrgs && $n < $threshold) {
                 $groups[$type] = [
                     'n' => $n,
                     'anonymized' => true,
