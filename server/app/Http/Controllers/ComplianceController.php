@@ -10,6 +10,7 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
@@ -244,25 +245,29 @@ class ComplianceController extends Controller
 
         $organizationId = $request->user()->organization_id;
 
-        $existing = OrganizationComplianceSubmission::where('organization_id', $organizationId)
-            ->where('requirement_type_id', $data['requirement_type_id'])
-            ->first();
+        // The already-approved check and the create-or-update must happen
+        // against the same locked read: otherwise a resubmission racing a
+        // concurrent SAO approval can read "not approved yet", then
+        // overwrite the row the approval just committed.
+        $result = DB::transaction(function () use ($request, $data, $organizationId) {
+            $existing = OrganizationComplianceSubmission::where('organization_id', $organizationId)
+                ->where('requirement_type_id', $data['requirement_type_id'])
+                ->lockForUpdate()
+                ->first();
 
-        if ($existing && $existing->status === 'approved') {
-            return response()->json(['message' => 'This requirement has already been approved and cannot be resubmitted.'], 409);
-        }
+            if ($existing && $existing->status === 'approved') {
+                return ['conflict' => true];
+            }
 
-        $isResubmission = $existing !== null;
+            $isResubmission = $existing !== null;
 
-        $file = $request->file('document');
-        $path = $file->store('compliance-submissions/'.$organizationId, 'local');
-        if (! $path) {
-            return response()->json(['message' => 'Unable to store the compliance document.'], 500);
-        }
+            $file = $request->file('document');
+            $path = $file->store('compliance-submissions/'.$organizationId, 'local');
+            if (! $path) {
+                return ['storage_failed' => true];
+            }
 
-        $submission = OrganizationComplianceSubmission::updateOrCreate(
-            ['organization_id' => $organizationId, 'requirement_type_id' => $data['requirement_type_id']],
-            [
+            $attributes = [
                 'status' => 'submitted',
                 'file_path' => $path,
                 'file_original_name' => $file->getClientOriginalName(),
@@ -273,8 +278,32 @@ class ComplianceController extends Controller
                 'submitted_at' => now(),
                 'reviewed_by' => null,
                 'reviewed_at' => null,
-            ]
-        );
+            ];
+
+            if ($existing) {
+                $existing->update($attributes);
+                $submission = $existing;
+            } else {
+                $submission = OrganizationComplianceSubmission::create([
+                    'organization_id' => $organizationId,
+                    'requirement_type_id' => $data['requirement_type_id'],
+                    ...$attributes,
+                ]);
+            }
+
+            return ['submission' => $submission, 'is_resubmission' => $isResubmission];
+        });
+
+        if (isset($result['conflict'])) {
+            return response()->json(['message' => 'This requirement has already been approved and cannot be resubmitted.'], 409);
+        }
+
+        if (isset($result['storage_failed'])) {
+            return response()->json(['message' => 'Unable to store the compliance document.'], 500);
+        }
+
+        $submission = $result['submission'];
+        $isResubmission = $result['is_resubmission'];
 
         AuditLog::create([
             'organization_id' => $organizationId,
