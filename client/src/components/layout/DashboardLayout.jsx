@@ -92,7 +92,9 @@ export default function DashboardLayout() {
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
         <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
-          <Outlet />
+          <div key={location.pathname} className="route-fade-in">
+            <Outlet />
+          </div>
         </main>
       </div>
     </div>
