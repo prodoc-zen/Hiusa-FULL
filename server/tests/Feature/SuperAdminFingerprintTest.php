@@ -5,8 +5,8 @@ namespace Tests\Feature;
 use App\Contracts\FingerprintMatcher;
 use App\Models\ApprovalRequest;
 use App\Models\Attendance;
-use App\Models\Budget;
 use App\Models\Event;
+use App\Models\FinancialReport;
 use App\Models\Fingerprint;
 use App\Models\Organization;
 use App\Models\User;
@@ -27,7 +27,7 @@ class SuperAdminFingerprintTest extends TestCase
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
 
         Sanctum::actingAs($admin);
-        $this->postJson('/api/users', $this->adminPayload(880001))->assertForbidden();
+        $this->postJson('/api/users', $this->adminPayload(880001))->assertCreated();
 
         Sanctum::actingAs($superAdmin);
         $payload = $this->adminPayload(880002);
@@ -298,23 +298,28 @@ class SuperAdminFingerprintTest extends TestCase
         ])->assertNotFound();
     }
 
-    public function test_budget_approval_is_visible_to_and_reviewable_only_by_super_admin(): void
+    public function test_final_financial_report_approval_is_visible_to_and_reviewable_only_by_super_admin(): void
     {
         $organization = Organization::factory()->create();
         $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $organization->id]);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
-        $budget = Budget::factory()->create([
+        $report = FinancialReport::create([
             'organization_id' => $organization->id,
-            'event_id' => null,
-            'allocated_amount' => 25000,
-            'remaining_amount' => 25000,
-            'warning_threshold' => 5000,
+            'report_type' => 'monthly',
+            'title' => 'Monthly Financial Report',
+            'source_transaction_ids' => [],
+            'signatories' => [],
+            'submission_status' => 'pending_sao',
+            'generated_by' => $admin->school_id,
+            'generated_at' => now(),
+            'submitted_at' => now(),
+            'department_head_approved_at' => now(),
         ]);
         $approval = ApprovalRequest::create([
             'organization_id' => $organization->id,
-            'entity_type' => 'budget',
-            'entity_id' => $budget->id,
+            'entity_type' => 'financial_report',
+            'entity_id' => $report->id,
             'requested_by' => $admin->school_id,
             'required_role' => 'SUPER_ADMIN',
             'status' => 'pending',

@@ -134,6 +134,30 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertDatabaseCount('tasks', 0);
     }
 
+    public function test_admin_can_generate_an_editable_plan_without_extra_requirements(): void
+    {
+        config(['services.groq.key' => 'test-groq-key']);
+        $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
+        $event = Event::factory()->create(['organization_id' => $admin->organization_id, 'created_by' => $admin->school_id, 'start_time' => now()->addDays(30), 'end_time' => now()->addDays(30)->addHours(2)]);
+        SboPosition::create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
+        User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
+        $workflow = $this->workflowPayload($event);
+        Http::fake(function ($request) use ($workflow) {
+            if (data_get($request->data(), 'text.format.name') === 'hiusa_task_recommendation_explanations') {
+                $input = json_decode((string) $request->data()['input'], true);
+
+                return Http::response(['model' => 'test-model', 'output_text' => json_encode(['explanations' => collect($input['recommendations'])->map(fn ($row) => ['task_id' => $row['task_id'], 'explanation' => 'Recommended officer.'])->all()])]);
+            }
+
+            return Http::response(['model' => 'test-model', 'output_text' => json_encode($workflow)]);
+        });
+        Sanctum::actingAs($admin);
+
+        $this->postJson("/api/events/{$event->id}/generate-plan", [])
+            ->assertCreated()
+            ->assertJsonPath('ai_output.structured_input.requirements', '');
+    }
+
     public function test_admin_officer_override_is_applied_and_audited(): void
     {
         config(['services.groq.key' => 'test-groq-key']);
@@ -233,7 +257,6 @@ class EventPlanningWorkflowTest extends TestCase
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
         $departmentHead = User::factory()->create(['organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD']);
-        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $organization->id]);
         $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
         $student = User::factory()->student()->create(['organization_id' => $organization->id]);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
@@ -263,7 +286,7 @@ class EventPlanningWorkflowTest extends TestCase
         $eventApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->firstOrFail();
         $budgetApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->firstOrFail();
         $this->patchJson("/api/approval-requests/{$eventApproval->id}", ['status' => 'approved'])->assertOk();
-        $this->assertSame('DEPARTMENT_HEAD', $budgetApproval->required_role);
+        $this->assertSame(config('approvals.routes.budget'), $budgetApproval->required_role);
         $this->patchJson("/api/approval-requests/{$budgetApproval->id}", ['status' => 'approved'])->assertOk();
         $this->assertDatabaseHas('budgets', ['id' => $budget->id, 'submission_status' => 'pending_sao', 'department_head_approved_by' => $departmentHead->school_id]);
 

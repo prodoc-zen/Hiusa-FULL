@@ -22,9 +22,9 @@
 ## Implementation Coverage
 
 - **Role Access:** all five documented roles authenticate through the shared login route; `SUPER_ADMIN` is the canonical SAO role.
-- **Enter Login Credentials:** every role signs in with an organization, school ID or assigned ID number, and password. Email is reserved for account recovery and profile contact information.
-- **Validate Credentials:** `UserController@login` retrieves the organization-scoped account, verifies the password, and blocks inactive accounts.
-- **Establish User Session:** successful login issues a Laravel Sanctum bearer token.
-- **Verify User Role:** optional selected role is compared with the stored account role before login succeeds.
+- **Enter Login Credentials:** every role signs in with a school ID or assigned ID number and password. Organization and department are not entered at login.
+- **Validate Credentials:** `UserController@login` retrieves the account, verifies the password, and blocks inactive primary memberships or organizations.
+- **Establish User Session:** successful login issues a Laravel Sanctum bearer token linked to the primary account profile. Users with suborganization memberships can switch their active profile after login.
+- **Verify User Role:** authorization uses the active profile role and organization.
 - **Redirect to Role-Based Dashboard:** `App.jsx` routes SAO to its dedicated university-oversight dashboard and routes every other user to the matching role dashboard.
 - **Recover Account:** password reset endpoints request a reset, send the reset link, validate the reset token, confirm the new password, update the stored password, and revoke existing tokens. Reset links use the configuration-cached `app.frontend_url`, so queued production mail points to the deployed HTTPS frontend. Production must use a real mail transport; `MAIL_MAILER=log` records mail but does not deliver it.

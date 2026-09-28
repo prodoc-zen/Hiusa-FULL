@@ -1,7 +1,7 @@
 import { useEffect } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardLayout from './DashboardLayout';
 
 vi.mock('../../services/notificationService', () => ({
@@ -13,6 +13,11 @@ vi.mock('../../services/notificationService', () => ({
 vi.mock('../../services/authService', () => ({
   logout: vi.fn().mockResolvedValue(undefined),
 }));
+
+vi.mock('./Sidebar', () => ({
+  default: ({ desktopCollapsed, onToggleDesktop }) => <button type="button" onClick={onToggleDesktop}>{desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}</button>,
+}));
+vi.mock('./TopBar', () => ({ default: () => <div>Top bar</div> }));
 
 let mountCount = 0;
 
@@ -54,5 +59,27 @@ describe('DashboardLayout', () => {
 
     expect(screen.getByText('Page two').closest('.route-fade-in')).not.toBeNull();
     expect(mountCount).toBe(2);
+  });
+});
+
+describe('DashboardLayout desktop sidebar width', () => {
+  beforeEach(() => localStorage.clear());
+
+  function renderLayout() {
+    return render(<MemoryRouter initialEntries={['/dashboard/admin']}><Routes><Route path="/dashboard" element={<DashboardLayout />}><Route path="admin" element={<div>Admin page</div>} /></Route></Routes></MemoryRouter>);
+  }
+
+  it('makes room for the icon rail and remembers the desktop preference', () => {
+    const view = renderLayout();
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(screen.getByText('Top bar').parentElement).toHaveClass('lg:pl-[72px]');
+    expect(localStorage.getItem('hiusa_desktop_sidebar_collapsed')).toBe('true');
+
+    view.unmount();
+    renderLayout();
+    expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Expand sidebar' }));
+    expect(localStorage.getItem('hiusa_desktop_sidebar_collapsed')).toBe('false');
   });
 });

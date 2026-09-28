@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Models\AuditLog;
+use App\Models\Merchandise;
 use App\Models\Notification;
 use App\Models\Order;
 use App\Models\Transaction;
@@ -25,6 +26,23 @@ class OrderFulfillmentService
         return DB::transaction(function () use ($order, $approver, $bypassOfficerReview) {
             $lockedOrder = Order::whereKey($order->id)->lockForUpdate()->firstOrFail();
             $wasPaid = $lockedOrder->status === 'paid';
+
+            if (! $wasPaid) {
+                $item = Merchandise::where('organization_id', $lockedOrder->organization_id)
+                    ->whereKey($lockedOrder->merchandise_id)
+                    ->lockForUpdate()
+                    ->first();
+
+                if (! $item || ! $item->is_active) {
+                    throw new DomainException('This merchandise item is no longer available for payment approval.');
+                }
+
+                if ($item->stock_quantity < $lockedOrder->quantity) {
+                    throw new DomainException("Insufficient stock to approve this order. Only {$item->stock_quantity} unit(s) remain.");
+                }
+
+                $item->decrement('stock_quantity', $lockedOrder->quantity);
+            }
 
             $lockedOrder->update([
                 'officer_review_status' => $bypassOfficerReview ? 'bypassed' : 'approved',
@@ -70,7 +88,6 @@ class OrderFulfillmentService
                 'review_remarks' => $remarks,
                 'status' => 'cancelled',
             ]);
-            $lockedOrder->merchandise()->increment('stock_quantity', $lockedOrder->quantity);
             $this->notifyBuyer($lockedOrder, 'Payment Rejected', $remarks);
             $this->audit($lockedOrder->fresh(), $reviewer, 'payment_rejected');
 

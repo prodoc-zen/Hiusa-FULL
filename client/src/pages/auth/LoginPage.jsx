@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, Building2, Eye, EyeOff, Hash, Lock } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, Hash, Lock } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { login } from '../../services/authService';
 
@@ -30,27 +30,10 @@ const BrandingPanel = () => (
 export default function LoginPage() {
   const navigate = useNavigate();
   const [showPassword, setShowPassword] = useState(false);
-  const [selectedOrganization, setSelectedOrganization] = useState(null);
   const [schoolId, setSchoolId] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('selected_organization');
-
-    if (!stored) {
-      navigate('/select-organization', { replace: true });
-      return;
-    }
-
-    try {
-      setSelectedOrganization(JSON.parse(stored));
-    } catch {
-      localStorage.removeItem('selected_organization');
-      navigate('/select-organization', { replace: true });
-    }
-  }, [navigate]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -58,17 +41,9 @@ export default function LoginPage() {
     setLoading(true);
 
     const credentials = {
-      organization_id: selectedOrganization?.id,
       school_id: schoolId.trim(),
       password,
     };
-
-    if (!credentials.organization_id) {
-      setError('Select your organization before signing in.');
-      setLoading(false);
-      navigate('/select-organization', { replace: true });
-      return;
-    }
 
     try {
       const response = await login(credentials);
@@ -114,29 +89,6 @@ export default function LoginPage() {
               <h2 className="text-2xl font-black text-slate-950 sm:text-[28px]">Welcome back!</h2>
               <p className="mt-1.5 text-sm font-medium text-slate-500">Sign in to access your account.</p>
             </div>
-
-            {selectedOrganization && (
-              <div className="mb-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                <div className="flex items-start gap-3">
-                  <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-[#E6F6FD] text-[#0F2F62]">
-                    <Building2 size={17} />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-xs font-bold uppercase text-slate-500">Selected organization</p>
-                    <p className="mt-0.5 truncate text-sm font-bold text-slate-900">{selectedOrganization.name}</p>
-                    {selectedOrganization.college && (
-                      <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{selectedOrganization.college}</p>
-                    )}
-                  </div>
-                </div>
-                <Link
-                  to="/select-organization"
-                  className="mt-3 inline-flex text-xs font-bold text-[#0878B7] transition hover:text-[#0B1831]"
-                >
-                  Change organization
-                </Link>
-              </div>
-            )}
 
             <form className="space-y-4" onSubmit={handleSubmit}>
               <div className="space-y-1.5">

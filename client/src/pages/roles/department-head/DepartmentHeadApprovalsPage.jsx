@@ -5,6 +5,7 @@ import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import { downloadFinancialReportPdf } from '../../../services/financeService';
 
 const ENTITY_ICON = {
   event: CalendarDays,
@@ -38,6 +39,17 @@ function formatDate(iso) {
 function formatDateTime(iso) {
   if (!iso) return '-';
   return new Date(iso).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+function downloadBlob(response, fallbackName) {
+  const disposition = response.headers?.['content-disposition'] || '';
+  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || fallbackName;
+  const url = URL.createObjectURL(response.data);
+  const link = Object.assign(document.createElement('a'), { href: url, download: filename });
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
 }
 
 function downloadCsv(rows) {
@@ -163,9 +175,24 @@ export default function DepartmentHeadApprovalsPage() {
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('newest');
   const [details, setDetails] = useState(null);
+  const [pdfDownloading, setPdfDownloading] = useState(false);
   const [modalState, setModalState] = useState({ open: false, request: null, action: null });
   const [submitting, setSubmitting] = useState(false);
   const [exporting, setExporting] = useState(false);
+
+  async function downloadReportPdf() {
+    if (!details?.entity_id) return;
+    setPdfDownloading(true);
+    try {
+      const response = await downloadFinancialReportPdf(details.entity_id);
+      downloadBlob(response, `financial-report-${details.entity_id}.pdf`);
+    } catch {
+      setDetails(null);
+      setError('Unable to download the submitted financial report PDF.');
+    } finally {
+      setPdfDownloading(false);
+    }
+  }
 
   // Hoisted so the CSV export can reuse the exact same filter set as the
   // loaded page, without page/per_page, via fetchAllPages.
@@ -387,7 +414,10 @@ export default function DepartmentHeadApprovalsPage() {
               ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value || '-'}</p></div>)}
             </div>
             <div className="mt-4 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Record summary</p><p className="mt-2 text-sm text-slate-600">{summaryLine(details.entity_type, details.summary) || 'No additional summary available.'}</p></div>
-            {details.entity_type === 'financial_report' && <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents.</p>}</div></div>}
+            {details.entity_type === 'financial_report' && <>
+              <button type="button" onClick={downloadReportPdf} disabled={pdfDownloading} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Download size={15}/>{pdfDownloading ? 'Preparing PDF...' : 'Download submitted report'}</button>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents.</p>}</div></div>
+            </>}
             <div className="mt-3 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Review remarks</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{details.remarks || 'No remarks recorded.'}</p></div>
           </div>
         </AccessibleOverlay>

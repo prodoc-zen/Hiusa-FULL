@@ -27,6 +27,7 @@
 
 - **Role Access:** Admin-only task board/create/task-progress routes and task create/update/delete APIs.
 - **Create Task:** `/dashboard/tasks/create-task` is a dedicated creation workspace that captures title, description, assignee, related event, deadline, and status, with assignment-readiness guidance. The Task Board action navigates here instead of opening a duplicate modal.
+- **Reopen Completed Task:** an Admin may reset a completed task to Not Started. This clears its completion timestamp and progress while recording a progress-history entry; assignees cannot reopen it.
 - **Link Task to Event:** task creation supports optional `event_id` and validates organization ownership.
 - **Evaluate Officer Eligibility:** `TaskController` requires an active SBO Officer with an assigned SBO position before either manual or automatic delegation, then checks active/completed task counts.
 - **Rule-Based Weighted Scoring:** role, workload, performance, and final scores are calculated using configurable normalized weights. Every evaluated officer is stored in `task_recommendations`; eligible officers retain scores/ranks and excluded officers retain an explicit reason such as overload, inactive account, missing position, or inactive position.

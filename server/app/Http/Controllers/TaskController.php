@@ -286,7 +286,7 @@ class TaskController extends Controller
             'progress_note' => ['nullable', 'string', 'max:1000'],
         ]);
 
-        if (! $this->canTransition($task->status, $data['status'])) {
+        if (! $this->canTransition($task->status, $data['status'], $isAdmin)) {
             return response()->json([
                 'message' => 'Invalid task transition from '.str_replace('_', ' ', $task->status).' to '.str_replace('_', ' ', $data['status']).'.',
             ], 422);
@@ -305,7 +305,7 @@ class TaskController extends Controller
         $task = DB::transaction(function () use ($task, $data, $request, $progressNote) {
             $lockedTask = Task::whereKey($task->id)->lockForUpdate()->firstOrFail();
 
-            if (! $this->canTransition($lockedTask->status, $data['status'])) {
+            if (! $this->canTransition($lockedTask->status, $data['status'], $request->user()->role === 'ADMIN')) {
                 abort(422, 'The task status changed before this update was saved. Refresh and try again.');
             }
 
@@ -361,9 +361,13 @@ class TaskController extends Controller
         return $data;
     }
 
-    private function canTransition(string $current, string $next): bool
+    private function canTransition(string $current, string $next, bool $isAdmin = false): bool
     {
         if ($current === $next) {
+            return true;
+        }
+
+        if ($isAdmin && $next === 'pending') {
             return true;
         }
 
@@ -640,8 +644,7 @@ class TaskController extends Controller
         }
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
-        $candidates = User::where('organization_id', $request->user()->organization_id)
-            ->where('role', 'SBO_OFFICER')
+        $candidates = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('account_status', 'active'))
             ->orderBy('school_id')
             ->get();
         $result = $this->aiService->taskDelegation(
@@ -871,8 +874,7 @@ class TaskController extends Controller
             return;
         }
 
-        $admins = User::where('organization_id', $request->user()->organization_id)
-            ->where('role', 'ADMIN')
+        $admins = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'ADMIN')->where('account_status', 'active'))
             ->get(['school_id']);
 
         foreach ($admins as $admin) {

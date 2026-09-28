@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react';
+import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Building2, CheckCircle2, Mail, Send, X } from 'lucide-react';
+import { ArrowLeft, CheckCircle2, Mail, Send, X } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { requestPasswordReset } from '../../services/authService';
 import { getApiErrorMessage } from '../../utils/apiError';
@@ -8,28 +8,12 @@ import AccessibleOverlay from '../../components/AccessibleOverlay';
 
 export default function RecoverAccountPage() {
   const navigate = useNavigate();
-  const [selectedOrganization, setSelectedOrganization] = useState(null);
+  const [schoolId, setSchoolId] = useState('');
   const [email, setEmail] = useState('');
   const [error, setError] = useState('');
   const [noticeOpen, setNoticeOpen] = useState(false);
   const [submittedEmail, setSubmittedEmail] = useState('');
   const [loading, setLoading] = useState(false);
-
-  useEffect(() => {
-    const stored = localStorage.getItem('selected_organization');
-
-    if (!stored) {
-      navigate('/select-organization', { replace: true });
-      return;
-    }
-
-    try {
-      setSelectedOrganization(JSON.parse(stored));
-    } catch {
-      localStorage.removeItem('selected_organization');
-      navigate('/select-organization', { replace: true });
-    }
-  }, [navigate]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -40,7 +24,7 @@ export default function RecoverAccountPage() {
     try {
       const normalizedEmail = email.trim().toLowerCase();
       await requestPasswordReset({
-        organization_id: selectedOrganization?.id,
+        school_id: schoolId,
         email: normalizedEmail,
       });
 
@@ -64,26 +48,16 @@ export default function RecoverAccountPage() {
           </div>
         </div>
 
-        {selectedOrganization && (
-          <div className="mb-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-            <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-[#E6F6FD] text-[#0F2F62]">
-                <Building2 size={17} />
-              </div>
-              <div className="min-w-0">
-                <p className="text-xs font-bold uppercase text-slate-500">Selected organization</p>
-                <p className="truncate text-sm font-bold text-slate-900">{selectedOrganization.name}</p>
-              </div>
-            </div>
-          </div>
-        )}
-
         <h1 className="text-2xl font-black text-slate-950">Reset your password</h1>
         <p className="mt-2 text-sm font-medium leading-6 text-slate-500">
           Enter the email address linked to your account. We will send a reset link you can use to create a new password.
         </p>
 
         <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
+          <label className="block space-y-1.5">
+            <span className="block text-[13px] font-semibold text-slate-800">School ID / ID number</span>
+            <input type="text" inputMode="numeric" pattern="[0-9]*" maxLength={8} value={schoolId} onChange={(event) => setSchoolId(event.target.value.replace(/\D/g, '').slice(0, 8))} required className="h-11 w-full rounded-md border border-slate-200 bg-white px-3 text-sm focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+          </label>
           <label className="block space-y-1.5">
             <span className="block text-[13px] font-semibold text-slate-800">Email address</span>
             <span className="relative block">
@@ -103,7 +77,7 @@ export default function RecoverAccountPage() {
 
           <button
             type="submit"
-            disabled={loading || !selectedOrganization}
+            disabled={loading}
             className="flex h-11 w-full items-center justify-center gap-2 rounded-md bg-[#0878B7] px-4 text-sm font-bold text-white shadow-lg shadow-[#0B8ED0]/20 transition hover:bg-[#0F2F62] active:scale-[0.99] disabled:opacity-60"
           >
             {loading ? 'Sending...' : 'Send reset link'}

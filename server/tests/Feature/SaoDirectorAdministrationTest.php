@@ -5,7 +5,7 @@ namespace Tests\Feature;
 use App\Mail\PasswordResetMail;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
-use App\Models\Budget;
+use App\Models\FinancialReport;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
@@ -92,7 +92,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->postJson('/api/announcements', ['title' => 'Wrong channel', 'body' => 'No', 'target_role' => 'all'])->assertForbidden();
 
         Sanctum::actingAs($admin);
-        $this->postJson('/api/users', ['school_id' => 889900, 'first_name' => 'New', 'last_name' => 'Admin', 'email' => 'new-admin@example.test', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertForbidden();
+        $this->postJson('/api/users', ['school_id' => 889900, 'first_name' => 'New', 'last_name' => 'Admin', 'email' => 'new-admin@example.test', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertCreated();
     }
 
     public function test_sao_registers_and_deactivates_an_organization_with_target_scoped_audits(): void
@@ -226,13 +226,17 @@ class SaoDirectorAdministrationTest extends TestCase
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         $otherDirector = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         $requester = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        $budget = Budget::factory()->create(['organization_id' => $organization->id, 'event_id' => null]);
-        $otherBudget = Budget::factory()->create(['organization_id' => $organization->id, 'event_id' => null]);
-        $approval = ApprovalRequest::create(['organization_id' => $organization->id, 'entity_type' => 'budget', 'entity_id' => $budget->id, 'requested_by' => $requester->school_id, 'required_role' => 'SUPER_ADMIN']);
-        ApprovalRequest::create(['organization_id' => $organization->id, 'entity_type' => 'budget', 'entity_id' => $otherBudget->id, 'requested_by' => $requester->school_id, 'required_role' => 'SUPER_ADMIN', 'assigned_approver' => $otherDirector->school_id]);
+        $report = FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Monthly Financial Report', 'source_transaction_ids' => [], 'signatories' => [], 'submission_status' => 'pending_sao', 'generated_by' => $requester->school_id, 'generated_at' => now(), 'submitted_at' => now(), 'department_head_approved_at' => now()]);
+        $otherReport = FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Other Financial Report', 'source_transaction_ids' => [], 'signatories' => [], 'submission_status' => 'pending_sao', 'generated_by' => $requester->school_id, 'generated_at' => now(), 'submitted_at' => now(), 'department_head_approved_at' => now()]);
+        $approval = ApprovalRequest::create(['organization_id' => $organization->id, 'entity_type' => 'financial_report', 'entity_id' => $report->id, 'requested_by' => $requester->school_id, 'required_role' => 'SUPER_ADMIN']);
+        ApprovalRequest::create(['organization_id' => $organization->id, 'entity_type' => 'financial_report', 'entity_id' => $otherReport->id, 'requested_by' => $requester->school_id, 'required_role' => 'SUPER_ADMIN', 'assigned_approver' => $otherDirector->school_id]);
+        $nonReportApproval = ApprovalRequest::create(['organization_id' => $organization->id, 'entity_type' => 'budget', 'entity_id' => 999999, 'requested_by' => $requester->school_id, 'required_role' => 'SUPER_ADMIN']);
 
         Sanctum::actingAs($director);
         $this->getJson('/api/approval-requests')->assertOk()->assertJsonCount(1, 'data')->assertJsonPath('data.0.id', $approval->id);
+        $this->patchJson('/api/approval-requests/'.$nonReportApproval->id, ['status' => 'approved'])
+            ->assertForbidden()
+            ->assertJsonPath('message', 'Super Admin can only review financial reports and events.');
         $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'rejected'])->assertUnprocessable()->assertJsonValidationErrors('remarks');
         $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'rejected', 'remarks' => 'Attach the approved quotation.'])
             ->assertOk()
@@ -240,7 +244,7 @@ class SaoDirectorAdministrationTest extends TestCase
             ->assertJsonPath('decision', 'rejected')
             ->assertJsonPath('reviewed_by', $director->school_id);
 
-        $this->assertDatabaseHas('notifications', ['organization_id' => $organization->id, 'user_id' => $requester->school_id, 'reference_type' => 'budget', 'reference_id' => $budget->id]);
+        $this->assertDatabaseHas('notifications', ['organization_id' => $organization->id, 'user_id' => $requester->school_id, 'reference_type' => 'financial_report', 'reference_id' => $report->id]);
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'reviewed_rejected', 'record_id' => $approval->id]);
     }
 }

@@ -74,8 +74,7 @@ class OrderController extends Controller
         $group = $request->validate(['group' => ['required', 'in:purchased,not_purchased,paid,pending,claimed,unclaimed']])['group'];
 
         $users = User::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->where('account_status', 'active');
+            ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('account_status', 'active'));
         $this->applyUserFilters($users, $filters);
 
         $orderConstraint = function ($query) use ($request, $filters, $group) {
@@ -278,8 +277,7 @@ class OrderController extends Controller
         $this->applyOrderFilters($orders, $filters);
 
         $cohort = User::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->where('account_status', 'active');
+            ->whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('account_status', 'active'));
         $this->applyUserFilters($cohort, $filters);
 
         $totalUsers = (clone $cohort)->count();
@@ -322,7 +320,7 @@ class OrderController extends Controller
         return [
             'departments' => array_values(array_filter([$organization?->college ?: 'College of Computer Studies'])),
             'programs' => AcademicProgram::where('organization_id', $organizationId)->with('sections')->orderBy('name')->get(),
-            'majors' => User::where('organization_id', $organizationId)->whereNotNull('major')->where('major', '!=', '')->distinct()->orderBy('major')->pluck('major'),
+            'majors' => User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('account_status', 'active'))->whereNotNull('major')->where('major', '!=', '')->distinct()->orderBy('major')->pluck('major'),
             'roles' => ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'],
             'positions' => SboPosition::where('organization_id', $organizationId)->where('is_active', true)->orderBy('title')->pluck('title'),
             'merchandise' => Merchandise::where('organization_id', $organizationId)->orderBy('name')->get(['id', 'name', 'category', 'price']),
@@ -378,8 +376,6 @@ class OrderController extends Controller
                     'message' => "Insufficient stock. Only {$item->stock_quantity} unit(s) available.",
                 ], 422);
             }
-
-            $item->decrement('stock_quantity', $data['quantity']);
 
             $paymentProofUrl = $request->hasFile('payment_proof') ? $this->storePaymentProof($request) : null;
 
@@ -521,15 +517,6 @@ class OrderController extends Controller
                     throw new DomainException('This order already has payment activity. Contact merchandise staff so they can review the payment before cancelling it.');
                 }
 
-                $item = Merchandise::where('organization_id', $order->organization_id)
-                    ->whereKey($order->merchandise_id)
-                    ->lockForUpdate()
-                    ->first();
-
-                if (! $item) {
-                    throw new DomainException('The merchandise item for this order could not be found.');
-                }
-
                 $remarks = trim($data['reason'] ?? '');
                 $order->update([
                     'status' => 'cancelled',
@@ -537,12 +524,10 @@ class OrderController extends Controller
                         ? 'Cancelled by buyer: '.$remarks
                         : 'Cancelled by buyer.',
                 ]);
-                $item->increment('stock_quantity', $order->quantity);
-
                 $this->notifyFulfillmentTeam(
                     $order,
                     'Merchandise Order Cancelled',
-                    'Order ORD-'.$order->id.' was cancelled by the buyer and its reserved stock was returned.'
+                    'Order ORD-'.$order->id.' was cancelled by the buyer before payment approval.'
                 );
                 $this->audit($request, 'cancelled_by_buyer', $order->fresh());
 
@@ -841,9 +826,7 @@ class OrderController extends Controller
         string $title = 'New Merchandise Order',
         ?string $message = null
     ): void {
-        $reviewers = User::where('organization_id', $order->organization_id)
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
-            ->where('account_status', 'active')
+        $reviewers = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $order->organization_id)->whereIn('role', ['ADMIN', 'SBO_OFFICER'])->where('account_status', 'active'))
             ->get(['school_id']);
 
         foreach ($reviewers as $reviewer) {

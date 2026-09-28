@@ -24,7 +24,6 @@ describe('LoginPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
-    localStorage.setItem('selected_organization', JSON.stringify({ id: 7, name: 'PSITS' }));
     authMocks.login.mockResolvedValue({
       data: {
         access_token: 'test-token',
@@ -45,7 +44,6 @@ describe('LoginPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
 
     await waitFor(() => expect(authMocks.login).toHaveBeenCalledWith({
-      organization_id: 7,
       school_id: '2100142',
       password: 'Demo@12345',
     }));

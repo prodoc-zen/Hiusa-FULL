@@ -27,7 +27,6 @@ class TransactionController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'search' => ['nullable', 'string', 'max:150'],
             'event_search' => ['nullable', 'string', 'max:150'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
         ]);
 
         $query = Transaction::with([
@@ -38,11 +37,7 @@ class TransactionController extends Controller
             'organization:id,name,acronym',
         ])->orderBy('transaction_date', 'desc');
 
-        if ($request->user()->role === 'SUPER_ADMIN') {
-            $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
-        } else {
-            $query->where('organization_id', $request->user()->organization_id);
-        }
+        $query->where('organization_id', $request->user()->organization_id);
 
         if (! empty($filters['budget_id'])) {
             $query->where('budget_id', $filters['budget_id']);
@@ -97,15 +92,9 @@ class TransactionController extends Controller
             'event_id' => ['nullable', 'integer'],
             'event_search' => ['nullable', 'string', 'max:150'],
             'type' => ['nullable', 'in:income,expense'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
         ]);
 
-        $query = Transaction::query();
-        if ($request->user()->role === 'SUPER_ADMIN') {
-            $query->when($request->integer('organization_id'), fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
-        } else {
-            $query->where('organization_id', $request->user()->organization_id);
-        }
+        $query = Transaction::where('organization_id', $request->user()->organization_id);
 
         if ($request->filled('event_id')) {
             $query->where('event_id', $request->event_id);
@@ -302,7 +291,7 @@ class TransactionController extends Controller
             return 'The selected event does not belong to this organization.';
         }
 
-        if (! empty($data['payer_id']) && ! User::where('organization_id', $organizationId)->where('school_id', $data['payer_id'])->exists()) {
+        if (! empty($data['payer_id']) && ! User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('account_status', 'active'))->where('school_id', $data['payer_id'])->exists()) {
             return 'The selected payer does not belong to this organization.';
         }
 

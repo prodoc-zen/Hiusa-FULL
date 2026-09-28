@@ -4,6 +4,7 @@ use App\Http\Middleware\CacheApiResponse;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use App\Http\Middleware\SecurityHeadersMiddleware;
+use App\Http\Middleware\UseAccountProfile;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'cache.api' => CacheApiResponse::class,
             'role' => EnsureRole::class,
+            'account.profile' => UseAccountProfile::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

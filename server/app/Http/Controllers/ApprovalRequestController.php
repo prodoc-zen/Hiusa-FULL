@@ -52,6 +52,8 @@ class ApprovalRequestController extends Controller
             ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id));
         if ($request->user()->role !== 'SUPER_ADMIN') {
             $query->where('organization_id', $request->user()->organization_id);
+        } else {
+            $query->whereIn('entity_type', ['financial_report', 'event']);
         }
 
         $status = $filters['status'] ?? 'pending';
@@ -103,6 +105,10 @@ class ApprovalRequestController extends Controller
 
         if (! $approval) {
             return response()->json(['message' => 'Approval request not found.'], 404);
+        }
+
+        if ($request->user()->role === 'SUPER_ADMIN' && ! in_array($approval->entity_type, ['financial_report', 'event'], true)) {
+            return response()->json(['message' => 'Super Admin can only review financial reports and events.'], 403);
         }
 
         if ($approval->status !== 'pending') {
@@ -396,6 +402,12 @@ class ApprovalRequestController extends Controller
                 'end_time' => $entity->end_time,
                 'location' => $entity->location,
                 'status' => $entity->status,
+                'requirement_files' => \App\Models\EventRequirementFile::with('requirement:id,name')
+                    ->where('event_id', $entity->id)->get()->map(fn ($file) => [
+                        'id' => $file->id,
+                        'requirement' => $file->requirement?->name,
+                        'original_name' => $file->original_name,
+                    ])->all(),
             ],
             'budget' => [
                 'allocated_amount' => $entity->allocated_amount,

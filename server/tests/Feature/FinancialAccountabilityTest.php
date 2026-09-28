@@ -24,10 +24,10 @@ class FinancialAccountabilityTest extends TestCase
     public function test_verified_collection_can_be_partially_remitted_without_double_counting_ledger_income(): void
     {
         $admin = $this->user('ADMIN');
-        $superAdmin = $this->user('SUPER_ADMIN');
+        $verifier = $this->user('ADMIN', $admin->organization_id);
         Sanctum::actingAs($admin);
         $collection = $this->postJson('/api/collections', ['expected_amount' => '1000.00', 'amount_collected' => '850.00', 'source' => 'Event fee'])->assertCreated()->json();
-        Sanctum::actingAs($superAdmin);
+        Sanctum::actingAs($verifier);
         $this->getJson('/api/collections?status=pending')
             ->assertOk()
             ->assertJsonPath('0.id', $collection['id'])
@@ -44,12 +44,12 @@ class FinancialAccountabilityTest extends TestCase
     public function test_cash_advance_requires_other_approver_and_repayment_cannot_exceed_balance(): void
     {
         $admin = $this->user('ADMIN');
-        $superAdmin = $this->user('SUPER_ADMIN');
+        $approver = $this->user('ADMIN', $admin->organization_id);
         Sanctum::actingAs($admin);
         $advanceId = $this->postJson('/api/cash-advances', ['amount' => '500.00', 'purpose' => 'Venue deposit'])->assertCreated()->json('id');
         Sanctum::actingAs($admin);
         $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertForbidden();
-        Sanctum::actingAs($superAdmin);
+        Sanctum::actingAs($approver);
         $this->getJson('/api/cash-advances?status=pending')
             ->assertOk()
             ->assertJsonPath('0.id', $advanceId)

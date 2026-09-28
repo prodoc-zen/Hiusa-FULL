@@ -80,10 +80,13 @@ class FinancialForecastController extends Controller
             ->sortBy('period')
             ->values();
 
-        if ($populatedMonthly->count() < 2) {
-            return response()->json([
-                'message' => 'At least two months of transaction history are required to generate an OLS forecast.',
-            ], 422);
+        $recordedMonths = $populatedMonthly->count();
+        if ($recordedMonths === 0) {
+            $populatedMonthly = collect([[
+                'period' => now()->format('Y-m'),
+                'income' => 0.0,
+                'expense' => 0.0,
+            ]]);
         }
 
         $firstPeriod = $this->periodStart($populatedMonthly->first()['period']);
@@ -100,7 +103,14 @@ class FinancialForecastController extends Controller
             ]));
         }
 
-        $analysis = $this->pythonForecast($monthly->all()) ?? $this->localForecast($monthly->all());
+        $analysis = ($recordedMonths >= 2 ? $this->pythonForecast($monthly->all()) : null) ?? $this->localForecast($monthly->all());
+        if ($recordedMonths < 2) {
+            $analysis['is_reliable'] = false;
+            $analysis['fit_quality'] = 'insufficient_data';
+            $analysis['confidence_note'] = $recordedMonths === 0
+                ? 'No transaction history is available. These zero amounts are placeholders, not a reliable forecast.'
+                : 'Only one month has transactions. This projection repeats that month and is not a reliable trend.';
+        }
         $nextPeriod = $this->periodStart($analysis['forecast_period']);
         $predictedIncome = $analysis['predicted_income'];
         $predictedExpense = $analysis['predicted_expense'];
@@ -170,7 +180,7 @@ class FinancialForecastController extends Controller
                 'model_details' => [
                     'algorithm' => 'ordinary_least_squares',
                     'sample_months' => $monthly->count(),
-                    'populated_months' => $populatedMonthly->count(),
+                    'populated_months' => $recordedMonths,
                     'current_available_budget' => round($currentAvailableBudget, 2),
                     'warning_threshold' => round($warningThreshold, 2),
                     'engine' => $analysis['engine'],

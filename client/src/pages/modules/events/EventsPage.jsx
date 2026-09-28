@@ -36,6 +36,7 @@ import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../../../services/fingerprintService';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import TableFilterBar from '../../../components/TableFilterBar';
+import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
@@ -655,7 +656,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   async function handleGeneratePlan(e) {
     e.preventDefault();
-    if (!planForm.event_id || !planForm.requirements.trim()) return;
+    if (!planForm.event_id) return;
     setPlanSubmitting(true);
     setPlanError(null);
     setPlanResult('');
@@ -1100,11 +1101,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   {selectedPlanningEvent && <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-5 text-slate-500"><Calendar size={13} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
                 </div>
                 <div>
-                  <label htmlFor="planning-needs" className="text-xs font-bold text-[#0F172A]">What should the to-do list cover?</label>
-                  <textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Example: registration, venue setup, publicity, equipment, safety checks, attendance, and the post-event report." className="mt-1.5 w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" />
+                  <label htmlFor="planning-needs" className="text-xs font-bold text-[#0F172A]">Optional planning context</label>
+                  <textarea id="planning-needs" rows={3} value={planForm.requirements} onChange={(event) => setPlanForm({ ...planForm, requirements: event.target.value })} placeholder="Add priorities or constraints. The planner will also recommend the practical work the event needs." className="mt-1.5 w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none transition placeholder:text-slate-500 focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" />
                   <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                    <p className="text-[11px] leading-5 text-slate-500">Include details the event record may not contain. Missing names, prices, and approvals will be marked for review instead of guessed.</p>
-                    <button type="submit" disabled={planSubmitting || !planForm.event_id || !planForm.requirements.trim()} className="h-11 shrink-0 rounded-lg bg-[#0878B7] px-5 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">{planSubmitting ? 'Creating your to-do list…' : 'Create To-do List'}</button>
+                    <p className="text-[11px] leading-5 text-slate-500">The draft can recommend operational tasks. Missing names, prices, and approvals stay marked for review instead of being guessed.</p>
+                    <button type="submit" disabled={planSubmitting || !planForm.event_id} className="h-11 shrink-0 rounded-lg bg-[#0878B7] px-5 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">{planSubmitting ? 'Creating your to-do list…' : 'Draft Editable To-do List'}</button>
                   </div>
                 </div>
               </form>
@@ -1654,6 +1655,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   </div>
                 )}
                 {selectedEvent.approval_remarks && <p className="rounded-lg bg-red-50 p-3 text-red-700"><span className="font-bold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
+                {['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole) && <EventSubmissionPanel eventId={selectedEvent.id} role={currentUserRole} onSubmitted={() => { setSelectedEvent((current) => ({ ...current, approval_status: 'pending' })); setEventReload((value) => value + 1); }} />}
               </div>
             )}
           </div>

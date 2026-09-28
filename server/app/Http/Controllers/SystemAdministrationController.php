@@ -8,10 +8,10 @@ use App\Models\Election;
 use App\Models\Event;
 use App\Models\Notification;
 use App\Models\Organization;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use Illuminate\Http\Request;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -30,7 +30,6 @@ class SystemAdministrationController extends Controller
         }
         $selectedIds = $organizationId ? collect([$organizationId]) : $organizationIds;
         $userBase = User::whereIn('organization_id', $selectedIds);
-        $transactionBase = Transaction::whereIn('organization_id', $selectedIds);
 
         return response()->json([
             'filter_organization_id' => $organizationId,
@@ -48,15 +47,11 @@ class SystemAdministrationController extends Controller
                 'upcoming_events' => Event::whereIn('organization_id', $selectedIds)->where('start_time', '>=', now())->count(),
                 'active_elections' => Election::whereIn('organization_id', $selectedIds)->where('status', 'active')->count(),
                 'pending_approvals' => ApprovalRequest::whereIn('organization_id', $selectedIds)
-                    ->where('required_role', config('approvals.routes.budget'))
+                    ->where('required_role', 'SUPER_ADMIN')
+                    ->where('entity_type', 'financial_report')
                     ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id))
                     ->where('status', 'pending')
                     ->count(),
-            ],
-            'financials' => [
-                'income' => (float) (clone $transactionBase)->where('type', 'income')->sum('amount'),
-                'expenses' => (float) (clone $transactionBase)->where('type', 'expense')->sum('amount'),
-                'net' => (float) (clone $transactionBase)->where('type', 'income')->sum('amount') - (float) (clone $transactionBase)->where('type', 'expense')->sum('amount'),
             ],
             'notifications' => [
                 'unread' => Notification::where('organization_id', $request->user()->organization_id)
@@ -69,19 +64,13 @@ class SystemAdministrationController extends Controller
                     ->limit(5)
                     ->get(),
             ],
-            'recent_activity' => AuditLog::query()
-                ->leftJoin('organizations', 'audit_logs.organization_id', '=', 'organizations.id')
-                ->leftJoin('users', 'audit_logs.user_id', '=', 'users.school_id')
-                ->when($organizationId, fn ($query) => $query->where('audit_logs.organization_id', $organizationId))
-                ->select('audit_logs.*', 'organizations.name as organization_name', 'users.first_name', 'users.last_name')
-                ->latest('audit_logs.created_at')->limit(12)->get(),
         ]);
     }
 
     public function organizations(Request $request)
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = Organization::withCount('users')->with(['administrators:school_id,organization_id,first_name,last_name,email,account_status'])
+        $query = Organization::withCount('users')->with(['administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
             ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION');
         if (! empty($filters['search'])) {
             $query->where(fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%')->orWhere('acronym', 'like', '%'.$filters['search'].'%')->orWhere('college', 'like', '%'.$filters['search'].'%'));
@@ -95,7 +84,7 @@ class SystemAdministrationController extends Controller
 
     public function storeOrganization(Request $request)
     {
-        $data = $request->validate(['name' => ['required', 'string', 'max:255', 'unique:organizations,name'], 'acronym' => ['required', 'string', 'max:50', 'unique:organizations,acronym'], 'college' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
+        $data = $request->validate(['name' => ['required', 'string', 'max:255', 'unique:organizations,name'], 'acronym' => ['required', 'string', 'max:50', 'unique:organizations,acronym'], 'college' => ['nullable', 'string', 'max:255', Rule::requiredIf($request->filled('parent_organization_id'))], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
         $organization = Organization::create([...$data, 'slug' => Str::slug($data['name']), 'organization_type' => 'STUDENT_ORGANIZATION', 'is_active' => $data['is_active'] ?? true]);
         $this->audit($request, 'organization_created', $organization, $organization->toArray(), 'SAO registered a student organization.');
 
@@ -107,7 +96,10 @@ class SystemAdministrationController extends Controller
         if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') {
             return response()->json(['message' => 'The SAO system organization is not managed as an SBO.'], 403);
         }
-        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college' => ['nullable', 'string', 'max:255'], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
+        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college' => ['sometimes', 'required', 'string', 'max:255'], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'is_active' => ['sometimes', 'boolean']]);
+        if ($organization->suborganizations()->exists() && array_key_exists('parent_organization_id', $data) && $data['parent_organization_id']) {
+            return response()->json(['message' => 'An organization with suborganizations cannot become a suborganization.'], 422);
+        }
         $old = $organization->toArray();
         if (isset($data['name'])) {
             $data['slug'] = Str::slug($data['name']);
@@ -225,6 +217,49 @@ class SystemAdministrationController extends Controller
         });
 
         return response()->json($user->fresh()->load('organization:id,name,acronym'));
+    }
+
+    public function destroyAdmin(Request $request, User $user)
+    {
+        if ($user->role !== 'ADMIN' || $user->school_id === $request->user()->school_id) {
+            return response()->json(['message' => 'Only another organization Admin can be removed here.'], 403);
+        }
+
+        $organizationId = $user->getRawOriginal('organization_id');
+        if ($user->account_status === 'active' && ! User::where('organization_id', $organizationId)
+            ->where('role', 'ADMIN')->where('account_status', 'active')
+            ->whereKeyNot($user->school_id)->exists()) {
+            return response()->json(['message' => 'Assign another active Admin before deleting the last one.'], 422);
+        }
+
+        try {
+            DB::transaction(function () use ($user, $organizationId) {
+                $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
+                if ($user->accountProfiles()->count() > 1) {
+                    $replacement = $user->accountProfiles()->whereKeyNot($profile->id)->firstOrFail();
+                    DB::table('users')->where('school_id', $user->school_id)->update([
+                        'organization_id' => $replacement->organization_id,
+                        'role' => $replacement->role,
+                        'account_status' => $replacement->account_status,
+                        'position_title' => $replacement->position_title,
+                    ]);
+                    $user->tokens()->where('account_profile_id', $profile->id)->delete();
+                    $profile->delete();
+                } else {
+                    $user->tokens()->delete();
+                    $user->delete();
+                }
+            });
+        } catch (QueryException) {
+            return response()->json(['message' => 'This administrator has linked records and cannot be deleted. Deactivate the account instead.'], 409);
+        }
+
+        $this->audit($request, 'administrator_deleted', $user, [
+            'administrator_id' => $user->school_id,
+            'organization_id' => $organizationId,
+        ], 'SAO removed an organization administrator account.');
+
+        return response()->json(['message' => 'Administrator account removed.']);
     }
 
     public function initiateAdminPasswordReset(Request $request, User $user)

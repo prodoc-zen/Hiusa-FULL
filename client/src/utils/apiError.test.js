@@ -20,4 +20,10 @@ describe('API error messages', () => {
 
     expect(getApiErrorMessage(error)).toBe('This service is temporarily unavailable. Please wait a moment and try again.');
   });
+
+  it('keeps the actionable financial-report migration message', () => {
+    const error = { response: { status: 503, data: { error_code: 'FINANCIAL_REPORT_SCHEMA_OUTDATED', message: 'Financial report generation is unavailable because this server has not applied the latest database migration. Run "php artisan migrate" and try again.' } } };
+
+    expect(getApiErrorMessage(error)).toContain('Run "php artisan migrate"');
+  });
 });
