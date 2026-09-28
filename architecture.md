@@ -114,8 +114,8 @@ The application's route structure is controlled inside:
 🔗 **[App.jsx](client/src/App.jsx)**
 
 ### Routing Logic
-1. **Guest Guards (`LoggedInRoute.jsx`):** Wraps routes like `/select-organization` and `/login`. If the user is already authenticated, they are automatically redirected to `/dashboard`.
-2. **Organization Selection (`/select-organization`):** Guest users choose an active student body organization before reaching `/login`. The selected organization is stored in `localStorage` and submitted with the login request.
+1. **Guest Guards (`LoggedInRoute.jsx`):** Wraps `/login` and recovery routes. If the user is already authenticated, they are automatically redirected to `/dashboard`.
+2. **Login (`/login`):** Users sign in with their school ID and password. An account with multiple organization profiles can switch its active profile after login.
 3. **Auth Guards (`ProtectedRoute.jsx`):** Protects the main application routes. If no session/token is found in `localStorage`, the user is immediately kicked back to the `/login` page. Each route also declares `allowedRoles`; a role not on the list is redirected rather than shown a 403 page.
 4. **Dashboard Layout (`DashboardLayout.jsx`):** Renders the dashboard shell (containing the `Sidebar` and `TopBar`) and serves nested routes via React Router's `<Outlet />`.
 

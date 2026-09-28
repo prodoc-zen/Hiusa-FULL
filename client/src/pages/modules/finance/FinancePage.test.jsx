@@ -11,7 +11,11 @@ const financeMocks = vi.hoisted(() => ({
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
   getFinancialReports: vi.fn(),
-  getFinancialReportDeadline: vi.fn(),
+  getFinancialSemesters: vi.fn(),
+  createFinancialSemester: vi.fn(),
+  generateFinancialReport: vi.fn(),
+  downloadFinancialReportPdf: vi.fn(),
+  submitFinancialReport: vi.fn(),
 }));
 
 vi.mock('../../../services/financeService', () => ({
@@ -21,8 +25,9 @@ vi.mock('../../../services/financeService', () => ({
   generateForecast: vi.fn(),
   createBudget: vi.fn(),
   generateBudgetAdvice: vi.fn(),
-  generateFinancialReport: vi.fn(),
-  submitFinancialReport: vi.fn(),
+  generateFinancialReport: financeMocks.generateFinancialReport,
+  downloadFinancialReportPdf: financeMocks.downloadFinancialReportPdf,
+  submitFinancialReport: financeMocks.submitFinancialReport,
 }));
 
 vi.mock('../../../services/eventService', () => ({
@@ -45,7 +50,7 @@ describe('FinancePage transaction search', () => {
     financeMocks.getForecasts.mockResolvedValue({ data: [] });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
-    financeMocks.getFinancialReportDeadline.mockResolvedValue({ data: null });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
   });
 
   it('clears the search term and reloads the unfiltered ledger', async () => {
@@ -62,6 +67,19 @@ describe('FinancePage transaction search', () => {
 
     expect(search).toHaveValue('');
     await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1 }));
+  });
+
+  it('keeps the record action visible and offers a reset for an empty filtered ledger', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    expect(await screen.findByRole('button', { name: 'Record transaction' })).toBeInTheDocument();
+    const search = screen.getByPlaceholderText('Search transactions...');
+    fireEvent.change(search, { target: { value: 'missing' } });
+    fireEvent.keyDown(search, { key: 'Enter' });
+
+    expect(await screen.findByText('No matching transactions')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(search).toHaveValue('');
   });
 
   it('shows the complete traceable data for each digital-ledger entry', async () => {
@@ -89,9 +107,13 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="transactions" />);
 
-    expect(await screen.findByText('Venue reservation')).toBeInTheDocument();
-    expect(screen.getByText('Sep 8, 2026')).toBeInTheDocument();
-    expect(screen.getByText('HIUSA-1-00000007')).toBeInTheDocument();
+    const ledgerTable = await screen.findByRole('table');
+    expect(within(ledgerTable).getByText('Venue reservation')).toBeInTheDocument();
+    expect(within(ledgerTable).getByText('Sep 8, 2026')).toBeInTheDocument();
+    expect(within(ledgerTable).getByText('HIUSA-1-00000007')).toBeInTheDocument();
+    const mobileLedger = screen.getByRole('list', { name: 'Transactions' });
+    expect(within(mobileLedger).getByText('Venue reservation')).toBeInTheDocument();
+    expect(within(mobileLedger).getByRole('button', { name: 'Edit transaction' })).toBeInTheDocument();
     expect(screen.getAllByText('Sports Fest').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Sports Fest Budget').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
@@ -144,13 +166,12 @@ describe('FinancePage transaction search', () => {
         receipt_reference: 'HIUSA-1-00000010',
       }],
     });
-    financeMocks.getFinancialReportDeadline.mockRejectedValue({ response: { status: 403 } });
-
     render(<FinancePage initialTab="receipts" />);
 
     expect(await screen.findByText('Student membership payment')).toBeInTheDocument();
     expect(screen.getByText('HIUSA-1-00000010')).toBeInTheDocument();
-    expect(financeMocks.getFinancialReportDeadline).not.toHaveBeenCalled();
+    expect(financeMocks.getFinancialReports).not.toHaveBeenCalled();
+    expect(screen.queryByText('Net balance')).not.toBeInTheDocument();
     expect(screen.queryByText('Failed to load financial data.')).not.toBeInTheDocument();
   });
 
@@ -161,7 +182,7 @@ describe('FinancePage transaction search', () => {
     expect(screen.getByRole('button', { name: 'Submit for Approval' })).toBeInTheDocument();
   });
 
-  it('keeps Department Head budget access read-only', async () => {
+  it('does not load finance-module data for a Department Head', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
     financeMocks.getBudgets.mockResolvedValue({
       data: [{ id: 1, title: 'Operating Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' }],
@@ -169,10 +190,50 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="budgets" startBudgetProposal />);
 
-    expect(await screen.findByText('Operating Budget')).toBeInTheDocument();
+    expect(await screen.findByText('No budgets proposed yet.')).toBeInTheDocument();
+    expect(financeMocks.getBudgets).not.toHaveBeenCalled();
+    expect(financeMocks.getTransactions).not.toHaveBeenCalled();
+    expect(financeMocks.getFinancialReports).not.toHaveBeenCalled();
+    expect(screen.queryByText('Operating Budget')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Propose Budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI Advice' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Propose Budget' })).not.toBeInTheDocument();
+  });
+
+  it('creates an income statement as a separate document with a letterhead image', async () => {
+    financeMocks.generateFinancialReport.mockResolvedValue({
+      data: {
+        report: { id: 41, document_type: 'income_statement', title: 'Income Statement - Semester 2026-2027', summary_text: 'Recorded totals for the selected period.' },
+        totals: { income: 1000, expense: 250, balance: 750, opening_balance: 0, closing_balance: 750 },
+        transactions: [],
+        audit_logs: [],
+        budget_advisories: [],
+        latest_ols_forecast: null,
+        ai_summary_status: 'generated',
+      },
+    });
+
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [{ id: 3, name: 'Semester 2026-2027', starts_on: '2026-06-01', ends_on: '2026-09-27' }] });
+    render(<FinancePage initialTab="reports" />);
+
+    fireEvent.click(await screen.findByRole('radio', { name: /Income Statement/i }));
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
+    expect(screen.getByLabelText('Letter body')).toBeInTheDocument();
+    const header = new File(['header'], 'organization-header.png', { type: 'image/png' });
+    fireEvent.change(screen.getByLabelText('Letterhead image'), { target: { files: [header] } });
+    fireEvent.change(screen.getByPlaceholderText('Treasurer full name'), { target: { value: 'Taylor Treasurer' } });
+    fireEvent.change(screen.getByPlaceholderText('President full name'), { target: { value: 'Pat President' } });
+    fireEvent.change(screen.getByPlaceholderText('Adviser full name'), { target: { value: 'Alex Adviser' } });
+    fireEvent.change(screen.getByPlaceholderText('SBO Adviser full name'), { target: { value: 'Sam SBO Adviser' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Income Statement' }));
+
+    await waitFor(() => expect(financeMocks.generateFinancialReport).toHaveBeenCalledWith(expect.objectContaining({
+      document_type: 'income_statement',
+      report_type: 'semester',
+      financial_semester_id: '3',
+      letterhead: header,
+    })));
+    expect((await screen.findAllByText('Income Statement - Semester 2026-2027')).length).toBeGreaterThan(0);
   });
 });
 
@@ -191,7 +252,7 @@ describe('FinancePage forecast explainability', () => {
     financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
-    financeMocks.getFinancialReportDeadline.mockResolvedValue({ data: null });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
   });
 
   it('shows a weak-fit warning and reports an unknown engine when the forecast metadata is thin', async () => {
@@ -241,7 +302,7 @@ describe('FinancePage forecast explainability', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Generate Forecast' }));
 
-    expect((await screen.findAllByText(/at least two different calendar months/i)).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText(/Not enough history/i)).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
   });
 });

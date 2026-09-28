@@ -138,7 +138,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'entity_type' => 'budget',
             'entity_id' => $budget->id,
             'requested_by' => $admin->school_id,
-            'required_role' => 'SUPER_ADMIN',
+            'required_role' => 'ADMIN',
             'status' => 'approved',
         ]);
 
@@ -275,6 +275,13 @@ class RequestedWorkflowCompletionTest extends TestCase
             'notification_type' => 'task',
             'reference_id' => $taskId,
         ]);
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/tasks/{$taskId}/status", ['status' => 'pending', 'progress_note' => 'Task reopened.'])
+            ->assertOk()
+            ->assertJsonPath('status', 'pending')
+            ->assertJsonPath('progress_percent', 0)
+            ->assertJsonPath('completed_at', null);
     }
 
     public function test_stock_adjustments_are_audited(): void

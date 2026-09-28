@@ -16,7 +16,7 @@ class MerchandiseOrderCancellationTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_buyer_can_cancel_an_unpaid_pending_order_and_stock_is_restored_once(): void
+    public function test_buyer_can_cancel_an_unpaid_pending_order_without_changing_stock(): void
     {
         $organization = Organization::factory()->create();
         $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
@@ -42,7 +42,7 @@ class MerchandiseOrderCancellationTest extends TestCase
         ]);
         $this->assertDatabaseHas('merchandise', [
             'id' => $item->id,
-            'stock_quantity' => 5,
+            'stock_quantity' => 3,
         ]);
         $this->assertDatabaseHas('audit_logs', [
             'record_type' => Order::class,
@@ -53,7 +53,7 @@ class MerchandiseOrderCancellationTest extends TestCase
         $this->patchJson("/api/orders/{$order->id}/cancel")
             ->assertConflict()
             ->assertJsonPath('message', 'Only pending orders can be cancelled. Current status: cancelled.');
-        $this->assertSame(5, $item->fresh()->stock_quantity);
+        $this->assertSame(3, $item->fresh()->stock_quantity);
     }
 
     public function test_buyer_cannot_cancel_another_organizations_order_or_another_buyers_order(): void

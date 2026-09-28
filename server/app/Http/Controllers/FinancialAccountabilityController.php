@@ -41,7 +41,7 @@ class FinancialAccountabilityController extends Controller
     {
         $filters = $request->validate(['status' => ['nullable', 'in:pending,verified']]);
         $query = Collection::with(['remittances', 'organization:id,name,acronym'])
-            ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('organization_id', $request->user()->organization_id))
+            ->where('organization_id', $request->user()->organization_id)
             ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->latest('collected_at');
         if ($request->filled('search')) {
@@ -108,7 +108,7 @@ class FinancialAccountabilityController extends Controller
     {
         $filters = $request->validate(['status' => ['nullable', 'in:pending,approved,released,partially_repaid,fully_repaid']]);
         $query = CashAdvance::with(['repayments', 'organization:id,name,acronym'])
-            ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('organization_id', $request->user()->organization_id))
+            ->where('organization_id', $request->user()->organization_id)
             ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->latest();
 
@@ -185,7 +185,7 @@ class FinancialAccountabilityController extends Controller
     public function invoices(Request $request)
     {
         $query = Invoice::with('payments')->where('organization_id', $request->user()->organization_id);
-        if (! in_array($request->user()->role, ['SUPER_ADMIN', 'ADMIN'], true)) {
+        if ($request->user()->role !== 'ADMIN') {
             $query->where('student_id', $request->user()->school_id);
         }
 
@@ -202,7 +202,7 @@ class FinancialAccountabilityController extends Controller
             'per_page' => ['nullable', 'integer', 'in:10'],
         ]);
         $organizationId = $request->user()->organization_id;
-        $students = User::where('organization_id', $organizationId)->where('role', 'STUDENT')
+        $students = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('role', 'STUDENT')->where('account_status', 'active'))
             ->when($request->user()->role === 'STUDENT', fn ($query) => $query->where('school_id', $request->user()->school_id))
             ->when(! empty($filters['student_id']), fn ($query) => $query->where('school_id', $filters['student_id']))
             ->get(['school_id', 'first_name', 'last_name', 'email', 'account_status', 'department', 'program', 'major', 'section', 'year_level', 'created_at']);
@@ -258,7 +258,7 @@ class FinancialAccountabilityController extends Controller
     {
         $data = $request->validate(['student_id' => ['required', 'integer'], 'description' => ['required', 'string', 'max:255'], 'amount_due' => ['required', 'decimal:0,2', 'gt:0'], 'due_date' => ['nullable', 'date'], 'event_id' => ['nullable', 'integer'], 'order_id' => ['nullable', 'integer']]);
         $organizationId = $request->user()->organization_id;
-        $student = User::where('organization_id', $organizationId)->where('school_id', $data['student_id'])->where('role', 'STUDENT')->first();
+        $student = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId)->where('role', 'STUDENT')->where('account_status', 'active'))->where('school_id', $data['student_id'])->first();
         if (! $student) {
             return response()->json(['message' => 'The student must belong to your organization.'], 422);
         }
@@ -354,7 +354,7 @@ class FinancialAccountabilityController extends Controller
 
     private function sameOrganization(Request $r, int $organizationId): void
     {
-        abort_unless($r->user()->role === 'SUPER_ADMIN' || $r->user()->organization_id === $organizationId, 404);
+        abort_unless($r->user()->organization_id === $organizationId, 404);
     }
 
     private function validateLinks(Request $request, array $data): ?string

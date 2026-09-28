@@ -30,47 +30,51 @@ class UserController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
             'department' => ['nullable', 'string', 'max:120'],
             'program' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'in:1st Year,2nd Year,3rd Year,4th Year'],
+            'year_level' => ['nullable', 'string', 'max:30'],
             'section' => ['nullable', 'string', 'max:60'],
         ]);
 
         $query = User::query()
+            ->join('account_profiles as membership', 'membership.user_school_id', '=', 'users.school_id')
+            ->where('membership.organization_id', $request->user()->organization_id)
+            ->select('users.*')
+            ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization')])
             ->withExists(['fingerprints as fingerprint_enrolled'])
-            ->where('organization_id', $request->user()->organization_id);
+            ;
 
         // SBO Officers use this directory only to select Students for attendance
         // and biometric enrollment. Account administration remains Admin-only.
         if ($request->user()->role === 'SBO_OFFICER') {
-            $query->where('role', 'STUDENT');
+            $query->where('membership.role', 'STUDENT');
         }
 
         if (! empty($filters['role'])) {
-            $query->where('role', $filters['role']);
+            $query->where('membership.role', $filters['role']);
         }
 
         if (! empty($filters['account_status'])) {
-            $query->where('account_status', $filters['account_status']);
+            $query->where('membership.account_status', $filters['account_status']);
         }
 
         foreach (['department', 'program', 'year_level', 'section'] as $field) {
             if (! empty($filters[$field])) {
-                $query->where($field, $filters[$field]);
+                $query->where('users.'.$field, $filters[$field]);
             }
         }
 
         if (! empty($filters['search'])) {
             $search = trim($filters['search']);
             $query->where(function ($userQuery) use ($search) {
-                $userQuery->where('first_name', 'like', "%{$search}%")
-                    ->orWhere('last_name', 'like', "%{$search}%")
-                    ->orWhere('email', 'like', "%{$search}%")
-                    ->orWhere('contact_number', 'like', "%{$search}%")
-                    ->orWhere('school_id', 'like', "%{$search}%")
-                    ->orWhere('department', 'like', "%{$search}%")
-                    ->orWhere('program', 'like', "%{$search}%")
-                    ->orWhere('year_level', 'like', "%{$search}%")
-                    ->orWhere('section', 'like', "%{$search}%")
-                    ->orWhere('major', 'like', "%{$search}%");
+                $userQuery->where('users.first_name', 'like', "%{$search}%")
+                    ->orWhere('users.last_name', 'like', "%{$search}%")
+                    ->orWhere('users.email', 'like', "%{$search}%")
+                    ->orWhere('users.contact_number', 'like', "%{$search}%")
+                    ->orWhere('users.school_id', 'like', "%{$search}%")
+                    ->orWhere('users.department', 'like', "%{$search}%")
+                    ->orWhere('users.program', 'like', "%{$search}%")
+                    ->orWhere('users.year_level', 'like', "%{$search}%")
+                    ->orWhere('users.section', 'like', "%{$search}%")
+                    ->orWhere('users.major', 'like', "%{$search}%");
             });
         }
 
@@ -81,16 +85,18 @@ class UserController extends Controller
         // aggregate even though SQLite permits the ambiguous query.
         $roleCounts = (clone $query)
             ->reorder()
-            ->select('role')
+            ->select('membership.role')
             ->selectRaw('count(*) as aggregate')
-            ->groupBy('role')
+            ->groupBy('membership.role')
             ->pluck('aggregate', 'role');
 
         $paginated = $query
-            ->orderBy('last_name')
-            ->orderBy('first_name')
-            ->orderBy('school_id')
+            ->orderBy('users.last_name')
+            ->orderBy('users.first_name')
+            ->orderBy('users.school_id')
             ->paginate($filters['per_page'] ?? 20);
+
+        $paginated->getCollection()->each(fn (User $user) => $user->activateProfile($user->accountProfiles->first()));
 
         return response()->json([
             ...$paginated->toArray(),
@@ -138,8 +144,8 @@ class UserController extends Controller
             return response()->json(['message' => 'SBO Officers can create Student accounts only.'], 403);
         }
 
-        if ($validatedData['role'] === 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are created only from SAO Administration.'], 403);
+        if ($validatedData['role'] === 'ADMIN' && $this->isAdviserPosition($validatedData['position_title'] ?? null)) {
+            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
@@ -172,11 +178,15 @@ class UserController extends Controller
 
     public function update(Request $request, $id)
     {
-        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+        $organizationId = $request->user()->organization_id;
+        $user = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId))->find($id);
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
+        $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
+        $secondary = (int) $user->getRawOriginal('organization_id') !== (int) $organizationId;
+        $user->activateProfile($profile->load('organization'));
 
         if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
             return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
@@ -236,8 +246,9 @@ class UserController extends Controller
             }
         }
 
-        if (($validatedData['role'] ?? $user->role) === 'ADMIN' && $user->role !== 'ADMIN') {
-            return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+        if (($validatedData['role'] ?? $user->role) === 'ADMIN'
+            && $this->isAdviserPosition($validatedData['position_title'] ?? $user->position_title)) {
+            return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
         if (
@@ -261,6 +272,27 @@ class UserController extends Controller
         $validatedData = $this->normalizeAcademicPayload($validatedData, $request->user(), $user);
         $validatedData = $this->normalizePositionPayload($validatedData, $request->user(), $user);
 
+        if ($secondary) {
+            if (array_key_exists('password', $validatedData) || ($validatedData['role'] ?? null) === 'ADMIN') {
+                return response()->json(['message' => 'Only the primary organization can manage this account password or assign an Admin role.'], 403);
+            }
+            $validatedData = $this->normalizeUserPayload($validatedData, $user);
+            $membershipData = array_intersect_key($validatedData, array_flip(['role', 'account_status', 'position_title']));
+            $identityData = array_diff_key($validatedData, $membershipData);
+            DB::transaction(function () use ($user, $profile, $identityData, $membershipData) {
+                if ($identityData) $user->update($identityData);
+                if ($membershipData) $profile->update($membershipData);
+                if (($membershipData['account_status'] ?? 'active') !== 'active') {
+                    $user->tokens()->where('account_profile_id', $profile->id)->delete();
+                }
+            });
+            $freshUser = $user->fresh();
+            $freshUser->activateProfile($profile->fresh()->load('organization'));
+            $this->recordUserAudit($request, 'updated', $freshUser, $oldValues, $this->auditableUserValues($freshUser));
+
+            return response()->json($freshUser);
+        }
+
         if (array_key_exists('password', $validatedData)) {
             $validatedData['password_hash'] = $validatedData['password'];
             unset($validatedData['password']);
@@ -282,11 +314,14 @@ class UserController extends Controller
 
     public function disable(Request $request, $id)
     {
-        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+        $user = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id))->find($id);
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
+        $profile = $user->accountProfiles()->where('organization_id', $request->user()->organization_id)->firstOrFail();
+        $secondary = (int) $user->getRawOriginal('organization_id') !== (int) $profile->organization_id;
+        $user->activateProfile($profile->load('organization'));
 
         if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
             return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
@@ -313,13 +348,16 @@ class UserController extends Controller
 
         $oldValues = $this->auditableUserValues($user);
 
-        $user->forceFill([
-            'account_status' => 'disabled',
-        ])->save();
-
-        $user->tokens()->delete();
+        if ($secondary) {
+            $profile->update(['account_status' => 'disabled']);
+            $user->tokens()->where('account_profile_id', $profile->id)->delete();
+        } else {
+            $user->forceFill(['account_status' => 'disabled'])->save();
+            $user->tokens()->delete();
+        }
 
         $freshUser = $user->fresh();
+        $freshUser->activateProfile($profile->fresh()->load('organization'));
         $this->recordUserAudit($request, 'deactivated', $freshUser, $oldValues, $this->auditableUserValues($freshUser));
 
         return response()->json(['message' => 'User account disabled successfully.']);
@@ -327,11 +365,14 @@ class UserController extends Controller
 
     public function reactivate(Request $request, $id)
     {
-        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+        $user = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id))->find($id);
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
+        $profile = $user->accountProfiles()->where('organization_id', $request->user()->organization_id)->firstOrFail();
+        $secondary = (int) $user->getRawOriginal('organization_id') !== (int) $profile->organization_id;
+        $user->activateProfile($profile->load('organization'));
 
         if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
             return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
@@ -351,11 +392,14 @@ class UserController extends Controller
 
         $oldValues = $this->auditableUserValues($user);
 
-        $user->forceFill([
-            'account_status' => 'active',
-        ])->save();
+        if ($secondary) {
+            $profile->update(['account_status' => 'active']);
+        } else {
+            $user->forceFill(['account_status' => 'active'])->save();
+        }
 
         $freshUser = $user->fresh();
+        $freshUser->activateProfile($profile->fresh()->load('organization'));
         $this->recordUserAudit($request, 'reactivated', $freshUser, $oldValues, $this->auditableUserValues($freshUser));
 
         return response()->json($freshUser);
@@ -363,29 +407,53 @@ class UserController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $user = User::where('organization_id', $request->user()->organization_id)->find($id);
+        $organizationId = $request->user()->organization_id;
+        $user = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $organizationId))->find($id);
 
         if (! $user) {
             return response()->json(['message' => 'User not found.'], 404);
         }
 
-        if ($request->user()->role === 'SBO_OFFICER' && $user->role !== 'STUDENT') {
+        $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
+        if ($request->user()->school_id === $user->school_id) {
+            return response()->json(['message' => 'You cannot delete your own account.'], 403);
+        }
+
+        if ($request->user()->role === 'SBO_OFFICER' && $profile->role !== 'STUDENT') {
             return response()->json(['message' => 'SBO Officers can manage Student accounts only.'], 403);
         }
 
-        if ($user->role === 'SUPER_ADMIN') {
+        if ($profile->role === 'SUPER_ADMIN') {
             return response()->json(['message' => 'The super admin account cannot be deleted.'], 403);
         }
 
-        if ($user->role === 'ADMIN') {
+        if ($profile->role === 'ADMIN') {
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
         $oldValues = $this->auditableUserValues($user);
-        $user->tokens()->delete();
 
         try {
-            $user->delete();
+            DB::transaction(function () use ($user, $profile) {
+                if ($user->accountProfiles()->count() > 1) {
+                    $user->tokens()->where('account_profile_id', $profile->id)->delete();
+                    if ((int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id) {
+                        $replacement = $user->accountProfiles()->whereKeyNot($profile->id)
+                            ->orderByRaw("CASE WHEN account_status = 'active' THEN 0 ELSE 1 END")
+                            ->firstOrFail();
+                        DB::table('users')->where('school_id', $user->school_id)->update([
+                            'organization_id' => $replacement->organization_id,
+                            'role' => $replacement->role,
+                            'account_status' => $replacement->account_status,
+                            'position_title' => $replacement->position_title,
+                        ]);
+                    }
+                    $profile->delete();
+                } else {
+                    $user->tokens()->delete();
+                    $user->delete();
+                }
+            });
         } catch (QueryException $e) {
             return response()->json([
                 'message' => 'Cannot delete this user - they have existing records (transactions, tasks, etc.) linked to their account.',
@@ -394,7 +462,7 @@ class UserController extends Controller
 
         $this->recordUserAudit($request, 'deleted', $user, $oldValues, []);
 
-        return response()->json(['message' => 'User deleted successfully.']);
+        return response()->json(['message' => 'Account access removed successfully.']);
     }
 
     public function register(Request $request)
@@ -442,7 +510,7 @@ class UserController extends Controller
 
         return response()->json([
             'user' => $user,
-            'access_token' => $user->createToken('auth_token')->plainTextToken,
+            'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
         ], 201);
     }
@@ -450,16 +518,13 @@ class UserController extends Controller
     public function login(Request $request)
     {
         $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
             'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
             'password' => 'required|string',
         ]);
 
-        $user = User::where('organization_id', $request->organization_id)
-            ->where('school_id', $request->school_id)
-            ->first();
+        $user = User::where('school_id', $request->school_id)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password_hash)) {
+        if (! $user || ! Hash::check($request->password, $user->password_hash) || ! $user->organization()->where('is_active', true)->exists()) {
             throw ValidationException::withMessages([
                 'school_id' => ['The provided credentials are incorrect.'],
             ]);
@@ -474,19 +539,31 @@ class UserController extends Controller
 
         return response()->json([
             'user' => $user,
-            'access_token' => $user->createToken('auth_token')->plainTextToken,
+            'access_token' => $this->issueProfileToken($user),
             'token_type' => 'Bearer',
         ]);
+    }
+
+    private function issueProfileToken(User $user): string
+    {
+        $token = $user->createToken('auth_token');
+        $profileId = $user->accountProfiles()->where('organization_id', $user->getRawOriginal('organization_id'))->value('id');
+        $token->accessToken->forceFill(['account_profile_id' => $profileId])->save();
+
+        return $token->plainTextToken;
     }
 
     public function requestPasswordReset(Request $request)
     {
         $validated = $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
+            'school_id' => ['nullable', 'required_without:organization_id', 'integer', 'min:1', 'max:99999999'],
+            'organization_id' => ['nullable', 'required_without:school_id', Rule::exists('organizations', 'id')->where('is_active', true)],
             'email' => ['required', 'email'],
         ]);
 
-        $user = User::where('organization_id', $validated['organization_id'])
+        $user = User::query()
+            ->when(isset($validated['school_id']), fn ($query) => $query->where('school_id', $validated['school_id']))
+            ->when(isset($validated['organization_id']), fn ($query) => $query->where('organization_id', $validated['organization_id']))
             ->where('email', $validated['email'])
             ->first();
 
@@ -494,7 +571,7 @@ class UserController extends Controller
         // account all return the identical body, so an unauthenticated caller
         // cannot use this endpoint to discover which emails have accounts or an
         // account's status. Mail is only actually sent for an active account.
-        if (! $user || $user->account_status !== 'active') {
+        if (! $user || $user->account_status !== 'active' || ! $user->organization()->where('is_active', true)->exists()) {
             return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
         }
 
@@ -749,13 +826,9 @@ class UserController extends Controller
         }
 
         if ($section) {
-            $yearNumber = match ($yearLevel) {
-                '1st Year' => 1,
-                '2nd Year' => 2,
-                '3rd Year' => 3,
-                '4th Year' => 4,
-                default => null,
-            };
+            $yearNumber = preg_match('/^(\d+)(?:st|nd|rd|th) Year$/', (string) $yearLevel, $matches)
+                ? (int) $matches[1]
+                : null;
             $validSection = $yearNumber && AcademicSection::where('academic_program_id', $configuredProgram->id)
                 ->where('year_level', $yearNumber)
                 ->where('name', $section)

@@ -61,6 +61,7 @@ class RoleAccessMatrixTest extends TestCase
             ['GET', '/api/cash-advances', ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD']],
             ['GET', '/api/transactions/personal-receipts', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']],
             ['GET', '/api/invoices', ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']],
+            ['GET', '/api/audit-logs', ['ADMIN']],
             ['POST', '/api/merchandise', ['ADMIN']],
             ['PATCH', '/api/orders/999/status', ['ADMIN', 'SBO_OFFICER']],
             ['POST', '/api/orders', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']],

@@ -308,7 +308,7 @@ class BudgetController extends Controller
             ->first()
             ?->reopen(
                 $request->user()->id,
-                'DEPARTMENT_HEAD'
+                config('approvals.routes.budget')
             );
 
         $budget->update([

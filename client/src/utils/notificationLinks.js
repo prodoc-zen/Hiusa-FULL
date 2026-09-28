@@ -4,7 +4,7 @@ export function getNotificationDestination(notification, role) {
   const title = String(notification?.title || '').toLowerCase();
 
   if (referenceType === 'approval_request') {
-    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/approvals';
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
     if (role === 'DEPARTMENT_HEAD') return '/dashboard/department-head/approvals';
     if (role === 'ADMIN') return '/dashboard/approvals';
   }
@@ -16,9 +16,9 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'financial_report_deadline') {
-    return role === 'SUPER_ADMIN'
-      ? '/dashboard/super-admin/financial-reports'
-      : '/dashboard/finance/transaction-history';
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
+    if (role === 'ADMIN') return '/dashboard/finance/transaction-history';
+    return null;
   }
 
   if (referenceType === 'event') {
@@ -28,8 +28,8 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'budget') {
-    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/approvals';
     if (role === 'ADMIN') return '/dashboard/finance/budget-allocation';
+    return null;
   }
 
   if (referenceType === 'election') {
@@ -56,9 +56,10 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'financialreport' || referenceType === 'financial_report') {
-    return role === 'SUPER_ADMIN'
-      ? '/dashboard/super-admin/financial-reports'
-      : '/dashboard/finance/transaction-history';
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
+    if (role === 'DEPARTMENT_HEAD') return '/dashboard/department-head/approvals';
+    if (role === 'ADMIN') return '/dashboard/finance/transaction-history';
+    return null;
   }
 
   return null;

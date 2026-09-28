@@ -11,6 +11,10 @@ class FinancialReport extends Model
 
     protected $guarded = [];
 
+    protected $hidden = ['letterhead_path'];
+
+    protected $appends = ['has_letterhead'];
+
     protected function casts(): array
     {
         return [
@@ -23,7 +27,13 @@ class FinancialReport extends Model
             'source_transaction_ids' => 'array',
             'signatories' => 'array',
             'supporting_documents' => 'array',
+            'letter_details' => 'array',
         ];
+    }
+
+    public function getHasLetterheadAttribute(): bool
+    {
+        return filled($this->letterhead_path);
     }
 
     public function aiOutput(): BelongsTo
@@ -34,6 +44,11 @@ class FinancialReport extends Model
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
+    }
+
+    public function semester(): BelongsTo
+    {
+        return $this->belongsTo(FinancialSemester::class, 'financial_semester_id');
     }
 
     public function generator(): BelongsTo

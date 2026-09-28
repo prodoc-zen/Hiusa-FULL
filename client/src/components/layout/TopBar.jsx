@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu, ShoppingCart, User } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
-import { logout } from '../../services/authService';
+import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
@@ -41,6 +41,11 @@ function timeAgo(dateStr) {
 
 export default function TopBar({ title, pathname, onMenuToggle }) {
   const [profileOpen, setProfileOpen] = useState(false);
+  const [accountProfiles, setAccountProfiles] = useState([]);
+  const [activeProfileId, setActiveProfileId] = useState(null);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [profileError, setProfileError] = useState('');
+  const [switchingProfile, setSwitchingProfile] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
@@ -50,6 +55,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const profileRef = useRef(null);
+  const profileTriggerRef = useRef(null);
   const notifRef = useRef(null);
   const cartRef = useRef(null);
   const navigate = useNavigate();
@@ -66,6 +72,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role ?? '';
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
+  const organizationName = user?.organization?.name || 'Organization';
+  const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(role);
 
   const parentByPrefix = [
@@ -160,6 +168,34 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     }
   }
 
+  async function loadAccountProfiles() {
+    setProfileLoading(true);
+    try {
+      const response = await getAccountProfiles();
+      setAccountProfiles(response.data.profiles || []);
+      setActiveProfileId(response.data.active_profile_id);
+      setProfileError('');
+    } catch {
+      setProfileError('Could not load your profiles.');
+    } finally {
+      setProfileLoading(false);
+    }
+  }
+
+  async function handleSwitchProfile(profile) {
+    if (switchingProfile || profile.id === activeProfileId) return;
+    setSwitchingProfile(true);
+    try {
+      const response = await switchAccountProfile(profile.id);
+      localStorage.setItem('user', JSON.stringify(response.data.user));
+      const destinations = { SUPER_ADMIN: '/dashboard/super-admin', ADMIN: '/dashboard/admin', SBO_OFFICER: '/dashboard/officer', DEPARTMENT_HEAD: '/dashboard/department-head', STUDENT: '/dashboard/student' };
+      window.location.assign(destinations[response.data.user.role] || '/dashboard');
+    } catch {
+      setProfileError('Could not switch organization. Try again.');
+      setSwitchingProfile(false);
+    }
+  }
+
   useEffect(() => {
     function handleClickOutside(e) {
       if (profileRef.current && !profileRef.current.contains(e.target)) setProfileOpen(false);
@@ -169,6 +205,17 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     document.addEventListener('pointerdown', handleClickOutside);
     return () => document.removeEventListener('pointerdown', handleClickOutside);
   }, []);
+
+  useEffect(() => {
+    function handleEscape(event) {
+      if (event.key === 'Escape' && profileOpen) {
+        setProfileOpen(false);
+        profileTriggerRef.current?.focus();
+      }
+    }
+    document.addEventListener('keydown', handleEscape);
+    return () => document.removeEventListener('keydown', handleEscape);
+  }, [profileOpen]);
 
   const recent5 = notifications.slice(0, 5);
   const cartTypeCount = cartItems.length;
@@ -182,7 +229,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           type="button"
           aria-label="Open menu"
           onClick={onMenuToggle}
-          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7]"
+          className="grid h-10 w-10 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 transition hover:bg-[#F8FBFD] hover:text-[#0878B7] lg:hidden"
         >
           <Menu size={19} />
         </button>
@@ -372,29 +419,52 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         <div className="relative" ref={profileRef}>
           <button
             type="button"
+            ref={profileTriggerRef}
+            aria-label={`Account menu for ${fullName}`}
+            aria-expanded={profileOpen}
+            aria-controls="topbar-profile-panel"
             onClick={() => {
               setProfileOpen(!profileOpen);
+              if (!profileOpen) loadAccountProfiles();
               setNotifOpen(false);
               setCartOpen(false);
             }}
-            className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#F8FBFD]"
+            className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2 py-1.5 transition hover:bg-[#F8FBFD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"
           >
             <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
               {initials}
             </div>
             <div className="hidden min-w-0 text-left sm:block">
               <p className="text-[13px] font-bold text-[#0F172A]">{fullName}</p>
-              <p className="text-[11px] font-medium text-slate-500">{roleLabel}</p>
+              <p className="max-w-40 truncate text-[11px] font-medium text-slate-600">{organizationName} · {roleLabel}</p>
             </div>
-            <ChevronDown size={14} className={`hidden text-slate-500 transition-transform sm:block ${profileOpen ? 'rotate-180' : ''}`} />
+            <ChevronDown size={14} className={`text-slate-600 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {profileOpen && (
-            <div className="absolute right-0 top-full mt-2 max-h-[calc(100dvh-5rem)] w-56 max-w-[calc(100vw-1.5rem)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60">
+            <div id="topbar-profile-panel" role="region" aria-label="Account and profiles" className="fixed left-3 right-3 top-[4.5rem] z-50 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
               <div className="border-b border-[#DDE7EF] px-3 py-3 mb-1.5">
                 <p className="text-sm font-bold text-[#0F172A]">{fullName}</p>
                 <p className="break-all text-xs font-medium text-slate-500">{user?.email || ''}</p>
               </div>
+              <section aria-label="Profiles" className="border-b border-[#DDE7EF] px-2 pb-2">
+                <div className="flex items-center justify-between px-1 pb-1">
+                  <h2 className="text-xs font-bold text-[#0F172A]">Profiles</h2>
+                  {availableProfiles.length > 1 && <span className="text-xs text-slate-600">Switch profile</span>}
+                </div>
+                {profileLoading ? <p role="status" className="px-2 py-3 text-xs text-slate-600">Loading profiles…</p> : profileError ? <div className="px-2 py-2"><p role="alert" className="text-xs text-red-700">{profileError}</p><button type="button" onClick={loadAccountProfiles} className="mt-2 min-h-11 text-xs font-semibold text-[#0878B7] underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Try again</button></div> : availableProfiles.length === 0 ? <p className="px-2 py-3 text-xs text-slate-600">No active profiles available.</p> : <div className="space-y-1">
+                  {availableProfiles.map((profile) => {
+                    const current = profile.id === (activeProfileId ?? user?.active_profile_id);
+                    return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-default ${current ? 'bg-[#EEF6FB]' : 'hover:bg-[#F8FBFD] active:bg-[#EEF6FB]'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>
+                      <span aria-hidden="true" className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold ${current ? 'bg-[#0F2F62] text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{(profile.organization?.acronym || profile.organization?.name || '?').slice(0, 2).toUpperCase()}</span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0F172A]">{profile.organization?.name || 'Organization'}</span><span className="block text-xs text-slate-600">{ROLE_LABELS[profile.role] || profile.role}</span></span>
+                      {current && <span className="text-xs font-semibold text-[#0F2F62]">Current</span>}
+                    </button>;
+                  })}
+                  {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-slate-600">This is your only active profile. Other profiles appear here when an organization adds you.</p>}
+                </div>}
+                {switchingProfile && <p role="status" className="px-2 py-2 text-xs text-slate-600">Switching profile…</p>}
+              </section>
               <button
                 type="button"
                 onClick={() => { setProfileOpen(false); navigate('/dashboard/profile'); }}

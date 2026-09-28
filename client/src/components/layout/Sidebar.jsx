@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, FileText, Home, LogOut, Megaphone, Package, ShieldCheck, Users, Vote, X } from 'lucide-react';
+import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, FileText, Home, LogOut, Megaphone, Package, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users, Vote, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
@@ -44,7 +45,6 @@ const NAV_STRUCTURE = [
     label: 'Approvals',
     icon: ClipboardCheck,
     rolePaths: {
-      SUPER_ADMIN: '/dashboard/super-admin/approvals',
       ADMIN: '/dashboard/approvals',
       DEPARTMENT_HEAD: '/dashboard/department-head/approvals',
     },
@@ -93,15 +93,15 @@ const NAV_STRUCTURE = [
     id: 'financial',
     label: 'Financial',
     icon: Coins,
-    roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
     children: [
       { id: 'financial-ledger', label: 'Financial Oversight', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN'] },
       { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
       { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['ADMIN'] },
       { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['ADMIN'] },
       { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['ADMIN'] },
-      { id: 'personal-receipts', label: 'My Receipts', path: '/dashboard/finance/personal-receipts', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
-      { id: 'statement-of-account', label: 'Statement of Account', path: '/dashboard/finance/statement-of-account', roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'personal-receipts', label: 'My Receipts', path: '/dashboard/finance/personal-receipts', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'] },
+      { id: 'statement-of-account', label: 'Statement of Account', path: '/dashboard/finance/statement-of-account', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'] },
     ],
   },
   {
@@ -147,25 +147,27 @@ const SUPER_ADMIN_NAV = [
     roles: ['SUPER_ADMIN'],
     children: [
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-event-requirements', label: 'Event Requirements', path: '/dashboard/super-admin/event-requirements', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'Official Notices', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-financial-reports', label: 'Financial Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
-      { id: 'sao-approvals', label: 'Financial Approvals', path: '/dashboard/super-admin/approvals', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-financial-reports', label: 'Received Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },
     ],
   },
 ];
 
-function NavItem({ label, path, icon: Icon, end, onClick }) {
+function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = false }) {
   return (
     <NavLink
       to={path}
       end={end}
       onClick={onClick}
-      className={({ isActive }) => `flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#16C7F3]/15 text-white shadow-sm shadow-[#16C7F3]/10' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+      aria-label={desktopCollapsed ? label : undefined}
+      title={desktopCollapsed ? label : undefined}
+      className={({ isActive }) => `flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${isActive ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
     >
-      <Icon size={18} strokeWidth={2} />
-      {label}
+      <Icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+      <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{label}</span>
     </NavLink>
   );
 }
@@ -182,14 +184,14 @@ function SubNavItem({ label, path, onClick }) {
   );
 }
 
-function OfficerProfile({ user, roleLabel }) {
+function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase() || 'HI';
   const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
 
   return (
-    <div className="flex items-center gap-3 rounded-lg bg-white/[0.06] px-3 py-3">
+    <div className={`flex items-center gap-3 rounded-lg bg-white/[0.06] px-3 py-3 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${name} · ${roleLabel}` : undefined}>
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
-      <div className="min-w-0 flex-1">
+      <div className={`min-w-0 flex-1 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
         <p className="truncate text-sm font-bold text-white">{name}</p>
         <p className="truncate text-xs font-medium text-slate-500 capitalize">{roleLabel}</p>
       </div>
@@ -197,12 +199,42 @@ function OfficerProfile({ user, roleLabel }) {
   );
 }
 
-export default function Sidebar({ isOpen, onClose }) {
+export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onToggleDesktop }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [expandedMenus, setExpandedMenus] = useState({});
+  const [flyout, setFlyout] = useState(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const sidebarRef = useRef(null);
+  const flyoutRef = useRef(null);
+  const flyoutTriggerRef = useRef(null);
+
+  useEffect(() => { setFlyout(null); }, [location.pathname, desktopCollapsed]);
+
+  useEffect(() => {
+    if (!flyout) return undefined;
+    function handlePointerDown(event) {
+      if (!sidebarRef.current?.contains(event.target) && !flyoutRef.current?.contains(event.target)) setFlyout(null);
+    }
+    function handleEscape(event) {
+      if (event.key === 'Escape') {
+        setFlyout(null);
+        flyoutTriggerRef.current?.focus();
+      }
+    }
+    function handleResize() {
+      if (window.innerWidth < 1024) setFlyout(null);
+    }
+    document.addEventListener('pointerdown', handlePointerDown);
+    document.addEventListener('keydown', handleEscape);
+    window.addEventListener('resize', handleResize);
+    return () => {
+      document.removeEventListener('pointerdown', handlePointerDown);
+      document.removeEventListener('keydown', handleEscape);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [flyout]);
 
   const user = useMemo(() => {
     const stored = localStorage.getItem('user');
@@ -220,6 +252,7 @@ export default function Sidebar({ isOpen, onClose }) {
   const role = user?.role || 'SBO_OFFICER';
   const roleLabel = ROLE_LABELS[role] || role;
   const nav = role === 'SUPER_ADMIN' ? SUPER_ADMIN_NAV : NAV_STRUCTURE.filter((item) => item.roles.includes(role));
+  const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 
   const getVisibleChildren = (item) => (item.children || []).filter((child) => child.roles.includes(role));
 
@@ -255,27 +288,30 @@ export default function Sidebar({ isOpen, onClose }) {
 
   const sidebarContent = (
     <>
-      <div className="flex h-[72px] items-center gap-3 border-b border-white/10 px-5">
-        <img src={hiusaLogo} alt="HIUSA logo" className="h-10 w-10 object-contain" />
-        <div>
+      <div className={`flex h-[72px] items-center gap-3 border-b border-white/10 px-5 ${desktopCollapsed ? 'lg:justify-center lg:px-3' : ''}`}>
+        <img src={hiusaLogo} alt="HIUSA logo" className={`h-10 w-10 object-contain ${desktopCollapsed ? 'lg:hidden' : ''}`} />
+        <div className={desktopCollapsed ? 'lg:hidden' : ''}>
           <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
           <p className="text-[11px] font-medium text-slate-500">{roleLabel} System</p>
         </div>
         <button type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
         </button>
+        <button type="button" onClick={onToggleDesktop} aria-label={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!desktopCollapsed} title={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className={`hidden h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-200 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] lg:grid ${desktopCollapsed ? '' : 'ml-auto'}`}>
+          {desktopCollapsed ? <PanelLeftOpen size={20} aria-hidden="true" /> : <PanelLeftClose size={20} aria-hidden="true" />}
+        </button>
       </div>
 
-      <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4">
+      <nav onScroll={() => setFlyout(null)} className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
         <div className="flex-1 space-y-1">
-          <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500">Modules</p>
+          <p className={`mb-2 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>Modules</p>
           {nav.map((item) => {
             const visibleChildren = getVisibleChildren(item);
             const hasChildren = visibleChildren.length > 0;
             const itemPath = resolveItemPath(item);
 
             if (!hasChildren) {
-              return <NavItem key={item.id} label={item.label} path={itemPath} icon={item.icon} end onClick={handleNavItemClick} />;
+              return <NavItem key={item.id} label={item.label} path={itemPath} icon={item.icon} end onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />;
             }
 
             const onParentRoute = visibleChildren.some((child) => location.pathname.startsWith(child.path));
@@ -285,7 +321,13 @@ export default function Sidebar({ isOpen, onClose }) {
               <div key={item.id}>
                 <button
                   type="button"
-                  onClick={() => {
+                  onClick={(event) => {
+                    if (desktopCollapsed && window.innerWidth >= 1024) {
+                      flyoutTriggerRef.current = event.currentTarget;
+                      const top = Math.min(event.currentTarget.getBoundingClientRect().top, Math.max(16, window.innerHeight - 320));
+                      setFlyout((current) => current?.id === item.id ? null : { id: item.id, top });
+                      return;
+                    }
                     if (!isExpanded) {
                       navigate(itemPath);
                     }
@@ -295,15 +337,18 @@ export default function Sidebar({ isOpen, onClose }) {
                       [item.id]: !isExpanded,
                     }));
                   }}
-                  className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-all duration-200 ${onParentRoute ? 'bg-[#16C7F3]/15 text-white shadow-sm shadow-[#16C7F3]/10' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+                  aria-label={desktopCollapsed ? item.label : undefined}
+                  aria-expanded={desktopCollapsed && window.innerWidth >= 1024 ? flyout?.id === item.id : isExpanded}
+                  title={desktopCollapsed ? item.label : undefined}
+                  className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
                 >
-                  <item.icon size={18} strokeWidth={2} />
-                  {item.label}
-                  <ChevronDown size={13} className={`ml-auto text-slate-500 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`} />
+                  <item.icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+                  <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{item.label}</span>
+                  <ChevronDown size={13} aria-hidden="true" className={`ml-auto text-slate-500 transition-transform duration-200 ${desktopCollapsed ? 'lg:hidden' : ''} ${isExpanded ? 'rotate-180' : ''}`} />
                 </button>
 
                 {isExpanded && (
-                  <div className="ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3">
+                  <div className={`ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3 ${desktopCollapsed ? 'lg:hidden' : ''}`}>
                     {visibleChildren.map((sub) => (
                       <div key={sub.id} onClick={handleNavItemClick}>
                         <SubNavItem label={sub.label} path={sub.path} />
@@ -319,17 +364,17 @@ export default function Sidebar({ isOpen, onClose }) {
         <div className="space-y-1 border-t border-white/10 pt-4">
           {profileNav.map((item) => (
             <div key={item.path} onClick={handleNavItemClick}>
-              <NavItem {...item} />
+              <NavItem {...item} desktopCollapsed={desktopCollapsed} />
             </div>
           ))}
-          <button type="button" onClick={() => setLogoutConfirmOpen(true)} className="flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-500 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
-            <LogOut size={18} strokeWidth={2} />
-            Logout
+          <button type="button" onClick={() => setLogoutConfirmOpen(true)} aria-label={desktopCollapsed ? 'Logout' : undefined} title={desktopCollapsed ? 'Logout' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+            <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+            <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Logout</span>
           </button>
         </div>
 
         <div className="mt-4 border-t border-white/10 pt-4">
-          <OfficerProfile user={user} roleLabel={roleLabel} />
+          <OfficerProfile user={user} roleLabel={roleLabel} desktopCollapsed={desktopCollapsed} />
         </div>
       </nav>
     </>
@@ -338,7 +383,16 @@ export default function Sidebar({ isOpen, onClose }) {
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-transform duration-300 ease-in-out sm:w-[260px] ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <aside ref={sidebarRef} className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      {flyoutGroup && createPortal(
+        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-2rem))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
+          <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>
+          <nav aria-label={`${flyoutGroup.label} pages`} className="space-y-0.5">
+            {getVisibleChildren(flyoutGroup).map((child) => <NavLink key={child.id} to={child.path} onClick={() => setFlyout(null)} className={({ isActive }) => `block min-h-11 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${isActive ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}>{child.label}</NavLink>)}
+          </nav>
+        </div>,
+        document.body,
+      )}
       <ConfirmModal
         open={logoutConfirmOpen}
         title="Log Out"
