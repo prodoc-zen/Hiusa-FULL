@@ -15,7 +15,6 @@ use App\Http\Controllers\EventRequirementController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
-use App\Http\Controllers\FinancialReportDeadlineController;
 use App\Http\Controllers\FinancialSemesterController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
@@ -154,16 +153,16 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
 
     // Financial accountability: collections are ledgered only after verification; remittances are custody movements.
     Route::get('/financial-dashboard', [FinancialAccountabilityController::class, 'dashboard'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::get('/collections', [FinancialAccountabilityController::class, 'collections'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/collections', [FinancialAccountabilityController::class, 'collections'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/collections', [FinancialAccountabilityController::class, 'storeCollection'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/collections/{collection}/verify', [FinancialAccountabilityController::class, 'verifyCollection'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/collections/{collection}/remittances', [FinancialAccountabilityController::class, 'storeRemittance'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::get('/cash-advances', [FinancialAccountabilityController::class, 'advances'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/cash-advances', [FinancialAccountabilityController::class, 'advances'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/cash-advances', [FinancialAccountabilityController::class, 'storeAdvance'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/cash-advances/{advance}/approve', [FinancialAccountabilityController::class, 'approveAdvance'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/cash-advances/{advance}/release', [FinancialAccountabilityController::class, 'releaseAdvance'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/cash-advances/{advance}/repayments', [FinancialAccountabilityController::class, 'repayAdvance'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::get('/invoices', [FinancialAccountabilityController::class, 'invoices'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/invoices', [FinancialAccountabilityController::class, 'invoices'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/student-debts', [FinancialAccountabilityController::class, 'studentDebts'])->middleware(['throttle:api-read', 'role:ADMIN,STUDENT']);
     Route::post('/invoices', [FinancialAccountabilityController::class, 'storeInvoice'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/invoices/{invoice}/payments', [FinancialAccountabilityController::class, 'recordInvoicePayment'])->middleware(['throttle:api-write', 'role:ADMIN']);
@@ -178,8 +177,6 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
 
     // Finance Routes - Reports
     Route::get('/financial-reports', [FinancialReportController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::get('/financial-reports/deadline', [FinancialReportDeadlineController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::post('/financial-reports/deadline', [FinancialReportDeadlineController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/financial-semesters', [FinancialSemesterController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN']);
     Route::post('/financial-semesters', [FinancialSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN']);

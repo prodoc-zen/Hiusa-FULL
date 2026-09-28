@@ -129,8 +129,6 @@ class FinanceReadAccessTest extends TestCase
             $this->assertCount(1, $reports, "{$role} should only see financial reports from their own organization.");
             $this->assertSame($ownRecords['report']->id, $reports[0]['id']);
 
-            $this->getJson('/api/financial-reports/deadline')->assertOk();
-
             $this->getJson('/api/financial-reports/'.$ownRecords['report']->id)->assertOk();
             $this->getJson('/api/financial-reports/'.$otherRecords['report']->id)->assertNotFound();
         }
@@ -164,7 +162,6 @@ class FinanceReadAccessTest extends TestCase
                 'signatories' => ['treasurer' => 't', 'president' => 'p', 'adviser' => 'a', 'sbo_adviser' => 's'],
             ])->assertForbidden();
             $this->postJson('/api/financial-reports/'.$records['report']->id.'/submit')->assertForbidden();
-            $this->postJson('/api/financial-reports/deadline', ['deadline_at' => now()->addWeek()->toDateTimeString()])->assertForbidden();
 
             $this->postJson('/api/collections', ['amount_collected' => 1, 'source' => 'x'])->assertForbidden();
             $this->patchJson('/api/collections/'.$records['collection']->id.'/verify')->assertForbidden();
