@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\EvaluationController;
 use App\Models\EvaluationResponse;
 use App\Models\EvaluationWindow;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Cache;
 use Laravel\Sanctum\Sanctum;
 use ReflectionClass;
@@ -47,7 +49,7 @@ class EvaluationModuleTest extends TestCase
         ]);
     }
 
-    private function closedWindow(?string $title = 'HIUSA v1 Evaluation', ?\Illuminate\Support\Carbon $closesAt = null): EvaluationWindow
+    private function closedWindow(?string $title = 'HIUSA v1 Evaluation', ?Carbon $closesAt = null): EvaluationWindow
     {
         return EvaluationWindow::create([
             'title' => $title,
@@ -283,7 +285,7 @@ class EvaluationModuleTest extends TestCase
 
     public function test_likert_label_boundaries_are_exact_at_every_table_3_edge(): void
     {
-        $controller = new \App\Http\Controllers\EvaluationController;
+        $controller = new EvaluationController;
         $method = (new ReflectionClass($controller))->getMethod('likertLabel');
         $method->setAccessible(true);
 
@@ -510,6 +512,74 @@ class EvaluationModuleTest extends TestCase
         $this->authenticate($admin);
 
         $this->getJson('/api/evaluation/results')->assertStatus(404);
+    }
+
+    public function test_a_closed_window_cannot_be_reopened_or_have_its_status_changed_again(): void
+    {
+        $window = $this->closedWindow();
+
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $this->authenticate($superAdmin);
+
+        $this->patchJson("/api/evaluation/windows/{$window->id}", ['status' => 'open'])->assertStatus(409);
+        $this->assertSame('closed', $window->fresh()->status);
+
+        // Re-submitting the same terminal value is also rejected: once
+        // closed, the status field is immutable through this endpoint.
+        $this->patchJson("/api/evaluation/windows/{$window->id}", ['status' => 'closed'])->assertStatus(409);
+
+        // Metadata that cannot change any computed result is still editable.
+        $this->patchJson("/api/evaluation/windows/{$window->id}", ['title' => 'Renamed after close'])
+            ->assertOk()->assertJsonPath('title', 'Renamed after close');
+        $this->assertSame('closed', $window->fresh()->status);
+    }
+
+    public function test_admin_respondent_cannot_use_their_own_answer_to_deanonymize_the_other_two_officers(): void
+    {
+        $org = Organization::factory()->create();
+        $window = $this->closedWindow();
+
+        $admin = $this->user('ADMIN', $org->id);
+        $this->seedResponses($window, $org, 'officer', 'SBO_OFFICER', 2);
+
+        // Seed the ADMIN's own response directly so it carries their real
+        // user_id, matching how storeResponse() would have recorded it.
+        $items = config('evaluation.instruments.officer.items');
+        $answers = [];
+        foreach ($items as $item) {
+            if ($item['type'] === 'likert') {
+                $answers[$item['code']] = 3;
+            }
+        }
+        EvaluationResponse::create([
+            'evaluation_window_id' => $window->id,
+            'organization_id' => $org->id,
+            'user_id' => $admin->school_id,
+            'respondent_type' => 'officer',
+            'consent_given_at' => now(),
+            'profile' => [],
+            'answers' => $answers,
+            'feedback' => null,
+            'submitted_at' => now(),
+        ]);
+        Cache::flush();
+
+        $this->authenticate($admin);
+        $suppressed = $this->getJson('/api/evaluation/results')->assertOk();
+        $suppressed->assertJsonPath('groups.officer.n', 3)
+            ->assertJsonPath('groups.officer.anonymized', true)
+            ->assertJsonPath('groups.officer.self_respondent', true)
+            ->assertJsonMissingPath('groups.officer.overall_mean')
+            ->assertJsonMissingPath('groups.officer.sections');
+
+        // A fourth OTHER officer response brings "other respondents" to 3,
+        // clearing the threshold, so the aggregate is now safe to reveal.
+        $this->seedResponses($window, $org, 'officer', 'SBO_OFFICER', 1);
+
+        $shown = $this->getJson('/api/evaluation/results')->assertOk();
+        $shown->assertJsonPath('groups.officer.n', 4)
+            ->assertJsonPath('groups.officer.anonymized', false);
+        $this->assertNotNull($shown->json('groups.officer.overall_mean'));
     }
 
     public function test_export_applies_the_same_privacy_rules_as_the_json_results_endpoint(): void

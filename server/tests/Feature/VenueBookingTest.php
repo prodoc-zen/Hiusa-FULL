@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\VenueBookingController;
 use App\Models\Organization;
 use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueBooking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -309,5 +311,73 @@ class VenueBookingTest extends TestCase
             'status' => 'approved', 'requested_by' => $officer->school_id,
         ]);
         $this->patchJson("/api/venue-bookings/{$pastBooking->id}/withdraw")->assertStatus(409);
+    }
+
+    public function test_withdraw_rechecks_status_under_lock_instead_of_trusting_a_stale_pre_lock_read(): void
+    {
+        // True cross-request concurrency cannot be reproduced against a
+        // single synchronous test connection, so this simulates the
+        // interleaving sequentially: $staleBooking stands in for the
+        // $venueBooking argument route-model-binding would have resolved for
+        // an incoming withdraw request the instant before a concurrent
+        // reject committed. The controller must not trust that argument's
+        // cached status - it must re-derive "pending or future-approved"
+        // from the row it locks inside its own transaction.
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+
+        Sanctum::actingAs($admin);
+        $bookingId = $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'start_time' => now()->addDay()->toISOString(),
+            'end_time' => now()->addDay()->addHour()->toISOString(),
+        ])->assertCreated()->json('id');
+
+        $staleBooking = VenueBooking::findOrFail($bookingId);
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/venue-bookings/{$bookingId}/review", ['status' => 'rejected', 'remarks' => 'Conflict found.'])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $request = Request::create("/api/venue-bookings/{$bookingId}/withdraw", 'PATCH');
+        $request->setUserResolver(fn () => $admin);
+
+        $response = (new VenueBookingController)->withdraw($request, $staleBooking);
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('rejected', VenueBooking::find($bookingId)->status);
+    }
+
+    public function test_review_notifies_a_profile_based_officer_of_the_booking_organization(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $main = Organization::factory()->create();
+        $child = Organization::factory()->create(['parent_organization_id' => $main->id]);
+        $childAdmin = $this->user('ADMIN', $child->id);
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+
+        // Home organization is $main, but invited into $child as an officer
+        // via an account profile - not a home membership.
+        $invitedOfficer = User::factory()->create(['role' => 'STUDENT', 'organization_id' => $main->id, 'account_status' => 'active']);
+        $invitedOfficer->accountProfiles()->create(['organization_id' => $child->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active']);
+
+        Sanctum::actingAs($childAdmin);
+        $bookingId = $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'start_time' => now()->addDay()->toISOString(),
+            'end_time' => now()->addDay()->addHour()->toISOString(),
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/venue-bookings/{$bookingId}/review", ['status' => 'approved'])->assertOk();
+
+        $this->assertDatabaseHas('notifications', [
+            'organization_id' => $child->id,
+            'user_id' => $invitedOfficer->school_id,
+            'reference_type' => 'venue_booking',
+            'reference_id' => $bookingId,
+        ]);
     }
 }
