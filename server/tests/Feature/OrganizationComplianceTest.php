@@ -174,6 +174,123 @@ class OrganizationComplianceTest extends TestCase
         $this->patchJson("/api/compliance/submissions/{$submissionId}/review", ['status' => 'approved'])->assertForbidden();
     }
 
+    public function test_resubmitting_an_already_approved_requirement_is_rejected(): void
+    {
+        Storage::fake('local');
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $requirementType = ComplianceRequirementType::create([
+            'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id,
+        ]);
+
+        Sanctum::actingAs($admin);
+        $submissionId = $this->postJson('/api/compliance/submissions', [
+            'requirement_type_id' => $requirementType->id,
+            'document' => UploadedFile::fake()->create('statement.pdf', 200, 'application/pdf'),
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", ['status' => 'approved'])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/compliance/submissions', [
+            'requirement_type_id' => $requirementType->id,
+            'document' => UploadedFile::fake()->create('statement-v2.pdf', 200, 'application/pdf'),
+        ])->assertStatus(409);
+
+        $this->assertSame('approved', OrganizationComplianceSubmission::find($submissionId)->status);
+        $this->assertDatabaseCount('organization_compliance_submissions', 1);
+    }
+
+    public function test_admins_are_notified_when_a_requirement_deadline_changes(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        Sanctum::actingAs($superAdmin);
+
+        $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => now()->addMonth()->toISOString(),
+        ])->assertCreated()->json('id');
+
+        $newDeadline = now()->addMonths(2);
+        $this->putJson("/api/compliance/requirement-types/{$requirementTypeId}", [
+            'deadline_at' => $newDeadline->toISOString(),
+        ])->assertOk();
+
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $admin->school_id,
+            'organization_id' => $admin->organization_id,
+            'title' => 'Compliance deadline changed',
+            'reference_type' => 'compliance_requirement_type',
+            'reference_id' => $requirementTypeId,
+        ]);
+    }
+
+    public function test_no_deadline_notification_when_the_deadline_is_unchanged(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $this->user('ADMIN', $organization->id);
+        Sanctum::actingAs($superAdmin);
+
+        $deadline = now()->addMonth();
+        $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => $deadline->toISOString(),
+        ])->assertCreated()->json('id');
+
+        $this->putJson("/api/compliance/requirement-types/{$requirementTypeId}", [
+            'name' => 'Financial Statement (Revised)',
+        ])->assertOk();
+
+        $this->assertDatabaseMissing('notifications', [
+            'title' => 'Compliance deadline changed',
+            'reference_type' => 'compliance_requirement_type',
+            'reference_id' => $requirementTypeId,
+        ]);
+    }
+
+    public function test_admin_requirement_types_are_scoped_to_active_current_academic_year(): void
+    {
+        // The route this hits is gated to role:SUPER_ADMIN,ADMIN by slice F1
+        // (server/routes/api.php is outside this slice's scope, still
+        // SUPER_ADMIN-only on this branch); this exercises
+        // ComplianceController::requirementTypes() directly so the
+        // ADMIN-scoping fix is covered independently of that route change.
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+
+        ComplianceRequirementType::create([
+            'academic_year' => '2025-2026', 'name' => 'Old Report', 'deadline_at' => now()->subMonth(),
+            'is_active' => true, 'created_by' => $superAdmin->school_id,
+        ]);
+        $current = ComplianceRequirementType::create([
+            'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth(),
+            'description' => 'Submit the audited financial statement.', 'is_active' => true, 'created_by' => $superAdmin->school_id,
+        ]);
+        ComplianceRequirementType::create([
+            'academic_year' => '2026-2027', 'name' => 'Retired Requirement', 'deadline_at' => now()->addMonth(),
+            'is_active' => false, 'created_by' => $superAdmin->school_id,
+        ]);
+
+        $request = \Illuminate\Http\Request::create('/api/compliance/requirement-types', 'GET');
+        $request->setUserResolver(fn () => $admin);
+
+        $response = app(\App\Http\Controllers\ComplianceController::class)->requirementTypes($request);
+        $payload = json_decode($response->getContent(), true);
+
+        $this->assertSame([$current->id], collect($payload['data'])->pluck('id')->all());
+        $this->assertSame('2026-2027', $payload['data'][0]['academic_year']);
+        $this->assertSame('Submit the audited financial statement.', $payload['data'][0]['description']);
+        $this->assertNotNull($payload['data'][0]['deadline_at']);
+    }
+
     public function test_student_cannot_submit_or_review_compliance_documents(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
