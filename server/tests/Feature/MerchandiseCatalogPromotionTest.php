@@ -43,6 +43,13 @@ class MerchandiseCatalogPromotionTest extends TestCase
             'record_id' => $itemId, 'action' => 'stock_adjusted', 'user_id' => $admin->school_id,
         ]);
         $this->getJson("/api/merchandise/{$itemId}/audit-logs")->assertOk()->assertJsonCount(2);
+        $variantUpdate = ['variants' => json_encode([
+            ['id' => $variantId, 'name' => 'S', 'stock_quantity' => 7],
+            ['id' => $created->json('variants.1.id'), 'name' => 'XL', 'stock_quantity' => 3],
+        ])];
+        $this->putJson("/api/merchandise/{$itemId}", $variantUpdate)->assertUnprocessable();
+        $this->putJson("/api/merchandise/{$itemId}", [...$variantUpdate, 'stock_note' => 'Count correction'])
+            ->assertOk()->assertJsonPath('stock_quantity', 10);
 
         Sanctum::actingAs($student);
         $this->patchJson("/api/merchandise/{$itemId}/stock", ['stock_delta' => 10, 'note' => 'No'])
@@ -107,5 +114,25 @@ class MerchandiseCatalogPromotionTest extends TestCase
             'id' => $firstOrder->json('id'), 'total_price' => 300, 'promotion_applied' => 1,
         ]);
         $this->getJson('/api/merchandise')->assertOk()->assertJsonPath('data.0.promotion_remaining', 0);
+    }
+
+    public function test_pending_legacy_order_prevents_converting_product_to_variants(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $item = Merchandise::factory()->create([
+            'organization_id' => $organization->id, 'is_active' => true, 'stock_quantity' => 5,
+        ]);
+
+        Sanctum::actingAs($buyer);
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1])->assertCreated();
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/merchandise/'.$item->id, [
+            'variants' => json_encode([['name' => 'M', 'stock_quantity' => 5]]),
+        ])->assertConflict();
+        $this->assertSame(0, $item->variants()->count());
+        $this->assertSame(5, $item->fresh()->stock_quantity);
     }
 }

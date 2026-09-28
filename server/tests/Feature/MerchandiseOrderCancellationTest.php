@@ -61,7 +61,7 @@ class MerchandiseOrderCancellationTest extends TestCase
         $organization = Organization::factory()->create();
         $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
         $otherBuyer = User::factory()->student()->create(['organization_id' => $organization->id]);
-        $item = Merchandise::factory()->create(['organization_id' => $organization->id]);
+        $item = Merchandise::factory()->create(['organization_id' => $organization->id, 'is_active' => true, 'stock_quantity' => 5]);
         $order = $this->pendingOrder($otherBuyer, $item);
 
         Sanctum::actingAs($buyer);
@@ -80,6 +80,7 @@ class MerchandiseOrderCancellationTest extends TestCase
         $buyer = User::factory()->student()->create(['organization_id' => $organization->id]);
         $item = Merchandise::factory()->create([
             'organization_id' => $organization->id,
+            'is_active' => true,
             'stock_quantity' => 4,
         ]);
         $order = $this->pendingOrder($buyer, $item);

@@ -33,6 +33,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addDays(30),
             'end_time' => now()->addDays(30)->addHours(3),
             'planning_details' => [
@@ -118,6 +119,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $organization,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
         ]);
 
         Sanctum::actingAs($student);
@@ -138,7 +140,7 @@ class EventPlanningWorkflowTest extends TestCase
     {
         config(['services.groq.key' => 'test-groq-key']);
         $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
-        $event = Event::factory()->create(['organization_id' => $admin->organization_id, 'created_by' => $admin->school_id, 'start_time' => now()->addDays(30), 'end_time' => now()->addDays(30)->addHours(2)]);
+        $event = Event::factory()->create(['organization_id' => $admin->organization_id, 'created_by' => $admin->school_id, 'status' => 'planning', 'start_time' => now()->addDays(30), 'end_time' => now()->addDays(30)->addHours(2)]);
         SboPosition::create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
         User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
         $workflow = $this->workflowPayload($event);
@@ -165,6 +167,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addDays(30),
             'end_time' => now()->addDays(30)->addHours(3),
         ]);
@@ -203,6 +206,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addMinutes(4),
             'end_time' => now()->addHours(2),
         ]);
@@ -236,6 +240,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addWeek(),
             'end_time' => now()->addWeek()->addHours(2),
         ]);
@@ -257,7 +262,6 @@ class EventPlanningWorkflowTest extends TestCase
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN']);
         $departmentHead = User::factory()->create(['organization_id' => $organization->id, 'role' => 'DEPARTMENT_HEAD']);
-        $budgetApprover = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $officer = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
         $student = User::factory()->student()->create(['organization_id' => $organization->id]);
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
@@ -287,9 +291,9 @@ class EventPlanningWorkflowTest extends TestCase
         $eventApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->firstOrFail();
         $budgetApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->firstOrFail();
         $this->patchJson("/api/approval-requests/{$eventApproval->id}", ['status' => 'approved'])->assertOk();
-        $this->assertSame('ADMIN', $budgetApproval->required_role);
-        Sanctum::actingAs($budgetApprover);
+        $this->assertSame(config('approvals.routes.budget'), $budgetApproval->required_role);
         $this->patchJson("/api/approval-requests/{$budgetApproval->id}", ['status' => 'approved'])->assertOk();
+        $this->assertDatabaseHas('budgets', ['id' => $budget->id, 'submission_status' => 'approved', 'department_head_approved_by' => $departmentHead->school_id]);
         $event->refresh();
 
         Http::fake(['*' => Http::response(['model' => 'test-model', 'output_text' => json_encode($this->workflowPayload($event))])]);
@@ -368,6 +372,7 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertDatabaseHas('approval_requests', ['entity_type' => 'budget', 'entity_id' => $budget->id, 'status' => 'pending']);
 
         ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->update(['status' => 'approved']);
+        $budget->update(['submission_status' => 'approved']);
         $transactionBase = [
             'budget_id' => $budget->id,
             'event_id' => $eventId,

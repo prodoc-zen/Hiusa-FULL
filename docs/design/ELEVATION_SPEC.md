@@ -21,8 +21,9 @@ Custom names avoid clashing with Tailwind's default palette. Use these utilities
 |---|---|---|
 | `--color-navy-950` | #0B1831 | Sidebar, briefing band, auth brand panel |
 | `--color-navy-800` | #0F2F62 | Secondary dark panels, chart primary series on light |
-| `--color-brand-600` | #0B8ED0 | Primary buttons, active nav, links, selection |
-| `--color-brand-700` | #0878B7 | Primary hover |
+| `--color-brand-600` | #0B8ED0 | Non-text or large elements only: active nav indicator, icons, focus accents, charts, selection, large headings |
+| `--color-brand-700` | #0878B7 | Default for primary buttons and text links (white on brand-700 is 4.79:1; white on brand-600 is 3.62:1 and fails AA for text) |
+| `--color-brand-800` | #06659A | Primary button hover and pressed state (white on brand-800 is 6.30:1) |
 | `--color-brand-100` | #CDE9F7 | Selected rows, text selection |
 | `--color-brand-50` | #E7F4FB | Info tint, active nav background on light |
 | `--color-accent` | #16C7F3 | Focus rings, live indicators, chart accent only |
@@ -32,13 +33,20 @@ Custom names avoid clashing with Tailwind's default palette. Use these utilities
 | `--color-line` | #DDE7EF | Borders, dividers, input borders |
 | `--color-line-soft` | #E5EDF3 | Table row borders |
 | `--color-ink` | #0F172A | Titles, values, labels |
-| `--color-ink-muted` | #64748B | Descriptions, helper text |
+| `--color-ink-muted` | #64748B | Descriptions, helper text on white surfaces only (4.76:1 on `--color-surface`; only 4.35:1 on `--color-page`, which fails) |
+| `--color-ink-muted-strong` | #475569 | Descriptions and helper text placed directly on `--color-page` (6.93:1 on page, 7.58:1 on surface), used by `PageHeader`'s description |
 | `--color-ink-soft` | #94A3B8 | Placeholders, tertiary metadata (never body text) |
-| `--color-success` / `-strong` / `-tint` | #16A34A / #15803D / #E8F6ED | Completed, approved, paid |
+| `--color-success` / `-strong` / `-tint` | #16A34A / #15803D / #EBF7EF | Completed, approved, paid (success-strong on tint is 4.56:1; the prior tint #E8F6ED measured 4.499:1 and failed) |
 | `--color-warning` / `-strong` / `-tint` | #F59E0B / #B45309 / #FEF3DB | Pending, review needed |
 | `--color-danger` / `-strong` / `-tint` | #DC2626 / #B91C1C / #FBE9E9 | Destructive, failed, blocked |
 
 Badge text always uses the `-strong` shade on the `-tint` background (the base hues fail 4.5:1 on tints).
+
+### 2.1 Accessibility decision: brand-600 button text (orchestrator, 2026-09-27)
+
+Measured: white text on `--color-brand-600` (#0B8ED0) is 3.62:1, failing WCAG AA (4.5:1) for normal-size text. Decision: `Button` and `IconButton` primary variants, and default text-link color, move to `--color-brand-700` (4.79:1) with `--color-brand-800` (6.30:1, new token) as the hover/pressed step. `--color-brand-600` remains the brand accent for everything that is not text or is large/decorative: the active nav indicator, standalone icons, focus rings and carets, chart series, selection highlights, and large headings, none of which carry the 4.5:1 text requirement.
+
+Also measured: `PageHeader`'s description sits directly on `--color-page` (#EEF6FB), where `--color-ink-muted` is 4.35:1 and fails. Decision: introduce `--color-ink-muted-strong` (#475569, 6.93:1 on page) for muted text placed directly on the page background; keep `--color-ink-muted` for muted text inside white surfaces (cards, tables, modals), where it already passes at 4.76:1. `PageHeader`'s description also caps its measure at `max-w-[75ch]`.
 
 - Radius: `--radius-control` 6px (inputs, buttons), `--radius-card` 8px (cards, modals), full for badges and avatars.
 - Shadows (always offset plus soft blur, never a zero-offset halo): `--shadow-card` 0 1px 2px rgb(15 23 42 / 0.04), 0 1px 3px rgb(15 23 42 / 0.06); `--shadow-raised` 0 12px 32px -8px rgb(11 24 49 / 0.20), 0 2px 6px rgb(11 24 49 / 0.06) for popovers, drawers, modals.
@@ -59,11 +67,11 @@ All components are keyboard operable, labelled, and ship every state: default, h
 - `EmptyState`: three kinds. First-run: a composed lucide illustration (icon inside a soft brand-tinted faceted shape), a title that names the thing, one sentence on why it matters, a primary action. Filtered: "No results for 'x'" plus clear filters. Restricted: explains who can do this.
 - `ErrorState`: names the problem and the recovery, with a "Try again" button.
 - `Skeleton` family: `Skeleton`, `SkeletonText`, `SkeletonCard`, `SkeletonTable`, `SkeletonStat`; a subtle shimmer that stops under reduced motion. Plain "Loading..." text is banned.
-- `DataTable`: columns config, a styled table at md and up that becomes stacked cards below md, optional sort, row actions on the right, sticky header, built-in loading, empty and error states, slots for the existing `TableFilterBar` and `PaginationControls`.
+- `DataTable`: columns config, a styled table at md and up that becomes divided rows in the parent Card below md (never nested cards), optional sort with `aria-sort`, row actions on the right, a header sticky to the page, built-in loading, a neutral first-run empty state by default and the filtered state only when `filtersActive`, error states, slots for the existing `TableFilterBar` and `PaginationControls`. The desktop table does not wrap itself in its own horizontal scroll container: a `position: sticky` header inside an `overflow-x` wrapper sticks to that wrapper, not the page, in every current browser (measured), and the only fix that keeps page-relative stickiness with independent horizontal scroll is splitting header and body into separately scrolled, JS-synced elements, which breaks native `<table>` semantics for screen readers. Given DataTable's columns today, we keep one semantic table, drop the horizontal scroll, and let columns reflow at width; headers stay `whitespace-nowrap`. Revisit only if a table needs enough columns that reflow stops being readable.
 - `Tabs` and `SegmentedControl`: accessible roving focus, an indicator that slides between tabs (transform, 180ms).
 - `Drawer`: right-side sheet for record details and quick edits (preferred over a modal when the task does not need to block the page).
 - Modals: keep the existing `Modal`, `ConfirmModal` and `AccessibleOverlay` APIs, restyle to the tokens, 240ms scale 0.97 to 1 plus fade, centered origin.
-- Toasts: `sonner` mounted once; a `notify.success / error / info / promise` helper; `FeedbackToast` keeps its API but delegates to it.
+- Toasts: `sonner` mounted once, themed (not unstyled) so stacked toasts stay opaque; a `notify.success / error / info / warning / promise` helper; `FeedbackToast` keeps its API but delegates to it.
 - `Avatar` (photo or initials with a deterministic brand tint) and `OrgMark` (organization logo or abbreviation).
 - `Tooltip`, `Kbd`, `ProgressMeter` (labelled value against a limit, thresholds change tone at 80% and 100%), `Stat` (value, label, delta with direction and period, one-line context, optional link).
 

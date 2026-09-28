@@ -132,6 +132,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'allocated_amount' => 1000,
             'remaining_amount' => 750,
             'warning_threshold' => 100,
+            'submission_status' => 'approved',
         ]);
         ApprovalRequest::create([
             'organization_id' => $admin->organization_id,
@@ -296,8 +297,9 @@ class RequestedWorkflowCompletionTest extends TestCase
         ]);
 
         Sanctum::actingAs($admin);
-        $this->patchJson("/api/merchandise/{$item->id}/stock", ['stock_delta' => 2])->assertOk();
-        $this->patchJson("/api/merchandise/{$item->id}/stock", ['stock_delta' => 3])
+        $this->patchJson("/api/merchandise/{$item->id}/stock", ['stock_delta' => 2])->assertUnprocessable();
+        $this->patchJson("/api/merchandise/{$item->id}/stock", ['stock_delta' => 2, 'note' => 'First delivery'])->assertOk();
+        $this->patchJson("/api/merchandise/{$item->id}/stock", ['stock_delta' => 3, 'note' => 'Second delivery'])
             ->assertOk()
             ->assertJsonPath('stock_quantity', 6);
         $this->assertDatabaseHas('audit_logs', [

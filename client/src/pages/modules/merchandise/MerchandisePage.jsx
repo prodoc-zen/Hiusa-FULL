@@ -971,6 +971,7 @@ export default function MerchandisePage({ initialTab }) {
       low_stock_threshold: String(item.low_stock_threshold ?? 9),
       promotion_price: String(item.promotion_price ?? ""),
       promotion_buyer_limit: String(item.promotion_buyer_limit ?? ""),
+      stock_note: "",
     });
     setVariantImages((item.variants || []).map(() => null));
     setEditImageFile(null);
@@ -1027,6 +1028,7 @@ export default function MerchandisePage({ initialTab }) {
         low_stock_threshold: editForm.low_stock_threshold,
         promotion_price: editForm.promotion_price || "",
         promotion_buyer_limit: editForm.promotion_buyer_limit || "",
+        stock_note: editForm.stock_note || "",
       });
       const updated = res.data;
       setItems((prev) =>
@@ -4275,6 +4277,9 @@ export default function MerchandisePage({ initialTab }) {
                 />
               </div>
               <CatalogFields value={editForm} onChange={setEditForm} images={variantImages} onImagesChange={setVariantImages} />
+              <label className="block text-[13px] font-semibold text-[#0F172A]">Stock change reason
+                <textarea value={editForm.stock_note || ""} onChange={(event) => setEditForm({ ...editForm, stock_note: event.target.value })} maxLength={500} rows={2} placeholder="Required when changing product or variant stock" className="mt-1 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" />
+              </label>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">

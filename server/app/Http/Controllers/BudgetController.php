@@ -115,19 +115,16 @@ class BudgetController extends Controller
             $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
         }
 
-        if ($this->hasApprovedApproval($budget) && $this->hasMaterialBudgetChange($data)) {
-            $this->reopenApproval($budget, $request);
+        if ($this->isAwaitingSaoOrApproved($budget) && $this->hasMaterialBudgetChange($data)) {
+            $this->restartApprovalAtDepartmentHead($budget, $request);
         }
 
         $budget->update($data);
         $this->recordBudgetAudit($request, 'updated', $budget, $oldValues, $this->auditableValues($budget->fresh()));
 
-        ApprovalRequest::where('entity_type', 'budget')
-            ->where('entity_id', $budget->id)
-            ->where('status', 'rejected')
-            ->where('organization_id', $budget->organization_id)
-            ->get()
-            ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
+        if ($this->hasRejectedApproval($budget)) {
+            $this->restartApprovalAtDepartmentHead($budget, $request);
+        }
 
         return response()->json($budget->fresh()->load('event:id,title'));
     }
@@ -280,13 +277,14 @@ class BudgetController extends Controller
         }
     }
 
-    private function hasApprovedApproval(Budget $budget): bool
+    private function isAwaitingSaoOrApproved(Budget $budget): bool
     {
-        return ApprovalRequest::where('entity_type', 'budget')
-            ->where('entity_id', $budget->id)
-            ->where('organization_id', $budget->organization_id)
-            ->where('status', 'approved')
-            ->exists();
+        return in_array($budget->submission_status, ['pending_sao', 'approved'], true);
+    }
+
+    private function hasRejectedApproval(Budget $budget): bool
+    {
+        return $budget->submission_status === 'rejected';
     }
 
     private function hasMaterialBudgetChange(array $data): bool
@@ -301,7 +299,7 @@ class BudgetController extends Controller
         ])) > 0;
     }
 
-    private function reopenApproval(Budget $budget, Request $request): void
+    private function restartApprovalAtDepartmentHead(Budget $budget, Request $request): void
     {
         ApprovalRequest::where('entity_type', 'budget')
             ->where('entity_id', $budget->id)
@@ -312,6 +310,12 @@ class BudgetController extends Controller
                 $request->user()->id,
                 config('approvals.routes.budget')
             );
+
+        $budget->update([
+            'submission_status' => 'pending_department_head',
+            'department_head_approved_by' => null,
+            'department_head_approved_at' => null,
+        ]);
     }
 
     private function validAdvice(?array $advice): bool

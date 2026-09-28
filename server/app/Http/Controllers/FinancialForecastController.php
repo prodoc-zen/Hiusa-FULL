@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
-use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
@@ -115,14 +114,15 @@ class FinancialForecastController extends Controller
         $predictedIncome = $analysis['predicted_income'];
         $predictedExpense = $analysis['predicted_expense'];
         $predictedBalance = $analysis['predicted_balance'];
-        $approvedBudgetIds = ApprovalRequest::query()
-            ->where('organization_id', $request->user()->organization_id)
-            ->where('entity_type', 'budget')
-            ->where('status', 'approved')
-            ->pluck('entity_id');
+        // Budgets go through an ApprovalRequest per stage (Department Head, then
+        // optionally SAO). A budget still pending its final stage has an earlier
+        // stage's ApprovalRequest row already marked 'approved', so filtering by
+        // ApprovalRequest::status counted budgets stuck at pending_sao as
+        // available funds. submission_status is the single source of truth for
+        // whether a budget has cleared every configured stage.
         $approvedBudgets = Budget::query()
             ->where('organization_id', $request->user()->organization_id)
-            ->whereIn('id', $approvedBudgetIds);
+            ->where('submission_status', 'approved');
         $currentAvailableBudget = (float) (clone $approvedBudgets)->sum('remaining_amount');
         $warningThreshold = (float) (clone $approvedBudgets)->sum('warning_threshold');
         $budgetAdvicePayload = [

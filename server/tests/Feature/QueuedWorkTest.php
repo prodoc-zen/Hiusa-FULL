@@ -107,6 +107,38 @@ class QueuedWorkTest extends TestCase
         $this->assertDatabaseMissing('notifications', ['user_id' => $otherOrgDeptHead->school_id]);
     }
 
+    public function test_sao_approval_notification_reaches_the_system_super_admin_across_organizations(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $studentOrganization = Organization::factory()->create();
+        $requester = User::factory()->admin()->create(['organization_id' => $studentOrganization->id]);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'account_status' => 'active']);
+        $ordinaryAdmin = User::factory()->admin()->create(['organization_id' => $studentOrganization->id]);
+
+        $approval = ApprovalRequest::create([
+            'organization_id' => $studentOrganization->id,
+            'entity_type' => 'budget',
+            'entity_id' => 55,
+            'requested_by' => $requester->school_id,
+            // Budgets only reach this second, SAO-facing stage after the
+            // Department Head approves (see ApprovalRequestController::
+            // approveBudget()) - hardcoded here since this test exercises
+            // NotifyApproversJob's cross-organization SUPER_ADMIN reach
+            // directly, independent of which entity type triggers it.
+            'required_role' => 'SUPER_ADMIN',
+            'status' => 'pending',
+        ]);
+
+        $this->assertDatabaseHas('notifications', [
+            'organization_id' => $sao->id,
+            'user_id' => $director->school_id,
+            'title' => 'New SAO Approval Request',
+            'reference_type' => 'approval_request',
+            'reference_id' => $approval->id,
+        ]);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $ordinaryAdmin->school_id, 'reference_id' => $approval->id]);
+    }
+
     public function test_budget_approval_notification_reaches_another_admin_in_the_organization(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
@@ -115,12 +147,16 @@ class QueuedWorkTest extends TestCase
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id, 'account_status' => 'active']);
         $approver = User::factory()->admin()->create(['organization_id' => $studentOrganization->id]);
 
+        // Unlike the SAO-facing stage above, a request routed to the
+        // organization's own ADMIN (the default single-stage routing, or the
+        // 'budget' => 'ADMIN' collaborator-routing mode) must notify a
+        // same-organization admin, never the cross-organization SAO director.
         $approval = ApprovalRequest::create([
             'organization_id' => $studentOrganization->id,
             'entity_type' => 'budget',
-            'entity_id' => 55,
+            'entity_id' => 56,
             'requested_by' => $requester->school_id,
-            'required_role' => config('approvals.routes.budget'),
+            'required_role' => 'ADMIN',
             'status' => 'pending',
         ]);
 

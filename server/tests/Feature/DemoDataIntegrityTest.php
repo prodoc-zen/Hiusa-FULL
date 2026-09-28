@@ -160,22 +160,19 @@ class DemoDataIntegrityTest extends TestCase
 
     private function assertABudgetIsApprovedAndAcceptsARealTransactionPost(): void
     {
-        // Budgets have no approved_at column of their own - TransactionController
-        // gates new postings solely on the latest ApprovalRequest for the budget
-        // being 'approved', so that is what proves a budget is demo-ready.
-        $approvedApproval = ApprovalRequest::where('entity_type', 'budget')
-            ->where('status', 'approved')
-            ->first();
-        $this->assertNotNull($approvedApproval, 'No budget has an approved ApprovalRequest.');
+        // TransactionController gates new postings on Budget::submission_status
+        // being 'approved' - the single source of truth for the two-stage
+        // Department Head -> SAO chain, not any individual ApprovalRequest row
+        // (a budget stuck at pending_sao still has an 'approved' Department
+        // Head request) - so that is what proves a budget is demo-ready.
+        $approvedBudget = Budget::where('submission_status', 'approved')->first();
+        $this->assertNotNull($approvedBudget, 'No budget has submission_status approved.');
 
-        $approvedBudget = Budget::find($approvedApproval->entity_id);
-        $this->assertNotNull($approvedBudget, 'The approved budget ApprovalRequest points at a budget that no longer exists.');
-
-        // At least one budget must remain unapproved and pending for the same
+        // At least one budget must remain pending at some stage for the same
         // reason as events above.
         $this->assertTrue(
-            ApprovalRequest::where('entity_type', 'budget')->where('status', 'pending')->exists(),
-            'No pending budget ApprovalRequest exists for the Super Admin to act on.'
+            Budget::whereIn('submission_status', ['pending_department_head', 'pending_sao'])->exists(),
+            'No budget is pending Department Head or SAO review.'
         );
 
         // POST /api/transactions is ADMIN-only (routes/api.php), and must be an

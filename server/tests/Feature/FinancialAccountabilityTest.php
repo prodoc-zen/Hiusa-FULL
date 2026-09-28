@@ -166,6 +166,41 @@ class FinancialAccountabilityTest extends TestCase
             ->assertJsonPath('data.0.action_category_label', 'Status Change');
     }
 
+    public function test_super_admin_cannot_read_ledger_entries_via_audit_logs_but_still_sees_governance_entries(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $superAdmin = $this->user('SUPER_ADMIN');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/transactions', [
+            'type' => 'income',
+            'amount' => '5000.00',
+            'category' => 'Sponsorship',
+            'description' => 'Secret sponsor deal',
+            'transaction_date' => now()->toDateString(),
+        ])->assertCreated();
+        $this->assertDatabaseHas('audit_logs', ['module' => 'financial_ledger']);
+
+        AuditLog::create([
+            'organization_id' => $organization->id,
+            'user_id' => $admin->school_id,
+            'module' => 'users',
+            'action' => 'updated',
+            'record_type' => User::class,
+            'record_id' => $admin->school_id,
+            'created_at' => now(),
+        ]);
+
+        Sanctum::actingAs($superAdmin);
+        $response = $this->getJson('/api/audit-logs')->assertOk();
+        $modules = collect($response->json('data'))->pluck('module');
+
+        $this->assertFalse($modules->contains('financial_ledger'), 'SUPER_ADMIN must not see ledger audit entries from any organization.');
+        $this->assertTrue($modules->contains('users'), 'SUPER_ADMIN must still see governance audit entries.');
+        $this->assertStringNotContainsString('Secret sponsor deal', $response->getContent(), 'The ledger description must never reach the SUPER_ADMIN audit feed.');
+    }
+
     public function test_admin_can_view_one_students_debt_summary_for_the_profile_modal(): void
     {
         $admin = $this->user('ADMIN');

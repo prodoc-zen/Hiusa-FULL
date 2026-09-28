@@ -12,7 +12,9 @@ const FOCUSABLE = [
 export default function AccessibleOverlay({
   children,
   className,
+  baseClassName = 'hiusa-overlay overlay-fade-in max-w-full overflow-x-hidden',
   label,
+  labelledBy,
   onClose,
   closeOnBackdrop = false,
   closeOnEscape = true,
@@ -76,9 +78,10 @@ export default function AccessibleOverlay({
       ref={overlayRef}
       role="dialog"
       aria-modal="true"
-      aria-label={label}
+      aria-label={labelledBy ? undefined : label}
+      aria-labelledby={labelledBy}
       tabIndex={-1}
-      className={`hiusa-overlay max-w-full overflow-x-hidden ${className || ''}`}
+      className={`${baseClassName} ${className || ''}`}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onCloseRef.current?.();

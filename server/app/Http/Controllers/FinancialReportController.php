@@ -443,7 +443,7 @@ class FinancialReportController extends Controller
     private function canAccessReport(Request $request, FinancialReport $report): bool
     {
         return match ($request->user()->role) {
-            'ADMIN' => $report->organization_id === $request->user()->organization_id,
+            'ADMIN', 'SBO_OFFICER' => $report->organization_id === $request->user()->organization_id,
             'DEPARTMENT_HEAD' => $report->organization_id === $request->user()->organization_id
                 && $report->submitted_at !== null,
             'SUPER_ADMIN' => $report->department_head_approved_at !== null,
