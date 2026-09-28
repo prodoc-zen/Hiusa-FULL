@@ -2,7 +2,6 @@
 
 namespace Tests\Feature;
 
-use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
 use App\Models\Organization;
 use App\Models\User;
@@ -187,6 +186,91 @@ class ClearanceTest extends TestCase
         $idSearch = $this->getJson("/api/clearance-periods/{$periodId}/students?q={$studentB->school_id}")
             ->assertOk()->assertJsonCount(1, 'data')->json();
         $this->assertSame($studentB->school_id, $idSearch['data'][0]['student_id']);
+    }
+
+    public function test_opening_a_period_includes_a_profile_based_student_who_is_not_a_home_student(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $main = Organization::factory()->create();
+        $child = Organization::factory()->create(['parent_organization_id' => $main->id]);
+        // Home role is SBO_OFFICER in $main, not STUDENT anywhere at home,
+        // but holds an active STUDENT account profile in $child.
+        $officerWhoIsAlsoAStudentElsewhere = $this->user('SBO_OFFICER', $main->id);
+        $officerWhoIsAlsoAStudentElsewhere->accountProfiles()->create([
+            'organization_id' => $child->id, 'role' => 'STUDENT', 'account_status' => 'active',
+        ]);
+
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated()->json('id');
+
+        $this->assertDatabaseHas('clearance_signatures', [
+            'clearance_period_id' => $periodId,
+            'student_id' => $officerWhoIsAlsoAStudentElsewhere->school_id,
+            'organization_id' => $child->id,
+            'required_role' => 'organization_treasurer',
+        ]);
+        $this->assertDatabaseHas('notifications', [
+            'user_id' => $officerWhoIsAlsoAStudentElsewhere->school_id, 'organization_id' => $child->id,
+            'reference_type' => 'clearance_period', 'reference_id' => $periodId,
+        ]);
+    }
+
+    public function test_opening_a_period_gives_a_multi_org_student_only_their_home_organizations_row(): void
+    {
+        // clearance_signatures allows only one row per (period, student,
+        // role), so a student who is an active STUDENT of two organizations
+        // resolves to their home organization, not both.
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $main = Organization::factory()->create();
+        $child = Organization::factory()->create(['parent_organization_id' => $main->id]);
+        $student = $this->user('STUDENT', $main->id);
+        $student->accountProfiles()->create(['organization_id' => $child->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated()->json('id');
+
+        $this->assertDatabaseHas('clearance_signatures', [
+            'clearance_period_id' => $periodId, 'student_id' => $student->school_id,
+            'organization_id' => $main->id, 'required_role' => 'organization_treasurer',
+        ]);
+        $this->assertDatabaseCount('clearance_signatures', 1);
+    }
+
+    public function test_a_profile_based_officer_can_sign_clearance_lines_once_switched_to_that_organization(): void
+    {
+        // canSign() reads $user->role/organization_id off the authenticated
+        // model, which UseAccountProfile keeps in sync with whichever
+        // account profile the current token is switched to - so a
+        // profile-based officer is already correctly recognized once they
+        // are operating under that profile. This is a verification, not a
+        // fix: it documents that signatory eligibility needed no change.
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $main = Organization::factory()->create();
+        $child = Organization::factory()->create(['parent_organization_id' => $main->id]);
+        $childStudent = $this->user('STUDENT', $child->id);
+        $officer = User::factory()->create(['role' => 'STUDENT', 'organization_id' => $main->id, 'account_status' => 'active', 'password_hash' => 'password123']);
+        $childProfile = $officer->accountProfiles()->create(['organization_id' => $child->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active']);
+
+        Sanctum::actingAs($superAdmin);
+        $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated();
+        $signature = ClearanceSignature::where('student_id', $childStudent->school_id)->firstOrFail();
+
+        $token = $this->postJson('/api/login', ['school_id' => $officer->school_id, 'password' => 'password123'])->json('access_token');
+        $this->app['auth']->forgetGuards();
+
+        // Before switching profiles, the officer's active context is still
+        // their home STUDENT identity in $main - forbidden.
+        $this->withToken($token)->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'cleared'])->assertForbidden();
+
+        $this->withToken($token)->postJson('/api/user/profiles/'.$childProfile->id.'/switch')->assertOk();
+        $this->withToken($token)->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'cleared'])
+            ->assertOk()->assertJsonPath('status', 'cleared');
     }
 
     public function test_students_view_is_scoped_to_their_own_signatures(): void
