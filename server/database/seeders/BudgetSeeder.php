@@ -40,11 +40,11 @@ class BudgetSeeder extends Seeder
         ]);
 
         // Budgets go through a two-stage chain (Department Head, then SAO) -
-        // TransactionController gates new postings solely on the latest
-        // ApprovalRequest for the budget being 'approved'. The Sports Fest
-        // budget is left deliberately pending at the Department Head stage so
-        // the Department Head Approvals screen has a real budget to sign off
-        // on live, distinct from the event approval demo.
+        // TransactionController gates new postings solely on
+        // Budget::submission_status being 'approved'. The Sports Fest budget
+        // is left deliberately pending at the Department Head stage so the
+        // Department Head Approvals screen has a real budget to sign off on
+        // live, distinct from the event approval demo.
         $departmentHead = User::where('organization_id', $officer1->organization_id)
             ->where('role', 'DEPARTMENT_HEAD')
             ->first();
