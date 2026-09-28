@@ -29,6 +29,8 @@ class ApiPerformanceProtectionTest extends TestCase
         Announcement::factory()->create([
             'organization_id' => $user->organization_id,
             'created_by' => $user->school_id,
+            'target_role' => 'all',
+            'is_published' => true,
         ]);
         $token = $user->createToken('cache-test')->plainTextToken;
 
@@ -66,11 +68,15 @@ class ApiPerformanceProtectionTest extends TestCase
             'organization_id' => $firstUser->organization_id,
             'created_by' => $firstUser->school_id,
             'title' => 'First organization only',
+            'target_role' => 'all',
+            'is_published' => true,
         ]);
         Announcement::factory()->create([
             'organization_id' => $secondUser->organization_id,
             'created_by' => $secondUser->school_id,
             'title' => 'Second organization only',
+            'target_role' => 'all',
+            'is_published' => true,
         ]);
 
         $firstToken = $firstUser->createToken('first-cache-test')->plainTextToken;

@@ -33,6 +33,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addDays(30),
             'end_time' => now()->addDays(30)->addHours(3),
             'planning_details' => [
@@ -118,6 +119,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $organization,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
         ]);
 
         Sanctum::actingAs($student);
@@ -138,7 +140,7 @@ class EventPlanningWorkflowTest extends TestCase
     {
         config(['services.groq.key' => 'test-groq-key']);
         $admin = User::factory()->create(['organization_id' => Organization::factory(), 'role' => 'ADMIN']);
-        $event = Event::factory()->create(['organization_id' => $admin->organization_id, 'created_by' => $admin->school_id, 'start_time' => now()->addDays(30), 'end_time' => now()->addDays(30)->addHours(2)]);
+        $event = Event::factory()->create(['organization_id' => $admin->organization_id, 'created_by' => $admin->school_id, 'status' => 'planning', 'start_time' => now()->addDays(30), 'end_time' => now()->addDays(30)->addHours(2)]);
         SboPosition::create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'title' => 'Business Manager', 'is_active' => true]);
         User::factory()->create(['organization_id' => $admin->organization_id, 'role' => 'SBO_OFFICER', 'position_title' => 'Business Manager', 'account_status' => 'active']);
         $workflow = $this->workflowPayload($event);
@@ -165,6 +167,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addDays(30),
             'end_time' => now()->addDays(30)->addHours(3),
         ]);
@@ -203,6 +206,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addMinutes(4),
             'end_time' => now()->addHours(2),
         ]);
@@ -236,6 +240,7 @@ class EventPlanningWorkflowTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'planning',
             'start_time' => now()->addWeek(),
             'end_time' => now()->addWeek()->addHours(2),
         ]);
