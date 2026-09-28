@@ -160,13 +160,21 @@ class DashboardInsightEngine
     {
         $maxActive = max(1, (int) config('services.hiusa_ai.task_max_active_tasks', 5));
 
+        // Membership in $organizationId is decided by account_profiles, not
+        // users.organization_id: every user already has a profile row for
+        // their home organization (kept in sync by User::booted()), and an
+        // officer invited into a suborganization (AccountProfileController::
+        // invite) holds an additional profile there while users.organization_id
+        // still points at their original org. Same join UserController uses
+        // to list an organization's members.
         $officers = DB::table('users')
-            ->where('organization_id', $organizationId)
-            ->where('role', 'SBO_OFFICER')
-            ->where('account_status', 'active')
-            ->whereNotNull('position_title')
-            ->where('position_title', '!=', '')
-            ->get(['school_id', 'first_name', 'last_name', 'position_title']);
+            ->join('account_profiles as membership', 'membership.user_school_id', '=', 'users.school_id')
+            ->where('membership.organization_id', $organizationId)
+            ->where('membership.role', 'SBO_OFFICER')
+            ->where('membership.account_status', 'active')
+            ->whereNotNull('membership.position_title')
+            ->where('membership.position_title', '!=', '')
+            ->get(['users.school_id', 'users.first_name', 'users.last_name', 'membership.position_title as position_title']);
 
         if ($officers->count() < 2) {
             return null;

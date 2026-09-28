@@ -416,12 +416,42 @@ class DashboardBriefingTest extends TestCase
     public function test_task_workload_insight_uses_a_bounded_number_of_queries_regardless_of_officer_count(): void
     {
         config(['services.hiusa_ai.task_max_active_tasks' => 5]);
+
+        [$queryCountFor3] = $this->runTaskWorkloadBriefing(3);
+        [$queryCountFor12, $response, $officers] = $this->runTaskWorkloadBriefing(12);
+
+        // Confirmed by reverting DashboardInsightEngine.php alone: the old
+        // per-officer fan-out scaled with officer count (69 queries for 12
+        // officers versus far fewer for 3). A single grouped query keeps the
+        // briefing's total query count identical no matter how many officers
+        // the organization has, so these two counts must match exactly -
+        // not just both fall under some threshold.
+        $this->assertSame($queryCountFor3, $queryCountFor12, 'The task-workload insight must not issue one query per officer.');
+
+        $workload = collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance');
+        $this->assertNotNull($workload);
+        $this->assertSame(trim("{$officers[0]->first_name} {$officers[0]->last_name}"), $workload['why']['inputs']['busiest']['name']);
+        $this->assertSame(4, $workload['why']['inputs']['busiest']['active_tasks']);
+        $this->assertSame(0, $workload['why']['inputs']['freest']['active_tasks']);
+    }
+
+    /**
+     * Seeds one organization with $officerCount eligible SBO officers (one
+     * carrying 4 active tasks, the rest idle) and returns the resulting
+     * /api/dashboard/briefing query count alongside the response and the
+     * officer collection, so the caller can compare query counts across
+     * different officer counts from otherwise-identical setups.
+     *
+     * @return array{0: int, 1: \Illuminate\Testing\TestResponse, 2: \Illuminate\Support\Collection<int, User>}
+     */
+    private function runTaskWorkloadBriefing(int $officerCount): array
+    {
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
 
         $officers = collect();
-        for ($i = 0; $i < 12; $i++) {
+        for ($i = 0; $i < $officerCount; $i++) {
             $officers->push(User::factory()->create([
                 'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active',
             ]));
@@ -430,23 +460,57 @@ class DashboardBriefingTest extends TestCase
             Task::factory()->create(['organization_id' => $organization->id, 'assigned_to' => $officers[0]->id, 'status' => 'pending', 'deadline' => now()->addWeek()]);
         }
 
+        $this->app['auth']->forgetGuards();
         Sanctum::actingAs($admin);
+        DB::flushQueryLog();
         DB::enableQueryLog();
         $response = $this->getJson('/api/dashboard/briefing')->assertOk();
         $queryCount = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        // Confirmed by reverting DashboardInsightEngine.php alone: this same
-        // request issues 69 queries under the old per-officer fan-out for 12
-        // officers versus a flat ~33 after the fix - well clear of either
-        // side even as officer count changes.
-        $this->assertLessThan(45, $queryCount, 'The task-workload insight must not issue one query per officer.');
+        return [$queryCount, $response, $officers];
+    }
 
+    /**
+     * An officer's membership in an organization is decided by
+     * account_profiles, not users.organization_id (AccountProfileController::
+     * invite lets an ADMIN bring an existing account into a suborganization
+     * as SBO_OFFICER while that user's home users.organization_id stays
+     * wherever it started - AccountProfileTest covers the invite/switch
+     * flow). The task-workload insight must count such an officer too, not
+     * just officers whose home row already matches this organization.
+     */
+    public function test_task_workload_insight_includes_an_officer_who_belongs_only_through_an_account_profile(): void
+    {
+        config(['services.hiusa_ai.task_max_active_tasks' => 5]);
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
+
+        $nativeOfficer = User::factory()->create([
+            'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active',
+        ]);
+
+        $homeOrganization = Organization::factory()->create();
+        $invitedOfficer = User::factory()->create([
+            'organization_id' => $homeOrganization->id, 'role' => 'STUDENT', 'account_status' => 'active',
+        ]);
+        $invitedOfficer->accountProfiles()->create([
+            'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'account_status' => 'active', 'position_title' => 'Officer',
+        ]);
+
+        foreach (range(1, 4) as $n) {
+            Task::factory()->create(['organization_id' => $organization->id, 'assigned_to' => $nativeOfficer->id, 'status' => 'pending', 'deadline' => now()->addWeek()]);
+        }
+
+        Sanctum::actingAs($admin);
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
         $workload = collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance');
-        $this->assertNotNull($workload);
-        $this->assertSame(trim("{$officers[0]->first_name} {$officers[0]->last_name}"), $workload['why']['inputs']['busiest']['name']);
-        $this->assertSame(4, $workload['why']['inputs']['busiest']['active_tasks']);
+
+        $this->assertNotNull($workload, 'An officer who belongs to the organization only through an account_profiles row must still count toward the workload comparison.');
+        $this->assertSame(trim("{$invitedOfficer->first_name} {$invitedOfficer->last_name}"), $workload['why']['inputs']['freest']['name']);
         $this->assertSame(0, $workload['why']['inputs']['freest']['active_tasks']);
+        $this->assertSame(trim("{$nativeOfficer->first_name} {$nativeOfficer->last_name}"), $workload['why']['inputs']['busiest']['name']);
     }
 
     public function test_every_roles_briefing_hrefs_stay_within_its_client_route_allowlist(): void
@@ -474,9 +538,15 @@ class DashboardBriefingTest extends TestCase
             Sanctum::actingAs($user);
             $response = $this->getJson('/api/dashboard/briefing')->assertOk();
 
-            $allowed = config('client_routes.'.$user->role, []);
+            // Exclude pending_client explicitly rather than trusting
+            // config('client_routes.'.$user->role) to already be pure live
+            // paths - this is the same assertion that would have caught
+            // SBO_OFFICER/DEPARTMENT_HEAD's pending finance paths being
+            // array_merge'd into their live lists.
+            $pending = config('client_routes.pending_client.'.$user->role, []);
+            $allowed = array_values(array_diff(config('client_routes.'.$user->role, []), $pending));
             foreach ($this->collectHrefs($response->json()) as $href) {
-                $this->assertContains($href, $allowed, "{$user->role} received an href outside its allowlist: {$href}");
+                $this->assertContains($href, $allowed, "{$user->role} received an href outside its live allowlist: {$href}");
             }
         }
     }
@@ -521,12 +591,20 @@ class DashboardBriefingTest extends TestCase
             'submitted_by' => $orgAdmin->school_id, 'submitted_at' => now(), 'created_at' => now(), 'updated_at' => now(),
         ]);
 
+        // Filed through the real endpoint rather than inserted directly, so
+        // urgency comes out exactly as GrievanceController's classifier
+        // writes it ('Critical', capitalized) - the AI service is disabled
+        // test-wide (phpunit.xml), so this falls to localClassification(),
+        // whose CRITICAL_KEYWORDS list includes "danger" as a whole word.
         $filer = User::factory()->student()->create(['organization_id' => $organization->id, 'first_name' => 'Secret', 'last_name' => 'Filer']);
-        DB::table('grievances')->insert([
-            'organization_id' => $organization->id, 'submitted_by' => $filer->school_id, 'is_anonymous' => false,
-            'title' => 'Unsafe wiring', 'description' => 'Exposed wiring near the gym.', 'urgency' => 'critical', 'status' => 'submitted',
-            'created_at' => now(), 'updated_at' => now(),
-        ]);
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($filer);
+        $this->postJson('/api/grievances', [
+            'title' => 'Unsafe wiring',
+            'description' => 'There is a danger of electric shock from exposed wiring near the gym.',
+            'addressed_to' => 'organization',
+        ])->assertCreated()->assertJsonPath('urgency', 'Critical');
+        $this->app['auth']->forgetGuards();
 
         $clearancePeriodId = DB::table('clearance_periods')->insertGetId([
             'academic_year' => '2026-2027', 'title' => 'Year-end Clearance', 'required_roles' => json_encode(['sao']),
