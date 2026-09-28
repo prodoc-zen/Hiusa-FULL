@@ -6,21 +6,45 @@
  * attention items, insights, agenda, activity feed) can be checked before
  * it is sent. Built directly from client/src/App.jsx's <ProtectedRoute
  * allowedRoles=[...]> declarations - keep this file and that route tree in
- * sync when either changes.
+ * sync when either changes. tests/Feature/ClientRouteAllowlistTest.php
+ * parses App.jsx on every run and fails the suite the moment the two
+ * disagree, so drift here gets caught instead of shipping a dead or
+ * forbidden href.
  *
  * DashboardInsightEngine and DashboardBriefingService must resolve every
  * href through App\Services\Dashboard\ClientRouteAccess::hrefFor($role,
  * $path) rather than returning a literal path, so a role that cannot open
  * a page is handed null instead of a dead or forbidden link.
+ *
+ * 'pending_client' lists paths that are decided but not yet wired into
+ * App.jsx's route guards. They stay merged into the role lists below so
+ * the briefing can already link to them, but
+ * ClientRouteAllowlistTest::test_pending_client_entries_are_not_yet_live_in_app_jsx
+ * asserts each one is still ABSENT from App.jsx - once a client change adds
+ * one, that assertion starts failing and tells you to move the path out of
+ * pending_client into the role's live list instead.
  */
+
+$financePendingNextWave = [
+    '/dashboard/finance/financial-ledger',
+    '/dashboard/finance/budget-allocation',
+    '/dashboard/finance/financial-insights',
+    '/dashboard/finance/transaction-history',
+];
+
+$pendingClient = [
+    'SBO_OFFICER' => $financePendingNextWave,
+    'DEPARTMENT_HEAD' => $financePendingNextWave,
+];
+
 return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
         '/dashboard/super-admin/organizations',
+        '/dashboard/super-admin/event-requirements',
         '/dashboard/super-admin/admins',
         '/dashboard/super-admin/announcements',
         '/dashboard/super-admin/notifications',
-        '/dashboard/super-admin/approvals',
         '/dashboard/super-admin/financial-reports',
         '/dashboard/profile',
     ],
@@ -71,7 +95,7 @@ return [
         '/dashboard/elections/election-results',
     ],
 
-    'SBO_OFFICER' => [
+    'SBO_OFFICER' => array_merge([
         '/dashboard/officer',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
@@ -95,25 +119,14 @@ return [
         '/dashboard/elections/manage-voters',
         '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
-        // Decided but not yet live in client/src/App.jsx: SBO_OFFICER gets
-        // read-only finance visibility next wave (transaction history,
-        // financial insights, budget monitoring, financial reports). Listed
-        // here now so the dashboard briefing can already link to them; the
-        // client route guards must be updated to match before that wave ships.
-        '/dashboard/finance/financial-ledger',
-        '/dashboard/finance/budget-allocation',
-        '/dashboard/finance/financial-insights',
-        '/dashboard/finance/transaction-history',
-    ],
+    ], $pendingClient['SBO_OFFICER']),
 
-    'DEPARTMENT_HEAD' => [
+    'DEPARTMENT_HEAD' => array_merge([
         '/dashboard/department-head',
         '/dashboard/department-head/approvals',
         '/dashboard/approvals',
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/activity-calendar',
-        '/dashboard/finance/personal-receipts',
-        '/dashboard/finance/statement-of-account',
         '/dashboard/merchandise/claim-tokens',
         '/dashboard/merchandise/order-merchandise',
         '/dashboard/merchandise/my-orders',
@@ -121,15 +134,7 @@ return [
         '/dashboard/elections',
         '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
-        // Decided but not yet live in client/src/App.jsx: DEPARTMENT_HEAD
-        // gets the same next-wave read-only finance pages as SBO_OFFICER
-        // (transaction history, financial insights, budget monitoring,
-        // financial reports). See the matching comment above.
-        '/dashboard/finance/financial-ledger',
-        '/dashboard/finance/budget-allocation',
-        '/dashboard/finance/financial-insights',
-        '/dashboard/finance/transaction-history',
-    ],
+    ], $pendingClient['DEPARTMENT_HEAD']),
 
     'STUDENT' => [
         '/dashboard/student',
@@ -145,4 +150,6 @@ return [
         '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
     ],
+
+    'pending_client' => $pendingClient,
 ];
