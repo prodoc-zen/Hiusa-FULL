@@ -137,7 +137,10 @@ class DashboardBriefingTest extends TestCase
         $alpha = $organizations->firstWhere('id', $orgA->id);
         $this->assertSame('ALPHA', $alpha['abbreviation']);
         $this->assertEqualsWithDelta(80.0, $alpha['budget_utilization_percent'], 0.01);
-        $this->assertNull($alpha['accreditation_status']);
+        // No active compliance requirement type exists for any academic
+        // year in this test, so accreditation is "not applicable" rather
+        // than the old hardcoded null - see AccreditationStatusService.
+        $this->assertSame('not_applicable', $alpha['accreditation_status']);
 
         $beta = $organizations->firstWhere('id', $orgB->id);
         $this->assertSame(1, $beta['open_elections']);
@@ -313,6 +316,241 @@ class DashboardBriefingTest extends TestCase
         // records, issues no *more* queries than the first.
         $this->assertLessThanOrEqual($firstCount, $secondCount, 'Query count must not grow with total record volume.');
         $this->assertLessThan(60, $secondCount, 'The briefing must aggregate, not fan out per row.');
+    }
+
+    public function test_grievance_audit_rows_never_appear_in_admin_officer_or_department_head_activity_feed(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
+        $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+        $filer = User::factory()->student()->create(['organization_id' => $organization->id]);
+
+        // A grievance filed by any org member must never reach ADMIN's
+        // org-wide feed.
+        DB::table('audit_logs')->insert([
+            'organization_id' => $organization->id, 'user_id' => $filer->school_id, 'actor_role' => 'STUDENT',
+            'module' => 'grievances', 'action' => 'grievance_submitted', 'description' => 'A grievance was filed against a fellow member.',
+            'record_type' => 'grievance', 'record_id' => 1, 'created_at' => now(),
+        ]);
+        // Even a grievance an officer or department head filed themselves
+        // must not surface in their own "recent actions" feed.
+        DB::table('audit_logs')->insert([
+            'organization_id' => $organization->id, 'user_id' => $officer->school_id, 'actor_role' => 'SBO_OFFICER',
+            'module' => 'grievances', 'action' => 'grievance_submitted', 'description' => 'Officer filed a grievance.',
+            'record_type' => 'grievance', 'record_id' => 2, 'created_at' => now(),
+        ]);
+        DB::table('audit_logs')->insert([
+            'organization_id' => $organization->id, 'user_id' => $departmentHead->school_id, 'actor_role' => 'DEPARTMENT_HEAD',
+            'module' => 'grievances', 'action' => 'grievance_submitted', 'description' => 'Department head filed a grievance.',
+            'record_type' => 'grievance', 'record_id' => 3, 'created_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $adminActivity = $this->getJson('/api/dashboard/briefing')->assertOk()->json('activity');
+        $this->assertEmpty(collect($adminActivity)->filter(fn ($item) => str_contains($item['subject'], 'grievance')));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($officer);
+        $officerActivity = $this->getJson('/api/dashboard/briefing')->assertOk()->json('activity');
+        $this->assertEmpty(collect($officerActivity)->filter(fn ($item) => str_contains($item['subject'], 'grievance')));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($departmentHead);
+        $deptActivity = $this->getJson('/api/dashboard/briefing')->assertOk()->json('activity');
+        $this->assertEmpty(collect($deptActivity)->filter(fn ($item) => str_contains($item['subject'], 'grievance')));
+    }
+
+    public function test_super_admin_activity_feed_still_includes_grievances(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create();
+        $filer = User::factory()->student()->create(['organization_id' => $organization->id]);
+
+        DB::table('audit_logs')->insert([
+            'organization_id' => $organization->id, 'user_id' => $filer->school_id, 'actor_role' => 'STUDENT',
+            'module' => 'grievances', 'action' => 'grievance_submitted', 'description' => 'A grievance was filed.',
+            'record_type' => 'grievance', 'record_id' => 1, 'created_at' => now(),
+        ]);
+
+        Sanctum::actingAs($superAdmin);
+        $activity = $this->getJson('/api/dashboard/briefing')->assertOk()->json('activity');
+        $this->assertNotEmpty(collect($activity)->filter(fn ($item) => str_contains($item['subject'], 'grievance')));
+    }
+
+    public function test_student_overdue_task_href_is_null_since_assigned_tasks_is_officer_only(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        Task::factory()->create(['organization_id' => $organization->id, 'assigned_to' => $student->id, 'status' => 'overdue', 'deadline' => now()->subDay()]);
+
+        Sanctum::actingAs($student);
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+
+        $overdue = collect($response->json('attention'))->firstWhere('type', 'task_overdue');
+        $this->assertNotNull($overdue);
+        $this->assertNull($overdue['href'], '/dashboard/tasks/assigned-tasks is SBO_OFFICER-only and must never be handed to a STUDENT.');
+    }
+
+    public function test_officer_task_workload_insight_href_is_null_since_task_board_is_admin_only(): void
+    {
+        config(['services.hiusa_ai.task_max_active_tasks' => 5]);
+        $organization = Organization::factory()->create();
+        $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
+        \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
+        $busy = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active']);
+        User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active']);
+        foreach (range(1, 4) as $n) {
+            Task::factory()->create(['organization_id' => $organization->id, 'assigned_to' => $busy->id, 'status' => 'pending', 'deadline' => now()->addWeek()]);
+        }
+
+        Sanctum::actingAs($officer);
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $workload = collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance');
+
+        $this->assertNotNull($workload);
+        $this->assertNull($workload['href'], '/dashboard/tasks/task-board is ADMIN-only and must never be handed to an SBO_OFFICER.');
+    }
+
+    public function test_task_workload_insight_uses_a_bounded_number_of_queries_regardless_of_officer_count(): void
+    {
+        config(['services.hiusa_ai.task_max_active_tasks' => 5]);
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
+
+        $officers = collect();
+        for ($i = 0; $i < 12; $i++) {
+            $officers->push(User::factory()->create([
+                'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active',
+            ]));
+        }
+        foreach (range(1, 4) as $n) {
+            Task::factory()->create(['organization_id' => $organization->id, 'assigned_to' => $officers[0]->id, 'status' => 'pending', 'deadline' => now()->addWeek()]);
+        }
+
+        Sanctum::actingAs($admin);
+        DB::enableQueryLog();
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $queryCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        // Confirmed by reverting DashboardInsightEngine.php alone: this same
+        // request issues 69 queries under the old per-officer fan-out for 12
+        // officers versus a flat ~33 after the fix - well clear of either
+        // side even as officer count changes.
+        $this->assertLessThan(45, $queryCount, 'The task-workload insight must not issue one query per officer.');
+
+        $workload = collect($response->json('insights'))->firstWhere('engine', 'task_workload_balance');
+        $this->assertNotNull($workload);
+        $this->assertSame(trim("{$officers[0]->first_name} {$officers[0]->last_name}"), $workload['why']['inputs']['busiest']['name']);
+        $this->assertSame(4, $workload['why']['inputs']['busiest']['active_tasks']);
+        $this->assertSame(0, $workload['why']['inputs']['freest']['active_tasks']);
+    }
+
+    public function test_every_roles_briefing_hrefs_stay_within_its_client_route_allowlist(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
+        $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+
+        Budget::factory()->create([
+            'organization_id' => $organization->id, 'title' => 'Ops Budget', 'allocated_amount' => 1000, 'remaining_amount' => 100,
+            'overspending_risk' => 'high', 'advisory_note' => 'Watch this.', 'advice_generated_at' => now(),
+        ]);
+        Task::factory()->create(['organization_id' => $organization->id, 'created_by' => $admin->id, 'assigned_to' => $officer->id, 'status' => 'overdue', 'deadline' => now()->subDay()]);
+        Election::factory()->create(['organization_id' => $organization->id, 'status' => 'active', 'start_time' => now()->subDay(), 'end_time' => now()->addHours(20)]);
+        Event::factory()->create(['organization_id' => $organization->id, 'created_by' => $admin->id, 'status' => 'approved', 'start_time' => now()->addDay(), 'end_time' => now()->addDay()->addHours(2)]);
+        Announcement::factory()->create(['organization_id' => $organization->id, 'created_by' => $admin->id, 'is_published' => true, 'published_at' => now(), 'target_role' => 'all']);
+
+        foreach ([$admin, $officer, $departmentHead, $student, $superAdmin] as $user) {
+            $this->app['auth']->forgetGuards();
+            Sanctum::actingAs($user);
+            $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+
+            $allowed = config('client_routes.'.$user->role, []);
+            foreach ($this->collectHrefs($response->json()) as $href) {
+                $this->assertContains($href, $allowed, "{$user->role} received an href outside its allowlist: {$href}");
+            }
+        }
+    }
+
+    private function collectHrefs($value): array
+    {
+        $hrefs = [];
+        if (is_array($value)) {
+            foreach ($value as $key => $item) {
+                if ($key === 'href' && is_string($item)) {
+                    $hrefs[] = $item;
+                } elseif (is_array($item)) {
+                    $hrefs = array_merge($hrefs, $this->collectHrefs($item));
+                }
+            }
+        }
+
+        return $hrefs;
+    }
+
+    public function test_super_admin_attention_includes_sao_queue_counts_without_grievant_identity(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create();
+        $orgAdmin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+
+        $venueId = DB::table('venues')->insertGetId([
+            'name' => 'Gym', 'location' => 'Main Building', 'capacity' => 100, 'is_active' => true, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        DB::table('venue_bookings')->insert([
+            'venue_id' => $venueId, 'organization_id' => $organization->id, 'start_time' => now()->addDay(), 'end_time' => now()->addDay()->addHours(2),
+            'status' => 'pending', 'requested_by' => $orgAdmin->school_id, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $requirementType = \App\Models\ComplianceRequirementType::create([
+            'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id,
+        ]);
+        DB::table('organization_compliance_submissions')->insert([
+            'organization_id' => $organization->id, 'requirement_type_id' => $requirementType->id, 'status' => 'submitted',
+            'file_path' => 'compliance-submissions/1/statement.pdf', 'file_original_name' => 'statement.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100,
+            'submitted_by' => $orgAdmin->school_id, 'submitted_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $filer = User::factory()->student()->create(['organization_id' => $organization->id, 'first_name' => 'Secret', 'last_name' => 'Filer']);
+        DB::table('grievances')->insert([
+            'organization_id' => $organization->id, 'submitted_by' => $filer->school_id, 'is_anonymous' => false,
+            'title' => 'Unsafe wiring', 'description' => 'Exposed wiring near the gym.', 'urgency' => 'critical', 'status' => 'submitted',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        $clearancePeriodId = DB::table('clearance_periods')->insertGetId([
+            'academic_year' => '2026-2027', 'title' => 'Year-end Clearance', 'required_roles' => json_encode(['sao']),
+            'created_by' => $superAdmin->school_id, 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $clearingStudent = User::factory()->student()->create(['organization_id' => $organization->id]);
+        DB::table('clearance_signatures')->insert([
+            'clearance_period_id' => $clearancePeriodId, 'student_id' => $clearingStudent->school_id, 'organization_id' => $organization->id,
+            'required_role' => 'sao', 'status' => 'pending', 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($superAdmin);
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $attention = collect($response->json('attention'));
+        $types = $attention->pluck('type');
+
+        $this->assertContains('venue_bookings_pending', $types->all());
+        $this->assertContains('compliance_submissions_pending', $types->all());
+        $this->assertContains('grievances_urgent', $types->all());
+        $this->assertContains('clearance_sao_pending', $types->all());
+
+        $grievanceItem = $attention->firstWhere('type', 'grievances_urgent');
+        $this->assertStringNotContainsString('Secret', $grievanceItem['detail']);
+        $this->assertStringNotContainsString('Filer', $grievanceItem['detail']);
     }
 
     private function seedOrganizationVolume(int $organizationId, int $adminId, $officers, int $count): void
