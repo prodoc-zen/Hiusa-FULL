@@ -118,7 +118,7 @@ class ClearanceTest extends TestCase
         $this->assertTrue($thisPeriod['is_complete']);
     }
 
-    public function test_holding_a_signature_requires_a_reason_and_a_signed_row_cannot_be_signed_again(): void
+    public function test_holding_a_signature_requires_a_reason_and_a_held_line_can_still_be_cleared_but_cleared_is_terminal(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
         $organization = Organization::factory()->create();
@@ -135,7 +135,58 @@ class ClearanceTest extends TestCase
         $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'held', 'remarks' => 'Unpaid organization dues.'])
             ->assertOk()->assertJsonPath('status', 'held');
 
-        $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'cleared'])->assertStatus(409);
+        // A held line is not stuck: the dues get paid, so it can still be cleared.
+        $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'cleared'])
+            ->assertOk()->assertJsonPath('status', 'cleared');
+
+        // Cleared is terminal - it cannot be reopened.
+        $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'held', 'remarks' => 'Reopen attempt.'])->assertStatus(409);
+    }
+
+    public function test_admin_and_sbo_officer_can_list_clearance_periods_but_only_super_admin_can_open_one(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $officer = $this->user('SBO_OFFICER', $organization->id);
+        Sanctum::actingAs($superAdmin);
+        $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated();
+
+        Sanctum::actingAs($admin);
+        $this->getJson('/api/clearance-periods')->assertOk()->assertJsonCount(1, 'data');
+        $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2027-2028', 'title' => 'Blocked', 'required_roles' => ['sao'],
+        ])->assertForbidden();
+
+        Sanctum::actingAs($officer);
+        $this->getJson('/api/clearance-periods')->assertOk()->assertJsonCount(1, 'data');
+    }
+
+    public function test_clearance_period_students_endpoint_paginates_and_supports_name_and_id_search(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $studentA = User::factory()->create(['role' => 'STUDENT', 'organization_id' => $organization->id, 'account_status' => 'active', 'first_name' => 'Alice', 'last_name' => 'Santos']);
+        $studentB = User::factory()->create(['role' => 'STUDENT', 'organization_id' => $organization->id, 'account_status' => 'active', 'first_name' => 'Bianca', 'last_name' => 'Cruz']);
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $this->getJson("/api/clearance-periods/{$periodId}/students?per_page=1")
+            ->assertOk()->assertJsonPath('per_page', 1)->assertJsonCount(1, 'data');
+
+        $searchResult = $this->getJson("/api/clearance-periods/{$periodId}/students?q=Alice")
+            ->assertOk()->assertJsonCount(1, 'data')->json();
+        $this->assertSame($studentA->school_id, $searchResult['data'][0]['student_id']);
+
+        $idSearch = $this->getJson("/api/clearance-periods/{$periodId}/students?q={$studentB->school_id}")
+            ->assertOk()->assertJsonCount(1, 'data')->json();
+        $this->assertSame($studentB->school_id, $idSearch['data'][0]['student_id']);
     }
 
     public function test_students_view_is_scoped_to_their_own_signatures(): void

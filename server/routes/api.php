@@ -270,7 +270,7 @@ Route::middleware(['auth:sanctum', 'cache.api'])->group(function () {
     // roles. The "sao" role is university-wide and signed only by
     // SUPER_ADMIN; every other role is signed only by its own organization's
     // ADMIN or SBO_OFFICER. See ClearanceController docblock.
-    Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::post('/clearance-periods', [ClearanceController::class, 'periodsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::get('/clearances/mine', [ClearanceController::class, 'mine'])->middleware(['throttle:api-read', 'role:STUDENT']);
