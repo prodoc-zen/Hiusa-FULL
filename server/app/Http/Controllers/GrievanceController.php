@@ -44,6 +44,9 @@ class GrievanceController extends Controller
     {
         $filters = $request->validate([
             'status' => ['nullable', 'in:submitted,under_review,resolved,dismissed'],
+            'urgency' => ['nullable', 'in:Low,Medium,High,Critical'],
+            'category' => ['nullable', 'string', 'max:100'],
+            'addressed_to' => ['nullable', 'in:organization,sao'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -53,7 +56,13 @@ class GrievanceController extends Controller
             'ADMIN' => $query->where('organization_id', $request->user()->organization_id),
             default => $query,
         };
-        $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+        $query
+            ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
+            ->when($filters['urgency'] ?? null, fn ($q, $urgency) => $q->where('urgency', $urgency))
+            ->when($filters['category'] ?? null, fn ($q, $category) => $q->where('category', $category))
+            ->when($filters['addressed_to'] ?? null, fn ($q, $addressedTo) => $addressedTo === 'sao'
+                ? $q->whereNull('organization_id')
+                : $q->whereNotNull('organization_id'));
 
         $grievances = $query->orderByDesc('created_at')->paginate($filters['per_page'] ?? 20);
         $grievances->getCollection()->transform(fn (Grievance $grievance) => $this->redact($grievance, $request->user()->role));
@@ -101,9 +110,15 @@ class GrievanceController extends Controller
             'status' => 'submitted',
         ]);
 
+        // organization_id and user_id are intentionally null here: the filer's
+        // identity already lives on the grievance row (record_id), and this
+        // row must never resolve to a name/school_id/email through the
+        // general org audit feed, anonymous or not. See auditLogs() in
+        // FinancialAccountabilityController, which excludes this module for
+        // every role except SUPER_ADMIN.
         AuditLog::create([
-            'organization_id' => $organizationId,
-            'user_id' => $request->user()->school_id,
+            'organization_id' => null,
+            'user_id' => null,
             'actor_role' => $request->user()->role,
             'module' => 'grievances',
             'action' => 'grievance_filed',
@@ -146,12 +161,26 @@ class GrievanceController extends Controller
         return response()->json($this->redact($grievance, 'STUDENT'), 201);
     }
 
+    private const ALLOWED_STATUS_TRANSITIONS = [
+        'submitted' => ['under_review', 'resolved', 'dismissed'],
+        'under_review' => ['resolved', 'dismissed'],
+    ];
+
     public function updateStatus(Request $request, Grievance $grievance)
     {
+        if (! $this->canTransition($grievance, $request->user())) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $data = $request->validate([
             'status' => ['required', 'in:under_review,resolved,dismissed'],
             'remarks' => ['nullable', 'string', 'max:2000', 'required_if:status,resolved', 'required_if:status,dismissed'],
         ]);
+
+        $allowed = self::ALLOWED_STATUS_TRANSITIONS[$grievance->status] ?? [];
+        if (! in_array($data['status'], $allowed, true)) {
+            return response()->json(['message' => "This grievance is {$grievance->status} and cannot be moved to {$data['status']}."], 409);
+        }
 
         $grievance->update([
             'status' => $data['status'],
@@ -159,9 +188,10 @@ class GrievanceController extends Controller
             'resolved_at' => in_array($data['status'], ['resolved', 'dismissed'], true) ? now() : null,
         ]);
 
+        // organization_id and user_id are intentionally null - see store().
         AuditLog::create([
-            'organization_id' => $grievance->organization_id,
-            'user_id' => $request->user()->school_id,
+            'organization_id' => null,
+            'user_id' => null,
             'actor_role' => $request->user()->role,
             'module' => 'grievances',
             'action' => 'grievance_status_updated',
@@ -187,7 +217,7 @@ class GrievanceController extends Controller
             ]);
         }
 
-        return response()->json($this->redact($grievance->fresh(), 'SUPER_ADMIN'));
+        return response()->json($this->redact($grievance->fresh(), $request->user()->role));
     }
 
     private function visibleTo(Grievance $grievance, $user): bool
@@ -197,6 +227,23 @@ class GrievanceController extends Controller
             'ADMIN' => $grievance->organization_id === $user->organization_id,
             default => true,
         };
+    }
+
+    /**
+     * Grievances addressed to SAO (organization_id is null) may only be
+     * transitioned by SUPER_ADMIN. Grievances addressed to an organization
+     * may only be transitioned by SUPER_ADMIN or that organization's own
+     * ADMIN - never an ADMIN of a different organization.
+     */
+    private function canTransition(Grievance $grievance, $user): bool
+    {
+        if ($user->role === 'SUPER_ADMIN') {
+            return true;
+        }
+
+        return $user->role === 'ADMIN'
+            && $grievance->organization_id !== null
+            && $grievance->organization_id === $user->organization_id;
     }
 
     private function redact(Grievance $grievance, string $viewerRole): Grievance

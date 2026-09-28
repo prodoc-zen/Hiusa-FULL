@@ -4,11 +4,32 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Venue;
+use App\Models\VenueBooking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 
 /** SAO's venue catalog. Booking requests live in VenueBookingController. */
 class VenueController extends Controller
 {
+    public function availability(Request $request, Venue $venue)
+    {
+        $filters = $request->validate([
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date', 'after_or_equal:from'],
+        ]);
+
+        // Approved slots only, without organization names - callers may see
+        // rival organizations' bookings here and must not learn whose they are.
+        $slots = VenueBooking::where('venue_id', $venue->id)
+            ->where('status', 'approved')
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)))
+            ->orderBy('start_time')
+            ->get(['id', 'start_time', 'end_time']);
+
+        return response()->json($slots);
+    }
+
     public function index(Request $request)
     {
         $filters = $request->validate([
