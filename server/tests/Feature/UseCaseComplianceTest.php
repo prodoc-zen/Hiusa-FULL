@@ -271,7 +271,7 @@ class UseCaseComplianceTest extends TestCase
     public function test_only_approved_budgets_are_spendable_and_overspending_is_reversible(): void
     {
         $admin = $this->user('ADMIN');
-        $approver = $this->user('ADMIN', $admin->organization_id);
+        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
         $this->authenticate($admin);
         $budgetId = $this->postJson('/api/budgets', [
             'title' => 'Operations Budget',
@@ -289,7 +289,7 @@ class UseCaseComplianceTest extends TestCase
 
         $this->postJson('/api/transactions', $transaction)->assertUnprocessable();
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
-        $this->authenticate($approver);
+        $this->authenticate($departmentHead);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
@@ -305,10 +305,12 @@ class UseCaseComplianceTest extends TestCase
         $event = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'approved',
         ]);
         $otherEvent = Event::factory()->create([
             'organization_id' => $admin->organization_id,
             'created_by' => $admin->school_id,
+            'status' => 'approved',
         ]);
         $budget = Budget::create([
             'organization_id' => $admin->organization_id,
@@ -317,6 +319,7 @@ class UseCaseComplianceTest extends TestCase
             'allocated_amount' => 1000,
             'remaining_amount' => 1000,
             'warning_threshold' => 100,
+            'submission_status' => 'approved',
         ]);
         ApprovalRequest::create([
             'organization_id' => $admin->organization_id,
@@ -348,7 +351,7 @@ class UseCaseComplianceTest extends TestCase
     public function test_approved_budget_changes_reopen_approval_before_more_spending(): void
     {
         $admin = $this->user('ADMIN');
-        $approver = $this->user('ADMIN', $admin->organization_id);
+        $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
         $this->authenticate($admin);
 
         $budgetId = $this->postJson('/api/budgets', [
@@ -357,13 +360,15 @@ class UseCaseComplianceTest extends TestCase
             'warning_threshold' => 100,
         ])->assertCreated()->json('id');
 
-        $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
-        $this->authenticate($approver);
-        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+        $dhApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
+        $this->authenticate($departmentHead);
+        $this->patchJson("/api/approval-requests/{$dhApproval->id}", ['status' => 'approved'])->assertOk();
+        $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'submission_status' => 'approved']);
 
         $this->authenticate($admin);
         $this->putJson("/api/budgets/{$budgetId}", ['allocated_amount' => 750])->assertOk();
-        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'pending']);
+        $this->assertDatabaseHas('approval_requests', ['id' => $dhApproval->id, 'status' => 'pending', 'required_role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'submission_status' => 'pending_department_head', 'department_head_approved_by' => null]);
 
         $this->postJson('/api/transactions', [
             'budget_id' => $budgetId,

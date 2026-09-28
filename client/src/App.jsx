@@ -44,6 +44,7 @@ const ManageVotersPage = lazy(() => import('./pages/modules/elections/ManageVote
 const ElectionResultsPage = lazy(() => import('./pages/modules/elections/ElectionResultsPage'));
 const CastVoteRedirectPage = lazy(() => import('./pages/modules/elections/CastVoteRedirectPage'));
 const ImmersiveVotePage = lazy(() => import('./pages/modules/elections/ImmersiveVotePage'));
+const UiKitPage = import.meta.env.DEV ? lazy(() => import('./pages/dev/UiKitPage')) : null;
 
 function RouteLoadingFallback() {
   return (
@@ -173,6 +174,7 @@ function App() {
       <Routes>
       {/* Authentication */}
       <Route path="/" element={<Navigate to="/login" replace />} />
+      {UiKitPage && <Route path="/dev/ui-kit" element={<UiKitPage />} />}
       <Route element={<LoggedInRoute />}>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/recover-account" element={<RecoverAccountPage />} />

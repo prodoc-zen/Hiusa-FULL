@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Merchandise;
 use App\Models\MerchandiseVariant;
 use Illuminate\Http\Request;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -115,12 +116,17 @@ class MerchandiseController extends Controller
             'description' => ['nullable', 'string'],
             'price' => ['sometimes', 'required', 'numeric', 'min:0'],
             'stock_quantity' => ['sometimes', 'required', 'integer', 'min:0'],
+            'stock_note' => ['nullable', 'string', 'max:500'],
             'is_active' => ['boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
             ...$this->catalogRules(),
         ]);
         $variants = $request->exists('variants') ? $this->parseVariants($request) : null;
         $this->validatePromotion($data, $item);
+        if ($variants !== null && $variants !== [] && ! $item->variants()->exists()
+            && $item->orders()->where('status', 'pending')->exists()) {
+            return response()->json(['message' => 'Review pending orders before adding variants to this product.'], 409);
+        }
         if ($variants !== null && ($variants !== [] || $item->variants()->exists())) {
             $data['stock_quantity'] = array_sum(array_column($variants, 'stock_quantity'));
         } elseif ($item->variants()->exists() && array_key_exists('stock_quantity', $data)) {
@@ -132,19 +138,38 @@ class MerchandiseController extends Controller
         if ($newImageUrl) {
             $data['image_url'] = $newImageUrl;
         }
-        unset($data['image'], $data['variants'], $data['variant_images']);
-
-        $oldValues = $this->auditableMerchandiseValues($item);
+        $stockNote = trim($data['stock_note'] ?? '');
+        unset($data['image'], $data['variants'], $data['variant_images'], $data['stock_note']);
 
         try {
-            DB::transaction(function () use ($item, $data, $variants, $request, $oldValues) {
-                $item->update($data);
+            DB::transaction(function () use ($item, $data, $variants, $request, $stockNote) {
+                $lockedItem = Merchandise::where('organization_id', $request->user()->organization_id)
+                    ->whereKey($item->id)->lockForUpdate()->firstOrFail();
+                if ($variants !== null && $variants !== [] && ! $lockedItem->variants()->exists()
+                    && $lockedItem->orders()->where('status', 'pending')->exists()) {
+                    throw new HttpResponseException(response()->json(['message' => 'Review pending orders before adding variants to this product.'], 409));
+                }
+                $oldValues = $this->auditableMerchandiseValues($lockedItem);
+                $oldVariantStocks = collect($oldValues['variants'])->mapWithKeys(fn ($variant) => [$variant['id'] => (int) $variant['stock_quantity']])->all();
+                $newVariantStocks = $variants === null ? $oldVariantStocks : collect($variants)->mapWithKeys(fn ($variant, $index) => [$variant['id'] ?? 'new-'.$index => (int) $variant['stock_quantity']])->all();
+                $stockChanged = (array_key_exists('stock_quantity', $data)
+                    && (int) $data['stock_quantity'] !== (int) $lockedItem->stock_quantity)
+                    || ($oldVariantStocks !== [] && $oldVariantStocks !== $newVariantStocks);
+                if ($stockChanged && $lockedItem->is_active && $stockNote === '') {
+                    throw ValidationException::withMessages(['stock_note' => 'Enter a reason for changing stock.']);
+                }
+                $lockedItem->update($data);
                 if ($variants !== null) {
-                    $this->saveVariants($request, $item, $variants);
+                    $this->saveVariants($request, $lockedItem, $variants);
                 }
                 $action = array_key_exists('is_active', $data) && $oldValues['is_active'] !== (bool) $data['is_active']
                     ? ($data['is_active'] ? 'reactivated' : 'deactivated') : 'updated';
-                $this->recordMerchandiseAudit($request, $action, $item, $oldValues, $this->auditableMerchandiseValues($item->fresh()));
+                $newValues = $this->auditableMerchandiseValues($lockedItem->fresh());
+                if ($stockChanged) {
+                    $newValues['note'] = $stockNote;
+                    $this->recordMerchandiseAudit($request, 'stock_adjusted', $lockedItem, $oldValues, $newValues);
+                }
+                $this->recordMerchandiseAudit($request, $action, $lockedItem, $oldValues, $newValues);
             });
         } catch (\Throwable $exception) {
             $this->deleteMerchandiseImage($newImageUrl);

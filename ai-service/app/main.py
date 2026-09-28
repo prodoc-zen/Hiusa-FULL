@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hmac
+import logging
 import os
 from pathlib import Path
 
@@ -10,18 +11,23 @@ from dotenv import load_dotenv
 
 from app.engines.budget_advisory import advise_budget
 from app.engines.financial_forecasting import forecast_finances
+from app.engines.grievance_classification import classify_grievance
 from app.engines.task_delegation import delegate_task
 from app.schemas import (
     BudgetAdviceRequest,
     BudgetAdviceResponse,
     ForecastRequest,
     ForecastResponse,
+    GrievanceClassificationRequest,
+    GrievanceClassificationResponse,
     TaskDelegationRequest,
     TaskDelegationResponse,
 )
 
 
 load_dotenv(Path(__file__).resolve().parents[1] / ".env")
+
+logger = logging.getLogger("hiusa.ai_service")
 
 app = FastAPI(
     title="HIUSA AI Service",
@@ -36,19 +42,43 @@ service_key_header = APIKeyHeader(
 )
 
 
+def _auth_disabled() -> bool:
+    return os.getenv("HIUSA_AI_SERVICE_AUTH_DISABLED", "").strip().lower() in {"1", "true", "yes"}
+
+
+if _auth_disabled():
+    logger.warning(
+        "HIUSA_AI_SERVICE_AUTH_DISABLED is set - every AI service endpoint is "
+        "accepting requests with no credential check. Use this only on a "
+        "machine where 127.0.0.1 access is already fully trusted."
+    )
+
+
 def require_service_key(x_ai_service_key: str | None = Security(service_key_header)) -> None:
+    if _auth_disabled():
+        return
+
     expected = os.getenv("HIUSA_AI_SERVICE_KEY", "").strip()
-    if expected and (not x_ai_service_key or not hmac.compare_digest(x_ai_service_key, expected)):
+    if not expected:
+        raise HTTPException(status_code=401, detail="AI service key is not configured")
+    if not x_ai_service_key or not hmac.compare_digest(x_ai_service_key, expected):
         raise HTTPException(status_code=401, detail="Invalid AI service key")
 
 
 @app.get("/health")
 def health() -> dict:
+    if _auth_disabled():
+        authentication = "disabled (opt-out)"
+    elif os.getenv("HIUSA_AI_SERVICE_KEY", "").strip():
+        authentication = "api-key"
+    else:
+        authentication = "locked (no key configured)"
+
     return {
         "status": "ok",
         "service": "hiusa-ai",
         "version": app.version,
-        "authentication": "api-key" if os.getenv("HIUSA_AI_SERVICE_KEY", "").strip() else "disabled",
+        "authentication": authentication,
     }
 
 
@@ -85,3 +115,12 @@ def task_delegation(request: TaskDelegationRequest) -> dict:
         return delegate_task(request)
     except ValueError as exception:
         raise HTTPException(status_code=422, detail=str(exception)) from exception
+
+
+@app.post(
+    "/api/v1/grievance-classification",
+    response_model=GrievanceClassificationResponse,
+    dependencies=[Depends(require_service_key)],
+)
+def grievance_classification(request: GrievanceClassificationRequest) -> dict:
+    return classify_grievance(request)

@@ -53,7 +53,7 @@ class ApprovalRequestController extends Controller
         if ($request->user()->role !== 'SUPER_ADMIN') {
             $query->where('organization_id', $request->user()->organization_id);
         } else {
-            $query->whereIn('entity_type', ['financial_report', 'event']);
+            $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
         }
 
         $status = $filters['status'] ?? 'pending';
@@ -107,7 +107,7 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'Approval request not found.'], 404);
         }
 
-        if ($request->user()->role === 'SUPER_ADMIN' && ! in_array($approval->entity_type, ['financial_report', 'event'], true)) {
+        if ($request->user()->role === 'SUPER_ADMIN' && ! in_array($approval->entity_type, $this->superAdminReviewableEntityTypes(), true)) {
             return response()->json(['message' => 'Super Admin can only review financial reports and events.'], 403);
         }
 
@@ -185,13 +185,22 @@ class ApprovalRequestController extends Controller
         return $userRole === $requiredRole;
     }
 
+    private function superAdminReviewableEntityTypes(): array
+    {
+        $types = ['financial_report', 'event'];
+
+        if (config('approvals.budget_final') === 'SUPER_ADMIN') {
+            $types[] = 'budget';
+        }
+
+        return $types;
+    }
+
     private function applyApproval(ApprovalRequest $approval, Request $request): void
     {
         match ($approval->entity_type) {
             'event' => $this->approveEvent($approval),
-            'budget' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->update([
-                'remaining_amount' => Budget::where('organization_id', $approval->organization_id)->where('id', $approval->entity_id)->value('allocated_amount'),
-            ]),
+            'budget' => $this->approveBudget($approval, $request),
             'election' => $this->approveElection($approval),
             'announcement' => $this->approveAnnouncement($approval, $request),
             'payment' => $this->fulfillmentService->approvePayment(
@@ -201,6 +210,41 @@ class ApprovalRequestController extends Controller
             'financial_report' => $this->approveFinancialReport($approval, $request),
             default => null,
         };
+    }
+
+    private function approveBudget(ApprovalRequest $approval, Request $request): void
+    {
+        $budget = Budget::where('organization_id', $approval->organization_id)
+            ->lockForUpdate()
+            ->findOrFail($approval->entity_id);
+
+        $finalRole = config('approvals.budget_final');
+
+        if ($finalRole && $approval->required_role !== $finalRole) {
+            $budget->update([
+                'submission_status' => 'pending_sao',
+                'department_head_approved_by' => $request->user()->school_id,
+                'department_head_approved_at' => now(),
+            ]);
+            ApprovalRequest::create([
+                'organization_id' => $budget->organization_id,
+                'entity_type' => 'budget',
+                'entity_id' => $budget->id,
+                'requested_by' => $approval->requested_by,
+                'required_role' => $finalRole,
+                'status' => 'pending',
+                'requested_at' => now(),
+            ]);
+
+            return;
+        }
+
+        $budget->update([
+            'submission_status' => 'approved',
+            'department_head_approved_by' => $request->user()->role === 'DEPARTMENT_HEAD' ? $request->user()->school_id : $budget->department_head_approved_by,
+            'department_head_approved_at' => $request->user()->role === 'DEPARTMENT_HEAD' ? now() : $budget->department_head_approved_at,
+            'remaining_amount' => $budget->allocated_amount,
+        ]);
     }
 
     private function approveFinancialReport(ApprovalRequest $approval, Request $request): void
@@ -319,6 +363,9 @@ class ApprovalRequestController extends Controller
                 $request->user(),
                 (string) $approval->remarks
             ),
+            'budget' => Budget::where('organization_id', $approval->organization_id)
+                ->where('id', $approval->entity_id)
+                ->update(['submission_status' => 'rejected']),
             'financial_report' => FinancialReport::where('organization_id', $approval->organization_id)
                 ->where('id', $approval->entity_id)
                 ->update(['submission_status' => 'rejected']),

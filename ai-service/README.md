@@ -20,9 +20,11 @@ if (-not (Test-Path .env)) { Copy-Item .env.example .env }
 python run.py
 ```
 
-Open `http://127.0.0.1:8001/docs` for interactive API documentation. The health check is `GET /health`. Protected requests must include `X-AI-Service-Key` when `HIUSA_AI_SERVICE_KEY` is configured.
+Open `http://127.0.0.1:8001/docs` for interactive API documentation. The health check is `GET /health` and always stays open. Every other endpoint fails closed: it returns `401 Unauthorized` unless the request's `X-AI-Service-Key` header matches `HIUSA_AI_SERVICE_KEY` exactly, including when the key is left unset.
 
 In `/docs`, click **Authorize** and enter the same key before trying protected endpoints. A missing or different key correctly returns `401 Unauthorized`.
+
+For local development only, set `HIUSA_AI_SERVICE_AUTH_DISABLED=true` in `ai-service/.env` to skip the key check entirely. The service prints a startup warning while this opt-out is active, and it must never be set on anything reachable by more than the operator.
 
 Configure the same key and URL in `server/.env`:
 
