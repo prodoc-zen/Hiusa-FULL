@@ -47,6 +47,16 @@ class EvaluationModuleTest extends TestCase
         ]);
     }
 
+    private function closedWindow(?string $title = 'HIUSA v1 Evaluation', ?\Illuminate\Support\Carbon $closesAt = null): EvaluationWindow
+    {
+        return EvaluationWindow::create([
+            'title' => $title,
+            'status' => 'closed',
+            'opens_at' => now()->subMonth(),
+            'closes_at' => $closesAt ?? now()->subDay(),
+        ]);
+    }
+
     private function validPayload(string $instrumentKey): array
     {
         $items = config("evaluation.instruments.{$instrumentKey}.items");
@@ -213,7 +223,7 @@ class EvaluationModuleTest extends TestCase
     public function test_anonymity_threshold_withholds_means_below_three_responses(): void
     {
         $org = Organization::factory()->create();
-        $window = $this->openWindow();
+        $window = $this->closedWindow();
         $this->seedResponses($window, $org, 'student', 'STUDENT', 2);
 
         $admin = $this->user('ADMIN', $org->id);
@@ -238,7 +248,7 @@ class EvaluationModuleTest extends TestCase
     public function test_weighted_means_and_labels_match_table_3_thresholds_exactly(): void
     {
         $org = Organization::factory()->create();
-        $window = $this->openWindow();
+        $window = $this->closedWindow();
 
         $stronglyAgreed = array_merge(array_fill(0, 21, 5), array_fill(0, 79, 4)); // mean 4.21
         $agreed = array_merge(array_fill(0, 41, 4), array_fill(0, 59, 3)); // mean 3.41
@@ -299,7 +309,7 @@ class EvaluationModuleTest extends TestCase
     {
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
-        $window = $this->openWindow();
+        $window = $this->closedWindow();
         $this->seedResponses($window, $orgA, 'student', 'STUDENT', 3);
         $this->seedResponses($window, $orgB, 'student', 'STUDENT', 3);
 
@@ -337,7 +347,7 @@ class EvaluationModuleTest extends TestCase
     public function test_results_export_is_scoped_and_streams_a_csv(): void
     {
         $org = Organization::factory()->create();
-        $window = $this->openWindow();
+        $window = $this->closedWindow();
         $this->seedResponses($window, $org, 'student', 'STUDENT', 3);
 
         $admin = $this->user('ADMIN', $org->id);
@@ -390,5 +400,143 @@ class EvaluationModuleTest extends TestCase
         $admin = $this->user('ADMIN');
         $this->authenticate($admin);
         $this->getJson('/api/evaluation/windows')->assertStatus(403);
+    }
+
+    public function test_combined_all_orgs_view_cannot_be_used_to_derive_a_withheld_org_by_subtraction(): void
+    {
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
+        $window = $this->closedWindow();
+        $this->seedResponses($window, $orgA, 'student', 'STUDENT', 5);
+        $this->seedResponses($window, $orgB, 'student', 'STUDENT', 1);
+
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $this->authenticate($superAdmin);
+
+        $orgAOnly = $this->getJson("/api/evaluation/results?organization_id={$orgA->id}")->assertOk();
+        $this->assertSame(5, $orgAOnly->json('groups.student.n'));
+        $orgAMean = $orgAOnly->json('groups.student.overall_mean');
+
+        $combined = $this->getJson('/api/evaluation/results')->assertOk();
+
+        // Org B (n=1, below the anonymity threshold) must be excluded from
+        // the combined figure entirely, not merely averaged in: the combined
+        // "n" and mean must exactly match org A alone, so subtracting org
+        // A's own view from the combined one yields nothing about org B.
+        $this->assertSame(5, $combined->json('groups.student.n'));
+        $this->assertSame($orgAMean, $combined->json('groups.student.overall_mean'));
+
+        $orgBOnly = $this->getJson("/api/evaluation/results?organization_id={$orgB->id}")->assertOk();
+        $this->assertSame(1, $orgBOnly->json('groups.student.n'));
+        $this->assertTrue($orgBOnly->json('groups.student.anonymized'));
+    }
+
+    public function test_open_window_shows_response_counts_only_with_no_means_for_any_role(): void
+    {
+        $org = Organization::factory()->create();
+        $window = $this->openWindow();
+        $this->seedResponses($window, $org, 'student', 'STUDENT', 5);
+
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $this->authenticate($superAdmin);
+
+        $superAdminResponse = $this->getJson("/api/evaluation/results?evaluation_window_id={$window->id}")->assertOk();
+        $superAdminResponse->assertJsonPath('counts_only', true);
+        $superAdminResponse->assertJsonPath('groups.student.n', 5);
+        $superAdminResponse->assertJsonMissingPath('groups.student.overall_mean');
+        $superAdminResponse->assertJsonMissingPath('groups.student.sections');
+        $superAdminResponse->assertJsonMissingPath('groups.student.feedback');
+
+        $admin = $this->user('ADMIN', $org->id);
+        $this->authenticate($admin);
+
+        $adminResponse = $this->getJson("/api/evaluation/results?evaluation_window_id={$window->id}")->assertOk();
+        $adminResponse->assertJsonPath('counts_only', true);
+        $adminResponse->assertJsonPath('groups.student.n', 5);
+        $adminResponse->assertJsonMissingPath('groups.student.overall_mean');
+    }
+
+    public function test_results_default_to_the_latest_closed_window(): void
+    {
+        $org = Organization::factory()->create();
+
+        $olderWindow = $this->closedWindow('Older Window', now()->subMonth());
+        $this->seedResponses($olderWindow, $org, 'student', 'STUDENT', 3);
+
+        $latestWindow = $this->closedWindow('Latest Window', now()->subDay());
+        $this->seedResponses($latestWindow, $org, 'student', 'STUDENT', 4);
+
+        $stillOpenWindow = $this->openWindow('Still Open Window');
+        $this->seedResponses($stillOpenWindow, $org, 'student', 'STUDENT', 7);
+
+        $admin = $this->user('ADMIN', $org->id);
+        $this->authenticate($admin);
+
+        $default = $this->getJson('/api/evaluation/results')->assertOk();
+        $default->assertJsonPath('window.id', $latestWindow->id);
+        $default->assertJsonPath('groups.student.n', 4);
+        $default->assertJsonPath('counts_only', false);
+    }
+
+    public function test_evaluation_window_id_selects_a_specific_window(): void
+    {
+        $org = Organization::factory()->create();
+
+        $windowOne = $this->closedWindow('Window One', now()->subMonth());
+        $this->seedResponses($windowOne, $org, 'student', 'STUDENT', 3);
+
+        $windowTwo = $this->closedWindow('Window Two', now()->subDay());
+        $this->seedResponses($windowTwo, $org, 'student', 'STUDENT', 4);
+
+        $admin = $this->user('ADMIN', $org->id);
+        $this->authenticate($admin);
+
+        $this->getJson("/api/evaluation/results?evaluation_window_id={$windowOne->id}")
+            ->assertOk()
+            ->assertJsonPath('window.id', $windowOne->id)
+            ->assertJsonPath('groups.student.n', 3);
+
+        $this->getJson("/api/evaluation/results?evaluation_window_id={$windowTwo->id}")
+            ->assertOk()
+            ->assertJsonPath('window.id', $windowTwo->id)
+            ->assertJsonPath('groups.student.n', 4);
+    }
+
+    public function test_results_return_404_when_no_closed_window_exists_and_none_is_specified(): void
+    {
+        $this->openWindow();
+
+        $admin = $this->user('ADMIN');
+        $this->authenticate($admin);
+
+        $this->getJson('/api/evaluation/results')->assertStatus(404);
+    }
+
+    public function test_export_applies_the_same_privacy_rules_as_the_json_results_endpoint(): void
+    {
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
+        $window = $this->closedWindow();
+        $this->seedResponses($window, $orgA, 'student', 'STUDENT', 5);
+        $this->seedResponses($window, $orgB, 'student', 'STUDENT', 1);
+
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $this->authenticate($superAdmin);
+
+        $closedCsv = $this->get('/api/evaluation/results/export')->assertOk()->streamedContent();
+        $this->assertStringContainsString('OVERALL_MEAN,5,', $closedCsv);
+        $this->assertStringNotContainsString('OVERALL_MEAN,6,', $closedCsv);
+
+        $openWindow = $this->openWindow('Live Window');
+        $this->seedResponses($openWindow, $orgA, 'student', 'STUDENT', 5);
+
+        $openCsv = $this->get("/api/evaluation/results/export?evaluation_window_id={$openWindow->id}")
+            ->assertOk()
+            ->streamedContent();
+
+        $this->assertStringContainsString('Respondent Type', $openCsv);
+        $this->assertStringContainsString('student,5', $openCsv);
+        $this->assertStringNotContainsString('Weighted Mean', $openCsv);
+        $this->assertStringNotContainsString('OVERALL_MEAN', $openCsv);
     }
 }
