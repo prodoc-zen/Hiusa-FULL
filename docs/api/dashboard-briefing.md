@@ -18,12 +18,15 @@ timestamps are ISO 8601.
 
 Every `href` in this response is resolved through `ClientRouteAccess::hrefFor(
 $role, $path)` against `config/client_routes.php`, the single source of which
-client route paths each role may open (built from `client/src/App.jsx`'s
-`<ProtectedRoute allowedRoles=[...]>` declarations, plus a few finance
-read-only pages decided for SBO_OFFICER/DEPARTMENT_HEAD ahead of the client
-route guards catching up - see the comments in that config file). A role that
-cannot open a page gets `href: null` for that item instead of a link into a
-403.
+client route paths each role may open, built to match `client/src/App.jsx`'s
+`<ProtectedRoute allowedRoles=[...]>` declarations exactly (`ClientRouteAllowlistTest`
+fails the suite the moment the two disagree). A role that cannot open a page
+gets `href: null` for that item instead of a link into a 403. The config file
+also carries a `pending_client` list of finance pages decided for
+SBO_OFFICER/DEPARTMENT_HEAD ahead of the client route guards catching up, but
+those paths are never resolvable through `hrefFor` - they come back `null`
+for every role until the matching route lands in App.jsx and moves out of
+`pending_client` into that role's live list.
 
 ## Response shape
 
