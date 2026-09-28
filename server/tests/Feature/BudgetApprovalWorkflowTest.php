@@ -14,8 +14,42 @@ class BudgetApprovalWorkflowTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_budget_moves_from_admin_to_department_head_then_sao(): void
+    public function test_budget_moves_from_department_head_straight_to_approved_by_default(): void
     {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+
+        Sanctum::actingAs($admin);
+        $budgetId = $this->postJson('/api/budgets', [
+            'title' => 'Leadership Summit Budget',
+            'allocated_amount' => 1000,
+            'warning_threshold' => 200,
+        ])->assertCreated()->json('id');
+
+        $departmentApproval = ApprovalRequest::where('entity_type', 'budget')
+            ->where('entity_id', $budgetId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
+        $this->assertSame('pending', $departmentApproval->status);
+        $this->assertSame('pending_department_head', Budget::findOrFail($budgetId)->submission_status);
+
+        Sanctum::actingAs($departmentHead);
+        $this->patchJson('/api/approval-requests/'.$departmentApproval->id, ['status' => 'approved'])->assertOk();
+
+        $budget = Budget::findOrFail($budgetId);
+        $this->assertSame('approved', $budget->submission_status, 'The single default stage (Department Head) must finalize the budget by itself.');
+        $this->assertSame($departmentHead->school_id, $budget->department_head_approved_by);
+        $this->assertNotNull($budget->department_head_approved_at);
+        $this->assertSame('1000.00', $budget->remaining_amount);
+        $this->assertDatabaseHas('audit_logs', ['module' => 'approvals', 'action' => 'reviewed_approved', 'record_id' => $departmentApproval->id]);
+        $this->assertFalse(
+            ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->where('required_role', 'SUPER_ADMIN')->exists(),
+            'The default single-stage mode must never open a second SAO-stage request.'
+        );
+    }
+
+    public function test_budget_moves_from_admin_to_department_head_then_sao_when_the_sao_stage_is_enabled(): void
+    {
+        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -84,6 +118,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_sao_rejection_returns_the_budget_to_admin_with_remarks(): void
     {
+        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -147,6 +182,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_editing_a_pending_sao_budget_restarts_approval_at_department_head(): void
     {
+        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -213,6 +249,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_editing_a_pending_sao_budget_with_no_fields_does_not_restart_approval(): void
     {
+        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);

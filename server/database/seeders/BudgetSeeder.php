@@ -39,18 +39,23 @@ class BudgetSeeder extends Seeder
             'event_id' => null,
         ]);
 
-        // Budgets go through a two-stage chain (Department Head, then SAO) -
-        // TransactionController gates new postings solely on
-        // Budget::submission_status being 'approved'. The Sports Fest budget
-        // is left deliberately pending at the Department Head stage so the
-        // Department Head Approvals screen has a real budget to sign off on
-        // live, distinct from the event approval demo.
-        $departmentHead = User::where('organization_id', $officer1->organization_id)
-            ->where('role', 'DEPARTMENT_HEAD')
-            ->first();
-        $superAdmin = User::where('organization_id', $officer1->organization_id)
-            ->where('role', 'SUPER_ADMIN')
-            ->first();
+        // Budget approval is single-stage by Department Head by default
+        // (config('approvals.routes.budget')); TransactionController gates
+        // new postings solely on Budget::submission_status being 'approved'.
+        // Setting config('approvals.routes.budget_final') to 'SUPER_ADMIN'
+        // re-enables a second SAO stage on top of it, seeded here too so demo
+        // data matches whichever mode is active. The Sports Fest budget is
+        // left deliberately pending at the first stage so the approvals
+        // screen has a real budget to sign off on live, distinct from the
+        // event approval demo.
+        $firstRole = config('approvals.routes.budget');
+        $finalRole = config('approvals.routes.budget_final');
+        $firstApprover = User::where('organization_id', $officer1->organization_id)
+            ->where('role', $firstRole)
+            ->first() ?? $officer1;
+        $finalApprover = $finalRole
+            ? User::where('organization_id', $officer1->organization_id)->where('role', $finalRole)->first()
+            : null;
 
         foreach ([
             ['budget' => $generalFund, 'approved' => true],
@@ -63,28 +68,28 @@ class BudgetSeeder extends Seeder
             // withoutEvents() suppresses ApprovalRequest::booted()'s
             // notifyApprovers() and recordSubmissionAudit(), which would
             // otherwise fan out bogus notifications/audit rows during seeding.
-            ApprovalRequest::withoutEvents(function () use ($budget, $officer1, $departmentHead, $superAdmin, $approved) {
+            ApprovalRequest::withoutEvents(function () use ($budget, $officer1, $firstRole, $finalRole, $firstApprover, $finalApprover, $approved) {
                 ApprovalRequest::create([
                     'organization_id' => $officer1->organization_id,
                     'entity_type' => 'budget',
                     'entity_id' => $budget->id,
                     'requested_by' => $officer1->school_id,
-                    'required_role' => 'DEPARTMENT_HEAD',
+                    'required_role' => $firstRole,
                     'status' => $approved ? 'approved' : 'pending',
-                    'reviewed_by' => $approved ? $departmentHead?->school_id : null,
+                    'reviewed_by' => $approved ? $firstApprover?->school_id : null,
                     'requested_at' => $approved ? now()->subWeeks(3) : now()->subDays(2),
                     'reviewed_at' => $approved ? now()->subWeeks(3)->addHours(3) : null,
                 ]);
 
-                if ($approved) {
+                if ($approved && $finalRole) {
                     ApprovalRequest::create([
                         'organization_id' => $officer1->organization_id,
                         'entity_type' => 'budget',
                         'entity_id' => $budget->id,
                         'requested_by' => $officer1->school_id,
-                        'required_role' => 'SUPER_ADMIN',
+                        'required_role' => $finalRole,
                         'status' => 'approved',
-                        'reviewed_by' => $superAdmin?->school_id,
+                        'reviewed_by' => $finalApprover?->school_id,
                         'requested_at' => now()->subWeeks(3)->addHours(3),
                         'reviewed_at' => now()->subWeeks(3)->addHours(6),
                     ]);
@@ -93,8 +98,8 @@ class BudgetSeeder extends Seeder
 
             $budget->update($approved ? [
                 'submission_status' => 'approved',
-                'department_head_approved_by' => $departmentHead?->school_id,
-                'department_head_approved_at' => now()->subWeeks(3)->addHours(3),
+                'department_head_approved_by' => $firstRole === 'DEPARTMENT_HEAD' ? $firstApprover?->school_id : null,
+                'department_head_approved_at' => $firstRole === 'DEPARTMENT_HEAD' ? now()->subWeeks(3)->addHours(3) : null,
             ] : [
                 'submission_status' => 'pending_department_head',
             ]);
