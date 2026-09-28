@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('sonner', () => ({
-  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), promise: vi.fn() }),
+  toast: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn(), info: vi.fn(), warning: vi.fn(), promise: vi.fn() }),
 }));
 
 import { toast } from 'sonner';
@@ -18,9 +18,15 @@ describe('notify', () => {
     expect(toast.error).toHaveBeenCalledWith('Failed', undefined);
   });
 
-  it('delegates info to the base sonner toast call', () => {
+  it('delegates info to sonner toast.info so its icon renders', () => {
     notify.info('Heads up');
-    expect(toast).toHaveBeenCalledWith('Heads up', undefined);
+    expect(toast.info).toHaveBeenCalledWith('Heads up', undefined);
+    expect(toast).not.toHaveBeenCalled();
+  });
+
+  it('delegates warning to sonner toast.warning', () => {
+    notify.warning('Check the amount');
+    expect(toast.warning).toHaveBeenCalledWith('Check the amount', undefined);
   });
 
   it('delegates promise to sonner toast.promise', () => {
