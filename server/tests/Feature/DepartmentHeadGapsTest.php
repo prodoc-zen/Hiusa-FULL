@@ -98,7 +98,7 @@ class DepartmentHeadGapsTest extends TestCase
     public function test_voters_endpoint_is_blocked_for_students(): void
     {
         $organization = Organization::factory()->create();
-        $election = Election::factory()->create(['organization_id' => $organization->id]);
+        $election = Election::factory()->create(['organization_id' => $organization->id, 'status' => 'active']);
         $student = $this->student($organization->id);
 
         Sanctum::actingAs($student);

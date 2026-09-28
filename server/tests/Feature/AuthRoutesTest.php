@@ -161,7 +161,7 @@ class AuthRoutesTest extends TestCase
 
     public function test_login_does_not_require_an_organization(): void
     {
-        $user = User::factory()->create(['password_hash' => 'password123']);
+        $user = User::factory()->create(['role' => 'STUDENT', 'password_hash' => 'password123']);
 
         $this->postJson('/api/login', [
             'school_id' => $user->school_id,

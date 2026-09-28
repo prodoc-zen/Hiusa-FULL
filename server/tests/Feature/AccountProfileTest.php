@@ -49,7 +49,7 @@ class AccountProfileTest extends TestCase
     public function test_only_suborganization_admin_can_invite_and_profiles_cannot_be_stolen(): void
     {
         $main = Organization::factory()->create();
-        $student = User::factory()->create(['organization_id' => $main->id, 'password_hash' => 'password123']);
+        $student = User::factory()->create(['organization_id' => $main->id, 'role' => 'STUDENT', 'password_hash' => 'password123']);
         $admin = User::factory()->admin()->create(['organization_id' => $main->id]);
         $adminToken = $this->postJson('/api/login', ['school_id' => $admin->school_id, 'password' => 'password'])->json('access_token');
         $this->withToken($adminToken)->postJson('/api/account-profiles/invite', [
