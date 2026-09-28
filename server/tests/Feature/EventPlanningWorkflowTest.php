@@ -372,6 +372,7 @@ class EventPlanningWorkflowTest extends TestCase
         $this->assertDatabaseHas('approval_requests', ['entity_type' => 'budget', 'entity_id' => $budget->id, 'status' => 'pending']);
 
         ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budget->id)->update(['status' => 'approved']);
+        $budget->update(['submission_status' => 'approved']);
         $transactionBase = [
             'budget_id' => $budget->id,
             'event_id' => $eventId,

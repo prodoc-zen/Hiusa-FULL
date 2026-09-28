@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
@@ -267,13 +266,12 @@ class TransactionController extends Controller
             $budget = Budget::where('organization_id', $organizationId)
                 ->where('id', $budgetId)
                 ->first();
-            $latestApproval = ApprovalRequest::where('organization_id', $organizationId)
-                ->where('entity_type', 'budget')
-                ->where('entity_id', $budgetId)
-                ->latest('id')
-                ->first();
 
-            if (! $budget || $latestApproval?->status !== 'approved') {
+            // Single source of truth: Budget::submission_status, not the latest
+            // ApprovalRequest row. Under the two-stage Department Head -> SAO
+            // chain the latest request can be an 'approved' Department Head
+            // sign-off while the budget itself is still only pending_sao.
+            if (! $budget || $budget->submission_status !== 'approved') {
                 return 'The selected budget must belong to this organization and be approved.';
             }
 
