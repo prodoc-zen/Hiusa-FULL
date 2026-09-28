@@ -23,14 +23,24 @@ class ClientRouteAllowlistTest extends TestCase
 {
     private const ROLES = ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'];
 
+    /**
+     * config[$role] is compared to App.jsx's live routes directly, with
+     * nothing subtracted out first - a role's own array in
+     * config/client_routes.php must be exactly what App.jsx grants it today,
+     * never that plus anything else. Pending paths belong solely under the
+     * separate 'pending_client' key (see
+     * test_pending_client_paths_never_leak_into_a_roles_live_config_list);
+     * merging them into a role's own list here - the actual bug this test
+     * once missed - would make this assertion fail directly instead of
+     * silently passing because the pending paths got diffed back out first.
+     */
     public function test_config_matches_app_jsx_live_routes_per_role(): void
     {
         $liveByRole = $this->liveRoutesByRole();
         $config = config('client_routes');
 
         foreach (self::ROLES as $role) {
-            $pending = $config['pending_client'][$role] ?? [];
-            $configLive = array_values(array_diff($config[$role] ?? [], $pending));
+            $configLive = $config[$role] ?? [];
             sort($configLive);
 
             $live = $liveByRole[$role] ?? [];
@@ -45,6 +55,30 @@ class ClientRouteAllowlistTest extends TestCase
                 .'Live in App.jsx but missing from config: '.json_encode($missing)."\n"
                 .'In config but not reachable in App.jsx: '.json_encode($extra)
             );
+        }
+    }
+
+    /**
+     * The regression this whole file is named after: config/client_routes.php
+     * once array_merge'd pending_client's finance paths straight into
+     * SBO_OFFICER and DEPARTMENT_HEAD's live arrays "so the briefing could
+     * already link to them", which handed SBO_OFFICER a working href to
+     * /dashboard/finance/budget-allocation - an ADMIN-only page in App.jsx.
+     * ClientRouteAccess::hrefFor trusts config[$role] completely, so nothing
+     * short of the live array itself being clean catches this.
+     */
+    public function test_pending_client_paths_never_leak_into_a_roles_live_config_list(): void
+    {
+        $config = config('client_routes');
+
+        foreach ($config['pending_client'] ?? [] as $role => $pendingPaths) {
+            foreach ($pendingPaths as $path) {
+                $this->assertNotContains(
+                    $path,
+                    $config[$role] ?? [],
+                    "{$role}: pending_client path '{$path}' is also present in {$role}'s own live list - pending paths must live only under pending_client until App.jsx grants them."
+                );
+            }
         }
     }
 
@@ -64,8 +98,61 @@ class ClientRouteAllowlistTest extends TestCase
         }
     }
 
+    public function test_parser_treats_a_conditional_one_line_route_as_self_closing(): void
+    {
+        $lines = [
+            '<Route element={<ProtectedRoute />}>',
+            '  <Route path="/dashboard" element={<DashboardLayout />}>',
+            '    {ShowDevTool && <Route path="dev-tool" element={<DevToolPage />} />}',
+            '    <Route path="reachable" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ReachablePage /></ProtectedRoute>} />',
+            '  </Route>',
+            '</Route>',
+        ];
+
+        $byRole = $this->rolesByRouteFromLines($lines);
+
+        // If the conditional line were mistaken for an unclosed opening tag,
+        // its "dev-tool" frame would never be popped and "reachable" would
+        // resolve to /dashboard/dev-tool/reachable instead.
+        $this->assertSame(['/dashboard/reachable'], $byRole['ADMIN']);
+    }
+
+    public function test_parser_intersects_child_roles_with_an_ancestor_gate(): void
+    {
+        $lines = [
+            '<Route element={<ProtectedRoute />}>',
+            '  <Route path="/dashboard" element={<DashboardLayout />}>',
+            '    <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]} />}>',
+            '      <Route path="budget" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><BudgetPage /></ProtectedRoute>} />',
+            '    </Route>',
+            '  </Route>',
+            '</Route>',
+        ];
+
+        $byRole = $this->rolesByRouteFromLines($lines);
+
+        // "budget" lists DEPARTMENT_HEAD, but the "finance" wrapper gates its
+        // children to ADMIN/SBO_OFFICER/STUDENT only - DEPARTMENT_HEAD must
+        // not be treated as reachable just because a child route named it.
+        $this->assertSame(['/dashboard/finance/budget'], $byRole['ADMIN']);
+        $this->assertSame([], $byRole['DEPARTMENT_HEAD']);
+    }
+
     /**
-     * Walks App.jsx line by line tracking a stack of enclosing <Route
+     * @return array<string, list<string>> role => sorted unique /dashboard/... paths it can reach per App.jsx
+     */
+    private function liveRoutesByRole(): array
+    {
+        $appJsxPath = dirname(base_path()).'/client/src/App.jsx';
+        $this->assertFileExists($appJsxPath, 'client/src/App.jsx was not found relative to the server app - has the monorepo layout changed?');
+
+        $lines = file($appJsxPath, FILE_IGNORE_NEW_LINES) ?: [];
+
+        return $this->rolesByRouteFromLines($lines);
+    }
+
+    /**
+     * Walks a list of JSX lines tracking a stack of enclosing <Route
      * path="..."> segments, so a child route's full path is its own path
      * attribute prefixed by every ancestor route's path attribute (e.g. a
      * "manage-announcements" child under the "announcements" parent, itself
@@ -82,16 +169,29 @@ class ClientRouteAllowlistTest extends TestCase
      * page component (e.g. the "elections" hub) is recorded as a
      * destination in its own right as well as being pushed for its children.
      *
-     * @return array<string, list<string>> role => sorted unique /dashboard/... paths it can reach per App.jsx
+     * A second, parallel stack carries each ancestor gate's cumulative
+     * allowed roles. A child's own `allowedRoles` is intersected with that
+     * cumulative set before being recorded, so a child that (incorrectly)
+     * lists a role its parent gate never granted - e.g. DEPARTMENT_HEAD
+     * under a "finance" wrapper gated to
+     * ADMIN/SBO_OFFICER/STUDENT - is never counted as reachable by that role.
+     * A route with no `allowedRoles` of its own (a plain path segment, or a
+     * gate-only `<ProtectedRoute />` with no role restriction) simply passes
+     * its parent's cumulative set down unchanged.
+     *
+     * A one-line conditional route such as `{Flag && <Route path="x" ... />}`
+     * is a single self-closing `<Route>` wrapped in a JS expression: it must
+     * be treated as self-closed even though the line's last two characters
+     * are `/>}` rather than `/>`, or it is mistaken for an opening tag that
+     * pushes a stack frame with no matching `</Route>` to pop it back off.
+     *
+     * @param  list<string>  $lines
+     * @return array<string, list<string>> role => sorted unique /dashboard/... paths it can reach
      */
-    private function liveRoutesByRole(): array
+    private function rolesByRouteFromLines(array $lines): array
     {
-        $appJsxPath = dirname(base_path()).'/client/src/App.jsx';
-        $this->assertFileExists($appJsxPath, 'client/src/App.jsx was not found relative to the server app - has the monorepo layout changed?');
-
-        $lines = file($appJsxPath, FILE_IGNORE_NEW_LINES) ?: [];
-
         $stack = [];
+        $roleStack = [];
         $destinations = [];
 
         foreach ($lines as $line) {
@@ -99,6 +199,7 @@ class ClientRouteAllowlistTest extends TestCase
 
             if ($trimmed === '</Route>') {
                 array_pop($stack);
+                array_pop($roleStack);
                 continue;
             }
 
@@ -106,7 +207,11 @@ class ClientRouteAllowlistTest extends TestCase
                 continue;
             }
 
-            $selfClosed = str_ends_with($trimmed, '/>');
+            // Self-closed even when the whole <Route .../> is wrapped in a
+            // JS expression, e.g. `{Flag && <Route ... />}` - the trailing
+            // `}` (and any whitespace around it) does not change that this
+            // is one complete, childless <Route> tag.
+            $selfClosed = (bool) preg_match('/\/>\s*\}?\s*$/', $trimmed);
 
             $pathAttr = null;
             if (preg_match('/\bpath="([^"]*)"/', $trimmed, $pathMatch) === 1) {
@@ -119,10 +224,13 @@ class ClientRouteAllowlistTest extends TestCase
                 $roles = $roleNames[1];
             }
 
+            $parentRoles = count($roleStack) > 0 ? $roleStack[count($roleStack) - 1] : null;
+            $effectiveRoles = $this->intersectRoles($parentRoles, $roles);
+
             if ($selfClosed) {
                 // A leaf: it has no children, so it cannot open a nested <Route>.
                 if ($pathAttr !== null && $roles !== null) {
-                    $destinations[] = ['path' => $this->resolvePath($stack, $pathAttr), 'roles' => $roles];
+                    $destinations[] = ['path' => $this->resolvePath($stack, $pathAttr), 'roles' => $effectiveRoles];
                 }
 
                 continue;
@@ -132,10 +240,11 @@ class ClientRouteAllowlistTest extends TestCase
             $protectedRouteIsGateOnly = (bool) preg_match('/<ProtectedRoute[^>]*\/>/', $trimmed);
 
             if ($pathAttr !== null && $roles !== null && ! $protectedRouteIsGateOnly) {
-                $destinations[] = ['path' => $this->resolvePath($stack, $pathAttr), 'roles' => $roles];
+                $destinations[] = ['path' => $this->resolvePath($stack, $pathAttr), 'roles' => $effectiveRoles];
             }
 
             $stack[] = $pathAttr;
+            $roleStack[] = $roles !== null ? $effectiveRoles : $parentRoles;
         }
 
         $byRole = array_fill_keys(self::ROLES, []);
@@ -159,6 +268,24 @@ class ClientRouteAllowlistTest extends TestCase
         }
 
         return $byRole;
+    }
+
+    /**
+     * @param  list<string>|null  $parent  Cumulative roles inherited from every ancestor gate, or null if no ancestor gate has restricted roles yet.
+     * @param  list<string>|null  $own  Roles this line's own allowedRoles attribute lists, or null if it has none.
+     * @return list<string>|null
+     */
+    private function intersectRoles(?array $parent, ?array $own): ?array
+    {
+        if ($own === null) {
+            return $parent;
+        }
+
+        if ($parent === null) {
+            return array_values($own);
+        }
+
+        return array_values(array_intersect($parent, $own));
     }
 
     /**

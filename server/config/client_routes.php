@@ -17,12 +17,17 @@
  * a page is handed null instead of a dead or forbidden link.
  *
  * 'pending_client' lists paths that are decided but not yet wired into
- * App.jsx's route guards. They stay merged into the role lists below so
- * the briefing can already link to them, but
+ * App.jsx's route guards. They are NEVER merged into a role's live list
+ * below, so ClientRouteAccess::hrefFor resolves them to null for every role
+ * until a client change adds the matching <ProtectedRoute> - at which point
  * ClientRouteAllowlistTest::test_pending_client_entries_are_not_yet_live_in_app_jsx
- * asserts each one is still ABSENT from App.jsx - once a client change adds
- * one, that assertion starts failing and tells you to move the path out of
- * pending_client into the role's live list instead.
+ * starts failing and tells you to move the path out of pending_client into
+ * the role's live list instead. Keeping them out of the live lists is
+ * deliberate: a role's own array is exactly what App.jsx grants it today, so
+ * one role's pending finance pages can never leak into a live href for a
+ * role that has no client route for them at all (e.g. SBO_OFFICER never
+ * gets ADMIN-only /dashboard/finance/budget-allocation just because it is
+ * listed as pending for SBO_OFFICER too).
  */
 
 $financePendingNextWave = [
@@ -95,7 +100,7 @@ return [
         '/dashboard/elections/election-results',
     ],
 
-    'SBO_OFFICER' => array_merge([
+    'SBO_OFFICER' => [
         '/dashboard/officer',
         '/dashboard/approval-requests/new',
         '/dashboard/approval-requests/new/announcement',
@@ -119,9 +124,9 @@ return [
         '/dashboard/elections/manage-voters',
         '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
-    ], $pendingClient['SBO_OFFICER']),
+    ],
 
-    'DEPARTMENT_HEAD' => array_merge([
+    'DEPARTMENT_HEAD' => [
         '/dashboard/department-head',
         '/dashboard/department-head/approvals',
         '/dashboard/approvals',
@@ -134,7 +139,7 @@ return [
         '/dashboard/elections',
         '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
-    ], $pendingClient['DEPARTMENT_HEAD']),
+    ],
 
     'STUDENT' => [
         '/dashboard/student',

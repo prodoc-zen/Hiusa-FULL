@@ -27,6 +27,18 @@ class DashboardBriefingService
 
     private const ACTIVITY_LIMIT = 8;
 
+    /**
+     * Grievance urgency is stored exactly as GrievanceController's
+     * classifier writes it (both its AI-backed path and its
+     * localClassification() fallback, mirrored in
+     * ai-service/app/engines/grievance_classification.py): 'Low', 'Medium',
+     * 'High', 'Critical' - capitalized. MariaDB's default collation is
+     * case-insensitive so a lowercase comparison here used to pass there and
+     * silently undercount on SQLite/case-sensitive collations. Compare
+     * against this constant, never a re-typed literal.
+     */
+    private const URGENT_GRIEVANCE_URGENCIES = ['High', 'Critical'];
+
     private const TYPE_LABELS = [
         'approval' => ['approval', 'approvals'],
         'election_closing' => ['closing election', 'closing elections'],
@@ -1071,7 +1083,7 @@ class DashboardBriefingService
 
         $urgentGrievances = DB::table('grievances')
             ->whereNotIn('status', ['resolved', 'dismissed'])
-            ->whereIn('urgency', ['high', 'critical'])
+            ->whereIn('urgency', self::URGENT_GRIEVANCE_URGENCIES)
             ->count();
         if ($urgentGrievances > 0) {
             $items[] = [
