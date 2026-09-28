@@ -22,7 +22,7 @@ export default function PageHeader({ breadcrumbs, title, description, actions, m
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div className="min-w-0">
           <h1 className="text-[28px] font-extrabold leading-tight text-ink">{title}</h1>
-          {description && <p className="mt-1 max-w-2xl text-sm font-medium text-ink-muted">{description}</p>}
+          {description && <p className="mt-1 max-w-[75ch] text-sm font-medium text-ink-muted-strong">{description}</p>}
           {meta && <div className="mt-3 flex flex-wrap items-center gap-3">{meta}</div>}
         </div>
         {actions && <div className="flex shrink-0 flex-wrap items-center gap-2">{actions}</div>}

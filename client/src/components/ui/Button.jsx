@@ -17,7 +17,7 @@ const GAP = {
 const ICON_SIZE = { sm: 14, md: 16, lg: 18 };
 
 const VARIANTS = {
-  primary: 'bg-brand-600 text-white hover:bg-brand-700',
+  primary: 'bg-brand-700 text-white hover:bg-brand-800',
   secondary: 'border border-line bg-surface text-ink hover:bg-subtle',
   danger: 'bg-danger text-white hover:bg-danger-strong',
   ghost: 'text-ink hover:bg-subtle',

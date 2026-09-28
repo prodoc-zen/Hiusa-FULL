@@ -18,9 +18,12 @@ export default function ProgressMeter({ label, value, max = 100, valueLabel, cla
         aria-valuemin={0}
         aria-valuemax={safeMax}
         aria-label={label}
-        className="h-2 w-full overflow-hidden rounded-full bg-subtle"
+        className="h-2 w-full overflow-hidden rounded-full bg-line-soft"
       >
-        <div className={`h-full rounded-full transition-[width] duration-300 ease-out ${tone}`} style={{ width: `${percent}%` }} />
+        <div
+          className={`h-full w-full origin-left rounded-full transition-transform duration-300 ease-[var(--ease-out)] ${tone}`}
+          style={{ transform: `scaleX(${ratio})` }}
+        />
       </div>
     </div>
   );

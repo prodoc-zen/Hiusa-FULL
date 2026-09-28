@@ -11,6 +11,7 @@ export default function DataTable({
   error = null,
   onRetry,
   emptyState,
+  filtersActive = false,
   sort,
   onSortChange,
   actions,
@@ -38,10 +39,16 @@ export default function DataTable({
   }
 
   if (!rows || rows.length === 0) {
+    const fallback = filtersActive ? (
+      <EmptyState kind="filtered" description="Try a different search term or clear your filters." />
+    ) : (
+      <EmptyState kind="first-run" title="Nothing to show yet" description="Records will appear here once there's data." />
+    );
+
     return (
       <div>
         {filters}
-        {emptyState || <EmptyState kind="filtered" description="Nothing to show yet." />}
+        {emptyState || fallback}
       </div>
     );
   }
@@ -51,6 +58,12 @@ export default function DataTable({
     const isActive = sort?.key === column.key;
     const nextDirection = isActive && sort.direction === 'asc' ? 'desc' : 'asc';
     onSortChange({ key: column.key, direction: nextDirection });
+  }
+
+  function ariaSortFor(column) {
+    if (!column.sortable) return undefined;
+    if (sort?.key !== column.key) return 'none';
+    return sort.direction === 'asc' ? 'ascending' : 'descending';
   }
 
   function SortIcon({ column }) {
@@ -65,7 +78,7 @@ export default function DataTable({
     <div>
       {filters}
 
-      <div className="hidden overflow-x-auto md:block" data-view="table">
+      <div className="hidden md:block" data-view="table">
         <table className="w-full border-collapse text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}
           <thead className="sticky top-0 z-10 bg-subtle">
@@ -74,7 +87,8 @@ export default function DataTable({
                 <th
                   key={column.key}
                   scope="col"
-                  className={`border-b border-line px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted ${column.align === 'right' ? 'text-right' : ''}`}
+                  aria-sort={ariaSortFor(column)}
+                  className={`whitespace-nowrap border-b border-line px-4 py-3 text-left text-xs font-bold uppercase tracking-wide text-ink-muted ${column.align === 'right' ? 'text-right' : ''}`}
                 >
                   {column.sortable ? (
                     <button
@@ -114,9 +128,9 @@ export default function DataTable({
         </table>
       </div>
 
-      <ul className="flex flex-col gap-3 md:hidden" data-view="cards">
+      <ul className="flex flex-col divide-y divide-line-soft md:hidden" data-view="cards">
         {rows.map((row) => (
-          <li key={rowKey(row)} className="rounded-card border border-line bg-surface p-4">
+          <li key={rowKey(row)} className="py-4 first:pt-0 last:pb-0">
             <dl className="flex flex-col gap-2">
               {columns.map((column) => (
                 <div key={column.key} className="flex items-start justify-between gap-3">

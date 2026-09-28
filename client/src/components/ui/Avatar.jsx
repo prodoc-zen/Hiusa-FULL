@@ -1,4 +1,4 @@
-const PALETTE = ['bg-brand-600', 'bg-navy-800', 'bg-success-strong', 'bg-warning-strong', 'bg-danger-strong'];
+const PALETTE = ['bg-brand-700', 'bg-brand-800', 'bg-navy-800', 'bg-navy-950'];
 const SIZES = { sm: 'h-8 w-8 text-xs', md: 'h-10 w-10 text-sm', lg: 'h-14 w-14 text-lg' };
 
 function hashString(value) {

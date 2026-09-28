@@ -1,9 +1,15 @@
 import { ArrowDownRight, ArrowUpRight } from 'lucide-react';
 import { Link } from 'react-router-dom';
 
-export default function Stat({ label, value, delta, deltaDirection = 'up', period, context, to, className = '' }) {
+const DELTA_TONE_CLASSES = {
+  positive: 'text-success-strong',
+  negative: 'text-danger-strong',
+  neutral: 'text-ink-muted',
+};
+
+export default function Stat({ label, value, delta, deltaDirection = 'up', deltaTone = 'neutral', period, context, to, className = '' }) {
   const DeltaIcon = deltaDirection === 'down' ? ArrowDownRight : ArrowUpRight;
-  const deltaTone = deltaDirection === 'down' ? 'text-danger-strong' : 'text-success-strong';
+  const deltaToneClass = DELTA_TONE_CLASSES[deltaTone] || DELTA_TONE_CLASSES.neutral;
 
   const body = (
     <>
@@ -12,7 +18,7 @@ export default function Stat({ label, value, delta, deltaDirection = 'up', perio
       {(delta || context) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold">
           {delta && (
-            <span className={`inline-flex items-center gap-0.5 ${deltaTone}`}>
+            <span className={`inline-flex items-center gap-0.5 ${deltaToneClass}`}>
               <DeltaIcon size={13} aria-hidden="true" />
               {delta}
             </span>
