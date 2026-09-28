@@ -172,7 +172,6 @@ function App() {
       {/* Authentication */}
       <Route path="/" element={<Navigate to="/login" replace />} />
       <Route element={<LoggedInRoute />}>
-        <Route path="/select-organization" element={<Navigate to="/login" replace />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/recover-account" element={<RecoverAccountPage />} />
         <Route path="/reset-password" element={<ResetPasswordPage />} />

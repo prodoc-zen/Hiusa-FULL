@@ -1,5 +1,3 @@
-const DEFAULT_API_URL = 'http://localhost:8000/api';
-
-export function resolveRuntimeApiUrl(configuredUrl) {
-  return configuredUrl?.trim() || DEFAULT_API_URL;
+export function resolveRuntimeApiUrl(configuredUrl, production = import.meta.env.PROD) {
+  return configuredUrl?.trim() || (production ? '/api' : 'http://localhost:8000/api');
 }

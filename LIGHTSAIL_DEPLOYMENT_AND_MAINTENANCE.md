@@ -344,16 +344,17 @@ sudo systemctl reload nginx
 
 An Nginx configuration already running on your Lightsail instance is the best starting point. Its exact server block is **not present in this repository**. Use `sudo nginx -T` to inspect and preserve it; the fresh-install example above is not an instruction to overwrite a working site.
 
-### Phase 8: create the first SAO account
+### Phase 8: assign SAO access to an existing account
 
-Do this only when the target account does not exist. `SUPER_ADMIN` is the SAO role; `ADMIN` is an organization administrator. Use a unique numeric `school_id`, an email belonging to the SAO user, and a strong password. The SAO organization should already exist after the migrations; check first:
+Use the existing person's login and add an `account_profiles` membership for Student Affairs Office. The person keeps the same school ID, email, password, and other profiles. Confirm the profile migration ran and the SAO organization exists:
 
 ```bash
 cd /var/www/hiusa/server
+php artisan migrate:status
 php artisan tinker --execute='echo App\Models\Organization::where("slug", "student-affairs-office")->value("id") ?? "MISSING";'
 ```
 
-The full duplicate-safe creation steps for another SAO account are in the section **Accounts** below. Do not run production seeders to create one.
+The guarded assignment steps are in **Accounts** below. Do not run production seeders or create a second user row for someone who already has a login. If the `account_profiles` migration is pending, run `php artisan migrate --force` first; a missing table can make login and protected API requests fail.
 
 ### Phase 9: smoke test every runtime
 
@@ -465,61 +466,47 @@ Also back up `server/storage/app`, `server/public/uploads` if present, and produ
 
 ## 3. Accounts
 
-### Create another SAO / Super Admin on Lightsail
+### Add SAO / Super Admin access to an existing login on Lightsail
 
-The SAO UI creates `ADMIN` accounts for student organizations. It does not create another `SUPER_ADMIN`. To create an SAO account, use Tinker with a unique school ID and email. This command validates before writing; it creates one account and does not alter existing accounts.
+The SAO UI creates `ADMIN` accounts for student organizations. To grant SAO access, select the existing person's school ID and verify their email. This adds one SAO profile to the same login and keeps their other memberships. Confirm the person is authorized for university-wide access and back up the database first.
 
 ```bash
 cd /var/www/hiusa/server
-export NEW_SAO_SCHOOL_ID='990010'
-export NEW_SAO_FIRST_NAME='Maria'
-export NEW_SAO_LAST_NAME='Santos'
-export NEW_SAO_EMAIL='maria.santos@example.edu'
-export NEW_SAO_POSITION='SAO Officer'
-read -rsp 'New SAO password: ' NEW_SAO_PASSWORD
-echo
-export NEW_SAO_PASSWORD
+export EXISTING_SAO_SCHOOL_ID='990010'
+export EXISTING_SAO_EMAIL='maria.santos@example.edu'
 ```
 
-Replace the example identity with the real person's details. Keep the password out of command history. Then run:
+Replace both examples with the existing person's actual school ID and email. Then run:
 
 ```bash
 php artisan tinker --execute='
-$data = validator([
-    "school_id" => getenv("NEW_SAO_SCHOOL_ID"),
-    "first_name" => getenv("NEW_SAO_FIRST_NAME"),
-    "last_name" => getenv("NEW_SAO_LAST_NAME"),
-    "email" => getenv("NEW_SAO_EMAIL"),
-    "position_title" => getenv("NEW_SAO_POSITION"),
-    "password" => getenv("NEW_SAO_PASSWORD"),
-], [
-    "school_id" => ["required", "integer", "min:1", "max:99999999", "unique:users,school_id"],
-    "first_name" => ["required", "string", "max:60"],
-    "last_name" => ["required", "string", "max:60"],
-    "email" => ["required", "email", "max:100", "unique:users,email"],
-    "position_title" => ["required", "string", "max:100"],
-    "password" => ["required", "string", "min:8"],
-])->validate();
+$schoolId = filter_var(getenv("EXISTING_SAO_SCHOOL_ID"), FILTER_VALIDATE_INT);
+$email = getenv("EXISTING_SAO_EMAIL");
+if (!$schoolId || !$email) { throw new RuntimeException("Set the existing school ID and email first."); }
+$user = App\Models\User::whereKey($schoolId)->where("email", $email)->firstOrFail();
+if ($user->getRawOriginal("account_status") !== "active") { throw new RuntimeException("The existing login is inactive."); }
 $org = App\Models\Organization::where("slug", "student-affairs-office")
     ->where("is_active", true)->firstOrFail();
-$user = App\Models\User::create([
-    "organization_id" => $org->id,
-    "school_id" => (int) $data["school_id"],
-    "first_name" => $data["first_name"],
-    "last_name" => $data["last_name"],
-    "email" => $data["email"],
-    "password_hash" => $data["password"],
-    "role" => "SUPER_ADMIN",
-    "position_title" => $data["position_title"],
-    "account_status" => "active",
-    "is_member" => true,
-]);
-echo "Created SAO account {$user->school_id}\n";
+$profile = $user->accountProfiles()->where("organization_id", $org->id)->first();
+if ($profile && ($profile->role !== "SUPER_ADMIN" || $profile->account_status !== "active")) {
+    throw new RuntimeException("An SAO profile exists with different access; inspect it before changing anything.");
+}
+if (!$profile) {
+    $profile = $user->accountProfiles()->create([
+        "organization_id" => $org->id,
+        "role" => "SUPER_ADMIN",
+        "position_title" => "SAO Officer",
+        "account_status" => "active",
+    ]);
+}
+echo "SAO profile {$profile->id} belongs to existing user {$user->school_id}.\n";
 '
-unset NEW_SAO_SCHOOL_ID NEW_SAO_FIRST_NAME NEW_SAO_LAST_NAME NEW_SAO_EMAIL NEW_SAO_POSITION NEW_SAO_PASSWORD
+unset EXISTING_SAO_SCHOOL_ID EXISTING_SAO_EMAIL
 ```
 
-The `User` model hashes `password_hash` through its cast. Log in by selecting **Student Affairs Office**, then enter that school ID and password. To create an SBO administrator instead, log in as SAO and use **SAO Administration > Administrators**; set the initial password in that form.
+Sign in with the existing school ID and password, then use the account switcher in the top bar to select **Student Affairs Office**. Login starts in the user's primary profile; adding SAO access does not change that profile or the password. To create an SBO administrator, switch to SAO and use **SAO Administration > Administrators**.
+
+If a previous account-creation attempt failed, stop before rerunning it. Check `php artisan migrate:status` for the account-profiles migration and copy the first actual error from `server/storage/logs/laravel.log`. A duplicate school ID or email means the login already exists; use its existing ID above. If a second user was already created, inspect its profiles and linked records before changing or removing it.
 
 ### Forgot password only reaches some emails
 
@@ -564,6 +551,21 @@ Read the first error, then check `php -v`, `php -m`, `composer diagnose`, availa
 ### Manage Users cannot load users
 
 A prior bug was a MySQL `ONLY_FULL_GROUP_BY` error in `/api/users`: its role-count query selected `users.*` and fingerprint data while grouping by `role`. The local source was fixed and tested against MySQL in the earlier conversation. If the live deployment still shows the error, confirm the server has pulled that commit and look for the SQL 1055 message in Laravel logs. A backend-only deployment of that fix needs no React rebuild or migration.
+
+### `/api/event-requirements` is missing on Lightsail
+
+The source registers GET and POST `/api/event-requirements` and PUT `/api/event-requirements/{requirement}`. GET requires a Sanctum token and the `SUPER_ADMIN`, `ADMIN`, or `DEPARTMENT_HEAD` profile. Run these read-only checks on Lightsail after pulling the intended release:
+
+```bash
+cd /var/www/hiusa/server
+git log -1 --oneline
+php artisan route:list --path=event-requirements -v
+php artisan migrate:status
+sudo nginx -T 2>/dev/null | grep -A8 'location \^~ /api/'
+curl -i -H 'Accept: application/json' https://YOUR_STATIC_IP/api/event-requirements
+```
+
+An unauthenticated request should return a Laravel JSON `401`, which proves that `/api/*` reaches Laravel. An HTML page or HTML `404` from that URL points to Nginx routing or its SPA fallback. A Laravel JSON `404` with no route in `route:list` points to an old checkout or route cache. If the route is present but its table is pending, take a backup and run `php artisan migrate --force`. After deploying the correct code, run `php artisan optimize:clear` and rebuild React with `VITE_API_URL=/api`; then verify that the browser requests this exact origin and path. Inspect the first error in `server/storage/logs/laravel.log` if the route returns `500`. Do not expose a real bearer token in shell history or logs merely to probe the endpoint.
 
 ### Docker key paste produced curl errors
 
