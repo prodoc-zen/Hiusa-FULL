@@ -65,6 +65,7 @@ class FinanceReadAccessTest extends TestCase
             'organization_id' => $organizationId,
             'report_type' => 'monthly',
             'title' => "{$label} Report",
+            'submitted_at' => now(),
         ]);
 
         $collection = Collection::create([

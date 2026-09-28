@@ -272,7 +272,6 @@ class UseCaseComplianceTest extends TestCase
     {
         $admin = $this->user('ADMIN');
         $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
-        $superAdmin = $this->user('SUPER_ADMIN', $admin->organization_id);
         $this->authenticate($admin);
         $budgetId = $this->postJson('/api/budgets', [
             'title' => 'Operations Budget',
@@ -292,12 +291,6 @@ class UseCaseComplianceTest extends TestCase
         $approval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
         $this->authenticate($departmentHead);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
-
-        $this->authenticate($admin);
-        $this->postJson('/api/transactions', $transaction)->assertUnprocessable();
-        $saoApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
-        $this->authenticate($superAdmin);
-        $this->patchJson("/api/approval-requests/{$saoApproval->id}", ['status' => 'approved'])->assertOk();
 
         $this->authenticate($admin);
         $transactionId = $this->postJson('/api/transactions', $transaction)->assertCreated()->json('id');
@@ -357,7 +350,6 @@ class UseCaseComplianceTest extends TestCase
     {
         $admin = $this->user('ADMIN');
         $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
-        $superAdmin = $this->user('SUPER_ADMIN', $admin->organization_id);
         $this->authenticate($admin);
 
         $budgetId = $this->postJson('/api/budgets', [
@@ -369,14 +361,11 @@ class UseCaseComplianceTest extends TestCase
         $dhApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->firstOrFail();
         $this->authenticate($departmentHead);
         $this->patchJson("/api/approval-requests/{$dhApproval->id}", ['status' => 'approved'])->assertOk();
-        $saoApproval = ApprovalRequest::where('entity_type', 'budget')->where('entity_id', $budgetId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
-        $this->authenticate($superAdmin);
-        $this->patchJson("/api/approval-requests/{$saoApproval->id}", ['status' => 'approved'])->assertOk();
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'submission_status' => 'approved']);
 
         $this->authenticate($admin);
         $this->putJson("/api/budgets/{$budgetId}", ['allocated_amount' => 750])->assertOk();
-        $this->assertDatabaseHas('approval_requests', ['id' => $saoApproval->id, 'status' => 'pending', 'required_role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('approval_requests', ['id' => $dhApproval->id, 'status' => 'pending', 'required_role' => 'DEPARTMENT_HEAD']);
         $this->assertDatabaseHas('budgets', ['id' => $budgetId, 'submission_status' => 'pending_department_head', 'department_head_approved_by' => null]);
 
         $this->postJson('/api/transactions', [

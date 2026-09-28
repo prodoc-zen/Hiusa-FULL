@@ -45,7 +45,7 @@ class BudgetSubmissionStatusBackfiller
                     $budget->update(['submission_status' => 'rejected']);
                     $counts['rejected']++;
                 } elseif ($latest->status === 'pending') {
-                    $latest->update(['required_role' => 'DEPARTMENT_HEAD']);
+                    $latest->update(['required_role' => config('approvals.routes.budget')]);
                     $budget->update(['submission_status' => 'pending_department_head']);
                     $counts['pending']++;
                 }
