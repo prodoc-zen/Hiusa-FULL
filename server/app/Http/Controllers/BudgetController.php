@@ -115,7 +115,7 @@ class BudgetController extends Controller
             $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
         }
 
-        if ($this->hasApprovedApproval($budget) && $this->hasMaterialBudgetChange($data)) {
+        if ($this->isAwaitingSaoOrApproved($budget) && $this->hasMaterialBudgetChange($data)) {
             $this->restartApprovalAtDepartmentHead($budget, $request);
         }
 
@@ -277,9 +277,9 @@ class BudgetController extends Controller
         }
     }
 
-    private function hasApprovedApproval(Budget $budget): bool
+    private function isAwaitingSaoOrApproved(Budget $budget): bool
     {
-        return $budget->submission_status === 'approved';
+        return in_array($budget->submission_status, ['pending_sao', 'approved'], true);
     }
 
     private function hasRejectedApproval(Budget $budget): bool
