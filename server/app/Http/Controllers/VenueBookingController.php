@@ -167,12 +167,12 @@ class VenueBookingController extends Controller
 
         $booking = $result['booking'];
         $venueName = $booking->venue()->value('name');
-        User::where('organization_id', $booking->organization_id)
+        User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $booking->organization_id)
             ->whereIn('role', ['ADMIN', 'SBO_OFFICER'])
-            ->where('account_status', 'active')
-            ->get(['school_id', 'organization_id'])
+            ->where('account_status', 'active'))
+            ->get(['school_id'])
             ->each(fn (User $recipient) => Notification::create([
-                'organization_id' => $recipient->organization_id,
+                'organization_id' => $booking->organization_id,
                 'user_id' => $recipient->school_id,
                 'notification_type' => 'general',
                 'title' => $data['status'] === 'approved' ? 'Venue booking approved' : 'Venue booking rejected',
@@ -190,18 +190,23 @@ class VenueBookingController extends Controller
 
     public function withdraw(Request $request, VenueBooking $venueBooking)
     {
-        if ($venueBooking->organization_id !== $request->user()->organization_id) {
-            return response()->json(['message' => 'Venue booking not found.'], 404);
-        }
-
-        $canWithdraw = $venueBooking->status === 'pending'
-            || ($venueBooking->status === 'approved' && Carbon::parse($venueBooking->start_time)->isFuture());
-        if (! $canWithdraw) {
-            return response()->json(['message' => 'Only a pending booking or a future approved booking can be withdrawn.'], 409);
-        }
-
-        $booking = DB::transaction(function () use ($request, $venueBooking) {
+        // Both the ownership and the withdrawable-status checks must run
+        // against the row as of the moment it is locked, not the possibly
+        // stale $venueBooking the route resolved before a concurrent review()
+        // could have rejected it - otherwise that reject can be overwritten.
+        $result = DB::transaction(function () use ($request, $venueBooking) {
             $booking = VenueBooking::whereKey($venueBooking->id)->lockForUpdate()->first();
+
+            if ($booking->organization_id !== $request->user()->organization_id) {
+                return ['not_found' => true];
+            }
+
+            $canWithdraw = $booking->status === 'pending'
+                || ($booking->status === 'approved' && Carbon::parse($booking->start_time)->isFuture());
+            if (! $canWithdraw) {
+                return ['conflict' => 'Only a pending booking or a future approved booking can be withdrawn.'];
+            }
+
             $booking->update([
                 'status' => 'withdrawn',
                 'reviewed_by' => $request->user()->school_id,
@@ -221,9 +226,18 @@ class VenueBookingController extends Controller
                 'created_at' => now(),
             ]);
 
-            return $booking->fresh();
+            return ['booking' => $booking->fresh()];
         });
 
+        if (isset($result['not_found'])) {
+            return response()->json(['message' => 'Venue booking not found.'], 404);
+        }
+
+        if (isset($result['conflict'])) {
+            return response()->json(['message' => $result['conflict']], 409);
+        }
+
+        $booking = $result['booking'];
         $venueName = $booking->venue()->value('name');
         User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get(['school_id', 'organization_id'])
             ->each(fn (User $sao) => Notification::create([
