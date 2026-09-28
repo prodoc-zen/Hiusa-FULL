@@ -2,43 +2,44 @@
 
 namespace App\Services\Dashboard;
 
-use App\Services\TaskDelegationService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
  * Turns the output of HIUSA's existing deterministic engines into advisory
  * dashboard insights. This class never recomputes or triggers those engines
- * (budget advisory, OLS financial forecast, weighted task delegation) - it
- * only reads what they already persisted, plus one small reused formula
- * (election turnout pace, reusing the same ratio ElectionController::voters
- * already computes). Wording is always advisory ("may", "consider"); nothing
- * here writes to the database.
+ * (budget advisory, OLS financial forecast) - it only reads what they
+ * already persisted, plus two small self-contained formulas (task workload
+ * balance and election turnout pace, reusing the same ratio
+ * ElectionController::voters already computes). Wording is always advisory
+ * ("may", "consider"); nothing here writes to the database.
  */
 class DashboardInsightEngine
 {
-    public function __construct(private readonly TaskDelegationService $taskDelegation) {}
+    public function __construct(private readonly ClientRouteAccess $routeAccess) {}
 
     /**
      * Up to 4 candidate insights for one organization. Callers slice to the
-     * 0-3 the briefing contract allows.
+     * 0-3 the briefing contract allows. $role gates every insight's href
+     * against config/client_routes.php so a role never receives a link to a
+     * page it cannot open.
      *
      * @return array<int, array<string, mixed>>
      */
-    public function forOrganization(int $organizationId, bool $includeTaskWorkload = true): array
+    public function forOrganization(int $organizationId, string $role, bool $includeTaskWorkload = true): array
     {
         $insights = [];
 
-        if ($budget = $this->budgetRisk($organizationId)) {
+        if ($budget = $this->budgetRisk($organizationId, $role)) {
             $insights[] = $budget;
         }
-        if ($turnout = $this->electionTurnoutPace($organizationId)) {
+        if ($turnout = $this->electionTurnoutPace($organizationId, $role)) {
             $insights[] = $turnout;
         }
-        if ($includeTaskWorkload && ($workload = $this->taskWorkloadBalance($organizationId))) {
+        if ($includeTaskWorkload && ($workload = $this->taskWorkloadBalance($organizationId, $role))) {
             $insights[] = $workload;
         }
-        if ($forecast = $this->forecastTrend($organizationId)) {
+        if ($forecast = $this->forecastTrend($organizationId, $role)) {
             $insights[] = $forecast;
         }
 
@@ -75,11 +76,11 @@ class DashboardInsightEngine
                 'formula' => 'Counts distinct organizations with at least one budget where overspending_risk = high.',
             ],
             'generated_at' => now()->toIso8601String(),
-            'href' => '/dashboard/super-admin/organizations',
+            'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations'),
         ]];
     }
 
-    private function budgetRisk(int $organizationId): ?array
+    private function budgetRisk(int $organizationId, string $role): ?array
     {
         $budget = DB::table('budgets')
             ->where('organization_id', $organizationId)
@@ -109,11 +110,11 @@ class DashboardInsightEngine
                 'formula' => 'available = current_available_budget + predicted_income - predicted_expense - committed_expenses; safe_spending_limit = max(0, available) * 0.8; risk escalates when predicted expense exceeds predicted income or available funds fall at/under the warning threshold.',
             ],
             'generated_at' => $budget->advice_generated_at ? \Illuminate\Support\Carbon::parse($budget->advice_generated_at)->toIso8601String() : now()->toIso8601String(),
-            'href' => '/dashboard/finance/budget-allocation',
+            'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/budget-allocation'),
         ];
     }
 
-    private function forecastTrend(int $organizationId): ?array
+    private function forecastTrend(int $organizationId, string $role): ?array
     {
         $forecast = DB::table('financial_forecasts')
             ->where('organization_id', $organizationId)
@@ -143,22 +144,77 @@ class DashboardInsightEngine
                 'formula' => 'Each series is fit as y = intercept + slope * month_index by ordinary least squares; the next month is projected from that line and clamped at zero.',
             ],
             'generated_at' => \Illuminate\Support\Carbon::parse($forecast->updated_at)->toIso8601String(),
-            'href' => '/dashboard/finance/financial-insights',
+            'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/financial-insights'),
         ];
     }
 
-    private function taskWorkloadBalance(int $organizationId): ?array
+    /**
+     * Whether task load is unevenly split across an organization's SBO
+     * officers. This used to delegate to TaskDelegationService::recommend(),
+     * which runs 3 separate queries (active/completed/overdue) per officer
+     * purely to compute a delegation-style score irrelevant to this
+     * yes/no-imbalance check; a single grouped count replaces that whole
+     * per-officer fan-out.
+     */
+    private function taskWorkloadBalance(int $organizationId, string $role): ?array
     {
-        $recommendation = $this->taskDelegation->recommend($organizationId, 'General organizational coordination task');
-        $rankings = collect($recommendation['rankings'] ?? []);
+        $maxActive = max(1, (int) config('services.hiusa_ai.task_max_active_tasks', 5));
 
-        if ($rankings->count() < 2) {
+        $officers = DB::table('users')
+            ->where('organization_id', $organizationId)
+            ->where('role', 'SBO_OFFICER')
+            ->where('account_status', 'active')
+            ->whereNotNull('position_title')
+            ->where('position_title', '!=', '')
+            ->get(['school_id', 'first_name', 'last_name', 'position_title']);
+
+        if ($officers->count() < 2) {
             return null;
         }
 
-        $busiest = $rankings->first();
-        $freest = $rankings->last();
-        $gap = (float) $busiest['workload_score'] - (float) $freest['workload_score'];
+        $activePositions = DB::table('sbo_positions')
+            ->where('organization_id', $organizationId)
+            ->where('role', 'SBO_OFFICER')
+            ->where('is_active', true)
+            ->pluck('title');
+
+        $eligibleOfficers = $officers->filter(fn ($officer) => $activePositions->contains($officer->position_title))->values();
+
+        if ($eligibleOfficers->count() < 2) {
+            return null;
+        }
+
+        $officerIds = $eligibleOfficers->pluck('school_id');
+        $activeStatuses = ['pending', 'in_progress', 'overdue'];
+
+        $taskCountsByOfficer = DB::table('tasks')
+            ->where('organization_id', $organizationId)
+            ->whereIn('assigned_to', $officerIds)
+            ->select('assigned_to', 'status', DB::raw('COUNT(*) as total'))
+            ->groupBy('assigned_to', 'status')
+            ->get()
+            ->groupBy('assigned_to');
+
+        $workloads = $eligibleOfficers->map(function ($officer) use ($taskCountsByOfficer, $maxActive, $activeStatuses) {
+            $rows = $taskCountsByOfficer->get($officer->school_id, collect());
+            $active = (int) $rows->whereIn('status', $activeStatuses)->sum('total');
+
+            return [
+                'officer_id' => $officer->school_id,
+                'name' => trim("{$officer->first_name} {$officer->last_name}"),
+                'active_tasks' => $active,
+                'workload_score' => round(100 * (1 - min($active, $maxActive) / $maxActive), 2),
+            ];
+        })->filter(fn ($workload) => $workload['active_tasks'] < $maxActive)->values();
+
+        if ($workloads->count() < 2) {
+            return null;
+        }
+
+        $sorted = $workloads->sortBy('workload_score')->values();
+        $busiest = $sorted->first();
+        $freest = $sorted->last();
+        $gap = (float) $freest['workload_score'] - (float) $busiest['workload_score'];
 
         if ($gap < 40) {
             return null;
@@ -169,20 +225,20 @@ class DashboardInsightEngine
             'title' => 'Task workload is unbalanced among officers',
             'body' => "{$busiest['name']} is carrying {$busiest['active_tasks']} active task(s) while {$freest['name']} has {$freest['active_tasks']}. Consider assigning the next task to a less loaded officer.",
             'why' => [
-                'method' => 'Rule-based weighted scoring (TaskDelegationService::recommend)',
+                'method' => 'Grouped active-task count per eligible officer (DashboardInsightEngine::taskWorkloadBalance)',
                 'inputs' => [
-                    'weights' => $recommendation['weights'],
+                    'max_active_tasks' => $maxActive,
                     'busiest' => ['name' => $busiest['name'], 'active_tasks' => $busiest['active_tasks'], 'workload_score' => $busiest['workload_score']],
                     'freest' => ['name' => $freest['name'], 'active_tasks' => $freest['active_tasks'], 'workload_score' => $freest['workload_score']],
                 ],
-                'formula' => 'workload_score = 100 * (1 - active_tasks / max_active_tasks); final_score = position_weight*role_score + workload_weight*workload_score + performance_weight*performance_score.',
+                'formula' => 'workload_score = 100 * (1 - active_tasks / max_active_tasks); flagged once the gap between the busiest and freest eligible officer reaches 40+ points.',
             ],
             'generated_at' => now()->toIso8601String(),
-            'href' => '/dashboard/tasks/task-board',
+            'href' => $this->routeAccess->hrefFor($role, '/dashboard/tasks/task-board'),
         ];
     }
 
-    private function electionTurnoutPace(int $organizationId): ?array
+    private function electionTurnoutPace(int $organizationId, string $role): ?array
     {
         $election = DB::table('elections')
             ->where('organization_id', $organizationId)
@@ -240,7 +296,7 @@ class DashboardInsightEngine
                 'formula' => 'turnout_percent = voted_count / eligible_total * 100; elapsed_percent = (now - start_time) / (end_time - start_time) * 100; flagged once 20%+ of the window has elapsed and turnout trails elapsed pace by 15+ points.',
             ],
             'generated_at' => now()->toIso8601String(),
-            'href' => '/dashboard/elections/election-results',
+            'href' => $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results'),
         ];
     }
 }

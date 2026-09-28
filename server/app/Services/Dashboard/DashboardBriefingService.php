@@ -5,6 +5,7 @@ namespace App\Services\Dashboard;
 use App\Models\ApprovalRequest;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
+use App\Services\Compliance\AccreditationStatusService;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -44,6 +45,8 @@ class DashboardBriefingService
     public function __construct(
         private readonly ApprovalEntityLabel $entityLabels,
         private readonly DashboardInsightEngine $insightEngine,
+        private readonly ClientRouteAccess $routeAccess,
+        private readonly AccreditationStatusService $accreditation,
     ) {}
 
     public function build(User $user): array
@@ -65,13 +68,14 @@ class DashboardBriefingService
     private function buildAdmin(User $user): array
     {
         $orgId = (int) $user->organization_id;
+        $role = $user->role;
 
         $attention = $this->prioritize(array_merge(
-            $this->approvalsAttention('ADMIN', $orgId, $user->id, '/dashboard/approvals'),
-            $this->electionsClosingAttention($orgId, '/dashboard/elections/manage-elections'),
-            $this->budgetUtilizationAttention($orgId, '/dashboard/finance/budget-allocation'),
-            $this->overdueTasksAttention($orgId, '/dashboard/tasks/task-board'),
-            $this->financialReportsAttention($orgId, '/dashboard/finance/transaction-history'),
+            $this->approvalsAttention('ADMIN', $orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals')),
+            $this->electionsClosingAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/elections/manage-elections')),
+            $this->budgetUtilizationAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/finance/budget-allocation')),
+            $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/task-board')),
+            $this->financialReportsAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/finance/transaction-history')),
         ));
 
         return [
@@ -86,21 +90,22 @@ class DashboardBriefingService
                 'merchandise' => $this->merchandisePillar($orgId),
                 'communication' => $this->communicationPillar($orgId, $user->id),
             ],
-            'insights' => array_slice($this->insightEngine->forOrganization($orgId), 0, 3),
-            'agenda' => $this->agenda($orgId, '/dashboard/events/manage-events', '/dashboard/elections/manage-elections'),
-            'activity' => $this->activityFeed($orgId),
+            'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role), 0, 3),
+            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/manage-events'), $this->routeAccess->hrefFor($role, '/dashboard/elections/manage-elections')),
+            'activity' => $this->activityFeed($role, $orgId),
         ];
     }
 
     private function buildOfficer(User $user): array
     {
         $orgId = (int) $user->organization_id;
+        $role = $user->role;
 
         $attention = $this->prioritize(array_merge(
-            $this->ordersToVerifyAttention($orgId, '/dashboard/merchandise/manage-orders'),
-            $this->dueSoonTasksAttention($orgId, $user->id, '/dashboard/tasks/assigned-tasks'),
-            $this->overdueTasksAttention($orgId, '/dashboard/tasks/assigned-tasks', $user->id),
-            $this->eventsTodayAttention($orgId, '/dashboard/events/check-in'),
+            $this->ordersToVerifyAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/merchandise/manage-orders')),
+            $this->dueSoonTasksAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/tasks/assigned-tasks')),
+            $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/assigned-tasks'), $user->id),
+            $this->eventsTodayAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/check-in')),
         ));
 
         return [
@@ -114,18 +119,19 @@ class DashboardBriefingService
                 'communication' => $this->communicationPillar($orgId, $user->id),
                 'finance' => $this->financePillar($orgId),
             ],
-            'insights' => array_slice($this->insightEngine->forOrganization($orgId), 0, 3),
-            'agenda' => $this->agenda($orgId, '/dashboard/events/check-in', null),
-            'activity' => $this->activityFeed($orgId),
+            'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role), 0, 3),
+            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/check-in'), null),
+            'activity' => $this->activityFeed($role, $orgId, $user->id),
         ];
     }
 
     private function buildDepartmentHead(User $user): array
     {
         $orgId = (int) $user->organization_id;
+        $role = $user->role;
 
         $attention = $this->prioritize(
-            $this->approvalsAttention('DEPARTMENT_HEAD', $orgId, $user->id, '/dashboard/approvals')
+            $this->approvalsAttention('DEPARTMENT_HEAD', $orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals'))
         );
 
         return [
@@ -138,22 +144,23 @@ class DashboardBriefingService
                 'elections' => $this->electionsPillar($orgId),
                 'communication' => $this->communicationPillar($orgId, $user->id),
             ],
-            'insights' => array_slice($this->insightEngine->forOrganization($orgId, includeTaskWorkload: false), 0, 3),
-            'agenda' => $this->agenda($orgId, '/dashboard/events/activity-calendar', '/dashboard/elections/election-results'),
-            'activity' => $this->activityFeed($orgId),
+            'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role, includeTaskWorkload: false), 0, 3),
+            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results')),
+            'activity' => $this->activityFeed($role, $orgId, $user->id),
         ];
     }
 
     private function buildStudent(User $user): array
     {
         $orgId = (int) $user->organization_id;
+        $role = $user->role;
 
         $attention = $this->prioritize(array_merge(
-            $this->unvotedElectionAttention($orgId, $user->id, '/dashboard/elections/cast-vote'),
-            $this->ordersReadyToClaimAttention($orgId, $user->id, '/dashboard/merchandise/my-orders'),
-            $this->overdueTasksAttention($orgId, '/dashboard/tasks/assigned-tasks', $user->id),
-            $this->dueSoonTasksAttention($orgId, $user->id, '/dashboard/tasks/assigned-tasks'),
-            $this->eventsTodayAttention($orgId, '/dashboard/events/activity-calendar'),
+            $this->unvotedElectionAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote')),
+            $this->ordersReadyToClaimAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/merchandise/my-orders')),
+            $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/assigned-tasks'), $user->id),
+            $this->dueSoonTasksAttention($orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/tasks/assigned-tasks')),
+            $this->eventsTodayAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar')),
         ));
 
         return [
@@ -168,20 +175,22 @@ class DashboardBriefingService
                 'communication' => $this->communicationPillar($orgId, $user->id),
             ],
             'insights' => [],
-            'agenda' => $this->agenda($orgId, '/dashboard/events/activity-calendar', '/dashboard/elections/cast-vote'),
-            'activity' => $this->activityFeed($orgId, onlyUserId: $user->id),
+            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote')),
+            'activity' => $this->activityFeed($role, $orgId, $user->id),
         ];
     }
 
     private function buildSuperAdmin(User $user): array
     {
+        $role = $user->role;
         $organizationIds = DB::table('organizations')
             ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
             ->pluck('id');
 
         $attention = $this->prioritize(array_merge(
-            $this->approvalsAttention('SUPER_ADMIN', null, $user->id, '/dashboard/super-admin/approvals'),
-            $this->orgsOverdueReportsAttention($organizationIds, '/dashboard/super-admin/financial-reports'),
+            $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/approvals')),
+            $this->orgsOverdueReportsAttention($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/financial-reports')),
+            $this->saoQueuesAttention(),
         ));
 
         return [
@@ -196,7 +205,7 @@ class DashboardBriefingService
             ],
             'insights' => array_slice($this->insightEngine->forUniversity($organizationIds), 0, 3),
             'agenda' => $this->universityAgenda($organizationIds),
-            'activity' => $this->activityFeed(null),
+            'activity' => $this->activityFeed($role, null),
             'organizations' => $this->organizationsOverview($organizationIds),
         ];
     }
@@ -311,7 +320,7 @@ class DashboardBriefingService
     // per-row work, so the query count never grows with total history)
     // ---------------------------------------------------------------
 
-    private function approvalsAttention(string $requiredRole, ?int $organizationId, int $assignedApproverUserId, string $href): array
+    private function approvalsAttention(string $requiredRole, ?int $organizationId, int $assignedApproverUserId, ?string $href): array
     {
         $query = ApprovalRequest::with('requester:school_id,first_name,last_name')
             ->where('required_role', $requiredRole)
@@ -340,7 +349,7 @@ class DashboardBriefingService
         })->all();
     }
 
-    private function electionsClosingAttention(int $organizationId, string $href): array
+    private function electionsClosingAttention(int $organizationId, ?string $href): array
     {
         $rows = DB::table('elections')->where('organization_id', $organizationId)
             ->where('status', 'active')
@@ -363,7 +372,7 @@ class DashboardBriefingService
         })->all();
     }
 
-    private function budgetUtilizationAttention(int $organizationId, string $href): array
+    private function budgetUtilizationAttention(int $organizationId, ?string $href): array
     {
         $rows = DB::table('budgets')->where('organization_id', $organizationId)
             ->where('allocated_amount', '>', 0)
@@ -392,7 +401,7 @@ class DashboardBriefingService
         })->values()->all();
     }
 
-    private function overdueTasksAttention(int $organizationId, string $href, ?int $assignedTo = null): array
+    private function overdueTasksAttention(int $organizationId, ?string $href, ?int $assignedTo = null): array
     {
         $query = DB::table('tasks')->where('organization_id', $organizationId)->where('status', 'overdue');
         if ($assignedTo !== null) {
@@ -415,7 +424,7 @@ class DashboardBriefingService
         })->all();
     }
 
-    private function dueSoonTasksAttention(int $organizationId, int $assignedTo, string $href): array
+    private function dueSoonTasksAttention(int $organizationId, int $assignedTo, ?string $href): array
     {
         $rows = DB::table('tasks')->where('organization_id', $organizationId)->where('assigned_to', $assignedTo)
             ->whereIn('status', ['pending', 'in_progress'])
@@ -437,7 +446,7 @@ class DashboardBriefingService
         })->all();
     }
 
-    private function financialReportsAttention(int $organizationId, string $href): array
+    private function financialReportsAttention(int $organizationId, ?string $href): array
     {
         $items = [];
 
@@ -481,7 +490,7 @@ class DashboardBriefingService
         return array_slice($items, 0, self::ATTENTION_LIMIT);
     }
 
-    private function ordersToVerifyAttention(int $organizationId, string $href): array
+    private function ordersToVerifyAttention(int $organizationId, ?string $href): array
     {
         $rows = DB::table('orders')->where('organization_id', $organizationId)
             ->where('status', 'pending')->where('officer_review_status', 'pending')
@@ -499,7 +508,7 @@ class DashboardBriefingService
         ])->all();
     }
 
-    private function eventsTodayAttention(int $organizationId, string $href): array
+    private function eventsTodayAttention(int $organizationId, ?string $href): array
     {
         $rows = DB::table('events')->where('organization_id', $organizationId)
             ->whereIn('status', ['approved', 'ongoing'])
@@ -521,7 +530,7 @@ class DashboardBriefingService
         })->all();
     }
 
-    private function unvotedElectionAttention(int $organizationId, int $studentId, string $href): array
+    private function unvotedElectionAttention(int $organizationId, int $studentId, ?string $href): array
     {
         $election = DB::table('elections')->where('organization_id', $organizationId)
             ->where('status', 'active')->orderBy('end_time')->first(['id', 'title', 'end_time']);
@@ -548,7 +557,7 @@ class DashboardBriefingService
         ]];
     }
 
-    private function ordersReadyToClaimAttention(int $organizationId, int $studentId, string $href): array
+    private function ordersReadyToClaimAttention(int $organizationId, int $studentId, ?string $href): array
     {
         $rows = DB::table('orders')->where('organization_id', $organizationId)->where('student_id', $studentId)
             ->where('status', 'paid')->orderBy('updated_at')->limit(self::ATTENTION_LIMIT)->get(['id']);
@@ -564,7 +573,7 @@ class DashboardBriefingService
         ])->all();
     }
 
-    private function orgsOverdueReportsAttention(Collection $organizationIds, string $href): array
+    private function orgsOverdueReportsAttention(Collection $organizationIds, ?string $href): array
     {
         $deadline = DB::table('financial_report_deadlines')->orderByDesc('id')->first();
         if (! $deadline) {
@@ -851,7 +860,7 @@ class DashboardBriefingService
     // Agenda / activity / organizations
     // ---------------------------------------------------------------
 
-    private function agenda(int $organizationId, string $eventsHref, ?string $electionHref): array
+    private function agenda(int $organizationId, ?string $eventsHref, ?string $electionHref): array
     {
         $items = collect();
 
@@ -909,8 +918,21 @@ class DashboardBriefingService
         return $items->sortBy('starts_at')->take(self::AGENDA_LIMIT)->values()->all();
     }
 
-    private function activityFeed(?int $organizationId, ?int $onlyUserId = null, int $limit = self::ACTIVITY_LIMIT): array
+    /**
+     * Only ADMIN (their own org) and SUPER_ADMIN (organizationId null, no
+     * scope) get the full org audit stream, and even then never the
+     * 'grievances' module - a filer's identity must not leak through this
+     * feed to anyone but SUPER_ADMIN, mirroring the same rule /audit-logs
+     * enforces. Every other role gets only their own recent actions plus
+     * safe public items (published announcements, approved events), never
+     * another member's activity.
+     */
+    private function activityFeed(string $role, ?int $organizationId, ?int $userId = null, int $limit = self::ACTIVITY_LIMIT): array
     {
+        if ($userId !== null && $role !== 'ADMIN') {
+            return $this->personalAndPublicActivityFeed($role, (int) $organizationId, $userId, $limit);
+        }
+
         $query = DB::table('audit_logs')
             ->leftJoin('users', 'audit_logs.user_id', '=', 'users.school_id')
             ->select('audit_logs.id', 'audit_logs.action', 'audit_logs.module', 'audit_logs.description', 'audit_logs.created_at', 'users.first_name', 'users.last_name');
@@ -918,35 +940,164 @@ class DashboardBriefingService
         if ($organizationId !== null) {
             $query->where('audit_logs.organization_id', $organizationId);
         }
-        if ($onlyUserId !== null) {
-            $query->where('audit_logs.user_id', $onlyUserId);
+        if ($role !== 'SUPER_ADMIN') {
+            $query->where('audit_logs.module', '!=', 'grievances');
         }
 
         $rows = $query->orderByDesc('audit_logs.created_at')->limit($limit)->get();
 
-        return $rows->map(function ($row) {
-            $actor = trim(($row->first_name ?? '').' '.($row->last_name ?? ''));
-
-            return [
-                'id' => 'audit-'.$row->id,
-                'actor' => $actor !== '' ? $actor : 'System',
-                'action' => Str::headline($row->action),
-                'subject' => $row->description ?: Str::headline($row->module),
-                'at' => Carbon::parse($row->created_at)->toIso8601String(),
-                'href' => $this->activityHref($row->module),
-            ];
-        })->all();
+        return $rows->map(fn ($row) => $this->activityItem($row, $role))->all();
     }
 
-    private function activityHref(string $module): ?string
+    private function personalAndPublicActivityFeed(string $role, int $organizationId, int $userId, int $limit): array
     {
-        return match ($module) {
+        $own = DB::table('audit_logs')
+            ->leftJoin('users', 'audit_logs.user_id', '=', 'users.school_id')
+            ->select('audit_logs.id', 'audit_logs.action', 'audit_logs.module', 'audit_logs.description', 'audit_logs.created_at', 'users.first_name', 'users.last_name')
+            ->where('audit_logs.organization_id', $organizationId)
+            ->where('audit_logs.user_id', $userId)
+            ->where('audit_logs.module', '!=', 'grievances')
+            ->orderByDesc('audit_logs.created_at')
+            ->limit($limit)
+            ->get()
+            ->map(fn ($row) => $this->activityItem($row, $role));
+
+        $announcementsHref = $this->routeAccess->hrefFor($role, '/dashboard/announcements/view-announcements');
+        $announcements = DB::table('announcements')
+            ->where('organization_id', $organizationId)
+            ->where('is_published', true)
+            ->orderByDesc('published_at')
+            ->limit($limit)
+            ->get(['id', 'title', 'published_at'])
+            ->map(fn ($row) => [
+                'id' => 'announcement-'.$row->id,
+                'actor' => 'System',
+                'action' => 'Announcement Published',
+                'subject' => $row->title,
+                'at' => Carbon::parse($row->published_at)->toIso8601String(),
+                'href' => $announcementsHref,
+            ]);
+
+        $eventsHref = $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar');
+        $events = DB::table('events')
+            ->where('organization_id', $organizationId)
+            ->where('status', 'approved')
+            ->whereNotNull('approved_at')
+            ->orderByDesc('approved_at')
+            ->limit($limit)
+            ->get(['id', 'title', 'approved_at'])
+            ->map(fn ($row) => [
+                'id' => 'event-'.$row->id,
+                'actor' => 'System',
+                'action' => 'Event Approved',
+                'subject' => $row->title,
+                'at' => Carbon::parse($row->approved_at)->toIso8601String(),
+                'href' => $eventsHref,
+            ]);
+
+        return $own->concat($announcements)->concat($events)
+            ->sortByDesc('at')
+            ->take($limit)
+            ->values()
+            ->all();
+    }
+
+    private function activityItem($row, string $role): array
+    {
+        $actor = trim(($row->first_name ?? '').' '.($row->last_name ?? ''));
+
+        return [
+            'id' => 'audit-'.$row->id,
+            'actor' => $actor !== '' ? $actor : 'System',
+            'action' => Str::headline($row->action),
+            'subject' => $row->description ?: Str::headline($row->module),
+            'at' => Carbon::parse($row->created_at)->toIso8601String(),
+            'href' => $this->activityHref($role, $row->module),
+        ];
+    }
+
+    private function activityHref(string $role, string $module): ?string
+    {
+        $path = match ($module) {
             'budgets' => '/dashboard/finance/budget-allocation',
             'approvals' => '/dashboard/approvals',
             'financial_forecasts' => '/dashboard/finance/financial-insights',
             'system_administration' => '/dashboard/super-admin/organizations',
             default => null,
         };
+
+        return $path !== null ? $this->routeAccess->hrefFor($role, $path) : null;
+    }
+
+    /**
+     * SUPER_ADMIN's own queues that never surface for anyone else: pending
+     * venue bookings, compliance submissions awaiting review, unresolved
+     * high/critical urgency grievances (count only, no identities - the
+     * grievance identity leak this briefing must never repeat), and pending
+     * SAO clearance lines. None of these have a client page yet, so their
+     * href resolves through the same allowlist as everything else and comes
+     * back null until one exists.
+     */
+    private function saoQueuesAttention(): array
+    {
+        $items = [];
+
+        $pendingVenueBookings = DB::table('venue_bookings')->where('status', 'pending')->count();
+        if ($pendingVenueBookings > 0) {
+            $items[] = [
+                'id' => 'sao_queue-venue_bookings',
+                'type' => 'venue_bookings_pending',
+                'severity' => 'medium',
+                'title' => 'Venue bookings awaiting review',
+                'detail' => "{$pendingVenueBookings} venue booking(s) are awaiting SAO review",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/venues'),
+            ];
+        }
+
+        $pendingCompliance = DB::table('organization_compliance_submissions')->where('status', 'submitted')->count();
+        if ($pendingCompliance > 0) {
+            $items[] = [
+                'id' => 'sao_queue-compliance',
+                'type' => 'compliance_submissions_pending',
+                'severity' => 'medium',
+                'title' => 'Compliance submissions awaiting review',
+                'detail' => "{$pendingCompliance} compliance submission(s) are awaiting review",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance'),
+            ];
+        }
+
+        $urgentGrievances = DB::table('grievances')
+            ->whereNotIn('status', ['resolved', 'dismissed'])
+            ->whereIn('urgency', ['high', 'critical'])
+            ->count();
+        if ($urgentGrievances > 0) {
+            $items[] = [
+                'id' => 'sao_queue-grievances',
+                'type' => 'grievances_urgent',
+                'severity' => 'high',
+                'title' => 'Urgent grievances unresolved',
+                'detail' => "{$urgentGrievances} high or critical urgency grievance(s) remain unresolved",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/grievances'),
+            ];
+        }
+
+        $pendingSaoClearances = DB::table('clearance_signatures')->where('required_role', 'sao')->where('status', 'pending')->count();
+        if ($pendingSaoClearances > 0) {
+            $items[] = [
+                'id' => 'sao_queue-clearance',
+                'type' => 'clearance_sao_pending',
+                'severity' => 'medium',
+                'title' => 'SAO clearance lines pending',
+                'detail' => "{$pendingSaoClearances} SAO clearance line(s) are pending your signature",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/clearances'),
+            ];
+        }
+
+        return $items;
     }
 
     private function organizationsOverview(Collection $organizationIds): array
@@ -968,7 +1119,9 @@ class DashboardBriefingService
         $lastActivity = DB::table('audit_logs')->whereIn('organization_id', $organizationIds)
             ->select('organization_id')->selectRaw('MAX(created_at) as last_at')->groupBy('organization_id')->pluck('last_at', 'organization_id');
 
-        return $orgs->map(function ($org) use ($budgetTotals, $reportsPending, $openElections, $lastActivity) {
+        $accreditationStatuses = $this->accreditation->forOrganizations($organizationIds);
+
+        return $orgs->map(function ($org) use ($budgetTotals, $reportsPending, $openElections, $lastActivity, $accreditationStatuses) {
             $budget = $budgetTotals->get($org->id);
             $allocated = $budget ? (float) $budget->allocated : 0.0;
             $remaining = $budget ? (float) $budget->remaining : 0.0;
@@ -978,7 +1131,7 @@ class DashboardBriefingService
                 'id' => $org->id,
                 'name' => $org->name,
                 'abbreviation' => $org->acronym,
-                'accreditation_status' => null,
+                'accreditation_status' => $accreditationStatuses[$org->id] ?? 'not_applicable',
                 'budget_utilization_percent' => $utilization,
                 'financial_reports_pending' => (int) ($reportsPending[$org->id] ?? 0),
                 'open_elections' => (int) ($openElections[$org->id] ?? 0),
