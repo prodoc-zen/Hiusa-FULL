@@ -132,6 +132,7 @@ class RequestedWorkflowCompletionTest extends TestCase
             'allocated_amount' => 1000,
             'remaining_amount' => 750,
             'warning_threshold' => 100,
+            'submission_status' => 'approved',
         ]);
         ApprovalRequest::create([
             'organization_id' => $admin->organization_id,
