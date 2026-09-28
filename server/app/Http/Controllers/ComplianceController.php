@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
+use App\Services\Compliance\AccreditationStatusService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -20,10 +21,15 @@ use Illuminate\Validation\Rule;
  * one mutable row per (organization, requirement type): the first submission
  * creates it, a resubmission overwrites the same row and resets it back to
  * "submitted" - mirroring FinancialReportController's draft/resubmit pattern
- * rather than keeping a full submission history.
+ * rather than keeping a full submission history. Accreditation status is
+ * computed by the shared AccreditationStatusService so this controller and
+ * the SUPER_ADMIN dashboard briefing never disagree on what "accredited"
+ * means.
  */
 class ComplianceController extends Controller
 {
+    public function __construct(private readonly AccreditationStatusService $accreditation) {}
+
     public function requirementTypes(Request $request)
     {
         $filters = $request->validate([
@@ -31,8 +37,15 @@ class ComplianceController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
-        $query = ComplianceRequirementType::query()
-            ->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
+        $query = ComplianceRequirementType::query();
+
+        if ($request->user()->role === 'ADMIN') {
+            // ADMIN only needs what it must act on: active requirements for
+            // the current academic year, never past years or retired types.
+            $query->where('is_active', true)->where('academic_year', $this->accreditation->currentAcademicYear());
+        } else {
+            $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
+        }
 
         return response()->json($query->orderByDesc('academic_year')->orderBy('name')->paginate($filters['per_page'] ?? 20));
     }
@@ -98,7 +111,9 @@ class ComplianceController extends Controller
         ]);
 
         $old = $requirementType->toArray();
+        $previousDeadline = $requirementType->deadline_at;
         $requirementType->update($data);
+        $requirementType->refresh();
 
         AuditLog::create([
             'organization_id' => null,
@@ -108,12 +123,38 @@ class ComplianceController extends Controller
             'action' => 'requirement_type_updated',
             'record_type' => ComplianceRequirementType::class,
             'record_id' => $requirementType->id,
-            'new_values' => ['before' => $old, 'after' => $requirementType->fresh()->toArray()],
+            'new_values' => ['before' => $old, 'after' => $requirementType->toArray()],
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);
 
-        return response()->json($requirementType->fresh());
+        if (array_key_exists('deadline_at', $data) && ! $previousDeadline->equalTo($requirementType->deadline_at)) {
+            $this->notifyAdminsOfDeadlineChange($requirementType);
+        }
+
+        return response()->json($requirementType);
+    }
+
+    private function notifyAdminsOfDeadlineChange(ComplianceRequirementType $requirementType): void
+    {
+        $admins = User::where('role', 'ADMIN')
+            ->where('account_status', 'active')
+            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION'))
+            ->get(['school_id', 'organization_id']);
+
+        Notification::insert($admins->map(fn (User $admin) => [
+            'organization_id' => $admin->organization_id,
+            'user_id' => $admin->school_id,
+            'notification_type' => 'general',
+            'title' => 'Compliance deadline changed',
+            'message' => "The deadline for \"{$requirementType->name}\" ({$requirementType->academic_year}) is now ".$requirementType->deadline_at->format('F j, Y').'.',
+            'reference_type' => 'compliance_requirement_type',
+            'reference_id' => $requirementType->id,
+            'is_read' => false,
+            'sent_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->all());
     }
 
     public function status(Request $request)
@@ -132,7 +173,7 @@ class ComplianceController extends Controller
                 ->get();
         }
 
-        $academicYear = $filters['academic_year'] ?? ComplianceRequirementType::where('is_active', true)->max('academic_year');
+        $academicYear = $filters['academic_year'] ?? $this->accreditation->currentAcademicYear();
         $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)->get();
 
         $organizationIds = $organizations->pluck('id');
@@ -158,7 +199,7 @@ class ComplianceController extends Controller
             return [
                 'organization_id' => $organization->id,
                 'organization_name' => $organization->name,
-                'accreditation_status' => $this->accreditationStatus($breakdown),
+                'accreditation_status' => $this->accreditation->resolve($breakdown->pluck('status')),
                 'requirements' => $breakdown->values(),
             ];
         });
@@ -167,24 +208,6 @@ class ComplianceController extends Controller
             'academic_year' => $academicYear,
             'organizations' => $request->user()->role === 'ADMIN' ? $result->first() : $result->values(),
         ]);
-    }
-
-    private function accreditationStatus($breakdown): string
-    {
-        if ($breakdown->isEmpty()) {
-            return 'not_applicable';
-        }
-        if ($breakdown->contains(fn ($row) => $row['status'] === 'not_submitted')) {
-            return 'incomplete';
-        }
-        if ($breakdown->contains(fn ($row) => $row['status'] === 'returned')) {
-            return 'returned';
-        }
-        if ($breakdown->contains(fn ($row) => $row['status'] === 'submitted')) {
-            return 'pending_review';
-        }
-
-        return 'accredited';
     }
 
     public function submissions(Request $request)
@@ -220,15 +243,22 @@ class ComplianceController extends Controller
         ]);
 
         $organizationId = $request->user()->organization_id;
+
+        $existing = OrganizationComplianceSubmission::where('organization_id', $organizationId)
+            ->where('requirement_type_id', $data['requirement_type_id'])
+            ->first();
+
+        if ($existing && $existing->status === 'approved') {
+            return response()->json(['message' => 'This requirement has already been approved and cannot be resubmitted.'], 409);
+        }
+
+        $isResubmission = $existing !== null;
+
         $file = $request->file('document');
         $path = $file->store('compliance-submissions/'.$organizationId, 'local');
         if (! $path) {
             return response()->json(['message' => 'Unable to store the compliance document.'], 500);
         }
-
-        $isResubmission = OrganizationComplianceSubmission::where('organization_id', $organizationId)
-            ->where('requirement_type_id', $data['requirement_type_id'])
-            ->exists();
 
         $submission = OrganizationComplianceSubmission::updateOrCreate(
             ['organization_id' => $organizationId, 'requirement_type_id' => $data['requirement_type_id']],
