@@ -1,4 +1,4 @@
-import { cloneElement, useId, useRef, useState } from 'react';
+import { cloneElement, useEffect, useId, useRef, useState } from 'react';
 
 const SIDE_CLASSES = {
   top: 'bottom-full left-1/2 mb-2 -translate-x-1/2',
@@ -20,6 +20,17 @@ export default function Tooltip({ content, children, side = 'top' }) {
     window.clearTimeout(timerRef.current);
     setVisible(false);
   }
+
+  useEffect(() => {
+    if (!visible) return undefined;
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') hide();
+    }
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [visible]);
 
   return (
     <span className="relative inline-flex" onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide}>

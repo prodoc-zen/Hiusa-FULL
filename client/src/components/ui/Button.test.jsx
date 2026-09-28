@@ -18,6 +18,13 @@ describe('Button', () => {
     expect(button).not.toBeDisabled();
   });
 
+  it('defaults the primary variant to brand-700 so white text passes 4.5:1 contrast', () => {
+    render(<Button variant="primary">Record transaction</Button>);
+    const button = screen.getByRole('button', { name: 'Record transaction' });
+    expect(button).toHaveClass('bg-brand-700');
+    expect(button).not.toHaveClass('bg-brand-600');
+  });
+
   it('renders as a router link when given a "to" prop', () => {
     render(
       <MemoryRouter>

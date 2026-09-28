@@ -30,4 +30,27 @@ describe('Tabs', () => {
     expect(screen.getByRole('tab', { name: 'Members' })).toHaveAttribute('aria-selected', 'true');
     expect(screen.getByRole('tab', { name: 'Overview' })).toHaveAttribute('tabIndex', '-1');
   });
+
+  it('omits aria-controls when no panel is wired, and sets it when a panelId is given', () => {
+    render(<Tabs tabs={TABS} value="overview" onChange={() => {}} />);
+    expect(screen.getByRole('tab', { name: 'Overview' })).not.toHaveAttribute('aria-controls');
+
+    const tabsWithPanels = TABS.map((tab) => ({ ...tab, panelId: `panel-${tab.key}` }));
+    render(<Tabs tabs={tabsWithPanels} value="overview" onChange={() => {}} />);
+    expect(screen.getAllByRole('tab', { name: 'Overview' })[1]).toHaveAttribute('aria-controls', 'panel-overview');
+  });
+
+  it('gives every tab a unique id even when two Tabs render on the same page', () => {
+    render(
+      <>
+        <Tabs tabs={TABS} value="overview" onChange={() => {}} />
+        <Tabs tabs={TABS} value="overview" onChange={() => {}} />
+      </>,
+    );
+    const overviewTabs = screen.getAllByRole('tab', { name: 'Overview' });
+    expect(overviewTabs).toHaveLength(2);
+    expect(overviewTabs[0].id).not.toBe(overviewTabs[1].id);
+    expect(overviewTabs[0].id).toBeTruthy();
+    expect(overviewTabs[1].id).toBeTruthy();
+  });
 });
