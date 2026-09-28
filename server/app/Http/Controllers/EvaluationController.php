@@ -9,6 +9,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Validator;
@@ -117,13 +118,13 @@ class EvaluationController extends Controller
     {
         $scope = $this->resultsScope($request);
 
-        if ($scope instanceof \Illuminate\Http\JsonResponse) {
+        if ($scope instanceof JsonResponse) {
             return $scope;
         }
 
         $window = $this->resolveResultsWindow($request);
 
-        if ($window instanceof \Illuminate\Http\JsonResponse) {
+        if ($window instanceof JsonResponse) {
             return $window;
         }
 
@@ -139,21 +140,21 @@ class EvaluationController extends Controller
 
         return response()->json(array_merge(
             ['window' => $windowSummary, 'counts_only' => false],
-            $this->computeResults($scope, $window->id)
+            $this->computeResults($scope, $window->id, $request->user()->school_id)
         ));
     }
 
-    public function exportResults(Request $request): StreamedResponse|\Illuminate\Http\JsonResponse
+    public function exportResults(Request $request): StreamedResponse|JsonResponse
     {
         $scope = $this->resultsScope($request);
 
-        if ($scope instanceof \Illuminate\Http\JsonResponse) {
+        if ($scope instanceof JsonResponse) {
             return $scope;
         }
 
         $window = $this->resolveResultsWindow($request);
 
-        if ($window instanceof \Illuminate\Http\JsonResponse) {
+        if ($window instanceof JsonResponse) {
             return $window;
         }
 
@@ -172,7 +173,7 @@ class EvaluationController extends Controller
             }, 'evaluation-results-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
         }
 
-        $results = $this->computeResults($scope, $window->id);
+        $results = $this->computeResults($scope, $window->id, $request->user()->school_id);
 
         return response()->streamDownload(function () use ($results) {
             $handle = fopen('php://output', 'w');
@@ -180,7 +181,10 @@ class EvaluationController extends Controller
 
             foreach ($results['groups'] as $respondentType => $group) {
                 if ($group['anonymized']) {
-                    fputcsv($handle, [$respondentType, '', '', $group['n'], '', '', '', '', '', '', '', 'Withheld (n < '.$group['anonymity_threshold'].')']);
+                    $reason = ($group['self_respondent'] ?? false)
+                        ? 'Withheld (viewer is a respondent; other responses < '.$group['anonymity_threshold'].')'
+                        : 'Withheld (n < '.$group['anonymity_threshold'].')';
+                    fputcsv($handle, [$respondentType, '', '', $group['n'], '', '', '', '', '', '', '', $reason]);
 
                     continue;
                 }
@@ -252,6 +256,17 @@ class EvaluationController extends Controller
             'status' => ['sometimes', 'in:draft,open,closed'],
         ]);
 
+        // Closed is terminal: reopening a window would let two closed
+        // snapshots of the same window be diffed against each other to
+        // expose whoever answered in between. Title/description/date edits
+        // are still allowed on a closed window - none of them feed
+        // computeResults()/computeCounts(), which key only on
+        // evaluation_window_id, organization and respondent_type, so they
+        // cannot change what a closed window's results show.
+        if ($window->status === 'closed' && array_key_exists('status', $data)) {
+            return response()->json(['message' => 'A closed evaluation window is terminal and its status cannot be changed.'], 409);
+        }
+
         $oldValues = $window->only(['title', 'description', 'opens_at', 'closes_at', 'status']);
         $wasOpen = $window->status === 'open';
 
@@ -313,7 +328,7 @@ class EvaluationController extends Controller
         return $rules;
     }
 
-    private function resultsScope(Request $request): array|\Illuminate\Http\JsonResponse
+    private function resultsScope(Request $request): array|JsonResponse
     {
         $filters = $request->validate([
             'organization_id' => ['nullable', 'integer', 'exists:organizations,id'],
@@ -339,7 +354,7 @@ class EvaluationController extends Controller
         ];
     }
 
-    private function resolveResultsWindow(Request $request): EvaluationWindow|\Illuminate\Http\JsonResponse
+    private function resolveResultsWindow(Request $request): EvaluationWindow|JsonResponse
     {
         $validated = $request->validate([
             'evaluation_window_id' => ['nullable', 'integer', 'exists:evaluation_windows,id'],
@@ -406,9 +421,9 @@ class EvaluationController extends Controller
         return $groups;
     }
 
-    private function computeResults(array $scope, int $windowId): array
+    private function computeResults(array $scope, int $windowId, ?int $viewerId = null): array
     {
-        $responses = $this->scopedResponsesQuery($scope, $windowId)->get(['organization_id', 'respondent_type', 'answers', 'feedback']);
+        $responses = $this->scopedResponsesQuery($scope, $windowId)->get(['organization_id', 'respondent_type', 'user_id', 'answers', 'feedback']);
         $threshold = (int) config('evaluation.anonymity_threshold');
         $respondentTypes = $this->respondentTypesForScope($scope);
 
@@ -437,12 +452,24 @@ class EvaluationController extends Controller
                 continue;
             }
 
-            if (! $combinedAcrossOrgs && $n < $threshold) {
+            // If the viewer is themselves one of the respondents in this
+            // group, they already know their own exact answers, so the real
+            // protection the anonymity threshold has to clear is n minus
+            // their own response - otherwise, at n == threshold, they can
+            // subtract their known answer from the distribution/mean/SD and
+            // fully recover the other respondents' answers.
+            $viewerIsRespondent = $viewerId !== null && $groupResponses->contains('user_id', $viewerId);
+            $otherRespondents = $viewerIsRespondent ? $n - 1 : $n;
+
+            if (! $combinedAcrossOrgs && $otherRespondents < $threshold) {
                 $groups[$type] = [
                     'n' => $n,
                     'anonymized' => true,
                     'anonymity_threshold' => $threshold,
-                    'message' => "Fewer than {$threshold} responses were collected for this group, so aggregated statistics are withheld to protect respondent anonymity.",
+                    'self_respondent' => $viewerIsRespondent,
+                    'message' => $viewerIsRespondent
+                        ? "You are one of the respondents in this group. Aggregated statistics are withheld until at least {$threshold} responses from other participants are collected, so your own answer cannot be used to infer theirs."
+                        : "Fewer than {$threshold} responses were collected for this group, so aggregated statistics are withheld to protect respondent anonymity.",
                 ];
 
                 continue;
