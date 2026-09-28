@@ -15,6 +15,45 @@ class EventRequirementSubmissionTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_existing_login_can_switch_to_sao_profile_and_manage_requirements(): void
+    {
+        $organization = Organization::factory()->create();
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $user = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $saoProfile = $user->accountProfiles()->create([
+            'organization_id' => $sao->id,
+            'role' => 'SUPER_ADMIN',
+            'account_status' => 'active',
+            'position_title' => 'SAO Officer',
+        ]);
+
+        $this->getJson('/api/event-requirements')->assertUnauthorized();
+
+        $token = $this->postJson('/api/login', [
+            'school_id' => $user->school_id,
+            'password' => 'password',
+        ])->assertOk()->assertJsonPath('user.role', 'ADMIN')->json('access_token');
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->postJson('/api/event-requirements', [
+            'name' => 'Event proposal', 'allowed_extensions' => ['pdf'],
+        ])->assertForbidden();
+
+        $this->withToken($token)->postJson('/api/user/profiles/'.$saoProfile->id.'/switch')
+            ->assertOk()->assertJsonPath('user.role', 'SUPER_ADMIN');
+        $this->withToken($token)->getJson('/api/event-requirements')->assertOk()->assertExactJson([]);
+        $this->withToken($token)->postJson('/api/event-requirements', [
+            'name' => 'Invalid requirement', 'allowed_extensions' => ['exe'],
+        ])->assertUnprocessable();
+        $requirement = $this->withToken($token)->postJson('/api/event-requirements', [
+            'name' => 'Event proposal', 'allowed_extensions' => ['pdf'],
+        ])->assertCreated();
+        $this->withToken($token)->putJson('/api/event-requirements/'.$requirement->json('id'), [
+            'name' => 'Approved event proposal', 'allowed_extensions' => ['pdf'],
+        ])->assertOk()->assertJsonPath('name', 'Approved event proposal');
+        $this->withToken($token)->getJson('/api/event-requirements')->assertOk()->assertJsonCount(1);
+    }
+
     public function test_sao_sets_file_requirements_then_admin_submits_for_sao_review(): void
     {
         Storage::fake('local');

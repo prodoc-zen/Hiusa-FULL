@@ -1,214 +1,170 @@
-# Renew HTTPS on the HIUSA Lightsail instance
+# Renew HTTPS on HIUSA Lightsail
 
-Checked against Let's Encrypt and Certbot documentation on 2026-09-27. This guide is for the existing **no Docker, static IPv4, Nginx** Lightsail deployment. It does not assume that the certificate was originally issued by Certbot. Run commands in the Lightsail SSH terminal, not in PowerShell on your PC.
+This is for the HIUSA site running on a Lightsail **static IPv4 address**, with Nginx and no Docker or domain. Run every command below in the **Lightsail SSH terminal**, not in PowerShell on your PC. These instructions were checked against the official Certbot, Let's Encrypt, and AWS docs on 2026-09-28.
 
-If you need the rest of the deployment procedure, use [LIGHTSAIL_DEPLOYMENT_AND_MAINTENANCE.md](LIGHTSAIL_DEPLOYMENT_AND_MAINTENANCE.md).
+For normal renewal, you do **not** type a certificate name, domain, IP, webroot path, or email into the Certbot commands. Certbot reads those details from the certificate's saved renewal configuration. The only thing you type is your static IP when Step 1 prompts for it; that is used to check the live website.
 
-## Quick renewal checklist
+## 1. Connect and enter your static IP once
 
-Use this when the site already has a Certbot-managed certificate. Connect to the Lightsail instance through SSH. Replace `YOUR_STATIC_IP` with your real static IPv4 address and `CERT_NAME` with the name printed by `sudo certbot certificates`.
+Open the Lightsail console, select the HIUSA instance, and click **Connect using SSH**. Paste this command:
 
-1. Check which certificate Nginx serves and when Certbot says it expires:
+```bash
+read -r -p 'Paste your Lightsail static IPv4: ' SITE_IP
+```
 
-   ```bash
-   sudo nginx -t
-   sudo nginx -T 2>/dev/null | grep -E 'ssl_certificate|listen 443'
-   sudo certbot certificates
-   ```
+When the cursor waits, paste **only the IP address**, such as `203.0.113.10`, then press Enter. The example is not your IP. Do not include `https://`, `/`, quotes, or angle brackets. You never need to replace `$SITE_IP` in later commands: the SSH shell fills it in. If you close SSH and reconnect, run this step again.
 
-   Continue only if Nginx's `ssl_certificate` path points to the same certificate shown by Certbot. Otherwise, use section 1 below to identify the actual certificate manager.
-
-2. Test renewal without changing the live certificate:
-
-   ```bash
-   sudo certbot renew --cert-name CERT_NAME --dry-run
-   ```
-
-   If this fails, do not force a live renewal. Check port 80, the ACME challenge webroot, and the error shown by Certbot. The troubleshooting steps are below.
-
-3. Ask Certbot to renew the certificate if it is due:
-
-   ```bash
-   sudo certbot renew --cert-name CERT_NAME
-   sudo certbot certificates
-   ```
-
-   Certbot can report success without issuing a new certificate when the current one is not due. Compare the expiry date before and after.
-
-4. Verify Nginx and HTTPS:
-
-   Run the reload only if `sudo nginx -t` passes.
-
-   ```bash
-   sudo nginx -t
-   sudo systemctl reload nginx
-   curl -Iv https://YOUR_STATIC_IP/
-   ```
-
-   The certificate must be trusted and cover the IP address itself. If the browser still shows the old certificate, check Nginx's certificate paths and the deploy hook in section 5.
-
-5. Confirm automatic renewal is scheduled:
-
-   ```bash
-   systemctl list-timers --all | grep -E 'certbot|acme'
-   ```
-
-   A bare-IP Let's Encrypt certificate lasts 160 hours, so one manual renewal each month is not enough. Check the installed Certbot timer or cron job and the Nginx reload hook in section 5 below.
-
-## 1. Identify the certificate currently in use
-
-Replace `YOUR_STATIC_IP` in commands with the actual Lightsail static IPv4 address. Do not paste the angle brackets shown in examples from other guides.
+## 2. Check that Certbot manages the certificate Nginx uses
 
 ```bash
 sudo nginx -t
-sudo nginx -T 2>/dev/null | grep -E 'ssl_certificate|acme-challenge|listen 443'
-command -v certbot
-certbot --version
-sudo certbot certificates
-systemctl list-timers --all | grep -E 'certbot|acme'
-```
-
-Read the Nginx `ssl_certificate` and `ssl_certificate_key` paths. The certificate served by Nginx may differ from the one Certbot lists. Also check the public endpoint:
-
-```bash
-curl -Iv https://YOUR_STATIC_IP/
-```
-
-- If Nginx uses `/etc/letsencrypt/live/...`, and `sudo certbot certificates` lists that same certificate, follow steps 2 through 6.
-- If Certbot lists no certificates, or Nginx uses a different directory or self-signed certificate, **do not run `certbot renew` expecting it to fix HTTPS**. Follow step 7 to set up a browser-trusted IP certificate, or inspect the other issuer's renewal mechanism first.
-- If the site uses a domain after all, follow the existing domain certificate's Certbot renewal configuration instead. The `--ip-address` setup in step 7 is only for a bare IP.
-
-## 2. Make sure HTTP validation can reach Nginx
-
-Let's Encrypt must reach the Lightsail static IP on port 80 for an HTTP-01/webroot renewal. In Lightsail, open the instance's **Networking** tab and confirm the IPv4 firewall permits HTTP TCP 80 and HTTPS TCP 443. Keep the static IP attached to this instance. If Ubuntu's UFW is active, check it too:
-
-```bash
-sudo ufw status
-sudo systemctl is-active nginx
-sudo nginx -T 2>/dev/null | grep -A12 -B3 'acme-challenge'
-```
-
-The challenge location must serve `http://YOUR_STATIC_IP/.well-known/acme-challenge/<token>` from the actual configured webroot. Prefer a permanent, separate webroot such as `/var/www/letsencrypt`. **Do not put the challenge directory inside `/var/www/hiusa/client/dist`**. Vite empties `dist` before builds; the previous `EACCES ... dist/.well-known/acme-challenge` error came from this collision. Nginx must serve the challenge on port 80 even if all other HTTP paths redirect to HTTPS.
-
-If the existing renewal configuration uses a different webroot, inspect it first:
-
-```bash
-sudo certbot certificates
-sudo ls /etc/letsencrypt/renewal/
-```
-
-Open the matching `.conf` file with `sudo less /etc/letsencrypt/renewal/CERT_NAME.conf`. Check `authenticator` and `webroot_path`. Do not edit this file by hand. For a changed webroot, use `certbot reconfigure` after fixing Nginx, as described in the [Certbot renewal guide](https://eff-certbot.readthedocs.io/en/stable/using.html#modifying-the-renewal-configuration-of-existing-certificates).
-
-## 3. Test renewal without replacing the live certificate
-
-Use the exact **Certificate Name** printed by `sudo certbot certificates`:
-
-```bash
-sudo certbot renew --cert-name CERT_NAME --dry-run
-```
-
-Success here proves that Certbot can complete a test validation. If this fails, read the error before changing anything. Common causes are port 80 closed, the wrong webroot, the wrong static IP, Nginx redirecting the ACME path, an obsolete Certbot version, or a manual certificate with no renewal hooks.
-
-## 4. Renew the live certificate if it is due
-
-```bash
-sudo certbot renew --cert-name CERT_NAME
+sudo nginx -T 2>/dev/null | grep -E 'ssl_certificate|listen 443'
 sudo certbot certificates
 ```
 
-`renew` can exit successfully when the certificate is not yet due, so check its new expiry date. Do not use `--force-renewal` routinely: repeat issuance can hit CA rate limits. For a six-day IP certificate, automatic checks are essential; a monthly manual reminder is too slow.
+Continue only if `nginx -t` succeeds, the Nginx `ssl_certificate` path starts with `/etc/letsencrypt/live/`, and `certbot certificates` shows that same **Certificate Path**. For example, if Nginx uses `/etc/letsencrypt/live/203.0.113.10/fullchain.pem`, Certbot must list that path. The IP here is just an example; yours will differ.
 
-If Nginx does not automatically reload after a successful renewal:
+If Certbot says **No certificates found**, or Nginx uses another certificate path, **stop here**. `certbot renew` cannot renew a certificate it does not manage. See Step 7 if this is a first-time IP certificate setup. If you are unsure what the output means, save the output of these three commands before changing anything.
+
+## 3. Test renewal safely
 
 ```bash
-sudo nginx -t
-sudo systemctl reload nginx
-curl -Iv https://YOUR_STATIC_IP/
+sudo certbot renew --dry-run
 ```
 
-The browser must show a trusted certificate whose IP address matches `YOUR_STATIC_IP`. A successful Certbot command alone does not prove Nginx loaded the new certificate.
+Wait for the result. Continue only if Certbot reports that the test renewals succeeded. The dry run does not replace your live certificate. If it fails, do not run Step 4 yet; see **If the dry run fails** below.
 
-## 5. Ensure automatic checks and Nginx reload are configured
-
-Check the installed renewal scheduler:
+## 4. Run renewal and check the live site
 
 ```bash
-systemctl list-timers --all | grep -E 'certbot|acme'
-sudo systemctl status certbot.timer --no-pager
-sudo systemctl status snap.certbot.renew.timer --no-pager
+sudo certbot renew
+sudo certbot certificates
+sudo nginx -t && sudo systemctl reload nginx
+curl -Iv "https://$SITE_IP/"
 ```
 
-Only one of the last two timers may exist. Some installations use cron instead; inspect `/etc/cron.d/` and `/etc/crontab` if neither timer exists. Certbot's automatic renewal must be checked at least daily for a six-day IP certificate. Use the scheduler provided by the installed Certbot package. If none exists, set up one after confirming the Certbot installation method; do not create a second timer when one is already active.
+Run each command in order and stop if one fails. The `&&` reloads Nginx only when its configuration test passes. `curl` should connect over HTTPS without a certificate verification error. You can also open `https://` followed by your static IP in a browser.
 
-For IP certificates, Certbot may obtain the new files without updating Nginx's active process. Check for an existing deploy hook:
+`certbot renew` renews certificates that are **due**. It may say nothing was renewed because the certificate is not due yet; that is normal. Read the **Expiry Date** from `sudo certbot certificates`. Do not use `--force-renewal` just to make the date change.
+
+## 5. Make sure future renewals happen automatically
+
+IP certificates from Let's Encrypt last **160 hours** (a little under seven days). A monthly manual command is not enough. Check the scheduler and the Nginx reload hook:
 
 ```bash
+systemctl list-timers --all | grep -i certbot
+systemctl list-unit-files '*certbot*timer'
 sudo ls -l /etc/letsencrypt/renewal-hooks/deploy/
 ```
 
-If there is no hook that reloads Nginx, create `/etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh` using `sudoedit` or `sudo nano`. Its contents should be:
+Look for `certbot.timer` **or** `snap.certbot.renew.timer`. Either one is enough. The first command shows scheduled timers; the second also shows installed timers that are disabled. You do not need both. If one exists but is disabled, enable **only that existing timer**:
 
 ```bash
+sudo systemctl enable --now certbot.timer
+```
+
+Use the command above only when the listed timer is `certbot.timer`. If the listed timer is `snap.certbot.renew.timer`, use this instead:
+
+```bash
+sudo systemctl enable --now snap.certbot.renew.timer
+```
+
+If neither timer exists, check whether your installation uses cron:
+
+```bash
+sudo grep -R 'certbot.*renew' /etc/cron.d /etc/crontab
+```
+
+Look for an active cron command, not just a commented-out example. If neither a timer nor a cron renewal job exists, automatic renewal is **not confirmed**. Check [Certbot's installation instructions](https://certbot.eff.org/instructions) for the method used on this server before adding a scheduler. Do not add a second scheduler when one is already working.
+
+The deploy-hook directory should contain an executable hook that reloads Nginx after a successful renewal. If one already does that, keep it. If there is **no** Nginx reload hook, create one:
+
+```bash
+sudo install -d -m 755 /etc/letsencrypt/renewal-hooks/deploy
+sudo nano /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
+```
+
+Paste exactly this into `nano`:
+
+```sh
 #!/bin/sh
 set -eu
 nginx -t
 systemctl reload nginx
 ```
 
-Then make just this hook executable and test again:
+Save with **Ctrl+O**, Enter, then **Ctrl+X**. Make the hook executable and test it:
 
 ```bash
 sudo chmod 755 /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh
-sudo certbot renew --cert-name CERT_NAME --dry-run --run-deploy-hooks
+sudo certbot renew --dry-run --run-deploy-hooks
 ```
 
-The hook runs after a successful renewal, not after every routine check. If your certificate is managed by a different ACME client, use that client's hook mechanism instead.
+The hook runs after a successful live renewal. `--run-deploy-hooks` also runs it during this dry-run test. The Nginx reload does not restart the HIUSA application.
 
 ## 6. Check after the next automatic renewal
 
+In a few days, reconnect by SSH, repeat Step 1, then run:
+
 ```bash
 sudo certbot certificates
-sudo journalctl -u certbot.service -u snap.certbot.renew.service -n 100 --no-pager
-curl -Iv https://YOUR_STATIC_IP/
+curl -Iv "https://$SITE_IP/"
 ```
 
-Ignore `Unit ... not found` for a service your installation does not use. Recheck the expiry and the HTTPS response before declaring renewal complete. If the certificate still expires soon, inspect `/var/log/letsencrypt/letsencrypt.log` and the Nginx error log.
+Check that the expiry date moved forward and HTTPS still verifies. If it did not, inspect the renewal log:
+
+```bash
+sudo journalctl -u certbot.service -u snap.certbot.renew.service -n 100 --no-pager
+sudo tail -n 100 /var/log/letsencrypt/letsencrypt.log
+```
+
+One of the two service names may not exist on your installation; that part of the journal output can be ignored.
+
+## If the dry run fails
+
+Do not force a live renewal. Check these items in order:
+
+1. In the Lightsail instance's **Networking** tab, confirm the IPv4 firewall allows inbound HTTP TCP **80** and HTTPS TCP **443**. The static IP must still be attached to this instance.
+2. Run `sudo ufw status` and `sudo systemctl is-active nginx`. If UFW is active, it must also allow HTTP and HTTPS. Nginx must be running.
+3. Run `sudo nginx -T 2>/dev/null | grep -A12 -B3 'acme-challenge'`. The port-80 Nginx server must serve `/.well-known/acme-challenge/` from the same webroot used by Certbot. If the output shows no challenge location, inspect your existing Nginx site before changing it.
+4. Check which renewal method Certbot saved with `sudo grep -HnE 'authenticator|webroot' /etc/letsencrypt/renewal/*.conf`. This prints matching lines and filenames without asking you to guess a certificate name. Do **not** edit these `.conf` files directly. If the webroot must change, use [Certbot's `reconfigure` procedure](https://eff-certbot.readthedocs.io/en/stable/using.html#modifying-the-renewal-configuration-of-existing-certificates).
+
+For HIUSA, the ACME webroot should be outside `/var/www/hiusa/client/dist`, for example `/var/www/letsencrypt`. Vite clears `dist` during builds, which caused the earlier `EACCES ... dist/.well-known/acme-challenge` error. Moving an existing ACME webroot requires updating both Nginx and Certbot's saved renewal configuration; do not change one without the other.
 
 ## 7. If there is no Certbot-managed IP certificate yet
 
-Let's Encrypt has issued publicly trusted IP certificates since 2026. They last **160 hours** and require the `shortlived` profile. Certbot **5.4 or newer** supports webroot issuance for IPs. Older Ubuntu package versions may not. Check `certbot --version` and follow the [official Certbot installation instructions](https://certbot.eff.org/instructions) if an upgrade is needed. A certificate for a domain will not validate `https://YOUR_STATIC_IP`.
+This is **first-time certificate setup**, not renewal. Use it only if Step 2 showed that Certbot does not manage the certificate used by Nginx. If another certificate service is already in use, identify it before replacing anything.
 
-Before issuing, configure Nginx on port 80 to serve `/.well-known/acme-challenge/` from a stable webroot outside `client/dist`. One possible Nginx location inside the port-80 server block is:
+1. Confirm you are using a static IPv4 address and that Certbot is version **5.4 or newer**:
 
-```nginx
-location ^~ /.well-known/acme-challenge/ {
-    root /var/www/letsencrypt;
-    default_type text/plain;
-    try_files $uri =404;
-}
-```
+   ```bash
+   certbot --version
+   ```
 
-Create the webroot directories, confirm `sudo nginx -t`, reload Nginx, and first test with the staging CA:
+   If older, follow the [official Certbot installation instructions](https://certbot.eff.org/instructions) for your Ubuntu/Nginx installation. The `--ip-address` webroot method requires Certbot 5.4 or newer.
 
-```bash
-sudo install -d -m 755 /var/www/letsencrypt/.well-known/acme-challenge
-sudo nginx -t
-sudo systemctl reload nginx
-sudo certbot certonly --staging --preferred-profile shortlived --webroot --webroot-path /var/www/letsencrypt --ip-address YOUR_STATIC_IP
-```
+2. Configure the port-80 Nginx server to serve the ACME challenge from `/var/www/letsencrypt`, **not** from `client/dist`. The exact fresh-server Nginx setup is in [Phase 7 of the HIUSA Lightsail guide](LIGHTSAIL_DEPLOYMENT_AND_MAINTENANCE.md). On an existing server, inspect and edit its existing Nginx site instead of creating a conflicting second one.
 
-Staging certificates are **not browser trusted**. When staging succeeds, issue the real certificate without `--staging`:
+3. After the port-80 configuration is in place, run:
 
-```bash
-sudo certbot certonly --preferred-profile shortlived --webroot --webroot-path /var/www/letsencrypt --ip-address YOUR_STATIC_IP
-sudo certbot certificates
-```
+   ```bash
+   sudo install -d -m 755 /var/www/letsencrypt/.well-known/acme-challenge
+   sudo nginx -t && sudo systemctl reload nginx
+   sudo certbot certonly --staging --preferred-profile shortlived --webroot --webroot-path /var/www/letsencrypt --ip-address "$SITE_IP"
+   ```
 
-Configure the Nginx HTTPS server block to use the exact `Certificate Path` and `Private Key Path` printed by `certbot certificates`, typically `/etc/letsencrypt/live/YOUR_STATIC_IP/fullchain.pem` and `/etc/letsencrypt/live/YOUR_STATIC_IP/privkey.pem`. Test and reload Nginx, then perform steps 3, 5, and 6. Certbot's Nginx plugin is not the issuance method documented for bare IP certificates; use `webroot` here.
+   Stop if the Nginx test fails. The staging certificate tests issuance but is **not browser-trusted**. When staging succeeds, request the real certificate:
+
+   ```bash
+   sudo certbot certonly --preferred-profile shortlived --webroot --webroot-path /var/www/letsencrypt --ip-address "$SITE_IP"
+   sudo certbot certificates
+   ```
+
+4. Add the exact **Certificate Path** and **Private Key Path** shown by Certbot to the Nginx HTTPS server block. Phase 7 of the Lightsail guide shows where. The path will typically be `/etc/letsencrypt/live/<your IP>/fullchain.pem`, but use the path Certbot actually printed. Then run `sudo nginx -t`, reload Nginx if valid, and complete Steps 3 through 6 above.
 
 ## Sources
 
-- [Let's Encrypt: IP certificates and Certbot 5.4 webroot instructions](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)
+- [Let's Encrypt: IP certificates, Certbot version, and webroot issuance](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)
 - [Let's Encrypt: 160-hour IP certificate lifetime](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)
-- [Certbot: renewal, dry runs, hooks, and webroot](https://eff-certbot.readthedocs.io/en/stable/using.html#renewing-certificates)
+- [Certbot: renewal, dry runs, hooks, and automation](https://eff-certbot.readthedocs.io/en/stable/using.html#renewing-certificates)
 - [AWS Lightsail: HTTP/HTTPS firewall rules](https://docs.aws.amazon.com/lightsail/latest/userguide/understanding-firewall-and-port-mappings-in-amazon-lightsail.html)
