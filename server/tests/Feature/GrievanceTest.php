@@ -234,4 +234,133 @@ class GrievanceTest extends TestCase
         $this->assertDatabaseHas('notifications', ['user_id' => $student->school_id, 'reference_type' => 'grievance', 'reference_id' => $grievanceId]);
         $this->assertNotNull(Grievance::find($grievanceId)->resolved_at);
     }
+
+    public function test_grievance_module_audit_rows_carry_no_identity_and_are_hidden_from_admin_but_visible_to_super_admin(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+
+        $this->postJson('/api/grievances', [
+            'title' => 'Anonymous facility concern', 'description' => 'Anonymous concern about a broken facility.',
+            'addressed_to' => 'organization', 'is_anonymous' => true,
+        ])->assertCreated();
+        $this->postJson('/api/grievances', [
+            'title' => 'Named facility concern', 'description' => 'Named concern about a broken facility.',
+            'addressed_to' => 'organization',
+        ])->assertCreated();
+        $this->postJson('/api/grievances', [
+            'title' => 'Direct SAO concern', 'description' => 'A concern addressed directly to SAO.',
+            'addressed_to' => 'sao',
+        ])->assertCreated();
+
+        Sanctum::actingAs($admin);
+        $adminLogs = $this->getJson('/api/audit-logs?module=grievances')->assertOk()->json();
+        $this->assertCount(0, $adminLogs['data']);
+        $payload = json_encode($adminLogs);
+        $this->assertStringNotContainsString((string) $student->school_id, $payload);
+        $this->assertStringNotContainsString($student->email, $payload);
+        $this->assertStringNotContainsString($student->first_name, $payload);
+
+        Sanctum::actingAs($superAdmin);
+        $saoLogs = $this->getJson('/api/audit-logs?module=grievances')->assertOk()->json();
+        $this->assertCount(3, $saoLogs['data']);
+    }
+
+    public function test_org_admin_can_transition_a_grievance_addressed_to_their_own_organization(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+        $grievanceId = $this->postJson('/api/grievances', [
+            'title' => 'Org concern', 'description' => 'A concern for the org admin to handle.', 'addressed_to' => 'organization',
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])
+            ->assertOk()->assertJsonPath('status', 'under_review');
+    }
+
+    public function test_only_super_admin_can_transition_a_grievance_addressed_directly_to_sao(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+        $grievanceId = $this->postJson('/api/grievances', [
+            'title' => 'Direct SAO concern', 'description' => 'Only SAO should be able to act on this.', 'addressed_to' => 'sao',
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])->assertForbidden();
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])->assertOk();
+    }
+
+    public function test_anonymous_grievance_status_response_still_hides_filer_identity_from_org_admin(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+        $grievanceId = $this->postJson('/api/grievances', [
+            'title' => 'Anonymous org concern', 'description' => 'This should stay anonymous to the org.',
+            'addressed_to' => 'organization', 'is_anonymous' => true,
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $response = $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])->assertOk()->json();
+        $this->assertArrayNotHasKey('submitted_by', $response);
+        $this->assertArrayNotHasKey('submitter', $response);
+    }
+
+    public function test_grievance_lifecycle_enforces_allowed_transitions_and_terminal_states(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $student = $this->user('STUDENT');
+        Sanctum::actingAs($student);
+        $grievanceId = $this->postJson('/api/grievances', [
+            'title' => 'Lifecycle test', 'description' => 'Testing status transitions end to end.', 'addressed_to' => 'sao',
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])->assertOk();
+        // under_review -> under_review is not an allowed transition.
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'under_review'])->assertStatus(409);
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'dismissed', 'remarks' => 'Not applicable.'])->assertOk();
+        // dismissed is terminal.
+        $this->patchJson("/api/grievances/{$grievanceId}/status", ['status' => 'resolved', 'remarks' => 'Reopen attempt.'])->assertStatus(409);
+    }
+
+    public function test_grievance_filters_support_status_urgency_category_addressed_to_and_pagination(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+        $this->postJson('/api/grievances', [
+            'title' => 'Harassment concern', 'description' => 'Harassment near the guard post is unsafe.', 'addressed_to' => 'organization',
+        ])->assertCreated();
+        $this->postJson('/api/grievances', [
+            'title' => 'SAO fraud concern', 'description' => 'Suspected fraud in fund handling, needs review.', 'addressed_to' => 'sao',
+        ])->assertCreated();
+
+        Sanctum::actingAs($superAdmin);
+        $this->getJson('/api/grievances?addressed_to=sao')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/grievances?addressed_to=organization')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/grievances?urgency=Critical')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/grievances?category=Financial+Integrity')->assertOk()->assertJsonCount(1, 'data');
+        $this->getJson('/api/grievances?per_page=1')->assertOk()->assertJsonPath('per_page', 1)->assertJsonCount(1, 'data');
+    }
 }
