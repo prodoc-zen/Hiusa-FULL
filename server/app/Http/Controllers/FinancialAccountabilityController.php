@@ -310,7 +310,8 @@ class FinancialAccountabilityController extends Controller
     {
         $organizationId = $request->user()->organization_id;
         $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'in:CREATE,UPDATE,DELETE,APPROVE,REJECT,PAYMENT,COLLECTION,REMITTANCE,ATTENDANCE,STATUS_CHANGE'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
-        $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')->where('organization_id', $organizationId);
+        $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')
+            ->when($request->user()->role !== 'SUPER_ADMIN', fn ($q) => $q->where('organization_id', $organizationId)->where('module', '!=', 'grievances'));
         foreach (['user_id', 'module', 'action'] as $field) {
             if (! empty($filters[$field])) {
                 $query->where($field, $filters[$field]);
