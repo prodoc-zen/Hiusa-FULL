@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\ClearancePeriod;
 use App\Models\ClearanceSignature;
@@ -52,15 +53,28 @@ class ClearanceController extends Controller
                 'created_by' => $request->user()->school_id,
             ]);
 
-            $students = User::where('role', 'STUDENT')->where('account_status', 'active')->get(['school_id', 'organization_id']);
+            // clearance_signatures has one row per (period, student, role) -
+            // a student cannot owe the same required role twice, so this
+            // must resolve to exactly one organization per student. Reading
+            // only users.role/organization_id misses a student whose active
+            // STUDENT standing exists solely through an account profile
+            // (their home role is something else, e.g. an officer elsewhere)
+            // - so read every active STUDENT profile instead and, ordering
+            // by id, keep each user's earliest one, which is always their
+            // home profile (created at account creation) when they have one.
+            $studentMemberships = AccountProfile::where('role', 'STUDENT')
+                ->where('account_status', 'active')
+                ->orderBy('id')
+                ->get(['user_school_id', 'organization_id'])
+                ->unique('user_school_id');
             $now = now();
             $rows = [];
-            foreach ($students as $student) {
+            foreach ($studentMemberships as $membership) {
                 foreach ($requiredRoles as $role) {
                     $rows[] = [
                         'clearance_period_id' => $period->id,
-                        'student_id' => $student->school_id,
-                        'organization_id' => $student->organization_id,
+                        'student_id' => $membership->user_school_id,
+                        'organization_id' => $membership->organization_id,
                         'required_role' => $role,
                         'status' => 'pending',
                         'created_at' => $now,
@@ -80,14 +94,14 @@ class ClearanceController extends Controller
                 'action' => 'clearance_period_created',
                 'record_type' => ClearancePeriod::class,
                 'record_id' => $period->id,
-                'new_values' => ['academic_year' => $period->academic_year, 'required_roles' => $requiredRoles, 'student_count' => $students->count()],
+                'new_values' => ['academic_year' => $period->academic_year, 'required_roles' => $requiredRoles, 'student_count' => $studentMemberships->count()],
                 'ip_address' => $request->ip(),
                 'created_at' => $now,
             ]);
 
-            Notification::insert($students->map(fn (User $student) => [
-                'organization_id' => $student->organization_id,
-                'user_id' => $student->school_id,
+            Notification::insert($studentMemberships->map(fn (AccountProfile $membership) => [
+                'organization_id' => $membership->organization_id,
+                'user_id' => $membership->user_school_id,
                 'notification_type' => 'general',
                 'title' => 'New clearance period opened',
                 'message' => "A new clearance period is open: \"{$period->title}\". Check your clearance progress.",
