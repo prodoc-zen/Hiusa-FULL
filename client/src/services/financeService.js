@@ -38,7 +38,9 @@ export const getPersonalReceipts = () =>
 export const getInvoices = () => api.get('/invoices');
 export const getFinancialDashboard = () => api.get('/financial-dashboard');
 export const getCollections = (params) => api.get('/collections', { params });
+export const createCollection = (data) => api.post('/collections', data);
 export const verifyCollection = (id) => api.patch(`/collections/${id}/verify`);
+export const recordRemittance = (id, data) => api.post(`/collections/${id}/remittances`, data);
 export const getCashAdvances = (params) => api.get('/cash-advances', { params });
 export const approveCashAdvance = (id) => api.patch(`/cash-advances/${id}/approve`);
 export const getStudentDebts = (params) => api.get('/student-debts', { params });

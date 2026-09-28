@@ -41,6 +41,19 @@ class FinancialAccountabilityTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['module' => 'collections', 'action' => 'verified']);
     }
 
+    public function test_collection_custody_actions_are_scoped_to_the_admin_organization(): void
+    {
+        $owner = $this->user('ADMIN');
+        $other = $this->user('ADMIN');
+        Sanctum::actingAs($owner);
+        $id = $this->postJson('/api/collections', ['amount_collected' => '75.00', 'source' => 'Membership'])->assertCreated()->json('id');
+
+        Sanctum::actingAs($other);
+        $this->getJson('/api/collections')->assertOk()->assertExactJson([]);
+        $this->patchJson('/api/collections/'.$id.'/verify')->assertNotFound();
+        $this->postJson('/api/collections/'.$id.'/remittances', ['amount' => '10.00'])->assertNotFound();
+    }
+
     public function test_cash_advance_requires_other_approver_and_repayment_cannot_exceed_balance(): void
     {
         $admin = $this->user('ADMIN');

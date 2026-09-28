@@ -32,6 +32,7 @@ import {
   updateItem,
   adjustStock,
   deleteItem,
+  getMerchandiseAuditLogs,
 } from "../../../services/merchandiseService";
 import {
   cancelOrder,
@@ -51,6 +52,57 @@ import { fetchAllPages } from "../../../services/pagination";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
 
 const STUDENT_CART_KEY = "hiusa_student_cart";
+const CATEGORIES = ["Apparel", "Accessories", "School Supplies", "Drinkware", "Bags", "Other"];
+const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+const cartKey = (item) => item.cart_key || String(item.id);
+const itemPrice = (item) => Number(item.effective_price ?? item.price);
+const emptyCatalogExtras = { variants: [], promotion_price: "", promotion_buyer_limit: "", low_stock_threshold: "9" };
+
+function CatalogFields({ value, onChange, images, onImagesChange }) {
+  const categoryIsCustom = Boolean(value.category_custom || (value.category && !CATEGORIES.includes(value.category)));
+  const variants = value.variants || [];
+  const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
+  return <>
+    <label className="block text-[13px] font-semibold text-[#0F172A]">Category *
+      <select value={categoryIsCustom ? "Other" : value.category} onChange={(event) => onChange({ ...value, category: event.target.value === "Other" ? "" : event.target.value, category_custom: event.target.value === "Other" })} required className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm">
+        <option value="">Select category</option>
+        {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+      </select>
+      {categoryIsCustom && <input value={value.category} onChange={(event) => onChange({ ...value, category: event.target.value, category_custom: true })} placeholder="Enter category name" required className="mt-2 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />}
+    </label>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <label className="text-[13px] font-semibold text-[#0F172A]">Low stock at or below
+        <input type="number" min="1" value={value.low_stock_threshold ?? "9"} onChange={(event) => onChange({ ...value, low_stock_threshold: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+      </label>
+      <label className="text-[13px] font-semibold text-[#0F172A]">Promo price
+        <input type="number" min="0" step="0.01" value={value.promotion_price ?? ""} onChange={(event) => onChange({ ...value, promotion_price: event.target.value })} placeholder="Optional" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+      </label>
+      <label className="text-[13px] font-semibold text-[#0F172A]">First buyers
+        <input type="number" min="1" value={value.promotion_buyer_limit ?? ""} onChange={(event) => onChange({ ...value, promotion_buyer_limit: event.target.value })} placeholder="e.g. 100" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+      </label>
+    </div>
+    <section className="space-y-2 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+      <div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-bold text-[#0F2F62]">Sizes and variants</h3><p className="text-xs text-slate-600">Add sizes for wearable items. Each has its own stock and optional image.</p></div><button type="button" onClick={() => { onChange({ ...value, variants: [...variants, { name: "", stock_quantity: 0 }] }); onImagesChange([...images, null]); }} className="shrink-0 rounded-lg border border-[#0878B7] px-3 py-2 text-xs font-bold text-[#0878B7]">Add variant</button></div>
+      {variants.map((variant, index) => <div key={variant.id || `new-${index}`} className="grid gap-2 rounded-lg border border-[#DDE7EF] bg-white p-2 sm:grid-cols-[1fr_5rem_auto_auto]">
+        <div><input list="merchandise-size-options" value={variant.name} onChange={(event) => changeVariant(index, { name: event.target.value })} placeholder="Size / variant" aria-label={`Variant ${index + 1} name`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" /><datalist id="merchandise-size-options">{STANDARD_SIZES.map((size) => <option key={size} value={size} />)}</datalist></div>
+        <input type="number" min="0" value={variant.stock_quantity} onChange={(event) => changeVariant(index, { stock_quantity: event.target.value })} aria-label={`${variant.name || `Variant ${index + 1}`} stock`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" />
+        <label className="cursor-pointer rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-semibold text-[#0F2F62]">{images[index] ? "Image selected" : variant.image_url ? "Change image" : "Add image"}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => onImagesChange(images.map((file, imageIndex) => imageIndex === index ? event.target.files[0] : file))} /></label>
+        <button type="button" aria-label={`Remove ${variant.name || `variant ${index + 1}`}`} onClick={() => { onChange({ ...value, variants: variants.filter((_, rowIndex) => rowIndex !== index) }); onImagesChange(images.filter((_, rowIndex) => rowIndex !== index)); }} className="grid h-10 w-10 place-items-center rounded-lg text-red-700 hover:bg-red-50"><X size={16} /></button>
+      </div>)}
+      {variants.length > 0 && <p className="text-xs font-semibold text-[#0F2F62]">Total variant stock: {variants.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0)}</p>}
+    </section>
+  </>;
+}
+
+function ProductImageViewer({ lightbox, onChange, onClose }) {
+  if (!lightbox) return null;
+  const images = [lightbox.item.image_url, ...(lightbox.item.variants || []).map((variant) => variant.image_url)].filter(Boolean);
+  if (!images.length) return null;
+  const imageIndex = Math.min(lightbox.index, images.length - 1);
+  return <AccessibleOverlay label={`${lightbox.item.name} images`} onClose={onClose} className="fixed inset-0 z-[75] flex items-center justify-center bg-[#0B1831]/85 p-4">
+    <div className="w-full max-w-3xl rounded-xl bg-white p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 className="font-bold text-[#0F2F62]">{lightbox.item.name}</h2><button type="button" onClick={onClose} aria-label="Close image viewer" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={20} /></button></div><img src={resolveAssetUrl(images[imageIndex])} alt={`${lightbox.item.name} image ${imageIndex + 1}`} className="mt-3 max-h-[65vh] w-full rounded-lg bg-[#F8FBFD] object-contain" />{images.length > 1 && <div className="mt-3 flex items-center justify-center gap-3"><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex - 1 + images.length) % images.length })} aria-label="Previous image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronLeft size={20} /></button><span className="text-sm text-slate-600">{imageIndex + 1} of {images.length}</span><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex + 1) % images.length })} aria-label="Next image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronRight size={20} /></button></div>}</div>
+  </AccessibleOverlay>;
+}
 const EMPTY_ORDER_FILTERS = {
   search: "",
   department: "",
@@ -227,8 +279,13 @@ function AddStockModal({
   open,
   itemName,
   quantity,
+  note,
+  variants,
+  variantId,
   busy = false,
   onQuantityChange,
+  onNoteChange,
+  onVariantChange,
   onCancel,
   onConfirm,
 }) {
@@ -243,6 +300,12 @@ function AddStockModal({
           <span className="font-bold text-[#0F172A]">{itemName}</span>.
         </p>
         <div className="mt-4 space-y-1.5">
+          {variants?.length > 0 && <label className="block text-[13px] font-semibold text-[#0F172A]">Variant
+            <select value={variantId} onChange={(event) => onVariantChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" required>
+              <option value="">Select variant</option>
+              {variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.name} · {variant.stock_quantity} in stock</option>)}
+            </select>
+          </label>}
           <label className="text-[13px] font-semibold text-[#0F172A]">
             Quantity to Add
           </label>
@@ -253,6 +316,9 @@ function AddStockModal({
             onChange={(event) => onQuantityChange(event.target.value)}
             className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
+          <label className="block text-[13px] font-semibold text-[#0F172A]">Reason for stock addition
+            <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} maxLength={500} required rows={2} className="mt-1 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" placeholder="e.g. New delivery received" />
+          </label>
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button
@@ -509,18 +575,22 @@ export default function MerchandisePage({ initialTab }) {
   const [form, setForm] = useState({
     name: "",
     category: "",
+    category_custom: false,
     unit_price: "",
     stock_quantity: "",
     description: "",
     is_active: true,
+    ...emptyCatalogExtras,
   });
   const [editForm, setEditForm] = useState({
     name: "",
     category: "",
+    category_custom: false,
     unit_price: "",
     stock_quantity: "",
     description: "",
     is_active: true,
+    ...emptyCatalogExtras,
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -542,7 +612,13 @@ export default function MerchandisePage({ initialTab }) {
     open: false,
     item: null,
     quantity: "1",
+    note: "",
+    variantId: "",
   });
+  const [selectedVariants, setSelectedVariants] = useState({});
+  const [lightbox, setLightbox] = useState(null);
+  const [auditModal, setAuditModal] = useState(null);
+  const [variantImages, setVariantImages] = useState([]);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
     title: "",
@@ -655,6 +731,12 @@ export default function MerchandisePage({ initialTab }) {
             ? mRes.data
             : [];
         setItems(merch);
+        setCart((previous) => previous.map((row) => {
+          const latest = merch.find((item) => item.id === row.item.id);
+          if (!latest) return row;
+          const variant = latest.variants?.find((entry) => entry.id === row.item.merchandise_variant_id);
+          return { ...row, item: { ...latest, merchandise_variant_id: variant?.id, variant_name: variant?.name, cart_key: variant ? `${latest.id}:${variant.id}` : String(latest.id), stock_quantity: variant?.stock_quantity ?? latest.stock_quantity, image_url: variant?.image_url || latest.image_url } };
+        }));
         extractOrders(oRes);
         if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
         if (allMineOrders) {
@@ -829,7 +911,8 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const stock = Number.parseInt(form.stock_quantity, 10);
-    if (!Number.isInteger(stock) || stock < 0) {
+    if (!form.category.trim()) { setFormError("Select a category."); return; }
+    if ((!form.variants.length && !Number.isInteger(stock)) || stock < 0) {
       setFormError("Initial stock must be a non-negative whole number.");
       return;
     }
@@ -841,20 +924,28 @@ export default function MerchandisePage({ initialTab }) {
         name: form.name,
         category: form.category || null,
         price,
-        stock_quantity: stock,
+        stock_quantity: form.variants.length ? form.variants.reduce((sum, row) => sum + Number(row.stock_quantity), 0) : stock,
         description: form.description,
         is_active: form.is_active,
         imageFile,
+        variants: form.variants,
+        variantImages,
+        low_stock_threshold: form.low_stock_threshold,
+        promotion_price: form.promotion_price || "",
+        promotion_buyer_limit: form.promotion_buyer_limit || "",
       });
       setShowForm(false);
       setForm({
         name: "",
         category: "",
+        category_custom: false,
         unit_price: "",
         stock_quantity: "",
         description: "",
         is_active: true,
+        ...emptyCatalogExtras,
       });
+      setVariantImages([]);
       setImageFile(null);
       setImagePreview(null);
       setTransactionMessage("Product added successfully.");
@@ -871,11 +962,17 @@ export default function MerchandisePage({ initialTab }) {
     setEditForm({
       name: item.name || "",
       category: item.category || "",
+      category_custom: Boolean(item.category && !CATEGORIES.includes(item.category)),
       unit_price: String(item.price ?? ""),
       stock_quantity: String(item.stock_quantity ?? 0),
       description: item.description || "",
       is_active: Boolean(item.is_active),
+      variants: item.variants || [],
+      low_stock_threshold: String(item.low_stock_threshold ?? 9),
+      promotion_price: String(item.promotion_price ?? ""),
+      promotion_buyer_limit: String(item.promotion_buyer_limit ?? ""),
     });
+    setVariantImages((item.variants || []).map(() => null));
     setEditImageFile(null);
     setEditImagePreview(resolveAssetUrl(item.image_url));
     setFormError(null);
@@ -907,7 +1004,8 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const stock = Number.parseInt(editForm.stock_quantity, 10);
-    if (!Number.isInteger(stock) || stock < 0) {
+    if (!editForm.category.trim()) { setFormError("Select a category."); return; }
+    if ((!editForm.variants.length && !Number.isInteger(stock)) || stock < 0) {
       setFormError("Stock must be a non-negative whole number.");
       return;
     }
@@ -920,10 +1018,15 @@ export default function MerchandisePage({ initialTab }) {
         name: editForm.name,
         category: editForm.category || null,
         price,
-        stock_quantity: stock,
+        stock_quantity: editForm.variants.length ? editForm.variants.reduce((sum, row) => sum + Number(row.stock_quantity), 0) : stock,
         description: editForm.description,
         is_active: editForm.is_active,
         imageFile: editImageFile,
+        variants: editForm.variants,
+        variantImages,
+        low_stock_threshold: editForm.low_stock_threshold,
+        promotion_price: editForm.promotion_price || "",
+        promotion_buyer_limit: editForm.promotion_buyer_limit || "",
       });
       const updated = res.data;
       setItems((prev) =>
@@ -1121,11 +1224,11 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function openAddStockModal(item) {
-    setStockModal({ open: true, item, quantity: "1" });
+    setStockModal({ open: true, item, quantity: "1", note: "", variantId: "" });
   }
 
   function closeAddStockModal() {
-    setStockModal({ open: false, item: null, quantity: "1" });
+    setStockModal({ open: false, item: null, quantity: "1", note: "", variantId: "" });
   }
 
   function confirmAddStock() {
@@ -1142,6 +1245,12 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const item = stockModal.item;
+    const note = stockModal.note.trim();
+    const variantId = stockModal.variantId ? Number(stockModal.variantId) : null;
+    if (!note || (item.variants?.length && !variantId)) {
+      setError("Select a variant and enter a reason for this stock addition.");
+      return;
+    }
     const nextStock = item.stock_quantity + addAmount;
     closeAddStockModal();
 
@@ -1150,7 +1259,7 @@ export default function MerchandisePage({ initialTab }) {
       message: `Add ${addAmount} unit(s) to ${item.name}? New stock will be ${nextStock}.`,
       confirmText: "Add Stock",
       action: async () => {
-        const res = await adjustStock(item.id, addAmount);
+        const res = await adjustStock(item.id, addAmount, note, variantId);
         const updated = res.data;
         setItems((prev) =>
           prev.map((row) =>
@@ -1193,6 +1302,12 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function addToCart(item) {
+    const variant = item.variants?.length ? item.variants.find((row) => row.id === Number(selectedVariants[item.id])) : null;
+    if (item.variants?.length && !variant) {
+      setCartError(`Select a variant for ${item.name}.`);
+      return;
+    }
+    const cartItem = variant ? { ...item, merchandise_variant_id: variant.id, variant_name: variant.name, cart_key: `${item.id}:${variant.id}`, stock_quantity: variant.stock_quantity, image_url: variant.image_url || item.image_url } : item;
     const requested = Number.parseInt(String(draftQty[item.id] || 1), 10);
     setCartError(null);
 
@@ -1201,24 +1316,24 @@ export default function MerchandisePage({ initialTab }) {
       return;
     }
 
-    if (requested > item.stock_quantity) {
+    if (requested > cartItem.stock_quantity) {
       setCartError(
-        `Only ${item.stock_quantity} unit(s) available for ${item.name}.`,
+        `Only ${cartItem.stock_quantity} unit(s) available for ${item.name}.`,
       );
       return;
     }
 
     setCart((prev) => {
-      const existing = prev.find((row) => row.item.id === item.id);
+      const existing = prev.find((row) => cartKey(row.item) === cartKey(cartItem));
 
-      if (!existing && requested <= item.stock_quantity) {
+      if (!existing && requested <= cartItem.stock_quantity) {
         setTransactionMessage(`${requested} x ${item.name} added to cart.`);
-        return [...prev, { item, quantity: requested }];
+        return [...prev, { item: cartItem, quantity: requested }];
       }
 
       const currentQty = existing?.quantity || 0;
       const nextQty = currentQty + requested;
-      if (nextQty > item.stock_quantity) {
+      if (nextQty > cartItem.stock_quantity) {
         setCartError(
           `Cannot exceed available stock. ${item.name} has only ${item.stock_quantity} unit(s).`,
         );
@@ -1228,7 +1343,7 @@ export default function MerchandisePage({ initialTab }) {
       setTransactionMessage(`${item.name} quantity updated in cart.`);
 
       return prev.map((row) =>
-        row.item.id === item.id ? { ...row, quantity: nextQty } : row,
+        cartKey(row.item) === cartKey(cartItem) ? { ...row, quantity: nextQty } : row,
       );
     });
 
@@ -1239,7 +1354,7 @@ export default function MerchandisePage({ initialTab }) {
     setCartError(null);
     setCart((prev) =>
       prev.map((row) => {
-        if (row.item.id !== itemId) return row;
+        if (cartKey(row.item) !== itemId) return row;
         if (!Number.isInteger(nextQty) || nextQty <= 0) {
           setCartError("Quantity must be at least 1.");
           return row;
@@ -1257,8 +1372,8 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function removeFromCart(itemId) {
-    const removed = cart.find((row) => row.item.id === itemId);
-    setCart((prev) => prev.filter((row) => row.item.id !== itemId));
+    const removed = cart.find((row) => cartKey(row.item) === itemId);
+    setCart((prev) => prev.filter((row) => cartKey(row.item) !== itemId));
     if (removed) {
       setTransactionMessage(`${removed.item.name} removed from cart.`);
     }
@@ -1298,6 +1413,7 @@ export default function MerchandisePage({ initialTab }) {
       for (const row of cart) {
         await placeOrder({
           merchandise_id: row.item.id,
+          merchandise_variant_id: row.item.merchandise_variant_id,
           quantity: row.quantity,
           payment_method: checkoutPayment.method,
           payment_reference:
@@ -1309,7 +1425,7 @@ export default function MerchandisePage({ initialTab }) {
               ? checkoutPayment.proof_file
               : null,
         });
-        submittedIds.push(row.item.id);
+        submittedIds.push(cartKey(row.item));
       }
 
       setCart([]);
@@ -1330,7 +1446,7 @@ export default function MerchandisePage({ initialTab }) {
           : msg,
       );
       setCart((prev) =>
-        prev.filter((row) => !submittedIds.includes(row.item.id)),
+        prev.filter((row) => !submittedIds.includes(cartKey(row.item))),
       );
       await load();
     } finally {
@@ -1418,9 +1534,8 @@ export default function MerchandisePage({ initialTab }) {
   const activeOrders = orderSummary
     ? orderSummary.pending_orders + orderSummary.unclaimed_orders
     : orders.filter((o) => ["pending", "paid"].includes(o.status)).length;
-  const lowStock = items.filter(
-    (i) => i.stock_quantity > 0 && i.stock_quantity < 10,
-  ).length;
+  const lowStock = items.filter((i) => i.is_low_stock).length;
+  const topSellers = (orderSummary?.breakdown || []).slice(0, 5);
   const paidOrders = orders.filter((o) => o.status === "paid");
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
@@ -1432,7 +1547,7 @@ export default function MerchandisePage({ initialTab }) {
   const cartTotal = useMemo(
     () =>
       cart.reduce(
-        (sum, row) => sum + toNumber(row.item.price) * row.quantity,
+        (sum, row) => sum + itemPrice(row.item) * row.quantity,
         0,
       ),
     [cart],
@@ -1565,6 +1680,7 @@ export default function MerchandisePage({ initialTab }) {
     return (
       <div className="space-y-6">
         {feedbackPopup}
+        <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
         {/* Student metric cards */}
         <section className="grid gap-4 sm:grid-cols-3">
           {[
@@ -1729,11 +1845,11 @@ export default function MerchandisePage({ initialTab }) {
                   >
                     <div className="relative overflow-hidden bg-[#F8FBFD]">
                       {item.image_url ? (
-                        <img
+                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} className="block w-full" aria-label={`View ${item.name} images`}><img
                           src={resolveAssetUrl(item.image_url)}
                           alt={item.name}
                           className={`h-48 w-full object-cover transition duration-300 group-hover:scale-[1.02] ${item.stock_quantity === 0 ? "grayscale" : ""}`}
-                        />
+                        /></button>
                       ) : (
                         <div className="flex h-48 items-center justify-center">
                           <Package size={44} className="text-slate-200" />
@@ -1744,26 +1860,30 @@ export default function MerchandisePage({ initialTab }) {
                           {item.category || "Merchandise"}
                         </span>
                         <span
-                          className={`shrink-0 rounded-full border border-white/70 px-2.5 py-1 text-[11px] font-extrabold shadow-sm ${stockBadge(item.stock_quantity)}`}
+                          className={`shrink-0 rounded-full border border-white/70 px-2.5 py-1 text-[11px] font-extrabold shadow-sm ${item.is_low_stock ? "bg-amber-50 text-amber-700" : stockBadge(item.stock_quantity)}`}
                         >
-                          {item.stock_quantity} in stock
+                          {item.is_low_stock ? "LOW STOCK" : item.stock_quantity === 0 ? "OUT OF STOCK" : `${item.stock_quantity} in stock`}
                         </span>
                       </div>
                     </div>
                     <div className="flex flex-1 flex-col p-4">
+                      <div className="mb-2 flex flex-wrap gap-1">{item.promotion_available_to_viewer && <span className="rounded-full bg-[#F9EAA6] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">FIRST {item.promotion_buyer_limit} BUYERS</span>}<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">ACTIVE</span></div>
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="min-w-0 font-bold leading-snug text-[#0F172A]">
                           {item.name}
                         </h3>
-                        <p className="shrink-0 text-lg font-black text-[#0878B7]">
-                          {fmt(item.price)}
-                        </p>
+                        <div className="shrink-0 text-right"><p className="text-lg font-black text-[#0878B7]">{fmt(item.effective_price ?? item.price)}</p>{item.promotion_available_to_viewer && <p className="text-xs text-slate-500"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slots left</p>}</div>
                       </div>
                       {item.description && (
                         <p className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500">
                           {item.description}
                         </p>
                       )}
+                      {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]">Size / variant
+                        <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${item.name}`}>
+                          <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} available</option>)}
+                        </select>
+                      </label>}
                       <div className="mt-auto flex items-center gap-2 border-t border-[#EEF6FB] pt-4">
                         <button
                           type="button"
@@ -1881,7 +2001,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="space-y-4 p-5">
                 {cart.map((row) => (
                   <div
-                    key={row.item.id}
+                    key={cartKey(row.item)}
                     className="flex flex-wrap items-center gap-4 rounded-lg border border-[#DDE7EF] p-4 transition hover:border-[#0B8ED0]/30"
                   >
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD]">
@@ -1902,14 +2022,14 @@ export default function MerchandisePage({ initialTab }) {
                         {row.item.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {fmt(row.item.price)} each · {row.item.stock_quantity} available
+                          {row.item.variant_name ? `${row.item.variant_name} · ` : ""}{fmt(itemPrice(row.item))} each · {row.item.stock_quantity} available
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() =>
-                          changeCartQty(row.item.id, row.quantity - 1)
+                          changeCartQty(cartKey(row.item), row.quantity - 1)
                         }
                         className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD]"
                         aria-label={`Decrease quantity for ${row.item.name}`}
@@ -1922,7 +2042,7 @@ export default function MerchandisePage({ initialTab }) {
                       <button
                         type="button"
                         onClick={() =>
-                          changeCartQty(row.item.id, row.quantity + 1)
+                          changeCartQty(cartKey(row.item), row.quantity + 1)
                         }
                         disabled={row.quantity >= row.item.stock_quantity}
                         className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
@@ -1932,7 +2052,7 @@ export default function MerchandisePage({ initialTab }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeFromCart(row.item.id)}
+                        onClick={() => removeFromCart(cartKey(row.item))}
                         className="ml-1 grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50"
                         aria-label={`Remove ${row.item.name} from cart`}
                       >
@@ -2278,7 +2398,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="mt-4 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-[#DDE7EF] p-3">
                 {cart.map((row) => (
                   <div
-                    key={row.item.id}
+                    key={cartKey(row.item)}
                     className="flex items-center justify-between gap-3 border-b border-[#EEF6FB] pb-2 last:border-b-0 last:pb-0"
                   >
                     <div>
@@ -2286,7 +2406,7 @@ export default function MerchandisePage({ initialTab }) {
                         {row.item.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Qty: {row.quantity} × {fmt(row.item.price)} · {row.item.stock_quantity} in stock
+                        Qty: {row.quantity} × {fmt(itemPrice(row.item))} · {row.item.stock_quantity} in stock
                       </p>
                     </div>
                     <p className="text-sm font-black text-[#0F172A]">
@@ -2596,6 +2716,13 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {activeTab === "inventory" && (
+        <section className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-[#0F2F62]">Top sellers</h2>
+          {topSellers.length === 0 ? <p className="mt-2 text-sm text-slate-500">No paid merchandise sales yet.</p> : <div className="mt-3 space-y-2">{topSellers.map((seller, index) => <div key={seller.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_3rem] items-center gap-3 text-xs"><strong className="text-[#0878B7]">{index + 1}</strong><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold text-[#0F2F62]">{seller.name}</span><span className="text-slate-500">{fmt(seller.collected)} collected</span></div><div className="h-2 overflow-hidden rounded-full bg-[#E6F6FD]"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.max(4, Number(seller.quantity) / Math.max(1, Number(topSellers[0].quantity)) * 100)}%` }} /></div></div><strong className="text-right text-[#0F2F62]">{seller.quantity}</strong></div>)}</div>}
+        </section>
+      )}
+
+      {activeTab === "inventory" && (
         <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -2617,13 +2744,13 @@ export default function MerchandisePage({ initialTab }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500 sm:w-[140px]"
                 />
               </div>
-              <button
+              {role === "ADMIN" && <button
                 onClick={() => setShowForm(true)}
                 className="flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition"
               >
                 <Plus size={16} />
                 <span className="hidden sm:inline">Add Product</span>
-              </button>
+              </button>}
             </div>
           </div>
           {loading ? (
@@ -2644,16 +2771,16 @@ export default function MerchandisePage({ initialTab }) {
               {filteredInventoryItems.map((item) => (
                 <article
                   key={item.id}
-                  className={`rounded-lg border bg-white p-4 shadow-sm ${item.stock_quantity < 10 ? "border-red-200" : "border-[#DDE7EF]"}`}
+                  className={`rounded-xl border bg-white p-4 shadow-sm ${item.is_low_stock ? "border-amber-300" : "border-[#DDE7EF]"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-3">
                       {item.image_url ? (
-                        <img
+                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} aria-label={`View ${item.name} images`}><img
                           src={resolveAssetUrl(item.image_url)}
                           alt={item.name}
                           className="h-14 w-14 rounded-lg border border-[#DDE7EF] object-cover"
-                        />
+                        /></button>
                       ) : (
                         <div className="grid h-14 w-14 place-items-center rounded-lg bg-[#E6F6FD]">
                           <Package size={20} className="text-[#0878B7]" />
@@ -2664,7 +2791,7 @@ export default function MerchandisePage({ initialTab }) {
                           {item.name}
                         </p>
                         <p className="text-xs font-medium text-slate-500">
-                          {fmt(item.price)} per unit
+                          {item.promotion_available_to_viewer ? <><strong className="text-[#0878B7]">{fmt(item.effective_price)}</strong> <s>{fmt(item.price)}</s> · {item.promotion_remaining} slots left</> : `${fmt(item.price)} per unit`}
                         </p>
                       </div>
                     </div>
@@ -2675,12 +2802,15 @@ export default function MerchandisePage({ initialTab }) {
                         </span>
                       )}
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${stockBadge(item.stock_quantity)}`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${item.is_low_stock ? "bg-amber-50 text-amber-700" : stockBadge(item.stock_quantity)}`}
                       >
-                        {stockLabel(item.stock_quantity)}
+                        {item.is_low_stock ? "Low Stock" : stockLabel(item.stock_quantity)}
                       </span>
                     </div>
                   </div>
+
+                  {item.variants?.length > 0 && <p className="mt-2 text-xs text-slate-600">{item.variants.map((variant) => `${variant.name}: ${variant.stock_quantity}`).join(" · ")}</p>}
+                  {role === "ADMIN" && <button type="button" onClick={async () => { try { const response = await getMerchandiseAuditLogs(item.id); setAuditModal({ item, logs: response.data }); } catch { showFeedback("error", "Could not load product history."); } }} className="mt-2 text-xs font-semibold text-[#0878B7] hover:underline">View audit history</button>}
 
                   <div className="mt-3 rounded-lg bg-[#F8FBFD] px-3 py-2">
                     <p className="text-xs font-medium text-slate-500">
@@ -2693,7 +2823,7 @@ export default function MerchandisePage({ initialTab }) {
                     </p>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between gap-2">
+                  {role === "ADMIN" && <div className="mt-3 flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => openAddStockModal(item)}
@@ -2701,13 +2831,7 @@ export default function MerchandisePage({ initialTab }) {
                     >
                       Add Stock
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => confirmSellingToggle(item)}
-                      className={`rounded-full px-3 py-1 text-xs font-bold transition ${item.is_active ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-                    >
-                      {item.is_active ? "Selling: Active" : "Selling: Inactive"}
-                    </button>
+                    <button type="button" role="switch" aria-checked={item.is_active} aria-label={`Selling status for ${item.name}`} onClick={() => confirmSellingToggle(item)} className="inline-flex items-center gap-2 text-xs font-bold text-[#0F2F62]"><span>{item.is_active ? "ACTIVE" : "INACTIVE"}</span><span className={`relative h-6 w-11 rounded-full transition ${item.is_active ? "bg-emerald-600" : "bg-slate-400"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${item.is_active ? "left-6" : "left-1"}`} /></span></button>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -2726,7 +2850,7 @@ export default function MerchandisePage({ initialTab }) {
                         <Trash2 size={13} />
                       </button>
                     </div>
-                  </div>
+                  </div>}
                 </article>
               ))}
             </div>
@@ -3837,6 +3961,9 @@ export default function MerchandisePage({ initialTab }) {
                           Remarks: {entry.new_values.review_remarks}
                         </p>
                       )}
+                      {entry.old_values?.status && entry.old_values.status !== entry.new_values?.status && <p className="mt-1 text-xs text-slate-600">Status: {capitalize(entry.old_values.status)} → {capitalize(entry.new_values?.status)}</p>}
+                      {entry.new_values?.variant_name && <p className="mt-1 text-xs text-slate-600">Variant: {entry.new_values.variant_name}</p>}
+                      {entry.new_values?.total_price !== undefined && <p className="mt-1 text-xs text-slate-600">Order total: {fmt(entry.new_values.total_price)}</p>}
                     </li>
                   ))}
                 </ol>
@@ -3990,20 +4117,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  value={form.category}
-                  onChange={(e) =>
-                    setForm({ ...form, category: e.target.value })
-                  }
-                  placeholder="e.g. Apparel, Accessories"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                />
-              </div>
+              <CatalogFields value={form} onChange={setForm} images={variantImages} onImagesChange={setVariantImages} />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -4029,6 +4143,7 @@ export default function MerchandisePage({ initialTab }) {
                     type="number"
                     min="0"
                     value={form.stock_quantity}
+                    disabled={form.variants.length > 0}
                     onChange={(e) =>
                       setForm({ ...form, stock_quantity: e.target.value })
                     }
@@ -4114,7 +4229,7 @@ export default function MerchandisePage({ initialTab }) {
                     formSubmitting ||
                     !form.name ||
                     !form.unit_price ||
-                    !form.stock_quantity
+                    (!form.stock_quantity && !form.variants.length) || !form.category
                   }
                   className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                 >
@@ -4125,6 +4240,12 @@ export default function MerchandisePage({ initialTab }) {
           </div>
         </AccessibleOverlay>
       )}
+
+      <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
+
+      {auditModal && <AccessibleOverlay label={`${auditModal.item.name} audit history`} onClose={() => setAuditModal(null)} className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B1831]/50 p-4">
+        <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-[#0F2F62]">{auditModal.item.name} history</h2><button type="button" onClick={() => setAuditModal(null)} aria-label="Close audit history" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={18} /></button></div>{auditModal.logs.length === 0 ? <p className="mt-4 text-sm text-slate-500">No recorded changes yet.</p> : <ol className="mt-4 space-y-3">{auditModal.logs.map((log) => <li key={log.id} className="rounded-lg border border-[#DDE7EF] p-3 text-xs"><div className="flex flex-wrap justify-between gap-1"><strong className="capitalize text-[#0F2F62]">{log.action.replaceAll("_", " ")}</strong><time className="text-slate-500">{fmtDateTime(log.created_at)}</time></div><p className="mt-1 text-slate-600">{log.user ? `${log.user.first_name} ${log.user.last_name}` : log.user_id || "System"} · {log.actor_role || log.user?.role || ""}</p>{log.new_values?.note && <p className="mt-1">Note: {log.new_values.note}</p>}{log.old_values?.stock_quantity !== undefined && <p className="mt-1">Stock: {log.old_values.stock_quantity} → {log.new_values?.stock_quantity}{log.new_values?.variant_name ? ` · ${log.new_values.variant_name}` : ""}</p>}{log.old_values?.price !== undefined && log.old_values.price !== log.new_values?.price && <p className="mt-1">Price: {fmt(log.old_values.price)} → {fmt(log.new_values?.price)}</p>}</li>)}</ol>}</div>
+      </AccessibleOverlay>}
 
       {showEditForm && (
         <AccessibleOverlay label="Edit merchandise product" onClose={() => !formSubmitting && closeEditForm()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
@@ -4153,20 +4274,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  value={editForm.category}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, category: e.target.value })
-                  }
-                  placeholder="e.g. Apparel, Accessories"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                />
-              </div>
+              <CatalogFields value={editForm} onChange={setEditForm} images={variantImages} onImagesChange={setVariantImages} />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -4192,6 +4300,7 @@ export default function MerchandisePage({ initialTab }) {
                     type="number"
                     min="0"
                     value={editForm.stock_quantity}
+                    disabled={editForm.variants.length > 0}
                     onChange={(e) =>
                       setEditForm({
                         ...editForm,
@@ -4284,7 +4393,7 @@ export default function MerchandisePage({ initialTab }) {
                     formSubmitting ||
                     !editForm.name ||
                     !editForm.unit_price ||
-                    !editForm.stock_quantity
+                    (!editForm.stock_quantity && !editForm.variants.length) || !editForm.category
                   }
                   className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                 >
@@ -4482,10 +4591,15 @@ export default function MerchandisePage({ initialTab }) {
         open={stockModal.open}
         itemName={stockModal.item?.name || ""}
         quantity={stockModal.quantity}
+        note={stockModal.note}
+        variants={stockModal.item?.variants}
+        variantId={stockModal.variantId}
         busy={confirmModal.busy}
         onQuantityChange={(quantity) =>
           setStockModal((prev) => ({ ...prev, quantity }))
         }
+        onNoteChange={(note) => setStockModal((prev) => ({ ...prev, note }))}
+        onVariantChange={(variantId) => setStockModal((prev) => ({ ...prev, variantId }))}
         onCancel={closeAddStockModal}
         onConfirm={confirmAddStock}
       />

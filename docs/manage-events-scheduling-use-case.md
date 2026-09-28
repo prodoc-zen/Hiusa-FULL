@@ -38,4 +38,5 @@
 - **Monitor Event:** the event list and detail view show event/approval state, attendance totals, allocated budget, event income, actual spending, remaining funds, advisory risk, and the latest organization OLS forecast. Budget approval state comes from the linked approval request.
 - **Update Event Status:** Admin can move an approved event to ongoing/completed/cancelled according to the server-enforced transition rules. Approval itself cannot be bypassed from event status controls.
 - **Financial Link Integrity:** transactions using an event-linked budget inherit that event. A conflicting event/budget selection is rejected, keeping event reports and budget balances consistent.
+- **SAO File Checklist:** SAO can add instructions to requirements, reorder them, and remove items with no submitted files. Items already referenced by event submissions must be deactivated instead, preserving the submitted records. Active requirement order and instructions appear in the Admin submission panel.
 - **Notify User:** approval workflow notifications are handled through existing approval request review logic.

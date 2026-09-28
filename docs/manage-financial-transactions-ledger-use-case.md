@@ -30,3 +30,4 @@
 - **Update Financial Balance:** transaction create/update/delete applies budget movement to remaining funds.
 - **Student Financial Accounts:** Admin has a paginated accountability workspace with search, academic filters, clearance/overdue status, invoice and merchandise balances, detailed account history, charge creation, and payment recording.
 - **Financial Privacy:** organization-wide student balances are Admin-only; other authenticated roles can retrieve only their own invoice records.
+- **Collections and Remittances:** Admin has a dedicated custody workspace with organization-scoped totals, collection recording, second-admin verification, and partial remittance. Verification adds the collection once to the ledger; remittance changes custody totals without adding income again. The SBO Officer continues to use only personal receipts and statements under the existing role policy.

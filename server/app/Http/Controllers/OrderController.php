@@ -33,6 +33,7 @@ class OrderController extends Controller
 
         $query = Order::with([
             'merchandise:id,name,category,price,image_url',
+            'variant:id,name,image_url',
             'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title,account_status',
             'processor:school_id,first_name,last_name,role,position_title',
             'approver:school_id,first_name,last_name,role,position_title',
@@ -288,6 +289,7 @@ class OrderController extends Controller
         $claimedOrders = (clone $orders)->where('status', 'claimed')->count();
 
         $breakdown = (clone $orders)
+            ->whereIn('orders.status', ['paid', 'claimed'])
             ->join('merchandise', 'merchandise.id', '=', 'orders.merchandise_id')
             ->selectRaw('merchandise.id, merchandise.name, SUM(orders.quantity) as quantity, COUNT(orders.id) as orders_count, SUM(CASE WHEN orders.status IN (?, ?) THEN orders.total_price ELSE 0 END) as collected', ['paid', 'claimed'])
             ->groupBy('merchandise.id', 'merchandise.name')
@@ -335,6 +337,7 @@ class OrderController extends Controller
         $data = $request->validate([
             'merchandise_id' => ['required', 'exists:merchandise,id'],
             'quantity' => ['required', 'integer', 'min:1'],
+            'merchandise_variant_id' => ['nullable', 'integer'],
             'payment_method' => ['nullable', 'in:cash,gcash,other'],
             'payment_reference' => [
                 'nullable',
@@ -377,14 +380,40 @@ class OrderController extends Controller
                 ], 422);
             }
 
+            $variant = null;
+            if ($item->variants()->exists()) {
+                $variant = $item->variants()->where('organization_id', $item->organization_id)
+                    ->whereKey($data['merchandise_variant_id'] ?? 0)->first();
+                if (! $variant) {
+                    return response()->json(['message' => 'Select a valid variant for this product.'], 422);
+                }
+                if ($variant->stock_quantity < $data['quantity']) {
+                    return response()->json(['message' => "Insufficient {$variant->name} stock. Only {$variant->stock_quantity} unit(s) available."], 422);
+                }
+            } elseif (! empty($data['merchandise_variant_id'])) {
+                return response()->json(['message' => 'This product has no variants.'], 422);
+            }
+
+            $previousBuyer = $item->orders()->where('student_id', $request->user()->school_id)
+                ->where('promotion_applied', true)->where('status', '!=', 'cancelled')->exists();
+            $usedBuyers = $item->orders()->where('promotion_applied', true)
+                ->where('status', '!=', 'cancelled')->distinct()->count('student_id');
+            $promotionApplied = $item->promotion_price !== null && $item->promotion_buyer_limit !== null
+                && ($previousBuyer || $usedBuyers < $item->promotion_buyer_limit);
+            $unitPrice = $promotionApplied ? $item->promotion_price : $item->price;
+
             $paymentProofUrl = $request->hasFile('payment_proof') ? $this->storePaymentProof($request) : null;
 
             try {
                 $order = Order::create([
-                    'student_id' => $request->user()->id,
+                    'student_id' => $request->user()->school_id,
                     'merchandise_id' => $item->id,
+                    'merchandise_variant_id' => $variant?->id,
+                    'variant_name' => $variant?->name,
                     'quantity' => $data['quantity'],
-                    'total_price' => $item->price * $data['quantity'],
+                    'unit_price' => $unitPrice,
+                    'promotion_applied' => $promotionApplied,
+                    'total_price' => round((float) $unitPrice * $data['quantity'], 2),
                     'payment_method' => $data['payment_method'] ?? null,
                     'payment_reference' => $data['payment_reference'] ?? null,
                     'payment_reference_key' => ! empty($data['payment_reference'])
@@ -452,6 +481,7 @@ class OrderController extends Controller
                 }
 
                 $oldPaymentProofUrl = $order->payment_proof_url;
+                $oldValues = $this->auditableOrderValues($order);
                 $order->update([
                     'payment_method' => 'gcash',
                     'payment_reference' => $data['payment_reference'],
@@ -460,7 +490,7 @@ class OrderController extends Controller
                     'review_remarks' => null,
                 ]);
                 $this->notifyFulfillmentTeam($order);
-                $this->audit($request, 'payment_submitted', $order);
+                $this->audit($request, 'payment_submitted', $order, $oldValues);
 
                 return $order->fresh();
             });
@@ -529,7 +559,7 @@ class OrderController extends Controller
                     'Merchandise Order Cancelled',
                     'Order ORD-'.$order->id.' was cancelled by the buyer before payment approval.'
                 );
-                $this->audit($request, 'cancelled_by_buyer', $order->fresh());
+                $this->audit($request, 'cancelled_by_buyer', $order->fresh(), ['status' => 'pending']);
 
                 return $order->fresh();
             });
@@ -626,6 +656,10 @@ class OrderController extends Controller
                         'required_role' => config('approvals.routes.payment'),
                         'status' => 'pending',
                         'active_key' => 'payment:'.$lockedOrder->organization_id.':'.$lockedOrder->id,
+                    ]);
+
+                    $this->audit($request, 'payment_review_submitted', $lockedOrder->fresh(), [
+                        'status' => 'pending', 'officer_review_status' => 'pending',
                     ]);
 
                     return $lockedOrder->fresh();
@@ -767,6 +801,7 @@ class OrderController extends Controller
                 return ['error' => "Order cannot be claimed. Current status: {$order->status}.", 'status' => 422];
             }
 
+            $oldValues = $this->auditableOrderValues($order);
             $order->update([
                 'status' => 'claimed',
                 'claimed_at' => now(),
@@ -774,6 +809,8 @@ class OrderController extends Controller
                 'claim_verified_at' => now(),
                 'processed_by' => $request->user()->id,
             ]);
+
+            $this->audit($request, 'claimed', $order->fresh(), $oldValues);
 
             return ['order' => $order->fresh()];
         });
@@ -854,8 +891,13 @@ class OrderController extends Controller
         return Organization::whereKey($organizationId)->whereNotNull('gcash_qr_url')->where('gcash_qr_url', '!=', '')->exists();
     }
 
-    private function audit(Request $request, string $action, Order $order): void
+    private function auditableOrderValues(Order $order): array
     {
-        AuditLog::create(['organization_id' => $order->organization_id, 'user_id' => $request->user()->school_id, 'module' => 'orders', 'action' => $action, 'record_type' => Order::class, 'record_id' => $order->id, 'new_values' => $order->only(['status', 'total_price', 'student_id', 'transaction_id']), 'ip_address' => $request->ip(), 'created_at' => now()]);
+        return $order->only(['id', 'merchandise_id', 'merchandise_variant_id', 'variant_name', 'quantity', 'unit_price', 'total_price', 'promotion_applied', 'status', 'officer_review_status', 'admin_review_status', 'review_remarks', 'student_id', 'processed_by', 'approved_by', 'claim_verified_by', 'transaction_id', 'payment_method']);
+    }
+
+    private function audit(Request $request, string $action, Order $order, ?array $oldValues = null): void
+    {
+        AuditLog::create(['organization_id' => $order->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'orders', 'action' => $action, 'description' => 'Merchandise order ORD-'.$order->id.' '.$action, 'record_type' => Order::class, 'record_id' => $order->id, 'old_values' => $oldValues, 'new_values' => $this->auditableOrderValues($order), 'ip_address' => $request->ip(), 'created_at' => now()]);
     }
 }

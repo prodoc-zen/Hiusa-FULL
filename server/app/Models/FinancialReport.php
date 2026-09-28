@@ -11,7 +11,7 @@ class FinancialReport extends Model
 
     protected $guarded = [];
 
-    protected $hidden = ['letterhead_path'];
+    protected $hidden = ['letterhead_path', 'transactions_snapshot'];
 
     protected $appends = ['has_letterhead'];
 
@@ -25,6 +25,9 @@ class FinancialReport extends Model
             'department_head_approved_at' => 'datetime',
             'sao_approved_at' => 'datetime',
             'source_transaction_ids' => 'array',
+            'opening_balance_snapshot' => 'decimal:2',
+            'transactions_snapshot' => 'array',
+            'custody_snapshot' => 'array',
             'signatories' => 'array',
             'supporting_documents' => 'array',
             'letter_details' => 'array',

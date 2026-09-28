@@ -6,18 +6,22 @@ import MerchandisePage from "./MerchandisePage";
 const merchandiseMocks = vi.hoisted(() => ({
   getMerchandise: vi.fn(),
   getGcashSettings: vi.fn(),
+  adjustStock: vi.fn(),
+  getMerchandiseAuditLogs: vi.fn(),
 }));
 const orderMocks = vi.hoisted(() => ({
   getOrders: vi.fn(),
   cancelOrder: vi.fn(),
+  placeOrder: vi.fn(),
 }));
 
 vi.mock("../../../services/merchandiseService", () => ({
   ...merchandiseMocks,
   createItem: vi.fn(),
   updateItem: vi.fn(),
-  adjustStock: vi.fn(),
+  adjustStock: merchandiseMocks.adjustStock,
   deleteItem: vi.fn(),
+  getMerchandiseAuditLogs: merchandiseMocks.getMerchandiseAuditLogs,
 }));
 
 vi.mock("../../../services/orderService", () => ({
@@ -26,7 +30,7 @@ vi.mock("../../../services/orderService", () => ({
   getOrderAnalyticsUsers: vi.fn(),
   getOrderAuditLogs: vi.fn(),
   openOrderPaymentProof: vi.fn(),
-  placeOrder: vi.fn(),
+  placeOrder: orderMocks.placeOrder,
   submitOrderPayment: vi.fn(),
   updateOrderStatus: vi.fn(),
   claimByToken: vi.fn(),
@@ -92,7 +96,7 @@ describe("MerchandisePage buyer experience", () => {
     );
 
     expect(await screen.findByText("8 in stock")).toBeInTheDocument();
-    expect(screen.getByText("0 in stock")).toBeInTheDocument();
+    expect(screen.getByText("OUT OF STOCK")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Currently unavailable" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Filter merchandise category"), {
@@ -138,6 +142,27 @@ describe("MerchandisePage buyer experience", () => {
 
     await waitFor(() => expect(orderMocks.cancelOrder).toHaveBeenCalledWith(17));
     expect(await screen.findByText("Cancelled by buyer.")).toBeInTheDocument();
+  });
+
+  it("shows a limited promotion, requires a variant, and opens product images", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [{
+      ...products[0], image_url: "/uploads/merchandise/shirt.jpg",
+      variants: [{ id: 11, name: "XL", stock_quantity: 2, image_url: "/uploads/merchandise/xl.jpg" }],
+      promotion_price: "250.00", effective_price: "250.00", promotion_buyer_limit: 100,
+      promotion_remaining: 12, promotion_available_to_viewer: true, is_low_stock: true,
+    }], current_page: 1, last_page: 1 } });
+    render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    expect(await screen.findByText("FIRST 100 BUYERS")).toBeInTheDocument();
+    expect(screen.getByText("LOW STOCK")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+    expect(screen.getByText("Select a variant for HIUSA Shirt.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Select variant for HIUSA Shirt" }), { target: { value: "11" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+    expect(screen.getByText(/1 x HIUSA Shirt added to cart/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View HIUSA Shirt images" }));
+    expect(screen.getByRole("img", { name: "HIUSA Shirt image 1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+    expect(screen.getByRole("img", { name: "HIUSA Shirt image 2" })).toBeInTheDocument();
   });
 });
 
@@ -234,5 +259,20 @@ describe("MerchandisePage fulfillment experience", () => {
         expect.objectContaining({ status: "paid", sort: "oldest" }),
       ),
     );
+  });
+
+  it("shows inventory top sellers from paid sales and requires a stock note", async () => {
+    const summary = managerOrdersResponse();
+    summary.data.summary.breakdown = [{ id: 1, name: "HIUSA Shirt", quantity: 4, collected: 1400 }];
+    orderMocks.getOrders.mockResolvedValue(summary);
+    merchandiseMocks.adjustStock.mockResolvedValue({ data: { ...products[0], stock_quantity: 10 } });
+    render(<MemoryRouter><MerchandisePage initialTab="inventory" /></MemoryRouter>);
+    expect(await screen.findByText("Top sellers")).toBeInTheDocument();
+    expect(await screen.findByText(/1,400\.00 collected/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" })[0]);
+    fireEvent.change(screen.getByPlaceholderText("e.g. New delivery received"), { target: { value: "New delivery" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" }).at(-1));
+    await waitFor(() => expect(merchandiseMocks.adjustStock).toHaveBeenCalledWith(1, 1, "New delivery", null));
   });
 });
