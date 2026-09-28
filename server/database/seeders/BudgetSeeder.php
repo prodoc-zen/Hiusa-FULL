@@ -42,14 +42,14 @@ class BudgetSeeder extends Seeder
         // Budget approval is single-stage by Department Head by default
         // (config('approvals.routes.budget')); TransactionController gates
         // new postings solely on Budget::submission_status being 'approved'.
-        // Setting config('approvals.routes.budget_final') to 'SUPER_ADMIN'
+        // Setting config('approvals.budget_final') to 'SUPER_ADMIN'
         // re-enables a second SAO stage on top of it, seeded here too so demo
         // data matches whichever mode is active. The Sports Fest budget is
         // left deliberately pending at the first stage so the approvals
         // screen has a real budget to sign off on live, distinct from the
         // event approval demo.
         $firstRole = config('approvals.routes.budget');
-        $finalRole = config('approvals.routes.budget_final');
+        $finalRole = config('approvals.budget_final');
         $firstApprover = User::where('organization_id', $officer1->organization_id)
             ->where('role', $firstRole)
             ->first() ?? $officer1;

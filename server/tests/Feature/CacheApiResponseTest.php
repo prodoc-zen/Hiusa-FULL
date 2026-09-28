@@ -17,6 +17,8 @@ class CacheApiResponseTest extends TestCase
     public function test_admin_briefing_is_fresh_after_super_admin_approves_a_different_orgs_request(): void
     {
         config(['performance.api_cache.enabled' => true, 'performance.api_cache.ttl_seconds' => 20]);
+        // A SUPER_ADMIN budget decision only exists when the optional SAO stage is on.
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
 
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
         $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);

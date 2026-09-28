@@ -49,7 +49,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_budget_moves_from_admin_to_department_head_then_sao_when_the_sao_stage_is_enabled(): void
     {
-        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -118,7 +118,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_sao_rejection_returns_the_budget_to_admin_with_remarks(): void
     {
-        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -182,7 +182,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_editing_a_pending_sao_budget_restarts_approval_at_department_head(): void
     {
-        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
@@ -249,7 +249,7 @@ class BudgetApprovalWorkflowTest extends TestCase
 
     public function test_editing_a_pending_sao_budget_with_no_fields_does_not_restart_approval(): void
     {
-        config(['approvals.routes.budget_final' => 'SUPER_ADMIN']);
+        config(['approvals.budget_final' => 'SUPER_ADMIN']);
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
