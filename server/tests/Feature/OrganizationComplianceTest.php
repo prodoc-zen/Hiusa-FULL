@@ -16,6 +16,14 @@ class OrganizationComplianceTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** A review carries the submitted_at the reviewer saw, exactly as the SAO client sends it. */
+    private function review(int $submissionId, array $payload): array
+    {
+        return $payload + [
+            'submitted_at' => OrganizationComplianceSubmission::findOrFail($submissionId)->submitted_at->toIso8601String(),
+        ];
+    }
+
     private function user(string $role, ?int $organizationId = null): User
     {
         return User::factory()->create(['role' => $role, 'organization_id' => $organizationId ?? Organization::factory(), 'account_status' => 'active']);
@@ -80,7 +88,7 @@ class OrganizationComplianceTest extends TestCase
         $this->getJson('/api/compliance/status')->assertOk()->assertJsonPath('organizations.accreditation_status', 'pending_review');
 
         Sanctum::actingAs($superAdmin);
-        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", ['status' => 'approved'])
+        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", $this->review($submissionId, ['status' => 'approved']))
             ->assertOk()->assertJsonPath('status', 'approved');
         $this->assertDatabaseHas('notifications', ['user_id' => $admin->school_id, 'reference_type' => 'organization_compliance_submission', 'reference_id' => $submissionId]);
 
@@ -110,9 +118,9 @@ class OrganizationComplianceTest extends TestCase
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($superAdmin);
-        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", ['status' => 'returned', 'remarks' => 'Missing signature page.'])
+        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", $this->review($submissionId, ['status' => 'returned', 'remarks' => 'Missing signature page.']))
             ->assertOk()->assertJsonPath('status', 'returned');
-        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", ['status' => 'approved'])
+        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", $this->review($submissionId, ['status' => 'approved']))
             ->assertStatus(409);
 
         Sanctum::actingAs($admin);
@@ -191,7 +199,7 @@ class OrganizationComplianceTest extends TestCase
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($superAdmin);
-        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", ['status' => 'approved'])->assertOk();
+        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", $this->review($submissionId, ['status' => 'approved']))->assertOk();
 
         Sanctum::actingAs($admin);
         $this->postJson('/api/compliance/submissions', [
@@ -306,5 +314,34 @@ class OrganizationComplianceTest extends TestCase
             'document' => UploadedFile::fake()->create('statement.pdf', 200, 'application/pdf'),
         ])->assertForbidden();
         $this->getJson('/api/compliance/status')->assertForbidden();
+    }
+
+    public function test_a_review_of_a_version_resubmitted_after_loading_is_refused(): void
+    {
+        Storage::fake('local');
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+
+        Sanctum::actingAs($superAdmin);
+        $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => now()->addMonth()->toISOString(),
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $submissionId = $this->postJson('/api/compliance/submissions', [
+            'requirement_type_id' => $requirementTypeId,
+            'document' => UploadedFile::fake()->create('statement.pdf', 200, 'application/pdf'),
+        ])->assertCreated()->json('id');
+
+        // The SAO opens the submission, then the organization replaces the document.
+        $reviewAsLoaded = $this->review($submissionId, ['status' => 'approved']);
+        OrganizationComplianceSubmission::whereKey($submissionId)->update(['submitted_at' => now()->addMinute()]);
+
+        Sanctum::actingAs($superAdmin);
+        $this->patchJson("/api/compliance/submissions/{$submissionId}/review", $reviewAsLoaded)->assertStatus(409);
+        $this->assertSame('submitted', OrganizationComplianceSubmission::findOrFail($submissionId)->status);
     }
 }
