@@ -40,6 +40,12 @@ class FinancialAccountabilityController extends Controller
      *   - invoices         : Invoice and InvoicePayment rows (student charges
      *                        and receipts)
      *   - budgets          : Budget rows (organization spend allocations)
+     *   - orders           : Merchandise order rows (see
+     *                        OrderFulfillmentService::audit() and
+     *                        OrderController::audit()) - a paid order's
+     *                        approval links a ledger Transaction and carries
+     *                        the buyer's student_id and transaction_id, so
+     *                        this is ledger data too, not governance data.
      *
      * Everything else - organizations, users, approvals, financial_reports,
      * grievances, compliance, venues, clearances, evaluation, announcements,
@@ -53,6 +59,7 @@ class FinancialAccountabilityController extends Controller
         'cash_advances',
         'invoices',
         'budgets',
+        'orders',
     ];
 
     public function dashboard(Request $request)
