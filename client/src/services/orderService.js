@@ -65,3 +65,6 @@ export const updateOrderStatus = (id, status, review_remarks = null, verified_am
 
 export const claimByToken = (claim_token) =>
   api.post('/orders/claim', { claim_token });
+
+export const verifyClaimToken = (claim_token) =>
+  api.post('/orders/claim/verify', { claim_token });

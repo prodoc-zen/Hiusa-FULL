@@ -966,6 +966,40 @@ class EventController extends Controller
             ->orderByDesc('version')->get());
     }
 
+    public function personalAttendance(Request $request)
+    {
+        $filters = $request->validate([
+            'page' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+
+        $records = Attendance::query()
+            ->where('user_id', $request->user()->school_id)
+            ->whereHas('event', fn ($query) => $query
+                ->where('organization_id', $request->user()->organization_id)
+                ->whereIn('status', ['approved', 'ongoing', 'completed']));
+        $attended = (clone $records)->whereIn('status', ['present', 'late'])->count();
+        $missed = (clone $records)->where('status', 'absent')->count();
+        $page = $records->with('event:id,title,start_time,end_time,status,location')
+            ->orderByDesc('id')
+            ->paginate($filters['per_page'] ?? 10);
+
+        return response()->json([
+            'summary' => [
+                'attended' => $attended,
+                'missed' => $missed,
+                'rate' => $attended + $missed > 0 ? round($attended * 100 / ($attended + $missed)) : null,
+            ],
+            'records' => $page->items(),
+            'pagination' => [
+                'current_page' => $page->currentPage(),
+                'last_page' => $page->lastPage(),
+                'per_page' => $page->perPage(),
+                'total' => $page->total(),
+            ],
+        ]);
+    }
+
     public function getAttendance(Request $request, $id)
     {
         $event = Event::where('organization_id', $request->user()->organization_id)->find($id);

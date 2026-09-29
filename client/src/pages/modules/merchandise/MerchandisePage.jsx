@@ -10,7 +10,6 @@ import {
   Circle,
   DollarSign,
   Download,
-  Eye,
   ImagePlus,
   Info,
   Minus,
@@ -18,7 +17,6 @@ import {
   Pencil,
   Plus,
   Search,
-  ShieldCheck,
   SlidersHorizontal,
   ShoppingBag,
   Ticket,
@@ -32,6 +30,7 @@ import {
   updateItem,
   adjustStock,
   deleteItem,
+  getMerchandiseAuditLogs,
 } from "../../../services/merchandiseService";
 import {
   cancelOrder,
@@ -44,16 +43,69 @@ import {
   submitOrderPayment,
   updateOrderStatus,
   claimByToken,
+  verifyClaimToken,
 } from "../../../services/orderService";
 import { resolveAssetUrl } from "../../../utils/assetUrl";
 import PaginationControls from "../../../components/PaginationControls";
 import { fetchAllPages } from "../../../services/pagination";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
+import ReceiptDocument, { ClaimTicket, printClaimTicket } from "../../../components/receipts/ReceiptDocument";
+import GcashPaymentSettingsPage from "./GcashPaymentSettingsPage";
 
 const STUDENT_CART_KEY = "hiusa_student_cart";
+const CATEGORIES = ["Apparel", "Accessories", "School Supplies", "Drinkware", "Bags", "Other"];
+const STANDARD_SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+const cartKey = (item) => item.cart_key || String(item.id);
+const itemPrice = (item) => Number(item.effective_price ?? item.price);
+const emptyCatalogExtras = { variants: [], promotion_price: "", promotion_buyer_limit: "", low_stock_threshold: "9" };
+
+function CatalogFields({ value, onChange, images, onImagesChange }) {
+  const categoryIsCustom = Boolean(value.category_custom || (value.category && !CATEGORIES.includes(value.category)));
+  const variants = value.variants || [];
+  const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
+  return <>
+    <label className="block text-[13px] font-semibold text-[#0F172A]">Category *
+      <select value={categoryIsCustom ? "Other" : value.category} onChange={(event) => onChange({ ...value, category: event.target.value === "Other" ? "" : event.target.value, category_custom: event.target.value === "Other" })} required className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm">
+        <option value="">Select category</option>
+        {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+      </select>
+      {categoryIsCustom && <input value={value.category} onChange={(event) => onChange({ ...value, category: event.target.value, category_custom: true })} placeholder="Enter category name" required className="mt-2 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />}
+    </label>
+    <div className="grid gap-3 sm:grid-cols-3">
+      <label className="text-[13px] font-semibold text-[#0F172A]">Low stock at or below
+        <input type="number" min="1" value={value.low_stock_threshold ?? "9"} onChange={(event) => onChange({ ...value, low_stock_threshold: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+      </label>
+      <label className="text-[13px] font-semibold text-[#0F172A]">Promo price
+        <input type="number" min="0" step="0.01" value={value.promotion_price ?? ""} onChange={(event) => onChange({ ...value, promotion_price: event.target.value })} placeholder="Optional" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+      </label>
+      <label className="text-[13px] font-semibold text-[#0F172A]">First buyers
+        <input type="number" min="1" value={value.promotion_buyer_limit ?? ""} onChange={(event) => onChange({ ...value, promotion_buyer_limit: event.target.value })} placeholder="e.g. 100" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+      </label>
+    </div>
+    <section className="space-y-2 rounded-xl border border-[#DDE7EF] bg-[#F8FBFD] p-3">
+      <div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-bold text-[#0F2F62]">Sizes and variants</h3><p className="text-xs text-slate-600">Add sizes for wearable items. Each has its own stock and optional image.</p></div><button type="button" onClick={() => { onChange({ ...value, variants: [...variants, { name: "", stock_quantity: 0 }] }); onImagesChange([...images, null]); }} className="shrink-0 rounded-lg border border-[#0878B7] px-3 py-2 text-xs font-bold text-[#0878B7]">Add variant</button></div>
+      {variants.map((variant, index) => <div key={variant.id || `new-${index}`} className="grid gap-2 rounded-lg border border-[#DDE7EF] bg-white p-2 sm:grid-cols-[1fr_5rem_auto_auto]">
+        <div><input list="merchandise-size-options" value={variant.name} onChange={(event) => changeVariant(index, { name: event.target.value })} placeholder="Size / variant" aria-label={`Variant ${index + 1} name`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" /><datalist id="merchandise-size-options">{STANDARD_SIZES.map((size) => <option key={size} value={size} />)}</datalist></div>
+        <input type="number" min="0" value={variant.stock_quantity} onChange={(event) => changeVariant(index, { stock_quantity: event.target.value })} aria-label={`${variant.name || `Variant ${index + 1}`} stock`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" />
+        <label className="cursor-pointer rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-semibold text-[#0F2F62]">{images[index] ? "Image selected" : variant.image_url ? "Change image" : "Add image"}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => onImagesChange(images.map((file, imageIndex) => imageIndex === index ? event.target.files[0] : file))} /></label>
+        <button type="button" aria-label={`Remove ${variant.name || `variant ${index + 1}`}`} onClick={() => { onChange({ ...value, variants: variants.filter((_, rowIndex) => rowIndex !== index) }); onImagesChange(images.filter((_, rowIndex) => rowIndex !== index)); }} className="grid h-10 w-10 place-items-center rounded-lg text-red-700 hover:bg-red-50"><X size={16} /></button>
+      </div>)}
+      {variants.length > 0 && <p className="text-xs font-semibold text-[#0F2F62]">Total variant stock: {variants.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0)}</p>}
+    </section>
+  </>;
+}
+
+function ProductImageViewer({ lightbox, onChange, onClose }) {
+  if (!lightbox) return null;
+  const images = [lightbox.item.image_url, ...(lightbox.item.variants || []).map((variant) => variant.image_url)].filter(Boolean);
+  if (!images.length) return null;
+  const imageIndex = Math.min(lightbox.index, images.length - 1);
+  return <AccessibleOverlay label={`${lightbox.item.name} images`} onClose={onClose} className="fixed inset-0 z-[75] flex items-center justify-center bg-[#0B1831]/85 p-4">
+    <div className="w-full max-w-3xl rounded-xl bg-white p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 className="font-bold text-[#0F2F62]">{lightbox.item.name}</h2><button type="button" onClick={onClose} aria-label="Close image viewer" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={20} /></button></div><img src={resolveAssetUrl(images[imageIndex])} alt={`${lightbox.item.name} image ${imageIndex + 1}`} className="mt-3 max-h-[65vh] w-full rounded-lg bg-[#F8FBFD] object-contain" />{images.length > 1 && <div className="mt-3 flex items-center justify-center gap-3"><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex - 1 + images.length) % images.length })} aria-label="Previous image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronLeft size={20} /></button><span className="text-sm text-slate-600">{imageIndex + 1} of {images.length}</span><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex + 1) % images.length })} aria-label="Next image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronRight size={20} /></button></div>}</div>
+  </AccessibleOverlay>;
+}
 const EMPTY_ORDER_FILTERS = {
   search: "",
-  department: "",
   program: "",
   major: "",
   year_level: "",
@@ -61,7 +113,6 @@ const EMPTY_ORDER_FILTERS = {
   role: "",
   position_title: "",
   status: "",
-  payment_status: "",
   payment_method: "",
   merchandise_id: "",
   ordered_from: "",
@@ -227,8 +278,13 @@ function AddStockModal({
   open,
   itemName,
   quantity,
+  note,
+  variants,
+  variantId,
   busy = false,
   onQuantityChange,
+  onNoteChange,
+  onVariantChange,
   onCancel,
   onConfirm,
 }) {
@@ -243,6 +299,12 @@ function AddStockModal({
           <span className="font-bold text-[#0F172A]">{itemName}</span>.
         </p>
         <div className="mt-4 space-y-1.5">
+          {variants?.length > 0 && <label className="block text-[13px] font-semibold text-[#0F172A]">Variant
+            <select value={variantId} onChange={(event) => onVariantChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" required>
+              <option value="">Select variant</option>
+              {variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.name} · {variant.stock_quantity} in stock</option>)}
+            </select>
+          </label>}
           <label className="text-[13px] font-semibold text-[#0F172A]">
             Quantity to Add
           </label>
@@ -253,6 +315,9 @@ function AddStockModal({
             onChange={(event) => onQuantityChange(event.target.value)}
             className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
           />
+          <label className="block text-[13px] font-semibold text-[#0F172A]">Reason for stock addition
+            <textarea value={note} onChange={(event) => onNoteChange(event.target.value)} maxLength={500} required rows={2} className="mt-1 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" placeholder="e.g. New delivery received" />
+          </label>
         </div>
         <div className="mt-5 flex justify-end gap-3">
           <button
@@ -289,7 +354,6 @@ function FulfillmentOrderRow({
   onDetails,
   onApprove,
   onReject,
-  onViewProof,
 }) {
   const studentName = order.student
     ? `${order.student.first_name} ${order.student.last_name}`
@@ -319,13 +383,9 @@ function FulfillmentOrderRow({
               {fmtDate(order.created_at)}
             </span>
           </div>
-          <button
-            type="button"
-            onClick={() => onDetails(order)}
-            className="mt-2 block max-w-full truncate text-left text-sm font-extrabold text-[#0F172A] hover:text-[#0878B7]"
-          >
+          <p className="mt-2 block max-w-full truncate text-left text-sm font-extrabold text-[#0F172A]">
             {studentName}
-          </button>
+          </p>
           <p className="mt-0.5 truncate font-mono text-[11px] text-slate-500">
             {order.student?.school_id || "No school ID"}
           </p>
@@ -339,7 +399,7 @@ function FulfillmentOrderRow({
             {order.merchandise?.name || "Unavailable item"}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            {order.quantity} x {fmt(order.merchandise?.price)}
+            {order.quantity} x {fmt(order.unit_price ?? Number(order.total_price) / Number(order.quantity || 1))}
           </p>
           <p className="mt-1 text-sm font-black tabular-nums text-[#0878B7]">
             {fmt(order.total_price)}
@@ -350,15 +410,6 @@ function FulfillmentOrderRow({
             <span className="max-w-32 truncate font-mono">
               {order.payment_reference || "No reference"}
             </span>
-            {order.payment_proof_url && (
-              <button
-                type="button"
-                onClick={() => onViewProof(order.id)}
-                className="inline-flex items-center gap-1 font-bold text-[#0878B7] hover:text-[#0878B7]"
-              >
-                <Eye size={12} /> Proof
-              </button>
-            )}
           </div>
         </div>
 
@@ -410,23 +461,23 @@ function FulfillmentOrderRow({
           <button
             type="button"
             onClick={() => onDetails(order)}
-            className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
+            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
           >
-            <Eye size={14} /> Details
+            Review
           </button>
           {order.status === "pending" && (
             <>
               <button
                 type="button"
                 onClick={() => onApprove(order)}
-                className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-lg px-3 text-xs font-bold ${role === "ADMIN" ? "bg-[#0878B7] text-white hover:bg-[#0F2F62]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-700"
               >
                 {role === "ADMIN" ? "Approve" : "Verify"} <ArrowRight size={13} />
               </button>
               <button
                 type="button"
                 onClick={() => onReject(order)}
-                className="h-9 flex-1 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 hover:bg-red-50"
+                className="min-h-11 flex-1 rounded-lg border border-red-200 bg-white px-3 text-xs font-bold text-red-700 hover:bg-red-50"
               >
                 Reject
               </button>
@@ -450,8 +501,7 @@ export default function MerchandisePage({ initialTab }) {
         : "order";
   const [activeTab, setActiveTab] = useState(initialTab || defaultTab);
   const isPersonalShoppingView =
-    ["order", "cart", "my-orders"].includes(activeTab) ||
-    (activeTab === "tokens" && !isFulfillmentRole);
+    ["order", "cart", "my-orders"].includes(activeTab);
 
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
@@ -461,14 +511,12 @@ export default function MerchandisePage({ initialTab }) {
   const [orderFilters, setOrderFilters] = useState(EMPTY_ORDER_FILTERS);
   const [orderSummary, setOrderSummary] = useState(null);
   const [orderFilterOptions, setOrderFilterOptions] = useState({
-    departments: [],
     programs: [],
     majors: [],
     roles: [],
     positions: [],
     merchandise: [],
     statuses: [],
-    payment_statuses: [],
     payment_methods: [],
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
@@ -509,18 +557,22 @@ export default function MerchandisePage({ initialTab }) {
   const [form, setForm] = useState({
     name: "",
     category: "",
+    category_custom: false,
     unit_price: "",
     stock_quantity: "",
     description: "",
     is_active: true,
+    ...emptyCatalogExtras,
   });
   const [editForm, setEditForm] = useState({
     name: "",
     category: "",
+    category_custom: false,
     unit_price: "",
     stock_quantity: "",
     description: "",
     is_active: true,
+    ...emptyCatalogExtras,
   });
   const [imageFile, setImageFile] = useState(null);
   const [imagePreview, setImagePreview] = useState(null);
@@ -532,6 +584,7 @@ export default function MerchandisePage({ initialTab }) {
   const [claimError, setClaimError] = useState(null);
   const [claimSuccess, setClaimSuccess] = useState(null);
   const [claiming, setClaiming] = useState(false);
+  const [claimPreview, setClaimPreview] = useState(null);
   const [transactionMessage, setTransactionMessage] = useState("");
   const [feedback, setFeedback] = useState({
     open: false,
@@ -542,7 +595,13 @@ export default function MerchandisePage({ initialTab }) {
     open: false,
     item: null,
     quantity: "1",
+    note: "",
+    variantId: "",
   });
+  const [selectedVariants, setSelectedVariants] = useState({});
+  const [lightbox, setLightbox] = useState(null);
+  const [auditModal, setAuditModal] = useState(null);
+  const [variantImages, setVariantImages] = useState([]);
   const [confirmModal, setConfirmModal] = useState({
     open: false,
     title: "",
@@ -606,8 +665,8 @@ export default function MerchandisePage({ initialTab }) {
     order: null,
     remarks: "",
     busy: false,
+    error: "",
   });
-  const [studentTokenSearch, setStudentTokenSearch] = useState("");
 
   function extractOrders(oRes) {
     const arr = Array.isArray(oRes.data?.data)
@@ -655,6 +714,12 @@ export default function MerchandisePage({ initialTab }) {
             ? mRes.data
             : [];
         setItems(merch);
+        setCart((previous) => previous.map((row) => {
+          const latest = merch.find((item) => item.id === row.item.id);
+          if (!latest) return row;
+          const variant = latest.variants?.find((entry) => entry.id === row.item.merchandise_variant_id);
+          return { ...row, item: { ...latest, merchandise_variant_id: variant?.id, variant_name: variant?.name, cart_key: variant ? `${latest.id}:${variant.id}` : String(latest.id), stock_quantity: variant?.stock_quantity ?? latest.stock_quantity, image_url: variant?.image_url || latest.image_url } };
+        }));
         extractOrders(oRes);
         if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
         if (allMineOrders) {
@@ -829,7 +894,8 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const stock = Number.parseInt(form.stock_quantity, 10);
-    if (!Number.isInteger(stock) || stock < 0) {
+    if (!form.category.trim()) { setFormError("Select a category."); return; }
+    if ((!form.variants.length && !Number.isInteger(stock)) || stock < 0) {
       setFormError("Initial stock must be a non-negative whole number.");
       return;
     }
@@ -841,20 +907,28 @@ export default function MerchandisePage({ initialTab }) {
         name: form.name,
         category: form.category || null,
         price,
-        stock_quantity: stock,
+        stock_quantity: form.variants.length ? form.variants.reduce((sum, row) => sum + Number(row.stock_quantity), 0) : stock,
         description: form.description,
         is_active: form.is_active,
         imageFile,
+        variants: form.variants,
+        variantImages,
+        low_stock_threshold: form.low_stock_threshold,
+        promotion_price: form.promotion_price || "",
+        promotion_buyer_limit: form.promotion_buyer_limit || "",
       });
       setShowForm(false);
       setForm({
         name: "",
         category: "",
+        category_custom: false,
         unit_price: "",
         stock_quantity: "",
         description: "",
         is_active: true,
+        ...emptyCatalogExtras,
       });
+      setVariantImages([]);
       setImageFile(null);
       setImagePreview(null);
       setTransactionMessage("Product added successfully.");
@@ -871,11 +945,18 @@ export default function MerchandisePage({ initialTab }) {
     setEditForm({
       name: item.name || "",
       category: item.category || "",
+      category_custom: Boolean(item.category && !CATEGORIES.includes(item.category)),
       unit_price: String(item.price ?? ""),
       stock_quantity: String(item.stock_quantity ?? 0),
       description: item.description || "",
       is_active: Boolean(item.is_active),
+      variants: item.variants || [],
+      low_stock_threshold: String(item.low_stock_threshold ?? 9),
+      promotion_price: String(item.promotion_price ?? ""),
+      promotion_buyer_limit: String(item.promotion_buyer_limit ?? ""),
+      stock_note: "",
     });
+    setVariantImages((item.variants || []).map(() => null));
     setEditImageFile(null);
     setEditImagePreview(resolveAssetUrl(item.image_url));
     setFormError(null);
@@ -907,7 +988,8 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const stock = Number.parseInt(editForm.stock_quantity, 10);
-    if (!Number.isInteger(stock) || stock < 0) {
+    if (!editForm.category.trim()) { setFormError("Select a category."); return; }
+    if ((!editForm.variants.length && !Number.isInteger(stock)) || stock < 0) {
       setFormError("Stock must be a non-negative whole number.");
       return;
     }
@@ -920,10 +1002,16 @@ export default function MerchandisePage({ initialTab }) {
         name: editForm.name,
         category: editForm.category || null,
         price,
-        stock_quantity: stock,
+        stock_quantity: editForm.variants.length ? editForm.variants.reduce((sum, row) => sum + Number(row.stock_quantity), 0) : stock,
         description: editForm.description,
         is_active: editForm.is_active,
         imageFile: editImageFile,
+        variants: editForm.variants,
+        variantImages,
+        low_stock_threshold: editForm.low_stock_threshold,
+        promotion_price: editForm.promotion_price || "",
+        promotion_buyer_limit: editForm.promotion_buyer_limit || "",
+        stock_note: editForm.stock_note || "",
       });
       const updated = res.data;
       setItems((prev) =>
@@ -1024,6 +1112,7 @@ export default function MerchandisePage({ initialTab }) {
       order,
       remarks: "",
       busy: false,
+      error: "",
     });
   }
 
@@ -1048,7 +1137,11 @@ export default function MerchandisePage({ initialTab }) {
 
   async function handlePaymentVerification() {
     const { order, amount } = verificationModal;
-    if (!order || !amount) return;
+    if (!order) return;
+    if (!amount || Number(amount) <= 0) {
+      setVerificationModal((current) => ({ ...current, error: "Enter the verified payment amount." }));
+      return;
+    }
     setVerificationModal((current) => ({ ...current, busy: true, error: "" }));
     try {
       await handleStatusChange(order.id, "paid", null, Number(amount));
@@ -1059,8 +1152,8 @@ export default function MerchandisePage({ initialTab }) {
         busy: false,
         error: "",
       });
-    } catch {
-      setVerificationModal((current) => ({ ...current, busy: false }));
+    } catch (requestError) {
+      setVerificationModal((current) => ({ ...current, busy: false, error: requestError.response?.data?.message || "Payment review failed." }));
     }
   }
 
@@ -1074,6 +1167,7 @@ export default function MerchandisePage({ initialTab }) {
         `Order claimed for ${res.data?.student?.first_name ?? "student"}.`,
       );
       setClaimToken("");
+      setClaimPreview(null);
       load();
     } catch (err) {
       setClaimError(
@@ -1121,11 +1215,11 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function openAddStockModal(item) {
-    setStockModal({ open: true, item, quantity: "1" });
+    setStockModal({ open: true, item, quantity: "1", note: "", variantId: "" });
   }
 
   function closeAddStockModal() {
-    setStockModal({ open: false, item: null, quantity: "1" });
+    setStockModal({ open: false, item: null, quantity: "1", note: "", variantId: "" });
   }
 
   function confirmAddStock() {
@@ -1142,6 +1236,12 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const item = stockModal.item;
+    const note = stockModal.note.trim();
+    const variantId = stockModal.variantId ? Number(stockModal.variantId) : null;
+    if (!note || (item.variants?.length && !variantId)) {
+      setError("Select a variant and enter a reason for this stock addition.");
+      return;
+    }
     const nextStock = item.stock_quantity + addAmount;
     closeAddStockModal();
 
@@ -1150,7 +1250,7 @@ export default function MerchandisePage({ initialTab }) {
       message: `Add ${addAmount} unit(s) to ${item.name}? New stock will be ${nextStock}.`,
       confirmText: "Add Stock",
       action: async () => {
-        const res = await adjustStock(item.id, addAmount);
+        const res = await adjustStock(item.id, addAmount, note, variantId);
         const updated = res.data;
         setItems((prev) =>
           prev.map((row) =>
@@ -1162,7 +1262,7 @@ export default function MerchandisePage({ initialTab }) {
     });
   }
 
-  function handleClaim(e) {
+  async function handleClaim(e) {
     e.preventDefault();
     const token = claimToken.trim().toUpperCase();
     if (!token) return;
@@ -1172,27 +1272,26 @@ export default function MerchandisePage({ initialTab }) {
       return;
     }
 
-    const match = orders.find(
-      (order) => (order.claim_token || "").toUpperCase() === token,
-    );
-    const studentName = match?.student
-      ? `${match.student.first_name} ${match.student.last_name}`
-      : null;
-    const itemName = match?.merchandise?.name || null;
-    const quantity = match?.quantity || null;
-    const details = match
-      ? `\n\nStudent: ${studentName || "-"}\nItem: ${itemName || "-"}\nQuantity: ${quantity || "-"}\nStatus: ${capitalize(match.status)}`
-      : "";
-
-    openConfirm({
-      title: "Confirm Token Claim",
-      message: `Use token ${token} to release an item? This finalizes the claim.${details}`,
-      confirmText: "Confirm Claim",
-      action: async () => handleClaimByToken(token),
-    });
+    setClaiming(true);
+    setClaimError(null);
+    setClaimSuccess(null);
+    try {
+      const response = await verifyClaimToken(token);
+      setClaimPreview(response.data);
+    } catch (requestError) {
+      setClaimError(requestError.response?.data?.message || "Unable to verify this token.");
+    } finally {
+      setClaiming(false);
+    }
   }
 
   function addToCart(item) {
+    const variant = item.variants?.length ? item.variants.find((row) => row.id === Number(selectedVariants[item.id])) : null;
+    if (item.variants?.length && !variant) {
+      setCartError(`Select a variant for ${item.name}.`);
+      return;
+    }
+    const cartItem = variant ? { ...item, merchandise_variant_id: variant.id, variant_name: variant.name, cart_key: `${item.id}:${variant.id}`, stock_quantity: variant.stock_quantity, image_url: variant.image_url || item.image_url } : item;
     const requested = Number.parseInt(String(draftQty[item.id] || 1), 10);
     setCartError(null);
 
@@ -1201,24 +1300,24 @@ export default function MerchandisePage({ initialTab }) {
       return;
     }
 
-    if (requested > item.stock_quantity) {
+    if (requested > cartItem.stock_quantity) {
       setCartError(
-        `Only ${item.stock_quantity} unit(s) available for ${item.name}.`,
+        `Only ${cartItem.stock_quantity} unit(s) available for ${item.name}.`,
       );
       return;
     }
 
     setCart((prev) => {
-      const existing = prev.find((row) => row.item.id === item.id);
+      const existing = prev.find((row) => cartKey(row.item) === cartKey(cartItem));
 
-      if (!existing && requested <= item.stock_quantity) {
+      if (!existing && requested <= cartItem.stock_quantity) {
         setTransactionMessage(`${requested} x ${item.name} added to cart.`);
-        return [...prev, { item, quantity: requested }];
+        return [...prev, { item: cartItem, quantity: requested }];
       }
 
       const currentQty = existing?.quantity || 0;
       const nextQty = currentQty + requested;
-      if (nextQty > item.stock_quantity) {
+      if (nextQty > cartItem.stock_quantity) {
         setCartError(
           `Cannot exceed available stock. ${item.name} has only ${item.stock_quantity} unit(s).`,
         );
@@ -1228,7 +1327,7 @@ export default function MerchandisePage({ initialTab }) {
       setTransactionMessage(`${item.name} quantity updated in cart.`);
 
       return prev.map((row) =>
-        row.item.id === item.id ? { ...row, quantity: nextQty } : row,
+        cartKey(row.item) === cartKey(cartItem) ? { ...row, quantity: nextQty } : row,
       );
     });
 
@@ -1239,7 +1338,7 @@ export default function MerchandisePage({ initialTab }) {
     setCartError(null);
     setCart((prev) =>
       prev.map((row) => {
-        if (row.item.id !== itemId) return row;
+        if (cartKey(row.item) !== itemId) return row;
         if (!Number.isInteger(nextQty) || nextQty <= 0) {
           setCartError("Quantity must be at least 1.");
           return row;
@@ -1257,8 +1356,8 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function removeFromCart(itemId) {
-    const removed = cart.find((row) => row.item.id === itemId);
-    setCart((prev) => prev.filter((row) => row.item.id !== itemId));
+    const removed = cart.find((row) => cartKey(row.item) === itemId);
+    setCart((prev) => prev.filter((row) => cartKey(row.item) !== itemId));
     if (removed) {
       setTransactionMessage(`${removed.item.name} removed from cart.`);
     }
@@ -1298,6 +1397,7 @@ export default function MerchandisePage({ initialTab }) {
       for (const row of cart) {
         await placeOrder({
           merchandise_id: row.item.id,
+          merchandise_variant_id: row.item.merchandise_variant_id,
           quantity: row.quantity,
           payment_method: checkoutPayment.method,
           payment_reference:
@@ -1309,7 +1409,7 @@ export default function MerchandisePage({ initialTab }) {
               ? checkoutPayment.proof_file
               : null,
         });
-        submittedIds.push(row.item.id);
+        submittedIds.push(cartKey(row.item));
       }
 
       setCart([]);
@@ -1330,7 +1430,7 @@ export default function MerchandisePage({ initialTab }) {
           : msg,
       );
       setCart((prev) =>
-        prev.filter((row) => !submittedIds.includes(row.item.id)),
+        prev.filter((row) => !submittedIds.includes(cartKey(row.item))),
       );
       await load();
     } finally {
@@ -1418,9 +1518,8 @@ export default function MerchandisePage({ initialTab }) {
   const activeOrders = orderSummary
     ? orderSummary.pending_orders + orderSummary.unclaimed_orders
     : orders.filter((o) => ["pending", "paid"].includes(o.status)).length;
-  const lowStock = items.filter(
-    (i) => i.stock_quantity > 0 && i.stock_quantity < 10,
-  ).length;
+  const lowStock = items.filter((i) => i.is_low_stock).length;
+  const topSellers = (orderSummary?.breakdown || []).slice(0, 5);
   const paidOrders = orders.filter((o) => o.status === "paid");
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
@@ -1432,7 +1531,7 @@ export default function MerchandisePage({ initialTab }) {
   const cartTotal = useMemo(
     () =>
       cart.reduce(
-        (sum, row) => sum + toNumber(row.item.price) * row.quantity,
+        (sum, row) => sum + itemPrice(row.item) * row.quantity,
         0,
       ),
     [cart],
@@ -1484,18 +1583,6 @@ export default function MerchandisePage({ initialTab }) {
     );
   });
 
-  const filteredStudentTokens = orders
-    .filter((o) => o.status === "paid")
-    .filter((o) => {
-      const query = studentTokenSearch.trim().toLowerCase();
-      if (!query) return true;
-
-      return (
-        (o.claim_token || "").toLowerCase().includes(query) ||
-        (o.merchandise?.name || "").toLowerCase().includes(query) ||
-        `ord-${o.id}`.toLowerCase().includes(query)
-      );
-    });
   const analyticsRows = analyticsModal.users.flatMap((user) =>
     user.orders?.length
       ? user.orders.map((order) => ({ user, order }))
@@ -1565,8 +1652,9 @@ export default function MerchandisePage({ initialTab }) {
     return (
       <div className="space-y-6">
         {feedbackPopup}
+        <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
         {/* Student metric cards */}
-        <section className="grid gap-4 sm:grid-cols-3">
+        <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
             {
               label: "Available Items",
@@ -1586,10 +1674,19 @@ export default function MerchandisePage({ initialTab }) {
               helper: "Awaiting payment",
               icon: Ticket,
             },
-          ].map((stat) => (
-            <article
+            {
+              label: "My Cart",
+              value: cartQuantity,
+              helper: `${fmt(cartTotal)} in cart · Open cart`,
+              icon: ShoppingBag,
+              action: () => setActiveTab("cart"),
+            },
+          ].map((stat) => {
+            const Metric = stat.action ? "button" : "article";
+            return <Metric
+              {...(stat.action ? { type: "button", onClick: stat.action } : {})}
               key={stat.label}
-              className="group rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm transition hover:border-[#0B8ED0]/20 hover:shadow-md"
+              className={`group rounded-lg border border-[#DDE7EF] bg-white p-5 text-left shadow-sm ${stat.action ? "transition hover:border-[#0B8ED0] hover:shadow-md" : ""}`}
             >
               <div className="mb-3 grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62] transition group-hover:bg-[#0F2F62] group-hover:text-white">
                 <stat.icon size={19} />
@@ -1603,49 +1700,13 @@ export default function MerchandisePage({ initialTab }) {
               <p className="mt-1 text-xs font-medium text-slate-500">
                 {stat.helper}
               </p>
-            </article>
-          ))}
+            </Metric>;
+          })}
         </section>
 
         {/* Order Merchandise tab */}
         {activeTab === "order" && (
           <section className="space-y-5">
-            <div className="overflow-hidden rounded-lg border border-[#0F2F62] bg-[#0F2F62] text-white shadow-sm">
-              <div className="flex flex-col justify-between gap-5 p-5 sm:flex-row sm:items-center sm:p-6">
-                <div className="max-w-2xl">
-                  <div className="mb-2 flex items-center gap-2 text-[#16C7F3]">
-                    <ShieldCheck size={16} />
-                    <span className="text-xs font-bold uppercase tracking-wider">
-                      Official organization store
-                    </span>
-                  </div>
-                  <h2 className="text-xl font-extrabold sm:text-2xl">
-                    Choose it now, decide before payment
-                  </h2>
-                  <p className="mt-2 text-[13px] font-medium leading-6 text-slate-200">
-                    Stock is shown live. It is reserved only after payment is approved. You can
-                    cancel a pending unpaid order from My Orders if you change
-                    your mind.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab("cart")}
-                  className="flex min-h-11 shrink-0 items-center justify-between gap-4 rounded-lg border border-white/20 bg-white px-4 py-3 text-left text-[#0B1831] transition hover:bg-[#F8FBFD] sm:min-w-48"
-                >
-                  <span>
-                    <span className="block text-[11px] font-bold uppercase text-slate-500">
-                      Your cart
-                    </span>
-                    <span className="text-sm font-extrabold">
-                      {cartQuantity} item{cartQuantity === 1 ? "" : "s"} · {fmt(cartTotal)}
-                    </span>
-                  </span>
-                  <ArrowRight size={18} className="text-[#0878B7]" />
-                </button>
-              </div>
-            </div>
-
             <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
               <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_180px_180px]">
                 <label className="flex h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 focus-within:border-[#0B8ED0] focus-within:ring-4 focus-within:ring-[#16C7F3]/15">
@@ -1729,11 +1790,11 @@ export default function MerchandisePage({ initialTab }) {
                   >
                     <div className="relative overflow-hidden bg-[#F8FBFD]">
                       {item.image_url ? (
-                        <img
+                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} className="block w-full" aria-label={`View ${item.name} images`}><img
                           src={resolveAssetUrl(item.image_url)}
                           alt={item.name}
                           className={`h-48 w-full object-cover transition duration-300 group-hover:scale-[1.02] ${item.stock_quantity === 0 ? "grayscale" : ""}`}
-                        />
+                        /></button>
                       ) : (
                         <div className="flex h-48 items-center justify-center">
                           <Package size={44} className="text-slate-200" />
@@ -1744,26 +1805,30 @@ export default function MerchandisePage({ initialTab }) {
                           {item.category || "Merchandise"}
                         </span>
                         <span
-                          className={`shrink-0 rounded-full border border-white/70 px-2.5 py-1 text-[11px] font-extrabold shadow-sm ${stockBadge(item.stock_quantity)}`}
+                          className={`shrink-0 rounded-full border border-white/70 px-2.5 py-1 text-[11px] font-extrabold shadow-sm ${item.is_low_stock ? "bg-amber-50 text-amber-700" : stockBadge(item.stock_quantity)}`}
                         >
-                          {item.stock_quantity} in stock
+                          {item.is_low_stock ? "LOW STOCK" : item.stock_quantity === 0 ? "OUT OF STOCK" : `${item.stock_quantity} in stock`}
                         </span>
                       </div>
                     </div>
                     <div className="flex flex-1 flex-col p-4">
+                      <div className="mb-2 flex flex-wrap gap-1">{item.promotion_available_to_viewer && <span className="rounded-full bg-[#F9EAA6] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">FIRST {item.promotion_buyer_limit} BUYERS</span>}<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">ACTIVE</span></div>
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="min-w-0 font-bold leading-snug text-[#0F172A]">
                           {item.name}
                         </h3>
-                        <p className="shrink-0 text-lg font-black text-[#0878B7]">
-                          {fmt(item.price)}
-                        </p>
+                        <div className="shrink-0 text-right"><p className="text-lg font-black text-[#0878B7]">{fmt(item.effective_price ?? item.price)}</p>{item.promotion_available_to_viewer && <p className="text-xs text-slate-500"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slots left</p>}</div>
                       </div>
                       {item.description && (
                         <p className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500">
                           {item.description}
                         </p>
                       )}
+                      {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]">Size / variant
+                        <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${item.name}`}>
+                          <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} available</option>)}
+                        </select>
+                      </label>}
                       <div className="mt-auto flex items-center gap-2 border-t border-[#EEF6FB] pt-4">
                         <button
                           type="button"
@@ -1881,7 +1946,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="space-y-4 p-5">
                 {cart.map((row) => (
                   <div
-                    key={row.item.id}
+                    key={cartKey(row.item)}
                     className="flex flex-wrap items-center gap-4 rounded-lg border border-[#DDE7EF] p-4 transition hover:border-[#0B8ED0]/30"
                   >
                     <div className="h-16 w-16 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD]">
@@ -1902,14 +1967,14 @@ export default function MerchandisePage({ initialTab }) {
                         {row.item.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        {fmt(row.item.price)} each · {row.item.stock_quantity} available
+                          {row.item.variant_name ? `${row.item.variant_name} · ` : ""}{fmt(itemPrice(row.item))} each · {row.item.stock_quantity} available
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
                         onClick={() =>
-                          changeCartQty(row.item.id, row.quantity - 1)
+                          changeCartQty(cartKey(row.item), row.quantity - 1)
                         }
                         className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD]"
                         aria-label={`Decrease quantity for ${row.item.name}`}
@@ -1922,7 +1987,7 @@ export default function MerchandisePage({ initialTab }) {
                       <button
                         type="button"
                         onClick={() =>
-                          changeCartQty(row.item.id, row.quantity + 1)
+                          changeCartQty(cartKey(row.item), row.quantity + 1)
                         }
                         disabled={row.quantity >= row.item.stock_quantity}
                         className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
@@ -1932,7 +1997,7 @@ export default function MerchandisePage({ initialTab }) {
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeFromCart(row.item.id)}
+                        onClick={() => removeFromCart(cartKey(row.item))}
                         className="ml-1 grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50"
                         aria-label={`Remove ${row.item.name} from cart`}
                       >
@@ -2027,10 +2092,10 @@ export default function MerchandisePage({ initialTab }) {
                   >
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
-                        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD]">
-                          {o.merchandise?.image_url ? (
+                        <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD] sm:h-28 sm:w-28">
+                          {(o.variant?.image_url || o.merchandise?.image_url) ? (
                             <img
-                              src={resolveAssetUrl(o.merchandise.image_url)}
+                              src={resolveAssetUrl(o.variant?.image_url || o.merchandise?.image_url)}
                               alt={o.merchandise?.name ?? "Merchandise"}
                               className="h-full w-full object-cover"
                             />
@@ -2059,20 +2124,17 @@ export default function MerchandisePage({ initialTab }) {
                         <span
                           className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || "bg-slate-100 text-slate-500"}`}
                         >
-                          {capitalize(o.status)}
+                          {o.status === "claimed" ? "CLAIMED" : capitalize(o.status)}
                         </span>
-                        {o.claim_token &&
-                          ["paid", "claimed"].includes(o.status) && (
-                            <span className="font-mono text-xs font-black text-slate-500">
-                              TKN: {o.claim_token}
-                            </span>
-                          )}
                       </div>
                     </div>
                     {o.status !== "cancelled" && (
                       <div className="mt-4 border-t border-[#EEF6FB] pt-4">
                         <StepTracker status={o.status} />
                       </div>
+                    )}
+                    {o.status === "paid" && (
+                      <ClaimTicket order={o} onPrint={() => printClaimTicket(o)} />
                     )}
                     {o.status === "paid" && (
                       <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2">
@@ -2142,7 +2204,7 @@ export default function MerchandisePage({ initialTab }) {
                           className="text-emerald-600 shrink-0"
                         />
                         <p className="text-[12px] font-semibold text-emerald-700">
-                          Item successfully claimed. Thank you!
+                          Item successfully claimed{o.claimed_at ? ` on ${fmtDateTime(o.claimed_at)}` : ""}.
                         </p>
                       </div>
                     )}
@@ -2157,109 +2219,6 @@ export default function MerchandisePage({ initialTab }) {
               onPageChange={loadPersonalOrders}
               label="orders"
             />
-          </section>
-        )}
-
-        {/* Student Claim Tokens tab */}
-        {activeTab === "tokens" && !isFulfillmentRole && (
-          <section className="space-y-4">
-            <div className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-4">
-              <Info size={18} className="mt-0.5 shrink-0 text-[#0878B7]" />
-              <p className="text-[13px] font-medium text-[#0B1831]">
-                After payment approval, present the claim token to an authorized
-                officer to release the item.
-              </p>
-            </div>
-
-            <div className="flex h-10 w-full max-w-sm items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3">
-              <Search size={15} className="text-slate-500" />
-              <input
-                value={studentTokenSearch}
-                onChange={(e) => setStudentTokenSearch(e.target.value)}
-                type="text"
-                placeholder="Filter tokens by code or item..."
-                className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500"
-              />
-            </div>
-
-            {loading ? (
-              <div className="space-y-3">
-                {[1, 2].map((i) => (
-                  <div
-                    key={i}
-                    className="h-32 animate-pulse rounded-lg bg-slate-100"
-                  />
-                ))}
-              </div>
-            ) : filteredStudentTokens.length === 0 ? (
-              <div className="rounded-lg border border-[#DDE7EF] bg-white p-12 text-center">
-                <Ticket size={36} className="mx-auto mb-3 text-slate-200" />
-                <p className="text-sm font-semibold text-slate-500">
-                  {studentTokenSearch.trim()
-                    ? "No matching active tokens found."
-                    : "No active tokens. Finalize an order list to receive claim tokens."}
-                </p>
-                <button
-                  onClick={() => setActiveTab("order")}
-                  className="mt-4 rounded-lg bg-[#0878B7] px-5 py-2 text-sm font-bold text-white hover:bg-[#0F2F62] transition"
-                >
-                  Browse Merchandise
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredStudentTokens.map((o) => (
-                  <div
-                    key={o.id}
-                    className={`rounded-lg border bg-white p-5 shadow-sm ${o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="font-mono text-xs font-bold text-slate-500">
-                          ORD-{o.id}
-                        </p>
-                        <p className="mt-0.5 font-bold text-[#0F172A]">
-                          {o.merchandise?.name ?? "-"}
-                        </p>
-                        <p className="text-[13px] text-slate-500">
-                          Qty: {o.quantity} - {fmt(o.total_price)}
-                        </p>
-                      </div>
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-bold ${orderBadge[o.status] || "bg-slate-100 text-slate-500"}`}
-                      >
-                        {capitalize(o.status)}
-                      </span>
-                    </div>
-
-                    <div className="mt-4 flex items-center justify-between gap-4">
-                      <StepTracker status={o.status} />
-                      {o.claim_token && (
-                        <div className="text-right">
-                          <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
-                            Your Token
-                          </p>
-                          <p className="font-mono text-xl font-black text-[#0878B7]">
-                            {o.claim_token}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-
-                    {o.status === "paid" && (
-                      <div className="mt-3 flex items-center gap-2 rounded-lg bg-amber-50 px-3 py-2">
-                        <Info size={14} className="text-amber-600 shrink-0" />
-                        <p className="text-[12px] font-semibold text-amber-700">
-                          Payment received! Show token{" "}
-                          <span className="font-black">{o.claim_token}</span> to
-                          the officer to claim your item.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
           </section>
         )}
 
@@ -2278,7 +2237,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="mt-4 max-h-72 space-y-2 overflow-y-auto rounded-lg border border-[#DDE7EF] p-3">
                 {cart.map((row) => (
                   <div
-                    key={row.item.id}
+                    key={cartKey(row.item)}
                     className="flex items-center justify-between gap-3 border-b border-[#EEF6FB] pb-2 last:border-b-0 last:pb-0"
                   >
                     <div>
@@ -2286,7 +2245,7 @@ export default function MerchandisePage({ initialTab }) {
                         {row.item.name}
                       </p>
                       <p className="text-xs text-slate-500">
-                        Qty: {row.quantity} × {fmt(row.item.price)} · {row.item.stock_quantity} in stock
+                        Qty: {row.quantity} × {fmt(itemPrice(row.item))} · {row.item.stock_quantity} in stock
                       </p>
                     </div>
                     <p className="text-sm font-black text-[#0F172A]">
@@ -2596,6 +2555,13 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {activeTab === "inventory" && (
+        <section className="rounded-xl border border-[#DDE7EF] bg-white p-4 shadow-sm">
+          <h2 className="text-sm font-bold text-[#0F2F62]">Top sellers</h2>
+          {topSellers.length === 0 ? <p className="mt-2 text-sm text-slate-500">No paid merchandise sales yet.</p> : <div className="mt-3 space-y-2">{topSellers.map((seller, index) => <div key={seller.id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_3rem] items-center gap-3 text-xs"><strong className="text-[#0878B7]">{index + 1}</strong><div><div className="mb-1 flex justify-between gap-2"><span className="truncate font-semibold text-[#0F2F62]">{seller.name}</span><span className="text-slate-500">{fmt(seller.collected)} collected</span></div><div className="h-2 overflow-hidden rounded-full bg-[#E6F6FD]"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.max(4, Number(seller.quantity) / Math.max(1, Number(topSellers[0].quantity)) * 100)}%` }} /></div></div><strong className="text-right text-[#0F2F62]">{seller.quantity}</strong></div>)}</div>}
+        </section>
+      )}
+
+      {activeTab === "inventory" && (
         <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -2617,13 +2583,13 @@ export default function MerchandisePage({ initialTab }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500 sm:w-[140px]"
                 />
               </div>
-              <button
+              {role === "ADMIN" && <button
                 onClick={() => setShowForm(true)}
                 className="flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition"
               >
                 <Plus size={16} />
                 <span className="hidden sm:inline">Add Product</span>
-              </button>
+              </button>}
             </div>
           </div>
           {loading ? (
@@ -2644,16 +2610,16 @@ export default function MerchandisePage({ initialTab }) {
               {filteredInventoryItems.map((item) => (
                 <article
                   key={item.id}
-                  className={`rounded-lg border bg-white p-4 shadow-sm ${item.stock_quantity < 10 ? "border-red-200" : "border-[#DDE7EF]"}`}
+                  className={`rounded-xl border bg-white p-4 shadow-sm ${item.is_low_stock ? "border-amber-300" : "border-[#DDE7EF]"}`}
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-3">
                       {item.image_url ? (
-                        <img
+                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} aria-label={`View ${item.name} images`}><img
                           src={resolveAssetUrl(item.image_url)}
                           alt={item.name}
                           className="h-14 w-14 rounded-lg border border-[#DDE7EF] object-cover"
-                        />
+                        /></button>
                       ) : (
                         <div className="grid h-14 w-14 place-items-center rounded-lg bg-[#E6F6FD]">
                           <Package size={20} className="text-[#0878B7]" />
@@ -2664,7 +2630,7 @@ export default function MerchandisePage({ initialTab }) {
                           {item.name}
                         </p>
                         <p className="text-xs font-medium text-slate-500">
-                          {fmt(item.price)} per unit
+                          {item.promotion_available_to_viewer ? <><strong className="text-[#0878B7]">{fmt(item.effective_price)}</strong> <s>{fmt(item.price)}</s> · {item.promotion_remaining} slots left</> : `${fmt(item.price)} per unit`}
                         </p>
                       </div>
                     </div>
@@ -2675,12 +2641,15 @@ export default function MerchandisePage({ initialTab }) {
                         </span>
                       )}
                       <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${stockBadge(item.stock_quantity)}`}
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${item.is_low_stock ? "bg-amber-50 text-amber-700" : stockBadge(item.stock_quantity)}`}
                       >
-                        {stockLabel(item.stock_quantity)}
+                        {item.is_low_stock ? "Low Stock" : stockLabel(item.stock_quantity)}
                       </span>
                     </div>
                   </div>
+
+                  {item.variants?.length > 0 && <p className="mt-2 text-xs text-slate-600">{item.variants.map((variant) => `${variant.name}: ${variant.stock_quantity}`).join(" · ")}</p>}
+                  {role === "ADMIN" && <button type="button" onClick={async () => { try { const response = await getMerchandiseAuditLogs(item.id); setAuditModal({ item, logs: response.data }); } catch { showFeedback("error", "Could not load product history."); } }} className="mt-2 text-xs font-semibold text-[#0878B7] hover:underline">View audit history</button>}
 
                   <div className="mt-3 rounded-lg bg-[#F8FBFD] px-3 py-2">
                     <p className="text-xs font-medium text-slate-500">
@@ -2693,7 +2662,7 @@ export default function MerchandisePage({ initialTab }) {
                     </p>
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between gap-2">
+                  {role === "ADMIN" && <div className="mt-3 flex items-center justify-between gap-2">
                     <button
                       type="button"
                       onClick={() => openAddStockModal(item)}
@@ -2701,13 +2670,7 @@ export default function MerchandisePage({ initialTab }) {
                     >
                       Add Stock
                     </button>
-                    <button
-                      type="button"
-                      onClick={() => confirmSellingToggle(item)}
-                      className={`rounded-full px-3 py-1 text-xs font-bold transition ${item.is_active ? "bg-emerald-50 text-emerald-700 hover:bg-emerald-100" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
-                    >
-                      {item.is_active ? "Selling: Active" : "Selling: Inactive"}
-                    </button>
+                    <button type="button" role="switch" aria-checked={item.is_active} aria-label={`Selling status for ${item.name}`} onClick={() => confirmSellingToggle(item)} className="inline-flex items-center gap-2 text-xs font-bold text-[#0F2F62]"><span>{item.is_active ? "ACTIVE" : "INACTIVE"}</span><span className={`relative h-6 w-11 rounded-full transition ${item.is_active ? "bg-emerald-600" : "bg-slate-400"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${item.is_active ? "left-6" : "left-1"}`} /></span></button>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -2726,7 +2689,7 @@ export default function MerchandisePage({ initialTab }) {
                         <Trash2 size={13} />
                       </button>
                     </div>
-                  </div>
+                  </div>}
                 </article>
               ))}
             </div>
@@ -2736,6 +2699,7 @@ export default function MerchandisePage({ initialTab }) {
 
       {activeTab === "orders" && (
         <section className="space-y-4">
+          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
@@ -2772,7 +2736,7 @@ export default function MerchandisePage({ initialTab }) {
                 </button>
               </div>
             </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-[minmax(240px,1fr)_repeat(3,minmax(140px,190px))]">
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_repeat(3,minmax(110px,170px))]">
               <label className="relative">
                 <span className="sr-only">Search merchandise orders</span>
                 <Search
@@ -2847,25 +2811,6 @@ export default function MerchandisePage({ initialTab }) {
             {showAdvancedFilters && (
               <div className="mt-4 border-t border-[#DDE7EF] pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-                  <select
-                    aria-label="Department"
-                    value={orderFilters.department}
-                    onChange={(event) =>
-                      setOrderFilters({
-                        ...orderFilters,
-                        department: event.target.value,
-                        program: "",
-                        year_level: "",
-                        section: "",
-                      })
-                    }
-                    className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
-                  >
-                    <option value="">All departments</option>
-                    {orderFilterOptions.departments?.map((value) => (
-                      <option key={value}>{value}</option>
-                    ))}
-                  </select>
                   <select
                     aria-label="Program or course"
                     value={orderFilters.program}
@@ -2976,22 +2921,6 @@ export default function MerchandisePage({ initialTab }) {
                     ))}
                   </select>
                   <select
-                    aria-label="Payment status"
-                    value={orderFilters.payment_status}
-                    onChange={(event) =>
-                      setOrderFilters({
-                        ...orderFilters,
-                        payment_status: event.target.value,
-                      })
-                    }
-                    className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
-                  >
-                    <option value="">All payment statuses</option>
-                    {orderFilterOptions.payment_statuses?.map((value) => (
-                      <option key={value}>{capitalize(value)}</option>
-                    ))}
-                  </select>
-                  <select
                     aria-label="Payment method"
                     value={orderFilters.payment_method}
                     onChange={(event) =>
@@ -3047,6 +2976,8 @@ export default function MerchandisePage({ initialTab }) {
               </div>
             )}
           </div>
+          <aside className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm"><GcashPaymentSettingsPage embedded readOnly={role !== "ADMIN"} /></aside>
+          </div>
           {orderSummary && (
             <>
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -3054,7 +2985,6 @@ export default function MerchandisePage({ initialTab }) {
                   {
                     label: "Pending review",
                     value: orderSummary.pending_orders,
-                    group: "pending",
                     helper: `${fmt(orderSummary.outstanding_balance)} awaiting approval`,
                     icon: DollarSign,
                     tone: "bg-amber-50 text-amber-700",
@@ -3062,7 +2992,6 @@ export default function MerchandisePage({ initialTab }) {
                   {
                     label: "Ready for pickup",
                     value: orderSummary.unclaimed_orders,
-                    group: "unclaimed",
                     helper: "Approved orders with active tokens",
                     icon: Ticket,
                     tone: "bg-[#E6F6FD] text-[#0F2F62]",
@@ -3070,7 +2999,6 @@ export default function MerchandisePage({ initialTab }) {
                   {
                     label: "Claimed",
                     value: orderSummary.claimed_orders,
-                    group: "claimed",
                     helper: "Successfully released orders",
                     icon: CheckCircle,
                     tone: "bg-emerald-50 text-emerald-700",
@@ -3078,17 +3006,14 @@ export default function MerchandisePage({ initialTab }) {
                   {
                     label: "Collected",
                     value: fmt(orderSummary.total_collected),
-                    group: "paid",
                     helper: `${orderSummary.paid_orders} paid orders`,
                     icon: ShoppingBag,
                     tone: "bg-[#EEF6FB] text-[#0F2F62]",
                   },
                 ].map((metric) => (
-                  <button
-                    type="button"
-                    onClick={() => openOrderAnalytics(metric.group, metric.label)}
+                  <article
                     key={metric.label}
-                    className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-4 text-left shadow-sm transition hover:border-[#0B8ED0] hover:bg-[#F8FBFD]"
+                    className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-4 text-left shadow-sm"
                   >
                     <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${metric.tone}`}>
                       <metric.icon size={17} />
@@ -3098,7 +3023,7 @@ export default function MerchandisePage({ initialTab }) {
                       <span className="mt-0.5 block text-xl font-black text-[#0F172A]">{metric.value}</span>
                       <span className="mt-0.5 block text-[10px] font-semibold text-slate-500">{metric.helper}</span>
                     </span>
-                  </button>
+                  </article>
                 ))}
               </div>
               <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-xs shadow-sm sm:flex-row sm:items-center sm:justify-between">
@@ -3116,25 +3041,6 @@ export default function MerchandisePage({ initialTab }) {
                 </div>
               </div>
             </>
-          )}
-          {orderSummary?.breakdown?.length > 0 && (
-            <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
-              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
-                Merchandise breakdown
-              </p>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {orderSummary.breakdown.map((item) => (
-                  <span
-                    key={item.id}
-                    className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 text-xs"
-                  >
-                    <strong className="text-[#0F172A]">{item.name}</strong> ·{" "}
-                    {item.quantity} units · {item.orders_count} orders ·{" "}
-                    {fmt(item.collected)}
-                  </span>
-                ))}
-              </div>
-            </div>
           )}
           <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="flex flex-col gap-1 border-b border-[#DDE7EF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
@@ -3172,7 +3078,6 @@ export default function MerchandisePage({ initialTab }) {
                     onDetails={openOrderDetails}
                     onApprove={openPaymentVerification}
                     onReject={openOrderRejection}
-                    onViewProof={handleViewPaymentProof}
                   />
                 ))}
               </div>
@@ -3206,15 +3111,11 @@ export default function MerchandisePage({ initialTab }) {
                           </p>
                         </td>
                         <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            onClick={() => openOrderDetails(o)}
-                            className="text-left font-semibold text-[#0F172A] hover:text-[#0878B7]"
-                          >
+                          <p className="text-left font-semibold text-[#0F172A]">
                             {o.student
                               ? `${o.student.first_name} ${o.student.last_name}`
                               : "-"}
-                          </button>
+                          </p>
                           <p className="mt-0.5 font-mono text-[10px] text-slate-500">
                             {o.student?.school_id} ·{" "}
                             {(o.student?.role || "").replaceAll("_", " ")}
@@ -3253,12 +3154,12 @@ export default function MerchandisePage({ initialTab }) {
                           </p>
                           <p className="text-[10px] text-slate-500">
                             {o.merchandise?.category || "Uncategorized"} ·{" "}
-                            {fmt(o.merchandise?.price)} each
+                            {fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))} each
                           </p>
                         </td>
                         <td className="px-4 py-4">
                           <p className="font-bold tabular-nums text-[#0F172A]">
-                            {o.quantity} × {fmt(o.merchandise?.price)}
+                            {o.quantity} × {fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))}
                           </p>
                           <p className="text-xs font-black text-[#0878B7]">
                             {fmt(o.total_price)}
@@ -3350,10 +3251,9 @@ export default function MerchandisePage({ initialTab }) {
                           <button
                             type="button"
                             onClick={() => openOrderDetails(o)}
-                            className="mb-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1.5 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
+                            className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1.5 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
                           >
-                            <Eye size={13} />
-                            Details
+                            Review
                           </button>
                           {o.status === "pending" && (
                             <div className="flex flex-wrap gap-2">
@@ -3367,7 +3267,7 @@ export default function MerchandisePage({ initialTab }) {
                                     error: "",
                                   })
                                 }
-                                className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-bold transition ${role === "ADMIN" ? "bg-[#0878B7] text-white hover:bg-[#0F2F62]" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`}
+                                className="flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
                               >
                                 {role === "ADMIN"
                                   ? "Approve Directly"
@@ -3381,22 +3281,13 @@ export default function MerchandisePage({ initialTab }) {
                                     order: o,
                                     remarks: "",
                                     busy: false,
+                                    error: "",
                                   })
                                 }
-                                className="rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
+                                className="min-h-11 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
                               >
                                 Reject
                               </button>
-                              {o.payment_proof_url && (
-                                <button
-                                  type="button"
-                                  onClick={() => handleViewPaymentProof(o.id)}
-                                  title="View payment proof"
-                                  className="grid h-8 w-8 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#F8FBFD]"
-                                >
-                                  <Eye size={14} />
-                                </button>
-                              )}
                             </div>
                           )}
                           {o.status === "paid" && (
@@ -3665,116 +3556,7 @@ export default function MerchandisePage({ initialTab }) {
                 <X size={18} />
               </button>
             </div>
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                [
-                  "Student / User",
-                  `${orderDetails.student?.first_name || ""} ${orderDetails.student?.last_name || ""}`,
-                  orderDetails.student?.school_id,
-                ],
-                [
-                  "Contact",
-                  orderDetails.student?.email,
-                  orderDetails.student?.account_status,
-                ],
-                [
-                  "Academic Profile",
-                  [
-                    orderDetails.student?.department,
-                    orderDetails.student?.program,
-                    orderDetails.student?.major,
-                    orderDetails.student?.year_level,
-                    orderDetails.student?.section,
-                  ]
-                    .filter(Boolean)
-                    .join(" · "),
-                  orderDetails.student?.role?.replaceAll("_", " "),
-                ],
-                [
-                  "Item & Quantity",
-                  `${orderDetails.merchandise?.name} × ${orderDetails.quantity}`,
-                  `${fmt(orderDetails.merchandise?.price)} each · ${fmt(orderDetails.total_price)} total`,
-                ],
-                [
-                  "Payment",
-                  orderDetails.payment_method || "Not selected",
-                  orderDetails.payment_reference || "No reference",
-                ],
-                [
-                  "Receipt",
-                  orderDetails.transaction?.receipt_reference ||
-                    "Not generated",
-                  orderDetails.transaction?.receipt_number
-                    ? `Receipt #${orderDetails.transaction.receipt_number}`
-                    : "Awaiting approval",
-                ],
-                [
-                  "Review Status",
-                  `Officer: ${capitalize(orderDetails.officer_review_status)} · Admin: ${capitalize(orderDetails.admin_review_status)}`,
-                  orderDetails.review_remarks || "No remarks",
-                ],
-                [
-                  "Processed / Approved",
-                  orderDetails.processor
-                    ? `${orderDetails.processor.first_name} ${orderDetails.processor.last_name}`
-                    : "Not processed",
-                  orderDetails.approver
-                    ? `Approved by ${orderDetails.approver.first_name} ${orderDetails.approver.last_name}`
-                    : "Not approved",
-                ],
-                [
-                  "Fulfillment",
-                  capitalize(orderDetails.status),
-                  orderDetails.claim_verifier
-                    ? `Released by ${orderDetails.claim_verifier.first_name} ${orderDetails.claim_verifier.last_name}`
-                    : "Not released",
-                ],
-                [
-                  "Order Date",
-                  fmtDate(orderDetails.created_at),
-                  orderDetails.updated_at
-                    ? `Updated ${fmtDate(orderDetails.updated_at)}`
-                    : null,
-                ],
-                [
-                  "Payment Date",
-                  fmtDate(orderDetails.transaction?.transaction_date),
-                  null,
-                ],
-                [
-                  "Claimed / Released Date",
-                  fmtDate(orderDetails.claimed_at),
-                  null,
-                ],
-              ].map(([label, value, helper]) => (
-                <div
-                  key={label}
-                  className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"
-                >
-                  <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    {label}
-                  </p>
-                  <p className="mt-1 break-words text-sm font-bold text-[#0F172A]">
-                    {value || "-"}
-                  </p>
-                  {helper && (
-                    <p className="mt-1 break-words text-xs text-slate-500">
-                      {helper}
-                    </p>
-                  )}
-                </div>
-              ))}
-            </div>
-            {orderDetails.payment_proof_url && (
-              <button
-                type="button"
-                onClick={() => handleViewPaymentProof(orderDetails.id)}
-                className="mt-4 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7]"
-              >
-                <Eye size={14} />
-                View payment proof
-              </button>
-            )}
+            <div className="mt-5"><ReceiptDocument order={orderDetails} onViewProof={handleViewPaymentProof} /></div>
             <section className="mt-5 border-t border-[#DDE7EF] pt-5">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">
@@ -3837,6 +3619,9 @@ export default function MerchandisePage({ initialTab }) {
                           Remarks: {entry.new_values.review_remarks}
                         </p>
                       )}
+                      {entry.old_values?.status && entry.old_values.status !== entry.new_values?.status && <p className="mt-1 text-xs text-slate-600">Status: {capitalize(entry.old_values.status)} → {capitalize(entry.new_values?.status)}</p>}
+                      {entry.new_values?.variant_name && <p className="mt-1 text-xs text-slate-600">Variant: {entry.new_values.variant_name}</p>}
+                      {entry.new_values?.total_price !== undefined && <p className="mt-1 text-xs text-slate-600">Order total: {fmt(entry.new_values.total_price)}</p>}
                     </li>
                   ))}
                 </ol>
@@ -3885,7 +3670,7 @@ export default function MerchandisePage({ initialTab }) {
                 className="flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
               >
                 <Ticket size={16} />
-                {claiming ? "Processing..." : "Claim"}
+                {claiming ? "Checking..." : "Claim"}
               </button>
             </form>
           </div>
@@ -3914,36 +3699,36 @@ export default function MerchandisePage({ initialTab }) {
               </p>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[420px] text-left md:min-w-[550px]">
+                <table className="w-full min-w-[1050px] text-left">
                   <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>
-                      <th className="px-5 py-3">Claim Token</th>
-                      <th className="px-5 py-3">Student</th>
-                      <th className="px-5 py-3">Item</th>
-                      <th className="hidden px-5 py-3 md:table-cell">Qty</th>
-                      <th className="px-5 py-3">Total</th>
+                      <th className="px-4 py-3">Order</th>
+                      <th className="px-4 py-3">Purchaser</th>
+                      <th className="px-4 py-3">Section</th>
+                      <th className="px-4 py-3">Department</th>
+                      <th className="px-4 py-3">Course / program</th>
+                      <th className="px-4 py-3">Payment mode</th>
+                      <th className="px-4 py-3">Number of items</th>
+                      <th className="px-4 py-3">Status / token</th>
+                      <th className="px-4 py-3">Details</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#DDE7EF] text-sm">
                     {paidOrders.map((o) => (
                       <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
-                        <td className="px-5 py-4 font-mono text-xs font-black text-[#0878B7]">
-                          {o.claim_token}
-                        </td>
-                        <td className="px-5 py-4 font-semibold text-[#0F172A]">
+                        <td className="px-4 py-4 font-mono text-xs font-black text-[#0878B7]">ORD-{o.id}</td>
+                        <td className="px-4 py-4 font-semibold text-[#0F172A]">
                           {o.student
                             ? `${o.student.first_name} ${o.student.last_name}`
                             : "-"}
                         </td>
-                        <td className="px-5 py-4 font-medium text-slate-600">
-                          {o.merchandise?.name ?? "-"}
-                        </td>
-                        <td className="hidden px-5 py-4 font-bold tabular-nums text-[#0F172A] md:table-cell">
-                          {o.quantity}
-                        </td>
-                        <td className="px-5 py-4 font-bold tabular-nums text-[#0F172A]">
-                          {fmt(o.total_price)}
-                        </td>
+                        <td className="px-4 py-4">{o.student?.section || "-"}</td>
+                        <td className="px-4 py-4">{o.student?.department || "-"}</td>
+                        <td className="px-4 py-4">{o.student?.program || "-"}</td>
+                        <td className="px-4 py-4 uppercase">{o.payment_method || "-"}</td>
+                        <td className="px-4 py-4 font-bold">{o.quantity}</td>
+                        <td className="px-4 py-4"><span className="font-bold text-emerald-700">Paid</span><br /><span className="font-mono text-xs">{o.claim_token}</span></td>
+                        <td className="px-4 py-4"><button type="button" onClick={() => openOrderDetails(o)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7]">Review</button></td>
                       </tr>
                     ))}
                   </tbody>
@@ -3959,6 +3744,18 @@ export default function MerchandisePage({ initialTab }) {
             />
           </div>
         </section>
+      )}
+
+      {claimPreview && (
+        <AccessibleOverlay label="Verify claim before release" onClose={() => !claiming && setClaimPreview(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-5 shadow-2xl">
+            <h2 className="text-lg font-black text-[#0F172A]">Verify purchaser and release</h2>
+            <p className="mt-1 text-sm text-slate-600">Check the school ID and items with the purchaser. Release finalizes this token.</p>
+            <div className="mt-4"><ReceiptDocument order={claimPreview} onViewProof={handleViewPaymentProof} releasingOfficer={(() => { try { const user = JSON.parse(localStorage.getItem("user")); return [user?.first_name, user?.last_name].filter(Boolean).join(" ") || "Current officer"; } catch { return "Current officer"; } })()} /></div>
+            {claimError && <p className="mt-3 text-sm font-semibold text-red-700">{claimError}</p>}
+            <div className="mt-5 flex flex-wrap justify-end gap-3"><button type="button" disabled={claiming} onClick={() => setClaimPreview(null)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold">Cancel</button><button type="button" disabled={claiming} onClick={() => handleClaimByToken(claimPreview.claim_token)} className="min-h-11 rounded-lg bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50">{claiming ? "Releasing..." : "Confirm Claim / Release"}</button></div>
+          </div>
+        </AccessibleOverlay>
       )}
 
       {showForm && (
@@ -3990,20 +3787,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  value={form.category}
-                  onChange={(e) =>
-                    setForm({ ...form, category: e.target.value })
-                  }
-                  placeholder="e.g. Apparel, Accessories"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                />
-              </div>
+              <CatalogFields value={form} onChange={setForm} images={variantImages} onImagesChange={setVariantImages} />
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -4029,6 +3813,7 @@ export default function MerchandisePage({ initialTab }) {
                     type="number"
                     min="0"
                     value={form.stock_quantity}
+                    disabled={form.variants.length > 0}
                     onChange={(e) =>
                       setForm({ ...form, stock_quantity: e.target.value })
                     }
@@ -4114,7 +3899,7 @@ export default function MerchandisePage({ initialTab }) {
                     formSubmitting ||
                     !form.name ||
                     !form.unit_price ||
-                    !form.stock_quantity
+                    (!form.stock_quantity && !form.variants.length) || !form.category
                   }
                   className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                 >
@@ -4125,6 +3910,12 @@ export default function MerchandisePage({ initialTab }) {
           </div>
         </AccessibleOverlay>
       )}
+
+      <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
+
+      {auditModal && <AccessibleOverlay label={`${auditModal.item.name} audit history`} onClose={() => setAuditModal(null)} className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B1831]/50 p-4">
+        <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-[#0F2F62]">{auditModal.item.name} history</h2><button type="button" onClick={() => setAuditModal(null)} aria-label="Close audit history" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={18} /></button></div>{auditModal.logs.length === 0 ? <p className="mt-4 text-sm text-slate-500">No recorded changes yet.</p> : <ol className="mt-4 space-y-3">{auditModal.logs.map((log) => <li key={log.id} className="rounded-lg border border-[#DDE7EF] p-3 text-xs"><div className="flex flex-wrap justify-between gap-1"><strong className="capitalize text-[#0F2F62]">{log.action.replaceAll("_", " ")}</strong><time className="text-slate-500">{fmtDateTime(log.created_at)}</time></div><p className="mt-1 text-slate-600">{log.user ? `${log.user.first_name} ${log.user.last_name}` : log.user_id || "System"} · {log.actor_role || log.user?.role || ""}</p>{log.new_values?.note && <p className="mt-1">Note: {log.new_values.note}</p>}{log.old_values?.stock_quantity !== undefined && <p className="mt-1">Stock: {log.old_values.stock_quantity} → {log.new_values?.stock_quantity}{log.new_values?.variant_name ? ` · ${log.new_values.variant_name}` : ""}</p>}{log.old_values?.price !== undefined && log.old_values.price !== log.new_values?.price && <p className="mt-1">Price: {fmt(log.old_values.price)} → {fmt(log.new_values?.price)}</p>}</li>)}</ol>}</div>
+      </AccessibleOverlay>}
 
       {showEditForm && (
         <AccessibleOverlay label="Edit merchandise product" onClose={() => !formSubmitting && closeEditForm()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
@@ -4153,20 +3944,10 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 />
               </div>
-              <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">
-                  Category
-                </label>
-                <input
-                  type="text"
-                  value={editForm.category}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, category: e.target.value })
-                  }
-                  placeholder="e.g. Apparel, Accessories"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                />
-              </div>
+              <CatalogFields value={editForm} onChange={setEditForm} images={variantImages} onImagesChange={setVariantImages} />
+              <label className="block text-[13px] font-semibold text-[#0F172A]">Stock change reason
+                <textarea value={editForm.stock_note || ""} onChange={(event) => setEditForm({ ...editForm, stock_note: event.target.value })} maxLength={500} rows={2} placeholder="Required when changing product or variant stock" className="mt-1 w-full rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm" />
+              </label>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -4192,6 +3973,7 @@ export default function MerchandisePage({ initialTab }) {
                     type="number"
                     min="0"
                     value={editForm.stock_quantity}
+                    disabled={editForm.variants.length > 0}
                     onChange={(e) =>
                       setEditForm({
                         ...editForm,
@@ -4284,7 +4066,7 @@ export default function MerchandisePage({ initialTab }) {
                     formSubmitting ||
                     !editForm.name ||
                     !editForm.unit_price ||
-                    !editForm.stock_quantity
+                    (!editForm.stock_quantity && !editForm.variants.length) || !editForm.category
                   }
                   className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50"
                 >
@@ -4298,7 +4080,7 @@ export default function MerchandisePage({ initialTab }) {
 
       {verificationModal.open && verificationModal.order && (
         <AccessibleOverlay label="Verify merchandise payment" onClose={() => !verificationModal.busy && setVerificationModal({ open: false, order: null, amount: "", busy: false, error: "" })} className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-extrabold text-[#0F172A]">
               {role === "ADMIN"
                 ? "Approve Payment Directly"
@@ -4311,26 +4093,18 @@ export default function MerchandisePage({ initialTab }) {
               Confirm the payment for ORD-{verificationModal.order.id} matches{" "}
               {fmt(verificationModal.order.total_price)}.
             </p>
-            {verificationModal.order.payment_proof_url ? (
-              <button
-                type="button"
-                onClick={() =>
-                  handleViewPaymentProof(verificationModal.order.id)
-                }
-                className="mt-3 inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
-              >
-                <Eye size={14} /> View Payment Proof
-              </button>
-            ) : (
+            <div className="mt-4"><ReceiptDocument order={verificationModal.order} onViewProof={handleViewPaymentProof} /></div>
+            {verificationModal.order.payment_method === "gcash" && !verificationModal.order.payment_proof_url && (
               <p className="mt-3 text-xs font-semibold text-red-600">
                 No payment proof is attached.
               </p>
             )}
             <div className="mt-4 space-y-1.5">
-              <label className="text-[13px] font-semibold text-[#0F172A]">
-                Amount shown on proof
+              <label htmlFor="verified-order-amount" className="text-[13px] font-semibold text-[#0F172A]">
+                Amount verified
               </label>
               <input
+                id="verified-order-amount"
                 type="number"
                 min="0.01"
                 step="0.01"
@@ -4375,7 +4149,7 @@ export default function MerchandisePage({ initialTab }) {
                   (verificationModal.order.payment_method === "gcash" &&
                     !verificationModal.order.payment_proof_url)
                 }
-                className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white disabled:opacity-50"
+                className="h-11 rounded-lg bg-emerald-600 px-5 text-sm font-bold text-white hover:bg-emerald-700 disabled:opacity-50"
               >
                 {verificationModal.busy
                   ? "Submitting..."
@@ -4390,7 +4164,7 @@ export default function MerchandisePage({ initialTab }) {
 
       {rejectionModal.open && rejectionModal.order && (
         <AccessibleOverlay label="Reject merchandise payment" onClose={() => !rejectionModal.busy && setRejectionModal({ open: false, order: null, remarks: "", busy: false })} className="fixed inset-0 z-[65] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md rounded-lg bg-white p-6 shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <h3 className="text-lg font-extrabold text-[#0F172A]">
               Reject Payment
             </h3>
@@ -4398,18 +4172,25 @@ export default function MerchandisePage({ initialTab }) {
               Provide the reason for rejecting order ORD-
               {rejectionModal.order.id}.
             </p>
+            <div className="mt-4"><ReceiptDocument order={rejectionModal.order} onViewProof={handleViewPaymentProof} /></div>
+            <label htmlFor="rejection-reason" className="mt-4 block text-sm font-semibold text-[#0F172A]">Rejection reason</label>
             <textarea
+              id="rejection-reason"
               rows={4}
+              maxLength={1000}
+              required
               value={rejectionModal.remarks}
               onChange={(e) =>
                 setRejectionModal((current) => ({
                   ...current,
                   remarks: e.target.value,
+                  error: "",
                 }))
               }
               className="mt-4 w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0]"
               placeholder="Rejection reason"
             />
+            {rejectionModal.error && <p className="mt-2 text-sm font-semibold text-red-700">{rejectionModal.error}</p>}
             <div className="mt-5 flex justify-end gap-3">
               <button
                 type="button"
@@ -4419,6 +4200,7 @@ export default function MerchandisePage({ initialTab }) {
                     order: null,
                     remarks: "",
                     busy: false,
+                    error: "",
                   })
                 }
                 disabled={rejectionModal.busy}
@@ -4431,17 +4213,12 @@ export default function MerchandisePage({ initialTab }) {
                 disabled={rejectionModal.busy || !rejectionModal.remarks.trim()}
                 onClick={async () => {
                   setRejectionModal((current) => ({ ...current, busy: true }));
-                  await handleStatusChange(
-                    rejectionModal.order.id,
-                    "cancelled",
-                    rejectionModal.remarks.trim(),
-                  );
-                  setRejectionModal({
-                    open: false,
-                    order: null,
-                    remarks: "",
-                    busy: false,
-                  });
+                  try {
+                    await handleStatusChange(rejectionModal.order.id, "cancelled", rejectionModal.remarks.trim());
+                    setRejectionModal({ open: false, order: null, remarks: "", busy: false });
+                  } catch (requestError) {
+                    setRejectionModal((current) => ({ ...current, busy: false, error: requestError.response?.data?.message || "Payment rejection failed." }));
+                  }
                 }}
                 className="h-11 rounded-lg bg-red-600 px-5 text-sm font-bold text-white disabled:opacity-50"
               >
@@ -4482,10 +4259,15 @@ export default function MerchandisePage({ initialTab }) {
         open={stockModal.open}
         itemName={stockModal.item?.name || ""}
         quantity={stockModal.quantity}
+        note={stockModal.note}
+        variants={stockModal.item?.variants}
+        variantId={stockModal.variantId}
         busy={confirmModal.busy}
         onQuantityChange={(quantity) =>
           setStockModal((prev) => ({ ...prev, quantity }))
         }
+        onNoteChange={(note) => setStockModal((prev) => ({ ...prev, note }))}
+        onVariantChange={(variantId) => setStockModal((prev) => ({ ...prev, variantId }))}
         onCancel={closeAddStockModal}
         onConfirm={confirmAddStock}
       />

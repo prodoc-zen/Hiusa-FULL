@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import TopBar from './TopBar';
@@ -41,6 +41,17 @@ describe('TopBar notifications', () => {
     });
 
     expect(notificationMocks.getNotifications).toHaveBeenCalledOnce();
+  });
+
+  it('places the admin welcome and account controls in the shared header card', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Alex', last_name: 'Rivera' }));
+    render(<MemoryRouter><TopBar title="Admin Dashboard" pathname="/dashboard/admin" onMenuToggle={() => {}} /></MemoryRouter>);
+    const header = screen.getByRole('banner');
+    expect(within(header).getByRole('heading', { name: 'Admin Dashboard' })).toBeInTheDocument();
+    expect(within(header).getByText(/welcome back, alex/i)).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Cart' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
   it('anchors the cart panel to the mobile viewport', async () => {

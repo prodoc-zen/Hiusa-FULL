@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
+use App\Models\EventRequirementFile;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -117,5 +118,38 @@ class EventRequirementSubmissionTest extends TestCase
         $other = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
         Sanctum::actingAs($other);
         $this->getJson('/api/events/'.$eventId.'/submission')->assertNotFound();
+    }
+
+    public function test_sao_can_order_and_remove_unused_requirements_but_submitted_files_are_preserved(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $admin = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
+        Sanctum::actingAs($director);
+        $first = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'description' => 'Signed proposal', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $second = $this->postJson('/api/event-requirements', ['name' => 'Budget', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+
+        $this->putJson('/api/event-requirements/order', ['ids' => [$second]])->assertUnprocessable();
+        $this->putJson('/api/event-requirements/order', ['ids' => [$second, $first]])->assertOk()->assertJsonPath('0.id', $second);
+        $this->getJson('/api/event-requirements')->assertJsonPath('0.id', $second)->assertJsonPath('1.description', 'Signed proposal');
+
+        Sanctum::actingAs($admin);
+        $this->putJson('/api/event-requirements/order', ['ids' => [$first, $second]])->assertForbidden();
+        $this->deleteJson('/api/event-requirements/'.$first)->assertForbidden();
+        $event = $this->postJson('/api/events', ['title' => 'Conference', 'start_time' => now()->addDays(4)->toISOString(), 'end_time' => now()->addDays(4)->addHours(2)->toISOString()])->assertCreated();
+        Storage::fake('local');
+        $this->post('/api/events/'.$event->json('id').'/submission', ['documents' => [
+            $first => UploadedFile::fake()->create('proposal.pdf', 20, 'application/pdf'),
+            $second => UploadedFile::fake()->create('budget.pdf', 20, 'application/pdf'),
+        ]])->assertOk();
+
+        Sanctum::actingAs($director);
+        $this->deleteJson('/api/event-requirements/'.$first)->assertStatus(409);
+        $this->assertSame(1, EventRequirementFile::where('requirement_id', $first)->count());
+        $this->putJson('/api/event-requirements/'.$first, ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'is_active' => false])->assertOk();
+        $this->deleteJson('/api/event-requirements/'.$second)->assertStatus(409);
+        $unused = $this->postJson('/api/event-requirements', ['name' => 'Unused', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $this->deleteJson('/api/event-requirements/'.$unused)->assertNoContent();
+        $this->assertDatabaseMissing('event_requirements', ['id' => $unused]);
     }
 }

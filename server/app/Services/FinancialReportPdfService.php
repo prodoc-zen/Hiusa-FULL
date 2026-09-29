@@ -43,6 +43,7 @@ class FinancialReportPdfService
                 'periodNet' => $periodNet,
                 'openingBalance' => round($openingBalance, 2),
                 'closingBalance' => $closingBalance,
+                'custody' => $report->custody_snapshot,
             ],
         )->render();
 

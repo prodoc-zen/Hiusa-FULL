@@ -12,6 +12,7 @@ const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
 const SuperAdminFinancialReportsPage = lazy(() => import('./pages/roles/super-admin/SuperAdminFinancialReportsPage'));
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
+const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
 const SaoEventRequirementsPage = lazy(() => import('./pages/roles/super-admin/SaoEventRequirementsPage'));
 const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
@@ -25,11 +26,11 @@ const ManageSboPositionsPage = lazy(() => import('./pages/roles/admin/ManageSboP
 const ManageAcademicStructurePage = lazy(() => import('./pages/roles/admin/ManageAcademicStructurePage'));
 const GeneralAuditLogPage = lazy(() => import('./pages/roles/admin/GeneralAuditLogPage'));
 const FinancePage = lazy(() => import('./pages/modules/finance/FinancePage'));
+const FinancialCollectionsPage = lazy(() => import('./pages/modules/finance/FinancialCollectionsPage'));
 const StudentFinancialAccountsPage = lazy(() => import('./pages/modules/finance/StudentFinancialAccountsPage'));
 const EventsPage = lazy(() => import('./pages/modules/events/EventsPage'));
 const TasksPage = lazy(() => import('./pages/modules/tasks/TasksPage'));
 const MerchandisePage = lazy(() => import('./pages/modules/merchandise/MerchandisePage'));
-const GcashPaymentSettingsPage = lazy(() => import('./pages/modules/merchandise/GcashPaymentSettingsPage'));
 const ManageAnnouncementsPage = lazy(() => import('./pages/modules/announcements/ManageAnnouncementsPage'));
 const CreateAnnouncementPage = lazy(() => import('./pages/modules/announcements/CreateAnnouncementPage'));
 const AnnouncementsFeedPage = lazy(() => import('./pages/modules/announcements/AnnouncementsFeedPage'));
@@ -152,6 +153,14 @@ function MerchandiseIndexRedirect() {
   return <Navigate to="order-merchandise" replace />;
 }
 
+function MerchandiseClaimTokensRoute() {
+  const role = getStoredRole();
+  if (role === 'ADMIN' || role === 'SBO_OFFICER') {
+    return <MerchandisePage initialTab="tokens" />;
+  }
+  return <Navigate to="/dashboard/merchandise/my-orders" replace />;
+}
+
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
@@ -187,6 +196,7 @@ function App() {
           <Route index element={<DashboardIndexRedirect />} />
           <Route path="super-admin" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SuperAdminHomePage /></ProtectedRoute>} />
           <Route path="super-admin/organizations" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemOrganizationsPage /></ProtectedRoute>} />
+          <Route path="super-admin/colleges" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemCollegesPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEventRequirementsPage /></ProtectedRoute>} />
           <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
@@ -230,6 +240,7 @@ function App() {
           <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]} />}>
             <Route index element={<FinanceIndexRedirect />} />
             <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
+            <Route path="collections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancialCollectionsPage /></ProtectedRoute>} />
             <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
             <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
             <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
@@ -241,9 +252,9 @@ function App() {
           <Route path="merchandise">
             <Route index element={<MerchandiseIndexRedirect />} />
             <Route path="manage-inventory" element={<ProtectedRoute allowedRoles={["ADMIN"]}><MerchandisePage initialTab="inventory" /></ProtectedRoute>} />
-            <Route path="gcash-payment" element={<ProtectedRoute allowedRoles={["ADMIN"]}><GcashPaymentSettingsPage /></ProtectedRoute>} />
+            <Route path="gcash-payment" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/merchandise/manage-orders" replace /></ProtectedRoute>} />
             <Route path="manage-orders" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><MerchandisePage initialTab="orders" /></ProtectedRoute>} />
-            <Route path="claim-tokens" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><MerchandisePage initialTab="tokens" /></ProtectedRoute>} />
+            <Route path="claim-tokens" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><MerchandiseClaimTokensRoute /></ProtectedRoute>} />
             <Route path="order-merchandise" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><MerchandisePage initialTab="order" /></ProtectedRoute>} />
             <Route path="my-orders" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><MerchandisePage initialTab="my-orders" /></ProtectedRoute>} />
           </Route>

@@ -6,18 +6,26 @@ import MerchandisePage from "./MerchandisePage";
 const merchandiseMocks = vi.hoisted(() => ({
   getMerchandise: vi.fn(),
   getGcashSettings: vi.fn(),
+  uploadGcashQr: vi.fn(),
+  adjustStock: vi.fn(),
+  getMerchandiseAuditLogs: vi.fn(),
 }));
 const orderMocks = vi.hoisted(() => ({
   getOrders: vi.fn(),
   cancelOrder: vi.fn(),
+  placeOrder: vi.fn(),
+  verifyClaimToken: vi.fn(),
+  claimByToken: vi.fn(),
+  updateOrderStatus: vi.fn(),
 }));
 
 vi.mock("../../../services/merchandiseService", () => ({
   ...merchandiseMocks,
   createItem: vi.fn(),
   updateItem: vi.fn(),
-  adjustStock: vi.fn(),
+  adjustStock: merchandiseMocks.adjustStock,
   deleteItem: vi.fn(),
+  getMerchandiseAuditLogs: merchandiseMocks.getMerchandiseAuditLogs,
 }));
 
 vi.mock("../../../services/orderService", () => ({
@@ -26,10 +34,11 @@ vi.mock("../../../services/orderService", () => ({
   getOrderAnalyticsUsers: vi.fn(),
   getOrderAuditLogs: vi.fn(),
   openOrderPaymentProof: vi.fn(),
-  placeOrder: vi.fn(),
+  placeOrder: orderMocks.placeOrder,
   submitOrderPayment: vi.fn(),
-  updateOrderStatus: vi.fn(),
-  claimByToken: vi.fn(),
+  updateOrderStatus: orderMocks.updateOrderStatus,
+  claimByToken: orderMocks.claimByToken,
+  verifyClaimToken: orderMocks.verifyClaimToken,
 }));
 
 vi.mock("../../../services/pagination", () => ({
@@ -92,7 +101,7 @@ describe("MerchandisePage buyer experience", () => {
     );
 
     expect(await screen.findByText("8 in stock")).toBeInTheDocument();
-    expect(screen.getByText("0 in stock")).toBeInTheDocument();
+    expect(screen.getByText("OUT OF STOCK")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Currently unavailable" })).toBeDisabled();
 
     fireEvent.change(screen.getByLabelText("Filter merchandise category"), {
@@ -138,6 +147,37 @@ describe("MerchandisePage buyer experience", () => {
 
     await waitFor(() => expect(orderMocks.cancelOrder).toHaveBeenCalledWith(17));
     expect(await screen.findByText("Cancelled by buyer.")).toBeInTheDocument();
+  });
+
+  it("shows a limited promotion, requires a variant, and opens product images", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [{
+      ...products[0], image_url: "/uploads/merchandise/shirt.jpg",
+      variants: [{ id: 11, name: "XL", stock_quantity: 2, image_url: "/uploads/merchandise/xl.jpg" }],
+      promotion_price: "250.00", effective_price: "250.00", promotion_buyer_limit: 100,
+      promotion_remaining: 12, promotion_available_to_viewer: true, is_low_stock: true,
+    }], current_page: 1, last_page: 1 } });
+    render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    expect(await screen.findByText("FIRST 100 BUYERS")).toBeInTheDocument();
+    expect(screen.getByText("LOW STOCK")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+    expect(screen.getByText("Select a variant for HIUSA Shirt.")).toBeInTheDocument();
+    fireEvent.change(screen.getByRole("combobox", { name: "Select variant for HIUSA Shirt" }), { target: { value: "11" } });
+    fireEvent.click(screen.getByRole("button", { name: "Add to Cart" }));
+    expect(screen.getByText(/1 x HIUSA Shirt added to cart/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "View HIUSA Shirt images" }));
+    expect(screen.getByRole("img", { name: "HIUSA Shirt image 1" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Next image" }));
+    expect(screen.getByRole("img", { name: "HIUSA Shirt image 2" })).toBeInTheDocument();
+  });
+
+  it("opens My Cart from the metric and shows a printable claim ticket in My Orders", async () => {
+    const paidOrder = { id: 29, merchandise: products[0], quantity: 1, total_price: "350.00", status: "paid", claim_token: "CLAIMTOKEN123456", created_at: "2026-09-13T10:00:00Z" };
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([paidOrder]) });
+    render(<MemoryRouter><MerchandisePage initialTab="my-orders" /></MemoryRouter>);
+    expect(await screen.findByText(/Merchandise claim ticket/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Print ticket" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /My Cart/ }));
+    expect(await screen.findByText("Your cart is empty.")).toBeInTheDocument();
   });
 });
 
@@ -205,6 +245,7 @@ describe("MerchandisePage fulfillment experience", () => {
       data: { data: products, current_page: 1, last_page: 1 },
     });
     orderMocks.getOrders.mockResolvedValue(managerOrdersResponse());
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
   });
 
   it("shows an approved order's claim token in the modern order queue", async () => {
@@ -234,5 +275,48 @@ describe("MerchandisePage fulfillment experience", () => {
         expect.objectContaining({ status: "paid", sort: "oldest" }),
       ),
     );
+  });
+
+  it("previews a token before the officer can release the order", async () => {
+    orderMocks.verifyClaimToken.mockResolvedValue({ data: paidOrder });
+    orderMocks.claimByToken.mockResolvedValue({ data: { ...paidOrder, status: "claimed" } });
+    render(<MemoryRouter><MerchandisePage initialTab="tokens" /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText("16-character claim token"), { target: { value: paidOrder.claim_token } });
+    fireEvent.click(screen.getByRole("button", { name: "Claim" }));
+    await waitFor(() => expect(orderMocks.verifyClaimToken).toHaveBeenCalledWith(paidOrder.claim_token));
+    expect(orderMocks.claimByToken).not.toHaveBeenCalled();
+    expect(await screen.findByText("Verify purchaser and release")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Claim / Release" }));
+    await waitFor(() => expect(orderMocks.claimByToken).toHaveBeenCalledWith(paidOrder.claim_token));
+  });
+
+  it("shows purchaser and order details before payment approval", async () => {
+    const pendingOrder = { ...paidOrder, status: "pending", claim_token: null, unit_price: "250.00", total_price: "250.00", payment_method: "cash" };
+    const response = managerOrdersResponse();
+    response.data.data = [pendingOrder];
+    orderMocks.getOrders.mockResolvedValue(response);
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Approve/ }))[0]);
+    expect(orderMocks.updateOrderStatus).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
+    expect(dialog).toHaveTextContent("Rafael Aquino");
+    expect(dialog).toHaveTextContent("BS Information Technology");
+    expect(dialog).toHaveTextContent("250.00");
+    expect(dialog).toHaveTextContent("ORD-28");
+  });
+
+  it("shows inventory top sellers from paid sales and requires a stock note", async () => {
+    const summary = managerOrdersResponse();
+    summary.data.summary.breakdown = [{ id: 1, name: "HIUSA Shirt", quantity: 4, collected: 1400 }];
+    orderMocks.getOrders.mockResolvedValue(summary);
+    merchandiseMocks.adjustStock.mockResolvedValue({ data: { ...products[0], stock_quantity: 10 } });
+    render(<MemoryRouter><MerchandisePage initialTab="inventory" /></MemoryRouter>);
+    expect(await screen.findByText("Top sellers")).toBeInTheDocument();
+    expect(await screen.findByText(/1,400\.00 collected/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" })[0]);
+    fireEvent.change(screen.getByPlaceholderText("e.g. New delivery received"), { target: { value: "New delivery" } });
+    fireEvent.click(screen.getByRole("button", { name: "Continue" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" }).at(-1));
+    await waitFor(() => expect(merchandiseMocks.adjustStock).toHaveBeenCalledWith(1, 1, "New delivery", null));
   });
 });

@@ -11,6 +11,7 @@ const financeMocks = vi.hoisted(() => ({
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
   getFinancialReports: vi.fn(),
+  getFinancialReport: vi.fn(),
   getFinancialSemesters: vi.fn(),
   createFinancialSemester: vi.fn(),
   generateFinancialReport: vi.fn(),
@@ -140,9 +141,9 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="receipts" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'View details' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View Receipt' }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByRole('heading', { name: 'HIUSA-1-00000009' })).toBeInTheDocument();
+    expect(within(dialog).getAllByText('HIUSA-1-00000009').length).toBeGreaterThan(0);
     expect(within(dialog).getByText('General Assembly')).toBeInTheDocument();
     expect(within(dialog).getByText('Operating Budget')).toBeInTheDocument();
     expect(within(dialog).getByText('Ana Reyes')).toBeInTheDocument();
@@ -234,6 +235,51 @@ describe('FinancePage transaction search', () => {
       letterhead: header,
     })));
     expect((await screen.findAllByText('Income Statement - Semester 2026-2027')).length).toBeGreaterThan(0);
+  });
+
+  it('sends the selected custom date range when generating a report', async () => {
+    financeMocks.generateFinancialReport.mockResolvedValue({ data: {
+      report: { id: 52, document_type: 'financial_report', title: 'Custom Financial Report', summary_text: 'Recorded totals.' },
+      totals: { income: 0, expense: 0, balance: 0, closing_balance: 0 }, transactions: [], audit_logs: [], budget_advisories: [],
+    } });
+    render(<FinancePage initialTab="reports" />);
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Covered period' }), { target: { value: 'custom' } });
+    fireEvent.change(screen.getAllByLabelText('Start date').at(-1), { target: { value: '2026-08-01' } });
+    fireEvent.change(screen.getAllByLabelText('End date').at(-1), { target: { value: '2026-08-31' } });
+    for (const title of ['Treasurer', 'President', 'Adviser', 'SBO Adviser']) {
+      fireEvent.change(screen.getByPlaceholderText(`${title} full name`), { target: { value: `${title} Name` } });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Financial Report' }));
+    await waitFor(() => expect(financeMocks.generateFinancialReport).toHaveBeenCalledWith(expect.objectContaining({
+      report_type: 'custom', period_start: '2026-08-01', period_end: '2026-08-31', event_id: null, financial_semester_id: null,
+    })));
+  });
+
+  it('exports a saved report using its saved ledger details', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 61, title: 'August report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
+    financeMocks.getFinancialReport.mockResolvedValue({ data: {
+      report: { opening_balance_snapshot: '20.00', custody_snapshot: { verified_collections: 100, recorded_remittances: 40 } },
+      transactions: [{ id: 7, type: 'income', category: 'Fees', amount: '100.00', description: 'Membership', transaction_date: '2026-08-12' }],
+    } });
+    URL.createObjectURL = vi.fn(() => 'blob:report');
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<FinancePage initialTab="reports" />);
+    await screen.findByText('August report');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
+    await waitFor(() => expect(financeMocks.getFinancialReport).toHaveBeenCalledWith(61));
+    expect(URL.createObjectURL).toHaveBeenCalled();
+    expect(URL.createObjectURL.mock.calls[0][0].type).toContain('ms-excel');
+    const workbookText = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsText(URL.createObjectURL.mock.calls[0][0]);
+    });
+    expect(new DOMParser().parseFromString(workbookText, 'application/xml').querySelector('parsererror')).toBeNull();
+    expect(workbookText).toContain('Membership');
+    expect(click).toHaveBeenCalled();
+    expect(click.mock.instances[0].download).toBe('hiusa-financial-report-61.xml');
+    click.mockRestore();
   });
 });
 

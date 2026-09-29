@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Eye, Megaphone, Trash2, X } from 'lucide-react';
-import { Badge, StatusBadge } from './announcementShared.jsx';
+import { Download, Eye, Megaphone, Plus, Trash2, X } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Avatar, Badge, StatusBadge } from './announcementShared.jsx';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
 import {
@@ -12,6 +13,7 @@ import {
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import DataDonutChart from '../../../components/DataDonutChart';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
 const CATEGORY_LABEL = { general: 'General', election: 'Election', training: 'Training', events: 'Events', merchandise: 'Merchandise' };
@@ -24,7 +26,7 @@ const CATEGORY_OPTIONS = [
   { label: 'Merchandise', value: 'merchandise' },
 ];
 
-function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onConfirm }) {
+function ConfirmModal({ open, title, message, confirmText, busy, error, onCancel, onConfirm }) {
   if (!open) return null;
 
   return (
@@ -32,6 +34,7 @@ function ConfirmModal({ open, title, message, confirmText, busy, onCancel, onCon
       <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-bold text-[#0F172A]">{title}</h3>
         <p className="mt-2 text-sm text-slate-600">{message}</p>
+        {error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}
         <div className="mt-5 flex justify-end gap-3">
           <button type="button" onClick={onCancel} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]" disabled={busy}>
             Cancel
@@ -83,12 +86,17 @@ function getCurrentUserId() {
 }
 
 export default function ManageAnnouncementsPage() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
   const [summary, setSummary] = useState({ total: 0, published: 0, unpublished: 0, pending: 0, views: 0 });
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [actionError, setActionError] = useState('');
+  const [actionMessage, setActionMessage] = useState('');
+  const [previewItems, setPreviewItems] = useState([]);
+  const [previewError, setPreviewError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [audienceFilter, setAudienceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -132,13 +140,23 @@ export default function ManageAnnouncementsPage() {
     return () => { cancelled = true; };
   }, [queryParams, page]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      getAnnouncements({ published_only: 1, per_page: 3, search: search || undefined, category: categoryFilter === 'all' ? undefined : categoryFilter, target_role: audienceFilter === 'all' ? undefined : audienceFilter })
+        .then((response) => { if (!cancelled) { setPreviewItems(unwrapList(response.data)); setPreviewError(''); } })
+        .catch(() => { if (!cancelled) setPreviewError('Unable to load feed preview.'); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [search, categoryFilter, audienceFilter, actionMessage]);
+
   async function handleExport() {
     setExporting(true);
     try {
       const all = await fetchAllPages((params) => getAnnouncements(params).then((res) => res.data), queryParams);
       exportAnnouncements(all);
     } catch {
-      setError('Failed to export announcements. Please try again.');
+      setActionError('Failed to export announcements. Please try again.');
     } finally {
       setExporting(false);
     }
@@ -173,27 +191,34 @@ export default function ManageAnnouncementsPage() {
 
   async function handleToggle(id) {
     try {
+      setActionError('');
       const res = await togglePublish(id);
       setItems((prev) => prev.map((a) => (a.id === id ? res.data : a)));
+      setActionMessage('Announcement publication updated.');
       loadAnnouncements();
     } catch (err) {
-      setError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
+      setActionError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
+      throw err;
     }
   }
 
   async function handleDelete(id) {
     try {
+      setActionError('');
       await deleteAnnouncement(id);
       // Reload rather than splice locally so the pagination footer's total
       // (and this page's contents, if it was just emptied) stay in sync with
       // the server instead of drifting.
+      setActionMessage('Announcement deleted.');
       loadAnnouncements();
-    } catch {
-      setError('Failed to delete announcement. Please try again.');
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Failed to delete announcement. Please try again.');
+      throw err;
     }
   }
 
   function openEdit(announcement) {
+    setActionError('');
     setEditing(announcement);
     setEditForm({
       title: announcement.title || '',
@@ -211,8 +236,10 @@ export default function ManageAnnouncementsPage() {
       const res = await updateAnnouncement(editing.id, editForm);
       setItems((prev) => prev.map((a) => (a.id === editing.id ? res.data : a)));
       setEditing(null);
-    } catch {
-      setError('Failed to update announcement. Please try again.');
+      setActionMessage('Announcement updated.');
+      loadAnnouncements();
+    } catch (err) {
+      setActionError(err.response?.data?.message || 'Failed to update announcement. Please try again.');
     }
   }
 
@@ -242,8 +269,10 @@ export default function ManageAnnouncementsPage() {
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10 text-[#16C7F3]"><Megaphone size={20} /></span>
           <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Publishing workspace</p><h1 className="mt-1 text-2xl font-black">Manage Announcements</h1><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-200">Review publication state, audience, approval progress, authorship, and reach from one register.</p></div>
         </div>
-        <button onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-xs font-bold text-white hover:bg-white/15 disabled:opacity-50 sm:w-auto"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button>
+        <div className="flex flex-wrap gap-2"><button onClick={() => navigate('/dashboard/announcements/create-announcement')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-xs font-bold text-[#0F2F62] hover:bg-[#EEF6FB]"><Plus size={14} /> Create announcement</button><button onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-xs font-bold text-white hover:bg-white/15 disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div>
       </div>
+      {actionError && !confirmState.open && !editing && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
+      {actionMessage && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{actionMessage}</p>}
       <div className="-mx-5 mb-4">
         <TableFilterBar
           searchValue={search}
@@ -284,6 +313,7 @@ export default function ManageAnnouncementsPage() {
           ]}
         />
       </div>
+      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0">
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm text-slate-500">
           {meta.total === 0 ? 'No announcements yet.' : 'No announcements on this page.'}
@@ -300,7 +330,7 @@ export default function ManageAnnouncementsPage() {
             </thead>
             <tbody>
               {items.map((a) => {
-                const canModify = currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId);
+                const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
                 const canPublishOwnDraft = canModify && ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentRole);
 
                 return (
@@ -323,10 +353,11 @@ export default function ManageAnnouncementsPage() {
                       <td className="px-3 py-3 text-slate-500"><p>{a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'}</p><p className="max-w-[180px] truncate text-[10px]">{a.review_remarks || 'No remarks'}</p></td>
                       <td className="px-3 py-3">
                         <div className="flex gap-1.5">
-                          <button onClick={() => setDetails(a)} title="View complete record" className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100"><Eye size={13} /></button>
+                          <button onClick={() => setDetails(a)} aria-label={`View ${a.title}`} title="View complete record" className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100"><Eye size={13} /></button>
                           {canModify && (
                             <button
                               onClick={() => openEdit(a)}
+                              aria-label={`Edit ${a.title}`}
                               className="rounded bg-[#EEF6FB] px-2 py-2 text-[10px] font-semibold text-[#0F2F62] transition hover:bg-[#DDE7EF]"
                             >
                               Edit
@@ -377,6 +408,7 @@ export default function ManageAnnouncementsPage() {
                           ) : null}
                           {canModify && (
                             <button
+                              aria-label={`Delete ${a.title}`}
                               onClick={() => setConfirmState({
                                 open: true,
                                 title: 'Delete Announcement',
@@ -406,6 +438,7 @@ export default function ManageAnnouncementsPage() {
         onPageChange={setPage}
         label="announcements"
       />
+      </div><aside className="min-w-0 space-y-3" aria-label="Announcement feed preview"><div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><h2 className="text-sm font-black text-[#0F172A]">Feed preview</h2><p className="mt-1 text-xs leading-5 text-[#64748B]">Recently published announcements matching search, category, and audience.</p></div>{previewError && <p className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{previewError}</p>}{!previewError && previewItems.length === 0 && <p className="rounded-lg border border-dashed border-[#DDE7EF] p-4 text-xs text-[#64748B]">No published announcements match these filters.</p>}{previewItems.map((item) => <article key={item.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white"><div className="flex items-center gap-2 border-b border-[#DDE7EF] p-3"><Avatar name={creatorName(item)} size="sm" /><div className="min-w-0"><p className="truncate text-xs font-bold text-[#0F172A]">{creatorName(item)}</p><p className="text-[11px] text-[#64748B]">{formatDate(item.published_at || item.created_at)}</p></div></div>{item.image_url && <img src={resolveAssetUrl(item.image_url)} alt="" loading="lazy" className="max-h-44 w-full object-contain bg-[#F8FBFD]" />}<div className="p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#0878B7]">{CATEGORY_LABEL[item.category] || 'General'} · {ROLE_LABEL[item.target_role] || item.target_role}</p><h3 className="mt-1 text-sm font-bold text-[#0F172A]">{item.title}</h3><p className="mt-2 line-clamp-4 whitespace-pre-wrap text-xs leading-5 text-[#64748B]">{item.body}</p><button type="button" onClick={() => setDetails(item)} className="mt-3 min-h-10 text-xs font-bold text-[#0878B7] hover:underline">View full announcement</button></div></article>)}</aside></div>
 
       <ConfirmModal
         open={confirmState.open}
@@ -413,6 +446,7 @@ export default function ManageAnnouncementsPage() {
         message={confirmState.message}
         confirmText={confirmState.confirmText}
         busy={confirmState.busy}
+        error={actionError}
         onCancel={() => setConfirmState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false })}
         onConfirm={async () => {
           if (!confirmState.action) return;
@@ -420,6 +454,8 @@ export default function ManageAnnouncementsPage() {
           try {
             await confirmState.action();
             setConfirmState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
+          } catch {
+            // Keep the confirmation open so the action can be retried.
           } finally {
             setConfirmState((prev) => ({ ...prev, busy: false }));
           }
@@ -443,6 +479,7 @@ export default function ManageAnnouncementsPage() {
               </select>
               <textarea value={editForm.body} onChange={(e) => setEditForm({ ...editForm, body: e.target.value })} rows={8} className="rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm sm:col-span-2" placeholder="Announcement content" />
             </div>
+            {actionError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
             <div className="mt-5 flex justify-end gap-3">
               <button type="button" onClick={() => setEditing(null)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
               <button type="submit" disabled={!editForm.title.trim() || !editForm.body.trim()} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">Save Record</button>

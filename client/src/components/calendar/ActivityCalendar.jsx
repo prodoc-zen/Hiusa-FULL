@@ -70,9 +70,12 @@ function buildMonthMatrix(year, month) {
 function buildEventsByDate(events) {
   const map = {};
   events.forEach((event) => {
-    const startIso = String(event.start_time || '').slice(0, 10);
-    if (!startIso) return;
-    const rawEndIso = String(event.end_time || '').slice(0, 10);
+    if (!event.start_time) return;
+    const start = new Date(event.start_time);
+    if (Number.isNaN(start.getTime())) return;
+    const end = new Date(event.end_time);
+    const startIso = toIso(start);
+    const rawEndIso = Number.isNaN(end.getTime()) ? '' : toIso(end);
     const endIso = rawEndIso && rawEndIso >= startIso ? rawEndIso : startIso;
     const isMultiDay = endIso !== startIso;
     const startDate = new Date(`${startIso}T00:00:00`);
@@ -273,8 +276,8 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       key={day.iso}
                       role="gridcell"
                       className={`min-h-[92px] rounded-lg border p-1.5 transition lg:min-h-[104px] ${
-                        isSelected ? 'border-[#0B8ED0] ring-2 ring-[#16C7F3]/25' : 'border-[#DDE7EF]'
-                      } ${day.inMonth ? 'bg-white' : 'bg-[#F8FBFD]'}`}
+                        isSelected ? 'border-[#0B8ED0] ring-2 ring-[#16C7F3]/25' : dayEvents.length ? 'border-[#0B8ED0]/35' : 'border-[#DDE7EF]'
+                      } ${dayEvents.length ? 'bg-[#EEF6FB]' : day.inMonth ? 'bg-white' : 'bg-[#F8FBFD]'}`}
                     >
                       <button
                         type="button"
@@ -284,11 +287,12 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       >
                         <span
                           className={`grid h-6 w-6 place-items-center rounded-full text-[12px] font-bold ${
-                            isToday ? 'bg-[#0878B7] text-white' : day.inMonth ? 'text-[#0F172A]' : 'text-slate-300'
+                            isToday ? 'bg-[#0878B7] text-white' : dayEvents.length ? 'bg-white text-[#0F2F62] ring-1 ring-[#0B8ED0]/30' : day.inMonth ? 'text-[#0F172A]' : 'text-slate-300'
                           }`}
                         >
                           {day.date.getDate()}
                         </span>
+                        {dayEvents.length > 0 && <span className="rounded-full bg-[#0F2F62] px-1.5 py-0.5 text-[10px] font-bold text-white" aria-hidden="true">{dayEvents.length}</span>}
                       </button>
                       <div className="mt-1 space-y-1">
                         {visible.map((event) => (
@@ -315,7 +319,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
         {/* Mobile agenda list */}
         <div className="mt-4 space-y-3 sm:hidden">
           {monthDaysWithEvents.map((day) => (
-            <div key={day.iso} className="rounded-lg border border-[#DDE7EF] p-3">
+            <div key={day.iso} className="rounded-lg border border-[#0B8ED0]/30 bg-[#EEF6FB] p-3">
               <div className="mb-2 flex items-center gap-2">
                 <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-full text-[12px] font-bold ${day.iso === todayIso ? 'bg-[#0878B7] text-white' : 'bg-[#F8FBFD] text-[#0F172A]'}`}>
                   {day.date.getDate()}
@@ -323,6 +327,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                 <p className="text-[13px] font-bold text-[#0F172A]">
                   {day.date.toLocaleDateString('en-PH', { weekday: 'long', month: 'short', day: 'numeric' })}
                 </p>
+                <span className="ml-auto rounded-full bg-[#0F2F62] px-2 py-0.5 text-[10px] font-bold text-white">{eventsByDate[day.iso]?.length} events</span>
               </div>
               <div className="space-y-1.5">
                 {(eventsByDate[day.iso] || []).map((event) => {

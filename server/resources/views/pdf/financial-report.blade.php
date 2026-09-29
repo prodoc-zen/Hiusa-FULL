@@ -18,14 +18,14 @@
         .report-table thead { display: table-header-group; }
         .report-table tr { page-break-inside: avoid; }
         .report-table th, .report-table td { border: 1px solid #111827; padding: 5px 6px; vertical-align: top; }
-        .report-table .band { background: #5d9eaa; color: #fff; text-align: center; font-weight: 700; }
-        .report-table .section { background: #9cc8eb; color: #111827; text-align: center; font-weight: 700; }
-        .report-table .columns { background: #111; color: #fff; }
+        .report-table .band { background: #0f2f62; color: #fff; text-align: center; font-weight: 700; }
+        .report-table .section { background: #eef6fb; color: #0f172a; text-align: center; font-weight: 700; }
+        .report-table .columns { background: #0b1831; color: #fff; }
         .report-table .date { width: 22%; text-align: center; white-space: nowrap; }
         .report-table .description { width: 56%; }
         .report-table .amount { width: 22%; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
-        .report-table .total-label { background: #8fd14f; font-weight: 700; text-align: right; }
-        .report-table .balance-label { background: #fff200; font-weight: 700; text-align: right; }
+        .report-table .total-label { background: #e8f5ed; font-weight: 700; text-align: right; }
+        .report-table .balance-label { background: #e6f6fd; font-weight: 700; text-align: right; }
         .report-table .spacer td { height: 8px; border: 0; padding: 0; }
         .signatures { margin-top: 34px; page-break-inside: avoid; }
         .signatures table { width: 100%; border-collapse: collapse; }
@@ -76,6 +76,15 @@
             <tr><td colspan="2" class="balance-label">BALANCE</td><td class="amount">PHP {{ number_format($closingBalance, 2) }}</td></tr>
         </tbody>
     </table>
+
+    @if ($custody)
+        <p style="margin: 16px 0 4px; font-weight: 700;">COLLECTIONS AND REMITTANCES</p>
+        <p style="margin: 0 0 4px; color: #475569;">Custody movements are shown separately. Remittances do not add ledger income.</p>
+        <table class="report-table"><tbody>
+            <tr><td colspan="2">Verified collections</td><td class="amount">PHP {{ number_format($custody['verified_collections'], 2) }}</td></tr>
+            <tr><td colspan="2">Recorded remittances</td><td class="amount">PHP {{ number_format($custody['recorded_remittances'], 2) }}</td></tr>
+        </tbody></table>
+    @endif
 
     @include('pdf.partials.signatories')
 </body>

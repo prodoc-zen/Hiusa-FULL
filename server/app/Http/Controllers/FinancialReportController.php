@@ -6,10 +6,12 @@ use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
+use App\Models\Collection;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
 use App\Models\FinancialSemester;
+use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\FinancialReportPdfService;
 use App\Services\GroqResponsesService;
@@ -70,6 +72,13 @@ class FinancialReportController extends Controller
         }
 
         $transactionIds = $financialReport->source_transaction_ids ?? [];
+        $transactions = $financialReport->transactions_snapshot !== null
+            ? $financialReport->transactions_snapshot
+            : Transaction::with(['event:id,title', 'budget:id,title'])
+                ->where('organization_id', $financialReport->organization_id)
+                ->whereIn('id', $transactionIds)
+                ->orderBy('transaction_date')
+                ->get();
 
         return response()->json([
             'report' => $financialReport->load([
@@ -77,17 +86,13 @@ class FinancialReportController extends Controller
                 'deadline:id,deadline_at', 'departmentHeadApprover:school_id,first_name,last_name',
                 'saoApprover:school_id,first_name,last_name',
             ]),
-            'transactions' => Transaction::with(['event:id,title', 'budget:id,title'])
-                ->where('organization_id', $financialReport->organization_id)
-                ->whereIn('id', $transactionIds)
-                ->orderBy('transaction_date')
-                ->get(),
+            'transactions' => $transactions,
         ]);
     }
 
     public function generate(Request $request)
     {
-        $missingColumns = collect(['document_type', 'letterhead_path', 'letter_details'])
+        $missingColumns = collect(['document_type', 'letterhead_path', 'letter_details', 'opening_balance_snapshot', 'transactions_snapshot', 'custody_snapshot'])
             ->reject(fn (string $column) => Schema::hasColumn('financial_reports', $column))
             ->values();
 
@@ -101,10 +106,10 @@ class FinancialReportController extends Controller
         $data = $request->validate([
             'document_type' => ['nullable', 'in:financial_report,income_statement'],
             'report_type' => ['required', 'in:monthly,semester,custom,event'],
-            'financial_semester_id' => ['nullable', 'integer'],
-            'period_start' => ['nullable', 'date', 'required_if:report_type,custom'],
-            'period_end' => ['nullable', 'date', 'after_or_equal:period_start', 'required_if:report_type,custom'],
-            'event_id' => ['nullable', 'integer', 'required_if:report_type,event'],
+            'financial_semester_id' => ['required_if:report_type,semester', 'prohibited_unless:report_type,semester', 'nullable', 'integer'],
+            'period_start' => ['required_if:report_type,custom', 'prohibited_unless:report_type,custom', 'nullable', 'date'],
+            'period_end' => ['required_if:report_type,custom', 'prohibited_unless:report_type,custom', 'nullable', 'date', 'after_or_equal:period_start'],
+            'event_id' => ['required_if:report_type,event', 'prohibited_unless:report_type,event', 'nullable', 'integer'],
             'signatories' => ['required', 'array:treasurer,president,adviser,sbo_adviser'],
             'signatories.treasurer' => ['required', 'string', 'max:255'],
             'signatories.president' => ['required', 'string', 'max:255'],
@@ -121,7 +126,7 @@ class FinancialReportController extends Controller
 
         $organizationId = $request->user()->organization_id;
         $semester = null;
-        if ($data['report_type'] === 'semester' && ! empty($data['financial_semester_id'])) {
+        if ($data['report_type'] === 'semester') {
             $semester = FinancialSemester::where('organization_id', $organizationId)->find($data['financial_semester_id']);
             if (! $semester) {
                 return response()->json(['message' => 'Selected semester does not belong to this organization.'], 422);
@@ -163,6 +168,17 @@ class FinancialReportController extends Controller
                 'type' => $rows->first()->type,
                 'total' => round((float) $rows->sum('amount'), 2),
             ])->values();
+        $collectionQuery = Collection::where('organization_id', $organizationId)->where('status', 'verified')
+            ->when($event, fn ($query) => $query->where('event_id', $event->id))
+            ->when(! $event, fn ($query) => $query->whereDate('verified_at', '>=', $start)->whereDate('verified_at', '<=', $end));
+        $remittanceQuery = Remittance::where('status', 'recorded')
+            ->whereHas('collection', fn ($query) => $query->where('organization_id', $organizationId)
+                ->when($event, fn ($builder) => $builder->where('event_id', $event->id)))
+            ->when(! $event, fn ($query) => $query->whereDate('remitted_at', '>=', $start)->whereDate('remitted_at', '<=', $end));
+        $custody = [
+            'verified_collections' => round((float) $collectionQuery->sum('amount_collected'), 2),
+            'recorded_remittances' => round((float) $remittanceQuery->sum('amount'), 2),
+        ];
         $latestForecast = FinancialForecast::where('organization_id', $organizationId)
             ->orderByDesc('forecast_period')
             ->first();
@@ -193,6 +209,7 @@ class FinancialReportController extends Controller
                 'closing_balance' => round($closingBalance, 2),
             ],
             'expense_and_income_by_category' => $byCategory->all(),
+            'custody_movements' => $custody,
             'latest_ols_forecast' => $latestForecast?->only([
                 'forecast_period', 'predicted_income', 'predicted_expense', 'predicted_balance',
                 'safe_spending_limit', 'confidence_note', 'model_details',
@@ -218,7 +235,7 @@ class FinancialReportController extends Controller
         ];
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $event, $semester, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $openingBalance, $closingBalance, $organizationId, $byCategory, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
+            $result = DB::transaction(function () use ($request, $data, $event, $semester, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $openingBalance, $closingBalance, $organizationId, $byCategory, $custody, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
                 $aiOutput = AiOutput::create([
                     'organization_id' => $organizationId,
                     'feature_type' => 'FINANCIAL_SUMMARY',
@@ -253,6 +270,16 @@ class FinancialReportController extends Controller
                     'letter_details' => $letterDetails,
                     'signatories' => $data['signatories'],
                     'source_transaction_ids' => $transactions->pluck('id')->all(),
+                    'opening_balance_snapshot' => round($openingBalance, 2),
+                    'transactions_snapshot' => $transactions->map(fn (Transaction $transaction) => [
+                        ...$transaction->only([
+                            'id', 'organization_id', 'event_id', 'budget_id', 'transaction_date',
+                            'description', 'category', 'type', 'amount', 'receipt_reference',
+                        ]),
+                        'event' => $transaction->event?->only(['id', 'title']),
+                        'budget' => $transaction->budget?->only(['id', 'title']),
+                    ])->all(),
+                    'custody_snapshot' => $custody,
                     'submission_status' => 'draft',
                     'ai_output_id' => $aiOutput->id,
                     'generated_by' => $request->user()->school_id,
@@ -292,6 +319,7 @@ class FinancialReportController extends Controller
                         'closing_balance' => round($closingBalance, 2),
                     ],
                     'by_category' => $byCategory,
+                    'custody' => $custody,
                     'latest_ols_forecast' => $latestForecast,
                     'budget_advisories' => $budgets,
                     'audit_logs' => $auditLogs,
@@ -316,15 +344,19 @@ class FinancialReportController extends Controller
         }
 
         $financialReport->load(['organization:id,name,acronym', 'event:id,title']);
-        $transactions = Transaction::with(['event:id,title', 'budget:id,title'])
-            ->where('organization_id', $financialReport->organization_id)
-            ->whereIn('id', $financialReport->source_transaction_ids ?? [])
-            ->orderBy('transaction_date')
-            ->orderBy('id')
-            ->get();
-        $openingBalance = $financialReport->event_id || ! $financialReport->period_start
-            ? 0.0
-            : $this->openingBalance($financialReport->organization_id, $financialReport->period_start->toDateString());
+        $transactions = $financialReport->transactions_snapshot !== null
+            ? collect($financialReport->transactions_snapshot)->map(fn (array $row) => new Transaction($row))
+            : Transaction::with(['event:id,title', 'budget:id,title'])
+                ->where('organization_id', $financialReport->organization_id)
+                ->whereIn('id', $financialReport->source_transaction_ids ?? [])
+                ->orderBy('transaction_date')
+                ->orderBy('id')
+                ->get();
+        $openingBalance = $financialReport->opening_balance_snapshot !== null
+            ? (float) $financialReport->opening_balance_snapshot
+            : ($financialReport->event_id || ! $financialReport->period_start
+                ? 0.0
+                : $this->openingBalance($financialReport->organization_id, $financialReport->period_start->toDateString()));
         $pdf = $this->pdf->render($financialReport, $transactions, $openingBalance);
 
         return response($pdf['content'], 200, [
@@ -457,10 +489,10 @@ class FinancialReportController extends Controller
     {
         $title = $context['report_title'];
         $statement = $context['income_statement'];
-        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is PHP ".number_format($statement['total_income'], 2).', total expenses are PHP '.number_format($statement['total_expense'], 2).', and net balance is PHP '.number_format($statement['net_balance'], 2).'. The report also includes the latest available OLS forecast, budget-advisory outputs, and '.$context['audit_log_summary']['entry_count'].' financial audit log entry or entries.';
+        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is PHP ".number_format($statement['total_income'], 2).', total expenses are PHP '.number_format($statement['total_expense'], 2).', and net activity is PHP '.number_format($statement['net_balance'], 2).'. Opening balance is PHP '.number_format($statement['opening_balance'], 2).' and closing balance is PHP '.number_format($statement['closing_balance'], 2).'. Verified collections are PHP '.number_format($context['custody_movements']['verified_collections'], 2).' and recorded remittances are PHP '.number_format($context['custody_movements']['recorded_remittances'], 2).'. Remittances are not counted again as income.';
 
         $generated = $this->groq->generate(
-            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, latest OLS forecast when available, budget-advisory results, and audit-log summary. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',
+            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, custody movements, latest OLS forecast when available, budget-advisory results, and audit-log summary. Distinguish period net activity from opening and closing balance. Remittances are custody movements and must never be added to income. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',
             json_encode($context, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
             650,
             0.2,

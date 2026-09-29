@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\FinancialReportPdfService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -127,6 +128,74 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
             'required_role' => 'DEPARTMENT_HEAD',
             'status' => 'pending',
         ]);
+    }
+
+    public function test_report_period_rejects_missing_or_conflicting_filter_fields(): void
+    {
+        $organization = Organization::factory()->create();
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $organization->id]));
+
+        $this->postJson('/api/financial-reports/generate', ['report_type' => 'semester', 'signatories' => $this->signatories()])
+            ->assertUnprocessable()->assertJsonValidationErrors('financial_semester_id');
+        $this->postJson('/api/financial-reports/generate', ['report_type' => 'custom', 'period_start' => '2026-09-01', 'period_end' => '2026-08-01', 'signatories' => $this->signatories()])
+            ->assertUnprocessable()->assertJsonValidationErrors('period_end');
+        $this->postJson('/api/financial-reports/generate', ['report_type' => 'monthly', 'event_id' => 1, 'signatories' => $this->signatories()])
+            ->assertUnprocessable()->assertJsonValidationErrors('event_id');
+    }
+
+    public function test_generated_report_keeps_its_ledger_snapshot_after_a_transaction_changes(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $transaction = $this->createTransaction($organization, $admin, 'Original income');
+        $transaction->update(['transaction_date' => '2026-08-15']);
+        Sanctum::actingAs($admin);
+
+        $generated = $this->postJson('/api/financial-reports/generate', [
+            'report_type' => 'custom', 'period_start' => '2026-08-01', 'period_end' => '2026-08-31',
+            'signatories' => $this->signatories(),
+        ])->assertCreated();
+        $reportId = $generated->json('report.id');
+        $originalAmount = $generated->json('transactions.0.amount');
+        $transaction->update(['amount' => 9999, 'description' => 'Changed after generation']);
+
+        $this->getJson('/api/financial-reports/'.$reportId)
+            ->assertOk()
+            ->assertJsonPath('transactions.0.description', 'Original income')
+            ->assertJsonPath('transactions.0.amount', $originalAmount);
+
+        $pdf = \Mockery::mock(FinancialReportPdfService::class);
+        $pdf->shouldReceive('render')->once()->withArgs(function ($report, $rows, $openingBalance) use ($originalAmount) {
+            $this->assertSame('Original income', $rows->first()->description);
+            $this->assertEquals($originalAmount, $rows->first()->amount);
+            $this->assertSame(0.0, $openingBalance);
+
+            return true;
+        })->andReturn(['content' => '%PDF-test', 'filename' => 'report.pdf']);
+        $this->app->instance(FinancialReportPdfService::class, $pdf);
+        $this->get('/api/financial-reports/'.$reportId.'/pdf')->assertOk()->assertHeader('content-type', 'application/pdf');
+    }
+
+    public function test_report_separates_verified_collections_and_remittances_from_ledger_income(): void
+    {
+        $organization = Organization::factory()->create();
+        $collector = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $verifier = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        Sanctum::actingAs($collector);
+        $collectionId = $this->postJson('/api/collections', ['source' => 'Membership', 'amount_collected' => '850.00'])->assertCreated()->json('id');
+        Sanctum::actingAs($verifier);
+        $this->patchJson('/api/collections/'.$collectionId.'/verify')->assertOk();
+        $this->postJson('/api/collections/'.$collectionId.'/remittances', ['amount' => '700.00'])->assertCreated();
+
+        $report = $this->postJson('/api/financial-reports/generate', [
+            'report_type' => 'monthly', 'signatories' => $this->signatories(),
+        ])->assertCreated()
+            ->assertJsonPath('totals.income', 850)
+            ->assertJsonPath('totals.expense', 0)
+            ->assertJsonPath('custody.verified_collections', 850)
+            ->assertJsonPath('custody.recorded_remittances', 700);
+        $this->assertSame(1, Transaction::where('organization_id', $organization->id)->count());
+        $this->assertSame(700, FinancialReport::findOrFail($report->json('report.id'))->custody_snapshot['recorded_remittances']);
     }
 
     public function test_income_statement_and_financial_report_are_saved_as_separate_documents(): void

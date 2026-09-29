@@ -18,12 +18,12 @@
         .body-copy { margin: 0 0 24px; text-align: justify; }
         .report-table { width: 100%; border-collapse: collapse; font-size: 9px; }
         .report-table th, .report-table td { border: 1px solid #111827; padding: 5px 7px; }
-        .report-table .document-title { background: #fff200; text-align: center; font-size: 10px; }
+        .report-table .document-title { background: #eef6fb; text-align: center; font-size: 10px; }
         .report-table .section { background: #f8fafc; font-weight: 700; }
         .report-table .label { width: 68%; }
         .report-table .amount { width: 32%; text-align: right; font-variant-numeric: tabular-nums; }
         .report-table .total td { font-weight: 700; }
-        .report-table .net-label { background: #111; color: #39ff14; font-weight: 700; text-align: right; }
+        .report-table .net-label { background: #0b1831; color: #fff; font-weight: 700; text-align: right; }
         .report-table .negative { color: #991b1b; }
         .closing { margin-top: 22px; }
         .signatures { margin-top: 34px; page-break-inside: avoid; }
@@ -63,6 +63,15 @@
             <tr class="total"><td class="net-label">NET INCOME</td><td class="amount {{ $periodNet < 0 ? 'negative' : '' }}">PHP {{ number_format($periodNet, 2) }}</td></tr>
         </tbody>
     </table>
+
+    @if ($custody)
+        <p style="margin: 16px 0 4px; font-weight: 700;">COLLECTIONS AND REMITTANCES</p>
+        <p style="margin: 0 0 4px; color: #475569;">Remittances are custody movements and are excluded from net income.</p>
+        <table class="report-table"><tbody>
+            <tr><td>Verified collections</td><td class="amount">PHP {{ number_format($custody['verified_collections'], 2) }}</td></tr>
+            <tr><td>Recorded remittances</td><td class="amount">PHP {{ number_format($custody['recorded_remittances'], 2) }}</td></tr>
+        </tbody></table>
+    @endif
 
     <p class="closing">{{ $letter['closing'] }}</p>
     @include('pdf.partials.signatories')
