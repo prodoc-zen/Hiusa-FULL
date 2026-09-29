@@ -15,6 +15,7 @@ import {
   Vote,
 } from 'lucide-react';
 import Modal from '../../../components/Modal';
+import { isVotingOpen } from '../../../utils/electionAccess';
 import { castVotes } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -105,8 +106,8 @@ export default function CastVotePage({ election: electionOverride = null, refres
     }
   };
 
-  if (election.status !== 'active') {
-    return <div className="mx-auto max-w-2xl rounded-lg border border-[#DDE7EF] bg-white p-8 text-center shadow-sm"><LockKeyhole size={34} className="mx-auto text-[#94A3B8]" /><h2 className="mt-4 text-xl font-black text-[#0F172A]">Voting is closed</h2><p className="mt-2 text-sm text-[#64748B]">This election is not currently accepting ballots.</p></div>;
+  if (!isVotingOpen(election)) {
+    return <div className="mx-auto max-w-2xl rounded-lg border border-[#DDE7EF] bg-white p-8 text-center shadow-sm"><LockKeyhole size={34} className="mx-auto text-[#94A3B8]" /><h2 className="mt-4 text-xl font-black text-[#0F172A]">No election is currently open.</h2><p className="mt-2 text-sm text-[#64748B]">This election is not currently accepting ballots.</p></div>;
   }
 
   if (!hasVoted && votingPeriodRestriction) {

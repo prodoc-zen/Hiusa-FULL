@@ -45,6 +45,7 @@ import TableFilterBar from '../../../components/TableFilterBar';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
+import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
 
 const budgetStatusBadge = {
   pending: 'bg-amber-50 text-amber-700',
@@ -132,21 +133,6 @@ function receiptLabel(transaction) {
   if (transaction.receipt_reference) return transaction.receipt_reference;
   if (transaction.receipt_number) return `Receipt #${transaction.receipt_number}`;
   return null;
-}
-
-function receiptReportRow(receipt) {
-  return {
-    Receipt: receiptLabel(receipt) || `Receipt #${receipt.id}`,
-    Date: formatLedgerDate(receipt.transaction_date),
-    Description: receipt.description || 'Payment transaction',
-    Type: String(receipt.type || '').replace(/_/g, ' ') || 'Not recorded',
-    Category: receipt.category || 'Not recorded',
-    Amount: fmt(receipt.amount),
-    Event: receipt.event?.title || 'Not linked',
-    Budget: receipt.budget?.title || 'Not linked',
-    Payer: personName(receipt.payer, 'Not recorded'),
-    'Recorded by': personName(receipt.recorder, 'Not recorded'),
-  };
 }
 
 function escapeHtml(value) {
@@ -1492,15 +1478,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
                     >
                       <Eye size={14} />
-                      View details
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => printReport([receiptReportRow(receipt)], `${receiptLabel(receipt) || `Receipt #${receipt.id}`} - HIUSA`)}
-                      className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
-                    >
-                      <Printer size={14} />
-                      Print
+                      View Receipt
                     </button>
                   </div>
                 </div>
@@ -1515,42 +1493,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         title={selectedReceipt ? receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}` : 'Receipt details'}
         description="Saved payment record from your personal transaction history."
         onClose={() => setSelectedReceipt(null)}
-        maxWidth="max-w-xl"
+        maxWidth="max-w-3xl"
         footer={selectedReceipt ? (
           <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-            <button type="button" onClick={() => setSelectedReceipt(null)} className="h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Close</button>
+            <button type="button" onClick={() => setSelectedReceipt(null)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Close</button>
             {selectedReceipt.receipt_file_url && (
-              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0]/30 px-4 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Download size={15} /> Open receipt file</a>
+              <a href={resolveAssetUrl(selectedReceipt.receipt_file_url)} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#0B8ED0]/30 px-4 text-sm font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Download size={15} /> Open receipt file</a>
             )}
-            <button type="button" onClick={() => printReport([receiptReportRow(selectedReceipt)], `${receiptLabel(selectedReceipt) || `Receipt #${selectedReceipt.id}`} - HIUSA`)} className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><Printer size={15} /> Print receipt</button>
+            <button type="button" onClick={() => printReceiptElement(document.querySelector('[data-finance-receipt] [data-receipt-document]'))} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><Printer size={15} /> Print receipt</button>
           </div>
         ) : null}
       >
-        {selectedReceipt && (
-          <div className="space-y-4">
-            <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
-              <p className="text-[11px] font-bold uppercase tracking-wider text-[#64748B]">Amount</p>
-              <p className="mt-1 text-2xl font-black tabular-nums text-[#0F172A]">{fmt(selectedReceipt.amount)}</p>
-              <p className="mt-1 text-sm font-semibold text-[#64748B]">{selectedReceipt.description || 'Payment transaction'}</p>
-            </div>
-            <dl className="grid gap-x-5 gap-y-4 sm:grid-cols-2">
-              {Object.entries({
-                Date: formatLedgerDate(selectedReceipt.transaction_date),
-                Type: String(selectedReceipt.type || 'Not recorded').replace(/_/g, ' '),
-                Category: selectedReceipt.category || 'Not recorded',
-                Event: selectedReceipt.event?.title || 'Not linked',
-                Budget: selectedReceipt.budget?.title || 'Not linked',
-                Payer: personName(selectedReceipt.payer, 'Not recorded'),
-                'Recorded by': personName(selectedReceipt.recorder, 'Not recorded'),
-              }).map(([label, value]) => (
-                <div key={label}>
-                  <dt className="text-[11px] font-bold uppercase tracking-wide text-[#94A3B8]">{label}</dt>
-                  <dd className="mt-1 break-words text-sm font-semibold capitalize text-[#0F172A]">{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-        )}
+        {selectedReceipt && <div data-finance-receipt><ReceiptDocument transaction={selectedReceipt} /></div>}
       </Modal>
 
       {activeTab === 'invoices' && (

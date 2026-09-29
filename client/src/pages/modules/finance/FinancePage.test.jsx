@@ -141,9 +141,9 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="receipts" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'View details' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'View Receipt' }));
     const dialog = screen.getByRole('dialog');
-    expect(within(dialog).getByRole('heading', { name: 'HIUSA-1-00000009' })).toBeInTheDocument();
+    expect(within(dialog).getAllByText('HIUSA-1-00000009').length).toBeGreaterThan(0);
     expect(within(dialog).getByText('General Assembly')).toBeInTheDocument();
     expect(within(dialog).getByText('Operating Budget')).toBeInTheDocument();
     expect(within(dialog).getByText('Ana Reyes')).toBeInTheDocument();

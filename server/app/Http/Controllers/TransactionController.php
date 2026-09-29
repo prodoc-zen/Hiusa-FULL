@@ -213,6 +213,11 @@ class TransactionController extends Controller
         $userId = $request->user()->id;
 
         $receipts = Transaction::with([
+            'organization:id,name',
+            'merchandiseOrder' => fn ($query) => $query
+                ->where('organization_id', $request->user()->organization_id)
+                ->select(['id', 'transaction_id', 'payment_method', 'approved_by']),
+            'merchandiseOrder.approver:school_id,first_name,last_name',
             'budget:id,title',
             'event:id,title',
             'recorder:school_id,first_name,last_name',

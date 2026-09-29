@@ -3,6 +3,7 @@ import { useOutletContext } from 'react-router-dom';
 import { Award, BarChart3, Trophy, UsersRound, Vote } from 'lucide-react';
 import { getElectionResults } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
+import { canViewElectionResults } from '../../../utils/electionAccess';
 
 function CandidatePortrait({ candidate, name, className = 'h-12 w-12' }) {
   if (candidate.image_url) return <img src={resolveAssetUrl(candidate.image_url)} alt={name} className={`${className} shrink-0 rounded-lg border border-[#DDE7EF] object-cover`} />;
@@ -11,12 +12,12 @@ function CandidatePortrait({ candidate, name, className = 'h-12 w-12' }) {
 }
 
 export default function ElectionResultsPage() {
-  const { election } = useOutletContext();
+  const { election, role } = useOutletContext();
   const [positionFilter, setPositionFilter] = useState('all');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const electionIsClosed = election?.status === 'closed';
+  const electionIsClosed = canViewElectionResults(election, role);
 
   useEffect(() => {
     let cancelled = false;
@@ -43,7 +44,7 @@ export default function ElectionResultsPage() {
   }, [results]);
 
   if (!election) return <div className="py-20 text-center text-sm text-[#64748B]">Election not found.</div>;
-  if (!electionIsClosed) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center"><Trophy size={36} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-black text-amber-900">Official results are not available yet</h2><p className="mt-2 text-sm font-medium text-amber-800">Final winners and vote totals appear after the election closes.</p></div>;
+  if (!electionIsClosed) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center"><Trophy size={36} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-black text-amber-900">Election results are not available yet.</h2><p className="mt-2 text-sm font-medium text-amber-800">Final winners and vote totals appear after the election closes and results are released.</p></div>;
   if (loading) return <div className="space-y-4" role="status" aria-label="Loading election results"><div className="h-72 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />{[1, 2].map((item) => <div key={item} className="h-64 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading election results...</span></div>;
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div>;
 

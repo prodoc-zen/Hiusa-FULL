@@ -65,5 +65,8 @@ export const discardEventWorkflow = (eventId, outputId) =>
 export const getAttendance = (id, params) =>
   api.get(`/events/${id}/attendance`, { params });
 
+export const getPersonalAttendance = (params) =>
+  api.get('/attendance/personal-summary', { params });
+
 export const recordAttendance = (id, data) =>
   api.post(`/events/${id}/attendance`, data);

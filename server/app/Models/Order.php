@@ -30,6 +30,11 @@ class Order extends Model
         return $this->belongsTo(User::class, 'student_id', 'school_id');
     }
 
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
     public function merchandise(): BelongsTo
     {
         return $this->belongsTo(Merchandise::class);

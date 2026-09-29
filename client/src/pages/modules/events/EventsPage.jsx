@@ -30,6 +30,7 @@ import Modal from '../../../components/Modal';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
+import PersonalAttendanceSummary from '../../../components/events/PersonalAttendanceSummary';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIsoDateTimes } from '../../../utils/dateTime';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
@@ -1252,6 +1253,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'attendance' && (
         <section aria-labelledby="attendance-workspace-title" className="space-y-4">
+          {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
           <header className="overflow-hidden rounded-lg bg-[#0B1831] text-white shadow-sm">
             <div className="flex flex-col gap-5 px-5 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
               <div className="max-w-2xl">

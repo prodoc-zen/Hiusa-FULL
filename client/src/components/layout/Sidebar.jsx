@@ -60,7 +60,7 @@ const NAV_STRUCTURE = [
     children: [
       { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
@@ -125,12 +125,10 @@ const NAV_STRUCTURE = [
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
       { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
-      { id: 'gcash-payment', label: 'GCash Payment QR', path: '/dashboard/merchandise/gcash-payment', roles: ['ADMIN'] },
       { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'claim-tokens', label: 'Validate Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
       { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
-      { id: 'student-claim-tokens', label: 'Claim Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
 ];
