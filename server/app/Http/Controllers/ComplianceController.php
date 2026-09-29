@@ -337,21 +337,50 @@ class ComplianceController extends Controller
 
     public function reviewSubmission(Request $request, OrganizationComplianceSubmission $submission)
     {
-        if ($submission->status !== 'submitted') {
-            return response()->json(['message' => 'Only a pending submission can be reviewed.'], 409);
-        }
-
         $data = $request->validate([
             'status' => ['required', 'in:approved,returned'],
             'remarks' => ['nullable', 'string', 'max:3000', 'required_if:status,returned'],
+            'submitted_at' => ['required', 'date'],
         ]);
 
-        $submission->update([
-            'status' => $data['status'],
-            'remarks' => $data['remarks'] ?? null,
-            'reviewed_by' => $request->user()->school_id,
-            'reviewed_at' => now(),
-        ]);
+        // The pending check and the update must happen against the same
+        // locked read: otherwise an admin's resubmission can commit a new
+        // "submitted" state (and a new document) between this request's
+        // route binding and its write, and this review would approve or
+        // return a version the SAO never actually looked at. Requiring the
+        // submitted_at the reviewer saw catches that even when the
+        // resubmission lands within the same status value.
+        $reviewerId = $request->user()->school_id;
+        $result = DB::transaction(function () use ($submission, $data, $reviewerId) {
+            $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->first();
+
+            if (! $locked || $locked->status !== 'submitted') {
+                return ['error' => 'not_pending'];
+            }
+
+            if (! $locked->submitted_at || ! $locked->submitted_at->equalTo($data['submitted_at'])) {
+                return ['error' => 'stale'];
+            }
+
+            $locked->update([
+                'status' => $data['status'],
+                'remarks' => $data['remarks'] ?? null,
+                'reviewed_by' => $reviewerId,
+                'reviewed_at' => now(),
+            ]);
+
+            return ['submission' => $locked];
+        });
+
+        if (isset($result['error'])) {
+            return response()->json([
+                'message' => $result['error'] === 'stale'
+                    ? 'This submission was resubmitted after you loaded it. Refresh and review the latest version.'
+                    : 'Only a pending submission can be reviewed.',
+            ], 409);
+        }
+
+        $submission = $result['submission'];
 
         AuditLog::create([
             'organization_id' => $submission->organization_id,
