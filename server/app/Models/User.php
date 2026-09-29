@@ -8,7 +8,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\HasApiTokens;
+use Illuminate\Support\Facades\Storage;
 
 class User extends Authenticatable
 {
@@ -51,6 +53,12 @@ class User extends Authenticatable
                     'position_title' => $user->getAttributes()['position_title'] ?? null,
                 ]);
         });
+
+        static::deleted(function (User $user): void {
+            if ($user->photo_path) {
+                DB::afterCommit(fn () => Storage::disk('public')->delete($user->photo_path));
+            }
+        });
     }
 
     protected $fillable = [
@@ -72,16 +80,23 @@ class User extends Authenticatable
         'year_level',
         'major',
         'section',
+        'photo_path',
     ];
 
     protected $with = ['organization:id,name,slug,college,acronym,parent_organization_id'];
 
-    protected $appends = ['id'];
+    protected $appends = ['id', 'photo_url'];
 
     protected $hidden = [
         'password_hash',
         'biometric_template',
+        'photo_path',
     ];
+
+    public function getPhotoUrlAttribute(): ?string
+    {
+        return $this->photo_path ? Storage::disk('public')->url($this->photo_path) : null;
+    }
 
     protected function casts(): array
     {

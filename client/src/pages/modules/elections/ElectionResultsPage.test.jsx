@@ -2,11 +2,11 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ElectionResultsPage from './ElectionResultsPage';
 
-const getElectionResults = vi.hoisted(() => vi.fn());
+const { getElectionResults, electionContext } = vi.hoisted(() => ({ getElectionResults: vi.fn(), electionContext: { election: { id: 5, title: 'Final Council Election', status: 'closed', results_visible: true }, role: 'STUDENT' } }));
 
 vi.mock('../../../services/electionService', () => ({ getElectionResults }));
 vi.mock('react-router-dom', () => ({
-  useOutletContext: () => ({ election: { id: 5, title: 'Final Council Election', status: 'closed' } }),
+  useOutletContext: () => electionContext,
 }));
 
 describe('ElectionResultsPage', () => {
@@ -25,5 +25,14 @@ describe('ElectionResultsPage', () => {
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
     expect(screen.getByText('63%')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'President' })).toBeInTheDocument();
+  });
+
+  it('does not request unreleased results', () => {
+    getElectionResults.mockClear();
+    electionContext.election.results_visible = false;
+    render(<ElectionResultsPage />);
+    expect(screen.getByText('Election results are not available yet.')).toBeInTheDocument();
+    expect(getElectionResults).not.toHaveBeenCalled();
+    electionContext.election.results_visible = true;
   });
 });

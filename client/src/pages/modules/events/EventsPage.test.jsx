@@ -7,6 +7,7 @@ const eventMocks = vi.hoisted(() => ({
   getEvents: vi.fn(),
   getEvent: vi.fn(),
   getAttendance: vi.fn(),
+  getPersonalAttendance: vi.fn(),
   recordAttendance: vi.fn(),
   generateEventPlan: vi.fn(),
   getEventWorkflowHistory: vi.fn(),
@@ -59,6 +60,7 @@ describe('EventsPage approval-request launch', () => {
     vi.clearAllMocks();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     eventMocks.getEvents.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    eventMocks.getPersonalAttendance.mockResolvedValue({ data: { summary: { attended: 0, missed: 0, rate: null }, records: [], pagination: { current_page: 1, per_page: 10, total: 0 } } });
     eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [] });
     userMocks.getUsers.mockResolvedValue({ data: [], current_page: 1, last_page: 1, total: 0, per_page: 100 });
     userMocks.getAcademicStructure.mockResolvedValue({ department: 'College of Computer Studies', programs: [] });

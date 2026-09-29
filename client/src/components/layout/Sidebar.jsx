@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, FileText, Home, LogOut, Megaphone, Package, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users, Vote, X } from 'lucide-react';
+import { Building2, CalendarDays, CheckSquare, ChevronDown, ClipboardCheck, Coins, FileText, Home, LogOut, Megaphone, Package, PanelLeftClose, PanelLeftOpen, ShieldCheck, Users, Vote, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
@@ -60,7 +60,7 @@ const NAV_STRUCTURE = [
     children: [
       { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
@@ -96,6 +96,7 @@ const NAV_STRUCTURE = [
     roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
     children: [
       { id: 'financial-ledger', label: 'Financial Oversight', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN'] },
+      { id: 'collections', label: 'Collections & Remittances', path: '/dashboard/finance/collections', roles: ['ADMIN'] },
       { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
       { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['ADMIN'] },
       { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['ADMIN'] },
@@ -124,12 +125,10 @@ const NAV_STRUCTURE = [
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
       { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
-      { id: 'gcash-payment', label: 'GCash Payment QR', path: '/dashboard/merchandise/gcash-payment', roles: ['ADMIN'] },
       { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'claim-tokens', label: 'Validate Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
       { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
-      { id: 'student-claim-tokens', label: 'Claim Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
 ];
@@ -147,6 +146,7 @@ const SUPER_ADMIN_NAV = [
     roles: ['SUPER_ADMIN'],
     children: [
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-colleges', label: 'Colleges', path: '/dashboard/super-admin/colleges', roles: ['SUPER_ADMIN'], icon: Building2 },
       { id: 'sao-event-requirements', label: 'Event Requirements', path: '/dashboard/super-admin/event-requirements', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'Official Notices', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },

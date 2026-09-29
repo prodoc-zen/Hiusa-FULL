@@ -7,6 +7,8 @@ function toFormData(data) {
   const fd = new FormData();
   Object.entries(data).forEach(([k, v]) => {
     if (k === 'imageFile') { if (v) fd.append('image', v); }
+    else if (k === 'variantImages') { (v || []).forEach((file, index) => { if (file) fd.append(`variant_images[${index}]`, file); }); }
+    else if (k === 'variants') { fd.append('variants', JSON.stringify(v || [])); }
     else if (v !== undefined && v !== null) {
       if (typeof v === 'boolean') {
         fd.append(k, v ? '1' : '0');
@@ -30,8 +32,11 @@ export const updateItem = (id, data) => {
 export const deleteItem = (id) =>
   api.delete(`/merchandise/${id}`);
 
-export const adjustStock = (id, stock_delta) =>
-  api.patch(`/merchandise/${id}/stock`, { stock_delta });
+export const adjustStock = (id, stock_delta, note, variant_id) =>
+  api.patch(`/merchandise/${id}/stock`, { stock_delta, note, variant_id });
+
+export const getMerchandiseAuditLogs = (id) =>
+  api.get(`/merchandise/${id}/audit-logs`);
 
 export const getGcashSettings = () => api.get('/merchandise/gcash-settings');
 

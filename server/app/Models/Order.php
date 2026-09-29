@@ -18,6 +18,8 @@ class Order extends Model
     {
         return [
             'total_price' => 'decimal:2',
+            'unit_price' => 'decimal:2',
+            'promotion_applied' => 'boolean',
             'claimed_at' => 'datetime',
             'claim_verified_at' => 'datetime',
         ];
@@ -28,9 +30,19 @@ class Order extends Model
         return $this->belongsTo(User::class, 'student_id', 'school_id');
     }
 
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class);
+    }
+
     public function merchandise(): BelongsTo
     {
         return $this->belongsTo(Merchandise::class);
+    }
+
+    public function variant(): BelongsTo
+    {
+        return $this->belongsTo(MerchandiseVariant::class, 'merchandise_variant_id');
     }
 
     public function processor(): BelongsTo

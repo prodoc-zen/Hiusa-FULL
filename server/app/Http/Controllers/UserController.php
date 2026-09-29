@@ -90,6 +90,20 @@ class UserController extends Controller
             ->groupBy('membership.role')
             ->pluck('aggregate', 'role');
 
+        $sectionCounts = (clone $query)
+            ->reorder()
+            ->where('membership.role', 'STUDENT')
+            ->whereNotNull('users.section')
+            ->where('users.section', '!=', '')
+            ->select('users.program', 'users.year_level', 'users.section')
+            ->selectRaw('count(*) as total')
+            ->groupBy('users.program', 'users.year_level', 'users.section')
+            ->orderBy('users.program')
+            ->orderBy('users.year_level')
+            ->orderBy('users.section')
+            ->toBase()
+            ->get();
+
         $paginated = $query
             ->orderBy('users.last_name')
             ->orderBy('users.first_name')
@@ -100,7 +114,7 @@ class UserController extends Controller
 
         return response()->json([
             ...$paginated->toArray(),
-            'summary' => ['by_role' => $roleCounts],
+            'summary' => ['by_role' => $roleCounts, 'by_section' => $sectionCounts],
         ]);
     }
 

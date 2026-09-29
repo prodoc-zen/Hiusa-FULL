@@ -20,6 +20,7 @@ class Merchandise extends Model
     {
         return [
             'price' => 'decimal:2',
+            'promotion_price' => 'decimal:2',
             'is_active' => 'boolean',
         ];
     }
@@ -27,5 +28,10 @@ class Merchandise extends Model
     public function orders(): HasMany
     {
         return $this->hasMany(Order::class);
+    }
+
+    public function variants(): HasMany
+    {
+        return $this->hasMany(MerchandiseVariant::class);
     }
 }
