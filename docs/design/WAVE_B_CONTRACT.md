@@ -13,6 +13,16 @@ Binding for every Wave B builder. It fixes routes, roles, file ownership and API
 - Build output: run `npx vite build --outDir <your scratch folder>/dist` (never the shared `client/dist`) so parallel builders do not collide.
 - Git: other builders share this working tree. Commit only by exact paths, retry on `index.lock`, prefix `feat(<area>):`, end every message with exactly `Co-Authored-By: John Carlo Borgueta <johncarloborgueta@gmail.com>` and no AI attribution. Do not push. No em dashes anywhere.
 
+## Collaborator work to build on, not around (merged 2026-09-29, commit 156c7b2)
+
+The collaborator is actively shipping. Preserve their features and structure; extend them. Never delete, rename or restructure their components, and never revert their decisions. Where a Wave B page overlaps theirs, compose their pieces into the new layout.
+
+- `AdminHomePage.jsx` was rewritten on the new `AdminDashboardController` (`services/adminDashboardService.js`), with `components/users/ClassListImportPanel.jsx` (bulk class-list import) and `components/users/SectionDistributionChart.jsx`. The ADMIN briefing must keep every capability of that page (import panel, section distribution, whatever else it shows), adding the briefing parts around it.
+- New pages exist: `pages/roles/super-admin/SystemCollegesPage.jsx` (`super-admin/colleges`, SUPER_ADMIN), `pages/modules/finance/FinancialCollectionsPage.jsx` (`finance/collections`, ADMIN). The shell nav must include them.
+- New components to reuse where relevant: `components/events/PersonalAttendanceSummary.jsx` (a student's own attendance), `components/receipts/ReceiptDocument.jsx`, `components/users/UserIdentityCard.jsx` (user photos now exist: prefer photos over initials in Avatar where available).
+- They edited `components/layout/Sidebar.jsx`, `TopBar.jsx`, `DashboardLayout.jsx`, `ConfirmModal.jsx`, `Modal.jsx` and `index.css`: read their current versions first and keep their changes.
+- Merchandise claim tokens now route by role (`MerchandiseClaimTokensRoute` in App.jsx); GCash settings redirect into manage orders.
+
 ## New client routes (wired by the integration step, not by page builders)
 
 All paths are under `/dashboard`. Page file paths are fixed so the integration step can import them.
@@ -39,8 +49,8 @@ Role home pages keep their existing paths and files: `super-admin` (`pages/roles
 
 Group navigation by the six study areas plus governance, per role, using `lib/pillars.js` icons. New entries per role:
 
-- SUPER_ADMIN: Governance group: Organizations, Admins, Compliance, Venues, Grievances, Clearances, Evaluation, Event requirements, Financial reports, University announcements, Notifications; plus Study objectives.
-- ADMIN: add Compliance, Venues, Grievances, Clearances, Evaluation, Study objectives.
+- SUPER_ADMIN: Governance group: Organizations, Colleges, Admins, Compliance, Venues, Grievances, Clearances, Evaluation, Event requirements, Financial reports, University announcements, Notifications; plus Study objectives.
+- ADMIN: add Finance collections (existing route), Compliance, Venues, Grievances, Clearances, Evaluation, Study objectives.
 - SBO_OFFICER: add Venues, Clearances, Evaluation, Study objectives.
 - DEPARTMENT_HEAD: add Evaluation, Study objectives.
 - STUDENT: add My grievances, My clearance, Evaluation, Study objectives.
