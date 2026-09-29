@@ -53,7 +53,7 @@ const pageTitles = {
   '/dashboard/elections/election-results': 'Election Results',
   '/dashboard/merchandise': 'Merchandise',
   '/dashboard/merchandise/manage-inventory': 'Inventory',
-  '/dashboard/merchandise/gcash-payment': 'GCash Payment QR',
+  '/dashboard/merchandise/gcash-payment': 'Manage Orders',
   '/dashboard/merchandise/manage-orders': 'Manage Orders',
   '/dashboard/merchandise/claim-tokens': 'Claim Tokens',
   '/dashboard/merchandise/order-merchandise': 'Order Merchandise',

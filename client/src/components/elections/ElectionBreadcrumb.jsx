@@ -1,6 +1,7 @@
 import { CalendarDays, ChevronLeft, LayoutDashboard, ListChecks, Trophy, UserRoundCheck, UsersRound, Vote } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { resolveAssetUrl } from '../../utils/assetUrl';
+import { canViewElectionResults, isVotingOpen } from '../../utils/electionAccess';
 
 const statusStyles = {
   pending_approval: 'bg-amber-50 text-amber-700 border-amber-200',
@@ -32,8 +33,8 @@ export default function ElectionBreadcrumb({ election, onClear }) {
     { label: 'Candidates', path: '/dashboard/elections/manage-candidates', icon: UserRoundCheck, roles: ['ADMIN', 'SBO_OFFICER'] },
     { label: 'Party Lists', path: '/dashboard/elections/manage-partylists', icon: UsersRound, roles: ['ADMIN'] },
     { label: 'Voters', path: '/dashboard/elections/manage-voters', icon: ListChecks, roles: ['SBO_OFFICER'] },
-    { label: 'Cast Vote', path: '/dashboard/elections/cast-vote', icon: Vote, roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
-    { label: 'Results', path: '/dashboard/elections/election-results', icon: Trophy, roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+    { label: 'Cast Vote', path: '/dashboard/elections/cast-vote', icon: Vote, roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'], available: isVotingOpen(election), reason: 'Voting opens during the approved election period.' },
+    { label: 'Results', path: '/dashboard/elections/election-results', icon: Trophy, roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'], available: canViewElectionResults(election, role), reason: 'Results appear after the election closes and is released.' },
   ].filter((tab) => tab.roles.includes(role));
 
   return (
@@ -74,7 +75,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
 
       <nav aria-label="Election workspace" className="overflow-x-auto border-t border-[#DDE7EF] bg-[#F8FBFD]">
         <div className="flex min-w-max px-2 sm:px-3">
-          {tabs.map((tab) => (
+          {tabs.map((tab) => tab.available === false ? <span key={tab.path} aria-disabled="true" title={tab.reason} className="inline-flex h-12 cursor-not-allowed items-center gap-2 border-b-2 border-transparent px-3 text-xs font-bold text-slate-400 sm:px-4 sm:text-sm"><tab.icon size={15} />{tab.label}<span className="sr-only">: {tab.reason}</span></span> : (
             <NavLink key={tab.path} to={tab.path} className={({ isActive: tabActive }) => `inline-flex h-12 items-center gap-2 border-b-2 px-3 text-xs font-bold transition sm:px-4 sm:text-sm ${tabActive ? 'border-[#0B8ED0] bg-white text-[#0878B7]' : 'border-transparent text-[#64748B] hover:text-[#0F172A]'}`}>
               <tab.icon size={15} />
               {tab.label}

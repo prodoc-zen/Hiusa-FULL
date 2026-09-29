@@ -32,6 +32,7 @@ class OrderController extends Controller
         $filters = $this->validateOrderFilters($request);
 
         $query = Order::with([
+            'organization:id,name',
             'merchandise:id,name,category,price,image_url',
             'variant:id,name,image_url',
             'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title,account_status',
@@ -587,7 +588,7 @@ class OrderController extends Controller
 
         $data = $request->validate([
             'status' => ['required', 'in:paid,cancelled'],
-            'review_remarks' => ['nullable', 'string', 'required_if:status,cancelled'],
+            'review_remarks' => ['nullable', 'string', 'max:1000', 'required_if:status,cancelled'],
             'verified_amount' => ['nullable', 'numeric', 'min:0.01'],
         ]);
 
@@ -826,6 +827,39 @@ class OrderController extends Controller
             'student:school_id,first_name,last_name',
             'claimVerifier:school_id,first_name,last_name',
         ]));
+    }
+
+    public function verifyClaimToken(Request $request)
+    {
+        $data = $request->validate([
+            'claim_token' => ['required', 'string', 'regex:/^[A-Za-z0-9]{16}$/'],
+        ]);
+
+        $order = Order::with([
+            'organization:id,name',
+            'merchandise:id,name,category,price,image_url',
+            'variant:id,name,image_url',
+            'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title',
+            'processor:school_id,first_name,last_name',
+            'approver:school_id,first_name,last_name',
+            'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
+        ])->where('organization_id', $request->user()->organization_id)
+            ->where('claim_token', strtoupper($data['claim_token']))
+            ->first();
+
+        if (! $order) {
+            return response()->json(['message' => 'Invalid claim token.'], 404);
+        }
+
+        if ($order->status === 'claimed') {
+            return response()->json(['message' => 'This token has already been used.'], 409);
+        }
+
+        if ($order->status !== 'paid') {
+            return response()->json(['message' => "Order cannot be claimed. Current status: {$order->status}."], 422);
+        }
+
+        return response()->json($order);
     }
 
     private function storePaymentProof(Request $request): string

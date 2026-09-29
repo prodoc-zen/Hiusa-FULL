@@ -123,6 +123,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::get('/attendance/personal-summary', [EventController::class, 'personalAttendance'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/event-requirements', [EventRequirementController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/event-requirements', [EventRequirementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/event-requirements/order', [EventRequirementController::class, 'reorder'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -216,6 +217,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/{id}/audit-logs', [OrderController::class, 'auditHistory'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/orders/claim', [OrderController::class, 'claimByToken'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/orders/claim/verify', [OrderController::class, 'verifyClaimToken'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/analytics/users', [OrderController::class, 'analyticsUsers'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/export', [OrderController::class, 'export'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/{id}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);

@@ -1,19 +1,21 @@
 import { useEffect, useState } from 'react';
-import { Outlet, useNavigate } from 'react-router-dom';
+import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ElectionBreadcrumb from '../../../components/elections/ElectionBreadcrumb';
 import ElectionPickerPage from './ElectionPickerPage';
 import { getElectionDetails } from '../../../services/electionService';
 
 export default function ElectionsHub({ startCreateElection = false }) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [activeElection, setActiveElection] = useState(null);
   const [loading, setLoading] = useState(true);
 
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const role = currentUser?.role || 'SBO_OFFICER';
+  const selectionKey = `hiusa-election-${currentUser?.organization_id ?? 'organization'}-${currentUser?.school_id ?? 'user'}`;
 
-  const [activeElectionId, setActiveElectionId] = useState(null);
+  const [activeElectionId, setActiveElectionId] = useState(() => sessionStorage.getItem(selectionKey));
 
   useEffect(() => {
     let cancelled = false;
@@ -34,6 +36,8 @@ export default function ElectionsHub({ startCreateElection = false }) {
       } catch {
         if (!cancelled) {
           setActiveElection(null);
+          sessionStorage.removeItem(selectionKey);
+          setActiveElectionId(null);
         }
       } finally {
         if (!cancelled) {
@@ -47,7 +51,7 @@ export default function ElectionsHub({ startCreateElection = false }) {
     return () => {
       cancelled = true;
     };
-  }, [activeElectionId]);
+  }, [activeElectionId, selectionKey]);
 
   const refreshElection = async () => {
     if (!activeElectionId) return;
@@ -61,10 +65,12 @@ export default function ElectionsHub({ startCreateElection = false }) {
   };
 
   const handleSelect = (id) => {
+    sessionStorage.setItem(selectionKey, String(id));
     setActiveElectionId(id);
   };
 
   const handleClear = () => {
+    sessionStorage.removeItem(selectionKey);
     setActiveElectionId(null);
     navigate('/dashboard/elections');
   };
@@ -85,7 +91,9 @@ export default function ElectionsHub({ startCreateElection = false }) {
   }
 
   if (!activeElection) {
-    return <ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} />;
+    const askingToVote = location.pathname.endsWith('/cast-vote');
+    const askingForResults = location.pathname.endsWith('/election-results');
+    return <div className="space-y-4">{(askingToVote || askingForResults) && <div className="relative overflow-hidden rounded-lg border border-[#DDE7EF] bg-white p-6 text-center"><div aria-hidden="true" className="pointer-events-none h-20 rounded-lg bg-[#EEF6FB] opacity-40 blur-sm" /><div className="absolute inset-0 grid place-items-center bg-white/70 p-4"><div><h2 className="text-lg font-black text-[#0F172A]">{askingToVote ? 'No election is currently open.' : 'Election results are not available yet.'}</h2><p className="mt-1 text-sm text-[#64748B]">{askingToVote ? 'Select an open election when voting begins.' : 'Select a closed election with released results to view them.'}</p></div></div></div>}<ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} /></div>;
   }
 
   return (

@@ -6,6 +6,7 @@ import MerchandisePage from "./MerchandisePage";
 const merchandiseMocks = vi.hoisted(() => ({
   getMerchandise: vi.fn(),
   getGcashSettings: vi.fn(),
+  uploadGcashQr: vi.fn(),
   adjustStock: vi.fn(),
   getMerchandiseAuditLogs: vi.fn(),
 }));
@@ -13,6 +14,9 @@ const orderMocks = vi.hoisted(() => ({
   getOrders: vi.fn(),
   cancelOrder: vi.fn(),
   placeOrder: vi.fn(),
+  verifyClaimToken: vi.fn(),
+  claimByToken: vi.fn(),
+  updateOrderStatus: vi.fn(),
 }));
 
 vi.mock("../../../services/merchandiseService", () => ({
@@ -32,8 +36,9 @@ vi.mock("../../../services/orderService", () => ({
   openOrderPaymentProof: vi.fn(),
   placeOrder: orderMocks.placeOrder,
   submitOrderPayment: vi.fn(),
-  updateOrderStatus: vi.fn(),
-  claimByToken: vi.fn(),
+  updateOrderStatus: orderMocks.updateOrderStatus,
+  claimByToken: orderMocks.claimByToken,
+  verifyClaimToken: orderMocks.verifyClaimToken,
 }));
 
 vi.mock("../../../services/pagination", () => ({
@@ -164,6 +169,16 @@ describe("MerchandisePage buyer experience", () => {
     fireEvent.click(screen.getByRole("button", { name: "Next image" }));
     expect(screen.getByRole("img", { name: "HIUSA Shirt image 2" })).toBeInTheDocument();
   });
+
+  it("opens My Cart from the metric and shows a printable claim ticket in My Orders", async () => {
+    const paidOrder = { id: 29, merchandise: products[0], quantity: 1, total_price: "350.00", status: "paid", claim_token: "CLAIMTOKEN123456", created_at: "2026-09-13T10:00:00Z" };
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([paidOrder]) });
+    render(<MemoryRouter><MerchandisePage initialTab="my-orders" /></MemoryRouter>);
+    expect(await screen.findByText(/Merchandise claim ticket/)).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Print ticket" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /My Cart/ }));
+    expect(await screen.findByText("Your cart is empty.")).toBeInTheDocument();
+  });
 });
 
 describe("MerchandisePage fulfillment experience", () => {
@@ -230,6 +245,7 @@ describe("MerchandisePage fulfillment experience", () => {
       data: { data: products, current_page: 1, last_page: 1 },
     });
     orderMocks.getOrders.mockResolvedValue(managerOrdersResponse());
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
   });
 
   it("shows an approved order's claim token in the modern order queue", async () => {
@@ -259,6 +275,34 @@ describe("MerchandisePage fulfillment experience", () => {
         expect.objectContaining({ status: "paid", sort: "oldest" }),
       ),
     );
+  });
+
+  it("previews a token before the officer can release the order", async () => {
+    orderMocks.verifyClaimToken.mockResolvedValue({ data: paidOrder });
+    orderMocks.claimByToken.mockResolvedValue({ data: { ...paidOrder, status: "claimed" } });
+    render(<MemoryRouter><MerchandisePage initialTab="tokens" /></MemoryRouter>);
+    fireEvent.change(await screen.findByLabelText("16-character claim token"), { target: { value: paidOrder.claim_token } });
+    fireEvent.click(screen.getByRole("button", { name: "Claim" }));
+    await waitFor(() => expect(orderMocks.verifyClaimToken).toHaveBeenCalledWith(paidOrder.claim_token));
+    expect(orderMocks.claimByToken).not.toHaveBeenCalled();
+    expect(await screen.findByText("Verify purchaser and release")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm Claim / Release" }));
+    await waitFor(() => expect(orderMocks.claimByToken).toHaveBeenCalledWith(paidOrder.claim_token));
+  });
+
+  it("shows purchaser and order details before payment approval", async () => {
+    const pendingOrder = { ...paidOrder, status: "pending", claim_token: null, unit_price: "250.00", total_price: "250.00", payment_method: "cash" };
+    const response = managerOrdersResponse();
+    response.data.data = [pendingOrder];
+    orderMocks.getOrders.mockResolvedValue(response);
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click((await screen.findAllByRole("button", { name: /^Approve/ }))[0]);
+    expect(orderMocks.updateOrderStatus).not.toHaveBeenCalled();
+    const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
+    expect(dialog).toHaveTextContent("Rafael Aquino");
+    expect(dialog).toHaveTextContent("BS Information Technology");
+    expect(dialog).toHaveTextContent("250.00");
+    expect(dialog).toHaveTextContent("ORD-28");
   });
 
   it("shows inventory top sellers from paid sales and requires a stock note", async () => {

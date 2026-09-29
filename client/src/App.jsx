@@ -31,7 +31,6 @@ const StudentFinancialAccountsPage = lazy(() => import('./pages/modules/finance/
 const EventsPage = lazy(() => import('./pages/modules/events/EventsPage'));
 const TasksPage = lazy(() => import('./pages/modules/tasks/TasksPage'));
 const MerchandisePage = lazy(() => import('./pages/modules/merchandise/MerchandisePage'));
-const GcashPaymentSettingsPage = lazy(() => import('./pages/modules/merchandise/GcashPaymentSettingsPage'));
 const ManageAnnouncementsPage = lazy(() => import('./pages/modules/announcements/ManageAnnouncementsPage'));
 const CreateAnnouncementPage = lazy(() => import('./pages/modules/announcements/CreateAnnouncementPage'));
 const AnnouncementsFeedPage = lazy(() => import('./pages/modules/announcements/AnnouncementsFeedPage'));
@@ -154,6 +153,14 @@ function MerchandiseIndexRedirect() {
   return <Navigate to="order-merchandise" replace />;
 }
 
+function MerchandiseClaimTokensRoute() {
+  const role = getStoredRole();
+  if (role === 'ADMIN' || role === 'SBO_OFFICER') {
+    return <MerchandisePage initialTab="tokens" />;
+  }
+  return <Navigate to="/dashboard/merchandise/my-orders" replace />;
+}
+
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
@@ -245,9 +252,9 @@ function App() {
           <Route path="merchandise">
             <Route index element={<MerchandiseIndexRedirect />} />
             <Route path="manage-inventory" element={<ProtectedRoute allowedRoles={["ADMIN"]}><MerchandisePage initialTab="inventory" /></ProtectedRoute>} />
-            <Route path="gcash-payment" element={<ProtectedRoute allowedRoles={["ADMIN"]}><GcashPaymentSettingsPage /></ProtectedRoute>} />
+            <Route path="gcash-payment" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/merchandise/manage-orders" replace /></ProtectedRoute>} />
             <Route path="manage-orders" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><MerchandisePage initialTab="orders" /></ProtectedRoute>} />
-            <Route path="claim-tokens" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><MerchandisePage initialTab="tokens" /></ProtectedRoute>} />
+            <Route path="claim-tokens" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><MerchandiseClaimTokensRoute /></ProtectedRoute>} />
             <Route path="order-merchandise" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><MerchandisePage initialTab="order" /></ProtectedRoute>} />
             <Route path="my-orders" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><MerchandisePage initialTab="my-orders" /></ProtectedRoute>} />
           </Route>
