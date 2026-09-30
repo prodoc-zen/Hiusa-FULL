@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, Eye, ShieldCheck, X } from "lucide-react";
+import { Clock3, Eye, X } from "lucide-react";
 import PaginationControls from "../../../components/PaginationControls";
 import TableFilterBar from "../../../components/TableFilterBar";
 import { getAuditLogs } from "../../../services/financeService";
 import { displayAuditValue, humanizeIdentifier, ROLE_LABELS } from "../../../utils/displayText";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
+import TableRowActions from "../../../components/TableRowActions";
 
 const MODULE_OPTIONS = [
   "users", "positions", "orders", "merchandise", "invoices", "transactions",
@@ -109,25 +110,6 @@ export default function GeneralAuditLogPage() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6">
-        <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10 text-[#16C7F3]">
-            <ShieldCheck size={21} />
-          </span>
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">
-              Administrative accountability
-            </p>
-            <h1 className="mt-1 text-2xl font-black text-white">
-              General Audit Log
-            </h1>
-            <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">
-              Trace who changed a record, what changed, and when it happened across organization workflows.
-            </p>
-          </div>
-        </div>
-      </section>
-
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <TableFilterBar
           searchValue={filters.search}
@@ -255,100 +237,24 @@ export default function GeneralAuditLogPage() {
             </p>
           </div>
         ) : (
-          <div className="divide-y divide-[#DDE7EF]">
-            {logs.map((log) => (
-              <article
-                key={log.id}
-                className="p-4 transition hover:bg-[#F8FBFD] sm:p-5"
-              >
-                <div className="flex flex-col justify-between gap-3 sm:flex-row">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[10px] font-bold text-[#0F2F62]">
-                        {log.module_label || log.module}
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold text-slate-600">
-                        {log.action_category_label || humanizeIdentifier(log.action_category)}
-                      </span>
-                      <span className="font-mono text-[10px] text-slate-500">
-                        LOG-{log.id} · Record {log.record_id}
-                      </span>
-                    </div>
-                    <h2 className="mt-2 text-sm font-bold leading-6 text-[#0F172A] sm:text-base">
-                      {log.description}
-                    </h2>
-                    <p className="mt-1 text-xs text-slate-500">
-                      Performed by{" "}
-                      <strong className="text-slate-700">
-                        {log.actor?.name || "System"}
-                      </strong>
-                      {log.actor?.role
-                        ? ` · ${log.actor.role_label || humanizeIdentifier(log.actor.role)}`
-                        : ""}
-                      {log.actor?.position_title
-                        ? ` · ${log.actor.position_title}`
-                        : ""}
-                    </p>
-                    {log.actor?.department && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Actor profile:{" "}
-                        {[
-                          log.actor.department,
-                          log.actor.program,
-                          log.actor.year_level,
-                          log.actor.section,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </p>
-                    )}
-                    {log.affected_user && (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Affected: {log.affected_user.name} ·{" "}
-                        {[
-                          log.affected_user.department,
-                          log.affected_user.program,
-                          log.affected_user.year_level,
-                          log.affected_user.section,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ") || "No academic details"}
-                      </p>
-                    )}
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <time className="block text-xs font-medium text-slate-500">
-                      {log.created_at
-                        ? new Date(log.created_at).toLocaleString("en-PH")
-                        : "Unknown time"}
-                    </time>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSelectedLog(log);
-                        setChangesPage(1);
-                      }}
-                      className="mt-2 inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2 py-1 text-[10px] font-bold text-[#0878B7]"
-                    >
-                      <Eye size={12} />
-                      View details
-                    </button>
-                  </div>
-                </div>
-                {log.changes?.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {log.changes.slice(0, 4).map((change) => (
-                      <span
-                        key={change.field}
-                        className="rounded-md border border-[#DDE7EF] bg-white px-2 py-1 text-[10px] font-semibold text-slate-500"
-                      >
-                        {change.field}: {displayAuditValue(change.to)}
-                      </span>
-                    ))}
-                  </div>
-                )}
-              </article>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1000px] text-left text-xs">
+              <thead className="bg-[#F8FBFD] text-[#64748B]"><tr>
+                {['Time', 'Actor', 'Role', 'Module', 'Action', 'Affected record', 'Record ID', 'Details'].map((heading) => <th key={heading} scope="col" className="px-3 py-3 font-bold">{heading}</th>)}
+              </tr></thead>
+              <tbody className="divide-y divide-[#DDE7EF]">
+                {logs.map((log) => <tr key={log.id} className="align-top hover:bg-[#F8FBFD]">
+                  <td className="whitespace-nowrap px-3 py-3 text-[#64748B]">{log.created_at ? new Date(log.created_at).toLocaleString('en-PH') : 'Unknown'}</td>
+                  <td className="px-3 py-3 font-semibold text-[#0F172A]">{log.actor?.name || 'System'}</td>
+                  <td className="px-3 py-3 text-[#64748B]">{log.actor?.role_label || humanizeIdentifier(log.actor?.role)}{log.actor?.position_title ? ` / ${log.actor.position_title}` : ''}</td>
+                  <td className="px-3 py-3">{log.module_label || humanizeIdentifier(log.module)}</td>
+                  <td className="px-3 py-3">{log.action_category_label || humanizeIdentifier(log.action_category)}</td>
+                  <td className="max-w-64 px-3 py-3"><p className="font-semibold text-[#0F172A]">{log.subject || log.affected_user?.name || '-'}</p><p className="mt-1 line-clamp-2 text-[#64748B]">{log.description}</p></td>
+                  <td className="px-3 py-3 font-mono text-[#64748B]">{log.record_id ?? '-'}</td>
+                  <td className="px-3 py-3"><TableRowActions subject={`Audit record ${log.id}`} label="Audit actions" actions={[{ label: 'View details', icon: Eye, onClick: () => { setSelectedLog(log); setChangesPage(1); } }]} /></td>
+                </tr>)}
+              </tbody>
+            </table>
           </div>
         )}
         <PaginationControls

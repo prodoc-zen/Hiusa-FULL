@@ -29,5 +29,6 @@
 - **Edit Election:** Admin can open existing election details, update election information, and save changes.
 - **Submit Election for Approval:** new elections are stored with `pending_approval` and an approval request for Department Head review.
 - **Review Approval Request:** Department Head review is handled by the approval workflow.
-- **Open Approved Election:** the API only allows opening an election after approval.
+- **Finalize Ballot:** after Department Head approval, an Admin adds candidates and party lists, then calls `PATCH /elections/{id}/finalize`. Every position needs a candidate and at least one candidate must belong to a party list. Finalization locks ballot setup.
+- **Open Approved Election:** approval leaves the election upcoming. Only an Admin can open a finalized election during its scheduled period; the schedule never opens it automatically.
 - **Close Election:** Admin can close an active election.

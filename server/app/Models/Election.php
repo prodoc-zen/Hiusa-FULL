@@ -20,6 +20,7 @@ class Election extends Model
             'start_time' => 'datetime',
             'end_time' => 'datetime',
             'approved_at' => 'datetime',
+            'finalized_at' => 'datetime',
             'results_visible' => 'boolean',
         ];
     }

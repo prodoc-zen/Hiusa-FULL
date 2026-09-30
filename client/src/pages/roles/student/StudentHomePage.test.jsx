@@ -29,7 +29,7 @@ describe('StudentHomePage', () => {
 
   it('renders an organization-centered responsive feed from one paginated request', async () => {
     render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
-    expect(await screen.findByRole('heading', { level: 1, name: 'HIUSA Student Council' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Organization feed' })).toBeInTheDocument();
     expect(screen.getByRole('heading', { name: 'Classes suspended' })).toBeInTheDocument();
     expect(screen.getByText('Pinned')).toBeInTheDocument();
     expect(screen.getByText('Important')).toBeInTheDocument();

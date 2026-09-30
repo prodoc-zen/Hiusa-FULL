@@ -167,15 +167,9 @@ export default function ManagePartylistsPage() {
     <div className="space-y-4">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] px-5 py-5 text-white sm:p-6">
-        <p className="text-[11px] font-bold uppercase tracking-widest text-[#16C7F3]">Official party register</p>
-        <div className="mt-2 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h2 className="text-2xl font-black text-white sm:text-3xl">Party Rosters</h2>
-            <p className="mt-1 max-w-2xl text-sm font-medium leading-6 text-slate-200">
-              Maintain the official party identities and candidate lineups for {election.title}.
-            </p>
-          </div>
+      <section aria-label="Party roster search and actions" className="rounded-lg border border-[#DDE7EF] bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-[#0F172A]">{election.title}</p>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-72">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
@@ -190,7 +184,7 @@ export default function ManagePartylistsPage() {
               <button
                 type="button"
                 onClick={() => setShowAdd(true)}
-                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] transition-colors hover:bg-[#EEF6FB]"
+                className="inline-flex h-11 items-center justify-center gap-1.5 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0F2F62]"
               >
                 <CirclePlus size={15} />
                 Register New Party

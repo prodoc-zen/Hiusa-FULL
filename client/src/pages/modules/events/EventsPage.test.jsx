@@ -87,7 +87,8 @@ describe('EventsPage approval-request launch', () => {
 
     render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
 
-    fireEvent.click(await screen.findByLabelText('View Sports Fest 2024'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
     fireEvent.click(screen.getByRole('button', { name: 'Close event details' }));
     await act(async () => resolveDetails({ data: { ...event, description: 'Late response' } }));
 
@@ -159,7 +160,7 @@ describe('EventsPage approval-request launch', () => {
 
     render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
 
-    expect(await screen.findByRole('heading', { name: 'Event Check-In' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Event check-in' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Foundation Day' }));
 
     expect(await screen.findByText('Door controls')).toBeInTheDocument();
@@ -233,7 +234,7 @@ describe('EventsPage approval-request launch', () => {
 
     render(<MemoryRouter initialEntries={['/dashboard/events/check-in']}><EventsPage initialTab="attendance" /></MemoryRouter>);
 
-    expect(await screen.findByRole('heading', { name: 'Event Check-In' })).toBeInTheDocument();
+    expect(await screen.findByRole('region', { name: 'Event check-in' })).toBeInTheDocument();
     fireEvent.click(await screen.findByRole('button', { name: 'Open attendance for Student Assembly' }));
 
     await screen.findByText('No attendance records yet');

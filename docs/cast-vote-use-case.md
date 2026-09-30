@@ -15,7 +15,7 @@
 ## Implementation Coverage
 
 - **Role Access:** Admin, SBO Officer, Department Head, and Student can access the cast-vote route, sidebar item, and vote API endpoint.
-- **Validate Election Period:** the vote endpoint requires `active` status and verifies the current time is between the configured start and end times.
+- **Validate Election Period:** the vote endpoint requires approval, Admin-finalized ballot, `active` status, and the current time between the configured start and end times.
 - **Validate Voter Eligibility:** the endpoint scopes the election to the authenticated user's organization.
 - **Check Previous Vote Record:** the endpoint rejects users who already have a vote record for the election.
 - **Display Official Ballot:** `CastVotePage` groups official candidates by election position.

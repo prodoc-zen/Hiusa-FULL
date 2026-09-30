@@ -137,12 +137,6 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <header className="border-b border-[#DDE7EF] pb-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Operations Hub</p>
-        <h2 className="mt-1 text-2xl sm:text-3xl font-black text-[#0F172A]">Officer Dashboard</h2>
-        <p className="mt-1 text-sm font-medium text-slate-500">Start with deadlines, then check events, funds, and merchandise queues.</p>
-      </header>
-
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         <div className="border-b border-[#DDE7EF] px-5 py-4"><h3 className="text-base font-bold text-[#0F172A]">Operations snapshot</h3></div>
         <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
