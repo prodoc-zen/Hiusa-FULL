@@ -291,8 +291,9 @@ class ApprovalRequestController extends Controller
         }
 
         $election->update([
-            'status' => $this->approvedElectionStatus($election),
+            'status' => 'upcoming',
             'approved_at' => now(),
+            'finalized_at' => null,
         ]);
     }
 
@@ -332,21 +333,6 @@ class ApprovalRequestController extends Controller
                 'updated_at' => $now,
             ])->all());
         }
-    }
-
-    private function approvedElectionStatus(Election $election): string
-    {
-        $now = now();
-
-        if ($election->start_time && $now->lt($election->start_time)) {
-            return 'upcoming';
-        }
-
-        if ($election->end_time && $now->gt($election->end_time)) {
-            return 'closed';
-        }
-
-        return 'active';
     }
 
     private function applyRejection(ApprovalRequest $approval, Request $request): void

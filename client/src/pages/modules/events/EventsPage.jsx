@@ -26,6 +26,7 @@ import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, gener
 import { getTasks } from '../../../services/taskService';
 import { getAcademicStructure, getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
+import TableRowActions from '../../../components/TableRowActions';
 import Modal from '../../../components/Modal';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { fetchAllPages } from '../../../services/pagination';
@@ -837,11 +838,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setTasksPage(1);
   }, [tasks.length]);
 
-  const workspaceCopy = activeTab === 'tasks'
-    ? { eyebrow: 'Planning workspace', title: 'Event Planner', description: 'Turn approved event details into a reviewed, editable workflow before assigning work.', icon: List }
-    : activeTab === 'attendance'
-      ? { eyebrow: 'Event operations', title: 'Attendance and Check-in', description: 'Select an active event, verify each participant, and maintain an accountable attendance record.', icon: UserRoundCheck }
-      : { eyebrow: 'Event administration', title: 'Manage Events', description: 'Plan schedules, monitor approval and delivery status, and open the right operational workspace.', icon: Calendar };
   const activeEventFilters = [
     search.trim() && `Search: ${search.trim()}`,
     dateFilter && `Date: ${dateFilter}`,
@@ -859,10 +855,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   return (
     <div className="space-y-6">
-      {activeTab !== 'attendance' && <section className="flex flex-col gap-4 rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10 text-[#16C7F3]"><workspaceCopy.icon size={20} /></span><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">{workspaceCopy.eyebrow}</p><h1 className="mt-1 text-2xl font-black">{workspaceCopy.title}</h1><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">{workspaceCopy.description}</p></div></div>
-        <div className="flex items-center gap-3 border-t border-white/15 pt-4 lg:border-l lg:border-t-0 lg:pl-5 lg:pt-0"><Calendar size={18} className="text-[#16C7F3]" /><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-300">Event register</p><p className="text-sm font-bold">{events.length} events, {tasks.length} tasks</p></div></div>
-      </section>}
 
       {activeTab !== 'attendance' && <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -1035,16 +1027,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             );
                           })()}
                           <td className="px-5 py-4">
-                            <div className="flex justify-end gap-1">
-                              <button type="button" title="View event details" aria-label={`View ${evt.title}`} onClick={() => openEventDetails(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#F8FBFD] hover:text-[#0878B7]">
-                                <Eye size={15} />
-                              </button>
-                              {canCreateEvents && (
-                                <button type="button" title="Edit event" aria-label={`Edit ${evt.title}`} onClick={() => openEditForm(evt)} className="grid h-9 w-9 place-items-center rounded-md border border-[#DDE7EF] text-slate-500 hover:bg-[#F8FBFD] hover:text-[#0878B7]">
-                                  <Pencil size={15} />
-                                </button>
-                              )}
-                            </div>
+                            <TableRowActions subject={evt.title} label="Event actions" actions={[
+                              { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
+                              canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
+                            ]} />
                           </td>
                         </tr>
                       ))}
@@ -1252,34 +1238,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       )}
 
       {activeTab === 'attendance' && (
-        <section aria-labelledby="attendance-workspace-title" className="space-y-4">
+        <section aria-label="Event check-in" className="space-y-4">
           {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
-          <header className="overflow-hidden rounded-lg bg-[#0B1831] text-white shadow-sm">
-            <div className="flex flex-col gap-5 px-5 py-6 sm:px-6 lg:flex-row lg:items-end lg:justify-between">
-              <div className="max-w-2xl">
-                <div className="mb-3 flex items-center gap-2 text-[#16C7F3]">
-                  <span className="relative flex h-2.5 w-2.5">
-                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#16C7F3] opacity-50" />
-                    <span className="relative inline-flex h-2.5 w-2.5 rounded-full bg-[#16C7F3]" />
-                  </span>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.16em]">Live attendance workspace</p>
-                </div>
-                <h2 id="attendance-workspace-title" className="text-2xl font-black sm:text-[28px]">
-                  Event Check-In
-                </h2>
-                <p className="mt-2 text-sm leading-6 text-slate-300">
-                  Run the entry desk, verify participants, and keep the attendance register accurate.
-                </p>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg border border-white/15 bg-white/5 px-4 py-3">
-                <CalendarCheck2 size={20} className="text-[#16C7F3]" />
-                <div>
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Available events</p>
-                  <p className="mt-0.5 text-sm font-bold text-white">{attendanceEvents.length} open for check-in</p>
-                </div>
-              </div>
-            </div>
-          </header>
+          <p className="text-sm font-semibold text-slate-600">{attendanceEvents.length} events open for check-in</p>
           {loading ? (
             <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-white p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}

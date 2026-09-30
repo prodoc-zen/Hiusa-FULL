@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Bot, CheckCircle, ImagePlus, Megaphone, Send } from 'lucide-react';
+import { Bot, CheckCircle, ImagePlus, Send } from 'lucide-react';
 import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
 import { useNavigate } from 'react-router-dom';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -143,19 +143,6 @@ export default function CreateAnnouncementPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
-        <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]">
-            <Megaphone size={21} />
-          </span>
-          <div className="min-w-0">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Communications</p>
-            <h1 className="mt-1 text-xl font-black text-[#0F172A] sm:text-2xl">Create Announcement</h1>
-            <p className="mt-1 text-sm text-slate-500">Write the message in the main workspace, then choose its audience and publishing options.</p>
-          </div>
-        </div>
-      </section>
-
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0 rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
           <div>

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
+import TableRowActions from "../../../components/TableRowActions";
 import {
   AlertTriangle,
   ArrowRight,
@@ -17,6 +18,7 @@ import {
   Pencil,
   Plus,
   Search,
+  Settings2,
   SlidersHorizontal,
   ShoppingBag,
   Ticket,
@@ -46,9 +48,11 @@ import {
   verifyClaimToken,
 } from "../../../services/orderService";
 import { resolveAssetUrl } from "../../../utils/assetUrl";
+import { downloadExcelXml } from "../../../utils/excelXml";
 import PaginationControls from "../../../components/PaginationControls";
 import { fetchAllPages } from "../../../services/pagination";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
+import Modal from "../../../components/Modal";
 import ReceiptDocument, { ClaimTicket, printClaimTicket } from "../../../components/receipts/ReceiptDocument";
 import GcashPaymentSettingsPage from "./GcashPaymentSettingsPage";
 
@@ -194,7 +198,7 @@ function reviewActionLabel(action) {
 
 function StepNode({ active, done, label }) {
   return (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex items-center gap-3">
       <div
         className={`grid h-7 w-7 place-items-center rounded-full border-2 transition-colors ${done ? "border-emerald-500 bg-emerald-500" : active ? "border-[#0B8ED0] bg-[#0878B7]" : "border-slate-200 bg-white"}`}
       >
@@ -208,7 +212,7 @@ function StepNode({ active, done, label }) {
         )}
       </div>
       <span
-        className={`text-[10px] font-bold ${done || active ? "text-[#0F172A]" : "text-slate-500"}`}
+        className={`text-xs font-bold ${done || active ? "text-[#0F172A]" : "text-slate-500"}`}
       >
         {label}
       </span>
@@ -220,14 +224,14 @@ function StepTracker({ status }) {
   const done1 = ["paid", "claimed"].includes(status);
   const done2 = status === "claimed";
   return (
-    <div className="flex items-start gap-0">
+    <div className="flex flex-col">
       <StepNode active={status === "pending"} done={done1} label="Ordered" />
       <div
-        className={`mt-3 h-px w-10 ${done1 ? "bg-emerald-400" : "bg-slate-200"}`}
+        className={`ml-[13px] h-6 w-px ${done1 ? "bg-emerald-400" : "bg-slate-200"}`}
       />
       <StepNode active={status === "paid"} done={done2} label="Paid" />
       <div
-        className={`mt-3 h-px w-10 ${done2 ? "bg-emerald-400" : "bg-slate-200"}`}
+        className={`ml-[13px] h-6 w-px ${done2 ? "bg-emerald-400" : "bg-slate-200"}`}
       />
       <StepNode active={status === "claimed"} done={false} label="Claimed" />
     </div>
@@ -367,8 +371,8 @@ function FulfillmentOrderRow({
     .join(" · ");
 
   return (
-    <article className="p-4 transition hover:bg-[#F8FBFD] sm:p-5">
-      <div className="grid gap-5 md:grid-cols-2 xl:grid-cols-[minmax(220px,1.2fr)_minmax(190px,1fr)_minmax(170px,.8fr)_minmax(210px,1fr)_auto] xl:items-center">
+    <article className="rounded-lg border border-[#DDE7EF] bg-white p-4 transition hover:bg-[#F8FBFD] sm:p-5">
+      <div className="grid gap-5 md:grid-cols-2 2xl:grid-cols-[minmax(220px,1.2fr)_minmax(190px,1fr)_minmax(170px,.8fr)_minmax(210px,1fr)_auto] 2xl:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs font-black text-[#0878B7]">
@@ -407,9 +411,7 @@ function FulfillmentOrderRow({
           <div className="mt-2 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-500">
             <span className="uppercase">{order.payment_method || "No method"}</span>
             <span aria-hidden="true">·</span>
-            <span className="max-w-32 truncate font-mono">
-              {order.payment_reference || "No reference"}
-            </span>
+            {order.payment_method !== 'cash' && <span className="max-w-32 truncate font-mono">{order.payment_reference || 'Reference pending'}</span>}
           </div>
         </div>
 
@@ -520,6 +522,10 @@ export default function MerchandisePage({ initialTab }) {
     payment_methods: [],
   });
   const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [showPaymentSettings, setShowPaymentSettings] = useState(false);
+  const [paymentSettingsBusy, setPaymentSettingsBusy] = useState(false);
+  const [orderQueueView, setOrderQueueView] = useState('auto');
+  const [tokenStatusFilter, setTokenStatusFilter] = useState('paid');
   const [analyticsModal, setAnalyticsModal] = useState({
     open: false,
     title: "",
@@ -531,6 +537,7 @@ export default function MerchandisePage({ initialTab }) {
     totalUsers: 0,
   });
   const [analyticsRowPage, setAnalyticsRowPage] = useState(1);
+  const [exportingAnalytics, setExportingAnalytics] = useState(false);
   const [orderDetails, setOrderDetails] = useState(null);
   const [orderReviewTrail, setOrderReviewTrail] = useState({
     loading: false,
@@ -692,7 +699,7 @@ export default function MerchandisePage({ initialTab }) {
     setLoading(true);
     setError(null);
     const managerOrderFilters = activeTab === "tokens"
-      ? { ...EMPTY_ORDER_FILTERS, status: "paid", sort: "oldest" }
+      ? { ...EMPTY_ORDER_FILTERS, status: tokenStatusFilter, sort: "oldest" }
       : EMPTY_ORDER_FILTERS;
     const calls = isPersonalShoppingView
       ? [
@@ -754,7 +761,7 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
-  useEffect(load, [activeTab, isPersonalShoppingView]);
+  useEffect(load, [activeTab, isPersonalShoppingView, tokenStatusFilter]);
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
@@ -1481,6 +1488,31 @@ export default function MerchandisePage({ initialTab }) {
     }
   }
 
+  async function exportOrderAnalytics() {
+    if (exportingAnalytics) return;
+    setExportingAnalytics(true);
+    try {
+      const filters = { ...orderFilters, group: analyticsModal.group };
+      const first = await getOrderAnalyticsUsers({ ...filters, page: 1 });
+      const users = [...(first.data?.data || [])];
+      const lastPage = Number(first.data?.last_page || 1);
+      for (let start = 2; start <= lastPage; start += 10) {
+        const responses = await Promise.all(Array.from({ length: Math.min(10, lastPage - start + 1) }, (_, index) => getOrderAnalyticsUsers({ ...filters, page: start + index })));
+        responses.forEach((response) => users.push(...(response.data?.data || [])));
+      }
+      const rows = users.flatMap((user) => (user.orders?.length ? user.orders : [null]).map((order) => [
+        user.school_id, `${user.first_name || ''} ${user.last_name || ''}`.trim(), user.email, user.role, user.department, user.program, user.year_level, user.section,
+        order?.id ? `ORD-${order.id}` : '', order?.merchandise?.name, order?.quantity, order?.unit_price ?? order?.merchandise?.price, order?.total_price, order?.payment_method, order?.status, order?.created_at,
+      ]));
+      downloadExcelXml(`merchandise-${analyticsModal.group}-${new Date().toISOString().slice(0, 10)}.xls`, ['School ID', 'Name', 'Email', 'Role', 'Department', 'Program', 'Year', 'Section', 'Order', 'Item', 'Quantity', 'Unit price', 'Total', 'Mode of payment', 'Status', 'Ordered'], rows);
+      showFeedback('success', 'Excel file exported.');
+    } catch {
+      showFeedback('error', 'Could not export the selected users.');
+    } finally {
+      setExportingAnalytics(false);
+    }
+  }
+
   async function handleOrderExport() {
     setExportingOrders(true);
     try {
@@ -1520,7 +1552,7 @@ export default function MerchandisePage({ initialTab }) {
     : orders.filter((o) => ["pending", "paid"].includes(o.status)).length;
   const lowStock = items.filter((i) => i.is_low_stock).length;
   const topSellers = (orderSummary?.breakdown || []).slice(0, 5);
-  const paidOrders = orders.filter((o) => o.status === "paid");
+  const tokenOrders = orders.filter((o) => o.status === tokenStatusFilter);
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
   );
@@ -2090,6 +2122,9 @@ export default function MerchandisePage({ initialTab }) {
                     key={o.id}
                     className={`rounded-lg border bg-white p-5 shadow-sm ${o.status === "claimed" ? "border-emerald-200" : o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
                   >
+                    <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
+                    <aside className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><p className="mb-4 text-xs font-bold uppercase text-[#0F2F62]">Order status</p>{o.status === 'cancelled' ? <p className="text-sm font-bold text-red-700">Cancelled</p> : <StepTracker status={o.status} />}</aside>
+                    <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
                         <div className="h-24 w-24 shrink-0 overflow-hidden rounded-lg bg-[#F8FBFD] sm:h-28 sm:w-28">
@@ -2128,11 +2163,6 @@ export default function MerchandisePage({ initialTab }) {
                         </span>
                       </div>
                     </div>
-                    {o.status !== "cancelled" && (
-                      <div className="mt-4 border-t border-[#EEF6FB] pt-4">
-                        <StepTracker status={o.status} />
-                      </div>
-                    )}
                     {o.status === "paid" && (
                       <ClaimTicket order={o} onPrint={() => printClaimTicket(o)} />
                     )}
@@ -2208,6 +2238,8 @@ export default function MerchandisePage({ initialTab }) {
                         </p>
                       </div>
                     )}
+                    </div>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -2566,7 +2598,7 @@ export default function MerchandisePage({ initialTab }) {
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">
-                Merchandise Inventory
+                Product catalog
               </h2>
               <p className="text-sm font-medium text-slate-500">
                 Manage stock levels and product catalog
@@ -2698,46 +2730,58 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {activeTab === "orders" && (
-        <section className="space-y-4">
-          <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_280px]">
-          <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-[#0F172A]">
-                  Manage Orders
-                </h2>
-                <p className="text-sm font-medium text-slate-500">
-                  Review payments, release approved orders, and track every
-                  pickup from one queue.
-                </p>
+        <section aria-label="Order management" className="min-w-0 space-y-4">
+          {orderSummary && (
+            <dl aria-label="Order summary" className="grid grid-cols-2 gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] lg:grid-cols-4">
+              {[
+                ["Pending review", orderSummary.pending_orders, `${fmt(orderSummary.outstanding_balance)} awaiting approval`],
+                ["Ready for pickup", orderSummary.unclaimed_orders, "Approved orders with active tokens"],
+                ["Claimed", orderSummary.claimed_orders, "Orders released to buyers"],
+                ["Collected", fmt(orderSummary.total_collected), `${orderSummary.paid_orders} paid orders`],
+              ].map(([label, value, helper]) => (
+                <div key={label} className="min-w-0 bg-white px-4 py-3">
+                  <dt className="text-xs font-medium text-slate-600">{label}</dt>
+                  <dd className="mt-1 text-xl font-bold tabular-nums text-[#0F172A]">{value}</dd>
+                  <dd className="mt-1 text-xs text-slate-500">{helper}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+          <div className="min-w-0 overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-base font-bold text-[#0F172A]">Order queue</h2>
+                <span className="text-xs tabular-nums text-slate-500">{loading ? "Loading..." : `${ordersMeta.total} ${ordersMeta.total === 1 ? "order" : "orders"}`}</span>
               </div>
               <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  onClick={() => setShowAdvancedFilters((value) => !value)}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]"
-                >
-                  <SlidersHorizontal size={15} />
-                  Filters
-                  {activeOrderFilterCount > 0 && (
-                    <span className="rounded-full bg-[#0878B7] px-1.5 py-0.5 text-[10px] text-white">
-                      {activeOrderFilterCount}
-                    </span>
-                  )}
+                <button type="button" onClick={() => setShowPaymentSettings(true)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 hover:bg-[#F8FBFD]">
+                  <Settings2 size={15} /> {role === "ADMIN" ? "Payment settings" : "View GCash QR"}
                 </button>
-                <button
-                  type="button"
-                  onClick={handleOrderExport}
-                  disabled={exportingOrders}
-                  className="inline-flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"
-                >
-                  <Download size={15} />
-                  {exportingOrders ? "Exporting..." : "Export CSV"}
+                <button type="button" onClick={handleOrderExport} disabled={exportingOrders} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 hover:bg-[#F8FBFD] disabled:opacity-50">
+                  <Download size={15} /> {exportingOrders ? "Exporting..." : "Export CSV"}
                 </button>
               </div>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_repeat(3,minmax(110px,170px))]">
-              <label className="relative">
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#DDE7EF] px-4">
+              <div role="group" aria-label="Filter orders by status" className="flex max-w-full gap-4 overflow-x-auto">
+                {[
+                  ["", "All orders"],
+                  ["pending", "Pending review"],
+                  ["paid", "Ready for pickup"],
+                  ["claimed", "Claimed"],
+                  ["cancelled", "Cancelled"],
+                ].map(([status, label]) => (
+                  <button key={status} type="button" aria-pressed={orderFilters.status === status} onClick={() => setOrderFilters((current) => ({ ...current, status }))} className={`min-h-11 shrink-0 border-b-2 px-1 text-xs font-semibold transition-colors ${orderFilters.status === status ? "border-[#0878B7] text-[#0F2F62]" : "border-transparent text-slate-500 hover:text-[#0F172A]"}`}>{label}</button>
+                ))}
+              </div>
+              <button type="button" aria-expanded={showAdvancedFilters} aria-controls="order-advanced-filters" onClick={() => setShowAdvancedFilters((value) => !value)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-semibold text-slate-600 hover:bg-[#F8FBFD]">
+                <SlidersHorizontal size={15} /> More filters
+                {activeOrderFilterCount > 0 && <span className="rounded-full bg-[#EEF6FB] px-1.5 py-0.5 text-[10px] text-[#0F2F62]">{activeOrderFilterCount}</span>}
+              </button>
+            </div>
+            <div className="border-b border-[#DDE7EF] p-4">
+            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_200px_170px]">
+              <label className="relative min-w-0 sm:col-span-2 lg:col-span-1">
                 <span className="sr-only">Search merchandise orders</span>
                 <Search
                   size={15}
@@ -2755,24 +2799,6 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]"
                 />
               </label>
-              <select
-                aria-label="Order status"
-                value={orderFilters.status}
-                onChange={(event) =>
-                  setOrderFilters({
-                    ...orderFilters,
-                    status: event.target.value,
-                  })
-                }
-                className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
-              >
-                <option value="">All order statuses</option>
-                {orderFilterOptions.statuses?.map((status) => (
-                  <option key={status} value={status}>
-                    {capitalize(status)}
-                  </option>
-                ))}
-              </select>
               <select
                 aria-label="Merchandise item"
                 value={orderFilters.merchandise_id}
@@ -2809,7 +2835,7 @@ export default function MerchandisePage({ initialTab }) {
               </select>
             </div>
             {showAdvancedFilters && (
-              <div className="mt-4 border-t border-[#DDE7EF] pt-4">
+              <div id="order-advanced-filters" className="mt-4 border-t border-[#DDE7EF] pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
                   <select
                     aria-label="Program or course"
@@ -2975,84 +3001,14 @@ export default function MerchandisePage({ initialTab }) {
                 </button>
               </div>
             )}
-          </div>
-          <aside className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm"><GcashPaymentSettingsPage embedded readOnly={role !== "ADMIN"} /></aside>
-          </div>
-          {orderSummary && (
-            <>
-              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                {[
-                  {
-                    label: "Pending review",
-                    value: orderSummary.pending_orders,
-                    helper: `${fmt(orderSummary.outstanding_balance)} awaiting approval`,
-                    icon: DollarSign,
-                    tone: "bg-amber-50 text-amber-700",
-                  },
-                  {
-                    label: "Ready for pickup",
-                    value: orderSummary.unclaimed_orders,
-                    helper: "Approved orders with active tokens",
-                    icon: Ticket,
-                    tone: "bg-[#E6F6FD] text-[#0F2F62]",
-                  },
-                  {
-                    label: "Claimed",
-                    value: orderSummary.claimed_orders,
-                    helper: "Successfully released orders",
-                    icon: CheckCircle,
-                    tone: "bg-emerald-50 text-emerald-700",
-                  },
-                  {
-                    label: "Collected",
-                    value: fmt(orderSummary.total_collected),
-                    helper: `${orderSummary.paid_orders} paid orders`,
-                    icon: ShoppingBag,
-                    tone: "bg-[#EEF6FB] text-[#0F2F62]",
-                  },
-                ].map((metric) => (
-                  <article
-                    key={metric.label}
-                    className="flex items-start gap-3 rounded-lg border border-[#DDE7EF] bg-white p-4 text-left shadow-sm"
-                  >
-                    <span className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${metric.tone}`}>
-                      <metric.icon size={17} />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="block text-xs font-bold text-slate-500">{metric.label}</span>
-                      <span className="mt-0.5 block text-xl font-black text-[#0F172A]">{metric.value}</span>
-                      <span className="mt-0.5 block text-[10px] font-semibold text-slate-500">{metric.helper}</span>
-                    </span>
-                  </article>
+            </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#DDE7EF] px-4 py-2">
+              <p className="text-xs text-slate-500">Open an order to review payment and pickup details.</p>
+              <div role="group" aria-label="Order queue view" className="flex rounded-lg border border-[#DDE7EF] p-0.5">
+                {[["auto", "Auto"], ["table", "Table"], ["cards", "Cards"]].map(([view, label]) => (
+                  <button key={view} type="button" aria-pressed={orderQueueView === view} onClick={() => setOrderQueueView(view)} className={`min-h-10 rounded-md px-3 text-xs font-bold ${orderQueueView === view ? "bg-[#0F2F62] text-white" : "text-[#0F2F62]"}`}>{label}</button>
                 ))}
               </div>
-              <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-xs shadow-sm sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-slate-500">
-                  <span className="font-bold text-[#0F172A]">Cohort:</span>{" "}
-                  {orderSummary.purchased_users} of {orderSummary.total_users} users purchased ({orderSummary.purchase_rate}%).
-                </p>
-                <div className="flex flex-wrap gap-3">
-                  <button type="button" onClick={() => openOrderAnalytics("purchased", "Purchased users")} className="font-bold text-[#0878B7] hover:text-[#0878B7]">
-                    View purchasers
-                  </button>
-                  <button type="button" onClick={() => openOrderAnalytics("not_purchased", "Users without purchases")} className="font-bold text-slate-600 hover:text-[#0878B7]">
-                    View non-buyers
-                  </button>
-                </div>
-              </div>
-            </>
-          )}
-          <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="flex flex-col gap-1 border-b border-[#DDE7EF] px-4 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
-              <div>
-                <h3 className="font-bold text-[#0F172A]">Order queue</h3>
-                <p className="text-xs text-slate-500">
-                  Review payment, approval, and pickup status. Open Details for the full audit trail.
-                </p>
-              </div>
-              <span className="mt-2 w-fit rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62] sm:mt-0">
-                {ordersMeta.total} {ordersMeta.total === 1 ? "order" : "orders"}
-              </span>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -3065,11 +3021,11 @@ export default function MerchandisePage({ initialTab }) {
               </div>
             ) : filteredOfficerOrders.length === 0 ? (
               <p className="p-8 text-center text-sm text-slate-500">
-                No orders yet.
+                {activeOrderFilterCount > 0 ? "No orders match these filters." : "No orders yet."}
               </p>
             ) : (
               <>
-              <div className="divide-y divide-[#DDE7EF] xl:hidden">
+              <div className={`${orderQueueView === 'table' ? 'hidden' : orderQueueView === 'cards' ? 'grid gap-3 p-3 sm:grid-cols-2' : 'grid gap-3 p-3 xl:hidden'}`}>
                 {filteredOfficerOrders.map((order) => (
                   <FulfillmentOrderRow
                     key={order.id}
@@ -3081,16 +3037,19 @@ export default function MerchandisePage({ initialTab }) {
                   />
                 ))}
               </div>
-              <div className="hidden overflow-x-auto xl:block">
+              <div className={`${orderQueueView === 'cards' ? 'hidden' : orderQueueView === 'table' ? 'overflow-x-auto' : 'hidden overflow-x-auto xl:block'}`}>
                 <table className="w-full min-w-[1100px] text-left">
                   <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>
                       <th className="px-4 py-3">Order / Reference</th>
                       <th className="px-4 py-3">Student / User</th>
+                      <th className="px-4 py-3">Role</th>
                       <th className="hidden px-4 py-3">Academic Profile</th>
                       <th className="px-5 py-3">Item</th>
-                      <th className="px-4 py-3">Quantity / Amount</th>
-                      <th className="px-4 py-3">Payment</th>
+                      <th className="px-4 py-3">Amount</th>
+                      <th className="px-4 py-3">Quantity</th>
+                      <th className="px-4 py-3">Total</th>
+                      <th className="px-4 py-3">Mode of payment</th>
                       <th className="hidden px-4 py-3">Review Trail</th>
                       <th className="px-4 py-3">Fulfillment</th>
                       <th className="hidden px-4 py-3">Dates</th>
@@ -3105,9 +3064,7 @@ export default function MerchandisePage({ initialTab }) {
                             ORD-{o.id}
                           </p>
                           <p className="mt-1 text-[10px] text-slate-500">
-                            {o.transaction?.receipt_reference ||
-                              o.payment_reference ||
-                              "No payment reference"}
+                            {o.transaction?.receipt_reference || (o.payment_method === 'cash' ? 'Cash payment' : o.payment_reference || 'Reference pending')}
                           </p>
                         </td>
                         <td className="px-4 py-4">
@@ -3116,10 +3073,7 @@ export default function MerchandisePage({ initialTab }) {
                               ? `${o.student.first_name} ${o.student.last_name}`
                               : "-"}
                           </p>
-                          <p className="mt-0.5 font-mono text-[10px] text-slate-500">
-                            {o.student?.school_id} ·{" "}
-                            {(o.student?.role || "").replaceAll("_", " ")}
-                          </p>
+                          <p className="mt-0.5 font-mono text-[10px] text-slate-500">{o.student?.school_id}</p>
                           {o.student?.position_title && (
                             <p className="text-[10px] font-semibold text-[#0878B7]">
                               {o.student.position_title}
@@ -3131,6 +3085,7 @@ export default function MerchandisePage({ initialTab }) {
                               .join(" · ") || "No academic profile"}
                           </p>
                         </td>
+                        <td className="px-4 py-4 text-xs font-semibold text-[#0F2F62]">{(o.student?.role || '-').replaceAll('_', ' ')}{o.student?.position_title && <p className="mt-1 text-[10px] text-[#64748B]">{o.student.position_title}</p>}</td>
                         <td className="hidden px-4 py-4 text-xs">
                           <p className="font-semibold text-slate-700">
                             {o.student?.program || "Program not recorded"}
@@ -3157,21 +3112,14 @@ export default function MerchandisePage({ initialTab }) {
                             {fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))} each
                           </p>
                         </td>
-                        <td className="px-4 py-4">
-                          <p className="font-bold tabular-nums text-[#0F172A]">
-                            {o.quantity} × {fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))}
-                          </p>
-                          <p className="text-xs font-black text-[#0878B7]">
-                            {fmt(o.total_price)}
-                          </p>
-                        </td>
+                        <td className="px-4 py-4 font-semibold tabular-nums">{fmt(o.unit_price ?? Number(o.total_price) / Number(o.quantity || 1))}</td>
+                        <td className="px-4 py-4 font-semibold tabular-nums">{o.quantity}</td>
+                        <td className="px-4 py-4 font-black tabular-nums text-[#0878B7]">{fmt(o.total_price)}</td>
                         <td className="px-4 py-4 text-xs">
                           <p className="font-bold uppercase text-slate-600">
                             {o.payment_method || "Not selected"}
                           </p>
-                          <p className="mt-1 text-slate-500">
-                            {o.payment_reference || "No reference"}
-                          </p>
+                          {o.payment_method !== 'cash' && <p className="mt-1 text-slate-500">{o.payment_reference || 'Reference pending'}</p>}
                           <span
                             className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${["paid", "claimed"].includes(o.status) ? "bg-emerald-50 text-emerald-700" : o.status === "cancelled" ? "bg-red-50 text-red-700" : "bg-amber-50 text-amber-700"}`}
                           >
@@ -3248,53 +3196,11 @@ export default function MerchandisePage({ initialTab }) {
                           </p>
                         </td>
                         <td className="px-4 py-4">
-                          <button
-                            type="button"
-                            onClick={() => openOrderDetails(o)}
-                            className="mb-2 inline-flex min-h-11 items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1.5 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
-                          >
-                            Review
-                          </button>
-                          {o.status === "pending" && (
-                            <div className="flex flex-wrap gap-2">
-                              <button
-                                onClick={() =>
-                                  setVerificationModal({
-                                    open: true,
-                                    order: o,
-                                    amount: String(o.total_price),
-                                    busy: false,
-                                    error: "",
-                                  })
-                                }
-                                className="flex min-h-11 items-center gap-1 rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-emerald-700"
-                              >
-                                {role === "ADMIN"
-                                  ? "Approve Directly"
-                                  : "Verify & Submit"}{" "}
-                                <ArrowRight size={12} />
-                              </button>
-                              <button
-                                onClick={() =>
-                                  setRejectionModal({
-                                    open: true,
-                                    order: o,
-                                    remarks: "",
-                                    busy: false,
-                                    error: "",
-                                  })
-                                }
-                                className="min-h-11 rounded-md bg-red-50 px-3 py-1.5 text-xs font-bold text-red-700 transition hover:bg-red-100"
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          )}
-                          {o.status === "paid" && (
-                            <span className="text-xs font-semibold text-emerald-700">
-                              Awaiting token validation
-                            </span>
-                          )}
+                          <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
+                            { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
+                            o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' }) },
+                            o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => setRejectionModal({ open: true, order: o, remarks: '', busy: false, error: '' }) },
+                          ]} />
                         </td>
                       </tr>
                     ))}
@@ -3337,8 +3243,36 @@ export default function MerchandisePage({ initialTab }) {
               </div>
             )}
           </div>
+          {orderSummary && (
+              <div className="flex flex-col gap-3 px-1 py-2 text-xs sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-slate-500">
+                  <span className="font-bold text-[#0F172A]">Cohort:</span>{" "}
+                  {orderSummary.purchased_users} of {orderSummary.total_users} users purchased ({orderSummary.purchase_rate}%).
+                </p>
+                <div className="flex flex-wrap gap-3">
+                  <button type="button" onClick={() => openOrderAnalytics("purchased", "Purchased users")} className="font-bold text-[#0878B7] hover:text-[#0878B7]">
+                    View purchasers
+                  </button>
+                  <button type="button" onClick={() => openOrderAnalytics("not_purchased", "Users without purchases")} className="font-bold text-slate-600 hover:text-[#0878B7]">
+                    View non-buyers
+                  </button>
+                </div>
+              </div>
+          )}
         </section>
       )}
+
+      <Modal
+        open={showPaymentSettings}
+        title={role === "ADMIN" ? "GCash payment settings" : "GCash payment QR"}
+        description="The official QR image shown to buyers who choose GCash at checkout."
+        onClose={() => !paymentSettingsBusy && setShowPaymentSettings(false)}
+        closeOnBackdrop={!paymentSettingsBusy}
+        closeOnEscape={!paymentSettingsBusy}
+        maxWidth="max-w-2xl"
+      >
+        <GcashPaymentSettingsPage embedded showHeading={false} readOnly={role !== "ADMIN"} onBusyChange={setPaymentSettingsBusy} />
+      </Modal>
 
       {analyticsModal.open && (
         <AccessibleOverlay label="Merchandise analytics details" onClose={() => setAnalyticsModal({ open: false, title: "", loading: false, users: [], error: "", group: "", currentPage: 1, totalUsers: 0 })} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
@@ -3354,6 +3288,7 @@ export default function MerchandisePage({ initialTab }) {
                 <p className="mt-1 text-xs text-slate-500">
                   Users and matching orders for the active cohort filters.
                 </p>
+                <button type="button" onClick={exportOrderAnalytics} disabled={exportingAnalytics || analyticsModal.loading} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50"><Download size={14} /> {exportingAnalytics ? 'Exporting...' : 'Export Excel'}</button>
               </div>
               <button
                 type="button"
@@ -3676,13 +3611,16 @@ export default function MerchandisePage({ initialTab }) {
           </div>
 
           <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
-            <div className="border-b border-[#DDE7EF] p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] p-5">
+              <div>
               <h2 className="text-lg font-bold text-[#0F172A]">
-                Paid Orders Awaiting Pickup
+                Token register
               </h2>
               <p className="text-sm font-medium text-slate-500">
-                Orders with active claim tokens
+                Review pending and claimed tokens.
               </p>
+              </div>
+              <select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -3693,9 +3631,9 @@ export default function MerchandisePage({ initialTab }) {
                   />
                 ))}
               </div>
-            ) : paidOrders.length === 0 ? (
+            ) : tokenOrders.length === 0 ? (
               <p className="p-8 text-center text-sm text-slate-500">
-                No paid orders awaiting pickup.
+                No tokens match this status.
               </p>
             ) : (
               <div className="overflow-x-auto">
@@ -3714,7 +3652,7 @@ export default function MerchandisePage({ initialTab }) {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#DDE7EF] text-sm">
-                    {paidOrders.map((o) => (
+                    {tokenOrders.map((o) => (
                       <tr key={o.id} className="transition hover:bg-[#F8FBFD]">
                         <td className="px-4 py-4 font-mono text-xs font-black text-[#0878B7]">ORD-{o.id}</td>
                         <td className="px-4 py-4 font-semibold text-[#0F172A]">
@@ -3727,8 +3665,8 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4">{o.student?.program || "-"}</td>
                         <td className="px-4 py-4 uppercase">{o.payment_method || "-"}</td>
                         <td className="px-4 py-4 font-bold">{o.quantity}</td>
-                        <td className="px-4 py-4"><span className="font-bold text-emerald-700">Paid</span><br /><span className="font-mono text-xs">{o.claim_token}</span></td>
-                        <td className="px-4 py-4"><button type="button" onClick={() => openOrderDetails(o)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7]">Review</button></td>
+                        <td className="px-4 py-4"><span className="font-bold text-emerald-700">{o.status === 'claimed' ? 'Claimed' : 'Pending claim'}</span><br /><span className="font-mono text-xs">{o.claim_token || '-'}</span></td>
+                        <td className="px-4 py-4"><TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[{ label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) }]} /></td>
                       </tr>
                     ))}
                   </tbody>
@@ -3739,7 +3677,7 @@ export default function MerchandisePage({ initialTab }) {
               currentPage={ordersMeta.current_page}
               totalItems={ordersMeta.total}
               pageSize={ordersMeta.per_page}
-              onPageChange={(page) => loadOrders(page, { ...EMPTY_ORDER_FILTERS, status: "paid", sort: "oldest" })}
+              onPageChange={(page) => loadOrders(page, { ...EMPTY_ORDER_FILTERS, status: tokenStatusFilter, sort: "oldest" })}
               label="paid orders"
             />
           </div>

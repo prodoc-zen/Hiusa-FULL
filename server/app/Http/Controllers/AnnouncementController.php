@@ -153,7 +153,10 @@ class AnnouncementController extends Controller
             'creator:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
             'sourceOrganization:id,name,acronym',
-        ])->where(function ($scope) use ($user) {
+            'organization:id,name,acronym',
+        ])->withCount('reactions')
+            ->withExists(['reactions as is_liked' => fn ($reactions) => $reactions->where('user_id', $user->school_id)])
+            ->where(function ($scope) use ($user) {
             $scope->where('organization_id', $user->organization_id)
                 ->orWhere(function ($global) use ($user) {
                     $global->where('announcement_source', 'SAO')
@@ -248,19 +251,7 @@ class AnnouncementController extends Controller
     public function recordView(Request $request, $id)
     {
         $user = $request->user();
-
-        $announcement = Announcement::where(function ($scope) use ($user) {
-            $scope->where('organization_id', $user->organization_id)
-                ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
-        })
-            ->where('is_published', true)
-            ->where('approval_status', 'approved')
-            ->where(fn ($q) => $q->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now()))
-            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
-            ->where(function ($q) use ($user) {
-                $q->where('target_role', 'all')->orWhere('target_role', $user->role);
-            })
-            ->find($id);
+        $announcement = $this->visibleAnnouncement($user, $id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -279,6 +270,46 @@ class AnnouncementController extends Controller
         $announcement->increment('views_count');
 
         return response()->json(['message' => 'View recorded.', 'already_viewed' => false]);
+    }
+
+    public function react(Request $request, $id)
+    {
+        $announcement = $this->visibleAnnouncement($request->user(), $id);
+        if (! $announcement) {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
+
+        $announcement->reactions()->firstOrCreate(['user_id' => $request->user()->school_id]);
+
+        return response()->json(['is_liked' => true, 'reactions_count' => $announcement->reactions()->count()]);
+    }
+
+    public function unreact(Request $request, $id)
+    {
+        $announcement = $this->visibleAnnouncement($request->user(), $id);
+        if (! $announcement) {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
+
+        $announcement->reactions()->where('user_id', $request->user()->school_id)->delete();
+
+        return response()->json(['is_liked' => false, 'reactions_count' => $announcement->reactions()->count()]);
+    }
+
+    private function visibleAnnouncement(User $user, $id): ?Announcement
+    {
+        return Announcement::where(function ($scope) use ($user) {
+            $scope->where('organization_id', $user->organization_id)
+                ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
+        })
+            ->where('is_published', true)
+            ->where('approval_status', 'approved')
+            ->where(fn ($q) => $q->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now()))
+            ->where(fn ($q) => $q->whereNull('expires_at')->orWhere('expires_at', '>', now()))
+            ->where(function ($q) use ($user) {
+                $q->where('target_role', 'all')->orWhere('target_role', $user->role);
+            })
+            ->find($id);
     }
 
     public function store(Request $request)

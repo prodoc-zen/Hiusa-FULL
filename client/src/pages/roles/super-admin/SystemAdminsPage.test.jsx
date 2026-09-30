@@ -60,7 +60,8 @@ describe('SystemAdminsPage', () => {
 
   it('initiates a secure password reset after confirmation', async () => {
     render(<SystemAdminsPage />);
-    fireEvent.click(await screen.findByRole('button', { name: /Initiate password reset for Ana Reyes/i }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Ana Reyes' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Reset access' }));
     fireEvent.click(screen.getByRole('button', { name: 'Send reset link' }));
 
     await waitFor(() => expect(serviceMocks.initiateSystemAdminPasswordReset).toHaveBeenCalledWith(10101));

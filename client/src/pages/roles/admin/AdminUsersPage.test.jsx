@@ -137,12 +137,13 @@ describe('UserActionDock', () => {
       />,
     );
 
-    expect(screen.getByRole('button', { name: 'View Diego Villanueva' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Verify identity for Diego Villanueva' })).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Edit Diego Villanueva' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Re-enroll fingerprint for Diego Villanueva' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Deactivate Diego Villanueva' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: 'Delete Diego Villanueva' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Diego Villanueva' }));
+    expect(screen.getByRole('menuitem', { name: 'View Diego Villanueva' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Verify identity for Diego Villanueva' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Edit Diego Villanueva' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Re-enroll fingerprint for Diego Villanueva' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Deactivate Diego Villanueva' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete Diego Villanueva' })).not.toBeInTheDocument();
   });
 
   it('uses dedicated modals for fingerprint enrollment and removal confirmation', async () => {

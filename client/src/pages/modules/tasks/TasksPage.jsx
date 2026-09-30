@@ -20,6 +20,7 @@ import EngineBadge from '../../../components/ai/EngineBadge';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import TableFilterBar from '../../../components/TableFilterBar';
+import TableRowActions from '../../../components/TableRowActions';
 
 function getDelegationDetail(source) {
   if (!source || typeof source !== 'object') return null;
@@ -311,9 +312,8 @@ export default function TasksPage({ initialTab = 'board' }) {
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
             <div className="border-b border-[#DDE7EF] pb-5">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Task assignment</p>
-              <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Create a New Task</h2>
-              <p className="mt-1 text-sm text-slate-500">Define one actionable assignment, connect it to an event when relevant, and select an officer or let the scoring engine recommend one.</p>
+              <h2 className="text-lg font-bold text-[#0F172A]">Task details</h2>
+              <p className="mt-1 text-sm text-slate-500">Connect the assignment to an event when relevant, then select an officer or let the scoring engine recommend one.</p>
             </div>
             {createSuccess && <div className="mt-5 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{createSuccess}</div>}
             {officers.length === 0 && <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertCircle size={17} className="mt-0.5 shrink-0" /><div><p className="font-bold">Officer positions must be configured first.</p><p className="mt-1 text-xs leading-5">Add SBO positions under Users &amp; Positions, then assign a position to an active SBO officer before creating or delegating a task.</p></div></div>}
@@ -351,7 +351,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               {canManageTasks && (
                 <button type="button" onClick={() => navigate('/dashboard/tasks/create-task')} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] sm:flex-none">
                   <Plus size={16} />
-                  <span className="hidden sm:inline">Create Task</span>
+                  <span>Create Task</span>
                 </button>
               )}
             </div>
@@ -381,7 +381,16 @@ export default function TasksPage({ initialTab = 'board' }) {
               {tasksMeta.total === 0 ? 'No tasks found.' : search.trim() ? 'No tasks on this page match your search.' : 'No tasks on this page.'}
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 p-3 lg:hidden" aria-label="Tasks">
+              {filteredTasks.map((t) => <article key={t.id} className="min-w-0 rounded-lg border border-[#DDE7EF] p-4">
+                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{t.title}</h3><p className="mt-1 line-clamp-2 text-xs text-slate-500">{t.description || 'No description'}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
+                <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{t.event?.title || 'General organization task'}</dd></div></dl>
+                <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
+                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{(canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}</div>
+              </article>)}
+            </div>
+            <div className="hidden overflow-x-auto lg:block">
               <table className="w-full min-w-[1380px] text-left">
                 <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                   <tr>
@@ -412,38 +421,19 @@ export default function TasksPage({ initialTab = 'board' }) {
                       </td>
                       <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${t.creator.first_name} ${t.creator.last_name}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
                       <td className="px-5 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button type="button" onClick={() => openTaskDetails(t)} className="inline-flex items-center gap-1 rounded-md border border-[#DDE7EF] px-2.5 py-1 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD]">
-                            <Eye size={12} /> View
-                          </button>
-                          {(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && (
-                            <button
-                              onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))}
-                              className="rounded-md bg-[#E6F6FD] px-2.5 py-1 text-xs font-bold text-[#0F2F62] transition hover:bg-[#F8FBFD]"
-                            >
-                              Start
-                            </button>
-                          )}
-                          {(canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && (
-                            <button
-                              onClick={() => setCompletionTask(t)}
-                              className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
-                            >
-                              Complete
-                            </button>
-                          )}
-                          {canManageTasks && t.status === 'completed' && (
-                            <button onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="rounded-md border border-amber-200 bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-800 transition hover:bg-amber-100">
-                              Reopen
-                            </button>
-                          )}
-                        </div>
+                        <TableRowActions subject={t.title} label="Task actions" actions={[
+                          { label: 'View task', icon: Eye, onClick: () => openTaskDetails(t) },
+                          (canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start task', icon: CheckCircle2, onClick: () => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)) },
+                          (canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete task', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
+                          canManageTasks && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0) },
+                        ]} />
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             </div>
+            </>
           )}
           <PaginationControls
             currentPage={tasksMeta.currentPage}

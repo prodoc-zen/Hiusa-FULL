@@ -60,7 +60,7 @@ const NAV_STRUCTURE = [
     children: [
       { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
@@ -206,9 +206,53 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const [flyout, setFlyout] = useState(null);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(() => window.innerWidth >= 1024);
   const sidebarRef = useRef(null);
+  const closeButtonRef = useRef(null);
+  const onCloseRef = useRef(onClose);
   const flyoutRef = useRef(null);
   const flyoutTriggerRef = useRef(null);
+
+  useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useEffect(() => {
+    const onResize = () => {
+      const desktop = window.innerWidth >= 1024;
+      setIsDesktop(desktop);
+      if (desktop && isOpen) onCloseRef.current();
+    };
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen || isDesktop) return undefined;
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const frame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        onCloseRef.current();
+      } else if (event.key === 'Tab') {
+        const focusable = Array.from(sidebarRef.current?.querySelectorAll('button:not([disabled]), a[href]') || []).filter((element) => element.getClientRects().length);
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (!sidebarRef.current?.contains(document.activeElement)) { event.preventDefault(); (event.shiftKey ? last : first).focus(); }
+        else if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      previousFocus?.focus?.();
+    };
+  }, [isOpen, isDesktop]);
 
   useEffect(() => { setFlyout(null); }, [location.pathname, desktopCollapsed]);
 
@@ -294,7 +338,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
           <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
           <p className="text-[11px] font-medium text-slate-500">{roleLabel} System</p>
         </div>
-        <button type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
+        <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
         </button>
         <button type="button" onClick={onToggleDesktop} aria-label={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} aria-expanded={!desktopCollapsed} title={desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'} className={`hidden h-11 w-11 shrink-0 place-items-center rounded-lg text-slate-200 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] lg:grid ${desktopCollapsed ? '' : 'ml-auto'}`}>
@@ -367,7 +411,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
               <NavItem {...item} desktopCollapsed={desktopCollapsed} />
             </div>
           ))}
-          <button type="button" onClick={() => setLogoutConfirmOpen(true)} aria-label={desktopCollapsed ? 'Logout' : undefined} title={desktopCollapsed ? 'Logout' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
+          <button type="button" onClick={() => { handleNavItemClick(); setLogoutConfirmOpen(true); }} aria-label={desktopCollapsed ? 'Logout' : undefined} title={desktopCollapsed ? 'Logout' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
             <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
             <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Logout</span>
           </button>
@@ -383,7 +427,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   return (
     <>
       {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside ref={sidebarRef} className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       {flyoutGroup && createPortal(
         <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-2rem))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
           <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>

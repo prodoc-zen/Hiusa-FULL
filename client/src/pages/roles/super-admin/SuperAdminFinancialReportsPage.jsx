@@ -137,12 +137,6 @@ export default function SuperAdminFinancialReportsPage() {
 
   return (
     <div className="space-y-5">
-      <header className="border-b border-[#DDE7EF] pb-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Student Affairs Office</p>
-        <h1 className="mt-1 text-2xl font-black text-[#0F172A]">Received Financial Reports</h1>
-        <p className="mt-1 max-w-2xl text-sm font-medium text-slate-500">Review financial reports and income statements forwarded by Department Heads. Ledger management remains with each organization Admin.</p>
-      </header>
-
       {loadError && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-semibold">{loadError}</p>

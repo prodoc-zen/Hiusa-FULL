@@ -100,7 +100,6 @@ export default function SaoEventRequirementsPage() {
   }
 
   return <div className="space-y-5">
-    <header className="rounded-lg bg-[#0B1831] p-5 text-white"><p className="text-xs font-bold uppercase text-[#16C7F3]">Student Affairs Office</p><h1 className="mt-1 text-2xl font-black">Event requirements</h1><p className="mt-1 text-sm text-slate-300">Choose the files organizations must submit. Department Heads can view them; SAO reviews the event.</p></header>
     {error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
     {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">

@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 export default function Modal({
@@ -85,7 +86,7 @@ export default function Modal({
     return null;
   }
 
-  return (
+  return createPortal(
     <div
       className="overlay-fade-in fixed inset-0 z-[70] flex items-end justify-center bg-navy-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
@@ -131,6 +132,7 @@ export default function Modal({
           </footer>
         )}
       </section>
-    </div>
+    </div>,
+    document.body,
   );
 }

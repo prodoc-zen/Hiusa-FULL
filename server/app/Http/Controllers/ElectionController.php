@@ -79,10 +79,13 @@ class ElectionController extends Controller
         if ($request->user()?->role === 'STUDENT') {
             $query->where(function ($studentQuery) {
                 $studentQuery
-                    ->where('status', 'active')
+                    ->where(function ($openQuery) {
+                        $openQuery->where('status', 'active')->whereNotNull('finalized_at');
+                    })
                     ->orWhere(function ($resultsQuery) {
                         $resultsQuery
-                            ->where('status', 'closed')
+                            ->whereIn('status', ['active', 'closed'])
+                            ->whereNotNull('finalized_at')
                             ->where('results_visible', true);
                     });
             });
@@ -117,7 +120,7 @@ class ElectionController extends Controller
         }
 
         if ($user?->role === 'STUDENT') {
-            if ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible)) {
+            if (! $election->finalized_at || ($election->status !== 'active' && ! ($election->status === 'closed' && $election->results_visible))) {
                 return response()->json(['message' => 'Students can only access active elections or visible election results.'], 403);
             }
         }
@@ -205,6 +208,36 @@ class ElectionController extends Controller
         return response()->json($election, 201);
     }
 
+    public function finalize(Request $request, $id)
+    {
+        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+        if (! $election) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        if (! $election->approved_at || $election->status !== 'upcoming') {
+            return response()->json(['message' => 'Only an approved election awaiting voting can be finalized.'], 422);
+        }
+
+        if ($election->finalized_at) {
+            return response()->json(['message' => 'This ballot is already finalized.'], 409);
+        }
+
+        $positions = $election->positions()->withCount('candidates')->get();
+        if ($positions->isEmpty() || $positions->contains(fn ($position) => $position->candidates_count === 0)) {
+            return response()->json(['message' => 'Add at least one candidate to every ballot position before finalizing.'], 422);
+        }
+
+        if (! $election->candidates()->whereNotNull('partylist_id')->exists()) {
+            return response()->json(['message' => 'Assign at least one candidate to a party list before finalizing.'], 422);
+        }
+
+        $election->update(['finalized_at' => now()]);
+        $this->recordElectionAudit($request, 'ballot_finalized', Election::class, $election->id, null, $this->auditableElectionValues($election));
+
+        return response()->json($election->fresh());
+    }
+
     public function update(Request $request, $id)
     {
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
@@ -235,8 +268,16 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election must be approved before it can be opened.'], 422);
         }
 
+        if (($data['status'] ?? null) === 'active' && ! $election->finalized_at) {
+            return response()->json(['message' => 'Finalize the candidate and party list ballot before opening voting.'], 422);
+        }
+
         if (($data['status'] ?? null) === 'closed' && ! $election->approved_at) {
             return response()->json(['message' => 'Only an approved election can be closed.'], 422);
+        }
+
+        if (($data['status'] ?? null) === 'closed' && ! $election->finalized_at) {
+            return response()->json(['message' => 'Finalize the ballot before closing this election.'], 422);
         }
 
         if (($data['status'] ?? null) === 'active') {
@@ -269,6 +310,7 @@ class ElectionController extends Controller
                 if ($election->approved_at && $this->hasMaterialElectionChange($data)) {
                     $data['status'] = 'pending_approval';
                     $data['approved_at'] = null;
+                    $data['finalized_at'] = null;
                     $this->reopenApproval($election, $request);
                 }
 
@@ -338,6 +380,10 @@ class ElectionController extends Controller
 
     private function ballotIsLockedResponse(Election $election)
     {
+        if ($election->finalized_at) {
+            return response()->json(['message' => 'The ballot has been finalized and cannot be changed.'], 409);
+        }
+
         if (! $election->votes()->exists()) {
             return null;
         }
@@ -383,12 +429,6 @@ class ElectionController extends Controller
             ->where('status', 'upcoming')
             ->where('end_time', '<', $now)
             ->update(['status' => 'closed']);
-
-        $baseQuery()
-            ->where('status', 'upcoming')
-            ->where('start_time', '<=', $now)
-            ->where('end_time', '>=', $now)
-            ->update(['status' => 'active']);
 
         $baseQuery()
             ->where('status', 'active')
@@ -844,6 +884,10 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Partylist not found'], 404);
         }
 
+        if ($partylist->candidates()->whereHas('election', fn ($query) => $query->whereNotNull('finalized_at'))->exists()) {
+            return response()->json(['message' => 'A finalized ballot uses this party list and it cannot be changed.'], 409);
+        }
+
         $oldValues = $this->auditablePartylistValues($partylist);
 
         $data = $request->validate([
@@ -925,7 +969,7 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($election->status !== 'active') {
+        if ($election->status !== 'active' || ! $election->approved_at || ! $election->finalized_at) {
             return response()->json(['message' => 'This election is not currently accepting votes'], 400);
         }
 
@@ -1067,8 +1111,8 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($election->status !== 'closed') {
-            return response()->json(['message' => 'Election results are available after the election closes and results are released.'], 403);
+        if (! in_array($election->status, ['active', 'closed'], true) || ! $election->finalized_at) {
+            return response()->json(['message' => 'Results are available after the ballot is finalized and voting opens.'], 403);
         }
 
         if (! $election->results_visible && $request->user()->role !== 'ADMIN') {

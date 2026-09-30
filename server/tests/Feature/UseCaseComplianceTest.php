@@ -584,6 +584,7 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->addDays(2),
             'status' => 'active',
             'approved_at' => now(),
+            'finalized_at' => now(),
         ]);
         $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
         $candidate = Candidate::create([
@@ -613,6 +614,7 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->addHour(),
             'status' => 'active',
             'approved_at' => now()->subDay(),
+            'finalized_at' => now()->subDay(),
         ]);
         $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
         $candidate = Candidate::create([
@@ -632,7 +634,7 @@ class UseCaseComplianceTest extends TestCase
         $this->assertSame(4, Vote::where('election_id', $election->id)->distinct('voter_id')->count('voter_id'));
     }
 
-    public function test_approved_elections_follow_their_scheduled_opening_and_closing_times(): void
+    public function test_approved_elections_wait_for_admin_opening_and_close_at_the_scheduled_end(): void
     {
         $student = $this->user('STUDENT');
         $scheduledToOpen = Election::create([
@@ -651,6 +653,7 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->subMinute(),
             'status' => 'active',
             'approved_at' => now()->subDay(),
+            'finalized_at' => now()->subDay(),
             'results_visible' => true,
         ]);
         $manuallyClosed = Election::create([
@@ -660,16 +663,16 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->addHour(),
             'status' => 'closed',
             'approved_at' => now()->subDay(),
+            'finalized_at' => now()->subDay(),
             'results_visible' => true,
         ]);
 
         $this->authenticate($student);
         $this->getJson('/api/elections')
             ->assertOk()
-            ->assertJsonFragment(['id' => $scheduledToOpen->id, 'status' => 'active'])
             ->assertJsonFragment(['id' => $scheduledToClose->id, 'status' => 'closed']);
 
-        $this->assertDatabaseHas('elections', ['id' => $scheduledToOpen->id, 'status' => 'active']);
+        $this->assertDatabaseHas('elections', ['id' => $scheduledToOpen->id, 'status' => 'upcoming']);
         $this->assertDatabaseHas('elections', ['id' => $scheduledToClose->id, 'status' => 'closed']);
         $this->assertDatabaseHas('elections', ['id' => $manuallyClosed->id, 'status' => 'closed']);
     }
@@ -684,6 +687,7 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->addDays(2),
             'status' => 'upcoming',
             'approved_at' => now(),
+            'finalized_at' => now(),
         ]);
 
         $this->authenticate($admin);
@@ -711,6 +715,7 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->addHour(),
             'status' => 'closed',
             'approved_at' => now()->subDay(),
+            'finalized_at' => now()->subDay(),
         ]);
 
         $this->authenticate($admin);
@@ -726,6 +731,48 @@ class UseCaseComplianceTest extends TestCase
             'record_type' => Election::class,
             'record_id' => $election->id,
         ]);
+    }
+
+    public function test_election_requires_admin_finalization_with_a_complete_ballot_before_opening(): void
+    {
+        $admin = $this->user('ADMIN');
+        $otherAdmin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $candidateUser = $this->user('STUDENT', $admin->organization_id);
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Finalization Check',
+            'start_time' => now()->subHour(),
+            'end_time' => now()->addHour(),
+            'status' => 'upcoming',
+            'approved_at' => now(),
+            'results_visible' => true,
+        ]);
+        $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+
+        $this->authenticate($student);
+        $this->patchJson("/api/elections/{$election->id}/finalize")->assertForbidden();
+        $this->authenticate($otherAdmin);
+        $this->patchJson("/api/elections/{$election->id}/finalize")->assertNotFound();
+
+        $this->authenticate($admin);
+        $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])->assertUnprocessable();
+        $this->patchJson("/api/elections/{$election->id}/finalize")->assertUnprocessable();
+
+        $candidate = Candidate::create(['election_id' => $election->id, 'position_id' => $position->id, 'user_id' => $candidateUser->school_id]);
+        $this->patchJson("/api/elections/{$election->id}/finalize")->assertUnprocessable();
+
+        $partylist = Partylist::create(['organization_id' => $admin->organization_id, 'name' => 'Finalization Slate']);
+        $candidate->update(['partylist_id' => $partylist->id]);
+        $this->patchJson("/api/elections/{$election->id}/finalize")
+            ->assertOk()
+            ->assertJsonPath('status', 'upcoming');
+        $this->assertNotNull($election->fresh()->finalized_at);
+        $this->patchJson("/api/elections/{$election->id}/finalize")->assertConflict();
+        $this->putJson("/api/elections/{$election->id}", ['status' => 'active'])->assertOk();
+
+        $this->authenticate($student);
+        $this->getJson("/api/elections/{$election->id}/results")->assertOk();
     }
 
     public function test_approved_election_changes_reopen_approval_and_votes_lock_details(): void
@@ -756,7 +803,7 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($departmentHead);
         $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
         $election = Election::findOrFail($electionId);
-        $election->update(['status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHour()]);
+        $election->update(['status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHour(), 'finalized_at' => now()]);
         $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
         $candidate = Candidate::create([
             'election_id' => $election->id,
@@ -876,6 +923,7 @@ class UseCaseComplianceTest extends TestCase
             'end_time' => now()->addHour(),
             'status' => 'active',
             'approved_at' => now(),
+            'finalized_at' => now(),
         ]);
         $president = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
         $treasurer = ElectionPosition::create(['election_id' => $election->id, 'title' => 'Treasurer', 'max_winners' => 1]);
@@ -1231,6 +1279,38 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonPath('data.0.id', $published->id);
     }
 
+    public function test_announcement_reactions_are_idempotent_and_respect_audience_and_organization(): void
+    {
+        $admin = $this->user('ADMIN');
+        $student = $this->user('STUDENT', $admin->organization_id);
+        $otherStudent = $this->user('STUDENT');
+        $announcement = Announcement::create([
+            'organization_id' => $admin->organization_id,
+            'created_by' => $admin->school_id,
+            'title' => 'Reaction Notice',
+            'body' => 'Published for students.',
+            'target_role' => 'STUDENT',
+            'category' => 'general',
+            'approval_status' => 'approved',
+            'is_published' => true,
+            'published_at' => now(),
+        ]);
+
+        $this->authenticate($otherStudent);
+        $this->putJson("/api/announcements/{$announcement->id}/reaction")->assertNotFound();
+        $this->authenticate($admin);
+        $this->putJson("/api/announcements/{$announcement->id}/reaction")->assertNotFound();
+
+        $this->authenticate($student);
+        $this->putJson("/api/announcements/{$announcement->id}/reaction")->assertOk()->assertJsonPath('reactions_count', 1);
+        $this->putJson("/api/announcements/{$announcement->id}/reaction")->assertOk()->assertJsonPath('reactions_count', 1);
+        $this->getJson('/api/announcements?published_only=1')
+            ->assertOk()
+            ->assertJsonPath('data.0.reactions_count', 1)
+            ->assertJsonPath('data.0.is_liked', true);
+        $this->deleteJson("/api/announcements/{$announcement->id}/reaction")->assertOk()->assertJsonPath('reactions_count', 0);
+    }
+
     public function test_department_head_order_history_is_personal_and_catalog_hides_inactive_items(): void
     {
         $departmentHead = $this->user('DEPARTMENT_HEAD');
@@ -1353,7 +1433,7 @@ class UseCaseComplianceTest extends TestCase
         $this->getJson("/api/events/{$planning->id}")->assertForbidden();
     }
 
-    public function test_live_standings_are_anonymous_while_official_results_wait_for_closure(): void
+    public function test_live_standings_and_results_remain_anonymous_during_voting(): void
     {
         $admin = $this->user('ADMIN');
         $student = $this->user('STUDENT', $admin->organization_id);
@@ -1363,6 +1443,7 @@ class UseCaseComplianceTest extends TestCase
             'organization_id' => $admin->organization_id,
             'status' => 'active',
             'approved_at' => now(),
+            'finalized_at' => now(),
             'results_visible' => true,
             'start_time' => now()->subHour(),
             'end_time' => now()->addHour(),
@@ -1384,7 +1465,10 @@ class UseCaseComplianceTest extends TestCase
         $this->getJson("/api/elections/{$election->id}")
             ->assertOk()
             ->assertJsonMissingPath('votes');
-        $this->getJson("/api/elections/{$election->id}/results")->assertForbidden();
+        $this->getJson("/api/elections/{$election->id}/results")
+            ->assertOk()
+            ->assertJsonPath('0.candidates.0.votes', 1)
+            ->assertJsonMissingPath('0.candidates.0.voter_id');
 
         $this->authenticate($student);
         $this->getJson("/api/elections/{$election->id}")
@@ -1392,7 +1476,10 @@ class UseCaseComplianceTest extends TestCase
             ->assertJsonPath("vote_counts.{$candidate->id}", 1)
             ->assertJsonPath('voters_count', 1)
             ->assertJsonMissingPath('votes');
-        $this->getJson("/api/elections/{$election->id}/results")->assertForbidden();
+        $this->getJson("/api/elections/{$election->id}/results")
+            ->assertOk()
+            ->assertJsonPath('0.candidates.0.votes', 1)
+            ->assertJsonMissingPath('0.candidates.0.voter_id');
 
         $election->update(['status' => 'closed']);
         $this->getJson("/api/elections/{$election->id}/results")
