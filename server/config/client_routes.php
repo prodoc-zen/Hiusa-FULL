@@ -24,23 +24,11 @@
  * starts failing and tells you to move the path out of pending_client into
  * the role's live list instead. Keeping them out of the live lists is
  * deliberate: a role's own array is exactly what App.jsx grants it today, so
- * one role's pending finance pages can never leak into a live href for a
- * role that has no client route for them at all (e.g. SBO_OFFICER never
- * gets ADMIN-only /dashboard/finance/budget-allocation just because it is
- * listed as pending for SBO_OFFICER too).
+ * one role's pending pages can never leak into a live href for a role
+ * that has no client route for them at all.
  */
 
-$financePendingNextWave = [
-    '/dashboard/finance/financial-ledger',
-    '/dashboard/finance/budget-allocation',
-    '/dashboard/finance/financial-insights',
-    '/dashboard/finance/transaction-history',
-];
-
-$pendingClient = [
-    'SBO_OFFICER' => $financePendingNextWave,
-    'DEPARTMENT_HEAD' => $financePendingNextWave,
-];
+$pendingClient = [];
 
 return [
     'SUPER_ADMIN' => [
@@ -124,6 +112,10 @@ return [
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/check-in',
         '/dashboard/events/activity-calendar',
+        '/dashboard/finance/financial-ledger',
+        '/dashboard/finance/budget-allocation',
+        '/dashboard/finance/financial-insights',
+        '/dashboard/finance/transaction-history',
         '/dashboard/finance/personal-receipts',
         '/dashboard/finance/statement-of-account',
         '/dashboard/merchandise/manage-orders',
@@ -150,6 +142,10 @@ return [
         '/dashboard/approvals',
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/activity-calendar',
+        '/dashboard/finance/financial-ledger',
+        '/dashboard/finance/budget-allocation',
+        '/dashboard/finance/financial-insights',
+        '/dashboard/finance/transaction-history',
         '/dashboard/merchandise/claim-tokens',
         '/dashboard/merchandise/order-merchandise',
         '/dashboard/merchandise/my-orders',

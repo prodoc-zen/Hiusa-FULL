@@ -48,6 +48,8 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
 
+const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
+
 const budgetStatusBadge = {
   pending: 'bg-amber-50 text-amber-700',
   approved: 'bg-emerald-50 text-emerald-700',
@@ -268,9 +270,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
-  const canViewTransactions = currentUserRole === 'ADMIN';
-  const canViewForecasts = currentUserRole === 'ADMIN';
-  const canViewBudgets = currentUserRole === 'ADMIN';
+  // Officers and department heads review the organization's finances; only the ADMIN changes them.
+  const canReadFinance = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const canViewTransactions = canReadFinance;
+  const canViewForecasts = canReadFinance;
+  const canViewBudgets = canReadFinance;
+  const canGenerateForecast = currentUserRole === 'ADMIN';
   const canViewPersonalReceipts = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canViewInvoices = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canProposeBudget = currentUserRole === 'ADMIN';
@@ -793,7 +798,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     <div className="space-y-5 pb-8">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
 
-      {canViewTransactions && !error && activeTab !== 'transactions' && (
+      {canReadFinance && !canManageLedger && OVERSIGHT_TABS.includes(activeTab) && (
+        <p className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm font-medium text-slate-600">
+          <Eye size={16} className="shrink-0 text-[#0878B7]" aria-hidden="true" />
+          View only. You can review and export these records; the organization admin records and changes them.
+        </p>
+      )}
+
+      {canViewTransactions && !error && OVERSIGHT_TABS.includes(activeTab) && activeTab !== 'transactions' && (
         <div className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-right">
           <p className="text-xs font-medium text-slate-600">Ledger net balance</p>
           <p className="mt-0.5 text-xl font-bold tabular-nums text-[#0F2F62]" aria-live="polite">{loading ? 'Loading…' : fmt(summary.net_balance)}</p>
@@ -1129,20 +1141,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <h2 className="text-lg font-bold text-[#0F172A]">Financial Forecast</h2>
                 <p className="text-sm font-medium text-slate-500">OLS projections based on monthly transaction history</p>
               </div>
-              <button
-                type="button"
-                onClick={handleGenerateForecast}
-                disabled={forecastGenerating}
-                className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"
-              >
-                <Sparkles size={15} />
-                {forecastGenerating ? 'Generating...' : 'Generate Forecast'}
-              </button>
+              {canGenerateForecast && (
+                <button
+                  type="button"
+                  onClick={handleGenerateForecast}
+                  disabled={forecastGenerating}
+                  className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"
+                >
+                  <Sparkles size={15} />
+                  {forecastGenerating ? 'Generating...' : 'Generate Forecast'}
+                </button>
+              )}
             </div>
             {forecastGenError && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-semibold text-red-700">
                 <span className="flex items-start gap-1.5"><AlertTriangle size={14} className="mt-0.5 shrink-0" />{forecastGenError}</span>
-                <button type="button" onClick={handleGenerateForecast} className="shrink-0 font-bold underline">Retry</button>
+                {canGenerateForecast && <button type="button" onClick={handleGenerateForecast} className="shrink-0 font-bold underline">Retry</button>}
               </div>
             )}
             {loading ? (
@@ -1402,7 +1416,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
             </div>
             {reports.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">No saved reports yet. Generate a Financial Report or Income Statement above.</p>
+              <p className="p-8 text-center text-sm text-slate-500">{currentUserRole === 'ADMIN' ? 'No saved reports yet. Generate a Financial Report or Income Statement above.' : 'No saved reports yet. Reports the organization admin prepares will appear here.'}</p>
             ) : visibleReports.length === 0 ? (
               <p className="p-8 text-center text-sm text-slate-500">No saved reports match these filters.</p>
             ) : (

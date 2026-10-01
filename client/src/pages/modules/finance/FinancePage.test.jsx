@@ -183,7 +183,7 @@ describe('FinancePage transaction search', () => {
     expect(screen.getByRole('button', { name: 'Submit for Approval' })).toBeInTheDocument();
   });
 
-  it('does not load finance-module data for a Department Head', async () => {
+  it('lets a Department Head review budgets read-only, without any write controls', async () => {
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
     financeMocks.getBudgets.mockResolvedValue({
       data: [{ id: 1, title: 'Operating Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' }],
@@ -191,14 +191,22 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="budgets" startBudgetProposal />);
 
-    expect(await screen.findByText('No budgets proposed yet.')).toBeInTheDocument();
-    expect(financeMocks.getBudgets).not.toHaveBeenCalled();
-    expect(financeMocks.getTransactions).not.toHaveBeenCalled();
-    expect(financeMocks.getFinancialReports).not.toHaveBeenCalled();
-    expect(screen.queryByText('Operating Budget')).not.toBeInTheDocument();
+    expect(await screen.findByText('Operating Budget')).toBeInTheDocument();
+    expect(screen.getByText(/View only\./)).toBeInTheDocument();
+    expect(financeMocks.getBudgets).toHaveBeenCalled();
     expect(screen.queryByRole('button', { name: 'Propose Budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI Advice' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Propose Budget' })).not.toBeInTheDocument();
+  });
+
+  it('shows an SBO officer the forecasts without the admin-only generate action', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText('No forecasts recorded yet.')).toBeInTheDocument();
+    expect(financeMocks.getForecasts).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: /Generate Forecast/ })).not.toBeInTheDocument();
   });
 
   it('creates an income statement as a separate document with a letterhead image', async () => {

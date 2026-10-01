@@ -131,7 +131,7 @@ function EventsIndexRedirect() {
 function FinanceIndexRedirect() {
   const role = getStoredRole();
 
-  if (role === 'ADMIN') {
+  if (role === 'ADMIN' || role === 'DEPARTMENT_HEAD') {
     return <Navigate to="financial-ledger" replace />;
   }
 
@@ -255,14 +255,14 @@ function App() {
             <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
           </Route>
 
-          <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]} />}>
+          <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]} />}>
             <Route index element={<FinanceIndexRedirect />} />
-            <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
+            <Route path="financial-ledger" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="transactions" /></ProtectedRoute>} />
             <Route path="collections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancialCollectionsPage /></ProtectedRoute>} />
             <Route path="student-accounts" element={<ProtectedRoute allowedRoles={["ADMIN"]}><StudentFinancialAccountsPage /></ProtectedRoute>} />
-            <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
-            <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
-            <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["ADMIN"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
+            <Route path="budget-allocation" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="budgets" /></ProtectedRoute>} />
+            <Route path="financial-insights" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="forecasting" /></ProtectedRoute>} />
+            <Route path="transaction-history" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD"]}><FinancePage initialTab="reports" /></ProtectedRoute>} />
             <Route path="personal-receipts" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><FinancePage initialTab="receipts" /></ProtectedRoute>} />
             <Route path="statement-of-account" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "STUDENT"]}><FinancePage initialTab="invoices" /></ProtectedRoute>} />
           </Route>
