@@ -69,6 +69,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/users', [UserController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/users/import', [UserController::class, 'import'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/users/{id}', [UserController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/users/{id}/photo', [UserPhotoController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/users/{id}/disable', [UserController::class, 'disable'])->middleware(['throttle:api-write', 'role:ADMIN']);

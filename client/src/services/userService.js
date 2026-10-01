@@ -10,6 +10,12 @@ export const uploadUserPhoto = async (id, file) => {
   body.append('photo', file);
   return unwrap(await api.post(`/users/${id}/photo`, body));
 };
+export const importUsers = async (file, dryRun) => {
+  const body = new FormData();
+  body.append('file', file);
+  body.append('dry_run', dryRun ? '1' : '0');
+  return unwrap(await api.post('/users/import', body));
+};
 export const getSboPositions = async (params) => unwrap(await api.get('/sbo-positions', { params }));
 export const createSboPosition = async (payload) => unwrap(await api.post('/sbo-positions', payload));
 export const updateSboPosition = async (id, payload) => unwrap(await api.put(`/sbo-positions/${id}`, payload));
