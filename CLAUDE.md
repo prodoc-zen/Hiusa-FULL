@@ -52,6 +52,18 @@ Never produce generic AI output. Specifically:
 - Prefer editing existing files over creating new ones.
 - Do not introduce security vulnerabilities (XSS, SQL injection, command injection, etc.).
 
+### Established Patterns
+
+Learned the hard way; follow them every time.
+
+- **Local dev DB.** XAMPP MariaDB on port 3307 (3306 is a different instance; never touch it). Take a `mysqldump` before every `php artisan migrate` on it.
+- **Worktrees.** Give each git worktree its own `composer install`. Never junction or symlink `server/vendor` between trees: one tree's autoload regenerates over the others. Each worktree's `server/.env` uses `DB_CONNECTION=sqlite` with `DB_DATABASE=:memory:`, so `migrate:fresh` in a worktree can never reach the dev DB.
+- **Factories in tests.** Pin `status` (and any other random enum) whenever a test depends on it. A random `completed` event status once caused a flaky suite.
+- **AI service.** Start it with reload off (`HIUSA_AI_RELOAD=false`), or it spawns a child that outlives the parent. Restart it after engine changes, then run `AiFallbackParityTest`; its live tests compare the PHP fallback against the running engine.
+- **Task delegation.** The four-factor formula lives in three places: `ai-service/app/engines/task_delegation.py`, `TaskDelegationService` (weights, recency) and TaskController's fallback, which reuses `TaskDelegationService`. Change all of them together.
+- **Client routes.** Every role-gated route in `App.jsx` has a matching entry in `server/config/client_routes.php`; `ClientRouteAllowlistTest` fails on any drift. Briefing and notification links resolve through that allowlist.
+- **Budget money.** Only budgets with `submission_status = approved` count as available. Sum spending per budget, because income posted against a budget raises its remaining amount above what was allocated.
+
 ---
 
 ## Tech Stack
