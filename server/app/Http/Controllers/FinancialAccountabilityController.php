@@ -14,11 +14,13 @@ use App\Models\Order;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Models\User;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class FinancialAccountabilityController extends Controller
 {
@@ -349,10 +351,54 @@ class FinancialAccountabilityController extends Controller
     public function auditLogs(Request $request)
     {
         $organizationId = $request->user()->organization_id;
+        $logs = $this->filteredAuditLogs($request)->paginate(10);
+        $logs->getCollection()->transform(fn (AuditLog $log) => $this->auditLogData($log, $organizationId));
+
+        return response()->json($logs);
+    }
+
+    /** The same filtered, scoped audit trail as auditLogs(), as a CSV download. */
+    public function exportAuditLogs(Request $request): StreamedResponse
+    {
+        $query = $this->filteredAuditLogs($request);
+        $acrossOrganizations = $request->user()->role === 'SUPER_ADMIN';
+
+        return response()->streamDownload(function () use ($query, $acrossOrganizations) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, array_values(array_filter(['Date and time', 'Actor', 'School ID', 'Role', $acrossOrganizations ? 'Organization' : null, 'Module', 'Action', 'Description', 'Record'])));
+            foreach ($query->lazy(500) as $log) {
+                $row = [
+                    $log->created_at?->format('Y-m-d H:i:s'),
+                    $log->user ? trim("{$log->user->first_name} {$log->user->last_name}") : 'System',
+                    $log->user_id,
+                    $log->actor_role ?? $log->user?->role,
+                    ...($acrossOrganizations ? [$log->organization?->name] : []),
+                    $log->module,
+                    $log->action,
+                    $log->description,
+                    $log->record_id,
+                ];
+                fputcsv($handle, array_map(fn ($value) => $this->csvCell($value), $row));
+            }
+            fclose($handle);
+        }, 'audit-log-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
+    }
+
+    // Names and descriptions are user-entered; a leading = + - @ would run as a spreadsheet formula.
+    private function csvCell(mixed $value): string
+    {
+        $text = (string) $value;
+
+        return preg_match('/^[=+\-@\t\r]/', $text) === 1 ? "'".$text : $text;
+    }
+
+    private function filteredAuditLogs(Request $request): Builder
+    {
+        $organizationId = $request->user()->organization_id;
         $filters = $request->validate(['user_id' => ['nullable', 'integer'], 'role' => ['nullable', 'string', 'max:30'], 'department' => ['nullable', 'string', 'max:120'], 'program' => ['nullable', 'string', 'max:120'], 'year_level' => ['nullable', 'string', 'max:30'], 'section' => ['nullable', 'string', 'max:60'], 'position_title' => ['nullable', 'string', 'max:100'], 'module' => ['nullable', 'string', 'max:50'], 'action' => ['nullable', 'string', 'max:100'], 'category' => ['nullable', 'in:CREATE,UPDATE,DELETE,APPROVE,REJECT,PAYMENT,COLLECTION,REMITTANCE,ATTENDANCE,STATUS_CHANGE'], 'search' => ['nullable', 'string', 'max:150'], 'from' => ['nullable', 'date'], 'to' => ['nullable', 'date', 'after_or_equal:from'], 'sort' => ['nullable', 'in:newest,oldest,user,role,module,action,category'], 'per_page' => ['nullable', 'integer', 'in:10']]);
         $query = AuditLog::with('user:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section,account_status,created_at')
             ->when($request->user()->role !== 'SUPER_ADMIN', fn ($q) => $q->where('organization_id', $organizationId)->where('module', '!=', 'grievances'))
-            ->when($request->user()->role === 'SUPER_ADMIN', fn ($q) => $q->whereNotIn('module', self::SUPER_ADMIN_HIDDEN_MODULES));
+            ->when($request->user()->role === 'SUPER_ADMIN', fn ($q) => $q->whereNotIn('module', self::SUPER_ADMIN_HIDDEN_MODULES)->with('organization:id,name'));
         foreach (['user_id', 'module', 'action'] as $field) {
             if (! empty($filters[$field])) {
                 $query->where($field, $filters[$field]);
@@ -378,10 +424,8 @@ class FinancialAccountabilityController extends Controller
         match ($filters['sort'] ?? 'newest') {
             'oldest' => $query->oldest('created_at'), 'user' => $query->orderBy(User::select('last_name')->whereColumn('users.school_id', 'audit_logs.user_id'))->orderBy(User::select('first_name')->whereColumn('users.school_id', 'audit_logs.user_id')), 'role' => $query->orderBy(User::select('role')->whereColumn('users.school_id', 'audit_logs.user_id')), 'module' => $query->orderBy('module')->orderByDesc('created_at'), 'action','category' => $query->orderBy('action')->orderByDesc('created_at'), default => $query->latest('created_at')
         };
-        $logs = $query->paginate(10);
-        $logs->getCollection()->transform(fn (AuditLog $log) => $this->auditLogData($log, $organizationId));
 
-        return response()->json($logs);
+        return $query;
     }
 
     private function ledger(Request $request, string $type, $amount, string $category, string $description, ?int $payerId, int $entityId, ?int $organizationId = null): Transaction

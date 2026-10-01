@@ -187,6 +187,7 @@ export const SUPER_ADMIN_NAV = [
       { id: 'sao-grievances', label: 'Grievances', path: '/dashboard/super-admin/grievances', roles: ['SUPER_ADMIN'] },
       { id: 'sao-clearances', label: 'Clearances', path: '/dashboard/super-admin/clearances', roles: ['SUPER_ADMIN'] },
       { id: 'sao-evaluation', label: 'Evaluation', path: '/dashboard/super-admin/evaluation', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-audit-logs', label: 'Audit Trail', path: '/dashboard/super-admin/audit-logs', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'University Announcements', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
       { id: 'sao-financial-reports', label: 'Received Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },

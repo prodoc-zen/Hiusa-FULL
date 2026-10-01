@@ -1,17 +1,31 @@
 import { useEffect, useMemo, useState } from "react";
-import { Clock3, Eye, X } from "lucide-react";
+import { Clock3, Download, Eye, X } from "lucide-react";
 import PaginationControls from "../../../components/PaginationControls";
 import TableFilterBar from "../../../components/TableFilterBar";
-import { getAuditLogs } from "../../../services/financeService";
+import { exportAuditLogs, getAuditLogs } from "../../../services/financeService";
+import downloadBlob from "../../../utils/downloadBlob";
+import { getApiErrorMessage } from "../../../utils/apiError";
+import notify from "../../../lib/notify";
 import { displayAuditValue, humanizeIdentifier, ROLE_LABELS } from "../../../utils/displayText";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
 import TableRowActions from "../../../components/TableRowActions";
 
 const MODULE_OPTIONS = [
-  "users", "positions", "orders", "merchandise", "invoices", "transactions",
-  "budgets", "events", "tasks", "collections", "attendance", "elections",
-  "announcements", "academic_structure",
+  "academic_structure", "ai_workflows", "announcements", "approvals", "attendance", "biometrics", "budgets",
+  "cash_advances", "clearances", "collections", "colleges", "compliance", "elections", "evaluation",
+  "event_registrations", "events", "financial_forecasts", "financial_ledger", "financial_reports",
+  "global_announcements", "grievances", "invoices", "merchandise", "orders", "positions", "remittances",
+  "system_administration", "task_delegation", "tasks", "transactions", "users", "venue_bookings", "venues",
 ];
+
+// Each role is offered only the modules its audit trail can contain: the SAO never
+// sees ledger modules, and an organization admin never sees SAO-level or grievance rows.
+const SAO_HIDDEN_MODULES = ["financial_ledger", "transactions", "collections", "remittances", "cash_advances", "invoices", "budgets", "orders"];
+const ADMIN_HIDDEN_MODULES = ["grievances", "global_announcements", "system_administration", "colleges"];
+
+function getCurrentRole() {
+  try { return JSON.parse(localStorage.getItem("user") ?? "{}")?.role ?? ""; } catch { return ""; }
+}
 
 const ACTION_CATEGORY_OPTIONS = [
   { value: "CREATE", label: "Create" },
@@ -48,6 +62,9 @@ export default function GeneralAuditLogPage() {
   const [error, setError] = useState("");
   const [selectedLog, setSelectedLog] = useState(null);
   const [changesPage, setChangesPage] = useState(1);
+  const [exporting, setExporting] = useState(false);
+  const isSao = useMemo(() => getCurrentRole() === "SUPER_ADMIN", []);
+  const moduleOptions = MODULE_OPTIONS.filter((module) => !(isSao ? SAO_HIDDEN_MODULES : ADMIN_HIDDEN_MODULES).includes(module));
 
   useEffect(() => {
     let cancelled = false;
@@ -103,6 +120,18 @@ export default function GeneralAuditLogPage() {
     filters.sort !== 'newest' && `Sort: ${humanizeIdentifier(filters.sort)}`,
   ].filter(Boolean);
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      downloadBlob(await exportAuditLogs(filters), `audit-log-${Date.now()}.csv`);
+      notify.success("Audit log exported.", { description: "Every entry matching your filters, not just this page." });
+    } catch (cause) {
+      notify.error(getApiErrorMessage(cause, "The audit log could not be exported. Try again."));
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const clearAuditFilters = () => {
     setFilters(EMPTY_FILTERS);
     setPage(1);
@@ -120,6 +149,7 @@ export default function GeneralAuditLogPage() {
           resultCount={meta.total}
           resultLabel={meta.total === 1 ? 'entry' : 'entries'}
           secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"
+          actions={<button type="button" onClick={handleExport} disabled={exporting || meta.total === 0} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={16} aria-hidden="true" />{exporting ? 'Exporting...' : 'Export CSV'}</button>}
         >
           <select
             aria-label="Module"
@@ -128,7 +158,7 @@ export default function GeneralAuditLogPage() {
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"
           >
             <option value="">All modules</option>
-            {MODULE_OPTIONS.map((module) => (
+            {moduleOptions.map((module) => (
               <option key={module} value={module}>
                 {humanizeIdentifier(module)}
               </option>
@@ -240,13 +270,14 @@ export default function GeneralAuditLogPage() {
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-xs">
               <thead className="bg-[#F8FBFD] text-[#64748B]"><tr>
-                {['Time', 'Actor', 'Role', 'Module', 'Action', 'Affected record', 'Record ID', 'Details'].map((heading) => <th key={heading} scope="col" className="px-3 py-3 font-bold">{heading}</th>)}
+                {['Time', 'Actor', 'Role', ...(isSao ? ['Organization'] : []), 'Module', 'Action', 'Affected record', 'Record ID', 'Details'].map((heading) => <th key={heading} scope="col" className="px-3 py-3 font-bold">{heading}</th>)}
               </tr></thead>
               <tbody className="divide-y divide-[#DDE7EF]">
                 {logs.map((log) => <tr key={log.id} className="align-top hover:bg-[#F8FBFD]">
                   <td className="whitespace-nowrap px-3 py-3 text-[#64748B]">{log.created_at ? new Date(log.created_at).toLocaleString('en-PH') : 'Unknown'}</td>
                   <td className="px-3 py-3 font-semibold text-[#0F172A]">{log.actor?.name || 'System'}</td>
                   <td className="px-3 py-3 text-[#64748B]">{log.actor?.role_label || humanizeIdentifier(log.actor?.role)}{log.actor?.position_title ? ` / ${log.actor.position_title}` : ''}</td>
+                  {isSao && <td className="px-3 py-3 text-[#0F172A]">{log.organization?.name || '-'}</td>}
                   <td className="px-3 py-3">{log.module_label || humanizeIdentifier(log.module)}</td>
                   <td className="px-3 py-3">{log.action_category_label || humanizeIdentifier(log.action_category)}</td>
                   <td className="max-w-64 px-3 py-3"><p className="font-semibold text-[#0F172A]">{log.subject || log.affected_user?.name || '-'}</p><p className="mt-1 line-clamp-2 text-[#64748B]">{log.description}</p></td>

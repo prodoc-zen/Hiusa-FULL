@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Download } from 'lucide-react';
 import { Button, SegmentedControl } from '../../../../components/ui';
 import { exportEvaluationResults, getCurrentEvaluation, getEvaluationResults } from '../../../../services/evaluationService';
+import downloadBlob from '../../../../utils/downloadBlob';
 import { getApiErrorMessage } from '../../../../utils/apiError';
 import notify from '../../../../lib/notify';
 import EvaluationResultsPanel from './EvaluationResultsPanel';
@@ -12,17 +13,6 @@ const RESPONDENT_TYPE_OPTIONS = [
   { value: 'officer', label: 'Officers' },
   { value: 'adviser', label: 'Department heads' },
 ];
-
-function downloadBlob(response, fallbackName) {
-  const disposition = response.headers?.['content-disposition'] || '';
-  const filename = disposition.match(/filename="?([^";]+)"?/i)?.[1] || fallbackName;
-  const url = URL.createObjectURL(response.data);
-  const link = Object.assign(document.createElement('a'), { href: url, download: filename });
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(url);
-}
 
 export default function OrgResultsTab() {
   const [respondentType, setRespondentType] = useState('');

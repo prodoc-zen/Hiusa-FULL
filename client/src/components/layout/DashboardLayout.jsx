@@ -16,6 +16,7 @@ const pageTitles = {
   '/dashboard/super-admin/grievances': 'Grievances',
   '/dashboard/super-admin/clearances': 'Digital Clearances',
   '/dashboard/super-admin/evaluation': 'System Evaluation',
+  '/dashboard/super-admin/audit-logs': 'Audit Trail',
   '/dashboard/compliance': 'Compliance',
   '/dashboard/venues': 'Venue Booking',
   '/dashboard/grievances': 'Grievances',
