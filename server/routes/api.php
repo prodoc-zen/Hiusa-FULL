@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AcademicStructureController;
 use App\Http\Controllers\AdminDashboardController;
+use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\ClassListImportController;
 use App\Http\Controllers\AccountProfileController;
 use App\Http\Controllers\AnnouncementController;
@@ -61,6 +62,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::put('/user/password', [UserController::class, 'updatePassword'])->middleware('throttle:api-write');
     Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/objectives/overview', ObjectivesOverviewController::class)->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 
     // User Management Routes
     Route::get('/users', [UserController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
