@@ -7,6 +7,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Election;
 use App\Models\Event;
+use App\Models\FinancialForecast;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
@@ -655,5 +656,40 @@ class DashboardBriefingTest extends TestCase
             ]);
             Announcement::factory()->create(['organization_id' => $organizationId, 'created_by' => $adminId, 'is_published' => true, 'published_at' => now(), 'target_role' => 'all']);
         }
+    }
+
+    public function test_forecast_insight_handles_free_text_and_month_periods(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        Sanctum::actingAs($admin);
+
+        // Seeded and older forecasts use a quarter label rather than "Y-m".
+        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => 'Q4 2024 (Oct-Dec)']);
+        $quarter = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->firstWhere('engine', 'financial_forecast');
+        $this->assertStringContainsString('Q4 2024 (Oct-Dec)', $quarter['title']);
+
+        // A newer generated forecast is "Y-m" and wins as the latest.
+        $this->travel(1)->minutes();
+        FinancialForecast::factory()->create(['organization_id' => $organization->id, 'forecast_period' => '2026-11']);
+        $month = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('insights'))->firstWhere('engine', 'financial_forecast');
+        $this->assertStringContainsString('November 2026', $month['title']);
+    }
+
+    public function test_finance_pillar_counts_only_approved_budgets_and_explains_income(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 1500, 'submission_status' => 'approved']);
+        Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 400, 'submission_status' => 'approved']);
+        Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 5000, 'remaining_amount' => 5000, 'submission_status' => 'pending_department_head']);
+        Sanctum::actingAs($admin);
+
+        $finance = $this->getJson('/api/dashboard/briefing')->assertOk()->json('pillars.finance');
+
+        $this->assertEquals(1900, $finance['value']);
+        $this->assertEquals(['value' => 600, 'limit' => 2000], $finance['meter']);
+        $this->assertStringContainsString('income', $finance['context']);
+        $this->assertStringContainsString('₱600.00 spent', $finance['context']);
     }
 }

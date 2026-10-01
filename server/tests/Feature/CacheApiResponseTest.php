@@ -45,7 +45,8 @@ class CacheApiResponseTest extends TestCase
         Sanctum::actingAs($admin);
         $first = $this->getJson('/api/dashboard/briefing')->assertOk();
         $this->assertSame('MISS', $first->headers->get('X-Cache'));
-        $this->assertEquals(500.0, $first->json('pillars.finance.value'));
+        // A budget still awaiting SAO approval is not yet available money.
+        $this->assertEquals(0.0, $first->json('pillars.finance.value'));
 
         // Sanity check: without any intervening write the same request is
         // actually served from cache, so the freshness assertion below is
