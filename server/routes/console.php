@@ -1,5 +1,6 @@
 <?php
 
+use App\Console\Commands\MarkEventNoShows;
 use App\Console\Commands\MarkOverdueTasks;
 use App\Console\Commands\PruneExpiredCache;
 use App\Console\Commands\SendEventReminders;
@@ -14,5 +15,6 @@ Artisan::command('inspire', function () {
 
 Schedule::command(MarkOverdueTasks::class)->dailyAt('00:05');
 Schedule::command(SendEventReminders::class)->hourly()->withoutOverlapping();
+Schedule::command(MarkEventNoShows::class)->hourly()->withoutOverlapping();
 Schedule::command(PruneExpiredCache::class)->dailyAt('02:30')->withoutOverlapping();
 Schedule::call(fn () => app(GlobalAnnouncementController::class)->publishScheduled())->name('publish-scheduled-sao-announcements')->everyMinute()->withoutOverlapping();

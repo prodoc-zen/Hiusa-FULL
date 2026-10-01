@@ -26,6 +26,22 @@ class Attendance extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // Both the manual (EventController::recordAttendance) and biometric
+        // (FingerprintController::confirmAttendance) check-in paths create an
+        // Attendance row here, so this is the one place that reliably sees
+        // every check-in without duplicating the "mark attended" logic in both.
+        static::created(function (Attendance $attendance): void {
+            if (in_array($attendance->status ?? 'present', ['present', 'late'], true)) {
+                EventRegistration::where('event_id', $attendance->event_id)
+                    ->where('user_id', $attendance->user_id)
+                    ->where('status', 'registered')
+                    ->update(['status' => 'attended']);
+            }
+        });
+    }
+
     public function event(): BelongsTo
     {
         return $this->belongsTo(Event::class);
