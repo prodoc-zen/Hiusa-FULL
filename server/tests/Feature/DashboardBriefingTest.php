@@ -692,4 +692,24 @@ class DashboardBriefingTest extends TestCase
         $this->assertStringContainsString('income', $finance['context']);
         $this->assertStringContainsString('₱600.00 spent', $finance['context']);
     }
+
+    public function test_university_finance_pillar_uses_approved_budgets_and_explains_income(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $orgA = Organization::factory()->create();
+        $orgB = Organization::factory()->create();
+        Budget::factory()->create(['organization_id' => $orgA->id, 'allocated_amount' => 1000, 'remaining_amount' => 1500, 'submission_status' => 'approved']);
+        Budget::factory()->create(['organization_id' => $orgB->id, 'allocated_amount' => 1000, 'remaining_amount' => 400, 'submission_status' => 'approved']);
+        Budget::factory()->create(['organization_id' => $orgB->id, 'allocated_amount' => 5000, 'remaining_amount' => 5000, 'submission_status' => 'pending_department_head']);
+        Sanctum::actingAs($director);
+
+        $finance = $this->getJson('/api/dashboard/briefing')->assertOk()->json('pillars.finance');
+
+        $this->assertEquals(1900, $finance['value']);
+        $this->assertEquals(['value' => 600, 'limit' => 2000], $finance['meter']);
+        $this->assertStringContainsString('₱500.00 in income added to ₱2,000.00 allocated across', $finance['context']);
+        $this->assertStringContainsString('₱600.00 spent', $finance['context']);
+        $this->assertStringNotContainsString('left of', $finance['context']);
+    }
 }
