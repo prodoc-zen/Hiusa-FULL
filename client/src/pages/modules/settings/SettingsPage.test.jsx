@@ -6,6 +6,7 @@ import SettingsPage from './SettingsPage';
 const profileMocks = vi.hoisted(() => ({
   updateProfile: vi.fn(),
   updatePassword: vi.fn(),
+  getMyActivity: vi.fn(() => Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, total: 0 } })),
 }));
 
 vi.mock('../../../services/profileService', () => profileMocks);
