@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, CheckCircle2, Eye, EyeOff, IdCard, KeyRound, LockKeyhole, Mail, Save, ShieldCheck, UserRound } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
+import RecentActivity from '../../../components/profile/RecentActivity';
 import { updatePassword, updateProfile } from '../../../services/profileService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
@@ -306,6 +307,8 @@ export default function SettingsPage() {
               </div>
             </form>
           </section>
+
+          <RecentActivity />
         </div>
       </div>
     </div>

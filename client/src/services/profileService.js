@@ -5,3 +5,6 @@ export const updateProfile = (data) =>
 
 export const updatePassword = (data) =>
   api.put('/user/password', data);
+
+export const getMyActivity = (page = 1) =>
+  api.get('/me/activity', { params: { page } });

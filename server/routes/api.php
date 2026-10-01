@@ -25,6 +25,7 @@ use App\Http\Controllers\GcashSettingsController;
 use App\Http\Controllers\GlobalAnnouncementController;
 use App\Http\Controllers\GrievanceController;
 use App\Http\Controllers\MerchandiseController;
+use App\Http\Controllers\MyActivityController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\OrderController;
 use App\Http\Controllers\OrganizationController;
@@ -60,6 +61,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // Profile Routes (authenticated user updates own profile/password)
     Route::put('/user/profile', [UserController::class, 'updateProfile'])->middleware('throttle:api-write');
     Route::put('/user/password', [UserController::class, 'updatePassword'])->middleware('throttle:api-write');
+    Route::get('/me/activity', MyActivityController::class)->middleware('throttle:api-read');
     Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/objectives/overview', ObjectivesOverviewController::class)->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
