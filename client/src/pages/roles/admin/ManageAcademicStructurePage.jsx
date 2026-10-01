@@ -69,7 +69,7 @@ export default function ManageAcademicStructurePage() {
   return <div className="space-y-5">
     <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Academic setup</p><h2 className="mt-1 text-2xl font-black text-[#0F172A]">Programs & Sections</h2><p className="mt-1 max-w-2xl text-sm text-slate-500">Create, review, update, and remove academic programs. Every program automatically includes 1st–4th Year Non Block options.</p></div>
+        <div><p className="text-sm font-bold text-[#0F172A]">Add a program</p><p className="mt-1 max-w-2xl text-xs text-slate-600">Programs include Non Block options for each year.</p></div>
         <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] px-4 py-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#0F2F62]">Department</p><p className="mt-0.5 text-sm font-bold text-[#0F172A]">{structure.department || 'Not assigned'}</p></div>
       </div>
       <form onSubmit={submit} className="mt-6 border-t border-[#DDE7EF] pt-5">

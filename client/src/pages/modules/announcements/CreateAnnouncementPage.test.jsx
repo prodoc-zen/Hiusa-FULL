@@ -13,7 +13,7 @@ describe('CreateAnnouncementPage', () => {
   it('renders a responsive editor workspace with accessible publishing controls', async () => {
     render(<MemoryRouter><CreateAnnouncementPage /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { name: 'Create Announcement' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Create Announcement' })).not.toBeInTheDocument();
     expect(screen.getByLabelText(/Title/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Content/)).toBeInTheDocument();
     expect(screen.getByLabelText(/Instructions for AI draft/)).toBeInTheDocument();

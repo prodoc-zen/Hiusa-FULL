@@ -2,7 +2,7 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ElectionResultsPage from './ElectionResultsPage';
 
-const { getElectionResults, electionContext } = vi.hoisted(() => ({ getElectionResults: vi.fn(), electionContext: { election: { id: 5, title: 'Final Council Election', status: 'closed', results_visible: true }, role: 'STUDENT' } }));
+const { getElectionResults, electionContext } = vi.hoisted(() => ({ getElectionResults: vi.fn(), electionContext: { election: { id: 5, title: 'Final Council Election', status: 'closed', finalized_at: '2026-09-01T08:00:00Z', results_visible: true }, role: 'STUDENT' } }));
 
 vi.mock('../../../services/electionService', () => ({ getElectionResults }));
 vi.mock('react-router-dom', () => ({

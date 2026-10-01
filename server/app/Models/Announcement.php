@@ -46,6 +46,11 @@ class Announcement extends Model
         return $this->hasMany(AnnouncementView::class);
     }
 
+    public function reactions(): HasMany
+    {
+        return $this->hasMany(AnnouncementReaction::class);
+    }
+
     public function recipients(): HasMany
     {
         return $this->hasMany(AnnouncementRecipient::class);
@@ -54,5 +59,10 @@ class Announcement extends Model
     public function sourceOrganization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'source_organization_id');
+    }
+
+    public function organization(): BelongsTo
+    {
+        return $this->belongsTo(Organization::class, 'organization_id');
     }
 }

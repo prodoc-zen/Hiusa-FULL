@@ -92,20 +92,24 @@ function summaryLine(entityType, summary) {
   return null;
 }
 
-function getStoredUser() {
-  try {
-    return JSON.parse(localStorage.getItem('user')) || {};
-  } catch {
-    return {};
-  }
-}
-
-function roleLabel(role) {
-  return {
-    SUPER_ADMIN: 'Super Admin',
-    ADMIN: 'Admin',
-    DEPARTMENT_HEAD: 'Department Head',
-  }[role] || 'Reviewer';
+function ApprovalReceipt({ request }) {
+  const rows = [
+    ['Request number', `#${request.id}`],
+    ['Type', ENTITY_LABEL[request.entity_type] || request.entity_type],
+    ['Status', request.status],
+    ['Required role', request.required_role],
+    ['Requester', `${request.requester?.first_name || ''} ${request.requester?.last_name || ''}`.trim() || '-'],
+    ['School ID', request.requester?.school_id || '-'],
+    ['Email', request.requester?.email],
+    ['Role / position', [request.requester?.role, request.requester?.position_title].filter(Boolean).join(' · ')],
+    ['Department', request.requester?.department],
+    ['Academic profile', [request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ')],
+    ['Submitted', formatDateTime(request.requested_at)],
+    ['Record ID', request.entity_id],
+    ['Reviewer', `${request.reviewer?.first_name || ''} ${request.reviewer?.last_name || ''}`.trim() || '-'],
+    ['Reviewed', formatDateTime(request.reviewed_at)],
+  ];
+  return <section className="border-y-2 border-[#0F2F62] bg-white py-3"><h4 className="pb-3 text-sm font-black text-[#0F2F62]">{request.title}</h4><dl className="border-t border-[#DDE7EF] sm:grid sm:grid-cols-2">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 border-b border-[#DDE7EF] py-2 pr-2 text-xs"><dt className="font-bold text-[#64748B]">{label}</dt><dd className="break-words font-semibold text-[#0F172A]">{value || '-'}</dd></div>)}</dl><div className="py-3 text-xs leading-5 text-[#0F172A]"><strong className="block text-[#64748B]">Record summary</strong>{summaryLine(request.entity_type, request.summary) || 'No additional summary available.'}</div>{request.status !== 'pending' && <p className="border-t border-[#DDE7EF] pt-3 text-xs"><strong>Review remarks:</strong> {request.remarks || 'No remarks recorded.'}</p>}</section>;
 }
 
 function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
@@ -121,15 +125,11 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
 
   return (
     <AccessibleOverlay label={`${isReject ? 'Reject' : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
+      <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-extrabold text-[#0F172A]">
           {isReject ? 'Reject' : 'Approve'} "{request.title}"
         </h3>
-        <p className="mt-2 text-sm text-slate-600">
-          {isReject
-            ? 'Let the requester know what needs to change before resubmitting.'
-            : 'This will update the request and notify the requester.'}
-        </p>
+        <div className="mt-4"><ApprovalReceipt request={request} /></div>
         <div className="mt-4 space-y-1.5">
           <label className="text-[13px] font-semibold text-[#0F172A]">
             Remarks {isReject ? '' : '(optional)'}
@@ -161,7 +161,6 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
 }
 
 export default function DepartmentHeadApprovalsPage() {
-  const currentUser = getStoredUser();
   const [requests, setRequests] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
   const [pendingTotal, setPendingTotal] = useState(0);
@@ -261,12 +260,6 @@ export default function DepartmentHeadApprovalsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">{roleLabel(currentUser.role)}</p>
-        <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Approvals</h2>
-        <p className="mt-1 text-sm font-medium text-slate-500">Review approval requests awaiting your role's sign-off.</p>
-      </section>
-
       <div className="flex gap-2">
         {['pending', 'all'].map((tab) => (
           <button
@@ -405,20 +398,11 @@ export default function DepartmentHeadApprovalsPage() {
         <AccessibleOverlay label="Approval request details" onClose={() => setDetails(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Request #{details.id} · {ENTITY_LABEL[details.entity_type]}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{details.title}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
-            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {[
-                ['Status', details.status], ['Required Role', details.required_role], ['Requested At', formatDateTime(details.requested_at)],
-                ['Requester', `${details.requester?.first_name || ''} ${details.requester?.last_name || ''}`.trim() || '-'], ['School ID', details.requester?.school_id], ['Email', details.requester?.email],
-                ['Role / Position', [details.requester?.role, details.requester?.position_title].filter(Boolean).join(' · ')], ['Department', details.requester?.department], ['Academic Profile', [details.requester?.program, details.requester?.year_level, details.requester?.section].filter(Boolean).join(' · ')],
-                ['Reviewer', `${details.reviewer?.first_name || ''} ${details.reviewer?.last_name || ''}`.trim() || '-'], ['Reviewed At', formatDateTime(details.reviewed_at)], ['Entity ID', details.entity_id],
-              ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value || '-'}</p></div>)}
-            </div>
-            <div className="mt-4 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Record summary</p><p className="mt-2 text-sm text-slate-600">{summaryLine(details.entity_type, details.summary) || 'No additional summary available.'}</p></div>
+            <div className="mt-5"><ApprovalReceipt request={details} /></div>
             {details.entity_type === 'financial_report' && <>
               <button type="button" onClick={downloadReportPdf} disabled={pdfDownloading} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Download size={15}/>{pdfDownloading ? 'Preparing PDF...' : 'Download submitted report'}</button>
               <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents.</p>}</div></div>
             </>}
-            <div className="mt-3 rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Review remarks</p><p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{details.remarks || 'No remarks recorded.'}</p></div>
           </div>
         </AccessibleOverlay>
       )}

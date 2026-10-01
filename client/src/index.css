@@ -306,6 +306,12 @@ a {
   }
 }
 
+.hiusa-overlay > :where(form, section, div) {
+  max-height: calc(100dvh - 2rem);
+  max-width: 100%;
+  overflow-y: auto;
+}
+
 @media (max-width: 767px) {
   input,
   select,

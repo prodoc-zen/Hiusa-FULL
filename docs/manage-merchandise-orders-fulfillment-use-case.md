@@ -32,6 +32,8 @@
 
 ## Implementation Coverage
 
+- **Order workspace:** a compact summary precedes the order queue. Status views, search, merchandise filters, and sorting are grouped with the list. The layout follows the list-and-view pattern documented in [Shopify's order management reference](https://help.shopify.com/en/manual/fulfillment/managing-orders/viewing-orders/searching-orders).
+- **Payment settings:** Admin opens the GCash QR upload from the queue's Payment settings button. SBO Officers can open a read-only QR preview. The dialog keeps the queue available after closing and prevents dismissal during an upload.
 - **Role Access:** Admin and SBO Officer can access order fulfillment and token validation.
 - **Load Pending Orders:** `GET /orders` loads organization orders for fulfillment roles.
 - **View Order Details:** order rows include buyer, item, quantity, total, review status, payment reference, proof, and the claim token for fulfillment staff after payment approval. Pending and cancelled order tokens remain hidden. The detail panel loads the organization-scoped order audit history and shows each payment-review and fulfillment action with its actor and timestamp.

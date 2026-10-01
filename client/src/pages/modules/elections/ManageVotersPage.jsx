@@ -78,7 +78,6 @@ export default function ManageVotersPage() {
 
   return (
     <div className="space-y-5">
-      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6"><p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Voter readiness</p><h1 className="mt-1 text-2xl font-black">Voter Register</h1><p className="mt-1 max-w-3xl text-sm leading-6 text-slate-200">Review eligibility and turnout for {election.title}. Individual ballot choices are never exposed.</p></section>
       <div className="grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
         {[
           { label: 'Total Voters', value: eligibleTotal, icon: Users, color: { bg: 'bg-[#E6F6FD]', icon: 'text-[#0F2F62]', border: 'border-[#0B8ED0]/20' } },

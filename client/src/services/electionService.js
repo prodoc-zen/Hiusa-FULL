@@ -36,6 +36,7 @@ export const updateElection = async (id, payload) => {
   }
   return unwrap(await api.put(`/elections/${id}`, payload));
 };
+export const finalizeElection = async (id) => unwrap(await api.patch(`/elections/${id}/finalize`));
 export const deleteElection = async (id, options = {}) => unwrap(await api.delete(`/elections/${id}`, { params: options }));
 
 export const getElectionPositions = async (id) => unwrap(await api.get(`/elections/${id}/positions`));

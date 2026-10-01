@@ -33,7 +33,7 @@ describe('SettingsPage', () => {
   it('presents a complete account summary and keeps unchanged profile actions disabled', () => {
     renderPage();
 
-    expect(screen.getByRole('heading', { name: 'Manage your profile' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Personal information' })).toBeInTheDocument();
     expect(screen.getByText('Ramon Castillo')).toBeInTheDocument();
     expect(screen.getByText('940001')).toBeInTheDocument();
     expect(screen.getByText('Protected account')).toBeInTheDocument();

@@ -65,10 +65,22 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const profileRef = useRef(null);
+  const headerRef = useRef(null);
   const profileTriggerRef = useRef(null);
   const notifRef = useRef(null);
   const cartRef = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    const header = headerRef.current;
+    if (!header) return undefined;
+    const updatePanelPosition = () => header.style.setProperty('--mobile-panel-top', `${Math.ceil(header.getBoundingClientRect().bottom + 8)}px`);
+    updatePanelPosition();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePanelPosition);
+    observer?.observe(header);
+    window.addEventListener('resize', updatePanelPosition);
+    return () => { observer?.disconnect(); window.removeEventListener('resize', updatePanelPosition); };
+  }, []);
 
   const user = (() => {
     try {
@@ -87,9 +99,73 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const organizationName = user?.organization?.name || 'Organization';
   const isAdminHome = pathname === '/dashboard/admin';
   const headerSubtitle = {
+    '/dashboard': 'Start with deadlines, then check events, funds, and merchandise queues.',
     '/dashboard/admin/users': 'Search the organization directory and manage account access.',
     '/dashboard/admin/sbo-positions': 'Maintain titles available to administrators and officers.',
+    '/dashboard/admin/positions': 'Maintain titles available to administrators and officers.',
     '/dashboard/admin/programs-sections': 'Configure programs and update academic records.',
+    '/dashboard/approvals': 'Review approval requests awaiting your sign-off.',
+    '/dashboard/department-head/approvals': 'Review approval requests awaiting your sign-off.',
+    '/dashboard/approval-requests/new': 'Choose a request type to begin the approval process.',
+    '/dashboard/approval-requests/new/announcement': 'Submit an announcement for approval.',
+    '/dashboard/approval-requests/new/budget': 'Submit a budget request for approval.',
+    '/dashboard/approval-requests/new/event': 'Submit an event request for approval.',
+    '/dashboard/approval-requests/new/election': 'Submit an election request for approval.',
+    '/dashboard/officer': 'Start with deadlines, then check events, funds, and merchandise queues.',
+    '/dashboard/department-head': 'Review approvals, elections, events, and announcements.',
+    '/dashboard/student': 'Official updates, events, and elections from your organization.',
+    '/dashboard/super-admin': 'Review reports, administer organizations, and publish university notices.',
+    '/dashboard/super-admin/approvals': 'Review reports and requests awaiting SAO action.',
+    '/dashboard/adviser': 'Review organization activity and requests.',
+    '/dashboard/super-admin/organizations': 'Register and manage student organizations.',
+    '/dashboard/super-admin/colleges': 'Maintain the colleges assigned to student organizations.',
+    '/dashboard/super-admin/admins': 'Manage authorized administrators for each organization.',
+    '/dashboard/super-admin/announcements': 'Publish official notices across HIUSA.',
+    '/dashboard/super-admin/notifications': 'SAO approval activity and system notices.',
+    '/dashboard/super-admin/event-requirements': 'Set the files organizations must submit for events.',
+    '/dashboard/super-admin/financial-reports': 'Review reports forwarded by Department Heads.',
+    '/dashboard/finance': 'Track organization funds and financial activity.',
+    '/dashboard/audit-logs': 'Trace who changed a record, what changed, and when.',
+    '/dashboard/announcements/manage-announcements': 'Review, edit, and publish organization announcements.',
+    '/dashboard/announcements/create-announcement': 'Write an announcement and choose its audience.',
+    '/dashboard/announcements/view-announcements': 'Updates from your organization.',
+    '/dashboard/finance/financial-ledger': 'Review income and expenses in the organization ledger.',
+    '/dashboard/finance/collections': 'Track money received, verification, and remittance.',
+    '/dashboard/finance/student-accounts': 'Review charges, payments, and student clearance.',
+    '/dashboard/finance/budget-allocation': 'Plan and review organization budgets.',
+    '/dashboard/finance/financial-insights': 'Review financial forecasts and trends.',
+    '/dashboard/finance/transaction-history': 'Review saved financial reports and transaction history.',
+    '/dashboard/finance/personal-receipts': 'View and print your payment receipts.',
+    '/dashboard/finance/statement-of-account': 'Review your account and financial clearance.',
+    '/dashboard/events/activity-calendar': 'Browse approved activities and upcoming events.',
+    '/dashboard/events': 'Plan activities and review event records.',
+    '/dashboard/events/manage-events': 'Review and update organization events.',
+    '/dashboard/events/event-planner': 'Plan tasks and resources for upcoming events.',
+    '/dashboard/events/check-in': 'Verify participants and manage event attendance.',
+    '/dashboard/tasks': 'Track assignments and officer progress.',
+    '/dashboard/tasks/task-board': 'Review work by status and deadline.',
+    '/dashboard/tasks/create-task': 'Assign a task to an officer or event.',
+    '/dashboard/tasks/task-progress': 'Review progress across organization tasks.',
+    '/dashboard/tasks/assigned-tasks': 'Review work assigned to you.',
+    '/dashboard/tasks/ai-delegation': 'Review suggested officers for each task.',
+    '/dashboard/elections': 'Review elections in your organization.',
+    '/dashboard/elections/manage-elections': 'Configure ballots and election schedules.',
+    '/dashboard/elections/manage-candidates': 'Review the candidates on the selected ballot.',
+    '/dashboard/elections/manage-partylists': 'Maintain party identities for the selected election.',
+    '/dashboard/elections/manage-voters': 'Review eligibility and turnout without exposing ballots.',
+    '/dashboard/elections/cast-vote': 'Review the ballot and cast your vote.',
+    '/dashboard/elections/election-results': 'Review available vote totals and winners.',
+    '/dashboard/merchandise': 'Browse organization products and orders.',
+    '/dashboard/merchandise/manage-inventory': 'Track products, stock, and sales.',
+    '/dashboard/merchandise/gcash-payment': 'Review merchandise payments and fulfillment.',
+    '/dashboard/merchandise/manage-orders': 'Review merchandise payments and fulfillment.',
+    '/dashboard/merchandise/claim-tokens': 'Verify orders and release purchases.',
+    '/dashboard/merchandise/order-merchandise': 'Browse products and place an order.',
+    '/dashboard/merchandise/my-orders': 'Review your purchases and claim details.',
+    '/dashboard/announcements': 'Updates from your organization.',
+    '/dashboard/profile': 'Keep your personal details and account access current.',
+    '/dashboard/organization': 'Keep your organization details current.',
+    '/dashboard/settings': 'Keep your personal details and account access current.',
   }[pathname];
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(role);
@@ -101,6 +177,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     ['/dashboard/finance/', 'Financial'],
     ['/dashboard/tasks/', 'Tasks'],
     ['/dashboard/merchandise/', 'Merchandise'],
+    ['/dashboard/super-admin/', 'Student Affairs'],
   ];
   const parentLabel = parentByPrefix.find(([prefix]) => pathname?.startsWith(prefix))?.[1] || null;
 
@@ -251,7 +328,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
 
   return (
-    <header className="relative z-30 mx-3 mt-3 rounded-3xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6">
+    <header ref={headerRef} className="relative z-30 mx-3 mt-3 rounded-3xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6">
       <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
         {/* Hamburger toggle */}
         <button
@@ -264,13 +341,13 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         </button>
 
         {/* Page title */}
-        <div className="min-w-0 flex-1">
+        <div className="order-last min-w-0 w-full flex-none border-t border-[#DDE7EF] pt-2 sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
           <nav aria-label="Breadcrumb" className="truncate text-xs font-medium text-ink-muted">
             <Link to={homePath} className="rounded-control hover:text-brand-700 hover:underline focus-visible:text-brand-700">Home</Link>
             {parentLabel && <span aria-hidden="true" className="px-1.5 text-ink-soft">/</span>}
             {parentLabel && <span>{parentLabel}</span>}
           </nav>
-          <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
+          <h1 className="break-words text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
           {isAdminHome && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">Welcome back, {user?.first_name || 'Administrator'}. Review today’s orders, requests, tasks, and updates.</p>}
           {headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
         </div>
@@ -288,7 +365,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         </button>
 
         {canOrderMerchandise && (
-          <div className="relative" ref={cartRef}>
+          <div className="relative ml-auto sm:ml-0" ref={cartRef}>
             <button
               type="button"
               aria-label="Cart"
@@ -314,7 +391,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                 id="topbar-cart-panel"
                 role="region"
                 aria-label="Cart summary"
-                className="fixed left-3 right-3 top-[4.5rem] z-50 flex max-h-[calc(100dvh-5.25rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-3rem)]"
+                className="fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 flex max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-96 sm:max-w-[calc(100vw-3rem)]"
               >
                 <div className="flex shrink-0 items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
                   <p className="text-sm font-bold text-[#0F172A]">Your Cart</p>
@@ -359,7 +436,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         )}
 
         {/* Notification Bell */}
-        <div className="relative" ref={notifRef}>
+        <div className={`relative ${canOrderMerchandise ? '' : 'ml-auto sm:ml-0'}`} ref={notifRef}>
           <button
             type="button"
             aria-label="Notifications"
@@ -386,7 +463,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
               id="topbar-notifications-panel"
               role="region"
               aria-label="Notifications panel"
-              className="fixed left-3 right-3 top-[4.5rem] z-50 flex max-h-[calc(100dvh-5.25rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]"
+              className="fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 flex max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] flex-col overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]"
             >
               <div className="flex shrink-0 items-center justify-between border-b border-[#DDE7EF] px-4 py-3">
                 <p className="text-sm font-bold text-[#0F172A]">
@@ -479,15 +556,15 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             <div className="grid h-8 w-8 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
               {initials}
             </div>
-            <div className="hidden min-w-0 text-left sm:block">
-              <p className="text-[13px] font-bold text-[#0F172A]">{fullName}</p>
+            <div className="hidden min-w-0 max-w-[min(12rem,25vw)] text-left sm:block">
+              <p className="truncate text-[13px] font-bold text-[#0F172A]" title={fullName}>{fullName}</p>
               <p className="max-w-40 truncate text-[11px] font-medium text-slate-600">{organizationName} · {roleLabel}</p>
             </div>
             <ChevronDown size={14} className={`text-slate-600 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
           </button>
 
           {profileOpen && (
-            <div id="topbar-profile-panel" role="region" aria-label="Account and profiles" className="fixed left-3 right-3 top-[4.5rem] z-50 max-h-[calc(100dvh-5.25rem)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
+            <div id="topbar-profile-panel" role="region" aria-label="Account and profiles" className="fixed left-3 right-3 top-[var(--mobile-panel-top,7.5rem)] z-50 max-h-[calc(100dvh_-_var(--mobile-panel-top,7.5rem)_-_0.75rem)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-1.5 shadow-xl shadow-slate-200/60 sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-2 sm:w-80 sm:max-w-[calc(100vw-3rem)]">
               <div className="border-b border-[#DDE7EF] px-3 py-3 mb-1.5">
                 <p className="text-sm font-bold text-[#0F172A]">{fullName}</p>
                 <p className="break-all text-xs font-medium text-slate-500">{user?.email || ''}</p>

@@ -37,3 +37,6 @@ export const deleteAnnouncement = (id) =>
 
 export const togglePublish = (id) =>
   api.patch(`/announcements/${id}/publish`);
+
+export const setAnnouncementReaction = (id, liked) =>
+  liked ? api.put(`/announcements/${id}/reaction`) : api.delete(`/announcements/${id}/reaction`);

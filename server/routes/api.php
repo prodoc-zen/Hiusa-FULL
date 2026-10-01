@@ -91,6 +91,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::delete('/announcements/{id}', [AnnouncementController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::patch('/announcements/{id}/publish', [AnnouncementController::class, 'togglePublish'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/announcements/{id}/view', [AnnouncementController::class, 'recordView'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::put('/announcements/{id}/reaction', [AnnouncementController::class, 'react'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::delete('/announcements/{id}/reaction', [AnnouncementController::class, 'unreact'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
 
     // SAO Director: separate global administration endpoints, intentionally
     // distinct from all organization operation and AI-generation routes.
@@ -232,6 +234,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::patch('/elections/{id}/finalize', [ElectionController::class, 'finalize'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/elections/{id}', [ElectionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/elections/{id}/positions', [ElectionController::class, 'positionsIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/elections/{id}/positions', [ElectionController::class, 'positionsStore'])->middleware(['throttle:api-write', 'role:ADMIN']);

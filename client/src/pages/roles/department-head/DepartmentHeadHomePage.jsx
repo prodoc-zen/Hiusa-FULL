@@ -78,12 +78,6 @@ export default function DepartmentHeadHomePage() {
 
   return (
     <div className="space-y-6">
-      <header className="border-b border-[#DDE7EF] pb-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Department Head Portal</p>
-        <h2 className="mt-1 text-2xl font-black text-[#0F172A]">Oversight Dashboard</h2>
-        <p className="mt-1 text-sm font-medium text-slate-500">Review approvals and monitor elections, events, and published announcements.</p>
-      </header>
-
       {loadError && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-semibold">{loadError}</p>

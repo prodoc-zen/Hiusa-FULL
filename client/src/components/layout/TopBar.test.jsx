@@ -54,6 +54,24 @@ describe('TopBar notifications', () => {
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
+  it.each([
+    ['ADMIN', '/dashboard/admin/users', 'User Management', /Search the organization directory/],
+    ['ADMIN', '/dashboard/approvals', 'Approvals', /Review approval requests/],
+    ['SBO_OFFICER', '/dashboard/officer', 'Officer Dashboard', /Start with deadlines/],
+    ['DEPARTMENT_HEAD', '/dashboard/department-head/approvals', 'Approvals', /Review approval requests/],
+    ['STUDENT', '/dashboard/student', 'Student Dashboard', /Official updates/],
+    ['SUPER_ADMIN', '/dashboard/super-admin/financial-reports', 'Received Financial Reports', /Review reports forwarded/],
+  ])('uses one white header with context for %s on %s', (role, pathname, title, subtitle) => {
+    localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
+    render(<MemoryRouter><TopBar title={title} pathname={pathname} onMenuToggle={() => {}} /></MemoryRouter>);
+    const header = screen.getByRole('banner');
+    expect(header).toHaveClass('bg-white', 'border-[#DDE7EF]');
+    expect(within(header).getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
+    expect(within(header).getByText(subtitle)).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Account menu for Test User' })).toBeInTheDocument();
+  });
+
   it('anchors the cart panel to the mobile viewport', async () => {
     localStorage.setItem('hiusa_student_cart', JSON.stringify([{ item: { id: 1, name: 'HIUSA Shirt', price: 250 }, quantity: 1 }]));
 

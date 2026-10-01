@@ -65,10 +65,7 @@ export default function SystemOrganizationsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-4 rounded-lg bg-[#0B1831] p-6 text-white sm:flex-row sm:items-end sm:justify-between">
-        <div><p className="text-xs font-bold uppercase tracking-[0.2em] text-[#16C7F3]">SAO administration</p><h2 className="mt-2 text-2xl font-black">Organizations</h2><p className="mt-1 text-sm text-slate-300">Register main organizations and their suborganizations.</p></div>
-        <button type="button" onClick={() => setForm(empty)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#16C7F3] px-4 text-sm font-bold text-[#0B1831]"><Plus size={17} /> Add organization</button>
-      </section>
+      <div className="flex justify-end"><button type="button" onClick={() => setForm(empty)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Plus size={17} /> Add organization</button></div>
       <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><div className="flex gap-2"><label className="flex min-h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3"><Search size={16} className="text-slate-500" /><input aria-label="Search organizations" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} onKeyDown={(event) => event.key === 'Enter' && load()} placeholder="Search name, code, or department" className="w-full outline-none" /></label><button type="button" onClick={() => load()} className="rounded-lg bg-[#0F2F62] px-4 text-sm font-bold text-white">Search</button></div></div>
       {error && !form && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={() => load()} className="font-bold underline">Retry</button></p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
