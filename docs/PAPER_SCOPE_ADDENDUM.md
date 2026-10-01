@@ -42,7 +42,7 @@ The paper has four actors (Admin, SBO Officer, Department Head, Student). The sy
 | Clearances | Run clearance periods with signatory routing; students see their own status |
 | Evaluation windows | Open and close questionnaire windows and read results university-wide |
 | Organization health | One table of every organization's accreditation, budget use, pending reports and open items |
-| Audit trail | Every organization's actions, minus ledger modules |
+| Audit trail | Every organization's actions, minus ledger modules, with filters and CSV export |
 
 Paper change: add the SAO to the actor list in Chapter III, to the use-case diagram, and to the scope in Chapter I. Describe it as oversight that never edits an organization's finances.
 
@@ -65,6 +65,9 @@ Paper change: in the data gathering procedure, state that the questionnaire is a
 | Event registration: students reserve a spot; organizers see capacity and the roster; no-shows are marked after the event | The paper describes registration, but there was no record of it |
 | Collections and remittances screens | The backend existed with no screen |
 | Command palette (Ctrl K) and breadcrumbs | Self-serve navigation across many modules |
+| Bulk member import from CSV: every row is checked first, nothing is written unless all rows pass, and no password travels in the file | Enrolling a whole roster at term start, one of the dean's self-serve asks |
+| Personal activity history on every profile | Each person can see what they did, from the same audit trail |
+| Audit log export for the SAO and each Admin | The screen a panel or an incoming auditor most wants to take away |
 
 ## 3. Decisions that reconcile the paper
 
@@ -98,9 +101,6 @@ These came out of the use-case inventory, and the system does not have them. Lea
 
 - Transferring an organization's admin account to a new person with history preserved (SAOX-02)
 - Academic year management (SAOX-03)
-- Bulk user import from a roster file (SAOX-12)
 - A first-run guided setup per role (ONBOARD-01)
-- A personal activity history (ONBOARD-05)
 - A notification preferences screen; the server already stores preferences (ONBOARD-07)
-- Exporting the audit log (ONBOARD-08)
 - A cash advance screen; the server endpoints exist (EXT-03)
