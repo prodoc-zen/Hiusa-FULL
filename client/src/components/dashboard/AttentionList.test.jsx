@@ -6,7 +6,7 @@ import AttentionList from './AttentionList';
 describe('AttentionList', () => {
   it('shows a calm caught-up state when there is nothing to act on', () => {
     render(<AttentionList items={[]} />);
-    expect(screen.getByText("You're all caught up")).toBeInTheDocument();
+    expect(screen.getByText('Nothing is waiting on you')).toBeInTheDocument();
   });
 
   it('renders a deep link when href is present and plain text when it is null', () => {

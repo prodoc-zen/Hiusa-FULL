@@ -11,7 +11,7 @@ export default function GeneralObjectiveBanner({ objective }) {
   return (
     <Card
       className="border-brand-100 bg-brand-50"
-      title={`${objective.code} — ${objective.title}`}
+      title={`${objective.code}: ${objective.title}`}
       description="The study's general objective frames every area below: one centralized, AI-assisted platform for student body organizations."
       actions={<StatusBadge status={objective.status} tone={tone} label={label} />}
     >

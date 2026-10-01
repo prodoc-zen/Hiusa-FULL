@@ -19,7 +19,7 @@ function PillarRow({ objective }) {
             </span>
           )}
           <h3 className="min-w-0 text-base font-bold text-ink">
-            {objective.code} — {pillar?.label || objective.title}
+            {objective.code}: {pillar?.label || objective.title}
           </h3>
         </div>
         <StatusBadge status={objective.status} tone={tone} label={label} />
@@ -36,7 +36,7 @@ export default function So2PillarSystem({ objectives }) {
 
   return (
     <Card
-      title="SO2 — one system, six areas"
+      title="SO2: one system, six areas"
       description="The mechanisms the paper names for financial management, events, tasks, elections, merchandise, and communication, working together as one platform."
     >
       <div className="divide-y divide-line-soft">
