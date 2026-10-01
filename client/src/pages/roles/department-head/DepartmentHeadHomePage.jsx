@@ -6,6 +6,7 @@ import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getApprovalRequests } from '../../../services/approvalService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
+import { RoleBriefing } from '../../../components/dashboard';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -78,6 +79,7 @@ export default function DepartmentHeadHomePage() {
 
   return (
     <div className="space-y-6">
+      <RoleBriefing />
       {loadError && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-semibold">{loadError}</p>

@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import FeedPost from '../../../components/feed/FeedPost';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { RoleBriefing } from '../../../components/dashboard';
 
 function formatEventDate(value) {
   if (!value) return '';
@@ -85,6 +86,7 @@ export default function StudentHomePage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl overflow-x-hidden">
+      <div className="mb-5"><RoleBriefing /></div>
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_300px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}

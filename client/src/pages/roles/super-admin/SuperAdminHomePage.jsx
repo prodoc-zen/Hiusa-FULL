@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Bell, Building2, ClipboardCheck, FileText, ShieldCheck } from 'lucide-react';
 import { getSystemOrganizations, getSystemOverview } from '../../../services/systemAdministrationService';
+import { RoleBriefing } from '../../../components/dashboard';
 
 const ACTIONS = [['Manage organizations', '/dashboard/super-admin/organizations'], ['Manage administrators', '/dashboard/super-admin/admins'], ['Review received reports', '/dashboard/super-admin/financial-reports'], ['Official announcements', '/dashboard/super-admin/announcements'], ['View notifications', '/dashboard/super-admin/notifications']];
 
@@ -23,6 +24,7 @@ export default function SuperAdminHomePage() {
   ] : [];
 
   return <div className="space-y-6">
+    <RoleBriefing />
     <div className="flex justify-end"><label className="text-xs font-bold text-[#0F2F62]">Organization filter<select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="mt-1 block h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] sm:min-w-56"><option value="">All organizations</option>{organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.acronym}: {organization.name}</option>)}</select></label></div>
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{error}</p>}
     {overview && <NavLink to="/dashboard/super-admin/financial-reports" className="flex flex-col gap-4 rounded-lg border border-amber-200 bg-amber-50 p-5 transition hover:bg-amber-100 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white text-amber-700"><FileText size={19} /></span><div><p className="font-bold text-[#0F172A]">{overview.operations.pending_approvals} financial report(s) need SAO review</p><p className="mt-1 text-xs font-medium text-amber-800">Reports appear here after Department Head approval.</p></div></div><span className="text-sm font-bold text-amber-800">Open report inbox</span></NavLink>}

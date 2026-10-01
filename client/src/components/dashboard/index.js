@@ -6,3 +6,4 @@ export { default as AiInsightCard } from './AiInsightCard';
 export { default as AgendaList } from './AgendaList';
 export { default as ActivityFeed } from './ActivityFeed';
 export { default as OrganizationsHealthTable } from './OrganizationsHealthTable';
+export { default as RoleBriefing } from './RoleBriefing';
