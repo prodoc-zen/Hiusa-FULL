@@ -1,0 +1,295 @@
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { CalendarRange, ClipboardList, MapPin } from 'lucide-react';
+import { Button, Card, DataTable, EmptyState, Field, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import Modal from '../../../components/Modal';
+import ConfirmModal from '../../../components/ConfirmModal';
+import PaginationControls from '../../../components/PaginationControls';
+import notify from '../../../lib/notify';
+import { manilaDate } from '../../../lib/format';
+import { listMeta, unwrapList } from '../../../services/pagination';
+import { getApiErrorMessage } from '../../../utils/apiError';
+import { createVenueBooking, getVenueAvailability, getVenueBookings, getVenues, withdrawVenueBooking } from '../../../services/venueService';
+import { getEvents } from '../../../services/eventService';
+import VenueAvailabilityTimeline from './VenueAvailabilityTimeline';
+
+function getCurrentRole() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+  } catch {
+    return '';
+  }
+}
+
+function todayIso() {
+  return new Date().toISOString().slice(0, 10);
+}
+
+function weekAheadIso() {
+  return new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10);
+}
+
+function formatRange(start, end) {
+  return `${manilaDate(start, 'long')}, ${new Date(start).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })} - ${new Date(end).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}`;
+}
+
+const EMPTY_REQUEST_FORM = { venue_id: '', event_id: '', start_time: '', end_time: '' };
+
+export default function VenueBookingPage() {
+  const role = useMemo(() => getCurrentRole(), []);
+
+  const [venues, setVenues] = useState({ loading: true, error: null, items: [] });
+  const [events, setEvents] = useState([]);
+  const [selectedVenueId, setSelectedVenueId] = useState('');
+  const [range, setRange] = useState({ from: todayIso(), to: weekAheadIso() });
+  const [availability, setAvailability] = useState({ loading: false, error: null, slots: [] });
+
+  const [requestForm, setRequestForm] = useState(EMPTY_REQUEST_FORM);
+  const [requestOpen, setRequestOpen] = useState(false);
+  const [requestError, setRequestError] = useState(null);
+  const [requestSubmitting, setRequestSubmitting] = useState(false);
+
+  const [bookings, setBookings] = useState({ loading: true, error: null, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
+  const [bookingsPage, setBookingsPage] = useState(1);
+  const [withdrawTarget, setWithdrawTarget] = useState(null);
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+
+  const loadVenues = useCallback(() => {
+    setVenues((current) => ({ ...current, loading: true, error: null }));
+    getVenues({ per_page: 100 })
+      .then((response) => {
+        const items = unwrapList(response.data);
+        setVenues({ loading: false, error: null, items });
+        setSelectedVenueId((current) => current || String(items[0]?.id || ''));
+      })
+      .catch((err) => setVenues((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load the venue catalog.') })));
+  }, []);
+
+  const loadBookings = useCallback((page = 1) => {
+    setBookings((current) => ({ ...current, loading: true, error: null }));
+    getVenueBookings({ page })
+      .then((response) => setBookings({ loading: false, error: null, items: unwrapList(response.data), meta: listMeta(response.data) }))
+      .catch((err) => setBookings((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load your booking requests.') })));
+  }, []);
+
+  const loadAvailability = useCallback(() => {
+    if (!selectedVenueId || !range.from || !range.to) return;
+    setAvailability((current) => ({ ...current, loading: true, error: null }));
+    getVenueAvailability(selectedVenueId, { from: range.from, to: range.to })
+      .then((response) => setAvailability({ loading: false, error: null, slots: unwrapList(response.data) }))
+      .catch((err) => setAvailability({ loading: false, error: getApiErrorMessage(err, 'Could not load availability for this venue.'), slots: [] }));
+  }, [selectedVenueId, range]);
+
+  useEffect(() => {
+    if (!['ADMIN', 'SBO_OFFICER'].includes(role)) return;
+    loadVenues();
+    loadBookings(1);
+    getEvents({ per_page: 100 }).then((response) => setEvents(unwrapList(response.data))).catch(() => setEvents([]));
+  }, [loadVenues, loadBookings, role]);
+
+  useEffect(() => { loadAvailability(); }, [loadAvailability]);
+  useEffect(() => { if (role) loadBookings(bookingsPage); }, [bookingsPage]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const selectedVenue = venues.items.find((venue) => String(venue.id) === String(selectedVenueId));
+
+  function openRequestForm() {
+    setRequestError(null);
+    setRequestForm({
+      venue_id: selectedVenueId,
+      event_id: '',
+      start_time: range.from ? `${range.from}T09:00` : '',
+      end_time: range.from ? `${range.from}T17:00` : '',
+    });
+    setRequestOpen(true);
+  }
+
+  async function handleRequestSubmit(event) {
+    event.preventDefault();
+    if (!requestForm.venue_id || !requestForm.start_time || !requestForm.end_time) {
+      setRequestError('Choose a venue and both a start and end time.');
+      return;
+    }
+    if (new Date(requestForm.end_time) <= new Date(requestForm.start_time)) {
+      setRequestError('The end time must be after the start time.');
+      return;
+    }
+
+    setRequestSubmitting(true);
+    setRequestError(null);
+    try {
+      await createVenueBooking({
+        venue_id: Number(requestForm.venue_id),
+        event_id: requestForm.event_id || null,
+        start_time: requestForm.start_time,
+        end_time: requestForm.end_time,
+      });
+      notify.success('Booking request sent to SAO for review.');
+      setRequestOpen(false);
+      loadBookings(1);
+      setBookingsPage(1);
+      loadAvailability();
+    } catch (err) {
+      setRequestError(getApiErrorMessage(err, 'Could not submit this booking request.'));
+    } finally {
+      setRequestSubmitting(false);
+    }
+  }
+
+  async function confirmWithdraw() {
+    setWithdrawBusy(true);
+    try {
+      await withdrawVenueBooking(withdrawTarget.id);
+      notify.success('Booking request withdrawn.');
+      setWithdrawTarget(null);
+      loadBookings(bookingsPage);
+      loadAvailability();
+    } catch (err) {
+      notify.error(getApiErrorMessage(err, 'Could not withdraw this booking.'));
+    } finally {
+      setWithdrawBusy(false);
+    }
+  }
+
+  if (!['ADMIN', 'SBO_OFFICER'].includes(role)) {
+    return (
+      <div className="space-y-5">
+        <PageHeader title="Venues" description="Browse venues and request a booking for your organization." />
+        <Card><EmptyState kind="restricted" title="Organization access only" description="Only organization admins and officers can request venue bookings." /></Card>
+      </div>
+    );
+  }
+
+  const bookingColumns = [
+    { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || 'Unknown' },
+    { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
+    { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
+    { key: 'status', header: 'Status', render: (booking) => <StatusBadge status={booking.status} /> },
+    { key: 'remarks', header: 'SAO remarks', render: (booking) => booking.status === 'rejected' && booking.remarks ? <span className="text-ink-muted">{booking.remarks}</span> : <span className="text-ink-soft">-</span> },
+  ];
+
+  function canWithdraw(booking) {
+    return booking.status === 'pending' || (booking.status === 'approved' && new Date(booking.start_time) > new Date());
+  }
+
+  return (
+    <div className="space-y-5 pb-8">
+      <PageHeader title="Venues" description="Check availability, request a booking, and track your organization's requests." />
+
+      <Card title="Find a venue" description="Approved bookings for the venue you pick, across the date range you choose.">
+        <div className="grid gap-4 sm:grid-cols-3">
+          <Field label="Venue">
+            <Select value={selectedVenueId} onChange={(event) => setSelectedVenueId(event.target.value)} disabled={venues.loading || venues.items.length === 0}>
+              {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{venue.name} - capacity {venue.capacity}</option>)}
+            </Select>
+          </Field>
+          <Field label="From">
+            <input type="date" value={range.from} max={range.to} onChange={(event) => setRange({ ...range, from: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+          </Field>
+          <Field label="To">
+            <input type="date" value={range.to} min={range.from} onChange={(event) => setRange({ ...range, to: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+          </Field>
+        </div>
+
+        {venues.error && <p className="mt-4 text-sm font-semibold text-danger-strong">{venues.error}</p>}
+
+        {!venues.loading && venues.items.length === 0 && !venues.error && (
+          <EmptyState kind="first-run" icon={MapPin} title="No venues available yet" description="SAO has not added any bookable venues yet. Check back later." className="mt-2" />
+        )}
+
+        {selectedVenue && (
+          <div className="mt-5 border-t border-line pt-5">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-sm font-bold text-ink">{selectedVenue.name}</p>
+                <p className="text-xs font-medium text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
+              </div>
+              <Button size="sm" onClick={openRequestForm}>Request this venue</Button>
+            </div>
+            {availability.loading ? (
+              <p className="text-sm font-medium text-ink-muted">Checking availability...</p>
+            ) : availability.error ? (
+              <p className="text-sm font-semibold text-danger-strong">{availability.error}</p>
+            ) : (
+              <VenueAvailabilityTimeline from={range.from} to={range.to} slots={availability.slots} />
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Card title="My organization's requests" description="Every venue booking your organization has requested.">
+        <DataTable
+          columns={bookingColumns}
+          rows={bookings.items}
+          loading={bookings.loading}
+          error={bookings.error}
+          onRetry={() => loadBookings(bookingsPage)}
+          actions={(booking) => canWithdraw(booking) ? <Button size="sm" variant="secondary" onClick={() => setWithdrawTarget(booking)}>Withdraw</Button> : null}
+          pagination={(
+            <PaginationControls
+              currentPage={bookings.meta.currentPage}
+              totalItems={bookings.meta.total}
+              pageSize={bookings.meta.perPage}
+              onPageChange={setBookingsPage}
+              label="requests"
+            />
+          )}
+          emptyState={(
+            <EmptyState
+              kind="first-run"
+              icon={ClipboardList}
+              title="No booking requests yet"
+              description="Requests your organization sends to SAO will show up here with their status."
+              action={<Button leftIcon={CalendarRange} onClick={openRequestForm} disabled={!selectedVenueId}>Request a venue</Button>}
+            />
+          )}
+        />
+      </Card>
+
+      <Modal
+        open={requestOpen}
+        title="Request a venue booking"
+        onClose={requestSubmitting ? undefined : () => setRequestOpen(false)}
+        closeOnEscape={!requestSubmitting}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setRequestOpen(false)} disabled={requestSubmitting}>Cancel</Button>
+            <Button onClick={handleRequestSubmit} loading={requestSubmitting}>Send request</Button>
+          </>
+        )}
+      >
+        <form onSubmit={handleRequestSubmit} className="grid gap-4 sm:grid-cols-2">
+          <Field label="Venue" required className="sm:col-span-2">
+            <Select data-autofocus value={requestForm.venue_id} onChange={(event) => setRequestForm({ ...requestForm, venue_id: event.target.value })}>
+              <option value="">Choose a venue</option>
+              {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}
+            </Select>
+          </Field>
+          <Field label="Start" required>
+            <input type="datetime-local" value={requestForm.start_time} onChange={(event) => setRequestForm({ ...requestForm, start_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+          </Field>
+          <Field label="End" required>
+            <input type="datetime-local" value={requestForm.end_time} onChange={(event) => setRequestForm({ ...requestForm, end_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+          </Field>
+          <Field label="Link to an event" hint="Optional" className="sm:col-span-2">
+            <Select value={requestForm.event_id} onChange={(event) => setRequestForm({ ...requestForm, event_id: event.target.value })}>
+              <option value="">Not linked to an event</option>
+              {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{eventItem.title}</option>)}
+            </Select>
+          </Field>
+          {requestError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{requestError}</p>}
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        open={Boolean(withdrawTarget)}
+        title="Withdraw this booking request?"
+        message="SAO will be notified. You will need to submit a new request if you still need this venue."
+        recordName={withdrawTarget ? `${withdrawTarget.venue?.name} - ${formatRange(withdrawTarget.start_time, withdrawTarget.end_time)}` : ''}
+        confirmText="Withdraw request"
+        variant="danger"
+        busy={withdrawBusy}
+        onCancel={() => setWithdrawTarget(null)}
+        onConfirm={confirmWithdraw}
+      />
+    </div>
+  );
+}
