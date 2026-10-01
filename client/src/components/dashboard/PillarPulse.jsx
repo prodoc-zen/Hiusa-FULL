@@ -69,8 +69,8 @@ export default function PillarPulse({ pillars = {}, order = [] }) {
               </div>
             </div>
 
-            <div className="flex items-center gap-4 sm:w-56 sm:shrink-0 sm:justify-end">
-              {data.delta && <DeltaTag delta={data.delta} />}
+            <div className="flex flex-col gap-2 sm:w-64 sm:shrink-0 sm:items-end">
+              {data.delta && <div className="whitespace-nowrap"><DeltaTag delta={data.delta} /></div>}
               {data.meter && (
                 <div className="w-full sm:w-40">
                   <Meter value={data.meter.value} limit={data.meter.limit} label={pillar?.shortLabel || data.label} format={meterFormat(data.unit)} />

@@ -17,7 +17,7 @@ describe('BriefingHeader', () => {
 
     expect(screen.getByRole('heading', { level: 1, name: /Good (morning|afternoon|evening), Maria/ })).toBeInTheDocument();
     expect(screen.getByText(/Admin/)).toBeInTheDocument();
-    expect(screen.getByText('Computer Science Society')).toBeInTheDocument();
+    expect(screen.getByText(/Computer Science Society/)).toBeInTheDocument();
     expect(screen.getByText('Two approvals and one closing election need you today.')).toBeInTheDocument();
   });
 

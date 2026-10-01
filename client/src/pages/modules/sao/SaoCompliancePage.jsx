@@ -331,6 +331,7 @@ export default function SaoCompliancePage() {
         <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
           <DataTable
             columns={overviewColumns}
+            rowKey={(row) => row.organization_id}
             rows={overview.organizations}
             loading={overview.loading}
             error={overview.error}
