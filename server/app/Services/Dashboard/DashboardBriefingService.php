@@ -622,25 +622,36 @@ class DashboardBriefingService
 
     private function financePillar(int $organizationId): array
     {
+        // Only approved budgets are money the organization can use. Income
+        // posted against a budget raises its remaining amount above what was
+        // allocated, so spending is summed per budget, never netted across
+        // budgets, and the context says so when income lifts the total.
         $totals = DB::table('budgets')->where('organization_id', $organizationId)
-            ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining')
+            ->where('submission_status', 'approved')
+            ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining, COALESCE(SUM(CASE WHEN allocated_amount > remaining_amount THEN allocated_amount - remaining_amount ELSE 0 END),0) as spent')
             ->first();
         $allocated = (float) $totals->allocated;
         $remaining = (float) $totals->remaining;
-        $spent = max(0, $allocated - $remaining);
+        $spent = (float) $totals->spent;
         $utilization = $allocated > 0 ? round(($spent / $allocated) * 100, 1) : 0.0;
 
         $now = now();
         $currentNet = $this->netTransactions($organizationId, $now->copy()->subDays(30), $now);
         $previousNet = $this->netTransactions($organizationId, $now->copy()->subDays(60), $now->copy()->subDays(30));
 
+        if ($allocated <= 0) {
+            $context = 'No approved budgets yet.';
+        } elseif (($incomeAdded = $remaining + $spent - $allocated) > 0.004) {
+            $context = sprintf('Includes ₱%s in income added to ₱%s allocated; ₱%s spent so far.', number_format($incomeAdded, 2), number_format($allocated, 2), number_format($spent, 2));
+        } else {
+            $context = sprintf('₱%s left of ₱%s allocated (%s%% used).', number_format($remaining, 2), number_format($allocated, 2), $utilization);
+        }
+
         return [
             'value' => round($remaining, 2),
             'unit' => 'currency',
-            'label' => 'Remaining budget',
-            'context' => $allocated > 0
-                ? sprintf('₱%s left of ₱%s allocated (%s%% used)', number_format($remaining, 2), number_format($allocated, 2), $utilization)
-                : 'No budgets have been allocated yet.',
+            'label' => 'Available budget',
+            'context' => $context,
             'delta' => [
                 'value' => round($currentNet - $previousNet, 2),
                 'period' => 'vs last 30 days',
