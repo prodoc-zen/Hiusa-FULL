@@ -34,24 +34,17 @@ export default function Drawer({ open, title, description, onClose, children, fo
     return null;
   }
 
+  // AccessibleOverlay portals to <body>, so the backdrop itself must be the
+  // portaled element; a backdrop left in the app tree would sit over the panel.
   return (
-    <div
-      className={`fixed inset-0 z-[70] flex justify-end bg-navy-950/50 transition-opacity duration-150 ${closing ? 'opacity-0' : 'overlay-fade-in'}`}
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
-          onClose?.();
-        }
-      }}
+    <AccessibleOverlay
+      label={title}
+      labelledBy={title ? 'drawer-title' : undefined}
+      onClose={onClose}
+      closeOnBackdrop
+      baseClassName={`fixed inset-0 z-[70] flex justify-end bg-navy-950/50 transition-opacity duration-150 ${closing ? 'opacity-0' : 'overlay-fade-in'}`}
     >
-      <AccessibleOverlay
-        label={title}
-        labelledBy={title ? 'drawer-title' : undefined}
-        onClose={onClose}
-        closeOnBackdrop={false}
-        baseClassName={`flex h-full w-full flex-col overflow-hidden ${closing ? 'drawer-slide-out' : 'drawer-slide-in'}`}
-        className={`${width} border-l border-line bg-surface shadow-raised`}
-      >
+      <div className={`flex h-full w-full ${width} flex-col overflow-hidden border-l border-line bg-surface shadow-raised ${closing ? 'drawer-slide-out' : 'drawer-slide-in'}`}>
         {(title || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-5 py-4">
             <div className="min-w-0">
@@ -72,7 +65,7 @@ export default function Drawer({ open, title, description, onClose, children, fo
         )}
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">{children}</div>
         {footer && <footer className="flex shrink-0 items-center justify-end gap-2 border-t border-line bg-subtle px-5 py-4">{footer}</footer>}
-      </AccessibleOverlay>
-    </div>
+      </div>
+    </AccessibleOverlay>
   );
 }
