@@ -86,7 +86,7 @@ export default function FinancialCollectionsPage() {
   }
 
   return <div className="space-y-5 pb-8">
-    <header className="flex flex-col gap-3 border-b border-[#DDE7EF] pb-5 sm:flex-row sm:items-end sm:justify-between"><div><p className="text-xs font-semibold uppercase text-[#0878B7]">Finance</p><h1 className="mt-1 text-2xl font-bold text-[#0F172A]">Collections & remittances</h1><p className="mt-1 text-sm text-slate-600">Track money received, verification, and transfer of custody.</p></div><button type="button" onClick={() => { setError(''); setCreateOpen(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Plus size={17} />Record collection</button></header>
+    <div className="flex justify-end"><button type="button" onClick={() => { setError(''); setCreateOpen(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Plus size={17} />Record collection</button></div>
     {error && !createOpen && !remit && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
     {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {loading ? <p role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-6 text-sm text-slate-600">Loading financial overview...</p> : dashboard && <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

@@ -445,22 +445,20 @@ export default function ManageCandidatesPage() {
 
   return (
     <div className="space-y-5">
-      <section className="flex flex-col gap-4 rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+      <section aria-label="Candidate filters and actions" className="flex flex-col gap-4 rounded-lg border border-[#DDE7EF] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Official ballot roster</p>
-          <h1 className="mt-1 text-2xl font-black">Manage Candidates</h1>
-          <p className="mt-1 text-sm text-slate-200">{candidates.length} candidates registered for {election.title}</p>
+          <p className="text-sm font-semibold text-[#0F172A]">{candidates.length} candidates registered for {election.title}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
-            <button onClick={() => setPosFilter('All')} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === 'All' ? 'bg-white text-[#0F2F62]' : 'border border-white/20 bg-white/10 text-slate-200 hover:bg-white/15'}`}>All</button>
+            <button onClick={() => setPosFilter('All')} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === 'All' ? 'bg-[#0F2F62] text-white' : 'border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]'}`}>All</button>
             {positions.map((position) => (
-              <button key={position.id} onClick={() => setPosFilter(String(position.id))} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === String(position.id) ? 'bg-white text-[#0F2F62]' : 'border border-white/20 bg-white/10 text-slate-200 hover:bg-white/15'}`}>
+              <button key={position.id} onClick={() => setPosFilter(String(position.id))} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === String(position.id) ? 'bg-[#0F2F62] text-white' : 'border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]'}`}>
                 {position.title}
               </button>
             ))}
           </div>
         </div>
         {election.status !== 'closed' && !ballotLocked && (
-          <button disabled={resourcesLoading} onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] transition-colors hover:bg-[#EEF6FB] disabled:cursor-wait disabled:opacity-50 sm:w-auto">
+          <button disabled={resourcesLoading} onClick={() => { setError(''); setShowAdd(true); resetEditForm(); }} className="flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition-colors hover:bg-[#0F2F62] disabled:cursor-wait disabled:opacity-50 sm:w-auto">
             <Plus size={15} />
             Add Candidate
           </button>

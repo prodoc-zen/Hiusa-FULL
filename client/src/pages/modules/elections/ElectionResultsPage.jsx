@@ -17,11 +17,12 @@ export default function ElectionResultsPage() {
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const electionIsClosed = canViewElectionResults(election, role);
+  const resultsAvailable = canViewElectionResults(election, role);
+  const isFinal = election?.status === 'closed';
 
   useEffect(() => {
     let cancelled = false;
-    if (!election?.id || !electionIsClosed) {
+    if (!election?.id || !resultsAvailable) {
       setResults([]); setLoading(false); setError('');
       return () => { cancelled = true; };
     }
@@ -31,7 +32,7 @@ export default function ElectionResultsPage() {
       .catch((requestError) => { if (!cancelled) setError(requestError.response?.data?.message || 'Unable to load election results.'); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [election?.id, electionIsClosed]);
+  }, [election?.id, resultsAvailable]);
 
   const summary = useMemo(() => {
     const candidates = results.flatMap((result) => result.candidates || []);
@@ -39,12 +40,12 @@ export default function ElectionResultsPage() {
       candidates,
       selections: results.reduce((sum, result) => sum + Number(result.totalVotes || 0), 0),
       voters: results.reduce((highest, result) => Math.max(highest, Number(result.totalVotes || 0)), 0),
-      winners: results.flatMap((result) => (result.candidates || []).slice(0, Number(result.position.max_winners || 1)).filter((candidate) => candidate.votes > 0).map((candidate) => ({ ...candidate, position: result.position.title }))),
+      winners: isFinal ? results.flatMap((result) => (result.candidates || []).slice(0, Number(result.position.max_winners || 1)).filter((candidate) => candidate.votes > 0).map((candidate) => ({ ...candidate, position: result.position.title }))) : [],
     };
-  }, [results]);
+  }, [results, isFinal]);
 
   if (!election) return <div className="py-20 text-center text-sm text-[#64748B]">Election not found.</div>;
-  if (!electionIsClosed) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center"><Trophy size={36} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-black text-amber-900">Election results are not available yet.</h2><p className="mt-2 text-sm font-medium text-amber-800">Final winners and vote totals appear after the election closes and results are released.</p></div>;
+  if (!resultsAvailable) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center"><Trophy size={36} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-black text-amber-900">Election results are not available yet.</h2><p className="mt-2 text-sm font-medium text-amber-800">Vote totals appear once the finalized ballot opens. Winners are declared after closing.</p></div>;
   if (loading) return <div className="space-y-4" role="status" aria-label="Loading election results"><div className="h-72 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />{[1, 2].map((item) => <div key={item} className="h-64 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading election results...</span></div>;
   if (error) return <div className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm font-semibold text-red-700">{error}</div>;
 
@@ -57,12 +58,12 @@ export default function ElectionResultsPage() {
         <div className="relative min-h-56 bg-[#0F2F62]">
           {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center text-white/70"><Trophy size={64} strokeWidth={1.5} /></div>}
           <div className="absolute inset-0 bg-[#0B1831]/30" />
-          <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-[#0B1831]/80 px-3 py-1.5 text-xs font-bold text-white">Official final results</span>
+          <span className="absolute left-4 top-4 rounded-full border border-white/20 bg-[#0B1831]/80 px-3 py-1.5 text-xs font-bold text-white">{isFinal ? 'Official final results' : 'Live vote totals'}</span>
         </div>
         <div className="p-5 sm:p-7 lg:p-8">
-          <p className="text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">Election concluded</p>
+          <p className="text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">{isFinal ? 'Election concluded' : 'Voting in progress'}</p>
           <h1 className="mt-2 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{election.title}</h1>
-          <p className="mt-3 text-sm leading-6 text-[#64748B]">Verified vote totals and declared winners across every ballot position.</p>
+          <p className="mt-3 text-sm leading-6 text-[#64748B]">{isFinal ? 'Verified vote totals and declared winners across every ballot position.' : 'Vote totals update while voting is open. Winners will be declared after closing.'}</p>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[{ label: 'Ballots', value: summary.voters, icon: Vote }, { label: 'Selections', value: summary.selections, icon: BarChart3 }, { label: 'Positions', value: positions.length, icon: Award }, { label: 'Candidates', value: summary.candidates.length, icon: UsersRound }].map((stat) => <div key={stat.label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><stat.icon size={16} className="text-[#0878B7]" /><p className="mt-2 text-xl font-black text-[#0F172A]">{stat.value}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">{stat.label}</p></div>)}
           </div>

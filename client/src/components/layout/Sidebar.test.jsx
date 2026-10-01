@@ -76,4 +76,18 @@ describe('desktop sidebar rail', () => {
     expect(onClose).toHaveBeenCalledOnce();
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
   });
+
+  it('makes the closed mobile drawer inert and closes the open drawer with Escape', () => {
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 320 });
+    const onClose = vi.fn();
+    const view = render(<MemoryRouter><SidebarHarness onClose={onClose} /></MemoryRouter>);
+    expect(document.querySelector('aside')).toHaveAttribute('inert');
+    view.rerender(<MemoryRouter><SidebarHarness mobileOpen onClose={onClose} /></MemoryRouter>);
+    expect(screen.getByRole('dialog', { name: 'Navigation menu' })).not.toHaveAttribute('inert');
+    expect(document.body.style.overflow).toBe('hidden');
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(onClose).toHaveBeenCalledOnce();
+    view.unmount();
+    expect(document.body.style.overflow).toBe('');
+  });
 });

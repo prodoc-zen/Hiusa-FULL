@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 
 const FOCUSABLE = [
   'button:not([disabled])',
@@ -12,7 +13,7 @@ const FOCUSABLE = [
 export default function AccessibleOverlay({
   children,
   className,
-  baseClassName = 'hiusa-overlay overlay-fade-in max-w-full overflow-x-hidden',
+  baseClassName = 'hiusa-overlay overlay-fade-in max-w-full overflow-x-hidden overflow-y-auto',
   label,
   labelledBy,
   onClose,
@@ -73,7 +74,7 @@ export default function AccessibleOverlay({
     };
   }, [closeOnEscape]);
 
-  return (
+  return createPortal(
     <div
       ref={overlayRef}
       role="dialog"
@@ -81,7 +82,7 @@ export default function AccessibleOverlay({
       aria-label={labelledBy ? undefined : label}
       aria-labelledby={labelledBy}
       tabIndex={-1}
-      className={`${baseClassName} ${className || ''}`}
+      className={`${baseClassName} backdrop-blur-sm ${className || ''}`}
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
           onCloseRef.current?.();
@@ -89,6 +90,7 @@ export default function AccessibleOverlay({
       }}
     >
       {children}
-    </div>
+    </div>,
+    document.body,
   );
 }

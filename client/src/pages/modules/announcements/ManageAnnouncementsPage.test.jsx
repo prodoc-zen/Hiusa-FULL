@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import ManageAnnouncementsPage from './ManageAnnouncementsPage';
@@ -21,21 +21,23 @@ describe('ManageAnnouncementsPage', () => {
     announcementMocks.getAnnouncements.mockResolvedValue({ data: list });
   });
 
-  it('shows the published feed preview alongside management actions', async () => {
+  it('expands a row to show announcement details and management actions', async () => {
     render(<MemoryRouter><ManageAnnouncementsPage /></MemoryRouter>);
-    const preview = await screen.findByRole('complementary', { name: 'Announcement feed preview' });
-    expect(await within(preview).findByText('Campus update')).toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'Campus update' }));
+    expect(screen.getByText('Room change')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create announcement' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Edit Campus update' })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Delete Campus update' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Campus update' }));
+    expect(screen.getByRole('menuitem', { name: 'Edit announcement' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'Delete announcement' })).toBeInTheDocument();
   });
 
   it('keeps a failed delete confirmation open and reports the error', async () => {
     announcementMocks.deleteAnnouncement.mockRejectedValue({ response: { data: { message: 'Deletion denied.' } } });
     render(<MemoryRouter><ManageAnnouncementsPage /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete Campus update' }));
-    fireEvent.click(screen.getByRole('button', { name: 'Delete', exact: true }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Campus update' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete announcement' }));
+    fireEvent.click(screen.getByRole('dialog').querySelector('button:last-child'));
     await waitFor(() => expect(screen.getByRole('alert')).toHaveTextContent('Deletion denied.'));
-    expect(screen.getByRole('button', { name: 'Delete', exact: true })).toBeInTheDocument();
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

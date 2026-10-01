@@ -7,6 +7,8 @@ const election = {
   id: 9,
   title: 'Student Council Election',
   status: 'active',
+  approved_at: new Date(Date.now() - 120_000).toISOString(),
+  finalized_at: new Date(Date.now() - 90_000).toISOString(),
   start_time: new Date(Date.now() - 60_000).toISOString(),
   end_time: new Date(Date.now() + 3_600_000).toISOString(),
   voters_count: 24,

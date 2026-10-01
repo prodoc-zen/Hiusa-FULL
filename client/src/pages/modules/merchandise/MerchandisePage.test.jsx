@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
 import MerchandisePage from "./MerchandisePage";
@@ -255,10 +255,89 @@ describe("MerchandisePage fulfillment experience", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Manage Orders" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Order queue" })).toBeInTheDocument();
     expect(screen.getAllByText("Ready for pickup").length).toBeGreaterThan(0);
     expect((await screen.findAllByText("CLAIMTOKEN123456")).length).toBeGreaterThan(0);
     expect(screen.getAllByText("Rafael Aquino").length).toBeGreaterThan(0);
+  });
+
+  it("opens admin payment settings on demand and returns focus to the queue", async () => {
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    await screen.findAllByText("CLAIMTOKEN123456");
+    expect(screen.queryByLabelText("Official GCash QR image")).not.toBeInTheDocument();
+    expect(merchandiseMocks.getGcashSettings).not.toHaveBeenCalled();
+
+    const trigger = screen.getByRole("button", { name: "Payment settings" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole("dialog", { name: "GCash payment settings" });
+    expect(await within(dialog).findByText("No QR code uploaded")).toBeInTheDocument();
+    expect(within(dialog).getByLabelText("Official GCash QR image")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Save GCash QR" }));
+    expect(within(dialog).getByRole("alert")).toHaveTextContent("Choose a QR image to upload.");
+    expect(merchandiseMocks.uploadGcashQr).not.toHaveBeenCalled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(trigger).toHaveFocus();
+  });
+
+  it("keeps payment settings open until the QR upload completes", async () => {
+    let finishUpload;
+    merchandiseMocks.uploadGcashQr.mockImplementation(() => new Promise((resolve) => { finishUpload = resolve; }));
+    const OriginalURL = globalThis.URL;
+    vi.stubGlobal("URL", class extends OriginalURL {
+      static createObjectURL() { return "blob:gcash-preview"; }
+      static revokeObjectURL() {}
+    });
+    try {
+      render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+      fireEvent.click(screen.getByRole("button", { name: "Payment settings" }));
+      const dialog = screen.getByRole("dialog", { name: "GCash payment settings" });
+      await waitFor(() => expect(merchandiseMocks.getGcashSettings).toHaveBeenCalled());
+      const qr = new File(["qr-image"], "official-qr.png", { type: "image/png" });
+      fireEvent.change(within(dialog).getByLabelText("Official GCash QR image"), { target: { files: [qr] } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save GCash QR" }));
+      expect(merchandiseMocks.uploadGcashQr).toHaveBeenCalledWith(qr);
+      expect(within(dialog).getByRole("button", { name: "Uploading..." })).toBeDisabled();
+      fireEvent.keyDown(document, { key: "Escape" });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
+      expect(dialog).toBeInTheDocument();
+
+      await act(async () => finishUpload({ data: { gcash_qr_url: "/storage/official-qr.png" } }));
+      expect(within(dialog).getByRole("img", { name: "Current official GCash payment QR code" })).toHaveAttribute("src", expect.stringContaining("/storage/official-qr.png"));
+      fireEvent.click(within(dialog).getByRole("button", { name: "Close modal" }));
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("lets officers view the QR without exposing upload controls", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    fireEvent.click(screen.getByRole("button", { name: "View GCash QR" }));
+    const dialog = screen.getByRole("dialog", { name: "GCash payment QR" });
+    expect(await within(dialog).findByRole("img", { name: "Current official GCash payment QR code" })).toHaveAttribute("src", expect.stringContaining("/storage/qr.png"));
+    expect(within(dialog).queryByLabelText("Official GCash QR image")).not.toBeInTheDocument();
+    expect(within(dialog).queryByRole("button", { name: "Save GCash QR" })).not.toBeInTheDocument();
+  });
+
+  it("combines status views with search and clears the active filters", async () => {
+    render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
+    await screen.findAllByText("CLAIMTOKEN123456");
+    const views = within(screen.getByRole("group", { name: "Filter orders by status" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "Search merchandise orders" }), { target: { value: "Rafael" } });
+    fireEvent.click(views.getByRole("button", { name: "Ready for pickup" }));
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, status: "paid", search: "Rafael" })));
+    expect(views.getByRole("button", { name: "Ready for pickup" })).toHaveAttribute("aria-pressed", "true");
+
+    fireEvent.click(screen.getByRole("button", { name: /More filters/ }));
+    expect(screen.getByRole("button", { name: /More filters/ })).toHaveAttribute("aria-expanded", "true");
+    expect(screen.getByRole("combobox", { name: "Program or course" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
+    await waitFor(() => expect(orderMocks.getOrders).toHaveBeenLastCalledWith(expect.objectContaining({ page: 1, status: "", search: "" })));
+    expect(views.getByRole("button", { name: "All orders" })).toHaveAttribute("aria-pressed", "true");
   });
 
   it("loads only paid orders in the token validation queue", async () => {

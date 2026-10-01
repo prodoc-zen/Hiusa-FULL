@@ -14,6 +14,7 @@ import {
   X,
 } from 'lucide-react';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import TableRowActions from '../../../components/TableRowActions';
 import {
   getTransactions,
   getTransactionSummary,
@@ -768,15 +769,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   const txFrom = (txMeta.current_page - 1) * txMeta.per_page + 1;
   const txTo = Math.min(txMeta.current_page * txMeta.per_page, txMeta.total);
-  const workspaceCopy = {
-    transactions: { title: 'Digital ledger', description: 'Find, verify, and record organization transactions.' },
-    budgets: { title: 'Budget allocation', description: 'Track requests, remaining funds, and spending risk.' },
-    forecasting: { title: 'Financial insights', description: 'Examine projections and the data behind them.' },
-    reports: { title: 'Financial reports', description: 'Prepare documents and follow their submission status.' },
-    receipts: { title: 'My receipts', description: 'Payments and receipts linked to your account.' },
-    invoices: { title: 'Statement of account', description: 'Charges, payments, and outstanding balances.' },
-    audit: { title: 'Financial audit', description: 'A record of administrative financial actions.' },
-  }[activeTab] || { title: 'Financial management', description: 'Review financial records.' };
   const activeTransactionFilters = [
     search.trim() && `Search: ${search.trim()}`,
     txFilters.type && `Type: ${txFilters.type}`,
@@ -801,17 +793,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     <div className="space-y-5 pb-8">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
 
-      <header className="flex flex-col gap-3 border-b border-[#DDE7EF] pb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[#0878B7]">Finance / {workspaceCopy.title}</p>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-[#0F172A] sm:text-[28px]">{workspaceCopy.title}</h1>
-          <p className="mt-1 text-sm text-slate-600">{workspaceCopy.description}</p>
-        </div>
-        {canViewTransactions && !error && activeTab !== 'transactions' && <div className="min-w-44 border-l-2 border-[#0B8ED0] pl-3 sm:text-right sm:border-l-0 sm:pl-0">
+      {canViewTransactions && !error && activeTab !== 'transactions' && (
+        <div className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-right">
           <p className="text-xs font-medium text-slate-600">Ledger net balance</p>
           <p className="mt-0.5 text-xl font-bold tabular-nums text-[#0F2F62]" aria-live="polite">{loading ? 'Loading…' : fmt(summary.net_balance)}</p>
-        </div>}
-      </header>
+        </div>
+      )}
 
       {activeTab === 'transactions' && canViewTransactions && !loading && !error && (
         <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -978,14 +965,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </td>
                       {canManageLedger && (
                         <td className="px-5 py-4">
-                          <button
-                            type="button"
-                            onClick={() => openTransactionForm(tx)}
-                            className="grid h-11 w-11 place-items-center rounded-lg border border-[#DDE7EF] text-[#0F2F62] hover:bg-[#F8FBFD] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"
-                            aria-label="Edit transaction"
-                          >
-                            <Pencil size={14} />
-                          </button>
+                          <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
+                            { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+                          ]} />
                         </td>
                       )}
                     </tr>

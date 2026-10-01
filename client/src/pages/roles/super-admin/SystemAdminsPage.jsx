@@ -24,6 +24,7 @@ import {
 import { getApiErrorMessage } from "../../../utils/apiError";
 import ConfirmModal from "../../../components/ConfirmModal";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
+import TableRowActions from "../../../components/TableRowActions";
 
 const LEADERSHIP_TITLES = [
   "Adviser",
@@ -243,18 +244,7 @@ export default function SystemAdminsPage() {
 
   return (
     <div className="space-y-6">
-      <section className="flex flex-col gap-5 rounded-lg bg-[#0B1831] p-6 text-white shadow-sm sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#16C7F3]">
-            SAO administration
-          </p>
-          <h2 className="mt-2 text-2xl font-black">Admin User Management</h2>
-          <p className="mt-1 max-w-2xl text-sm text-slate-300">
-            Create and manage the President, Vice President, Secretary,
-            Adviser, and other authorized Admin users for each student
-            organization. Adviser assignment is reserved for the SAO Director.
-          </p>
-        </div>
+      <div className="flex justify-end">
         <button
           type="button"
           onClick={openCreate}
@@ -262,7 +252,7 @@ export default function SystemAdminsPage() {
         >
           <UserPlus size={17} /> New Admin User
         </button>
-      </section>
+      </div>
 
       <section className="grid gap-3 sm:grid-cols-3">
         {[
@@ -391,26 +381,11 @@ export default function SystemAdminsPage() {
                       </span>
                     </td>
                     <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setResetTarget(admin)}
-                          disabled={admin.account_status !== "active"}
-                          aria-label={`Initiate password reset for ${admin.first_name} ${admin.last_name}`}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          <KeyRound size={14} /> Reset access
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => openEdit(admin)}
-                          aria-label={`Edit ${admin.first_name} ${admin.last_name}`}
-                          className="inline-flex h-9 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
-                        >
-                          <PencilLine size={14} /> Edit
-                        </button>
-                        <button type="button" onClick={() => setDeleteTarget(admin)} aria-label={`Delete ${admin.first_name} ${admin.last_name}`} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-700 hover:bg-red-50"><Trash2 size={14} /> Delete</button>
-                      </div>
+                      <TableRowActions subject={`${admin.first_name} ${admin.last_name}`} label="Administrator actions" actions={[
+                        { label: 'Reset access', icon: KeyRound, disabled: admin.account_status !== 'active', onClick: () => setResetTarget(admin) },
+                        { label: 'Edit administrator', icon: PencilLine, onClick: () => openEdit(admin) },
+                        { label: 'Delete administrator', icon: Trash2, danger: true, onClick: () => setDeleteTarget(admin) },
+                      ]} />
                     </td>
                   </tr>
                 ))}

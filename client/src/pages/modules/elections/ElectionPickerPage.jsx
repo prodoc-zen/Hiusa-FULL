@@ -18,7 +18,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
+import { createElection, deleteElection, finalizeElection, getElections, updateElection } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
@@ -253,6 +253,17 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     finally { setStatusBusy({ id: null, target: '' }); }
   };
 
+  const handleFinalize = async (id) => {
+    if (statusBusy.id) return;
+    setStatusBusy({ id, target: 'finalize' }); setError('');
+    try {
+      const updated = await finalizeElection(id);
+      setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
+      setFeedback({ open: true, type: 'success', message: 'Ballot finalized. Open voting during the scheduled period.' });
+    } catch (requestError) { setError(getApiErrorMessage(requestError, 'Unable to finalize the ballot.')); }
+    finally { setStatusBusy({ id: null, target: '' }); }
+  };
+
   const handleDelete = async () => {
     if (!deleteTarget || deleting) return;
     setDeleting(true);
@@ -265,13 +276,9 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        <div className="flex flex-col gap-4 bg-[#0F2F62] p-5 text-white sm:p-6 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-2xl">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-[#16C7F3]">Election administration</p>
-            <h1 className="mt-1 text-2xl font-black sm:text-3xl">Election Workspace</h1>
-            <p className="mt-2 text-sm leading-6 text-slate-200">Select an election to manage its ballot, candidates, party lists, voter readiness, voting period, and official results.</p>
-          </div>
-          {canManageElections && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-white px-5 text-sm font-bold text-[#0F2F62] hover:bg-[#EEF6FB] sm:w-auto"><Plus size={16} /> Create election</button>}
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] p-4 sm:p-5">
+          <p className="max-w-2xl text-sm text-[#64748B]">Select an election to manage its ballot and voting period.</p>
+          {canManageElections && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62]"><Plus size={16} /> Create election</button>}
         </div>
         <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px] sm:p-5">
           <label className="relative"><span className="sr-only">Search elections</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by election title..." className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
@@ -288,11 +295,10 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
         ].map(([label, value]) => <dl key={label} className="bg-white p-4"><dt className="text-xs font-semibold text-slate-500">{label}</dt><dd className="mt-2 text-2xl font-black tabular-nums text-[#0F172A]">{loading ? '...' : value}</dd></dl>)}
       </section>
 
-      {!loading && <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5" aria-label="Election modules"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-base font-black text-[#0F172A]">Election modules</h2><p className="mt-1 text-xs text-[#64748B]">{elections.length ? 'Select an election below to open its modules.' : canManageElections ? 'Create an election first to set up candidates and party lists.' : 'Election setup is required before these modules become available.'}</p></div>{canManageElections && elections.length === 0 && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white"><Plus size={14} /> Create Election</button>}</div><div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">{[['Candidates', 'Add approved ballot candidates'], ['Party Lists', 'Organize candidate slates'], ['Cast Vote', 'Open during voting period'], ['Vote Results', 'Available after release']].map(([title, description]) => <div key={title} aria-disabled="true" className="relative overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><div aria-hidden="true" className="opacity-45 blur-[1px]"><h3 className="text-sm font-bold text-[#0F172A]">{title}</h3><p className="mt-1 text-xs text-[#64748B]">{description}</p></div><p className="mt-3 rounded-md bg-white/90 px-2 py-1 text-[11px] font-bold text-[#0F2F62]">{elections.length ? 'Select an election first' : 'Election setup required'}</p></div>)}</div></section>}
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
       {loading && <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading elections">{[1, 2, 3, 4].map((item) => <div key={item} className="h-96 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading elections...</span></div>}
-      {!loading && filteredElections.length === 0 && <section className="rounded-lg border border-dashed border-[#DDE7EF] bg-white p-10 text-center"><Vote size={36} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-bold text-[#0F172A]">{elections.length === 0 && currentUser?.role === 'STUDENT' ? 'No election is currently open.' : 'No elections found'}</h2><p className="mt-1 text-sm text-[#64748B]">{elections.length === 0 && currentUser?.role === 'STUDENT' ? 'Voting becomes available when an approved election opens. Released results will appear here after closing.' : elections.length ? 'Try another search or status filter.' : canManageElections ? 'Create the first election to begin setup.' : 'No elections are available for your organization yet.'}</p></section>}
+      {!loading && filteredElections.length === 0 && <section className="rounded-lg border border-dashed border-[#DDE7EF] bg-white p-10 text-center"><Vote size={36} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-bold text-[#0F172A]">{elections.length === 0 && currentUser?.role === 'STUDENT' ? 'No election is currently open.' : 'No elections found'}</h2><p className="mt-1 text-sm text-[#64748B]">{elections.length === 0 && currentUser?.role === 'STUDENT' ? 'Voting and live totals become available after the admin finalizes and opens an election.' : elections.length ? 'Try another search or status filter.' : canManageElections ? 'Create the first election to begin setup.' : 'No elections are available for your organization yet.'}</p></section>}
 
       {!loading && pagedElections.length > 0 && (
         <section className="grid gap-4 lg:grid-cols-2">
@@ -317,7 +323,8 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
                       <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> Edit</button>
                       <button type="button" onClick={() => setDeleteTarget(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>
                       {election.status === 'pending_approval' && <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700"><CheckCircle2 size={14} /> In review</span>}
-                      {election.status !== 'pending_approval' && election.status !== 'active' && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'active')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Power size={14} />} Open</button>}
+                      {election.status === 'upcoming' && !election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleFinalize(election.id)} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#EEF6FB] disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Finalize ballot</button>}
+                      {election.status === 'upcoming' && election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'active')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Power size={14} />} Open voting</button>}
                       {election.status === 'active' && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'closed')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <PowerOff size={14} />} Close</button>}
                     </div>
                   )}

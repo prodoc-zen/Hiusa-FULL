@@ -158,17 +158,6 @@ export default function SettingsPage() {
     <div className="mx-auto max-w-6xl space-y-6">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
 
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#0878B7]">Account settings</p>
-          <h1 className="mt-1 text-2xl font-black text-[#0F172A] sm:text-3xl">Manage your profile</h1>
-          <p className="mt-1 text-sm font-medium text-[#64748B]">Keep your personal details current and protect your HIUSA account.</p>
-        </div>
-        <span className="inline-flex w-fit items-center gap-2 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
-          <CheckCircle2 size={14} /> Account active
-        </span>
-      </header>
-
       <div className="grid items-start gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
         <aside className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm lg:sticky lg:top-6">
           <div className="bg-[#0B1831] px-5 py-6 text-center">

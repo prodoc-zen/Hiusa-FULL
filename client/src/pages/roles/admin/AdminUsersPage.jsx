@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleCheck, CircleX, Download, Eye, Fingerprint, MoreHorizontal, PencilLine, Trash2, UserCheck, UserPlus, UserX } from 'lucide-react';
+import { CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, MoreVertical, PencilLine, ShieldCheck, Trash2, UserCheck, UserPlus, UserX, UsersRound } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
@@ -90,23 +90,8 @@ const ACTION_ICON_COLORS = {
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
 };
 
-function ActionButton({ action }) {
-  const Icon = action.icon;
-
-  return (
-    <button
-      type="button"
-      aria-label={action.label}
-      title={action.title}
-      onClick={action.onClick}
-      className={`grid h-8 w-8 shrink-0 place-items-center rounded-lg border shadow-sm transition-colors duration-200 ${ACTION_ICON_COLORS[action.color]}`}
-    >
-      <Icon size={14} strokeWidth={2.2} />
-    </button>
-  );
-}
-
 export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete }) {
+  const menuId = useId();
   const [expanded, setExpanded] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 12, top: 12, origin: 'top right' });
   const triggerRef = useRef(null);
@@ -153,10 +138,6 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
     action.onClick();
   };
 
-  if (actions.length <= 2) {
-    return <div className="flex justify-end gap-1.5">{actions.map((action) => <ActionButton key={action.key} action={{ ...action, onClick: () => run(action) }} />)}</div>;
-  }
-
   const toggleMenu = () => {
     if (expanded) {
       setExpanded(false);
@@ -182,7 +163,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const menu = typeof document === 'undefined' ? null : createPortal(
     <div
       ref={menuRef}
-      id={`user-actions-${user.school_id}`}
+      id={menuId}
       role="menu"
       aria-label={`Actions for ${name}`}
       aria-hidden={!expanded}
@@ -226,11 +207,11 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
         aria-label={`${expanded ? 'Close' : 'Open'} actions for ${name}`}
         aria-expanded={expanded}
         aria-haspopup="menu"
-        aria-controls={`user-actions-${user.school_id}`}
+        aria-controls={menuId}
         onClick={toggleMenu}
         className={`grid h-9 w-9 place-items-center rounded-lg border shadow-sm transition-[color,background-color,border-color,transform,box-shadow] duration-200 ${expanded ? 'scale-[0.97] border-[#16C7F3] bg-[#E6F6FD] text-[#0F2F62] shadow-[#16C7F3]/15' : 'border-[#DDE7EF] bg-white text-slate-500 hover:border-[#DDE7EF] hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
       >
-        <MoreHorizontal size={18} className={`transition-transform duration-200 ${expanded ? 'rotate-90' : 'rotate-0'}`} />
+        <MoreVertical size={18} />
       </button>
       {menu}
     </div>
@@ -411,7 +392,6 @@ export default function AdminUsersPage() {
   const [search, setSearch] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
-  const [departmentFilter, setDepartmentFilter] = useState('all');
   const [programFilter, setProgramFilter] = useState('all');
   const [yearLevelFilter, setYearLevelFilter] = useState('all');
   const [sectionFilter, setSectionFilter] = useState('all');
@@ -475,7 +455,6 @@ export default function AdminUsersPage() {
   const userQuery = {
     ...(roleFilter !== 'all' ? { role: roleFilter } : {}),
     ...(statusFilter !== 'all' ? { account_status: statusFilter } : {}),
-    ...(departmentFilter !== 'all' ? { department: departmentFilter } : {}),
     ...(programFilter !== 'all' ? { program: programFilter } : {}),
     ...(yearLevelFilter !== 'all' ? { year_level: yearLevelFilter } : {}),
     ...(sectionFilter !== 'all' ? { section: sectionFilter } : {}),
@@ -513,14 +492,14 @@ export default function AdminUsersPage() {
   }
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { load(); }, [roleFilter, statusFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, debouncedSearch, page]);
+  useEffect(() => { load(); }, [roleFilter, statusFilter, programFilter, yearLevelFilter, sectionFilter, debouncedSearch, page]);
 
   const refreshUsers = load;
 
   // Every filter is applied server-side, so any change goes back to page 1.
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, roleFilter, departmentFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter]);
+  }, [debouncedSearch, roleFilter, programFilter, yearLevelFilter, sectionFilter, statusFilter]);
 
   // /users has no sort parameter, so sort orders the page on screen.
   const sortedUsers = useMemo(() => [...users].sort((left, right) => {
@@ -794,7 +773,6 @@ export default function AdminUsersPage() {
   const activeUserFilters = [
     search.trim() && `Search: ${search.trim()}`,
     roleFilter !== 'all' && `Role: ${ROLE_LABELS[roleFilter] || roleFilter}`,
-    departmentFilter !== 'all' && `Department: ${departmentFilter}`,
     programFilter !== 'all' && `Program: ${programFilter}`,
     yearLevelFilter !== 'all' && `Year: ${yearLevelFilter}`,
     sectionFilter !== 'all' && `Section: ${sectionFilter}`,
@@ -805,7 +783,6 @@ export default function AdminUsersPage() {
   const clearUserFilters = () => {
     setSearch('');
     setRoleFilter('all');
-    setDepartmentFilter('all');
     setProgramFilter('all');
     setYearLevelFilter('all');
     setSectionFilter('all');
@@ -821,9 +798,40 @@ export default function AdminUsersPage() {
       <section className="overflow-hidden rounded-3xl border border-[#DDE7EF] bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#DDE7EF] p-5">
           <p className="text-sm font-semibold text-slate-600">{actorRole === 'SBO_OFFICER' ? 'Find students for consent-based fingerprint enrollment.' : 'Filter accounts, export the directory, or add a member.'}</p>
-          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-wrap gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50 sm:flex-none"><Download size={15} /> Export</button>{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] sm:flex-none"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-full bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] sm:flex-none"><UserPlus size={15} /> New User</button></div>}
+          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-col gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
         </div>
 
+
+        <div className="grid gap-3 bg-[#EEF6FB] p-4 sm:grid-cols-2">{(actorRole === 'SBO_OFFICER' ? [
+          ['Students', meta.total, GraduationCap], ['Fingerprint directory', 'Attendance use only', Fingerprint],
+        ] : [
+          ['Total users', meta.total, UsersRound], ['Students', roleSummary.STUDENT ?? 0, GraduationCap], ['Admins', roleSummary.ADMIN ?? 0, UserCheck], ['Super admins', roleSummary.SUPER_ADMIN ?? 0, ShieldCheck],
+        ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-[#DDE7EF] bg-white p-4"><div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></div><Icon size={22} className="text-[#0878B7]" aria-hidden="true" /></dl>)}</div>
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-2">
+      <DataDonutChart
+        title="Filtered user distribution"
+        description={`${Number(roleSummary.STUDENT ?? 0).toLocaleString()} student${Number(roleSummary.STUDENT ?? 0) === 1 ? '' : 's'} match the current search and academic filters.`}
+        centerValue={meta.total}
+        centerLabel="matching users"
+        segments={[
+          { label: 'Students', value: roleSummary.STUDENT ?? 0, color: '#0B8ED0' },
+          { label: 'SBO officers', value: roleSummary.SBO_OFFICER ?? 0, color: '#0F2F62' },
+          { label: 'Admins', value: roleSummary.ADMIN ?? 0, color: '#16A34A' },
+          { label: 'Department heads', value: roleSummary.DEPARTMENT_HEAD ?? 0, color: '#F59E0B' },
+          { label: 'Super admins', value: roleSummary.SUPER_ADMIN ?? 0, color: '#64748B' },
+        ]}
+      />
+
+      <SectionDistributionChart sections={sectionSummary} loading={loading} />
+      </div>
+
+      {error && (
+        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
+      )}
+
+      <section className="rounded-lg border border-[#DDE7EF] bg-white p-3 shadow-sm sm:p-5">
         <TableFilterBar
           searchValue={search}
           onSearchChange={(value) => { setSearch(value); setPage(1); }}
@@ -844,42 +852,27 @@ export default function AdminUsersPage() {
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </select>
-          <select aria-label="Filter by department" value={departmentFilter} onChange={(event) => setDepartmentFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All departments</option>{academicStructure.department && <option value={academicStructure.department}>{academicStructure.department}</option>}</select>
           <select aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
           <select aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</select>
           <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
           <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </TableFilterBar>
-        <div className={`grid gap-px border-b border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 ${actorRole === 'SBO_OFFICER' ? '' : 'lg:grid-cols-4'}`}>{(actorRole === 'SBO_OFFICER' ? [
-          ['Students', meta.total], ['Fingerprint directory', 'Attendance use only'],
-        ] : [
-          ['Total users', meta.total], ['Students', roleSummary.STUDENT ?? 0], ['Admins', roleSummary.ADMIN ?? 0], ['Super admins', roleSummary.SUPER_ADMIN ?? 0],
-        ]).map(([label, value]) => <dl key={label} className="bg-white p-4"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}</div>
-      </section>
-
-      <DataDonutChart
-        title="Filtered user distribution"
-        description={`${Number(roleSummary.STUDENT ?? 0).toLocaleString()} student${Number(roleSummary.STUDENT ?? 0) === 1 ? '' : 's'} match the current search and academic filters.`}
-        centerValue={meta.total}
-        centerLabel="matching users"
-        segments={[
-          { label: 'Students', value: roleSummary.STUDENT ?? 0, color: '#0B8ED0' },
-          { label: 'SBO officers', value: roleSummary.SBO_OFFICER ?? 0, color: '#0F2F62' },
-          { label: 'Admins', value: roleSummary.ADMIN ?? 0, color: '#16A34A' },
-          { label: 'Department heads', value: roleSummary.DEPARTMENT_HEAD ?? 0, color: '#F59E0B' },
-          { label: 'Super admins', value: roleSummary.SUPER_ADMIN ?? 0, color: '#64748B' },
-        ]}
-      />
-
-      <SectionDistributionChart sections={sectionSummary} loading={loading} />
-
-      {error && (
-        <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>
-      )}
-
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <div className="overflow-x-auto">
+        <div className="space-y-3 md:hidden" aria-label="Users">
+          {loading && Array.from({ length: 3 }, (_, index) => <div key={`user-card-skeleton-${index}`} className="h-32 animate-pulse rounded-xl bg-slate-100" />)}
+          {!loading && sortedUsers.map((user) => (
+            <article key={user.id} className="min-w-0 rounded-xl border border-[#DDE7EF] p-4">
+              <div className="flex min-w-0 items-start justify-between gap-2">
+                <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{user.first_name} {user.last_name}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
+                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span>{user.fingerprint_enrolled && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[#0878B7]">Fingerprint enrolled</span>}</div>
+              <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
+            </article>
+          ))}
+          {!loading && users.length === 0 && <p className="py-8 text-center text-sm text-slate-500">{meta.total === 0 ? 'No users found.' : 'No users on this page.'}</p>}
+        </div>
+        <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[940px] text-left">
             <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
               <tr>

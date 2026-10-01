@@ -85,12 +85,6 @@ export default function StudentHomePage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl overflow-x-hidden">
-      <header className="mb-4 rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Student community</p>
-        <h1 className="mt-1 truncate text-xl font-black text-[#0F172A] sm:text-2xl">{organization?.name || 'HIUSA Feed'}</h1>
-        <p className="mt-1 text-xs font-medium text-[#64748B] sm:text-sm">Official updates, events, and elections from your organization.</p>
-      </header>
-
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_300px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}

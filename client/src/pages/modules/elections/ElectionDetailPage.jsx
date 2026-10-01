@@ -96,18 +96,17 @@ export default function ElectionDetailPage() {
     <div className="space-y-6">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="rounded-lg border border-[#0F2F62] bg-[#0F2F62] p-5 text-white sm:p-6">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+      <section aria-label="Ballot configuration actions" className="rounded-lg border border-[#DDE7EF] bg-white p-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Ballot configuration</p>
-            <h2 className="mt-1 text-2xl font-black text-white">{election.title}</h2>
-            <p className="mt-1 text-sm font-medium text-slate-200">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
+            <p className="text-sm font-bold text-[#0F172A]">{election.title}</p>
+            <p className="mt-1 text-xs font-medium text-slate-600">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
           </div>
           {!ballotLocked && (
             <button
               type="button"
               onClick={openAddPosition}
-              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-sm font-bold text-[#0F2F62] transition hover:bg-[#EEF6FB]"
+              className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
             >
               <CirclePlus size={15} />
               Add Position

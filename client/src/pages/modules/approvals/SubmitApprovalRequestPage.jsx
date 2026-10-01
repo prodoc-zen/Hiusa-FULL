@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowRight, CalendarDays, ClipboardCheck, Megaphone, Vote, WalletCards } from 'lucide-react';
+import { ArrowRight, CalendarDays, Megaphone, Vote, WalletCards } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 const REQUEST_TYPES = [
@@ -59,17 +59,6 @@ export default function SubmitApprovalRequestPage() {
 
   return (
     <div className="mx-auto max-w-5xl space-y-5">
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
-        <div className="flex items-start gap-4">
-          <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><ClipboardCheck size={22} /></div>
-          <div>
-            <p className="text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">Approval workflow</p>
-            <h1 className="mt-1 text-2xl font-black text-[#0F172A] sm:text-3xl">Submit a request for approval</h1>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#64748B]">Choose the request type first. You will continue to its complete form, where saving creates the record as pending and notifies the authorized approver.</p>
-          </div>
-        </div>
-      </section>
-
       <form onSubmit={continueToRequest} className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <div className="border-b border-[#DDE7EF] p-5">
           <h2 className="text-lg font-extrabold text-[#0F172A]">1. Select request type</h2>

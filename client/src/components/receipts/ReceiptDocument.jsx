@@ -25,6 +25,19 @@ export default function ReceiptDocument({ order, transaction, onViewProof, relea
   const approver = isOrder ? order.approver : transaction.merchandise_order?.approver;
   const collector = isOrder ? order.processor : transaction.recorder;
 
+  if (!isOrder) {
+    const method = transaction.merchandise_order?.payment_method;
+    return <><div data-receipt-document data-personal-receipt className="mx-auto max-w-2xl border border-slate-300 bg-white p-5 text-[#0F172A] sm:p-8">
+      <div className="flex items-end justify-between gap-3 border-y-2 border-[#0F172A] py-2"><h2 className="font-serif text-3xl uppercase">Receipt</h2><p className="text-xs"><strong>Date:</strong> {dateTime(transaction.transaction_date)}</p></div>
+      <p className="border-b border-slate-500 py-3 text-xs"><strong>Received from:</strong> {person(payer)} <span className="float-right"><strong>Number:</strong> {number}</span></p>
+      <p className="border-b border-slate-500 py-3 text-xs"><strong>Amount:</strong> {money(amount)}</p>
+      <div className="flex flex-wrap gap-x-5 gap-y-2 border-b border-slate-500 py-3 text-xs" aria-label="Mode of payment">{['cash', 'check', 'credit/debit card', 'bank transfer', 'gcash'].map((option) => <span key={option}>{method?.toLowerCase() === option ? '☑' : '☐'} {option.toUpperCase()}</span>)}</div>
+      <p className="border-b border-slate-500 py-3 text-xs"><strong>Payment for:</strong> {transaction.description || transaction.category || 'Not recorded'}</p>
+      <div className="grid gap-3 border-b-2 border-[#0F172A] py-3 text-xs sm:grid-cols-2"><p><strong>Received by:</strong> {person(collector)}</p><p><strong>Signature:</strong> ____________________</p></div>
+      <p className="mt-3 text-[11px] text-slate-600">{organization}</p>
+    </div><section className="mx-auto mt-4 max-w-2xl rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm"><h3 className="font-bold text-[#0F2F62]">Transaction details</h3><dl className="mt-2"><Line label="Event" value={transaction.event?.title || 'Not linked'} /><Line label="Budget" value={transaction.budget?.title || 'Not linked'} /><Line label="Category" value={transaction.category || 'Not recorded'} /></dl></section></>;
+  }
+
   return <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 text-[#0F172A] sm:p-6" data-receipt-document>
     <header className="flex flex-wrap items-start justify-between gap-4 border-b-2 border-[#0F2F62] pb-5">
       <div><p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#0878B7]">Official organization record</p><h2 className="mt-1 text-xl font-black text-[#0F2F62]">{organization}</h2><p className="mt-1 text-xs text-slate-500">{isOrder ? 'Merchandise order' : 'Payment receipt'}</p></div>
@@ -49,7 +62,8 @@ export function printReceiptElement(element) {
   Object.assign(frame.style, { position: 'fixed', width: '0', height: '0', border: '0' });
   document.body.appendChild(frame);
   frame.contentDocument.open();
-  frame.contentDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>HIUSA receipt</title><style>body{font:14px Arial,sans-serif;color:#0f172a;max-width:760px;margin:24px auto}header,.flex{display:flex;justify-content:space-between;gap:16px}header,section{border-bottom:1px solid #dde7ef;padding:14px 0}h2{font-size:22px}h3{text-transform:uppercase;color:#0878b7;font-size:12px}dt{color:#64748b}dd{font-weight:bold}dl>div{display:flex;justify-content:space-between;gap:16px;padding:4px 0}button{display:none}.grid{display:grid;grid-template-columns:1fr auto auto;gap:12px}.text-2xl{font-size:24px}</style></head><body>${element.outerHTML}</body></html>`);
+  const personalStyles = element.hasAttribute('data-personal-receipt') ? '[data-personal-receipt]{border:1px solid #555;padding:26px;font-size:12px}[data-personal-receipt] h2{font:32px Georgia,serif;margin:0}[data-personal-receipt] p{margin:0}[data-personal-receipt]>div:first-child{display:flex;align-items:end;justify-content:space-between;border-top:2px solid #111;border-bottom:2px solid #111;padding:8px 0}[data-personal-receipt]>p:not(:last-child),[data-personal-receipt]>div:nth-of-type(2){border-bottom:1px solid #777;padding:12px 0}[data-personal-receipt]>div:nth-of-type(2){display:flex;gap:18px}[data-personal-receipt]>div:nth-of-type(3){display:grid;grid-template-columns:1fr 1fr;gap:12px;border-bottom:2px solid #111;padding:12px 0}[data-personal-receipt] .float-right{float:right}' : '';
+  frame.contentDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>HIUSA receipt</title><style>body{font:14px Arial,sans-serif;color:#0f172a;max-width:760px;margin:24px auto}header,.flex{display:flex;justify-content:space-between;gap:16px}header,section{border-bottom:1px solid #dde7ef;padding:14px 0}h2{font-size:22px}h3{text-transform:uppercase;color:#0878b7;font-size:12px}dt{color:#64748b}dd{font-weight:bold}dl>div{display:flex;justify-content:space-between;gap:16px;padding:4px 0}button{display:none}.grid{display:grid;grid-template-columns:1fr auto auto;gap:12px}.text-2xl{font-size:24px}${personalStyles}</style></head><body>${element.outerHTML}</body></html>`);
   frame.contentDocument.close();
   setTimeout(() => { frame.contentWindow.focus(); frame.contentWindow.print(); setTimeout(() => frame.remove(), 1000); }, 200);
 }

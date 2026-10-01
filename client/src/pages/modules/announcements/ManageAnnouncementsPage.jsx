@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Eye, Megaphone, Plus, Trash2, X } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Download, Eye, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Avatar, Badge, StatusBadge } from './announcementShared.jsx';
+import { Badge, StatusBadge } from './announcementShared.jsx';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
+import TableRowActions from '../../../components/TableRowActions';
 import {
   getAnnouncements,
   updateAnnouncement,
@@ -46,10 +47,6 @@ function ConfirmModal({ open, title, message, confirmText, busy, error, onCancel
       </div>
     </AccessibleOverlay>
   );
-}
-
-function formatDate(iso) {
-  return iso ? new Date(iso).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' }) : '-';
 }
 
 function formatDateTime(iso) {
@@ -95,8 +92,6 @@ export default function ManageAnnouncementsPage() {
   const [error, setError] = useState(null);
   const [actionError, setActionError] = useState('');
   const [actionMessage, setActionMessage] = useState('');
-  const [previewItems, setPreviewItems] = useState([]);
-  const [previewError, setPreviewError] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [audienceFilter, setAudienceFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
@@ -105,6 +100,7 @@ export default function ManageAnnouncementsPage() {
   const [to, setTo] = useState('');
   const [sort, setSort] = useState('newest');
   const [details, setDetails] = useState(null);
+  const [expandedId, setExpandedId] = useState(null);
   const [confirmState, setConfirmState] = useState({ open: false, title: '', message: '', confirmText: 'Confirm', action: null, busy: false });
   const [editing, setEditing] = useState(null);
   const [editForm, setEditForm] = useState({ title: '', body: '', target_role: 'all', category: 'general' });
@@ -139,16 +135,6 @@ export default function ManageAnnouncementsPage() {
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [queryParams, page]);
-
-  useEffect(() => {
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      getAnnouncements({ published_only: 1, per_page: 3, search: search || undefined, category: categoryFilter === 'all' ? undefined : categoryFilter, target_role: audienceFilter === 'all' ? undefined : audienceFilter })
-        .then((response) => { if (!cancelled) { setPreviewItems(unwrapList(response.data)); setPreviewError(''); } })
-        .catch(() => { if (!cancelled) setPreviewError('Unable to load feed preview.'); });
-    }, 250);
-    return () => { cancelled = true; clearTimeout(timer); };
-  }, [search, categoryFilter, audienceFilter, actionMessage]);
 
   async function handleExport() {
     setExporting(true);
@@ -264,13 +250,6 @@ export default function ManageAnnouncementsPage() {
 
   return (
     <div className="rounded-lg border border-[#DDE7EF] bg-white p-5">
-      <div className="-mx-5 -mt-5 mb-5 flex flex-col gap-4 rounded-t-lg bg-[#0F2F62] p-5 text-white sm:flex-row sm:items-center sm:justify-between sm:p-6">
-        <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-white/10 text-[#16C7F3]"><Megaphone size={20} /></span>
-          <div><p className="text-[10px] font-bold uppercase tracking-widest text-[#16C7F3]">Publishing workspace</p><h1 className="mt-1 text-2xl font-black">Manage Announcements</h1><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-200">Review publication state, audience, approval progress, authorship, and reach from one register.</p></div>
-        </div>
-        <div className="flex flex-wrap gap-2"><button onClick={() => navigate('/dashboard/announcements/create-announcement')} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-white px-4 text-xs font-bold text-[#0F2F62] hover:bg-[#EEF6FB]"><Plus size={14} /> Create announcement</button><button onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-white/20 bg-white/10 px-4 text-xs font-bold text-white hover:bg-white/15 disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div>
-      </div>
       {actionError && !confirmState.open && !editing && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {actionMessage && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{actionMessage}</p>}
       <div className="-mx-5 mb-4">
@@ -313,132 +292,19 @@ export default function ManageAnnouncementsPage() {
           ]}
         />
       </div>
-      <div className="grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_320px]"><div className="min-w-0">
-      {items.length === 0 ? (
-        <p className="py-8 text-center text-sm text-slate-500">
-          {meta.total === 0 ? 'No announcements yet.' : 'No announcements on this page.'}
-        </p>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1120px] text-xs">
-            <thead>
-              <tr className="border-b border-[#DDE7EF]">
-                {['ID / Title', 'Audience', 'Category', 'Status', 'Author', 'Reach', 'Created / Published', 'Reviewer', 'Actions'].map((h) => (
-                  <th key={h} className="px-3 py-2.5 text-left font-semibold text-slate-500">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((a) => {
-                const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
-                const canPublishOwnDraft = canModify && ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentRole);
-
-                return (
-                  <tr key={a.id} className="border-b border-[#EEF6FB] transition-colors hover:bg-[#F8FBFD]">
-                      <td className="max-w-xs px-3 py-3"><button onClick={() => setDetails(a)} className="text-left font-semibold text-[#0F172A] hover:text-[#0878B7]">#{a.id} · {a.title}</button><p className="mt-1 line-clamp-1 text-[10px] font-normal text-slate-500">{a.body}</p></td>
-                      <td className="px-3 py-3 text-slate-500">{ROLE_LABEL[a.target_role] ?? a.target_role}</td>
-                      <td className="px-3 py-3">
-                        <Badge color="blue">{CATEGORY_LABEL[a.category] ?? 'General'}</Badge>
-                      </td>
-                      <td className="px-3 py-3">
-                        {a.approval_status === 'pending'
-                          ? <Badge color="yellow">Pending Approval</Badge>
-                          : a.approval_status === 'rejected'
-                            ? <Badge color="red">Rejected</Badge>
-                            : <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />}
-                      </td>
-                      <td className="px-3 py-3 text-slate-500"><p className="font-semibold text-slate-700">{creatorName(a)}</p><p className="text-[10px]">{[a.creator?.role, a.creator?.position_title].filter(Boolean).join(' · ') || '-'}</p></td>
-                      <td className="px-3 py-3"><p className="font-bold text-[#0F172A]">{Number(a.views_count || 0).toLocaleString()}</p><p className="text-[10px] text-slate-500">unique views</p></td>
-                      <td className="px-3 py-3 text-slate-500"><p>{formatDate(a.created_at)}</p><p className="text-[10px]">Published: {formatDate(a.published_at)}</p></td>
-                      <td className="px-3 py-3 text-slate-500"><p>{a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'}</p><p className="max-w-[180px] truncate text-[10px]">{a.review_remarks || 'No remarks'}</p></td>
-                      <td className="px-3 py-3">
-                        <div className="flex gap-1.5">
-                          <button onClick={() => setDetails(a)} aria-label={`View ${a.title}`} title="View complete record" className="rounded-md p-2 text-slate-500 transition hover:bg-slate-100"><Eye size={13} /></button>
-                          {canModify && (
-                            <button
-                              onClick={() => openEdit(a)}
-                              aria-label={`Edit ${a.title}`}
-                              className="rounded bg-[#EEF6FB] px-2 py-2 text-[10px] font-semibold text-[#0F2F62] transition hover:bg-[#DDE7EF]"
-                            >
-                              Edit
-                            </button>
-                          )}
-                          {!a.is_published && a.approval_status === 'pending' && currentRole === 'ADMIN' ? (
-                            <button
-                              onClick={() => setConfirmState({
-                                open: true,
-                                title: 'Approve and Publish',
-                                message: `Approve and publish "${a.title}" now?`,
-                                confirmText: 'Approve & Publish',
-                                action: async () => handleToggle(a.id),
-                                busy: false,
-                              })}
-                              className="rounded bg-emerald-100 px-2 py-2 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
-                            >
-                              Approve & Publish
-                            </button>
-                          ) : !a.is_published && !['pending', 'rejected'].includes(a.approval_status) && canPublishOwnDraft ? (
-                            <button
-                              onClick={() => setConfirmState({
-                                open: true,
-                                title: 'Publish Announcement',
-                                message: `Publish "${a.title}" now?`,
-                                confirmText: 'Publish',
-                                action: async () => handleToggle(a.id),
-                                busy: false,
-                              })}
-                              className="rounded bg-emerald-100 px-2 py-2 text-[10px] font-semibold text-emerald-700 transition hover:bg-emerald-200"
-                            >
-                              Publish
-                            </button>
-                          ) : a.is_published && canPublishOwnDraft ? (
-                            <button
-                              onClick={() => setConfirmState({
-                                open: true,
-                                title: 'Unpublish Announcement',
-                                message: `Set "${a.title}" back to draft?`,
-                                confirmText: 'Unpublish',
-                                action: async () => handleToggle(a.id),
-                                busy: false,
-                              })}
-                              className="rounded bg-amber-100 px-2 py-2 text-[10px] font-semibold text-amber-700 transition hover:bg-amber-200"
-                            >
-                              Unpublish
-                            </button>
-                          ) : null}
-                          {canModify && (
-                            <button
-                              aria-label={`Delete ${a.title}`}
-                              onClick={() => setConfirmState({
-                                open: true,
-                                title: 'Delete Announcement',
-                                message: `Delete "${a.title}"? This cannot be undone.`,
-                                confirmText: 'Delete',
-                                action: async () => handleDelete(a.id),
-                                busy: false,
-                              })}
-                              className="rounded-md p-2 text-red-500 transition hover:bg-red-50"
-                            >
-                              <Trash2 size={13} />
-                            </button>
-                          )}
-                        </div>
-                      </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
-      <PaginationControls
-        currentPage={meta.currentPage}
-        totalItems={meta.total}
-        pageSize={meta.perPage}
-        onPageChange={setPage}
-        label="announcements"
-      />
-      </div><aside className="min-w-0 space-y-3" aria-label="Announcement feed preview"><div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><h2 className="text-sm font-black text-[#0F172A]">Feed preview</h2><p className="mt-1 text-xs leading-5 text-[#64748B]">Recently published announcements matching search, category, and audience.</p></div>{previewError && <p className="rounded-lg bg-red-50 p-3 text-xs text-red-700">{previewError}</p>}{!previewError && previewItems.length === 0 && <p className="rounded-lg border border-dashed border-[#DDE7EF] p-4 text-xs text-[#64748B]">No published announcements match these filters.</p>}{previewItems.map((item) => <article key={item.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white"><div className="flex items-center gap-2 border-b border-[#DDE7EF] p-3"><Avatar name={creatorName(item)} size="sm" /><div className="min-w-0"><p className="truncate text-xs font-bold text-[#0F172A]">{creatorName(item)}</p><p className="text-[11px] text-[#64748B]">{formatDate(item.published_at || item.created_at)}</p></div></div>{item.image_url && <img src={resolveAssetUrl(item.image_url)} alt="" loading="lazy" className="max-h-44 w-full object-contain bg-[#F8FBFD]" />}<div className="p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-[#0878B7]">{CATEGORY_LABEL[item.category] || 'General'} · {ROLE_LABEL[item.target_role] || item.target_role}</p><h3 className="mt-1 text-sm font-bold text-[#0F172A]">{item.title}</h3><p className="mt-2 line-clamp-4 whitespace-pre-wrap text-xs leading-5 text-[#64748B]">{item.body}</p><button type="button" onClick={() => setDetails(item)} className="mt-3 min-h-10 text-xs font-bold text-[#0878B7] hover:underline">View full announcement</button></div></article>)}</aside></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] pt-4"><h2 className="text-base font-black text-[#0F172A]">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigate('/dashboard/announcements/create-announcement')} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white"><Plus size={14} /> Create announcement</button><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
+      {items.length === 0 ? <p className="py-8 text-center text-sm text-[#64748B]">No announcements match these filters.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-sm"><thead className="bg-[#F8FBFD]"><tr><th className="px-4 py-3">Title</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Audience</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{items.map((a) => {
+        const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
+        const canPublish = canModify && currentRole === 'ADMIN';
+        const isExpanded = expandedId === a.id;
+        return <Fragment key={a.id}><tr className="hover:bg-[#F8FBFD]"><td className="px-4 py-3"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-bold text-[#0F172A] hover:text-[#0878B7]">{a.title}</button></td><td className="px-4 py-3">{a.approval_status === 'pending' ? <Badge color="yellow">Pending approval</Badge> : a.approval_status === 'rejected' ? <Badge color="red">Rejected</Badge> : <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />}</td><td className="px-4 py-3 text-[#64748B]">{ROLE_LABEL[a.target_role] || a.target_role}</td><td className="px-4 py-3"><TableRowActions subject={a.title} label="Announcement actions" actions={[
+          { label: 'View full record', icon: Eye, onClick: () => setDetails(a) },
+          canModify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
+          canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve & publish' : 'Publish announcement', icon: Send, onClick: () => setConfirmState({ open: true, title: a.is_published ? 'Unpublish announcement' : 'Publish announcement', message: `${a.is_published ? 'Unpublish' : 'Publish'} ${a.title}?`, confirmText: a.is_published ? 'Unpublish' : 'Publish', action: async () => handleToggle(a.id), busy: false }) },
+          canModify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
+        ]} /></td></tr>{isExpanded && <tr id={`announcement-details-${a.id}`}><td colSpan={4} className="bg-[#F8FBFD] px-4 py-5"><article className="mx-auto max-w-2xl rounded-lg border border-[#DDE7EF] bg-white"><header className="border-b border-[#DDE7EF] p-4"><p className="text-sm font-bold text-[#0F172A]">{a.source_organization?.name || a.organization?.name || 'HIUSA'}</p><p className="text-xs text-[#64748B]">Published {formatDateTime(a.published_at)}</p></header><div className="p-4"><h3 className="text-lg font-black text-[#0F172A]">{a.title}</h3><p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[#0F172A]">{a.body}</p>{a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}</div><dl className="grid gap-2 border-t border-[#DDE7EF] p-4 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="font-bold text-[#64748B]">{label}</dt><dd className="mt-1 text-[#0F172A]">{value || '-'}</dd></div>)}</dl></article></td></tr>}</Fragment>;
+      })}</tbody></table></div>}
+      <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
 
       <ConfirmModal
         open={confirmState.open}

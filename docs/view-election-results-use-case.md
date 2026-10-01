@@ -12,7 +12,7 @@
 ## Implementation Coverage
 
 - **Role Access:** Admin, SBO Officer, Department Head, and Student can access election results from frontend routing, sidebar navigation, and the results API.
-- **Check Election Status:** the results endpoint blocks Student access until results are marked visible.
+- **Check Election Status:** live tallies are available after Admin finalization and opening when results are marked visible. Winner declarations appear after closing.
 - **Load Election Results:** `GET /elections/{id}/results` loads positions, candidates, partylist names, and vote counts.
 - **Display Vote Tally:** `ElectionResultsPage` renders vote totals and percentage bars per position.
 - **Display Winning Candidates:** candidates are sorted by vote count and winners are highlighted according to `max_winners`.
