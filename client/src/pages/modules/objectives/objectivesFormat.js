@@ -19,6 +19,7 @@ export function formatEvidenceValue(item) {
   if (value === null || value === undefined) return 'Not tracked';
   if (unit === 'php') return peso(value);
   if (unit === 'percent') return `${number(value)}%`;
+  if (unit === 'mean') return Number(value).toFixed(2);
   if (typeof value === 'number') return number(value);
   return String(value);
 }

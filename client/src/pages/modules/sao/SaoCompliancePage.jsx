@@ -200,13 +200,14 @@ export default function SaoCompliancePage() {
   async function confirmApprove() {
     setReviewBusy(true);
     try {
-      await reviewSubmission(reviewTarget.submission.id, { status: 'approved' });
+      await reviewSubmission(reviewTarget.submission.id, { status: 'approved', submitted_at: reviewTarget.submission.submitted_at });
       notify.success(`Approved "${reviewTarget.submission.requirement_type?.name}" for ${reviewTarget.submission.organization?.name}.`);
       setReviewTarget(null);
       loadQueue(queuePage);
       loadOverview();
     } catch (err) {
       notify.error(getApiErrorMessage(err, 'Could not approve this submission.'));
+      if (err?.response?.status === 409) loadQueue(queuePage);
     } finally {
       setReviewBusy(false);
     }
@@ -216,7 +217,7 @@ export default function SaoCompliancePage() {
     if (!reviewRemarks.trim()) return;
     setReviewBusy(true);
     try {
-      await reviewSubmission(reviewTarget.submission.id, { status: 'returned', remarks: reviewRemarks.trim() });
+      await reviewSubmission(reviewTarget.submission.id, { status: 'returned', remarks: reviewRemarks.trim(), submitted_at: reviewTarget.submission.submitted_at });
       notify.success('Submission returned to the organization with your remarks.');
       setReviewTarget(null);
       setReviewRemarks('');
