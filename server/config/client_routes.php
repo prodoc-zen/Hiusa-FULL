@@ -45,6 +45,7 @@ return [
         '/dashboard/super-admin/grievances',
         '/dashboard/super-admin/clearances',
         '/dashboard/super-admin/evaluation',
+        '/dashboard/super-admin/audit-logs',
         '/dashboard/objectives',
         '/dashboard/profile',
     ],

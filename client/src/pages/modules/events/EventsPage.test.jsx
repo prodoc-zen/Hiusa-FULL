@@ -20,6 +20,10 @@ vi.mock('../../../services/eventService', () => ({
   createEvent: vi.fn(),
   updateEvent: vi.fn(),
   updateEventStatus: vi.fn(),
+  getMyEventRegistrations: vi.fn(() => Promise.resolve({ data: { upcoming: [], past: [] } })),
+  getEventRegistrations: vi.fn(() => Promise.resolve({ data: { summary: { capacity: null, registered: 0, attended: 0, cancelled: 0, no_show: 0, remaining: null }, registrations: [], pagination: { current_page: 1, last_page: 1, per_page: 10, total: 0 } } })),
+  registerForEvent: vi.fn(),
+  cancelEventRegistration: vi.fn(),
 }));
 
 const userMocks = vi.hoisted(() => ({ getUsers: vi.fn(), getAcademicStructure: vi.fn() }));

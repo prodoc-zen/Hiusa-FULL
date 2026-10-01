@@ -185,6 +185,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/student-debts', [FinancialAccountabilityController::class, 'studentDebts'])->middleware(['throttle:api-read', 'role:ADMIN,STUDENT']);
     Route::post('/invoices', [FinancialAccountabilityController::class, 'storeInvoice'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/invoices/{invoice}/payments', [FinancialAccountabilityController::class, 'recordInvoicePayment'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::get('/audit-logs/export', [FinancialAccountabilityController::class, 'exportAuditLogs'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
     Route::get('/audit-logs', [FinancialAccountabilityController::class, 'auditLogs'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
 
     // Finance Routes - Forecasts

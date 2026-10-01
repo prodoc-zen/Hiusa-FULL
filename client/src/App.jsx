@@ -215,6 +215,7 @@ function App() {
           <Route path="super-admin/grievances" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoGrievancesPage /></ProtectedRoute>} />
           <Route path="super-admin/clearances" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoClearancesPage /></ProtectedRoute>} />
           <Route path="super-admin/evaluation" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEvaluationPage /></ProtectedRoute>} />
+          <Route path="super-admin/audit-logs" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEventRequirementsPage /></ProtectedRoute>} />
           <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
