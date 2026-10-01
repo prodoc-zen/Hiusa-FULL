@@ -14,6 +14,7 @@ import { getTasks } from '../../../services/taskService';
 import { getEvents } from '../../../services/eventService';
 import { getOrders } from '../../../services/orderService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
+import { RoleBriefing } from '../../../components/dashboard';
 
 const STATUS_BADGE = {
   pending:     'bg-amber-50 text-amber-700',
@@ -137,6 +138,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      <RoleBriefing />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         <div className="border-b border-[#DDE7EF] px-5 py-4"><h3 className="text-base font-bold text-[#0F172A]">Operations snapshot</h3></div>
         <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
