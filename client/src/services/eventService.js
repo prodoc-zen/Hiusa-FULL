@@ -70,3 +70,15 @@ export const getPersonalAttendance = (params) =>
 
 export const recordAttendance = (id, data) =>
   api.post(`/events/${id}/attendance`, data);
+
+export const getMyEventRegistrations = () =>
+  api.get('/me/event-registrations');
+
+export const getEventRegistrations = (id, params) =>
+  api.get(`/events/${id}/registrations`, { params });
+
+export const registerForEvent = (id) =>
+  api.post(`/events/${id}/registrations`);
+
+export const cancelEventRegistration = (id) =>
+  api.delete(`/events/${id}/registrations/mine`);
