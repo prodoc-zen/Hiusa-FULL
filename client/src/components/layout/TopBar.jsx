@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Bell, ChevronDown, LogOut, Menu, ShoppingCart, User } from 'lucide-react';
+import { useNavigate, Link } from 'react-router-dom';
+import { Bell, ChevronDown, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
+import { Kbd } from '../ui';
+import CommandPalette from './CommandPalette';
 import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { unwrapList } from '../../services/pagination';
@@ -10,11 +12,19 @@ import { getNotificationDestination } from '../../utils/notificationLinks';
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
 const ROLE_LABELS = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Admin',
-  SBO_OFFICER: 'Officer',
+  SUPER_ADMIN: 'SAO',
+  ADMIN: 'Organization Admin',
+  SBO_OFFICER: 'SBO Officer',
   DEPARTMENT_HEAD: 'Department Head',
   STUDENT: 'Student',
+};
+
+const ROLE_HOME_PATHS = {
+  SUPER_ADMIN: '/dashboard/super-admin',
+  ADMIN: '/dashboard/admin',
+  SBO_OFFICER: '/dashboard/officer',
+  DEPARTMENT_HEAD: '/dashboard/department-head',
+  STUDENT: '/dashboard/student',
 };
 
 function readStudentCart() {
@@ -72,6 +82,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role ?? '';
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
+  const homePath = ROLE_HOME_PATHS[role] || '/dashboard';
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = user?.organization?.name || 'Organization';
   const isAdminHome = pathname === '/dashboard/admin';
   const headerSubtitle = {
@@ -223,6 +235,17 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     return () => document.removeEventListener('keydown', handleEscape);
   }, [profileOpen]);
 
+  useEffect(() => {
+    function handlePaletteShortcut(event) {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setPaletteOpen((open) => !open);
+      }
+    }
+    document.addEventListener('keydown', handlePaletteShortcut);
+    return () => document.removeEventListener('keydown', handlePaletteShortcut);
+  }, []);
+
   const recent5 = notifications.slice(0, 5);
   const cartTypeCount = cartItems.length;
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
@@ -242,13 +265,27 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
 
         {/* Page title */}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-[9px] font-bold uppercase tracking-wider text-[#0878B7] sm:text-[10px] sm:tracking-widest">
-            HIUSA{parentLabel ? ` - ${parentLabel}` : ''}
-          </p>
+          <nav aria-label="Breadcrumb" className="truncate text-xs font-medium text-ink-muted">
+            <Link to={homePath} className="rounded-control hover:text-brand-700 hover:underline focus-visible:text-brand-700">Home</Link>
+            {parentLabel && <span aria-hidden="true" className="px-1.5 text-ink-soft">/</span>}
+            {parentLabel && <span>{parentLabel}</span>}
+          </nav>
           <h1 className="truncate text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
           {isAdminHome && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">Welcome back, {user?.first_name || 'Administrator'}. Review today’s orders, requests, tasks, and updates.</p>}
           {headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
         </div>
+
+        <button
+          type="button"
+          onClick={() => setPaletteOpen(true)}
+          aria-label="Search pages"
+          aria-keyshortcuts="Control+K Meta+K"
+          className="flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-[#F8FBFD] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:px-3"
+        >
+          <Search size={16} aria-hidden="true" />
+          <span className="hidden md:inline">Go to page</span>
+          <Kbd className="hidden md:inline-flex">Ctrl K</Kbd>
+        </button>
 
         {canOrderMerchandise && (
           <div className="relative" ref={cartRef}>
@@ -506,6 +543,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
         onConfirm={handleLogout}
       />
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} role={role} />
     </header>
   );
 }
