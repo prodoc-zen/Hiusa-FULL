@@ -11,6 +11,7 @@ use App\Models\TaskProgressUpdate;
 use App\Models\User;
 use App\Services\GroqResponsesService;
 use App\Services\HiusaAiService;
+use App\Services\TaskDelegationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -20,9 +21,6 @@ class TaskController extends Controller
     private array $aiAssignmentScores = [];
 
     private array $aiAssignmentExplanations = [];
-
-    // Mirrors ai-service/app/engines/task_delegation.py WEIGHTS - keep these in sync.
-    private const WEIGHTS = ['position' => 0.40, 'workload' => 0.35, 'performance' => 0.25];
 
     // Mirrors ai-service/app/engines/task_delegation.py POSITION_RELEVANCE_MAP.
     // Position names must match the seeded sbo_positions.title values.
@@ -83,6 +81,7 @@ class TaskController extends Controller
     public function __construct(
         private readonly HiusaAiService $aiService,
         private readonly GroqResponsesService $groq,
+        private readonly TaskDelegationService $delegation,
     ) {}
 
     public function index(Request $request)
@@ -189,7 +188,7 @@ class TaskController extends Controller
             'action' => 'task_delegated',
             'record_type' => Task::class,
             'record_id' => $task->id,
-            'new_values' => ['assigned_to' => $task->assigned_to, 'recommended_officer_id' => $this->lastDelegation['recommended_officer_id'] ?? null, 'weights' => $this->lastDelegation['weights'] ?? $this->weights()],
+            'new_values' => ['assigned_to' => $task->assigned_to, 'recommended_officer_id' => $this->lastDelegation['recommended_officer_id'] ?? null, 'weights' => $this->lastDelegation['weights'] ?? $this->delegation->weights()],
             'ip_address' => $request->ip(),
             'created_at' => now(),
         ]);
@@ -422,6 +421,7 @@ class TaskController extends Controller
             'role_score' => $scores['role_score'],
             'workload_score' => $scores['workload_score'],
             'performance_score' => $scores['performance_score'],
+            'recency_score' => $scores['recency_score'],
             'final_score' => $scores['final_score'],
             'ai_recommendation_note' => $this->assignmentExplanation($data, $assignee, $scores),
             'delegation_snapshot' => $this->lastDelegation,
@@ -459,7 +459,7 @@ class TaskController extends Controller
         $local = $this->localAssignmentScores($assignee, $request);
         $this->lastDelegation = [
             'algorithm' => 'rule_based_weighted_scoring',
-            'weights' => $this->weights(),
+            'weights' => $this->delegation->weights(),
             'task_area' => $local['task_area'],
             'eligibility_rules' => $this->eligibilityRules($local['max_active_tasks']),
             'recommended_officer_id' => $assignee->school_id,
@@ -489,7 +489,7 @@ class TaskController extends Controller
     {
         return [
             'algorithm' => $result['algorithm'] ?? 'rule_based_weighted_scoring',
-            'weights' => $result['weights'] ?? $this->weights(),
+            'weights' => $result['weights'] ?? $this->delegation->weights(),
             'task_area' => $result['task_area'] ?? self::DEFAULT_TASK_AREA,
             'eligibility_rules' => $result['eligibility_rules'] ?? $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $result['recommended_officer_id'] ?? $fallbackRecommendedId,
@@ -580,8 +580,10 @@ class TaskController extends Controller
         $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
         $hasHistory = $historicalTasks > 0;
         $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
-        $weights = $this->weights();
-        $finalScore = round(($roleScore * $weights['position']) + ($workloadScore * $weights['workload']) + ($performanceScore * $weights['performance']), 2);
+        $daysSinceAssignment = $this->delegation->daysSinceLastAssignment($request->user()->organization_id, $assignee->school_id);
+        $recencyScore = $this->delegation->recencyScore($daysSinceAssignment);
+        $weights = $this->delegation->weights();
+        $finalScore = round(($roleScore * $weights['position']) + ($workloadScore * $weights['workload']) + ($performanceScore * $weights['performance']) + ($recencyScore * $weights['recency']), 2);
         $name = trim("{$assignee->first_name} {$assignee->last_name}");
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
         $performanceNote = $hasHistory ? '' : sprintf(' (no task history yet, so the neutral baseline of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE);
@@ -595,11 +597,13 @@ class TaskController extends Controller
             'role_score' => $roleScore,
             'workload_score' => $workloadScore,
             'performance_score' => $performanceScore,
+            'recency_score' => $recencyScore,
             'final_score' => $finalScore,
             'active_tasks' => $activeTasks,
             'max_active_tasks' => $maxActiveTasks,
+            'days_since_last_assignment' => $daysSinceAssignment,
             'explanation' => sprintf(
-                "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%d/%d active tasks), and past performance %.2f%s.",
+                "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%d/%d active tasks), past performance %.2f%s, and assignment recency %.2f (%s).",
                 $name,
                 $finalScore,
                 $area,
@@ -610,7 +614,9 @@ class TaskController extends Controller
                 $activeTasks,
                 $maxActiveTasks,
                 $performanceScore,
-                $performanceNote
+                $performanceNote,
+                $recencyScore,
+                $daysSinceAssignment === null ? 'never assigned a task here' : sprintf('last assigned %d day(s) ago', $daysSinceAssignment)
             ),
         ];
     }
@@ -626,7 +632,7 @@ class TaskController extends Controller
 
         return [
             'algorithm' => 'rule_based_weighted_scoring',
-            'weights' => $this->weights(),
+            'weights' => $this->delegation->weights(),
             'task_area' => $rankings[0]['task_area'] ?? self::DEFAULT_TASK_AREA,
             'eligibility_rules' => $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
@@ -710,6 +716,7 @@ class TaskController extends Controller
             'active_tasks' => $activeTasks,
             'completed_tasks' => (clone $baseQuery)->where('status', 'completed')->count(),
             'overdue_tasks' => (clone $baseQuery)->where('status', 'overdue')->count(),
+            'days_since_last_assignment' => $this->delegation->daysSinceLastAssignment($request->user()->organization_id, $officer->school_id),
         ];
     }
 
@@ -741,6 +748,7 @@ class TaskController extends Controller
                 || ! is_numeric($ranking['role_score'] ?? null)
                 || ! is_numeric($ranking['workload_score'] ?? null)
                 || ! is_numeric($ranking['performance_score'] ?? null)
+                || ! is_numeric($ranking['recency_score'] ?? null)
                 || ! is_numeric($ranking['final_score'] ?? null)) {
                 continue;
             }
@@ -749,6 +757,7 @@ class TaskController extends Controller
                 'role_score' => round((float) $ranking['role_score'], 2),
                 'workload_score' => round((float) $ranking['workload_score'], 2),
                 'performance_score' => round((float) $ranking['performance_score'], 2),
+                'recency_score' => round((float) $ranking['recency_score'], 2),
                 'final_score' => round((float) $ranking['final_score'], 2),
                 'task_area' => $taskArea,
                 'position_tier' => is_string($ranking['position_tier'] ?? null) ? $ranking['position_tier'] : null,
@@ -775,7 +784,7 @@ class TaskController extends Controller
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
 
         $fallback = $this->aiAssignmentExplanations[$assignee->school_id] ?? $scores['explanation'] ?? sprintf(
-            "%s %s scored %s for a task inferred as '%s': position '%s' is %s for this area (%s pts), workload %s, and past performance %s.",
+            "%s %s scored %s for a task inferred as '%s': position '%s' is %s for this area (%s pts), workload %s, past performance %s, and assignment recency %s.",
             $assignee->first_name,
             $assignee->last_name,
             $scores['final_score'],
@@ -784,7 +793,8 @@ class TaskController extends Controller
             $tierPhrase,
             $scores['role_score'],
             $scores['workload_score'],
-            $scores['performance_score']
+            $scores['performance_score'],
+            $scores['recency_score']
         );
 
         $facts = [
@@ -795,6 +805,7 @@ class TaskController extends Controller
             'role_score' => $scores['role_score'],
             'workload_score' => $scores['workload_score'],
             'performance_score' => $scores['performance_score'],
+            'recency_score' => $scores['recency_score'],
             'final_score' => $scores['final_score'],
         ];
         $generated = $this->groq->generate(
@@ -812,19 +823,6 @@ class TaskController extends Controller
         return $generated['text'] ?? $fallback;
     }
 
-    private function weights(): array
-    {
-        $configured = config('services.hiusa_ai.task_weights', self::WEIGHTS);
-        $weights = [
-            'position' => (float) ($configured['position'] ?? self::WEIGHTS['position']),
-            'workload' => (float) ($configured['workload'] ?? self::WEIGHTS['workload']),
-            'performance' => (float) ($configured['performance'] ?? self::WEIGHTS['performance']),
-        ];
-        $sum = array_sum($weights);
-
-        return $sum > 0 ? array_map(fn (float $weight) => round($weight / $sum, 4), $weights) : self::WEIGHTS;
-    }
-
     private function persistRecommendations(Task $task, ?array $delegation): void
     {
         foreach ($delegation['evaluations'] ?? $delegation['rankings'] ?? [] as $index => $ranking) {
@@ -835,7 +833,8 @@ class TaskController extends Controller
                 'role_score' => $ranking['role_score'] ?? null,
                 'workload_score' => $ranking['workload_score'] ?? null,
                 'performance_score' => $ranking['performance_score'] ?? null,
-                'weights' => json_encode($delegation['weights'] ?? $this->weights()),
+                'recency_score' => $ranking['recency_score'] ?? null,
+                'weights' => json_encode($delegation['weights'] ?? $this->delegation->weights()),
                 'total_score' => $ranking['final_score'] ?? null,
                 'rank' => array_key_exists('rank', $ranking) ? $ranking['rank'] : $index + 1,
                 'eligibility_result' => $ranking['eligibility_result'] ?? 'eligible',
@@ -862,6 +861,7 @@ class TaskController extends Controller
             'role_score' => null,
             'workload_score' => null,
             'performance_score' => null,
+            'recency_score' => null,
             'final_score' => null,
             'rank' => null,
             'eligibility_result' => $result,

@@ -83,8 +83,9 @@ class AiFallbackParityTest extends TestCase
      * Discriminating operating point: a Treasurer with a nonzero, non-capacity
      * workload (3 of the default 5 active-task slots used) and a real
      * completed/overdue history (3 completed, 1 overdue -> 75% performance,
-     * not the neutral-70 prior). Every asserted number only holds if workload
-     * scaling and the real performance ratio are actually computed.
+     * not the neutral-70 prior), last handed a task 7 days ago (recency 50 of
+     * a 14-day window). Every asserted number only holds if workload scaling,
+     * the real performance ratio, and assignment recency are all computed.
      */
     private function assertTaskFallsBackToPhpScoring(): void
     {
@@ -97,7 +98,7 @@ class AiFallbackParityTest extends TestCase
         // Title matches the "finance" keyword set; Treasurer is a primary
         // match for that area. Both the Python engine and this PHP mirror
         // compute:
-        //   position 100.00 x 0.40 + workload 40.00 x 0.35 + performance 75.00 x 0.25 = 72.75
+        //   position 100 x 0.35 + workload 40 x 0.30 + performance 75 x 0.20 + recency 50 x 0.15 = 69.50
         $response = $this->postJson('/api/tasks', [
             'title' => 'Prepare the budget liquidation report',
             'assigned_to' => $treasurer->school_id,
@@ -110,18 +111,21 @@ class AiFallbackParityTest extends TestCase
             ->assertJsonPath('role_score', '100.00')
             ->assertJsonPath('workload_score', '40.00')
             ->assertJsonPath('performance_score', '75.00')
-            ->assertJsonPath('final_score', '72.75')
+            ->assertJsonPath('recency_score', '50.00')
+            ->assertJsonPath('final_score', '69.50')
             ->assertJsonPath('delegation.engine', 'php-fallback')
             ->assertJsonPath('delegation.task_area', 'finance')
             ->assertJsonPath('delegation.recommended_officer_id', $treasurer->school_id)
             ->assertJsonPath('delegation.rankings.0.position_tier', 'primary')
-            ->assertJsonPath('delegation.rankings.0.final_score', 72.75);
+            ->assertJsonPath('delegation.rankings.0.final_score', 69.5);
 
         $note = $response->json('ai_recommendation_note');
         $this->assertStringContainsString("inferred as 'finance'", $note);
         $this->assertStringContainsString('a primary match', $note);
         $this->assertStringContainsString('40.00 (3/5 active tasks)', $note);
         $this->assertStringContainsString('performance 75.00', $note);
+        $this->assertStringContainsString('assignment recency 50.00 (last assigned 7 day(s) ago)', $note);
+        $this->assertEquals(50.0, (float) Task::latest('id')->first()->recency_score);
     }
 
     private function seedTaskHistory(User $officer, int $organizationId, User $creator): void
@@ -163,6 +167,9 @@ class AiFallbackParityTest extends TestCase
                 'completed_at' => now()->subDays(2),
             ]);
         }
+
+        // Query-builder update skips the model hook, so these stay backdated.
+        Task::where('assigned_to', $officer->school_id)->update(['assigned_at' => now()->subDays(7)]);
     }
 
     // --- Financial forecast -----------------------------------------------
@@ -263,6 +270,52 @@ class AiFallbackParityTest extends TestCase
      * and the PHP fallback with the same six-month series and asserts they
      * produce the same numbers.
      */
+    public function test_php_task_fallback_matches_the_live_python_engine_on_the_same_officer(): void
+    {
+        // The real configured key against the real running ai-service -
+        // deliberately NOT Http::fake() for this call.
+        config(['services.hiusa_ai.key' => env('HIUSA_AI_SERVICE_KEY')]);
+
+        $admin = $this->user('ADMIN');
+        $treasurer = $this->user('SBO_OFFICER', $admin->organization_id, 'Treasurer');
+        $this->seedTaskHistory($treasurer, $admin->organization_id, $admin);
+
+        $live = app(HiusaAiService::class)->taskDelegation('Prepare the budget liquidation report', [[
+            'officer_id' => $treasurer->school_id,
+            'name' => trim("{$treasurer->first_name} {$treasurer->last_name}"),
+            'role' => 'SBO_OFFICER',
+            'position_title' => 'Treasurer',
+            'account_status' => 'active',
+            'is_available' => true,
+            'policy_eligible' => true,
+            'active_tasks' => 3,
+            'completed_tasks' => 3,
+            'overdue_tasks' => 1,
+            'days_since_last_assignment' => 7,
+        ]]);
+
+        if ($live === null) {
+            $this->markTestSkipped('Live HIUSA AI service at '.config('services.hiusa_ai.url').' is not reachable.');
+        }
+
+        Http::fake([
+            'http://127.0.0.1:8001/api/v1/task-delegation' => fn () => throw new ConnectionException('Connection refused'),
+        ]);
+        Sanctum::actingAs($admin);
+        $fallback = $this->postJson('/api/tasks', [
+            'title' => 'Prepare the budget liquidation report',
+            'assigned_to' => $treasurer->school_id,
+            'deadline' => now()->addWeek(),
+            'status' => 'pending',
+        ])->assertCreated()->assertJsonPath('delegation.engine', 'php-fallback')->json('delegation');
+
+        $this->assertEquals($live['weights'], $fallback['weights']);
+        foreach (['role_score', 'workload_score', 'performance_score', 'recency_score', 'final_score'] as $score) {
+            $this->assertEquals($live['rankings'][0][$score], $fallback['rankings'][0][$score], "{$score} differs between engines.");
+        }
+        $this->assertSame($live['rankings'][0]['explanation'], $fallback['rankings'][0]['explanation']);
+    }
+
     public function test_php_forecast_fallback_matches_the_live_python_engine_on_the_same_data(): void
     {
         // The real configured key against the real running ai-service -

@@ -26,7 +26,8 @@ class TaskDelegationServiceTest extends TestCase
 
         $this->assertSame($lowerId->school_id, $result['recommended_officer_id']);
         $this->assertSame([$lowerId->school_id, $higherId->school_id], array_column($result['rankings'], 'officer_id'));
-        $this->assertSame(92.5, $result['rankings'][0]['final_score']);
+        // role 100 x 0.35 + workload 100 x 0.30 + neutral performance 70 x 0.20 + never assigned 100 x 0.15
+        $this->assertSame(94.0, $result['rankings'][0]['final_score']);
         $this->assertSame([1, 2], array_column($result['rankings'], 'rank'));
     }
 
@@ -73,15 +74,15 @@ class TaskDelegationServiceTest extends TestCase
 
     public function test_configured_weights_are_normalized_before_scoring(): void
     {
-        config(['services.hiusa_ai.task_weights' => ['position' => 4, 'workload' => 3, 'performance' => 3]]);
+        config(['services.hiusa_ai.task_weights' => ['position' => 4, 'workload' => 3, 'performance' => 2, 'recency' => 1]]);
         $organization = Organization::factory()->create();
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer', 'is_active' => true]);
         User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Treasurer', 'account_status' => 'active']);
 
         $result = app(TaskDelegationService::class)->recommend($organization->id, 'Prepare budget records');
 
-        $this->assertSame(['position' => 0.4, 'workload' => 0.3, 'performance' => 0.3], $result['weights']);
-        $this->assertSame(91.0, $result['rankings'][0]['final_score']);
+        $this->assertSame(['position' => 0.4, 'workload' => 0.3, 'performance' => 0.2, 'recency' => 0.1], $result['weights']);
+        $this->assertSame(94.0, $result['rankings'][0]['final_score']);
     }
 
     public function test_task_creation_persists_eligible_and_ineligible_candidate_evidence(): void

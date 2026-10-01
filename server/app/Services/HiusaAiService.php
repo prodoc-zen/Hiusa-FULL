@@ -27,6 +27,7 @@ class HiusaAiService
             'task_type' => $taskType,
             'officers' => $officers,
             'max_active_tasks' => (int) config('services.hiusa_ai.task_max_active_tasks', 5),
+            'recency_window_days' => (int) config('services.hiusa_ai.task_recency_window_days', 14),
             'weights' => config('services.hiusa_ai.task_weights'),
         ]);
     }
