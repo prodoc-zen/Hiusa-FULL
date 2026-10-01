@@ -70,8 +70,9 @@ class ClientRouteAllowlistTest extends TestCase
     public function test_pending_client_paths_never_leak_into_a_roles_live_config_list(): void
     {
         $config = config('client_routes');
+        $this->assertIsArray($config['pending_client'], 'client_routes must keep a pending_client list, even when it is empty.');
 
-        foreach ($config['pending_client'] ?? [] as $role => $pendingPaths) {
+        foreach ($config['pending_client'] as $role => $pendingPaths) {
             foreach ($pendingPaths as $path) {
                 $this->assertNotContains(
                     $path,
@@ -86,8 +87,9 @@ class ClientRouteAllowlistTest extends TestCase
     {
         $liveByRole = $this->liveRoutesByRole();
         $config = config('client_routes');
+        $this->assertIsArray($config['pending_client'], 'client_routes must keep a pending_client list, even when it is empty.');
 
-        foreach ($config['pending_client'] ?? [] as $role => $pendingPaths) {
+        foreach ($config['pending_client'] as $role => $pendingPaths) {
             foreach ($pendingPaths as $path) {
                 $this->assertNotContains(
                     $path,
