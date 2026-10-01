@@ -109,7 +109,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
         Http::fake([
             'http://127.0.0.1:8001/api/v1/task-delegation' => Http::response([
                 'algorithm' => 'rule_based_weighted_scoring',
-                'weights' => ['role' => 0.4, 'workload' => 0.35, 'performance' => 0.25],
+                'weights' => ['position' => 0.35, 'workload' => 0.30, 'performance' => 0.20, 'recency' => 0.15],
                 'recommended_officer_id' => $recommendedOfficer->school_id,
                 'rankings' => [
                     $this->ranking($recommendedOfficer, 99),
@@ -166,6 +166,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
             'role_score' => 100,
             'workload_score' => $finalScore,
             'performance_score' => $finalScore,
+            'recency_score' => $finalScore,
             'final_score' => $finalScore,
             'explanation' => 'Recommended by Python.',
         ];

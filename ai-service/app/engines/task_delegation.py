@@ -69,6 +69,9 @@ UNKNOWN_POSITION_SCORE = 55.0
 # track record.
 NEUTRAL_PERFORMANCE_SCORE = 70.0
 
+# An officer never handed a task here gets full recency credit.
+NEVER_ASSIGNED_RECENCY_SCORE = 100.0
+
 _TIER_PHRASE = {
     "primary": "a primary match",
     "secondary": "a related match",
@@ -117,7 +120,14 @@ def _workload_score(active_tasks: int, max_active_tasks: int) -> float:
     return round(max(0.0, 100.0 * (1.0 - utilization)), 2)
 
 
-def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights: dict[str, float]) -> dict:
+def _recency_score(days_since_last_assignment: int | None, window_days: int) -> float:
+    # Officers not handed work recently score higher, spreading delegation over time.
+    if days_since_last_assignment is None:
+        return NEVER_ASSIGNED_RECENCY_SCORE
+    return round(min(1.0, days_since_last_assignment / window_days) * 100, 2)
+
+
+def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights: dict[str, float], window_days: int) -> dict:
     position_score, tier = _position_relevance(officer.position_title, area)
     workload_score = _workload_score(officer.active_tasks, max_active_tasks)
     historical_tasks = officer.completed_tasks + officer.overdue_tasks
@@ -129,10 +139,18 @@ def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights:
         performance_score = NEUTRAL_PERFORMANCE_SCORE
         performance_note = f" (no task history yet, so the neutral baseline of {NEUTRAL_PERFORMANCE_SCORE:.0f} was used)"
 
+    recency_score = _recency_score(officer.days_since_last_assignment, window_days)
+    recency_note = (
+        "never assigned a task here"
+        if officer.days_since_last_assignment is None
+        else f"last assigned {officer.days_since_last_assignment} day(s) ago"
+    )
+
     final_score = round(
         position_score * weights["position"]
         + workload_score * weights["workload"]
-        + performance_score * weights["performance"],
+        + performance_score * weights["performance"]
+        + recency_score * weights["recency"],
         2,
     )
     position_label = officer.position_title.strip() if officer.position_title and officer.position_title.strip() else "no position on file"
@@ -145,12 +163,14 @@ def _score(officer: OfficerCandidate, area: str, max_active_tasks: int, weights:
         "role_score": position_score,
         "workload_score": workload_score,
         "performance_score": performance_score,
+        "recency_score": recency_score,
         "final_score": final_score,
         "explanation": (
             f"{officer.name} scored {final_score:.2f} for a task inferred as '{area}': "
             f"position '{position_label}' is {_TIER_PHRASE[tier]} for this area ({position_score:.2f} pts), "
             f"workload {workload_score:.2f} ({officer.active_tasks}/{max_active_tasks} active tasks), "
-            f"and past performance {performance_score:.2f}{performance_note}."
+            f"past performance {performance_score:.2f}{performance_note}, "
+            f"and assignment recency {recency_score:.2f} ({recency_note})."
         ),
     }
 
@@ -175,7 +195,7 @@ def delegate_task(request: TaskDelegationRequest) -> dict:
         raise ValueError("No active SBO Officer is eligible for this task")
 
     area = infer_task_area(request.task_title, request.task_type)
-    rankings = [_score(officer, area, request.max_active_tasks, request.weights) for officer in eligible]
+    rankings = [_score(officer, area, request.max_active_tasks, request.weights, request.recency_window_days) for officer in eligible]
     rankings.sort(key=lambda row: (-row["final_score"], row["officer_id"]))
     for rank, ranking in enumerate(rankings, start=1):
         ranking["rank"] = rank
@@ -189,6 +209,7 @@ def delegate_task(request: TaskDelegationRequest) -> dict:
             "role_score": None,
             "workload_score": None,
             "performance_score": None,
+            "recency_score": None,
             "final_score": None,
             "rank": None,
             "eligibility_result": result,

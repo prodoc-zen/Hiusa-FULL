@@ -156,9 +156,59 @@ def test_task_delegation_applies_availability_and_policy_rules_before_scoring() 
 
     assert result["recommended_officer_id"] == 4
     assert [ranking["officer_id"] for ranking in result["rankings"]] == [4]
-    assert result["weights"] == {"position": 0.40, "workload": 0.35, "performance": 0.25}
+    assert result["weights"] == {"position": 0.35, "workload": 0.30, "performance": 0.20, "recency": 0.15}
     evaluations = {row["officer_id"]: row["eligibility_result"] for row in result["evaluations"]}
     assert evaluations == {4: "eligible", 1: "overloaded", 2: "overloaded", 3: "inactive_position"}
+
+
+def test_task_delegation_recency_favors_officers_not_recently_assigned() -> None:
+    result = delegate_task(TaskDelegationRequest.model_validate({
+        "task_title": "General coordination task",
+        "recency_window_days": 14,
+        "officers": [
+            {"officer_id": 1, "name": "Just Assigned", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "days_since_last_assignment": 0},
+            {"officer_id": 2, "name": "A Week Ago", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "days_since_last_assignment": 7},
+            {"officer_id": 3, "name": "Never", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active"},
+            {"officer_id": 4, "name": "Long Ago", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active", "days_since_last_assignment": 40},
+        ],
+    }))
+
+    recency = {ranking["officer_id"]: ranking["recency_score"] for ranking in result["rankings"]}
+    assert recency == {1: 0.0, 2: 50.0, 3: 100.0, 4: 100.0}
+    # Everything else is equal, so recency alone decides the order (ties by officer id).
+    assert [ranking["officer_id"] for ranking in result["rankings"]] == [3, 4, 2, 1]
+    just_assigned = next(r for r in result["rankings"] if r["officer_id"] == 1)
+    assert "assignment recency 0.00 (last assigned 0 day(s) ago)" in just_assigned["explanation"]
+    never = next(r for r in result["rankings"] if r["officer_id"] == 3)
+    assert "never assigned a task here" in never["explanation"]
+
+
+def test_task_delegation_final_score_is_the_four_factor_weighted_sum() -> None:
+    result = delegate_task(TaskDelegationRequest.model_validate({
+        "task_title": "General coordination task",
+        "max_active_tasks": 5,
+        "officers": [
+            {"officer_id": 1, "name": "One", "role": "SBO_OFFICER", "position_title": "President", "account_status": "active",
+             "active_tasks": 1, "completed_tasks": 3, "overdue_tasks": 1, "days_since_last_assignment": 7},
+        ],
+    }))
+
+    ranking = result["rankings"][0]
+    # role 100, workload 80, performance 75, recency 50
+    assert ranking["final_score"] == round(100 * 0.35 + 80 * 0.30 + 75 * 0.20 + 50 * 0.15, 2)
+
+
+def test_task_delegation_rejects_three_factor_weights() -> None:
+    try:
+        TaskDelegationRequest.model_validate({
+            "task_title": "Old client",
+            "officers": [{"officer_id": 1, "name": "One", "role": "SBO_OFFICER", "account_status": "active"}],
+            "weights": {"position": 0.40, "workload": 0.35, "performance": 0.25},
+        })
+    except ValueError as error:
+        assert "recency" in str(error)
+    else:
+        raise AssertionError("three-factor weights must be rejected")
 
 
 def test_task_delegation_position_relevance_varies_by_position_title() -> None:

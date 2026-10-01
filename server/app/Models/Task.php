@@ -17,6 +17,17 @@ class Task extends Model
 
     protected $appends = ['workflow_status'];
 
+    protected static function booted(): void
+    {
+        // Assignment recency is a delegation factor, so every path that hands
+        // a task to someone (create, reassign, AI workflow) is dated here.
+        static::saving(function (Task $task) {
+            if ($task->isDirty('assigned_to') && $task->assigned_to !== null) {
+                $task->assigned_at = now();
+            }
+        });
+    }
+
     protected function casts(): array
     {
         return [
@@ -26,7 +37,9 @@ class Task extends Model
             'role_score' => 'decimal:2',
             'workload_score' => 'decimal:2',
             'performance_score' => 'decimal:2',
+            'recency_score' => 'decimal:2',
             'final_score' => 'decimal:2',
+            'assigned_at' => 'datetime',
             'completed_at' => 'datetime',
             'sequence' => 'integer',
             'delegation_snapshot' => 'array',

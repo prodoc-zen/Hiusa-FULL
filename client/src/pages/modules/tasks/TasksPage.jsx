@@ -533,7 +533,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                                 <span className="rounded-full bg-[#E6F6FD] px-2.5 py-1 text-xs font-black text-[#0F2F62]">{Number(ranking.final_score).toFixed(2)} fit</span>
                               )}
                             </div>
-                            <div className="mt-2 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+                            <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
                               {positionScore != null && (
                                 <span>Position <strong className="block text-slate-700">{Number(positionScore).toFixed(2)}{lastDelegation.weights?.role != null && ` (×${(lastDelegation.weights.role * 100).toFixed(0)}%)`}{lastDelegation.weights?.position != null && ` (×${(lastDelegation.weights.position * 100).toFixed(0)}%)`}</strong></span>
                               )}
@@ -542,6 +542,9 @@ export default function TasksPage({ initialTab = 'board' }) {
                               )}
                               {ranking.performance_score != null && (
                                 <span>Performance <strong className="block text-slate-700">{Number(ranking.performance_score).toFixed(2)}{lastDelegation.weights?.performance != null && ` (×${(lastDelegation.weights.performance * 100).toFixed(0)}%)`}</strong></span>
+                              )}
+                              {ranking.recency_score != null && (
+                                <span>Recency <strong className="block text-slate-700">{Number(ranking.recency_score).toFixed(2)}{lastDelegation.weights?.recency != null && ` (×${(lastDelegation.weights.recency * 100).toFixed(0)}%)`}</strong></span>
                               )}
                             </div>
                             {ranking.explanation && <p className="mt-2 text-xs leading-5 text-slate-500">{ranking.explanation}</p>}
@@ -574,10 +577,11 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <EngineBadge engine={task.id === lastDelegation?.taskId ? lastDelegation.engine : null} />
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-[11px] text-slate-500">
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
                         <span>Role <strong className="block text-slate-700">{Number(task.role_score).toFixed(2)}</strong></span>
                         <span>Workload <strong className="block text-slate-700">{Number(task.workload_score).toFixed(2)}</strong></span>
                         <span>Performance <strong className="block text-slate-700">{Number(task.performance_score).toFixed(2)}</strong></span>
+                        {task.recency_score != null && <span>Recency <strong className="block text-slate-700">{Number(task.recency_score).toFixed(2)}</strong></span>}
                       </div>
                       {task.ai_recommendation_note && <p className="mt-3 text-xs leading-5 text-slate-500">{task.ai_recommendation_note}</p>}
                     </div>

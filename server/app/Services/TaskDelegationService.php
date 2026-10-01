@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
+use Illuminate\Support\Carbon;
 
 class TaskDelegationService
 {
@@ -73,6 +74,7 @@ class TaskDelegationService
                     'role_score' => null,
                     'workload_score' => null,
                     'performance_score' => null,
+                    'recency_score' => null,
                     'final_score' => null,
                     'active_tasks' => $active,
                     'max_active_tasks' => $maxActive,
@@ -88,10 +90,13 @@ class TaskDelegationService
             [$roleScore, $tier] = $this->roleScore($officer->position_title, $area, $preferredRole);
             $workloadScore = round(100 * (1 - ($active / $maxActive)), 2);
             $performanceScore = ($completed + $overdue) > 0 ? round($completed / ($completed + $overdue) * 100, 2) : 70.0;
+            $daysSinceAssignment = $this->daysSinceLastAssignment($organizationId, $officer->school_id);
+            $recencyScore = $this->recencyScore($daysSinceAssignment);
             $total = round(
                 ($weights['position'] * $roleScore)
                 + ($weights['workload'] * $workloadScore)
-                + ($weights['performance'] * $performanceScore),
+                + ($weights['performance'] * $performanceScore)
+                + ($weights['recency'] * $recencyScore),
                 2
             );
 
@@ -103,8 +108,10 @@ class TaskDelegationService
                 'role_score' => $roleScore,
                 'workload_score' => $workloadScore,
                 'performance_score' => $performanceScore,
+                'recency_score' => $recencyScore,
                 'final_score' => $total,
                 'active_tasks' => $active,
+                'days_since_last_assignment' => $daysSinceAssignment,
                 'max_active_tasks' => $maxActive,
                 'eligibility_result' => 'eligible',
             ];
@@ -133,17 +140,44 @@ class TaskDelegationService
         ];
     }
 
-    private function weights(): array
+    /**
+     * The four delegation weights (role, workload, performance, recency),
+     * normalized to sum to 1 so a misconfigured env never skews the scale.
+     */
+    public function weights(): array
     {
-        $weights = config('services.hiusa_ai.task_weights', []);
-        $values = [
-            'position' => (float) ($weights['position'] ?? 0.40),
-            'workload' => (float) ($weights['workload'] ?? 0.35),
-            'performance' => (float) ($weights['performance'] ?? 0.25),
-        ];
+        $defaults = ['position' => 0.35, 'workload' => 0.30, 'performance' => 0.20, 'recency' => 0.15];
+        $configured = config('services.hiusa_ai.task_weights', []);
+        $values = [];
+        foreach ($defaults as $key => $default) {
+            $values[$key] = (float) ($configured[$key] ?? $default);
+        }
         $sum = array_sum($values);
 
-        return $sum > 0 ? array_map(fn (float $value) => round($value / $sum, 4), $values) : ['position' => 0.40, 'workload' => 0.35, 'performance' => 0.25];
+        return $sum > 0 ? array_map(fn (float $value) => round($value / $sum, 4), $values) : $defaults;
+    }
+
+    /** Whole days since this officer was last handed a task here; null when never. */
+    public function daysSinceLastAssignment(int $organizationId, int $officerId): ?int
+    {
+        $last = Task::where('organization_id', $organizationId)->where('assigned_to', $officerId)->max('assigned_at');
+
+        return $last === null ? null : (int) floor(Carbon::parse($last)->diffInDays(now(), true));
+    }
+
+    /** Officers not handed work recently score higher, spreading delegation over time. */
+    public function recencyScore(?int $daysSinceAssignment): float
+    {
+        if ($daysSinceAssignment === null) {
+            return 100.0;
+        }
+
+        return round(min(1, $daysSinceAssignment / $this->recencyWindowDays()) * 100, 2);
+    }
+
+    public function recencyWindowDays(): int
+    {
+        return max(1, (int) config('services.hiusa_ai.task_recency_window_days', 14));
     }
 
     private function inferArea(string $title, ?string $type): string

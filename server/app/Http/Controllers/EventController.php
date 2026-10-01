@@ -763,6 +763,7 @@ class EventController extends Controller
                     'role_score' => $selected['role_score'],
                     'workload_score' => $selected['workload_score'],
                     'performance_score' => $selected['performance_score'],
+                    'recency_score' => $selected['recency_score'],
                     'final_score' => $selected['final_score'],
                     'delegation_snapshot' => $recommendation,
                     'ai_recommendation_note' => "Rank {$selected['rank']} by deterministic weighted scoring.",
@@ -778,6 +779,7 @@ class EventController extends Controller
                         'role_score' => $ranking['role_score'],
                         'workload_score' => $ranking['workload_score'],
                         'performance_score' => $ranking['performance_score'],
+                        'recency_score' => $ranking['recency_score'],
                         'weights' => json_encode($recommendation['weights']),
                         'total_score' => $ranking['final_score'],
                         'rank' => $ranking['rank'],
@@ -861,6 +863,7 @@ class EventController extends Controller
                 'role_score' => $selected['role_score'] ?? null,
                 'workload_score' => $selected['workload_score'] ?? null,
                 'performance_score' => $selected['performance_score'] ?? null,
+                'recency_score' => $selected['recency_score'] ?? null,
                 'total_score' => $selected['final_score'] ?? null,
                 'weights' => $recommendation['weights'] ?? null,
             ];

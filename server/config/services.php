@@ -42,10 +42,12 @@ return [
         'connect_timeout' => env('HIUSA_AI_SERVICE_CONNECT_TIMEOUT', 1),
         'timeout' => env('HIUSA_AI_SERVICE_TIMEOUT', 3),
         'task_max_active_tasks' => env('HIUSA_TASK_MAX_ACTIVE_TASKS', 5),
+        'task_recency_window_days' => env('HIUSA_TASK_RECENCY_WINDOW_DAYS', 14),
         'task_weights' => [
-            'position' => env('HIUSA_TASK_POSITION_WEIGHT', 0.40),
-            'workload' => env('HIUSA_TASK_WORKLOAD_WEIGHT', 0.35),
-            'performance' => env('HIUSA_TASK_PERFORMANCE_WEIGHT', 0.25),
+            'position' => env('HIUSA_TASK_POSITION_WEIGHT', 0.35),
+            'workload' => env('HIUSA_TASK_WORKLOAD_WEIGHT', 0.30),
+            'performance' => env('HIUSA_TASK_PERFORMANCE_WEIGHT', 0.20),
+            'recency' => env('HIUSA_TASK_RECENCY_WEIGHT', 0.15),
         ],
     ],
 

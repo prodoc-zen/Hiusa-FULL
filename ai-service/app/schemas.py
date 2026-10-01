@@ -81,6 +81,8 @@ class OfficerCandidate(BaseModel):
     active_tasks: int = Field(default=0, ge=0)
     completed_tasks: int = Field(default=0, ge=0)
     overdue_tasks: int = Field(default=0, ge=0)
+    # Whole days since this officer was last handed a task; None when never.
+    days_since_last_assignment: int | None = Field(default=None, ge=0)
 
 
 class TaskDelegationRequest(BaseModel):
@@ -88,17 +90,19 @@ class TaskDelegationRequest(BaseModel):
     task_type: str | None = Field(default=None, max_length=100)
     officers: list[OfficerCandidate] = Field(min_length=1, max_length=500)
     max_active_tasks: int = Field(default=5, ge=1, le=100)
+    recency_window_days: int = Field(default_factory=lambda: int(os.getenv("HIUSA_TASK_RECENCY_WINDOW_DAYS", "14")), ge=1, le=365)
     weights: dict[str, float] = Field(default_factory=lambda: {
-        "position": float(os.getenv("HIUSA_TASK_POSITION_WEIGHT", "0.40")),
-        "workload": float(os.getenv("HIUSA_TASK_WORKLOAD_WEIGHT", "0.35")),
-        "performance": float(os.getenv("HIUSA_TASK_PERFORMANCE_WEIGHT", "0.25")),
+        "position": float(os.getenv("HIUSA_TASK_POSITION_WEIGHT", "0.35")),
+        "workload": float(os.getenv("HIUSA_TASK_WORKLOAD_WEIGHT", "0.30")),
+        "performance": float(os.getenv("HIUSA_TASK_PERFORMANCE_WEIGHT", "0.20")),
+        "recency": float(os.getenv("HIUSA_TASK_RECENCY_WEIGHT", "0.15")),
     })
 
     @model_validator(mode="after")
     def validate_weights(self) -> "TaskDelegationRequest":
-        required = {"position", "workload", "performance"}
+        required = {"position", "workload", "performance", "recency"}
         if set(self.weights) != required or any(value < 0 for value in self.weights.values()) or sum(self.weights.values()) <= 0:
-            raise ValueError("weights must contain non-negative position, workload, and performance values")
+            raise ValueError("weights must contain non-negative position, workload, performance, and recency values")
         total = sum(self.weights.values())
         self.weights = {name: round(value / total, 4) for name, value in self.weights.items()}
         return self
@@ -112,6 +116,7 @@ class OfficerRanking(BaseModel):
     role_score: float
     workload_score: float
     performance_score: float
+    recency_score: float
     final_score: float
     rank: int
     eligibility_result: Literal["eligible"]
@@ -126,6 +131,7 @@ class OfficerEvaluation(BaseModel):
     role_score: float | None
     workload_score: float | None
     performance_score: float | None
+    recency_score: float | None
     final_score: float | None
     rank: int | None
     eligibility_result: Literal["eligible", "invalid_role", "inactive_account", "missing_position", "inactive_position", "overloaded"]
