@@ -317,6 +317,14 @@ Every demo account signs in with its **School ID / ID Number** and password. Ema
 | School ID | `990001` |
 | Password | `Admin@123456` |
 
+> These accounts match a fresh `php artisan migrate:fresh --seed`. On a database that existed before the SAO migrations ran (upgraded, not reseeded), the migrations keep the lowest-numbered admin as the only Super Admin, and that account keeps the password it already had. To see which School ID it is:
+>
+> ```bash
+> php artisan tinker --execute="echo App\Models\User::where('role', 'SUPER_ADMIN')->value('school_id');"
+> ```
+>
+> Or reseed a disposable local database to get exactly the accounts listed here.
+
 ### SAO-assigned Organization Advisers
 | Organization | School ID | Password |
 |---|---|---|
