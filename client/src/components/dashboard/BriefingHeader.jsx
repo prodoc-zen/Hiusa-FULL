@@ -49,15 +49,12 @@ export default function BriefingHeader({ user, summary, actions }) {
         <div className="flex min-w-0 items-start gap-4">
           <Avatar name={identity.fullName || user.first_name} src={identity.photoUrl} size="lg" className="ring-2 ring-white/15" />
           <div className="min-w-0">
-            <p className="text-[11px] font-bold uppercase tracking-widest text-accent">
-              <span>{roleLabel}</span>
-              <span aria-hidden="true"> &middot; </span>
-              <span>{scopeLabel}</span>
-            </p>
-            <h1 className="mt-1 text-2xl font-extrabold leading-tight sm:text-[28px]">
+            <h1 className="text-2xl font-extrabold leading-tight sm:text-[28px]">
               Good {greetingFor()}, {user.first_name}
             </h1>
-            <p className="mt-1 text-xs font-semibold text-slate-300">{manilaDate(new Date(), 'weekday')}</p>
+            <p className="mt-1 truncate text-xs font-semibold text-slate-300">
+              {roleLabel} &middot; {scopeLabel} &middot; {manilaDate(new Date(), 'weekday')}
+            </p>
             <p className="mt-3 max-w-2xl text-sm font-medium leading-6 text-slate-200">{summary.headline}</p>
           </div>
         </div>
