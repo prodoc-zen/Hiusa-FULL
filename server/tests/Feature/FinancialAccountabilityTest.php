@@ -201,6 +201,44 @@ class FinancialAccountabilityTest extends TestCase
         $this->assertStringNotContainsString('Secret sponsor deal', $response->getContent(), 'The ledger description must never reach the SUPER_ADMIN audit feed.');
     }
 
+    public function test_super_admin_cannot_read_merchandise_order_ledger_entries_via_audit_logs(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $student = $this->user('STUDENT', $organization->id);
+        $superAdmin = $this->user('SUPER_ADMIN');
+
+        $item = Merchandise::factory()->create([
+            'organization_id' => $organization->id,
+            'is_active' => true,
+            'stock_quantity' => 10,
+            'price' => '250.00',
+        ]);
+
+        Sanctum::actingAs($student);
+        $orderId = $this->postJson('/api/orders', [
+            'merchandise_id' => $item->id,
+            'quantity' => 1,
+            'payment_method' => 'cash',
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'paid'])->assertOk();
+
+        $orderLog = AuditLog::where('module', 'orders')->where('record_id', $orderId)
+            ->where('action', 'payment_approved_admin_bypass')->first();
+        $this->assertNotNull($orderLog, 'Approving a paid order must write an orders-module audit entry.');
+        $this->assertSame($student->school_id, $orderLog->new_values['student_id'] ?? null);
+        $this->assertNotNull($orderLog->new_values['transaction_id'] ?? null, 'A paid order must be linked to its ledger transaction.');
+
+        Sanctum::actingAs($superAdmin);
+        $response = $this->getJson('/api/audit-logs')->assertOk();
+        $modules = collect($response->json('data'))->pluck('module');
+
+        $this->assertFalse($modules->contains('orders'), 'SUPER_ADMIN must not see merchandise order ledger entries from any organization.');
+        $this->assertStringNotContainsString((string) $student->school_id, $response->getContent(), 'The buyer identity must never reach the SUPER_ADMIN audit feed via the orders module.');
+    }
+
     public function test_admin_can_view_one_students_debt_summary_for_the_profile_modal(): void
     {
         $admin = $this->user('ADMIN');
