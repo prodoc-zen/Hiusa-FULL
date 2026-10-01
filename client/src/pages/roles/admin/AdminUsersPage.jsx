@@ -1,11 +1,12 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, MoreVertical, PencilLine, ShieldCheck, Trash2, UserCheck, UserPlus, UserX, UsersRound } from 'lucide-react';
+import { CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, MoreVertical, PencilLine, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserX, UsersRound } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
+import UserImportDrawer from '../../../components/users/UserImportDrawer';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
 import { inviteAccountProfile } from '../../../services/authService';
@@ -422,6 +423,7 @@ export default function AdminUsersPage() {
   const [sboPositions, setSboPositions] = useState([]);
   const [academicStructure, setAcademicStructure] = useState({ department: '', programs: [] });
   const pageSize = 10;
+  const [showImport, setShowImport] = useState(false);
   const loadRequestRef = useRef(0);
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
@@ -798,7 +800,7 @@ export default function AdminUsersPage() {
       <section className="overflow-hidden rounded-3xl border border-[#DDE7EF] bg-white shadow-sm">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#DDE7EF] p-5">
           <p className="text-sm font-semibold text-slate-600">{actorRole === 'SBO_OFFICER' ? 'Find students for consent-based fingerprint enrollment.' : 'Filter accounts, export the directory, or add a member.'}</p>
-          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-col gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
+          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-col gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
         </div>
 
 
@@ -1072,6 +1074,7 @@ export default function AdminUsersPage() {
         onCancel={() => !busy && setDeleteTarget(null)}
         onConfirm={handleDelete}
       />
+      <UserImportDrawer open={showImport} onClose={() => setShowImport(false)} onImported={() => { setShowImport(false); load(); }} />
     </div>
   );
 }

@@ -13,11 +13,20 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class UserController extends Controller
 {
+    private const IMPORT_LIMIT = 500;
+
+    // Admin accounts and advisers are provisioned one at a time, never in bulk.
+    private const IMPORTABLE_ROLES = ['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'];
+
+    private const IMPORT_COLUMNS = ['school_id', 'first_name', 'last_name', 'email', 'role', 'contact_number', 'position_title', 'program', 'year_level', 'major', 'section'];
+
     public function __construct(private readonly PasswordResetService $passwordResetService) {}
 
     public function index(Request $request)
@@ -124,34 +133,10 @@ class UserController extends Controller
         $organizationId = $actor->organization_id;
 
         $validatedData = $request->validate([
-            'school_id' => [
-                'required',
-                'integer',
-                'min:1',
-                'max:99999999',
-                Rule::unique('users', 'school_id'),
-            ],
-            'first_name' => 'required|string|max:60',
-            'last_name' => 'required|string|max:60',
-            'email' => [
-                'required',
-                'string',
-                'email',
-                'max:255',
-                Rule::unique('users', 'email')
-                    ->where(fn ($query) => $query->where('organization_id', $organizationId)),
-            ],
+            ...$this->memberRules($organizationId, ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD']),
             'password' => 'required|string|min:8|confirmed',
-            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
-            'role' => 'required|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
             'account_status' => ['sometimes', 'in:active,inactive,disabled'],
-            'position_title' => ['nullable', 'string', 'max:100'],
             'notification_preferences' => ['nullable', 'array'],
-            'department' => ['nullable', 'string', 'max:120'],
-            'program' => ['nullable', 'string', 'max:120'],
-            'year_level' => ['nullable', 'string', 'max:30'],
-            'major' => ['nullable', 'string', 'max:120'],
-            'section' => ['nullable', 'string', 'max:60'],
         ]);
 
         if ($actor->role === 'SBO_OFFICER' && $validatedData['role'] !== 'STUDENT') {
@@ -188,6 +173,176 @@ class UserController extends Controller
         $this->recordUserAudit($request, 'created', $user, null, $this->auditableUserValues($user));
 
         return response()->json($user, 201);
+    }
+
+    /**
+     * Enroll a roster from a CSV file. Every row is checked with the same rules
+     * as creating one account; nothing is written unless every row passes, and
+     * dry_run only reports. Imported members get a random password and set
+     * their own through "Forgot password", so no password travels in a file.
+     */
+    public function import(Request $request)
+    {
+        $actor = $request->user();
+        $organizationId = $actor->organization_id;
+        $request->validate([
+            'file' => ['required', 'file', 'mimes:csv,txt', 'max:1024'],
+            'dry_run' => ['sometimes', 'boolean'],
+        ]);
+
+        $rows = $this->readImportRows($request->file('file')->getRealPath());
+        if ($rows === null) {
+            return response()->json(['message' => 'The first row must name the columns, including school_id, first_name, last_name, email and role.'], 422);
+        }
+        if ($rows === []) {
+            return response()->json(['message' => 'The file has no member rows under its header.'], 422);
+        }
+        if (count($rows) > self::IMPORT_LIMIT) {
+            return response()->json(['message' => 'Import up to '.self::IMPORT_LIMIT.' members at a time.'], 422);
+        }
+
+        $rules = $this->memberRules($organizationId, self::IMPORTABLE_ROLES);
+        $seenIds = [];
+        $seenEmails = [];
+        $results = [];
+        foreach ($rows as $line => $row) {
+            $validator = Validator::make($row, $rules);
+            $errors = $validator->errors()->all();
+            $data = null;
+
+            $schoolId = (string) ($row['school_id'] ?? '');
+            $email = strtolower((string) ($row['email'] ?? ''));
+            if ($schoolId !== '' && isset($seenIds[$schoolId])) {
+                $errors[] = "School ID {$schoolId} is also on row {$seenIds[$schoolId]}.";
+            }
+            if ($email !== '' && isset($seenEmails[$email])) {
+                $errors[] = "The email {$email} is also on row {$seenEmails[$email]}.";
+            }
+            $seenIds[$schoolId] ??= $line;
+            $seenEmails[$email] ??= $line;
+
+            if ($errors === []) {
+                try {
+                    $data = $this->normalizePositionPayload($this->normalizeAcademicPayload($validator->validated(), $actor), $actor);
+                } catch (ValidationException $exception) {
+                    $errors = collect($exception->errors())->flatten()->all();
+                }
+            }
+
+            $results[] = [
+                'row' => $line,
+                'school_id' => $row['school_id'] ?? null,
+                'name' => trim(($row['first_name'] ?? '').' '.($row['last_name'] ?? '')),
+                'role' => $row['role'] ?? null,
+                'status' => $errors === [] ? 'ready' : 'error',
+                'errors' => $errors,
+                'data' => $data,
+            ];
+        }
+
+        $invalid = count(array_filter($results, fn (array $result) => $result['status'] === 'error'));
+        $summary = ['total' => count($results), 'ready' => count($results) - $invalid, 'invalid' => $invalid];
+        $report = array_map(fn (array $result) => array_diff_key($result, ['data' => true]), $results);
+
+        if ($request->boolean('dry_run') || $invalid > 0) {
+            return response()->json(['imported' => false, 'summary' => $summary, 'rows' => $report], $invalid > 0 && ! $request->boolean('dry_run') ? 422 : 200);
+        }
+
+        DB::transaction(function () use ($results, $organizationId, $request) {
+            foreach ($results as $result) {
+                $data = $result['data'];
+                $user = User::create([
+                    'organization_id' => $organizationId,
+                    'school_id' => (int) $data['school_id'],
+                    'first_name' => $data['first_name'],
+                    'last_name' => $data['last_name'],
+                    'email' => $data['email'],
+                    'contact_number' => $data['contact_number'] ?? null,
+                    'password_hash' => Str::password(32),
+                    'role' => $data['role'],
+                    'account_status' => 'active',
+                    'is_member' => true,
+                    'position_title' => $data['position_title'] ?? null,
+                    'department' => $data['department'] ?? null,
+                    'program' => $data['program'] ?? null,
+                    'year_level' => $data['year_level'] ?? null,
+                    'major' => $data['major'] ?? null,
+                    'section' => $data['section'] ?? null,
+                ]);
+                $this->recordUserAudit($request, 'imported', $user, null, $this->auditableUserValues($user));
+            }
+        });
+
+        return response()->json(['imported' => true, 'summary' => $summary, 'rows' => $report], 201);
+    }
+
+    /**
+     * Rows keyed by their line number in the file, with headers normalized
+     * ("First Name" -> first_name) and roles accepted in plain words
+     * ("SBO Officer" -> SBO_OFFICER). Null when the required columns are missing.
+     */
+    private function readImportRows(string $path): ?array
+    {
+        $handle = fopen($path, 'r');
+        $header = fgetcsv($handle);
+        if (! is_array($header)) {
+            fclose($handle);
+
+            return null;
+        }
+        $header = array_map(fn ($name) => str_replace([' ', '-'], '_', strtolower(trim(preg_replace('/^\xEF\xBB\xBF/', '', (string) $name)))), $header);
+        if (array_diff(['school_id', 'first_name', 'last_name', 'email', 'role'], $header) !== []) {
+            fclose($handle);
+
+            return null;
+        }
+
+        $rows = [];
+        $line = 1;
+        while (($values = fgetcsv($handle)) !== false) {
+            $line++;
+            if ($values === [null] || implode('', array_map('trim', $values)) === '') {
+                continue;
+            }
+            $row = [];
+            foreach ($header as $index => $column) {
+                if (in_array($column, self::IMPORT_COLUMNS, true)) {
+                    $value = trim((string) ($values[$index] ?? ''));
+                    $row[$column] = $value === '' ? null : $value;
+                }
+            }
+            if (isset($row['role'])) {
+                $row['role'] = str_replace([' ', '-'], '_', strtoupper($row['role']));
+            }
+            $rows[$line] = $row;
+        }
+        fclose($handle);
+
+        return $rows;
+    }
+
+    private function memberRules(int $organizationId, array $roles): array
+    {
+        return [
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999', Rule::unique('users', 'school_id')],
+            'first_name' => 'required|string|max:60',
+            'last_name' => 'required|string|max:60',
+            'email' => [
+                'required',
+                'string',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $organizationId)),
+            ],
+            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
+            'role' => ['required', Rule::in($roles)],
+            'position_title' => ['nullable', 'string', 'max:100'],
+            'department' => ['nullable', 'string', 'max:120'],
+            'program' => ['nullable', 'string', 'max:120'],
+            'year_level' => ['nullable', 'string', 'max:30'],
+            'major' => ['nullable', 'string', 'max:120'],
+            'section' => ['nullable', 'string', 'max:60'],
+        ];
     }
 
     public function update(Request $request, $id)
