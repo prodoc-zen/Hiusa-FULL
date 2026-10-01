@@ -39,6 +39,7 @@ import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import TableFilterBar from '../../../components/TableFilterBar';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
+import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
@@ -1618,6 +1619,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   </div>
                 )}
                 {selectedEvent.approval_remarks && <p className="rounded-lg bg-red-50 p-3 text-red-700"><span className="font-bold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
+                <EventRegistrationPanel event={selectedEvent} role={currentUserRole} />
                 {['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole) && <EventSubmissionPanel eventId={selectedEvent.id} role={currentUserRole} onSubmitted={() => { setSelectedEvent((current) => ({ ...current, approval_status: 'pending' })); setEventReload((value) => value + 1); }} />}
               </div>
             )}
