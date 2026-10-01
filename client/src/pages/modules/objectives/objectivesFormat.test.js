@@ -23,6 +23,11 @@ describe('formatEvidenceValue', () => {
     expect(formatEvidenceValue({ value: 42, unit: 'percent' })).toBe('42%');
   });
 
+  it('formats an acceptability mean to two decimals like Table 3', () => {
+    expect(formatEvidenceValue({ value: 4, unit: 'mean' })).toBe('4.00');
+    expect(formatEvidenceValue({ value: 3.414, unit: 'mean' })).toBe('3.41');
+  });
+
   it('formats count evidence with thousands separators', () => {
     expect(formatEvidenceValue({ value: 1200, unit: 'count' })).toBe('1,200');
   });
