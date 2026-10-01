@@ -107,7 +107,7 @@ describe('StudyObjectivesPage', () => {
     expect(await screen.findByText('Study objectives could not be loaded')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /try again/i }));
 
-    expect(await screen.findByText(/SO2 — one system, six areas/)).toBeInTheDocument();
+    expect(await screen.findByText(/SO2: one system, six areas/)).toBeInTheDocument();
     expect(objectivesMock.getObjectivesOverview).toHaveBeenCalledTimes(2);
   });
 
@@ -139,11 +139,11 @@ describe('StudyObjectivesPage', () => {
     expect(await screen.findByText(/Evidence scoped to Test Org only\./)).toBeInTheDocument();
 
     // General objective frames the page.
-    expect(screen.getByText(/GO — Improve SBO management/)).toBeInTheDocument();
+    expect(screen.getByText(/GO: Improve SBO management/)).toBeInTheDocument();
 
     // SO2 rendered as one system using pillars.js labels, not raw codes alone.
-    expect(screen.getByText(/SO2 — one system, six areas/)).toBeInTheDocument();
-    expect(screen.getByText(/SO2\.1 — Financial management/)).toBeInTheDocument();
+    expect(screen.getByText(/SO2: one system, six areas/)).toBeInTheDocument();
+    expect(screen.getByText(/SO2\.1: Financial management/)).toBeInTheDocument();
 
     // An evidence item with a non-null href links to the feature that produces it.
     const forecastLink = screen.getByRole('link', { name: /12.*Forecasts generated/s });
@@ -163,11 +163,11 @@ describe('StudyObjectivesPage', () => {
 
     // SO1's evidence has no href, so its no-data notice carries no action button;
     // SO4's does, so exactly one "Open ..." action renders across the whole page.
-    expect(screen.getByText(/SO1 — Assess current governance/)).toBeInTheDocument();
+    expect(screen.getByText(/SO1: Assess current governance/)).toBeInTheDocument();
     expect(screen.getAllByRole('link', { name: /^Open /i })).toHaveLength(1);
 
     // SO3 synthesizes everything above.
-    expect(screen.getByText(/SO3 — Define and develop the best features/)).toBeInTheDocument();
+    expect(screen.getByText(/SO3: Define and develop the best features/)).toBeInTheDocument();
 
     // Last activity is shown per objective, including "no activity" for one with none.
     expect(screen.getAllByText(/Last activity/i).length).toBeGreaterThan(0);

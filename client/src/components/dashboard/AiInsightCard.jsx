@@ -25,7 +25,7 @@ function whyItems(why) {
   const items = [`Method: ${why.method}`];
   const inputEntries = Object.entries(why.inputs || {});
   if (inputEntries.length > 0) {
-    items.push(`Inputs — ${inputEntries.map(([key, value]) => `${humanizeKey(key)}: ${formatInputValue(value)}`).join(', ')}`);
+    items.push(`Inputs: ${inputEntries.map(([key, value]) => `${humanizeKey(key)}: ${formatInputValue(value)}`).join(', ')}`);
   }
   if (why.formula) items.push(`Formula: ${why.formula}`);
   return items;

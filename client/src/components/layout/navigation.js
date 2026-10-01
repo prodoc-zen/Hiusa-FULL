@@ -112,7 +112,7 @@ export const NAV_STRUCTURE = [
     id: 'announcements',
     label: 'Announcements',
     icon: communicationPillar.icon,
-    caption: `${communicationPillar.label} · ${communicationPillar.objectiveCode}`,
+    caption: `Communication · ${communicationPillar.objectiveCode}`,
     roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
       { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },

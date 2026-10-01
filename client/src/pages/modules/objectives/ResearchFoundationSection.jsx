@@ -22,7 +22,7 @@ function FoundationObjective({ objective }) {
             </span>
           )}
           <h3 className="min-w-0 text-base font-bold text-ink">
-            {objective.code} — {objective.title}
+            {objective.code}: {objective.title}
           </h3>
         </div>
         <StatusBadge status={objective.status} tone={tone} label={label} />

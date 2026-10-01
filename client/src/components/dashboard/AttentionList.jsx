@@ -1,6 +1,5 @@
 import { ChevronRight, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
-import EmptyState from '../ui/EmptyState';
 import StatusBadge from '../ui/StatusBadge';
 import { relativeTime } from '../../lib/format';
 
@@ -48,12 +47,13 @@ function Row({ item }) {
 export default function AttentionList({ items = [] }) {
   if (items.length === 0) {
     return (
-      <EmptyState
-        kind="first-run"
-        icon={ShieldCheck}
-        title="You're all caught up"
-        description="Nothing needs your action right now. New approvals, deadlines, and alerts will show up here first."
-      />
+      <div className="flex items-start gap-3 rounded-card border border-line bg-surface px-4 py-3.5 shadow-card">
+        <ShieldCheck size={20} className="mt-0.5 shrink-0 text-success-strong" aria-hidden="true" />
+        <div>
+          <p className="text-sm font-bold text-ink">Nothing is waiting on you</p>
+          <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">New approvals, deadlines, and alerts will show up here first.</p>
+        </div>
+      </div>
     );
   }
 

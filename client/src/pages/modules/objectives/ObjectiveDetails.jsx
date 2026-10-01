@@ -33,7 +33,7 @@ export default function ObjectiveDetails({
     <div>
       <p className={statementClassName}>{statement}</p>
       <p className="mt-2 max-w-[75ch] text-xs font-semibold text-ink-muted-strong">
-        <span className="text-ink-soft">Mechanism — </span>
+        <span className="text-ink-soft">Mechanism: </span>
         {mechanism}
       </p>
 

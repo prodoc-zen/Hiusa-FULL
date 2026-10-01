@@ -62,7 +62,7 @@ export default function RoleBriefing() {
   return (
     <div className="space-y-5">
       <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || [objectivesAction]} />
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]">
+      <div className={insights.length > 0 ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]' : undefined}>
         <AttentionList items={attention} />
         {insights.length > 0 && (
           <section aria-labelledby="briefing-insights" className="space-y-3">
