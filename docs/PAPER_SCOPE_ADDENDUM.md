@@ -34,6 +34,8 @@ The paper has four actors (Admin, SBO Officer, Department Head, Student). The sy
 | SAO capability | What it does |
 |---|---|
 | Organizations and admins | Create organizations and provision their admins |
+| Administrator handover | Hand an organization's administrator role to a successor in one step at term turnover; the outgoing account is deactivated, not deleted, so its history stays attributed |
+| Academic years | Keep the academic calendar with one current year; accreditation, requirement sets and clearance periods follow it |
 | University announcements | Publish notices to every organization |
 | Financial report approval | Final approval on financial reports after the Department Head |
 | Compliance and accreditation | Define requirements, review each organization's submissions, track accreditation status |
@@ -67,6 +69,9 @@ Paper change: in the data gathering procedure, state that the questionnaire is a
 | Command palette (Ctrl K) and breadcrumbs | Self-serve navigation across many modules |
 | Bulk member import from CSV: every row is checked first, nothing is written unless all rows pass, and no password travels in the file | Enrolling a whole roster at term start, one of the dean's self-serve asks |
 | Personal activity history on every profile | Each person can see what they did, from the same audit trail |
+| Getting-started checklist on every home page, per role | New users see the few steps that make the system useful, each checked off from real records |
+| Notification preferences | People can hide informational kinds (announcements, events, elections, merchandise); approvals, tasks, account and payment notices always show |
+| Cash advances on screen: request, approval by a different admin, release to the ledger, repayments | The server endpoints existed with no screen |
 | Audit log export for the SAO and each Admin | The screen a panel or an incoming auditor most wants to take away |
 
 ## 3. Decisions that reconcile the paper
@@ -95,12 +100,8 @@ FinalScore = 0.35 × RoleScore + 0.30 × WorkloadScore + 0.20 × PerformanceScor
 
 Eligibility comes first: active SBO Officer account, an active position, and fewer than 5 open tasks. The weights are configurable and are normalized to sum to 1. The same formula runs in the AI service and in the server's fallback, and an automated test checks that both produce identical scores and explanations for the same officer.
 
-## 4. Not built yet
+## 4. Built since the first draft of this addendum
 
-These came out of the use-case inventory, and the system does not have them. Leave them out of the paper, or list them as future work.
+Every item the use-case inventory listed as missing is now in the system: administrator handover (SAOX-02), academic years (SAOX-03), bulk member import (SAOX-12), the getting-started checklist (ONBOARD-01), personal activity history (ONBOARD-05), notification preferences (ONBOARD-07), audit log export (ONBOARD-08) and the cash advance screen (EXT-03).
 
-- Transferring an organization's admin account to a new person with history preserved (SAOX-02)
-- Academic year management (SAOX-03)
-- A first-run guided setup per role (ONBOARD-01)
-- A notification preferences screen; the server already stores preferences (ONBOARD-07)
-- A cash advance screen; the server endpoints exist (EXT-03)
+One deliberate limit: notification preferences decide what shows in HIUSA's own notification list. The system sends no email or text notifications, so there is no other channel to configure.
