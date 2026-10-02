@@ -8,6 +8,7 @@ import BriefingHeader from './BriefingHeader';
 import BriefingSkeleton from './BriefingSkeleton';
 import OrganizationsHealthTable from './OrganizationsHealthTable';
 import PillarPulse from './PillarPulse';
+import SetupChecklist from './SetupChecklist';
 
 // Pillar order per role, from docs/api/dashboard-briefing.md.
 const PILLAR_ORDER = {
@@ -19,6 +20,10 @@ const PILLAR_ORDER = {
 };
 
 const objectivesAction = { label: 'Study objectives', to: '/dashboard/objectives', icon: Target };
+
+function storedSchoolId() {
+  try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }
+}
 
 const ACTIONS = {
   SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/financial-reports', icon: FileText }, objectivesAction],
@@ -56,12 +61,13 @@ export default function RoleBriefing() {
     );
   }
 
-  const { user, summary, attention = [], pillars = {}, insights = [], organizations } = state.data;
+  const { user, summary, setup, attention = [], pillars = {}, insights = [], organizations } = state.data;
   const role = user?.role;
 
   return (
     <div className="space-y-5">
       <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || [objectivesAction]} />
+      <SetupChecklist setup={setup} userKey={`${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`} />
       <div className={insights.length > 0 ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]' : undefined}>
         <AttentionList items={attention} />
         {insights.length > 0 && (

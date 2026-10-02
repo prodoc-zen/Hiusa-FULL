@@ -1,8 +1,9 @@
-export default function ProgressMeter({ label, value, max = 100, valueLabel, className = '' }) {
+// kind="usage" warns as a limit nears (budgets, capacity); kind="progress" is completion, where more is simply better.
+export default function ProgressMeter({ label, value, max = 100, valueLabel, kind = 'usage', className = '' }) {
   const safeMax = max > 0 ? max : 1;
   const ratio = Math.max(0, Math.min(1, value / safeMax));
   const percent = Math.round(ratio * 100);
-  const tone = percent >= 100 ? 'bg-danger' : percent >= 80 ? 'bg-warning' : 'bg-brand-600';
+  const tone = kind === 'progress' || percent < 80 ? 'bg-brand-600' : percent >= 100 ? 'bg-danger' : 'bg-warning';
 
   return (
     <div className={className}>
