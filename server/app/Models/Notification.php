@@ -14,6 +14,10 @@ class Notification extends Model
 
     protected $guarded = [];
 
+    // Informational kinds a person may hide. Approvals, tasks, account and
+    // finance notices always show, because someone is waiting on them.
+    public const MUTABLE_TYPES = ['announcement', 'event', 'election', 'merchandise'];
+
     protected function casts(): array
     {
         return [

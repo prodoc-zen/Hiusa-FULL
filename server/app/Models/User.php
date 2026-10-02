@@ -144,6 +144,12 @@ class User extends Authenticatable
         $this->setRelation('organization', $profile->organization);
     }
 
+    /** Notification kinds this person chose to hide; always a subset of Notification::MUTABLE_TYPES. */
+    public function mutedNotificationTypes(): array
+    {
+        return array_values(array_intersect(Notification::MUTABLE_TYPES, (array) data_get($this->notification_preferences, 'muted', [])));
+    }
+
     public function accountProfiles(): HasMany
     {
         return $this->hasMany(AccountProfile::class, 'user_school_id', 'school_id');

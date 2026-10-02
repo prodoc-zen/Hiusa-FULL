@@ -102,7 +102,7 @@ class DashboardBriefingService
                 'tasks' => $this->tasksPillar($orgId),
                 'elections' => $this->electionsPillar($orgId),
                 'merchandise' => $this->merchandisePillar($orgId),
-                'communication' => $this->communicationPillar($orgId, $user->id),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
             ],
             'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role), 0, 3),
             'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/manage-events'), $this->routeAccess->hrefFor($role, '/dashboard/elections/manage-elections')),
@@ -131,7 +131,7 @@ class DashboardBriefingService
                 'events' => $this->eventsPillar($orgId),
                 'tasks' => $this->tasksPillar($orgId, $user->id),
                 'merchandise' => $this->merchandisePillar($orgId),
-                'communication' => $this->communicationPillar($orgId, $user->id),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
                 'finance' => $this->financePillar($orgId),
             ],
             'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role), 0, 3),
@@ -158,7 +158,7 @@ class DashboardBriefingService
                 'finance' => $this->financePillar($orgId),
                 'events' => $this->eventsPillar($orgId),
                 'elections' => $this->electionsPillar($orgId),
-                'communication' => $this->communicationPillar($orgId, $user->id),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
             ],
             'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role, includeTaskWorkload: false), 0, 3),
             'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results')),
@@ -189,7 +189,7 @@ class DashboardBriefingService
                 'events' => $this->eventsPillar($orgId),
                 'merchandise' => $this->myMerchandisePillar($orgId, $user->id),
                 'tasks' => $this->tasksPillar($orgId, $user->id),
-                'communication' => $this->communicationPillar($orgId, $user->id),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
             ],
             'insights' => [],
             'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/cast-vote')),
@@ -806,13 +806,14 @@ class DashboardBriefingService
         ];
     }
 
-    private function communicationPillar(int $organizationId, int $userId): array
+    private function communicationPillar(int $organizationId, int $userId, array $mutedTypes): array
     {
         $publishedThisMonth = DB::table('announcements')->where('organization_id', $organizationId)
             ->where('is_published', true)
             ->whereYear('published_at', now()->year)->whereMonth('published_at', now()->month)
             ->count();
         $unread = DB::table('notifications')->where('organization_id', $organizationId)->where('user_id', $userId)
+            ->when($mutedTypes !== [], fn ($query) => $query->whereNotIn('notification_type', $mutedTypes))
             ->where('is_read', false)->count();
         $last = DB::table('announcements')->where('organization_id', $organizationId)->where('is_published', true)
             ->orderByDesc('published_at')->first(['title']);
