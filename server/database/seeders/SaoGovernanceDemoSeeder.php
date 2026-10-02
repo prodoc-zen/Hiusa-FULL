@@ -148,6 +148,11 @@ class SaoGovernanceDemoSeeder extends Seeder
 
         foreach ($submissions as [$acronym, $requirement, $status, $daysAgo, $remarks]) {
             $organization = $this->organizations[$acronym];
+            // An organization without an administrator has no one to file documents as.
+            $representative = $this->representative($organization->id);
+            if (! $representative) {
+                continue;
+            }
             $document = $requirements[$requirement]['document'];
             $path = $this->storePlaceholderPdf($organization, $requirement, $document);
             $submittedAt = $this->at(-$daysAgo, 10, 30);
@@ -163,7 +168,7 @@ class SaoGovernanceDemoSeeder extends Seeder
                 'mime_type' => 'application/pdf',
                 'file_size' => Storage::disk('local')->size($path),
                 'remarks' => $remarks,
-                'submitted_by' => $this->representative($organization->id)->school_id,
+                'submitted_by' => $representative->school_id,
                 'submitted_at' => $submittedAt,
                 'reviewed_by' => $reviewedAt ? $this->sao->school_id : null,
                 'reviewed_at' => $reviewedAt,
@@ -231,13 +236,17 @@ class SaoGovernanceDemoSeeder extends Seeder
 
         foreach ($requests as [$venueName, $acronym, $start, $end, $status, $remarks, $requestedDaysAgo, $reviewedDaysAgo]) {
             $organization = $this->organizations[$acronym];
+            $representative = $this->representative($organization->id);
+            if (! $representative) {
+                continue;
+            }
             $requestedAt = $this->at(-$requestedDaysAgo, 9, 40);
             $reviewedAt = $reviewedDaysAgo !== null ? $this->at(-$reviewedDaysAgo, 15) : null;
 
             $this->findOrCreate(VenueBooking::class, [
                 'venue_id' => $venues[$venueName]->id,
                 'organization_id' => $organization->id,
-                'requested_by' => $this->representative($organization->id)->school_id,
+                'requested_by' => $representative->school_id,
             ], [
                 'start_time' => $start,
                 'end_time' => $end,
@@ -384,6 +393,10 @@ class SaoGovernanceDemoSeeder extends Seeder
                     'adviser' => $this->signatory($student->organization_id, 'Adviser'),
                     default => $this->signatory($student->organization_id, 'Treasurer'),
                 } : null;
+                // With no one in the organization able to sign, the line simply stays pending.
+                if ($signedAt && ! $signer) {
+                    [$status, $signedAt] = ['pending', null];
+                }
 
                 $this->findOrCreate(ClearanceSignature::class, [
                     'clearance_period_id' => $period->id,
@@ -532,16 +545,16 @@ class SaoGovernanceDemoSeeder extends Seeder
     }
 
     /** The ADMIN an organization files documents and booking requests as: an officer when it has one, otherwise the SAO-assigned Adviser. */
-    private function representative(int $organizationId): User
+    private function representative(int $organizationId): ?User
     {
         return $this->staff($organizationId)
             ->where('role', 'ADMIN')
             ->sortBy(fn (User $user) => $user->position_title === 'Adviser')
-            ->firstOrFail();
+            ->first();
     }
 
     /** Whoever may sign a clearance line for this organization (ADMIN or SBO_OFFICER of it): the officer holding the position, else its representative. */
-    private function signatory(int $organizationId, string $position): User
+    private function signatory(int $organizationId, string $position): ?User
     {
         return $this->staff($organizationId)->firstWhere('position_title', $position) ?? $this->representative($organizationId);
     }
