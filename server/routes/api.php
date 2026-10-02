@@ -114,6 +114,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::put('/system/admins/{user}', [SystemAdministrationController::class, 'updateAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/system/admins/{user}', [SystemAdministrationController::class, 'destroyAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
+    Route::post('/system/admins/{user}/handover', [SystemAdministrationController::class, 'handoverAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/system/organizations/{organization}/members', [SystemAdministrationController::class, 'organizationMembers'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/system/announcements', [GlobalAnnouncementController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/announcements', [GlobalAnnouncementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/announcements/{announcement}', [GlobalAnnouncementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
