@@ -129,7 +129,7 @@ export default function SaoCompliancePage() {
       description: type.description || '',
       deadline_at: String(type.deadline_at || '').slice(0, 10),
       is_active: type.is_active !== false,
-    } : EMPTY_TYPE_FORM);
+    } : { ...EMPTY_TYPE_FORM, academic_year: overview.academicYear || '' });
   }
 
   async function handleTypeSubmit(event) {

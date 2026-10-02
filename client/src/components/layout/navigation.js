@@ -182,6 +182,7 @@ export const SUPER_ADMIN_NAV = [
       { id: 'sao-colleges', label: 'Colleges', path: '/dashboard/super-admin/colleges', roles: ['SUPER_ADMIN'], icon: Building2 },
       { id: 'sao-event-requirements', label: 'Event Requirements', path: '/dashboard/super-admin/event-requirements', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-academic-years', label: 'Academic Years', path: '/dashboard/super-admin/academic-years', roles: ['SUPER_ADMIN'] },
       { id: 'sao-compliance', label: 'Compliance', path: '/dashboard/super-admin/compliance', roles: ['SUPER_ADMIN'] },
       { id: 'sao-venues', label: 'Venues', path: '/dashboard/super-admin/venues', roles: ['SUPER_ADMIN'] },
       { id: 'sao-grievances', label: 'Grievances', path: '/dashboard/super-admin/grievances', roles: ['SUPER_ADMIN'] },

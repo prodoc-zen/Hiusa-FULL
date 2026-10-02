@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
 import { Button, Field, Input, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import { createClearancePeriod } from '../../../services/clearanceService';
+import { getAcademicYears } from '../../../services/systemAdministrationService';
 import notify from '../../../lib/notify';
 import { ROLE_PRESETS, humanizeRole, normalizeRoleInput } from './clearanceLabels';
 
@@ -15,6 +16,19 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
   const [customRole, setCustomRole] = useState('');
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    let cancelled = false;
+    getAcademicYears()
+      .then((years) => {
+        const current = years.find((year) => year.is_current);
+        if (!cancelled && current) setAcademicYear((value) => value || current.label);
+      })
+      // Prefill only; the field stays editable when the calendar cannot load.
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open]);
 
   function reset() {
     setAcademicYear('');

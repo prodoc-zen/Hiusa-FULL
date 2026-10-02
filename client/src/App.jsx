@@ -45,6 +45,7 @@ const CastVoteRedirectPage = lazy(() => import('./pages/modules/elections/CastVo
 const ImmersiveVotePage = lazy(() => import('./pages/modules/elections/ImmersiveVotePage'));
 const SaoCompliancePage = lazy(() => import('./pages/modules/sao/SaoCompliancePage'));
 const SaoVenuesPage = lazy(() => import('./pages/modules/venues/SaoVenuesPage'));
+const AcademicYearsPage = lazy(() => import('./pages/roles/super-admin/AcademicYearsPage'));
 const SaoGrievancesPage = lazy(() => import('./pages/modules/grievances/SaoGrievancesPage'));
 const SaoClearancesPage = lazy(() => import('./pages/modules/clearances/SaoClearancesPage'));
 const SaoEvaluationPage = lazy(() => import('./pages/modules/evaluation/SaoEvaluationPage'));
@@ -216,6 +217,7 @@ function App() {
           <Route path="super-admin/clearances" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoClearancesPage /></ProtectedRoute>} />
           <Route path="super-admin/evaluation" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEvaluationPage /></ProtectedRoute>} />
           <Route path="super-admin/audit-logs" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
+          <Route path="super-admin/academic-years" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><AcademicYearsPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEventRequirementsPage /></ProtectedRoute>} />
           <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />

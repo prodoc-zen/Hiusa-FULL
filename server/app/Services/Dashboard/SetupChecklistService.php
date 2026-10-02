@@ -42,6 +42,7 @@ class SetupChecklistService
         $saoId = DB::table('organizations')->where('organization_type', 'SYSTEM_ADMINISTRATION')->value('id');
 
         return [
+            $this->step('academic-year', 'Set the current academic year', 'Accreditation, requirements and clearances all follow it.', DB::table('academic_years')->where('is_current', true)->exists(), '/dashboard/super-admin/academic-years'),
             $this->step('organizations', 'Register the student organizations', 'Each organization gets its own members, records and dashboard.', $organizationIds->isNotEmpty(), '/dashboard/super-admin/organizations'),
             $this->step(
                 'admins',

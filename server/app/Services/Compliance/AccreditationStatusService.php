@@ -2,6 +2,7 @@
 
 namespace App\Services\Compliance;
 
+use App\Models\AcademicYear;
 use App\Models\ComplianceRequirementType;
 use App\Models\OrganizationComplianceSubmission;
 use Illuminate\Support\Collection;
@@ -18,7 +19,8 @@ class AccreditationStatusService
 {
     public function currentAcademicYear(): ?string
     {
-        return ComplianceRequirementType::where('is_active', true)->max('academic_year');
+        // The SAO's current year wins; before one is set, the newest requirement set stands in.
+        return AcademicYear::currentLabel() ?? ComplianceRequirementType::where('is_active', true)->max('academic_year');
     }
 
     /**
