@@ -18,6 +18,8 @@ use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 /**
@@ -40,6 +42,7 @@ class DemoDataIntegrityTest extends TestCase
 
     public function test_a_freshly_seeded_database_is_actually_demonstrable(): void
     {
+        Storage::fake('local');
         $this->seed();
 
         $this->assertAdministrativeDemoAccountsAreDistinct();
@@ -53,6 +56,19 @@ class DemoDataIntegrityTest extends TestCase
         $this->assertAcademicStructureIsSeededAndStudentsArePlaced();
         $this->assertHeadlineScreensAreNotEmpty();
         $this->assertAtLeastOneStudentHasNotVotedYet();
+        $this->assertEveryAccountHasItsPrimaryProfile();
+    }
+
+    private function assertEveryAccountHasItsPrimaryProfile(): void
+    {
+        $missing = DB::table('users')->whereNotNull('organization_id')
+            ->whereNotExists(fn ($query) => $query->selectRaw('1')->from('account_profiles')
+                ->whereColumn('account_profiles.user_school_id', 'users.school_id')
+                ->whereColumn('account_profiles.organization_id', 'users.organization_id'))
+            ->pluck('school_id');
+
+        $this->assertCount(0, $missing, 'Every seeded account needs its organization profile, or it is invisible until it signs in: '.$missing->implode(', '));
+        $this->assertSame(0, DB::table('tasks')->whereNotNull('assigned_to')->whereNull('assigned_at')->count(), 'Seeded assignments need a date for delegation recency.');
     }
 
     private function assertAdministrativeDemoAccountsAreDistinct(): void
