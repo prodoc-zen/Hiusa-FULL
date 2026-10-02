@@ -104,4 +104,4 @@ Eligibility comes first: active SBO Officer account, an active position, and few
 
 Every item the use-case inventory listed as missing is now in the system: administrator handover (SAOX-02), academic years (SAOX-03), bulk member import (SAOX-12), the getting-started checklist (ONBOARD-01), personal activity history (ONBOARD-05), notification preferences (ONBOARD-07), audit log export (ONBOARD-08) and the cash advance screen (EXT-03).
 
-One deliberate limit: notification preferences decide what shows in HIUSA's own notification list. The system sends no email or text notifications, so there is no other channel to configure.
+One deliberate limit: notification preferences decide what shows in HIUSA's own notification list. The only email HIUSA sends is the password reset link, so there is no other channel to configure.
