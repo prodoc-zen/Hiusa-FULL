@@ -141,7 +141,10 @@ class ClearanceController extends Controller
                 ->orWhere('last_name', 'like', "%{$search}%"));
         }
 
-        $page = $studentIdsQuery->orderBy('student_id')->paginate($filters['per_page'] ?? 20);
+        // Eloquent counts pages with count(*), which ignores DISTINCT and would count one row per
+        // required signature, so the distinct student total is computed and passed in.
+        $total = (clone $studentIdsQuery)->count('student_id');
+        $page = $studentIdsQuery->orderBy('student_id')->paginate($filters['per_page'] ?? 20, ['student_id'], 'page', null, $total);
 
         $rows = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)
             ->whereIn('student_id', $page->pluck('student_id'))

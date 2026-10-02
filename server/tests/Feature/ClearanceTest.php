@@ -188,6 +188,26 @@ class ClearanceTest extends TestCase
         $this->assertSame($studentB->school_id, $idSearch['data'][0]['student_id']);
     }
 
+    public function test_student_pages_count_students_not_signature_lines(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        User::factory()->count(3)->create(['role' => 'STUDENT', 'organization_id' => $organization->id, 'account_status' => 'active']);
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer', 'organization_adviser'],
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $this->getJson("/api/clearance-periods/{$periodId}/students?per_page=2")
+            ->assertOk()
+            ->assertJsonPath('total', 3)
+            ->assertJsonPath('last_page', 2)
+            ->assertJsonCount(2, 'data');
+        $this->getJson("/api/clearance-periods/{$periodId}/students?per_page=2&page=2")->assertOk()->assertJsonCount(1, 'data');
+    }
+
     public function test_opening_a_period_includes_a_profile_based_student_who_is_not_a_home_student(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
