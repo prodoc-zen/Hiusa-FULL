@@ -62,6 +62,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::put('/user/profile', [UserController::class, 'updateProfile'])->middleware('throttle:api-write');
     Route::put('/user/password', [UserController::class, 'updatePassword'])->middleware('throttle:api-write');
     Route::get('/me/activity', MyActivityController::class)->middleware('throttle:api-read');
+    Route::get('/user/notification-preferences', [NotificationController::class, 'preferences'])->middleware('throttle:api-read');
+    Route::put('/user/notification-preferences', [NotificationController::class, 'updatePreferences'])->middleware('throttle:api-write');
     Route::get('/student/feed', [StudentFeedController::class, 'index'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/dashboard/briefing', [DashboardBriefingController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
     Route::get('/objectives/overview', ObjectivesOverviewController::class)->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);

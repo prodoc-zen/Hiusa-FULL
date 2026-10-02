@@ -7,6 +7,8 @@ const profileMocks = vi.hoisted(() => ({
   updateProfile: vi.fn(),
   updatePassword: vi.fn(),
   getMyActivity: vi.fn(() => Promise.resolve({ data: { data: [], current_page: 1, last_page: 1, total: 0 } })),
+  getNotificationPreferences: vi.fn(() => Promise.resolve({ data: { muted: [], mutable: ['announcement', 'event', 'election', 'merchandise'] } })),
+  updateNotificationPreferences: vi.fn(),
 }));
 
 vi.mock('../../../services/profileService', () => profileMocks);

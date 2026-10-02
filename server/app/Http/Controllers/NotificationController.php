@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
 
 class NotificationController extends Controller
 {
@@ -15,8 +16,10 @@ class NotificationController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
+        $muted = $request->user()->mutedNotificationTypes();
         $query = Notification::where('user_id', $request->user()->id)
             ->where('organization_id', $request->user()->organization_id)
+            ->when($muted !== [], fn ($query) => $query->whereNotIn('notification_type', $muted))
             ->where(function ($query) {
                 $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
             });
@@ -31,6 +34,20 @@ class NotificationController extends Controller
             ...$notifications->toArray(),
             'unread_count' => $unreadCount,
         ]);
+    }
+
+    public function preferences(Request $request)
+    {
+        return response()->json(['muted' => $request->user()->mutedNotificationTypes(), 'mutable' => Notification::MUTABLE_TYPES]);
+    }
+
+    public function updatePreferences(Request $request)
+    {
+        $data = $request->validate(['muted' => ['present', 'array'], 'muted.*' => ['string', Rule::in(Notification::MUTABLE_TYPES)]]);
+        $user = $request->user();
+        $user->update(['notification_preferences' => [...(array) $user->notification_preferences, 'muted' => array_values(array_unique($data['muted']))]]);
+
+        return response()->json(['muted' => $user->fresh()->mutedNotificationTypes(), 'mutable' => Notification::MUTABLE_TYPES]);
     }
 
     public function markRead(Request $request, $id)
