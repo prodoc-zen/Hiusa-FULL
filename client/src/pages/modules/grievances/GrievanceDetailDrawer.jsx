@@ -152,10 +152,10 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
               <div className="border-t border-line pt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Update status</p>
                 <div className="mt-2 flex flex-wrap gap-2">
-                  {allowed.map((status) => (
+                  {allowed.map((status, index) => (
                     <Button
                       key={status}
-                      variant={status === 'dismissed' ? 'secondary' : 'primary'}
+                      variant={index === 0 && status !== 'dismissed' ? 'primary' : 'secondary'}
                       size="sm"
                       onClick={() => setPendingTransition(status)}
                     >
