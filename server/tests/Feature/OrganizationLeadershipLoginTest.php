@@ -6,6 +6,7 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
 
 class OrganizationLeadershipLoginTest extends TestCase
@@ -14,6 +15,7 @@ class OrganizationLeadershipLoginTest extends TestCase
 
     public function test_sao_seeded_advisers_and_demo_leaders_can_select_their_own_login_area(): void
     {
+        Storage::fake('local');
         $this->seed();
         $sao = Organization::where('acronym', 'SAO')->firstOrFail();
         $psits = Organization::where('acronym', 'PSITS-CCS')->firstOrFail();
