@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
+  ArrowRightLeft,
   CheckCircle2,
   Eye,
   EyeOff,
@@ -25,6 +26,7 @@ import { getApiErrorMessage } from "../../../utils/apiError";
 import ConfirmModal from "../../../components/ConfirmModal";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
 import TableRowActions from "../../../components/TableRowActions";
+import AdminHandoverDrawer from "./AdminHandoverDrawer";
 
 const LEADERSHIP_TITLES = [
   "Adviser",
@@ -66,6 +68,7 @@ export default function SystemAdminsPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [resetTarget, setResetTarget] = useState(null);
+  const [handoverTarget, setHandoverTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
@@ -382,6 +385,7 @@ export default function SystemAdminsPage() {
                     </td>
                     <td className="p-4 text-right">
                       <TableRowActions subject={`${admin.first_name} ${admin.last_name}`} label="Administrator actions" actions={[
+                        { label: 'Hand over role', icon: ArrowRightLeft, disabled: admin.account_status !== 'active', onClick: () => setHandoverTarget(admin) },
                         { label: 'Reset access', icon: KeyRound, disabled: admin.account_status !== 'active', onClick: () => setResetTarget(admin) },
                         { label: 'Edit administrator', icon: PencilLine, onClick: () => openEdit(admin) },
                         { label: 'Delete administrator', icon: Trash2, danger: true, onClick: () => setDeleteTarget(admin) },
@@ -556,6 +560,7 @@ export default function SystemAdminsPage() {
         onConfirm={initiatePasswordReset}
       />
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete administrator" message="This removes the administrator profile. Accounts with linked records cannot be deleted." recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''} confirmText="Delete administrator" busy={busy} onCancel={() => !busy && setDeleteTarget(null)} onConfirm={removeAdmin} />
+      <AdminHandoverDrawer admin={handoverTarget} onClose={() => setHandoverTarget(null)} onDone={load} />
     </div>
   );
 }
