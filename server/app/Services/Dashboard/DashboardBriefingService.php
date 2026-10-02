@@ -59,6 +59,7 @@ class DashboardBriefingService
         private readonly DashboardInsightEngine $insightEngine,
         private readonly ClientRouteAccess $routeAccess,
         private readonly AccreditationStatusService $accreditation,
+        private readonly SetupChecklistService $setup,
     ) {}
 
     public function build(User $user): array
@@ -92,6 +93,7 @@ class DashboardBriefingService
 
         return [
             'user' => $this->userBlock($user),
+            'setup' => $this->setup->forUser($user),
             'summary' => $this->summary($attention),
             'attention' => $attention,
             'pillars' => [
@@ -122,6 +124,7 @@ class DashboardBriefingService
 
         return [
             'user' => $this->userBlock($user),
+            'setup' => $this->setup->forUser($user),
             'summary' => $this->summary($attention),
             'attention' => $attention,
             'pillars' => [
@@ -148,6 +151,7 @@ class DashboardBriefingService
 
         return [
             'user' => $this->userBlock($user),
+            'setup' => $this->setup->forUser($user),
             'summary' => $this->summary($attention),
             'attention' => $attention,
             'pillars' => [
@@ -177,6 +181,7 @@ class DashboardBriefingService
 
         return [
             'user' => $this->userBlock($user),
+            'setup' => $this->setup->forUser($user),
             'summary' => $this->summary($attention),
             'attention' => $attention,
             'pillars' => [
@@ -207,6 +212,7 @@ class DashboardBriefingService
 
         return [
             'user' => $this->userBlock($user),
+            'setup' => $this->setup->forUser($user),
             'summary' => $this->summary($attention),
             'attention' => $attention,
             'pillars' => [
