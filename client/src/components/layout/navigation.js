@@ -43,7 +43,7 @@ export const NAV_STRUCTURE = [
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
       { id: 'financial-ledger', label: 'Financial Oversight', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
-      { id: 'collections', label: 'Collections & Remittances', path: '/dashboard/finance/collections', roles: ['ADMIN'] },
+      { id: 'collections', label: 'Collections & Advances', path: '/dashboard/finance/collections', roles: ['ADMIN'] },
       { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
       { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
       { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
