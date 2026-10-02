@@ -66,7 +66,8 @@ class FinancialAccountabilityTest extends TestCase
         $this->getJson('/api/cash-advances?status=pending')
             ->assertOk()
             ->assertJsonPath('0.id', $advanceId)
-            ->assertJsonPath('0.organization_id', $admin->organization_id);
+            ->assertJsonPath('0.organization_id', $admin->organization_id)
+            ->assertJsonPath('0.borrower.first_name', $admin->first_name);
         $this->patchJson("/api/cash-advances/{$advanceId}/approve")->assertOk();
         Sanctum::actingAs($admin);
         $this->patchJson("/api/cash-advances/{$advanceId}/release")->assertOk();

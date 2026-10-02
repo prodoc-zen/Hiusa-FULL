@@ -130,7 +130,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     '/dashboard/announcements/create-announcement': 'Write an announcement and choose its audience.',
     '/dashboard/announcements/view-announcements': 'Updates from your organization.',
     '/dashboard/finance/financial-ledger': 'Review income and expenses in the organization ledger.',
-    '/dashboard/finance/collections': 'Track money received, verification, and remittance.',
+    '/dashboard/finance/collections': 'Track money received, its verification and remittance, and cash advances to officers.',
     '/dashboard/finance/student-accounts': 'Review charges, payments, and student clearance.',
     '/dashboard/finance/budget-allocation': 'Plan and review organization budgets.',
     '/dashboard/finance/financial-insights': 'Review financial forecasts and trends.',

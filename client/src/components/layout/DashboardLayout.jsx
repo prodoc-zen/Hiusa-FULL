@@ -46,7 +46,7 @@ const pageTitles = {
   '/dashboard/student': 'Student Dashboard',
   '/dashboard/finance': 'Financial Management',
   '/dashboard/finance/financial-ledger': 'Digital Ledger',
-  '/dashboard/finance/collections': 'Collections & Remittances',
+  '/dashboard/finance/collections': 'Collections, Remittances & Cash Advances',
   '/dashboard/finance/student-accounts': 'Student Financial Accounts',
   '/dashboard/finance/budget-allocation': 'Budget Allocation',
   '/dashboard/finance/financial-insights': 'Financial Insights',

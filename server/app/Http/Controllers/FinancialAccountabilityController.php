@@ -149,7 +149,7 @@ class FinancialAccountabilityController extends Controller
     public function advances(Request $request)
     {
         $filters = $request->validate(['status' => ['nullable', 'in:pending,approved,released,partially_repaid,fully_repaid']]);
-        $query = CashAdvance::with(['repayments', 'organization:id,name,acronym'])
+        $query = CashAdvance::with(['repayments', 'organization:id,name,acronym', 'borrower:school_id,first_name,last_name'])
             ->where('organization_id', $request->user()->organization_id)
             ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->latest();

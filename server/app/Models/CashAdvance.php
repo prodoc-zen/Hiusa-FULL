@@ -15,6 +15,11 @@ class CashAdvance extends Model
         return ['amount' => 'decimal:2', 'approved_at' => 'datetime', 'released_at' => 'datetime'];
     }
 
+    public function borrower(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'borrower_id', 'school_id');
+    }
+
     public function repayments(): HasMany
     {
         return $this->hasMany(CashAdvanceRepayment::class);
