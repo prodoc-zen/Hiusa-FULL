@@ -201,7 +201,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         <img src={hiusaLogo} alt="HIUSA logo" className={`h-10 w-10 object-contain ${desktopCollapsed ? 'lg:hidden' : ''}`} />
         <div className={desktopCollapsed ? 'lg:hidden' : ''}>
           <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
-          <p className="text-[11px] font-medium text-slate-300">{roleLabel} System</p>
+          {/* <p className="text-[11px] font-medium text-slate-300">{roleLabel} System</p> */}
         </div>
         <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
