@@ -712,4 +712,46 @@ class DashboardBriefingTest extends TestCase
         $this->assertStringContainsString('₱600.00 spent', $finance['context']);
         $this->assertStringNotContainsString('left of', $finance['context']);
     }
+
+    public function test_admin_is_told_about_events_that_ended_but_were_never_closed(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        $stale = Event::factory()->create(['organization_id' => $organization->id, 'title' => 'Leadership Seminar', 'status' => 'ongoing', 'start_time' => now()->subDays(10), 'end_time' => now()->subDays(8)]);
+        Event::factory()->create(['organization_id' => $organization->id, 'status' => 'completed', 'start_time' => now()->subDays(10), 'end_time' => now()->subDays(8)]);
+        Event::factory()->create(['organization_id' => $organization->id, 'status' => 'approved', 'start_time' => now()->addDay(), 'end_time' => now()->addDays(2)]);
+        Sanctum::actingAs($admin);
+
+        $items = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->where('type', 'event_needs_closing')->values();
+
+        $this->assertCount(1, $items);
+        $this->assertSame('event-stale-'.$stale->id, $items[0]['id']);
+        $this->assertStringContainsString('"Leadership Seminar" ended', $items[0]['detail']);
+        $this->assertStringContainsString('still marked Ongoing', $items[0]['detail']);
+        $this->assertSame('/dashboard/events/manage-events', $items[0]['href']);
+    }
+
+    public function test_headlines_read_as_plain_sentences_and_count_whole_queues(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        foreach ([1, 2] as $i) {
+            Task::factory()->create(['organization_id' => $organization->id, 'status' => 'overdue', 'deadline' => now()->subDays($i)]);
+            Event::factory()->create(['organization_id' => $organization->id, 'status' => 'ongoing', 'start_time' => now()->subDays(5 + $i), 'end_time' => now()->subDays(4 + $i)]);
+        }
+        Sanctum::actingAs($admin);
+        $this->assertSame('Two overdue tasks and two events to close need you today.', $this->getJson('/api/dashboard/briefing')->json('summary.headline'));
+
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $student = User::factory()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $venue = DB::table('venues')->insertGetId(['name' => 'Covered Court', 'location' => 'Main campus', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        foreach ([1, 2, 3] as $i) {
+            DB::table('venue_bookings')->insert(['venue_id' => $venue, 'organization_id' => $organization->id, 'requested_by' => $admin->school_id, 'start_time' => now()->addDays($i), 'end_time' => now()->addDays($i)->addHours(2), 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table('grievances')->insert(['organization_id' => $organization->id, 'submitted_by' => $student->school_id, 'title' => 'Chained exit', 'description' => 'The gym exit is chained.', 'urgency' => 'Critical', 'status' => 'submitted', 'created_at' => now(), 'updated_at' => now()]);
+        Sanctum::actingAs($director);
+
+        $this->assertSame('One urgent grievance and three venue bookings to review need you today.', $this->getJson('/api/dashboard/briefing')->json('summary.headline'));
+    }
 }

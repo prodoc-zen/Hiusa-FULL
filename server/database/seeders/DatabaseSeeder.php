@@ -80,5 +80,7 @@ class DatabaseSeeder extends Seeder
 
         // The Task hook dates every assignment for delegation recency.
         DB::table('tasks')->whereNotNull('assigned_to')->whereNull('assigned_at')->update(['assigned_at' => DB::raw('created_at')]);
+        DB::table('tasks')->where('status', 'completed')->update(['progress_percent' => 100]);
+        DB::table('tasks')->where('status', 'completed')->whereNull('completed_at')->update(['completed_at' => DB::raw('updated_at')]);
     }
 }
