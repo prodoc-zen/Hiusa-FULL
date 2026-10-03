@@ -1,6 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
+import { dashboardPopupTop } from '../utils/dashboardPopupTop';
 
 export default function TableRowActions({ subject, actions, label = 'Actions' }) {
   const menuId = useId();
@@ -59,11 +60,12 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
     }
     const rect = triggerRef.current.getBoundingClientRect();
     const width = Math.min(224, window.innerWidth - 24);
-    const height = Math.min(62 + available.length * 44, window.innerHeight - 24);
-    const above = window.innerHeight - rect.bottom < height + 16 && rect.top > height;
+    const minTop = dashboardPopupTop();
+    const height = Math.min(62 + available.length * 44, Math.max(44, window.innerHeight - minTop - 12));
+    const above = window.innerHeight - rect.bottom < height + 16 && rect.top - height - 8 >= minTop;
     setPosition({
       left: Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12)),
-      top: Math.max(12, Math.min(above ? rect.top - height - 8 : rect.bottom + 8, window.innerHeight - height - 12)),
+      top: Math.max(minTop, Math.min(above ? rect.top - height - 8 : rect.bottom + 8, window.innerHeight - height - 12)),
     });
     setOpen(true);
   };
@@ -89,7 +91,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
           role="menu"
           aria-label={`${label} for ${subject}`}
           style={position}
-          className="fixed z-[100] max-h-[calc(100vh-24px)] w-56 max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)]"
+          className="fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 max-w-[calc(100vw-24px)] overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)]"
         >
           <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">{label}</p>

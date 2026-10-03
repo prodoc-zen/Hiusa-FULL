@@ -88,7 +88,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="overlay-fade-in fixed inset-0 z-[70] flex items-end justify-center bg-navy-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="app-overlay overlay-fade-in fixed inset-0 z-[70] flex items-end justify-center bg-navy-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
       role="presentation"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {

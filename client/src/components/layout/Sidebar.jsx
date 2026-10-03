@@ -5,6 +5,7 @@ import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-re
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
+import { dashboardPopupTop } from '../../utils/dashboardPopupTop';
 import { ROLE_LABELS, getNavForRole, getVisibleChildren, profileNav, resolveItemPath } from './navigation';
 
 function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = false }) {
@@ -210,7 +211,8 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                   onClick={(event) => {
                     if (desktopCollapsed && window.innerWidth >= 1024) {
                       flyoutTriggerRef.current = event.currentTarget;
-                      const top = Math.min(event.currentTarget.getBoundingClientRect().top, Math.max(16, window.innerHeight - 320));
+                      const minTop = dashboardPopupTop();
+                      const top = Math.max(minTop, Math.min(event.currentTarget.getBoundingClientRect().top, window.innerHeight - 320));
                       setFlyout((current) => current?.id === item.id ? null : { id: item.id, top });
                       return;
                     }
@@ -269,10 +271,10 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      {isOpen && <div className="mobile-nav-overlay fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`mobile-nav-overlay fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       {flyoutGroup && createPortal(
-        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-2rem))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
+        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
           <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>
           <nav aria-label={`${flyoutGroup.label} pages`} className="space-y-0.5">
             {getVisibleChildren(flyoutGroup, role).map((child) => <NavLink key={child.id} to={child.path} onClick={() => setFlyout(null)} className={({ isActive }) => `block min-h-11 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${isActive ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}>{child.label}</NavLink>)}

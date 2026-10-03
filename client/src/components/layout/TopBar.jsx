@@ -75,12 +75,20 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;
-    const updatePanelPosition = () => header.style.setProperty('--mobile-panel-top', `${Math.ceil(header.getBoundingClientRect().bottom + 8)}px`);
+    const updatePanelPosition = () => {
+      const bottom = Math.ceil(header.getBoundingClientRect().bottom);
+      header.style.setProperty('--mobile-panel-top', `${bottom + 8}px`);
+      document.documentElement.style.setProperty('--dashboard-navbar-bottom', `${bottom}px`);
+    };
     updatePanelPosition();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePanelPosition);
     observer?.observe(header);
     window.addEventListener('resize', updatePanelPosition);
-    return () => { observer?.disconnect(); window.removeEventListener('resize', updatePanelPosition); };
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updatePanelPosition);
+      document.documentElement.style.removeProperty('--dashboard-navbar-bottom');
+    };
   }, []);
 
   const user = (() => {

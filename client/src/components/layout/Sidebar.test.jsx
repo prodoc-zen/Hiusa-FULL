@@ -109,6 +109,7 @@ describe('desktop sidebar rail', () => {
     expect(document.querySelector('aside')).toHaveAttribute('inert');
     view.rerender(<MemoryRouter><SidebarHarness mobileOpen onClose={onClose} /></MemoryRouter>);
     expect(screen.getByRole('dialog', { name: 'Navigation menu' })).not.toHaveAttribute('inert');
+    expect(screen.getByRole('dialog', { name: 'Navigation menu' })).toHaveClass('mobile-nav-overlay');
     expect(document.body.style.overflow).toBe('hidden');
     fireEvent.keyDown(document, { key: 'Escape' });
     expect(onClose).toHaveBeenCalledOnce();
