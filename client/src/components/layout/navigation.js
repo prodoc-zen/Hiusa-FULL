@@ -25,7 +25,6 @@ export const NAV_STRUCTURE = [
     id: 'dashboard',
     label: 'Dashboard',
     icon: Home,
-    caption: 'Overview',
     rolePaths: {
       SUPER_ADMIN: '/dashboard/super-admin',
       ADMIN: '/dashboard/admin',
@@ -39,10 +38,9 @@ export const NAV_STRUCTURE = [
     id: 'financial',
     label: 'Financial',
     icon: financePillar.icon,
-    caption: `${financePillar.label} · ${financePillar.objectiveCode}`,
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
-      { id: 'financial-ledger', label: 'Financial Oversight', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
+      { id: 'financial-ledger', label: 'Digital Ledger', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
       { id: 'collections', label: 'Collections & Advances', path: '/dashboard/finance/collections', roles: ['ADMIN'] },
       { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
       { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
@@ -56,7 +54,6 @@ export const NAV_STRUCTURE = [
     id: 'events',
     label: 'Events',
     icon: eventsPillar.icon,
-    caption: `${eventsPillar.label} · ${eventsPillar.objectiveCode}`,
     roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
       { id: 'manage-events', label: 'Manage Events', path: '/dashboard/events/manage-events', roles: ['ADMIN'] },
@@ -69,7 +66,6 @@ export const NAV_STRUCTURE = [
     id: 'tasks',
     label: 'Task Management',
     icon: tasksPillar.icon,
-    caption: `${tasksPillar.label} · ${tasksPillar.objectiveCode}`,
     roles: ['SBO_OFFICER', 'ADMIN'],
     children: [
       { id: 'task-board', label: 'Task Board', path: '/dashboard/tasks/task-board', roles: ['ADMIN'] },
@@ -83,10 +79,9 @@ export const NAV_STRUCTURE = [
     id: 'elections',
     label: 'Elections',
     icon: electionsPillar.icon,
-    caption: `${electionsPillar.label} · ${electionsPillar.objectiveCode}`,
     roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
-      { id: 'manage-elections', label: 'Election Workspace', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
+      { id: 'manage-elections', label: 'Manage Elections', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
       { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'manage-voters', label: 'Voters', path: '/dashboard/elections/manage-voters', roles: ['SBO_OFFICER'] },
       { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['ADMIN'] },
@@ -98,7 +93,6 @@ export const NAV_STRUCTURE = [
     id: 'merchandise',
     label: 'Merchandise',
     icon: merchandisePillar.icon,
-    caption: `${merchandisePillar.label} · ${merchandisePillar.objectiveCode}`,
     roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
       { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
@@ -112,17 +106,16 @@ export const NAV_STRUCTURE = [
     id: 'announcements',
     label: 'Announcements',
     icon: communicationPillar.icon,
-    caption: `Communication · ${communicationPillar.objectiveCode}`,
     roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'],
     children: [
-      { id: 'manage-announcements', label: 'Manage', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'create-announcement', label: 'Create', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'View Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
+      { id: 'manage-announcements', label: 'Manage Announcements', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'create-announcement', label: 'Create Announcement', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
+      { id: 'view-announcements', label: 'Announcements Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
     ],
   },
   {
     id: 'users',
-    label: 'Users & Positions',
+    label: 'Organization Setup',
     icon: Users,
     roles: ['ADMIN', 'SBO_OFFICER'],
     children: [
@@ -161,8 +154,6 @@ export const NAV_STRUCTURE = [
   },
   { id: 'study-objectives', label: 'Study Objectives', icon: Target, path: '/dashboard/objectives', roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
 ];
-
-export const GOVERNANCE_IDS = new Set(['users', 'approvals', 'submit-request', 'audit-logs', 'sao-administration', 'governance', 'study-objectives']);
 
 export const profileNav = [
   { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: Users },
@@ -234,7 +225,7 @@ export function getFlatPages(role) {
     }
 
     const path = resolveItemPath(item, role);
-    pages.push({ id: item.id, label: item.label, path, section: item.caption || item.label, icon: item.icon || Home });
+    pages.push({ id: item.id, label: item.label, path, section: item.label, icon: item.icon || Home });
   });
 
   profileNav.forEach((item) => {

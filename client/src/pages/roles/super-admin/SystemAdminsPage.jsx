@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
@@ -432,7 +433,7 @@ export default function SystemAdminsPage() {
             <div className="grid gap-4 p-5 sm:grid-cols-2">
               {!isEditing && (
                 <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                  School ID *
+                 <FieldIcon label="School ID *" /> School ID *
                   <input required type="number" min="1" max="99999999" value={form.school_id} onChange={(event) => updateField("school_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
                 </label>
               )}
@@ -443,30 +444,30 @@ export default function SystemAdminsPage() {
                 </div>
               )}
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                First name *
+               <FieldIcon label="First name *" /> First name *
                 <input required value={form.first_name} onChange={(event) => updateField("first_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                Last name *
+               <FieldIcon label="Last name *" /> Last name *
                 <input required value={form.last_name} onChange={(event) => updateField("last_name", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-                Email address *
+               <FieldIcon label="Email address *" /> Email address *
                 <input required type="email" value={form.email} onChange={(event) => updateField("email", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                Contact number
+               <FieldIcon label="Contact number" /> Contact number
                 <input inputMode="tel" value={form.contact_number} onChange={(event) => updateField("contact_number", event.target.value)} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                Position title
+               <FieldIcon label="Position title" /> Position title
                 <input list="admin-leadership-titles" value={form.position_title} onChange={(event) => updateField("position_title", event.target.value)} placeholder="Select or enter a title" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
                 <datalist id="admin-leadership-titles">
                   {LEADERSHIP_TITLES.map((title) => <option key={title} value={title} />)}
                 </datalist>
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-                Assigned organization *
+                <FieldIcon label="Assigned organization *" />Assigned organization *
                 <select required value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   <option value="">Select an active student organization</option>
                   {organizations
@@ -481,7 +482,7 @@ export default function SystemAdminsPage() {
               {!isEditing && (
                 <>
                   <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                    Password *
+                    <FieldIcon label="Password *" />Password *
                     <span className="relative block">
                       <input
                         required
@@ -504,7 +505,7 @@ export default function SystemAdminsPage() {
                     </span>
                   </label>
                   <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A]">
-                    Confirm password *
+                    <FieldIcon label="Confirm password *" />Confirm password *
                     <input
                       required
                       type={showPassword ? "text" : "password"}
@@ -523,7 +524,7 @@ export default function SystemAdminsPage() {
               )}
               {isEditing && (
                 <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
-                  Account status
+                 <FieldIcon label="Account status" /> Account status
                   <select value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
                     <option value="active">Active: can sign in</option>
                     <option value="inactive">Inactive: temporarily unavailable</option>

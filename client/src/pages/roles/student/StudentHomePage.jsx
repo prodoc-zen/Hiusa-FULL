@@ -85,10 +85,16 @@ export default function StudentHomePage() {
   const upcomingEvents = Array.isArray(sidebar.upcoming_events) ? sidebar.upcoming_events : [];
 
   return (
-    <div className="mx-auto w-full max-w-6xl overflow-x-hidden">
-      <div className="mb-5"><RoleBriefing /></div>
+    <div className="mx-auto w-full max-w-[1280px] space-y-6 overflow-x-hidden">
+      <RoleBriefing />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_300px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
+          <div className="flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h2 className="text-lg font-bold text-[#0F172A]">Organization feed</h2>
+              <p className="mt-0.5 text-sm text-slate-600">Updates from your organization and the university.</p>
+            </div>
+          </div>
           {initialLoading && [1, 2, 3].map((item) => <FeedSkeleton key={item} />)}
           {!initialLoading && items.map((item) => <FeedPost key={item.key} item={item} organization={organization} />)}
 

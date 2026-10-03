@@ -45,7 +45,7 @@ export default function AiInsightCard({ insight }) {
         <h3 className="text-sm font-bold text-ink">{insight.title}</h3>
         <EngineBadge engine={ENGINE_NAMES[insight.engine] || insight.engine} />
       </div>
-      <p className="text-sm font-medium leading-6 text-ink-muted">{insight.body}</p>
+      <p className="max-w-3xl text-sm font-medium leading-6 text-ink-muted">{insight.body}</p>
       <RulesDisclosure label="Why?" items={whyItems(insight.why)} />
       <div className="mt-1 flex flex-wrap items-center gap-3">
         {insight.href && (
@@ -54,7 +54,7 @@ export default function AiInsightCard({ insight }) {
           </Link>
         )}
         {insight.generated_at && (
-          <span className="text-xs font-medium text-ink-soft">Noticed {relativeTime(insight.generated_at)}</span>
+          <span className="text-xs font-medium text-ink-muted">Noticed {relativeTime(insight.generated_at)}</span>
         )}
       </div>
     </article>

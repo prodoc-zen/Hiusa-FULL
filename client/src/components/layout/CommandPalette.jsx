@@ -77,7 +77,7 @@ export default function CommandPalette({ open, onClose, role }) {
   }, [query, open]);
 
   useEffect(() => {
-    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView({ block: 'nearest' });
+    listRef.current?.querySelector('[data-active="true"]')?.scrollIntoView?.({ block: 'nearest' });
   }, [activeIndex]);
 
   function go(page) {
@@ -103,13 +103,13 @@ export default function CommandPalette({ open, onClose, role }) {
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-start justify-center bg-navy-950/50 px-4 pt-24" role="presentation">
-      <AccessibleOverlay
-        label="Command palette"
-        onClose={onClose}
-        closeOnBackdrop
-        baseClassName="w-full max-w-lg overflow-hidden rounded-card border border-line bg-surface shadow-raised"
-      >
+    <AccessibleOverlay
+      label="Go to page"
+      onClose={onClose}
+      closeOnBackdrop
+      className="fixed inset-0 z-[80] flex items-start justify-center bg-navy-950/60 px-3 pt-4 sm:px-4 sm:pt-6"
+    >
+      <div className="w-full max-w-lg overflow-hidden rounded-card border border-line bg-surface shadow-raised">
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">
           <Search size={18} className="shrink-0 text-ink-soft" aria-hidden="true" />
           <input
@@ -124,11 +124,11 @@ export default function CommandPalette({ open, onClose, role }) {
             aria-expanded="true"
             aria-controls="command-palette-listbox"
             aria-activedescendant={results[activeIndex] ? `command-palette-option-${results[activeIndex].id}` : undefined}
-            className="h-9 w-full border-0 bg-transparent text-sm font-medium text-ink placeholder:text-ink-soft focus:outline-none"
+            className="h-9 w-full border-0 bg-transparent text-sm font-medium text-ink placeholder:text-ink-muted focus:outline-none"
           />
         </div>
 
-        {isRecent && <p className="px-4 pb-1 pt-3 text-[11px] font-bold uppercase tracking-widest text-ink-soft">Recent</p>}
+        {isRecent && <p className="px-4 pb-1 pt-3 text-[11px] font-bold uppercase tracking-widest text-ink-muted">Recent</p>}
 
         <ul id="command-palette-listbox" role="listbox" aria-label="Pages" ref={listRef} className="max-h-80 overflow-y-auto p-2">
           {results.length === 0 ? (
@@ -150,13 +150,13 @@ export default function CommandPalette({ open, onClose, role }) {
                 >
                   <Icon size={16} className="shrink-0 text-ink-muted" aria-hidden="true" />
                   <span className="min-w-0 flex-1 truncate">{page.label}</span>
-                  <span className="shrink-0 text-xs font-medium text-ink-soft">{page.section}</span>
+                  {page.section !== page.label && <span className="shrink-0 text-xs font-medium text-ink-muted">{page.section}</span>}
                 </li>
               );
             })
           )}
         </ul>
-      </AccessibleOverlay>
-    </div>
+      </div>
+    </AccessibleOverlay>
   );
 }

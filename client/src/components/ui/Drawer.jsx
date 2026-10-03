@@ -42,7 +42,7 @@ export default function Drawer({ open, title, description, onClose, children, fo
       labelledBy={title ? 'drawer-title' : undefined}
       onClose={onClose}
       closeOnBackdrop
-      baseClassName={`fixed inset-0 z-[70] flex justify-end bg-navy-950/50 transition-opacity duration-150 ${closing ? 'opacity-0' : 'overlay-fade-in'}`}
+      baseClassName={`app-overlay fixed inset-0 z-[70] flex justify-end bg-navy-950/50 transition-opacity duration-150 ${closing ? 'opacity-0' : 'overlay-fade-in'}`}
     >
       <div className={`flex h-full w-full ${width} flex-col overflow-hidden border-l border-line bg-surface shadow-raised ${closing ? 'drawer-slide-out' : 'drawer-slide-in'}`}>
         {(title || onClose) && (

@@ -37,6 +37,6 @@ describe('PillarPulse', () => {
 
   it('shows a no-data message when the role has no pillars at all', () => {
     render(<PillarPulse pillars={{}} order={['finance']} />);
-    expect(screen.getByText(/No study-area data yet/i)).toBeInTheDocument();
+    expect(screen.getByText(/No activity to summarize yet/i)).toBeInTheDocument();
   });
 });

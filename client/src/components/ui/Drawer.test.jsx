@@ -8,7 +8,7 @@ describe('Drawer', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Import members' });
     expect(container).toBeEmptyDOMElement();
-    expect(dialog).toHaveClass('fixed', 'inset-0');
+    expect(dialog).toHaveClass('app-overlay', 'fixed', 'inset-0');
     expect(dialog).toContainElement(screen.getByRole('button', { name: 'Inside' }));
   });
 

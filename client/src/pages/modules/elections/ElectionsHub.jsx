@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
 import ElectionBreadcrumb from '../../../components/elections/ElectionBreadcrumb';
 import ElectionPickerPage from './ElectionPickerPage';
+import CastVoteRedirectPage from './CastVoteRedirectPage';
 import { getElectionDetails } from '../../../services/electionService';
 
 export default function ElectionsHub({ startCreateElection = false }) {
@@ -93,13 +94,14 @@ export default function ElectionsHub({ startCreateElection = false }) {
   if (!activeElection) {
     const askingToVote = location.pathname.endsWith('/cast-vote');
     const askingForResults = location.pathname.endsWith('/election-results');
+    if (askingToVote) return <CastVoteRedirectPage />;
     return <div className="space-y-4">{(askingToVote || askingForResults) && <div className="relative overflow-hidden rounded-lg border border-[#DDE7EF] bg-white p-6 text-center"><div aria-hidden="true" className="pointer-events-none h-20 rounded-lg bg-[#EEF6FB] opacity-40 blur-sm" /><div className="absolute inset-0 grid place-items-center bg-white/70 p-4"><div><h2 className="text-lg font-black text-[#0F172A]">{askingToVote ? 'No election is currently open.' : 'Election results are not available yet.'}</h2><p className="mt-1 text-sm text-[#64748B]">{askingToVote ? 'Select an open election when voting begins.' : 'Select an open election with visible live totals or a closed election with released results.'}</p></div></div></div>}<ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} /></div>;
   }
 
   return (
     <div className="space-y-5">
       <ElectionBreadcrumb election={activeElection} onClear={handleClear} />
-      <Outlet context={{ election: activeElection, role, refreshElection }} />
+      <Outlet context={{ election: activeElection, role, refreshElection, selectElection: handleSelect }} />
     </div>
   );
 }

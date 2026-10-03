@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Award, BarChart3, Trophy, UsersRound, Vote } from 'lucide-react';
-import { getElectionResults } from '../../../services/electionService';
+import { getElectionResults, getElections } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { canViewElectionResults } from '../../../utils/electionAccess';
 
@@ -12,13 +12,22 @@ function CandidatePortrait({ candidate, name, className = 'h-12 w-12' }) {
 }
 
 export default function ElectionResultsPage() {
-  const { election, role } = useOutletContext();
+  const { election, role, selectElection } = useOutletContext();
   const [positionFilter, setPositionFilter] = useState('all');
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [availableElections, setAvailableElections] = useState([]);
   const resultsAvailable = canViewElectionResults(election, role);
   const isFinal = election?.status === 'closed';
+
+  useEffect(() => {
+    let cancelled = false;
+    getElections().then((list) => {
+      if (!cancelled) setAvailableElections((Array.isArray(list) ? list : list.data || []).filter((item) => canViewElectionResults(item, role)));
+    }).catch(() => { if (!cancelled) setAvailableElections([]); });
+    return () => { cancelled = true; };
+  }, [role]);
 
   useEffect(() => {
     let cancelled = false;
@@ -39,10 +48,10 @@ export default function ElectionResultsPage() {
     return {
       candidates,
       selections: results.reduce((sum, result) => sum + Number(result.totalVotes || 0), 0),
-      voters: results.reduce((highest, result) => Math.max(highest, Number(result.totalVotes || 0)), 0),
+      voters: Number(election?.voters_count || 0),
       winners: isFinal ? results.flatMap((result) => (result.candidates || []).slice(0, Number(result.position.max_winners || 1)).filter((candidate) => candidate.votes > 0).map((candidate) => ({ ...candidate, position: result.position.title }))) : [],
     };
-  }, [results, isFinal]);
+  }, [results, isFinal, election?.voters_count]);
 
   if (!election) return <div className="py-20 text-center text-sm text-[#64748B]">Election not found.</div>;
   if (!resultsAvailable) return <div className="rounded-lg border border-amber-200 bg-amber-50 p-8 text-center"><Trophy size={36} className="mx-auto text-amber-600" /><h2 className="mt-4 text-xl font-black text-amber-900">Election results are not available yet.</h2><p className="mt-2 text-sm font-medium text-amber-800">Vote totals appear once the finalized ballot opens. Winners are declared after closing.</p></div>;
@@ -54,6 +63,7 @@ export default function ElectionResultsPage() {
 
   return (
     <div className="space-y-5">
+      {availableElections.length > 1 && <section aria-label="Choose election results"><h2 className="mb-3 text-sm font-bold text-[#0F172A]">Available results</h2><div className="grid gap-3 sm:grid-cols-2">{availableElections.map((item) => <button key={item.id} type="button" onClick={() => selectElection?.(item.id)} aria-current={item.id === election.id ? 'true' : undefined} className={`rounded-lg border p-4 text-left ${item.id === election.id ? 'border-[#0B8ED0] bg-[#EEF6FB]' : 'border-[#DDE7EF] bg-white hover:border-[#0B8ED0]'}`}><span className="text-[11px] font-bold text-[#0878B7]">{item.status === 'closed' ? 'Final results' : 'Live totals'}</span><p className="mt-1 text-sm font-bold text-[#0F172A]">{item.title}</p><p className="mt-1 text-xs text-[#64748B]">{new Date(item.start_time).toLocaleString()} – {new Date(item.end_time).toLocaleString()}</p><p className="mt-1 text-xs text-[#64748B]">{item.room || 'Online ballot'} · {Math.round((new Date(item.end_time) - new Date(item.start_time)) / 60000)} minutes</p></button>)}</div></section>}
       <section className="grid overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm lg:grid-cols-[minmax(300px,.7fr)_minmax(0,1.3fr)]">
         <div className="relative min-h-56 bg-[#0F2F62]">
           {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="absolute inset-0 h-full w-full object-cover" /> : <div className="absolute inset-0 grid place-items-center text-white/70"><Trophy size={64} strokeWidth={1.5} /></div>}
@@ -86,10 +96,11 @@ export default function ElectionResultsPage() {
         {positionResults.map(({ position, candidates, totalVotes }) => (
           <article key={position.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <header className="flex items-start justify-between gap-3 border-b border-[#DDE7EF] bg-[#F8FBFD] p-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Ballot position</p><h2 className="mt-1 text-lg font-black text-[#0F172A]">{position.title}</h2></div><div className="text-right"><p className="text-lg font-black text-[#0F172A]">{totalVotes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes cast</p></div></header>
+            {candidates.length > 1 && <div className="grid grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] items-center gap-2 border-b border-[#DDE7EF] bg-[#EEF6FB] p-4 text-center">{candidates.slice(0, 2).map((candidate, index) => <div key={candidate.id} className={index === 1 ? 'order-3' : ''}><CandidatePortrait candidate={candidate} name={candidate.name} className="mx-auto h-14 w-14" /><p className="mt-2 truncate text-xs font-bold text-[#0F172A]">{candidate.name}</p><p className="text-xs font-semibold text-[#0878B7]">{totalVotes ? Math.round(candidate.votes / totalVotes * 100) : 0}% · {candidate.votes} votes</p></div>)}<span className="order-2 rounded-full border border-[#DDE7EF] bg-white px-2 py-1 text-xs font-black text-[#0F2F62]">VS</span></div>}
             <div className="divide-y divide-[#DDE7EF]">
               {candidates.map((candidate, index) => {
                 const percentage = totalVotes > 0 ? Math.round((candidate.votes / totalVotes) * 100) : 0;
-                const isWinner = index < position.max_winners && candidate.votes > 0;
+                const isWinner = isFinal && index < position.max_winners && candidate.votes > 0;
                 return (
                   <div key={candidate.id} className={`p-4 ${isWinner ? 'bg-[#F8FBFD]' : ''}`}>
                     <div className="flex items-center gap-3"><CandidatePortrait candidate={candidate} name={candidate.name} /><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-black text-[#0F172A]">{candidate.name}</h3>{isWinner && <span className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-black text-amber-800"><Trophy size={9} /> WINNER</span>}</div><p className="mt-0.5 truncate text-xs font-semibold text-[#64748B]">{candidate.partylist}</p></div><div className="shrink-0 text-right"><p className="text-lg font-black tabular-nums text-[#0F172A]">{candidate.votes}</p><p className="text-[11px] font-bold text-[#64748B]">{percentage}%</p></div></div>

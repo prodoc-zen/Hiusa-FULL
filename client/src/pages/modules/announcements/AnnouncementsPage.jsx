@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import {
   Edit3,
@@ -271,7 +272,7 @@ export default function AnnouncementsPage() {
       >
             <form id="announcement-create-form" className="space-y-4" onSubmit={handleCreate}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Title</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Title" />Title</label>
                 <input
                   type="text"
                   value={formTitle}
@@ -281,7 +282,7 @@ export default function AnnouncementsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Content</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Content" />Content</label>
                 <textarea
                   rows={5}
                   value={formBody}
@@ -291,7 +292,7 @@ export default function AnnouncementsPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Target Audience</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Target Audience" />Target Audience</label>
                 <select
                   value={formRole}
                   onChange={(e) => setFormRole(e.target.value)}

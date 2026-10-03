@@ -1,6 +1,7 @@
 import { lazy, Suspense } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import DashboardLayout from './components/layout/DashboardLayout';
+import RouteLoadingFallback from './components/layout/RouteLoadingFallback';
 import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
 
@@ -58,18 +59,6 @@ const StudentClearancePage = lazy(() => import('./pages/modules/clearances/Stude
 const EvaluationPage = lazy(() => import('./pages/modules/evaluation/EvaluationPage'));
 const StudyObjectivesPage = lazy(() => import('./pages/modules/objectives/StudyObjectivesPage'));
 const UiKitPage = import.meta.env.DEV ? lazy(() => import('./pages/dev/UiKitPage')) : null;
-
-function RouteLoadingFallback() {
-  return (
-    <div className="space-y-4 p-1" role="status" aria-label="Loading page">
-      <div className="h-28 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {[1, 2, 3, 4].map((item) => <div key={item} className="h-32 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}
-      </div>
-      <span className="sr-only">Loading page...</span>
-    </div>
-  );
-}
 
 function getStoredRole() {
   const storedUser = localStorage.getItem('user');

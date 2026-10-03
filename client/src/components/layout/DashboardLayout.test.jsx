@@ -1,6 +1,6 @@
-import { useEffect } from 'react';
+import { lazy, Suspense, useEffect } from 'react';
 import { fireEvent, render, screen } from '@testing-library/react';
-import { MemoryRouter, Route, Routes, useNavigate } from 'react-router-dom';
+import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import DashboardLayout from './DashboardLayout';
 
@@ -34,7 +34,7 @@ function NavigateButton({ to }) {
 }
 
 describe('DashboardLayout', () => {
-  it('wraps the routed page in route-fade-in, remounted fresh on every pathname change', () => {
+  it('wraps routed pages in route-fade-in without remounting matching page components', () => {
     mountCount = 0;
     render(
       <MemoryRouter initialEntries={['/dashboard']}>
@@ -58,7 +58,53 @@ describe('DashboardLayout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go to /dashboard/other' }));
 
     expect(screen.getByText('Page two').closest('.route-fade-in')).not.toBeNull();
-    expect(mountCount).toBe(2);
+    expect(mountCount).toBe(1);
+  });
+
+  it('keeps the dashboard shell visible while a lazy route loads', () => {
+    const LoadingPage = lazy(() => new Promise(() => {}));
+    render(
+      <MemoryRouter initialEntries={['/dashboard/elections']}>
+        <Suspense fallback={<p>Whole app loading</p>}>
+          <Routes>
+            <Route path="/dashboard" element={<DashboardLayout />}>
+              <Route path="elections" element={<LoadingPage />} />
+            </Route>
+          </Routes>
+        </Suspense>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Top bar')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Collapse sidebar' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading page' })).toBeInTheDocument();
+    expect(screen.queryByText('Whole app loading')).not.toBeInTheDocument();
+  });
+
+  it('preserves a nested page while switching its child routes', () => {
+    mountCount = 0;
+    function ElectionParent() {
+      useEffect(() => { mountCount += 1; }, []);
+      return <><NavigateButton to="/dashboard/elections/results" /><Outlet /></>;
+    }
+
+    render(
+      <MemoryRouter initialEntries={['/dashboard/elections/candidates']}>
+        <Routes>
+          <Route path="/dashboard" element={<DashboardLayout />}>
+            <Route path="elections" element={<ElectionParent />}>
+              <Route path="candidates" element={<p>Candidates</p>} />
+              <Route path="results" element={<p>Results</p>} />
+            </Route>
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('Candidates')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Go to /dashboard/elections/results' }));
+    expect(screen.getByText('Results')).toBeInTheDocument();
+    expect(mountCount).toBe(1);
   });
 });
 
