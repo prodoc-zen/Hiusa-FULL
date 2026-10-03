@@ -89,6 +89,7 @@ class DashboardBriefingService
             $this->budgetUtilizationAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/finance/budget-allocation')),
             $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/task-board')),
             $this->financialReportsAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/finance/transaction-history')),
+            $this->staleEventsAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/manage-events')),
         ));
 
         return [
@@ -437,6 +438,31 @@ class DashboardBriefingService
                 'title' => 'Task overdue',
                 'detail' => "\"{$row->title}\" was due ".$deadline->diffForHumans(),
                 'due_at' => $deadline->toIso8601String(),
+                'href' => $href,
+            ];
+        })->all();
+    }
+
+    /** Events whose end has passed but that are still marked approved or ongoing, so attendance and reports never close. */
+    private function staleEventsAttention(int $organizationId, ?string $href): array
+    {
+        $rows = DB::table('events')->where('organization_id', $organizationId)
+            ->whereIn('status', ['approved', 'ongoing'])
+            ->where('end_time', '<', now())
+            ->orderBy('end_time')
+            ->limit(self::ATTENTION_LIMIT)
+            ->get(['id', 'title', 'status', 'end_time']);
+
+        return $rows->map(function ($row) use ($href) {
+            $endedAt = Carbon::parse($row->end_time);
+
+            return [
+                'id' => 'event-stale-'.$row->id,
+                'type' => 'event_needs_closing',
+                'severity' => 'medium',
+                'title' => 'Event ended but is still open',
+                'detail' => "\"{$row->title}\" ended ".$endedAt->diffForHumans().' and is still marked '.Str::headline($row->status).'. Mark it completed to close its attendance and reports.',
+                'due_at' => $endedAt->toIso8601String(),
                 'href' => $href,
             ];
         })->all();

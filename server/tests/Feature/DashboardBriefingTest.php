@@ -712,4 +712,22 @@ class DashboardBriefingTest extends TestCase
         $this->assertStringContainsString('₱600.00 spent', $finance['context']);
         $this->assertStringNotContainsString('left of', $finance['context']);
     }
+
+    public function test_admin_is_told_about_events_that_ended_but_were_never_closed(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        $stale = Event::factory()->create(['organization_id' => $organization->id, 'title' => 'Leadership Seminar', 'status' => 'ongoing', 'start_time' => now()->subDays(10), 'end_time' => now()->subDays(8)]);
+        Event::factory()->create(['organization_id' => $organization->id, 'status' => 'completed', 'start_time' => now()->subDays(10), 'end_time' => now()->subDays(8)]);
+        Event::factory()->create(['organization_id' => $organization->id, 'status' => 'approved', 'start_time' => now()->addDay(), 'end_time' => now()->addDays(2)]);
+        Sanctum::actingAs($admin);
+
+        $items = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->where('type', 'event_needs_closing')->values();
+
+        $this->assertCount(1, $items);
+        $this->assertSame('event-stale-'.$stale->id, $items[0]['id']);
+        $this->assertStringContainsString('"Leadership Seminar" ended', $items[0]['detail']);
+        $this->assertStringContainsString('still marked Ongoing', $items[0]['detail']);
+        $this->assertSame('/dashboard/events/manage-events', $items[0]['href']);
+    }
 }
