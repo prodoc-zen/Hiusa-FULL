@@ -32,11 +32,14 @@ describe('TableRowActions', () => {
 
   it('keeps the portaled menu below the navbar', () => {
     document.documentElement.style.setProperty('--dashboard-navbar-bottom', '92px');
+    document.documentElement.style.setProperty('--dashboard-sidebar-width', '260px');
     render(<TableRowActions subject="Order 12" actions={[{ label: 'Review order', onClick: vi.fn() }]} />);
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Order 12' }));
     expect(screen.getByRole('menu').style.top).toBe('100px');
+    expect(screen.getByRole('menu').style.left).toBe('272px');
 
     document.documentElement.style.removeProperty('--dashboard-navbar-bottom');
+    document.documentElement.style.removeProperty('--dashboard-sidebar-width');
   });
 });

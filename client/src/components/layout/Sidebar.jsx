@@ -1,11 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
-import { dashboardPopupTop } from '../../utils/dashboardPopupTop';
+import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import { ROLE_LABELS, getNavForRole, getVisibleChildren, profileNav, resolveItemPath } from './navigation';
 
 function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = false }) {
@@ -71,6 +71,28 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const flyoutTriggerRef = useRef(null);
 
   useEffect(() => { onCloseRef.current = onClose; }, [onClose]);
+
+  useLayoutEffect(() => {
+    const sidebar = sidebarRef.current;
+    if (!sidebar) return undefined;
+
+    const updateSidebarWidth = () => {
+      const width = window.innerWidth >= 1024
+        ? Math.max(0, Math.ceil(sidebar.getBoundingClientRect().right)) || (desktopCollapsed ? 72 : 260)
+        : 0;
+      document.documentElement.style.setProperty('--dashboard-sidebar-width', `${width}px`);
+    };
+
+    updateSidebarWidth();
+    const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updateSidebarWidth);
+    observer?.observe(sidebar);
+    window.addEventListener('resize', updateSidebarWidth);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updateSidebarWidth);
+      document.documentElement.style.removeProperty('--dashboard-sidebar-width');
+    };
+  }, [desktopCollapsed]);
 
   useEffect(() => {
     const onResize = () => {

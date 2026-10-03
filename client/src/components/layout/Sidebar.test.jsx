@@ -29,7 +29,9 @@ describe('desktop sidebar rail', () => {
   it('collapses into labeled icon links and opens grouped routes on click', () => {
     render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness /></MemoryRouter>);
 
+    expect(document.documentElement.style.getPropertyValue('--dashboard-sidebar-width')).toBe('260px');
     fireEvent.click(screen.getByRole('button', { name: 'Collapse sidebar' }));
+    expect(document.documentElement.style.getPropertyValue('--dashboard-sidebar-width')).toBe('72px');
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('title', 'Dashboard');
 
@@ -40,6 +42,16 @@ describe('desktop sidebar rail', () => {
     fireEvent.click(screen.getByRole('link', { name: 'Budget Allocation' }));
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
     expect(screen.queryByRole('region', { name: 'Financial links' })).not.toBeInTheDocument();
+  });
+
+  it('uses the visible sidebar edge for modal bounds', () => {
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ right: 218 });
+    const view = render(<MemoryRouter><SidebarHarness /></MemoryRouter>);
+
+    expect(document.documentElement.style.getPropertyValue('--dashboard-sidebar-width')).toBe('218px');
+    view.unmount();
+    expect(document.documentElement.style.getPropertyValue('--dashboard-sidebar-width')).toBe('');
+    bounds.mockRestore();
   });
 
   it('keeps direct links usable and closes the group panel with Escape', () => {
@@ -94,6 +106,7 @@ describe('desktop sidebar rail', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     const onClose = vi.fn();
     render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness initialCollapsed mobileOpen onClose={onClose} /></MemoryRouter>);
+    expect(document.documentElement.style.getPropertyValue('--dashboard-sidebar-width')).toBe('0px');
 
     fireEvent.click(screen.getByRole('button', { name: 'Financial' }));
     expect(screen.queryByRole('region', { name: 'Financial links' })).not.toBeInTheDocument();

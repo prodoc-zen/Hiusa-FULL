@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
-import { dashboardPopupTop } from '../utils/dashboardPopupTop';
+import { dashboardPopupLeft, dashboardPopupTop } from '../utils/dashboardPopupPosition';
 
 export default function TableRowActions({ subject, actions, label = 'Actions' }) {
   const menuId = useId();
@@ -59,12 +59,13 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
       return;
     }
     const rect = triggerRef.current.getBoundingClientRect();
+    const minLeft = dashboardPopupLeft();
     const width = Math.min(224, window.innerWidth - 24);
     const minTop = dashboardPopupTop();
     const height = Math.min(62 + available.length * 44, Math.max(44, window.innerHeight - minTop - 12));
     const above = window.innerHeight - rect.bottom < height + 16 && rect.top - height - 8 >= minTop;
     setPosition({
-      left: Math.max(12, Math.min(rect.right - width, window.innerWidth - width - 12)),
+      left: Math.max(minLeft, Math.min(rect.right - width, window.innerWidth - width - 12)),
       top: Math.max(minTop, Math.min(above ? rect.top - height - 8 : rect.bottom + 8, window.innerHeight - height - 12)),
     });
     setOpen(true);
