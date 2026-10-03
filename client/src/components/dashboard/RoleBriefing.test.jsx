@@ -39,7 +39,10 @@ describe('RoleBriefing', () => {
     expect(screen.getByText('Remaining budget')).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Create announcement/ })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
     expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'At a glance' })).toBeInTheDocument();
+    const indicators = screen.getByText('Organization indicators').closest('details');
+    expect(indicators).not.toHaveAttribute('open');
+    fireEvent.click(screen.getByText('Organization indicators'));
+    expect(indicators).toHaveAttribute('open');
   });
 
   it('adds the organizations health table only for the SAO', async () => {

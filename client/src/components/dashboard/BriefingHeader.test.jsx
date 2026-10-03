@@ -15,7 +15,7 @@ describe('BriefingHeader', () => {
   it('greets the user by first name, role, organization, and the headline sentence', () => {
     render(<MemoryRouter><BriefingHeader user={user} summary={{ attention_count: 3, headline: 'Two approvals and one closing election need you today.' }} /></MemoryRouter>);
 
-    expect(screen.getByRole('heading', { level: 1, name: /Good (morning|afternoon|evening), Maria/ })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { level: 2, name: /Good (morning|afternoon|evening), Maria/ })).toBeInTheDocument();
     expect(screen.getByText(/Admin/)).toBeInTheDocument();
     expect(screen.getByText(/Computer Science Society/)).toBeInTheDocument();
     expect(screen.getByText('Two approvals and one closing election need you today.')).toBeInTheDocument();

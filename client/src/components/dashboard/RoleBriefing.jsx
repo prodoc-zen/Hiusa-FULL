@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, FileText, Megaphone } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileText, Megaphone } from 'lucide-react';
 import { getBriefing } from '../../services/dashboardService';
 import { ErrorState } from '../ui';
 import AiInsightCard from './AiInsightCard';
@@ -61,25 +61,30 @@ export default function RoleBriefing() {
   const role = user?.role;
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || []} />
       <SetupChecklist setup={setup} userKey={`${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`} />
-      <section aria-labelledby="briefing-attention" className="overflow-hidden rounded-card border border-line bg-surface">
-        <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">Needs attention</h2>
-        <div className="px-4 sm:px-5"><AttentionList items={attention} /></div>
-      </section>
-      <section aria-labelledby="briefing-pulse" className="overflow-hidden rounded-card border border-line bg-surface">
-        <h2 id="briefing-pulse" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">At a glance</h2>
-        <PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} />
-      </section>
-      {insights.length > 0 && (
-        <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
-          <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">What HIUSA noticed</h2>
-          <div className="divide-y divide-line-soft px-4 sm:px-5">
-            {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
-          </div>
+      <div className={`grid items-start gap-4 ${insights.length ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' : ''}`}>
+        <section aria-labelledby="briefing-attention" className="overflow-hidden rounded-card border border-line bg-surface">
+          <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">Needs attention</h2>
+          <div className="px-4 sm:px-5"><AttentionList items={attention} /></div>
         </section>
-      )}
+        {insights.length > 0 && (
+          <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
+            <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">What HIUSA noticed</h2>
+            <div className="divide-y divide-line-soft px-4 sm:px-5">
+              {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
+            </div>
+          </section>
+        )}
+      </div>
+      <details className="group overflow-hidden rounded-card border border-line bg-surface">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
+          <span>Organization indicators</span>
+          <ChevronDown size={18} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
+      </details>
       {role === 'SUPER_ADMIN' && Array.isArray(organizations) && <OrganizationsHealthTable organizations={organizations} />}
     </div>
   );
