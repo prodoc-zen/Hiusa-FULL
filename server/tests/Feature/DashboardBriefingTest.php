@@ -730,4 +730,28 @@ class DashboardBriefingTest extends TestCase
         $this->assertStringContainsString('still marked Ongoing', $items[0]['detail']);
         $this->assertSame('/dashboard/events/manage-events', $items[0]['href']);
     }
+
+    public function test_headlines_read_as_plain_sentences_and_count_whole_queues(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        foreach ([1, 2] as $i) {
+            Task::factory()->create(['organization_id' => $organization->id, 'status' => 'overdue', 'deadline' => now()->subDays($i)]);
+            Event::factory()->create(['organization_id' => $organization->id, 'status' => 'ongoing', 'start_time' => now()->subDays(5 + $i), 'end_time' => now()->subDays(4 + $i)]);
+        }
+        Sanctum::actingAs($admin);
+        $this->assertSame('Two overdue tasks and two events to close need you today.', $this->getJson('/api/dashboard/briefing')->json('summary.headline'));
+
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $student = User::factory()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $venue = DB::table('venues')->insertGetId(['name' => 'Covered Court', 'location' => 'Main campus', 'is_active' => true, 'created_at' => now(), 'updated_at' => now()]);
+        foreach ([1, 2, 3] as $i) {
+            DB::table('venue_bookings')->insert(['venue_id' => $venue, 'organization_id' => $organization->id, 'requested_by' => $admin->school_id, 'start_time' => now()->addDays($i), 'end_time' => now()->addDays($i)->addHours(2), 'status' => 'pending', 'created_at' => now(), 'updated_at' => now()]);
+        }
+        DB::table('grievances')->insert(['organization_id' => $organization->id, 'submitted_by' => $student->school_id, 'title' => 'Chained exit', 'description' => 'The gym exit is chained.', 'urgency' => 'Critical', 'status' => 'submitted', 'created_at' => now(), 'updated_at' => now()]);
+        Sanctum::actingAs($director);
+
+        $this->assertSame('One urgent grievance and three venue bookings to review need you today.', $this->getJson('/api/dashboard/briefing')->json('summary.headline'));
+    }
 }

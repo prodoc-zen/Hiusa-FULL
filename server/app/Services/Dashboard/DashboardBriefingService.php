@@ -52,6 +52,11 @@ class DashboardBriefingService
         'order_ready_to_claim' => ['order ready to claim', 'orders ready to claim'],
         'event_attendance_due' => ['event needing attendance', 'events needing attendance'],
         'event_today' => ['event today', 'events today'],
+        'event_needs_closing' => ['event to close', 'events to close'],
+        'venue_bookings_pending' => ['venue booking to review', 'venue bookings to review'],
+        'compliance_submissions_pending' => ['compliance submission to review', 'compliance submissions to review'],
+        'grievances_urgent' => ['urgent grievance', 'urgent grievances'],
+        'clearance_sao_pending' => ['clearance to sign', 'clearances to sign'],
     ];
 
     public function __construct(
@@ -299,20 +304,21 @@ class DashboardBriefingService
                 default => 2,
             });
 
+        $weight = fn ($items) => $items->sum(fn (array $item) => $item['count'] ?? 1);
         $clauses = [];
         $named = 0;
         foreach ($bySeverity as $type => $items) {
             if ($named >= 2) {
                 break;
             }
-            $count = $items->count();
-            [$singular, $plural] = self::TYPE_LABELS[$type] ?? [$type, $type.'s'];
+            $count = $weight($items);
+            [$singular, $plural] = self::TYPE_LABELS[$type] ?? [str_replace('_', ' ', $type), str_replace('_', ' ', $type)];
             $clauses[] = $this->numberWord($count).' '.($count === 1 ? $singular : $plural);
             $named++;
         }
 
-        $namedTotal = $bySeverity->take(2)->sum(fn ($items) => $items->count());
-        $remaining = count($attention) - $namedTotal;
+        $total = $weight(collect($attention));
+        $remaining = $total - $bySeverity->take(2)->sum($weight);
 
         $sentence = count($clauses) > 1
             ? ucfirst($clauses[0]).' and '.$clauses[1]
@@ -322,14 +328,14 @@ class DashboardBriefingService
             $sentence .= ' (and '.$remaining.' more)';
         }
 
-        $verb = count($attention) === 1 ? 'needs' : 'need';
+        $verb = $total === 1 ? 'needs' : 'need';
 
         return $sentence.' '.$verb.' you today.';
     }
 
     private function numberWord(int $count): string
     {
-        $words = [1 => 'One', 2 => 'Two', 3 => 'Three', 4 => 'Four', 5 => 'Five', 6 => 'Six', 7 => 'Seven', 8 => 'Eight', 9 => 'Nine', 10 => 'Ten'];
+        $words = [1 => 'one', 2 => 'two', 3 => 'three', 4 => 'four', 5 => 'five', 6 => 'six', 7 => 'seven', 8 => 'eight', 9 => 'nine', 10 => 'ten'];
 
         return $words[$count] ?? (string) $count;
     }
@@ -1092,9 +1098,8 @@ class DashboardBriefingService
      * venue bookings, compliance submissions awaiting review, unresolved
      * high/critical urgency grievances (count only, no identities - the
      * grievance identity leak this briefing must never repeat), and pending
-     * SAO clearance lines. None of these have a client page yet, so their
-     * href resolves through the same allowlist as everything else and comes
-     * back null until one exists.
+     * SAO clearance lines. Each is one item standing for a whole queue, so it
+     * carries its count for the headline.
      */
     private function saoQueuesAttention(): array
     {
@@ -1105,6 +1110,7 @@ class DashboardBriefingService
             $items[] = [
                 'id' => 'sao_queue-venue_bookings',
                 'type' => 'venue_bookings_pending',
+                'count' => $pendingVenueBookings,
                 'severity' => 'medium',
                 'title' => 'Venue bookings awaiting review',
                 'detail' => "{$pendingVenueBookings} venue booking(s) are awaiting SAO review",
@@ -1118,6 +1124,7 @@ class DashboardBriefingService
             $items[] = [
                 'id' => 'sao_queue-compliance',
                 'type' => 'compliance_submissions_pending',
+                'count' => $pendingCompliance,
                 'severity' => 'medium',
                 'title' => 'Compliance submissions awaiting review',
                 'detail' => "{$pendingCompliance} compliance submission(s) are awaiting review",
@@ -1134,6 +1141,7 @@ class DashboardBriefingService
             $items[] = [
                 'id' => 'sao_queue-grievances',
                 'type' => 'grievances_urgent',
+                'count' => $urgentGrievances,
                 'severity' => 'high',
                 'title' => 'Urgent grievances unresolved',
                 'detail' => "{$urgentGrievances} high or critical urgency grievance(s) remain unresolved",
@@ -1147,6 +1155,7 @@ class DashboardBriefingService
             $items[] = [
                 'id' => 'sao_queue-clearance',
                 'type' => 'clearance_sao_pending',
+                'count' => $pendingSaoClearances,
                 'severity' => 'medium',
                 'title' => 'SAO clearance lines pending',
                 'detail' => "{$pendingSaoClearances} SAO clearance line(s) are pending your signature",
