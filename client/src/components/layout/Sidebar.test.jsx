@@ -54,6 +54,13 @@ describe('desktop sidebar rail', () => {
     expect(financial).toHaveFocus();
   });
 
+  it('keeps the organization badge out of the sidebar', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Test', last_name: 'Admin', organization: { name: 'Information Technology Students', acronym: 'PSITS' } }));
+    render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness /></MemoryRouter>);
+    expect(screen.queryByRole('img', { name: 'Information Technology Students' })).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'HIUSA logo' })).toBeInTheDocument();
+  });
+
   it('keeps role-specific links in the collapsed rail', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', first_name: 'Sao', last_name: 'Director' }));
     render(<MemoryRouter initialEntries={['/dashboard/super-admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
@@ -63,6 +70,24 @@ describe('desktop sidebar rail', () => {
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Administrators' }));
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/super-admin/admins');
+  });
+
+  it.each([
+    ['ADMIN', '/dashboard/admin', 'Organization Setup', 'Manage Users'],
+    ['SBO_OFFICER', '/dashboard/officer', 'Participant Biometrics', 'Manage Users'],
+    ['DEPARTMENT_HEAD', '/dashboard/department-head', 'Announcements Feed', 'Organization Setup'],
+    ['STUDENT', '/dashboard/student', 'Announcements Feed', 'Organization Setup'],
+    ['SUPER_ADMIN', '/dashboard/super-admin', 'SAO Administration', 'Organization Setup'],
+  ])('shows sensible navigation for %s without section captions', (role, path, expected, absent) => {
+    localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
+    render(<MemoryRouter initialEntries={[path]}><SidebarHarness /></MemoryRouter>);
+
+    expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('href', path);
+    expect(screen.getByText(expected)).toBeInTheDocument();
+    expect(screen.queryByText(absent)).not.toBeInTheDocument();
+    expect(screen.queryByText('Overview')).not.toBeInTheDocument();
+    expect(screen.queryByText(/S02\.1/)).not.toBeInTheDocument();
+    expect(screen.queryByText('Account')).not.toBeInTheDocument();
   });
 
   it('keeps the existing mobile drawer and submenu behavior', () => {

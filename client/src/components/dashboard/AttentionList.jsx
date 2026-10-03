@@ -18,7 +18,7 @@ function Row({ item }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-ink">{item.title}</p>
         <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">{item.detail}</p>
-        {item.due_at && <p className="mt-1 text-xs font-semibold text-ink-soft">{relativeTime(item.due_at)}</p>}
+        {item.due_at && <p className="mt-1 text-xs font-semibold text-ink-muted">{relativeTime(item.due_at)}</p>}
       </div>
       {item.href && <ChevronRight size={16} className="shrink-0 text-ink-soft" aria-hidden="true" />}
     </>
@@ -47,7 +47,7 @@ function Row({ item }) {
 export default function AttentionList({ items = [] }) {
   if (items.length === 0) {
     return (
-      <div className="flex items-start gap-3 rounded-card border border-line bg-surface px-4 py-3.5 shadow-card">
+      <div className="flex items-start gap-3 py-4">
         <ShieldCheck size={20} className="mt-0.5 shrink-0 text-success-strong" aria-hidden="true" />
         <div>
           <p className="text-sm font-bold text-ink">Nothing is waiting on you</p>

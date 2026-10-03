@@ -37,7 +37,9 @@ describe('RoleBriefing', () => {
     expect(await screen.findByText('One approval needs you today.')).toBeInTheDocument();
     expect(screen.getByText('Foundation Week budget')).toBeInTheDocument();
     expect(screen.getByText('Remaining budget')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: /Study objectives/ })).toHaveAttribute('href', '/dashboard/objectives');
+    expect(screen.getByRole('link', { name: /Create announcement/ })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+    expect(screen.getByRole('heading', { name: 'Needs attention' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'At a glance' })).toBeInTheDocument();
   });
 
   it('adds the organizations health table only for the SAO', async () => {
