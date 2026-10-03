@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, Clock, Coins, Download, Eye, FileText, Megaphone, Package, Search, Vote, X } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
@@ -132,7 +133,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
         <div className="mt-4"><ApprovalReceipt request={request} /></div>
         <div className="mt-4 space-y-1.5">
           <label className="text-[13px] font-semibold text-[#0F172A]">
-            Remarks {isReject ? '' : '(optional)'}
+           <FieldIcon label="Remarks" /> Remarks {isReject ? '' : '(optional)'}
           </label>
           <textarea
             value={remarks}

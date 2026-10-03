@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
+import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
@@ -74,12 +75,20 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   useEffect(() => {
     const header = headerRef.current;
     if (!header) return undefined;
-    const updatePanelPosition = () => header.style.setProperty('--mobile-panel-top', `${Math.ceil(header.getBoundingClientRect().bottom + 8)}px`);
+    const updatePanelPosition = () => {
+      const bottom = Math.ceil(header.getBoundingClientRect().bottom);
+      header.style.setProperty('--mobile-panel-top', `${bottom + 8}px`);
+      document.documentElement.style.setProperty('--dashboard-navbar-bottom', `${bottom}px`);
+    };
     updatePanelPosition();
     const observer = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(updatePanelPosition);
     observer?.observe(header);
     window.addEventListener('resize', updatePanelPosition);
-    return () => { observer?.disconnect(); window.removeEventListener('resize', updatePanelPosition); };
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener('resize', updatePanelPosition);
+      document.documentElement.style.removeProperty('--dashboard-navbar-bottom');
+    };
   }, []);
 
   const user = (() => {
@@ -97,7 +106,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const homePath = ROLE_HOME_PATHS[role] || '/dashboard';
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = user?.organization?.name || 'Organization';
-  const isAdminHome = pathname === '/dashboard/admin';
+  const isRoleHome = Object.values(ROLE_HOME_PATHS).includes(pathname);
   const headerSubtitle = {
     '/dashboard': 'Start with deadlines, then check events, funds, and merchandise queues.',
     '/dashboard/admin/users': 'Search the organization directory and manage account access.',
@@ -328,7 +337,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const cartTotal = cartItems.reduce((sum, row) => sum + (Number(row?.item?.price || 0) * Number(row?.quantity || 0)), 0);
 
   return (
-    <header ref={headerRef} className="relative z-30 mx-3 mt-3 rounded-3xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6">
+    <header ref={headerRef} className="relative z-30 mx-3 mt-3 shrink-0 rounded-3xl border border-[#DDE7EF] bg-white shadow-sm sm:mx-6 sm:mt-6">
       <div className="flex min-h-16 flex-wrap items-center gap-2 px-3 py-2 sm:gap-3 sm:px-6 sm:py-3">
         {/* Hamburger toggle */}
         <button
@@ -339,6 +348,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         >
           <Menu size={19} />
         </button>
+        <img src={hiusaLogo} alt="" className="h-8 w-8 shrink-0 object-contain lg:hidden" />
 
         {/* Page title */}
         <div className="order-last min-w-0 w-full flex-none border-t border-[#DDE7EF] pt-2 sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
@@ -348,14 +358,13 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             {parentLabel && <span>{parentLabel}</span>}
           </nav>
           <h1 className="break-words text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
-          {isAdminHome && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">Welcome back, {user?.first_name || 'Administrator'}. Review today’s orders, requests, tasks, and updates.</p>}
-          {headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
+          {!isRoleHome && headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
         </div>
 
         <button
           type="button"
           onClick={() => setPaletteOpen(true)}
-          aria-label="Search pages"
+          aria-label="Go to page"
           aria-keyshortcuts="Control+K Meta+K"
           className="flex h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-2.5 text-sm font-medium text-ink-muted transition-colors hover:bg-[#F8FBFD] hover:text-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/40 sm:px-3"
         >
@@ -616,6 +625,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         title="Log Out"
         message="You will need to sign in again to access your dashboard."
         confirmText="Log Out"
+        variant="primary"
         busy={logoutBusy}
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
         onConfirm={handleLogout}

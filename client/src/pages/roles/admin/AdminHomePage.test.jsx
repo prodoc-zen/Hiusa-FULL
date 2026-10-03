@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminHomePage from './AdminHomePage';
@@ -18,8 +18,8 @@ describe('AdminHomePage', () => {
   it('shows live operational counts, ledger movement, announcement preview, and destinations', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
     expect(await screen.findByText('Enrollment notice')).toBeInTheDocument();
-    expect(screen.getByText('Pending Orders').parentElement).toHaveTextContent('4');
-    expect(screen.getByText('Approval Requests').parentElement).toHaveTextContent('2');
+    expect(screen.getByText('Pending Orders').closest('a')).toHaveTextContent('4');
+    expect(screen.getByText('Approval Requests').closest('a')).toHaveTextContent('2');
     expect(screen.getByRole('img', { name: /monthly ledger income and expenses/i })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: /manage user accounts/i })).toHaveAttribute('href', '/dashboard/admin/users');
     expect(screen.getByRole('link', { name: /create announcement/i })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
@@ -31,7 +31,7 @@ describe('AdminHomePage', () => {
     dashboardMock.getAdminDashboard.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ data: { ...payload, movement: [] } });
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be loaded');
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: /try again/i }));
     expect(await screen.findByText('No ledger transactions in this period.')).toBeInTheDocument();
   });
 });

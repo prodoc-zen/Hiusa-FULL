@@ -29,7 +29,7 @@ function DeltaTag({ delta }) {
     <span className={`inline-flex items-center gap-1 text-xs font-bold ${DELTA_TONE[delta.direction] || DELTA_TONE.flat}`}>
       <Icon size={13} aria-hidden="true" />
       {sign}{peso(delta.value)}
-      <span className="font-medium text-ink-soft">{delta.period}</span>
+      <span className="font-medium text-ink-muted">{delta.period}</span>
     </span>
   );
 }
@@ -44,18 +44,18 @@ export default function PillarPulse({ pillars = {}, order = [] }) {
   const keys = order.filter((key) => pillars[key]);
 
   if (keys.length === 0) {
-    return <p className="py-6 text-center text-sm font-medium text-ink-muted">No study-area data yet for this organization.</p>;
+    return <p className="px-5 py-6 text-sm font-medium text-ink-muted">No activity to summarize yet.</p>;
   }
 
   return (
-    <div className="divide-y divide-line-soft">
+    <div className="grid gap-px bg-line-soft sm:grid-cols-2 xl:grid-cols-3">
       {keys.map((key) => {
         const pillar = PILLAR_BY_KEY[key];
         const data = pillars[key];
         const Icon = pillar?.icon;
 
         return (
-          <div key={key} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0 sm:flex-row sm:items-center sm:justify-between">
+          <div key={key} className="flex min-w-0 flex-col justify-between gap-3 bg-surface p-4 sm:p-5">
             <div className="flex min-w-0 items-start gap-3">
               {Icon && (
                 <span className="grid h-10 w-10 shrink-0 place-items-center rounded-control bg-brand-50 text-brand-600">
@@ -63,16 +63,16 @@ export default function PillarPulse({ pillars = {}, order = [] }) {
                 </span>
               )}
               <div className="min-w-0">
-                <p className="text-xs font-semibold text-ink-muted">{data.label}</p>
+                <p className="text-sm font-semibold text-ink-muted">{data.label}</p>
                 <p className="mt-0.5 text-xl font-extrabold tabular-nums text-ink">{formatValue(data.unit, data.value)}</p>
                 <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">{data.context}</p>
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 sm:w-64 sm:shrink-0 sm:items-end">
-              {data.delta && <div className="whitespace-nowrap"><DeltaTag delta={data.delta} /></div>}
+            <div className="flex min-w-0 flex-col gap-2 pl-[3.25rem]">
+              {data.delta && <div><DeltaTag delta={data.delta} /></div>}
               {data.meter && (
-                <div className="w-full sm:w-40">
+                <div className="w-full max-w-56">
                   <Meter value={data.meter.value} limit={data.meter.limit} label={pillar?.shortLabel || data.label} format={meterFormat(data.unit)} />
                 </div>
               )}

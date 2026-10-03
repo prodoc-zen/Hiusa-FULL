@@ -147,6 +147,18 @@ class UserController extends Controller
             return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
+        if ($validatedData['role'] === 'STUDENT' && ! AcademicProgram::where('organization_id', $organizationId)->exists()) {
+            throw ValidationException::withMessages([
+                'program' => ['Configure a course/program before creating a student account.'],
+            ]);
+        }
+
+        if ($validatedData['role'] === 'STUDENT' && empty($validatedData['program'])) {
+            throw ValidationException::withMessages([
+                'program' => ['Choose a course/program for this student.'],
+            ]);
+        }
+
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
         $validatedData = $this->normalizePositionPayload($validatedData, $actor);
 

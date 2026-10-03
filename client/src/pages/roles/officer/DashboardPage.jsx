@@ -7,8 +7,6 @@ import {
   Coins,
   Megaphone,
   Package,
-  Plus,
-  Vote,
 } from 'lucide-react';
 import { getTasks } from '../../../services/taskService';
 import { getEvents } from '../../../services/eventService';
@@ -120,15 +118,6 @@ export default function DashboardPage() {
     { label: 'Pending Orders', value: loading ? '-' : stats.pendingOrders, helper: 'Merchandise awaiting action', icon: Package },
   ];
 
-  const modules = [
-    { label: 'My Receipts', desc: 'Personal receipts and payment records', path: '/dashboard/finance/personal-receipts', icon: Coins },
-    { label: 'Events', desc: 'Attendance and event operations', path: '/dashboard/events', icon: CalendarDays },
-    { label: 'Tasks', desc: 'View and update assigned tasks', path: '/dashboard/tasks', icon: ClipboardList },
-    { label: 'Elections', desc: 'Candidates, voters, ballots, and results', path: '/dashboard/elections', icon: Vote },
-    { label: 'Merchandise', desc: 'Orders, claims, and personal shopping', path: '/dashboard/merchandise', icon: Package },
-    { label: 'Announcements', desc: 'Draft, submit, and view notices', path: '/dashboard/announcements', icon: Megaphone },
-  ];
-
   const quickActions = [
     { label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', icon: ClipboardList },
     { label: 'Event Check-In', path: '/dashboard/events/check-in', icon: CalendarDays },
@@ -137,7 +126,7 @@ export default function DashboardPage() {
   ];
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1280px] space-y-6">
       <RoleBriefing />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         <div className="border-b border-[#DDE7EF] px-5 py-4"><h3 className="text-base font-bold text-[#0F172A]">Operations snapshot</h3></div>
@@ -152,7 +141,7 @@ export default function DashboardPage() {
         </dl>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Urgent Tasks Table */}
         <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">
@@ -243,7 +232,7 @@ export default function DashboardPage() {
                   to={a.path}
                   className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-bold text-[#0F172A] transition hover:border-[#0B8ED0]/30 hover:bg-white hover:text-[#0878B7] sm:text-sm"
                 >
-                  <Plus size={13} className="shrink-0 text-[#0878B7]" />
+                  <a.icon size={16} className="shrink-0 text-[#0878B7]" aria-hidden="true" />
                   {a.label}
                 </NavLink>
               ))}
@@ -252,35 +241,6 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Module Grid */}
-      <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        <div className="mb-5 flex items-center justify-between">
-          <div>
-            <h2 className="text-lg font-bold text-[#0F172A]">Quick Access</h2>
-            <p className="text-sm font-medium text-slate-500">All modules for this role</p>
-          </div>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-          {modules.map((mod) => (
-            <NavLink
-              key={mod.path}
-              to={mod.path}
-              className="group flex items-start gap-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 transition-all duration-200 hover:border-[#0B8ED0]/30 hover:bg-white hover:shadow-md"
-            >
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62] transition-all group-hover:bg-[#0F2F62] group-hover:text-white">
-                <mod.icon size={20} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between">
-                  <p className="font-bold text-[#0F172A]">{mod.label}</p>
-                  <ChevronRight size={16} className="text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-[#0878B7]" />
-                </div>
-                <p className="mt-1 text-xs font-medium text-slate-500">{mod.desc}</p>
-              </div>
-            </NavLink>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

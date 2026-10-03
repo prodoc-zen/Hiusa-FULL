@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, FileText, Megaphone, Target } from 'lucide-react';
+import { ChevronDown, ClipboardCheck, FileText, Megaphone } from 'lucide-react';
 import { getBriefing } from '../../services/dashboardService';
 import { ErrorState } from '../ui';
 import AiInsightCard from './AiInsightCard';
@@ -19,18 +19,14 @@ const PILLAR_ORDER = {
   STUDENT: ['elections', 'events', 'merchandise', 'tasks', 'communication'],
 };
 
-const objectivesAction = { label: 'Study objectives', to: '/dashboard/objectives', icon: Target };
-
 function storedSchoolId() {
   try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }
 }
 
 const ACTIONS = {
-  SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/financial-reports', icon: FileText }, objectivesAction],
-  ADMIN: [{ label: 'Create announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }, objectivesAction],
-  DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }, objectivesAction],
-  SBO_OFFICER: [objectivesAction],
-  STUDENT: [objectivesAction],
+  SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/financial-reports', icon: FileText }],
+  ADMIN: [{ label: 'Create announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }],
+  DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
 };
 
 /**
@@ -65,19 +61,30 @@ export default function RoleBriefing() {
   const role = user?.role;
 
   return (
-    <div className="space-y-5">
-      <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || [objectivesAction]} />
+    <div className="space-y-4">
+      <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || []} />
       <SetupChecklist setup={setup} userKey={`${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`} />
-      <div className={insights.length > 0 ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]' : undefined}>
-        <AttentionList items={attention} />
+      <div className={`grid items-start gap-4 ${insights.length ? 'lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]' : ''}`}>
+        <section aria-labelledby="briefing-attention" className="overflow-hidden rounded-card border border-line bg-surface">
+          <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">Needs attention</h2>
+          <div className="px-4 sm:px-5"><AttentionList items={attention} /></div>
+        </section>
         {insights.length > 0 && (
-          <section aria-labelledby="briefing-insights" className="space-y-3">
-            <h2 id="briefing-insights" className="text-base font-bold text-ink">What HIUSA noticed</h2>
-            {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
+          <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
+            <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">What HIUSA noticed</h2>
+            <div className="divide-y divide-line-soft px-4 sm:px-5">
+              {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
+            </div>
           </section>
         )}
       </div>
-      <PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} />
+      <details className="group overflow-hidden rounded-card border border-line bg-surface">
+        <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
+          <span>Organization indicators</span>
+          <ChevronDown size={18} className="shrink-0 text-ink-muted transition-transform group-open:rotate-180" aria-hidden="true" />
+        </summary>
+        <div className="border-t border-line"><PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} /></div>
+      </details>
       {role === 'SUPER_ADMIN' && Array.isArray(organizations) && <OrganizationsHealthTable organizations={organizations} />}
     </div>
   );

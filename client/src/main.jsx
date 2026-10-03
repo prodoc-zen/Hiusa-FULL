@@ -11,7 +11,10 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <App />
       <Toaster
+        className="hiusa-toaster"
         position="top-right"
+        offset={{ top: 'calc(var(--dashboard-navbar-bottom, 0px) + 12px)', right: 20 }}
+        mobileOffset={{ top: 'calc(var(--dashboard-navbar-bottom, 0px) + 12px)', right: 12, left: 12 }}
         gap={10}
         closeButton
         icons={{

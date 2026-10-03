@@ -17,6 +17,7 @@ describe('ConfirmModal', () => {
       />,
     );
     expect(screen.getByRole('button', { name: 'Delete event' })).toBeInTheDocument();
+    expect(screen.getByRole('dialog', { name: 'Delete this event?' }).parentElement).toHaveClass('app-overlay');
     expect(screen.queryByText(/This action may be irreversible/i)).not.toBeInTheDocument();
     expect(screen.queryByText(/Please confirm this action before continuing/i)).not.toBeInTheDocument();
   });

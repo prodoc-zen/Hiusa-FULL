@@ -78,7 +78,7 @@ export default function DepartmentHeadHomePage() {
     .filter((row) => row.count > 0);
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto w-full max-w-[1280px] space-y-6">
       <RoleBriefing />
       {loadError && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
@@ -127,7 +127,7 @@ export default function DepartmentHeadHomePage() {
         </dl>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           {/* Active Election Card */}
           {activeElection ? (
@@ -254,26 +254,6 @@ export default function DepartmentHeadHomePage() {
             )}
           </section>
 
-          {/* Actions */}
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <h3 className="mb-3 text-base font-bold text-[#0F172A]">Oversight Actions</h3>
-            <div className="space-y-2">
-              {[
-                { label: 'Review Approvals', path: '/dashboard/department-head/approvals' },
-                { label: 'View Elections', path: '/dashboard/elections' },
-                { label: 'View Events', path: '/dashboard/events' },
-                { label: 'View Results', path: '/dashboard/elections/election-results' },
-              ].map((a) => (
-                <NavLink
-                  key={a.path}
-                  to={a.path}
-                  className="flex min-h-11 w-full items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-sm font-semibold text-[#0F172A] transition hover:border-[#0B8ED0]/40 hover:bg-white"
-                >
-                  {a.label}
-                </NavLink>
-              ))}
-            </div>
-          </section>
         </div>
       </div>
     </div>

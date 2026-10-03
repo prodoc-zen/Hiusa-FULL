@@ -1,12 +1,12 @@
-import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
-import { OrgMark } from '../ui';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
-import { GOVERNANCE_IDS, ROLE_LABELS, getNavForRole, getVisibleChildren, profileNav, resolveItemPath } from './navigation';
+import { dashboardPopupTop } from '../../utils/dashboardPopupTop';
+import { ROLE_LABELS, getNavForRole, getVisibleChildren, profileNav, resolveItemPath } from './navigation';
 
 function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = false }) {
   return (
@@ -41,14 +41,6 @@ function SubNavItem({ label, path, onClick }) {
   );
 }
 
-function SectionCaption({ desktopCollapsed, children }) {
-  return (
-    <p className={`mb-2 mt-4 px-3 text-[10px] font-bold uppercase tracking-widest text-slate-500 first:mt-0 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
-      {children}
-    </p>
-  );
-}
-
 function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
   const initials = `${user?.first_name?.[0] || ''}${user?.last_name?.[0] || ''}`.toUpperCase() || 'HI';
   const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
@@ -58,7 +50,7 @@ function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
       <div className={`min-w-0 flex-1 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
         <p className="truncate text-sm font-bold text-white">{name}</p>
-        <p className="truncate text-xs font-medium text-slate-500 capitalize">{roleLabel}</p>
+        <p className="truncate text-xs font-medium text-slate-300 capitalize">{roleLabel}</p>
       </div>
     </div>
   );
@@ -163,8 +155,6 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const roleLabel = ROLE_LABELS[role] || role;
   const nav = getNavForRole(role);
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
-  const orgName = role === 'SUPER_ADMIN' ? 'University-wide' : (user?.organization?.name || 'Organization');
-  const orgAcronym = role === 'SUPER_ADMIN' ? 'SAO' : user?.organization?.acronym;
 
   const handleLogout = async () => {
     setLogoutBusy(true);
@@ -183,15 +173,13 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
     }
   };
 
-  const firstGovernanceIndex = nav.findIndex((navItem) => GOVERNANCE_IDS.has(navItem.id));
-
   const sidebarContent = (
     <>
       <div className={`flex h-[72px] items-center gap-3 border-b border-white/10 px-5 ${desktopCollapsed ? 'lg:justify-center lg:px-3' : ''}`}>
         <img src={hiusaLogo} alt="HIUSA logo" className={`h-10 w-10 object-contain ${desktopCollapsed ? 'lg:hidden' : ''}`} />
         <div className={desktopCollapsed ? 'lg:hidden' : ''}>
           <p className="text-sm font-black tracking-wide text-white">HIUSA</p>
-          <p className="text-[11px] font-medium text-slate-500">{roleLabel} System</p>
+          <p className="text-[11px] font-medium text-slate-300">{roleLabel} System</p>
         </div>
         <button ref={closeButtonRef} type="button" onClick={onClose} aria-label="Close menu" className="ml-auto grid h-11 w-11 place-items-center rounded-md text-slate-500 transition hover:bg-white/10 hover:text-white lg:hidden">
           <X size={18} />
@@ -201,35 +189,15 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         </button>
       </div>
 
-      <div className={`flex items-center gap-2 border-b border-white/10 px-5 py-3 ${desktopCollapsed ? 'lg:hidden' : ''}`}>
-        <OrgMark name={orgName} acronym={orgAcronym} size="sm" />
-        <div className="min-w-0">
-          <p className="truncate text-xs font-bold text-white">{orgName}</p>
-          <p className="truncate text-[11px] font-medium text-slate-500">{roleLabel}</p>
-        </div>
-      </div>
-
       <nav onScroll={() => setFlyout(null)} className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
         <div className="flex-1 space-y-1">
-          {nav.map((item, index) => {
+          {nav.map((item) => {
             const visibleChildren = getVisibleChildren(item, role);
-            const hasChildren = visibleChildren.length > 0;
             const itemPath = resolveItemPath(item, role);
-            const isGovernanceItem = GOVERNANCE_IDS.has(item.id);
-            const showGovernanceCaption = isGovernanceItem && index === firstGovernanceIndex;
-
-            const caption = item.caption
-              ? <SectionCaption desktopCollapsed={desktopCollapsed}>{item.caption}</SectionCaption>
-              : showGovernanceCaption
-                ? <SectionCaption desktopCollapsed={desktopCollapsed}>Governance</SectionCaption>
-                : null;
-
-            if (!hasChildren) {
+            if (visibleChildren.length <= 1) {
+              const child = visibleChildren[0];
               return (
-                <Fragment key={item.id}>
-                  {caption}
-                  <NavItem label={item.label} path={itemPath} icon={item.icon} end onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />
-                </Fragment>
+                <NavItem key={item.id} label={child?.label || item.label} path={child?.path || itemPath} icon={child?.icon || item.icon} end={!child} onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />
               );
             }
 
@@ -237,55 +205,52 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
             const isExpanded = expandedMenus[item.id] ?? onParentRoute;
 
             return (
-              <Fragment key={item.id}>
-                {caption}
-                <div>
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      if (desktopCollapsed && window.innerWidth >= 1024) {
-                        flyoutTriggerRef.current = event.currentTarget;
-                        const top = Math.min(event.currentTarget.getBoundingClientRect().top, Math.max(16, window.innerHeight - 320));
-                        setFlyout((current) => current?.id === item.id ? null : { id: item.id, top });
-                        return;
-                      }
-                      if (!isExpanded) {
-                        navigate(itemPath);
-                      }
+              <div key={item.id}>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    if (desktopCollapsed && window.innerWidth >= 1024) {
+                      flyoutTriggerRef.current = event.currentTarget;
+                      const minTop = dashboardPopupTop();
+                      const top = Math.max(minTop, Math.min(event.currentTarget.getBoundingClientRect().top, window.innerHeight - 320));
+                      setFlyout((current) => current?.id === item.id ? null : { id: item.id, top });
+                      return;
+                    }
+                    if (!isExpanded) {
+                      navigate(itemPath);
+                    }
 
-                      setExpandedMenus((previous) => ({
-                        ...previous,
-                        [item.id]: !isExpanded,
-                      }));
-                    }}
-                    aria-label={desktopCollapsed ? item.label : undefined}
-                    aria-expanded={desktopCollapsed && window.innerWidth >= 1024 ? flyout?.id === item.id : isExpanded}
-                    title={desktopCollapsed ? item.label : undefined}
-                    className={`relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
-                  >
-                    {onParentRoute && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
-                    <item.icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
-                    <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{item.label}</span>
-                    <ChevronDown size={13} aria-hidden="true" className={`ml-auto text-slate-500 transition-transform duration-200 ${desktopCollapsed ? 'lg:hidden' : ''} ${isExpanded ? 'rotate-180' : ''}`} />
-                  </button>
+                    setExpandedMenus((previous) => ({
+                      ...previous,
+                      [item.id]: !isExpanded,
+                    }));
+                  }}
+                  aria-label={desktopCollapsed ? item.label : undefined}
+                  aria-expanded={desktopCollapsed && window.innerWidth >= 1024 ? flyout?.id === item.id : isExpanded}
+                  title={desktopCollapsed ? item.label : undefined}
+                  className={`relative flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${onParentRoute || flyout?.id === item.id ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+                >
+                  {onParentRoute && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
+                  <item.icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+                  <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{item.label}</span>
+                  <ChevronDown size={13} aria-hidden="true" className={`ml-auto text-slate-500 transition-transform duration-200 ${desktopCollapsed ? 'lg:hidden' : ''} ${isExpanded ? 'rotate-180' : ''}`} />
+                </button>
 
-                  {isExpanded && (
-                    <div className={`ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3 ${desktopCollapsed ? 'lg:hidden' : ''}`}>
-                      {visibleChildren.map((sub) => (
-                        <div key={sub.id} onClick={handleNavItemClick}>
-                          <SubNavItem label={sub.label} path={sub.path} />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </Fragment>
+                {isExpanded && (
+                  <div className={`ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3 ${desktopCollapsed ? 'lg:hidden' : ''}`}>
+                    {visibleChildren.map((sub) => (
+                      <div key={sub.id} onClick={handleNavItemClick}>
+                        <SubNavItem label={sub.label} path={sub.path} />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
 
-        <div className="space-y-1 border-t border-white/10 pt-4">
-          <SectionCaption desktopCollapsed={desktopCollapsed}>Account</SectionCaption>
+        <div className="mt-3 space-y-1">
           {profileNav.map((item) => (
             <div key={item.path} onClick={handleNavItemClick}>
               <NavItem {...item} desktopCollapsed={desktopCollapsed} />
@@ -306,10 +271,10 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
   return (
     <>
-      {isOpen && <div className="fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      {isOpen && <div className="mobile-nav-overlay fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
+      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`mobile-nav-overlay fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       {flyoutGroup && createPortal(
-        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-2rem))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
+        <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
           <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>
           <nav aria-label={`${flyoutGroup.label} pages`} className="space-y-0.5">
             {getVisibleChildren(flyoutGroup, role).map((child) => <NavLink key={child.id} to={child.path} onClick={() => setFlyout(null)} className={({ isActive }) => `block min-h-11 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${isActive ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}>{child.label}</NavLink>)}
@@ -322,6 +287,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         title="Log Out"
         message="You will need to sign in again to access your dashboard."
         confirmText="Log Out"
+        variant="primary"
         busy={logoutBusy}
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
         onConfirm={handleLogout}

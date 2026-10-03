@@ -148,6 +148,7 @@ class ElectionController extends Controller
     {
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
+            'room' => ['nullable', 'string', 'max:120'],
             'start_time' => ['required', 'date'],
             'end_time' => ['required', 'date', 'after:start_time'],
             'status' => ['nullable', 'in:upcoming,active,closed,pending_approval'],
@@ -164,6 +165,7 @@ class ElectionController extends Controller
             $election = DB::transaction(function () use ($data, $request, $imageUrl) {
                 $election = Election::create([
                     'title' => trim($data['title']),
+                    'room' => $data['room'] ?? null,
                     'image_url' => $imageUrl,
                     'start_time' => $data['start_time'],
                     'end_time' => $data['end_time'],
@@ -246,8 +248,13 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
+        if ($election->status === 'closed' && $request->hasAny(['title', 'room', 'start_time', 'end_time', 'image', 'remove_image'])) {
+            return response()->json(['message' => 'Closed election details cannot be changed.'], 409);
+        }
+
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
+            'room' => ['nullable', 'string', 'max:120'],
             'start_time' => ['sometimes', 'required', 'date'],
             'end_time' => ['sometimes', 'required', 'date'],
             'status' => ['sometimes', 'required', 'in:upcoming,active,closed,pending_approval'],
@@ -291,7 +298,7 @@ class ElectionController extends Controller
             return response()->json(['message' => "Election status cannot change from {$election->status} to {$data['status']}."], 422);
         }
 
-        if ($election->votes()->exists() && (count(array_intersect(array_keys($data), ['title', 'start_time', 'end_time', 'image', 'remove_image'])) > 0)) {
+        if ($election->votes()->exists() && (count(array_intersect(array_keys($data), ['title', 'room', 'start_time', 'end_time', 'image', 'remove_image'])) > 0)) {
             return response()->json(['message' => 'Election details cannot be changed after votes have been cast.'], 409);
         }
 
@@ -350,6 +357,7 @@ class ElectionController extends Controller
     {
         return count(array_intersect(array_keys($data), [
             'title',
+            'room',
             'start_time',
             'end_time',
             'image_url',
@@ -380,6 +388,10 @@ class ElectionController extends Controller
 
     private function ballotIsLockedResponse(Election $election)
     {
+        if ($election->status === 'closed') {
+            return response()->json(['message' => 'Closed elections cannot be changed.'], 409);
+        }
+
         if ($election->finalized_at) {
             return response()->json(['message' => 'The ballot has been finalized and cannot be changed.'], 409);
         }
@@ -442,6 +454,10 @@ class ElectionController extends Controller
 
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
+        }
+
+        if ($election->status === 'closed') {
+            return response()->json(['message' => 'Closed elections cannot be deleted.'], 409);
         }
 
         if ($election->votes()->exists() && ! $request->boolean('confirmed')) {
@@ -1170,6 +1186,7 @@ class ElectionController extends Controller
             'id' => $election->id,
             'organization_id' => $election->organization_id,
             'title' => $election->title,
+            'room' => $election->room,
             'image_url' => $election->image_url,
             'start_time' => $election->start_time?->toISOString(),
             'end_time' => $election->end_time?->toISOString(),

@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Building2, CheckCircle2, Eye, EyeOff, IdCard, KeyRound, LockKeyhole, Mail, Save, ShieldCheck, UserRound } from 'lucide-react';
@@ -222,16 +223,16 @@ export default function SettingsPage() {
               <div className="space-y-5 p-5 sm:p-6">
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">First name</span>
+                    <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="First name" />First name</span>
                     <input type="text" autoComplete="given-name" value={profileForm.first_name} onChange={(event) => setProfileForm({ ...profileForm, first_name: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
                   </label>
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">Last name</span>
+                    <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Last name" />Last name</span>
                     <input type="text" autoComplete="family-name" value={profileForm.last_name} onChange={(event) => setProfileForm({ ...profileForm, last_name: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
                   </label>
                 </div>
                 <label className="space-y-1.5">
-                  <span className="text-[13px] font-semibold text-[#0F172A]">Email address</span>
+                  <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Email address" />Email address</span>
                   <span className="relative block">
                     <Mail className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                     <input type="email" autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
@@ -265,7 +266,7 @@ export default function SettingsPage() {
             <form onSubmit={handlePasswordSave}>
               <div className="space-y-5 p-5 sm:p-6">
                 <label className="block max-w-xl space-y-1.5">
-                  <span className="text-[13px] font-semibold text-[#0F172A]">Current password</span>
+                  <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Current password" />Current password</span>
                   <span className="relative block">
                     <LockKeyhole className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                     <input type={passwordVisibility.current ? 'text' : 'password'} autoComplete="current-password" value={pwForm.current_password} onChange={(event) => setPwForm({ ...pwForm, current_password: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
@@ -275,7 +276,7 @@ export default function SettingsPage() {
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">New password</span>
+                    <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="New password" />New password</span>
                     <span className="relative block">
                       <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                       <input type={passwordVisibility.next ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password} onChange={(event) => setPwForm({ ...pwForm, password: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
@@ -283,7 +284,7 @@ export default function SettingsPage() {
                     </span>
                   </label>
                   <label className="space-y-1.5">
-                    <span className="text-[13px] font-semibold text-[#0F172A]">Confirm new password</span>
+                    <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Confirm new password" />Confirm new password</span>
                     <span className="relative block">
                       <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
                       <input type={passwordVisibility.confirmation ? 'text' : 'password'} autoComplete="new-password" value={pwForm.password_confirmation} onChange={(event) => setPwForm({ ...pwForm, password_confirmation: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-11 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />

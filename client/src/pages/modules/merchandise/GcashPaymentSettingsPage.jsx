@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { ImagePlus, Upload } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -54,7 +55,7 @@ export default function GcashPaymentSettingsPage({ embedded = false, readOnly = 
         {imageUrl && !imageError ? <img src={imageUrl} alt="Current official GCash payment QR code" onError={() => setImageError(true)} className="max-h-64 max-w-full rounded-lg object-contain" /> : <div className="text-center text-slate-500"><ImagePlus className="mx-auto mb-3 text-[#0878B7]" size={30} /><p className="text-sm font-bold">{imageError ? 'Saved image could not be loaded' : 'No QR code uploaded'}</p>{imageError && <a href={imageUrl} target="_blank" rel="noreferrer" className="mt-2 inline-block text-xs font-bold text-[#0878B7] underline">Open saved image</a>}</div>}
       </div>
       {!readOnly && <form onSubmit={save} className="flex flex-col justify-center">
-        <label htmlFor="organization-gcash-qr" className="text-sm font-bold text-[#0F172A]">Official GCash QR image</label>
+        <label htmlFor="organization-gcash-qr" className="text-sm font-bold text-[#0F172A]"><FieldIcon label="Official GCash QR image" />Official GCash QR image</label>
         <input id="organization-gcash-qr" type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => { setFile(event.target.files?.[0] || null); setError(''); }} className="mt-2 block w-full rounded-lg border border-[#DDE7EF] p-2 text-sm" />
         <p className="mt-2 text-xs text-slate-500">PNG, JPG, or WEBP only, up to 5 MB. Replacing it removes the previous QR image.</p>
         <button type="submit" disabled={busy} className="mt-5 inline-flex h-11 w-fit items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Upload size={16} />{busy ? 'Uploading...' : 'Save GCash QR'}</button>
