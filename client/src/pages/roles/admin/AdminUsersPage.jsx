@@ -1,6 +1,7 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { dashboardPopupTop } from '../../../utils/dashboardPopupTop';
 import { BookOpen, BriefcaseBusiness, CalendarDays, CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, Hash, Image, KeyRound, Layers3, Mail, MoreVertical, PencilLine, Phone, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserRound, UserX, UsersRound } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -153,12 +154,13 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
     if (rect) {
       const menuWidth = 224;
       const menuHeight = 62 + (actions.length * 44);
-      const visibleMenuHeight = Math.min(menuHeight, window.innerHeight - 24);
-      const opensUpward = window.innerHeight - rect.bottom < visibleMenuHeight + 16 && rect.top > visibleMenuHeight;
+      const minTop = dashboardPopupTop();
+      const visibleMenuHeight = Math.min(menuHeight, Math.max(44, window.innerHeight - minTop - 12));
+      const opensUpward = window.innerHeight - rect.bottom < visibleMenuHeight + 16 && rect.top - visibleMenuHeight - 8 >= minTop;
       const preferredTop = opensUpward ? rect.top - visibleMenuHeight - 8 : rect.bottom + 8;
       setMenuPosition({
         left: Math.max(12, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12)),
-        top: Math.max(12, Math.min(preferredTop, window.innerHeight - visibleMenuHeight - 12)),
+        top: Math.max(minTop, Math.min(preferredTop, window.innerHeight - visibleMenuHeight - 12)),
         origin: opensUpward ? 'bottom right' : 'top right',
       });
     }
@@ -173,7 +175,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       aria-label={`Actions for ${name}`}
       aria-hidden={!expanded}
       style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
-      className={`fixed z-[100] max-h-[calc(100vh-24px)] w-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
+      className={`fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
     >
       <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">User actions</p>

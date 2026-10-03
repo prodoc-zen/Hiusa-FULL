@@ -1651,7 +1651,7 @@ export default function MerchandisePage({ initialTab }) {
     ordersMeta.total,
   );
   const feedbackPopup = feedback.open ? (
-    <div className="fixed left-1/2 top-20 z-[70] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2">
+    <div className="fixed left-1/2 top-[calc(var(--dashboard-navbar-bottom,68px)+0.75rem)] z-[70] w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2">
       <div
         className={`flex items-start justify-between gap-3 rounded-lg border px-4 py-3 shadow-lg ${feedback.type === "success" ? "border-emerald-200 bg-emerald-50" : "border-red-200 bg-red-50"}`}
       >

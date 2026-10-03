@@ -13,7 +13,7 @@ const FOCUSABLE = [
 export default function AccessibleOverlay({
   children,
   className,
-  baseClassName = 'hiusa-overlay overlay-fade-in max-w-full overflow-x-hidden overflow-y-auto',
+  baseClassName = 'app-overlay hiusa-overlay overlay-fade-in max-w-full overflow-x-hidden overflow-y-auto',
   label,
   labelledBy,
   onClose,

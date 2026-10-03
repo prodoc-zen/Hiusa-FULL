@@ -107,7 +107,7 @@ export default function CommandPalette({ open, onClose, role }) {
       label="Go to page"
       onClose={onClose}
       closeOnBackdrop
-      className="fixed inset-0 z-[80] flex items-start justify-center bg-navy-950/60 px-3 pt-[min(12vh,6rem)] sm:px-4"
+      className="fixed inset-0 z-[80] flex items-start justify-center bg-navy-950/60 px-3 pt-4 sm:px-4 sm:pt-6"
     >
       <div className="w-full max-w-lg overflow-hidden rounded-card border border-line bg-surface shadow-raised">
         <div className="flex items-center gap-3 border-b border-line px-4 py-3">

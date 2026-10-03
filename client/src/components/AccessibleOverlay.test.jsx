@@ -20,6 +20,7 @@ describe('AccessibleOverlay', () => {
     );
 
     const first = screen.getByRole('button', { name: 'First action' });
+    expect(screen.getByRole('dialog', { name: 'Example dialog' })).toHaveClass('app-overlay');
     const last = screen.getByRole('button', { name: 'Last action' });
     await waitFor(() => expect(first).toHaveFocus());
 

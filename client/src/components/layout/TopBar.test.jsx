@@ -54,6 +54,16 @@ describe('TopBar notifications', () => {
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
+  it('publishes the navbar bottom for portaled overlays and clears it on unmount', () => {
+    const bounds = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ bottom: 92 });
+    const view = render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
+
+    expect(document.documentElement.style.getPropertyValue('--dashboard-navbar-bottom')).toBe('92px');
+    view.unmount();
+    expect(document.documentElement.style.getPropertyValue('--dashboard-navbar-bottom')).toBe('');
+    bounds.mockRestore();
+  });
+
   it('opens the page search from the header control', () => {
     render(<MemoryRouter><TopBar title="Student Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
     fireEvent.click(screen.getByRole('button', { name: 'Go to page' }));
