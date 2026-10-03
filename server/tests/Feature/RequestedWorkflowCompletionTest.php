@@ -264,8 +264,10 @@ class RequestedWorkflowCompletionTest extends TestCase
         ])->assertOk()
             ->assertJsonPath('progress_percent', 35)
             ->assertJsonCount(2, 'progress_updates');
+        // A completed task is 100% done even when a partial percentage is sent with it.
         $this->patchJson("/api/tasks/{$taskId}/status", [
             'status' => 'completed',
+            'progress_percent' => 60,
             'progress_note' => 'Materials verified and handed over.',
         ])->assertOk()
             ->assertJsonPath('progress_percent', 100)
