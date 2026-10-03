@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, FileText, Megaphone, Target } from 'lucide-react';
+import { ClipboardCheck, FileText, Megaphone } from 'lucide-react';
 import { getBriefing } from '../../services/dashboardService';
 import { ErrorState } from '../ui';
 import AiInsightCard from './AiInsightCard';
@@ -19,18 +19,14 @@ const PILLAR_ORDER = {
   STUDENT: ['elections', 'events', 'merchandise', 'tasks', 'communication'],
 };
 
-const objectivesAction = { label: 'Study objectives', to: '/dashboard/objectives', icon: Target };
-
 function storedSchoolId() {
   try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.school_id ?? 'me'; } catch { return 'me'; }
 }
 
 const ACTIONS = {
-  SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/financial-reports', icon: FileText }, objectivesAction],
-  ADMIN: [{ label: 'Create announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }, objectivesAction],
-  DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }, objectivesAction],
-  SBO_OFFICER: [objectivesAction],
-  STUDENT: [objectivesAction],
+  SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/financial-reports', icon: FileText }],
+  ADMIN: [{ label: 'Create announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }],
+  DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
 };
 
 /**
@@ -66,18 +62,24 @@ export default function RoleBriefing() {
 
   return (
     <div className="space-y-5">
-      <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || [objectivesAction]} />
+      <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || []} />
       <SetupChecklist setup={setup} userKey={`${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`} />
-      <div className={insights.length > 0 ? 'grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(320px,0.8fr)]' : undefined}>
-        <AttentionList items={attention} />
-        {insights.length > 0 && (
-          <section aria-labelledby="briefing-insights" className="space-y-3">
-            <h2 id="briefing-insights" className="text-base font-bold text-ink">What HIUSA noticed</h2>
+      <section aria-labelledby="briefing-attention" className="overflow-hidden rounded-card border border-line bg-surface">
+        <h2 id="briefing-attention" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">Needs attention</h2>
+        <div className="px-4 sm:px-5"><AttentionList items={attention} /></div>
+      </section>
+      <section aria-labelledby="briefing-pulse" className="overflow-hidden rounded-card border border-line bg-surface">
+        <h2 id="briefing-pulse" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">At a glance</h2>
+        <PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} />
+      </section>
+      {insights.length > 0 && (
+        <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
+          <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">What HIUSA noticed</h2>
+          <div className="divide-y divide-line-soft px-4 sm:px-5">
             {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
-          </section>
-        )}
-      </div>
-      <PillarPulse pillars={pillars} order={PILLAR_ORDER[role] || Object.keys(pillars)} />
+          </div>
+        </section>
+      )}
       {role === 'SUPER_ADMIN' && Array.isArray(organizations) && <OrganizationsHealthTable organizations={organizations} />}
     </div>
   );

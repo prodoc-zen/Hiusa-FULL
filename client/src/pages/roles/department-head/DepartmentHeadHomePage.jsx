@@ -127,7 +127,7 @@ export default function DepartmentHeadHomePage() {
         </dl>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_320px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <div className="space-y-6">
           {/* Active Election Card */}
           {activeElection ? (

@@ -152,7 +152,7 @@ export default function DashboardPage() {
         </dl>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-[1fr_340px]">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_340px]">
         {/* Urgent Tasks Table */}
         <section className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="flex items-center justify-between border-b border-[#DDE7EF] px-5 py-4">

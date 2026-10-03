@@ -43,23 +43,28 @@ describe('TopBar notifications', () => {
     expect(notificationMocks.getNotifications).toHaveBeenCalledOnce();
   });
 
-  it('places the admin welcome and account controls in the shared header card', () => {
+  it('keeps the admin home header compact above the dashboard briefing', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Alex', last_name: 'Rivera' }));
     render(<MemoryRouter><TopBar title="Admin Dashboard" pathname="/dashboard/admin" onMenuToggle={() => {}} /></MemoryRouter>);
     const header = screen.getByRole('banner');
     expect(within(header).getByRole('heading', { name: 'Admin Dashboard' })).toBeInTheDocument();
-    expect(within(header).getByText(/welcome back, alex/i)).toBeInTheDocument();
+    expect(within(header).queryByText(/welcome back, alex/i)).not.toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Cart' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
+  it('opens the page search from the header control', () => {
+    render(<MemoryRouter><TopBar title="Student Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Go to page' }));
+    expect(screen.getByRole('dialog', { name: 'Go to page' })).toHaveClass('fixed', 'inset-0');
+    expect(screen.getByRole('combobox', { name: 'Search pages' })).toBeInTheDocument();
+  });
+
   it.each([
     ['ADMIN', '/dashboard/admin/users', 'User Management', /Search the organization directory/],
     ['ADMIN', '/dashboard/approvals', 'Approvals', /Review approval requests/],
-    ['SBO_OFFICER', '/dashboard/officer', 'Officer Dashboard', /Start with deadlines/],
     ['DEPARTMENT_HEAD', '/dashboard/department-head/approvals', 'Approvals', /Review approval requests/],
-    ['STUDENT', '/dashboard/student', 'Student Dashboard', /Official updates/],
     ['SUPER_ADMIN', '/dashboard/super-admin/financial-reports', 'Received Financial Reports', /Review reports forwarded/],
   ])('uses one white header with context for %s on %s', (role, pathname, title, subtitle) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
@@ -70,6 +75,18 @@ describe('TopBar notifications', () => {
     expect(within(header).getByText(subtitle)).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Account menu for Test User' })).toBeInTheDocument();
+  });
+
+  it.each([
+    ['SBO_OFFICER', '/dashboard/officer', 'Officer Dashboard'],
+    ['STUDENT', '/dashboard/student', 'Student Dashboard'],
+    ['SUPER_ADMIN', '/dashboard/super-admin', 'Super Admin Dashboard'],
+  ])('uses the page title without a repeated briefing intro on %s home', (role, pathname, title) => {
+    localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
+    render(<MemoryRouter><TopBar title={title} pathname={pathname} onMenuToggle={() => {}} /></MemoryRouter>);
+    const header = screen.getByRole('banner');
+    expect(within(header).getByRole('heading', { name: title })).toBeInTheDocument();
+    expect(within(header).queryByText(/Start with deadlines|Official updates|Review reports, administer/)).not.toBeInTheDocument();
   });
 
   it('anchors the cart panel to the mobile viewport', async () => {

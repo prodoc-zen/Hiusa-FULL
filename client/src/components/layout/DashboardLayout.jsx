@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import RouteLoadingFallback from './RouteLoadingFallback';
 
 const pageTitles = {
   '/dashboard': 'Officer Dashboard',
@@ -125,17 +126,19 @@ export default function DashboardLayout() {
   }
 
   return (
-    <div className="flex h-[100dvh] min-h-screen max-w-full overflow-hidden bg-[#EEF6FB] font-sans text-[#0F172A]">
+    <div className="flex h-[100dvh] max-w-full overflow-hidden bg-[#EEF6FB] font-sans text-[#0F172A]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} desktopCollapsed={desktopCollapsed} onToggleDesktop={toggleDesktopSidebar} />
-      <div className={`flex min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 motion-reduce:transition-none ${desktopCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'}`}>
+      <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 motion-reduce:transition-none ${desktopCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'}`}>
         <TopBar
           title={title}
           pathname={location.pathname}
           onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
         />
-        <main className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
-          <div key={location.pathname} className="route-fade-in">
-            <Outlet />
+        <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
+          <div className="route-fade-in">
+            <Suspense fallback={<RouteLoadingFallback />}>
+              <Outlet />
+            </Suspense>
           </div>
         </main>
       </div>
