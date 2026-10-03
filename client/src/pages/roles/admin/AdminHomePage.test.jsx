@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminHomePage from './AdminHomePage';
@@ -31,7 +31,7 @@ describe('AdminHomePage', () => {
     dashboardMock.getAdminDashboard.mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce({ data: { ...payload, movement: [] } });
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
     expect(await screen.findByRole('alert')).toHaveTextContent('could not be loaded');
-    fireEvent.click(screen.getByRole('button', { name: /try again/i }));
+    fireEvent.click(within(screen.getByRole('alert')).getByRole('button', { name: /try again/i }));
     expect(await screen.findByText('No ledger transactions in this period.')).toBeInTheDocument();
   });
 });

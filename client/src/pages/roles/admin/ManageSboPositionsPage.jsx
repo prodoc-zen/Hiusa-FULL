@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { BriefcaseBusiness, PencilLine, Plus, Search, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -10,6 +11,7 @@ import { createSboPosition, deleteSboPosition, getSboPositions, updateSboPositio
 const PAGE_SIZE = 10;
 const EMPTY_FORM = { role: 'ADMIN', title: '', description: '', is_active: true };
 const ROLE_LABELS = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
+const ADMIN_TITLES = ['President', 'Secretary', 'Treasurer', 'Auditor', 'Chief of Developer'];
 
 function firstError(error, fallback) {
   const errors = error.response?.data?.errors;
@@ -23,6 +25,7 @@ export default function ManageSboPositionsPage() {
   const [roleFilter, setRoleFilter] = useState('');
   const [page, setPage] = useState(1);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [customTitle, setCustomTitle] = useState(false);
   const [formMode, setFormMode] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
@@ -54,9 +57,10 @@ export default function ManageSboPositionsPage() {
     if (page > lastPage) setPage(lastPage);
   }, [filtered.length, page]);
 
-  const openCreate = () => { setForm(EMPTY_FORM); setEditingId(null); setFormError(''); setFormMode('create'); };
+  const openCreate = () => { setForm(EMPTY_FORM); setCustomTitle(false); setEditingId(null); setFormError(''); setFormMode('create'); };
   const openEdit = (position) => {
     setForm({ role: position.role, title: position.title, description: position.description || '', is_active: Boolean(position.is_active) });
+    setCustomTitle(position.role === 'ADMIN' && !ADMIN_TITLES.includes(position.title));
     setEditingId(position.id); setFormError(''); setFormMode('edit');
   };
   const closeForm = () => { if (!busy) { setFormMode(null); setEditingId(null); setFormError(''); } };
@@ -113,10 +117,10 @@ export default function ManageSboPositionsPage() {
 
     <Modal open={Boolean(formMode)} title={formMode === 'edit' ? 'Edit Position' : 'Add Position'} description="Positions determine which titles can be assigned in Manage Users." onClose={closeForm} closeOnBackdrop={!busy} closeOnEscape={!busy} footer={<><button type="button" onClick={closeForm} disabled={busy} className="h-11 rounded-full border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600">Cancel</button><button type="submit" form="position-form" disabled={busy || !form.title.trim()} className="h-11 rounded-full bg-[#0878B7] px-5 text-sm font-bold text-white disabled:opacity-50">{busy ? 'Saving...' : 'Save Position'}</button></>}>
       <form id="position-form" onSubmit={submit} className="space-y-5">
-        <div className="rounded-2xl border border-[#DDE7EF] bg-[#F8FBFD] p-4"><p className="text-xs font-bold text-[#0F2F62]">Assignment</p><p className="mt-1 text-xs text-slate-500">Choose the account type that may hold this position.</p><label className="mt-3 block text-sm font-semibold text-[#0F172A]">Assignable account role *<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })} required className="mt-1.5 h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm"><option value="ADMIN">Admin</option><option value="SBO_OFFICER">SBO Officer</option></select></label></div>
-        <label className="block text-sm font-semibold text-[#0F172A]">Position title *<input data-autofocus value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} placeholder="e.g. President" className="mt-1.5 h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-        <label className="block text-sm font-semibold text-[#0F172A]">Responsibilities<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} maxLength={2000} rows={4} placeholder="Describe this position's responsibilities." className="mt-1.5 w-full resize-none rounded-xl border border-[#DDE7EF] p-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
-        <label className="flex items-center gap-3 rounded-2xl border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm font-semibold"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 accent-[#0B8ED0]" />Available for assignment</label>
+        <div className="rounded-2xl border border-[#DDE7EF] bg-[#F8FBFD] p-4"><p className="text-xs font-bold text-[#0F2F62]">Assignment</p><p className="mt-1 text-xs text-slate-500">Choose the account type that may hold this position.</p><label className="mt-3 block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Assignable account role *" />Assignable account role *<select value={form.role} onChange={(event) => { setForm({ ...form, role: event.target.value, title: '' }); setCustomTitle(false); }} required className="mt-1.5 h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm"><option value="ADMIN">Admin</option><option value="SBO_OFFICER">SBO Officer</option></select></label></div>
+        {form.role === 'ADMIN' ? <div className="space-y-3"><label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Position title *" />Position title *<select data-autofocus value={customTitle ? '__other__' : form.title} onChange={(event) => { setCustomTitle(event.target.value === '__other__'); setForm({ ...form, title: event.target.value === '__other__' ? '' : event.target.value }); }} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Choose a title</option><option value="Adviser" disabled>Adviser (SAO only)</option>{ADMIN_TITLES.map((title) => <option key={title} value={title}>{title}</option>)}<option value="__other__">Other position...</option></select></label>{customTitle && <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Other position title *" />Other position title *<input value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>}</div> : <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Position title *" />Position title *<input data-autofocus value={form.title} onChange={(event) => setForm({ ...form, title: event.target.value })} required minLength={2} maxLength={100} placeholder="e.g. President" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>}
+        <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Responsibilities" />Responsibilities<textarea value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} maxLength={2000} rows={4} placeholder="Describe this position's responsibilities." className="mt-1.5 w-full resize-none rounded-xl border border-[#DDE7EF] p-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
+        <label className="flex items-center gap-3 rounded-2xl border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-sm font-semibold"><input type="checkbox" checked={form.is_active} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} className="h-4 w-4 accent-[#0B8ED0]" /><FieldIcon label="Available for assignment" />Available for assignment</label>
         {formError && <p role="alert" className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{formError}</p>}
       </form>
     </Modal>

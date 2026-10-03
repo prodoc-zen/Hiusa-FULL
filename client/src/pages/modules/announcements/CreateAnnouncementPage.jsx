@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { Bot, CheckCircle, ImagePlus, Send } from 'lucide-react';
 import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
@@ -146,7 +147,7 @@ export default function CreateAnnouncementPage() {
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_320px]">
         <section className="min-w-0 rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5 lg:p-6">
           <div>
-            <label htmlFor="announcement-title" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Title <span className="text-red-500">*</span></label>
+            <label htmlFor="announcement-title" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Title" />Title <span className="text-red-500">*</span></label>
             <input
               id="announcement-title"
               value={title}
@@ -160,14 +161,14 @@ export default function CreateAnnouncementPage() {
           <div className="mt-5">
             <div className="mb-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div><label htmlFor="announcement-ai-instructions" className="block text-[13px] font-semibold text-[#0F172A]">Instructions for AI draft <span className="font-medium text-slate-500">(optional)</span></label><p className="mt-0.5 text-xs leading-5 text-slate-500">Add known dates, venue, tone, required action, or facts the draft must include. This stays separate from the editable announcement.</p></div>
+                <div><label htmlFor="announcement-ai-instructions" className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Instructions for AI draft" />Instructions for AI draft <span className="font-medium text-slate-500">(optional)</span></label><p className="mt-0.5 text-xs leading-5 text-slate-500">Add known dates, venue, tone, required action, or facts the draft must include. This stays separate from the editable announcement.</p></div>
                 <p className="shrink-0 text-xs font-bold text-[#0878B7]">{quotaLoading ? 'Checking daily limit…' : `${generationQuota.remaining} of ${generationQuota.limit} drafts left today`}</p>
               </div>
               <textarea id="announcement-ai-instructions" value={aiInstructions} onChange={(event) => setAiInstructions(event.target.value)} rows={3} placeholder="Example: Formal tone. Assembly is on September 30 at 2:00 PM. Ask students to bring their ID." className="mt-3 w-full resize-y rounded-lg border border-[#DDE7EF] bg-white p-3 text-sm leading-6 text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
             </div>
             <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <label htmlFor="announcement-content" className="block text-[13px] font-semibold text-[#0F172A]">Content <span className="text-red-500">*</span></label>
+                <label htmlFor="announcement-content" className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Content" />Content <span className="text-red-500">*</span></label>
                 <p className="mt-0.5 text-xs text-slate-500">Use clear, concise language. Plain text formatting is preserved.</p>
               </div>
               <button
@@ -196,19 +197,19 @@ export default function CreateAnnouncementPage() {
             <h2 className="text-sm font-bold text-[#0F172A]">Publishing settings</h2>
             <div className="mt-4 space-y-4">
               <div>
-                <label htmlFor="announcement-audience" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Audience</label>
+                <label htmlFor="announcement-audience" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Audience" />Audience</label>
                 <select id="announcement-audience" value={targetRole} onChange={(event) => setTargetRole(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   {AUDIENCE_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
               <div>
-                <label htmlFor="announcement-category" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Category</label>
+                <label htmlFor="announcement-category" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Category" />Category</label>
                 <select id="announcement-category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   {CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
                 </select>
               </div>
               <div>
-                <label htmlFor="announcement-image" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Poster or image <span className="font-medium text-slate-500">(optional)</span></label>
+                <label htmlFor="announcement-image" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Poster or image" />Poster or image <span className="font-medium text-slate-500">(optional)</span></label>
                 <label htmlFor="announcement-image" className="flex min-h-20 cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] p-3 hover:border-[#0B8ED0]">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><ImagePlus size={18} /></span>
                   <span className="min-w-0"><span className="block truncate text-xs font-bold text-[#0F172A]">{imageFile?.name || 'Choose an image'}</span><span className="mt-0.5 block text-[10px] text-slate-500">JPEG, PNG or WebP · up to 5 MB</span></span>
@@ -216,8 +217,8 @@ export default function CreateAnnouncementPage() {
                 <input id="announcement-image" type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => setImageFile(event.target.files?.[0] || null)} />
               </div>
               <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                <label className="flex cursor-pointer items-start gap-2.5 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DDE7EF]" /><span>Pin to the top<span className="mt-0.5 block font-normal text-slate-500">Keeps this update ahead of regular posts.</span></span></label>
-                <label className="flex cursor-pointer items-start gap-2.5 border-t border-[#DDE7EF] pt-2 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DDE7EF]" /><span>Mark as important<span className="mt-0.5 block font-normal text-slate-500">Adds a clear priority badge for students.</span></span></label>
+                <label className="flex cursor-pointer items-start gap-2.5 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={isPinned} onChange={(event) => setIsPinned(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DDE7EF]" /><span><FieldIcon label="Pin to the top" />Pin to the top<span className="mt-0.5 block font-normal text-slate-500">Keeps this update ahead of regular posts.</span></span></label>
+                <label className="flex cursor-pointer items-start gap-2.5 border-t border-[#DDE7EF] pt-2 text-xs font-semibold text-[#0F172A]"><input type="checkbox" checked={isImportant} onChange={(event) => setIsImportant(event.target.checked)} className="mt-0.5 h-4 w-4 rounded border-[#DDE7EF]" /><span><FieldIcon label="Mark as important" />Mark as important<span className="mt-0.5 block font-normal text-slate-500">Adds a clear priority badge for students.</span></span></label>
               </div>
             </div>
           </section>

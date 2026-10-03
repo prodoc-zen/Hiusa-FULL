@@ -13,7 +13,6 @@ import {
 } from '../../../services/announcementService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
-import DataDonutChart from '../../../components/DataDonutChart';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
 const ROLE_LABEL = { all: 'All Members', STUDENT: 'Students', SBO_OFFICER: 'SBO Officers', ADMIN: 'Admins', DEPARTMENT_HEAD: 'Department Heads', SUPER_ADMIN: 'Super Admin' };
@@ -252,47 +251,32 @@ export default function ManageAnnouncementsPage() {
     <div className="rounded-lg border border-[#DDE7EF] bg-white p-5">
       {actionError && !confirmState.open && !editing && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {actionMessage && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{actionMessage}</p>}
-      <div className="-mx-5 mb-4">
-        <TableFilterBar
-          searchValue={search}
-          onSearchChange={setSearch}
-          searchPlaceholder="Search title, content, or author"
-          activeFilters={activeAnnouncementFilters}
-          onClear={clearAnnouncementFilters}
-          resultCount={meta.total}
-          resultLabel={meta.total === 1 ? 'announcement' : 'announcements'}
-          secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3"
-        >
-        <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
-          {CATEGORY_OPTIONS.map((opt) => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
-          ))}
-        </select>
-        <select value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
-        <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></select>
-        <input type="date" aria-label="Created from" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
-        <input type="date" aria-label="Created to" value={to} onChange={(e) => setTo(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
-        <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A–Z</option><option value="most_viewed">Most viewed</option></select>
-        </TableFilterBar>
-      </div>
       <div className="mb-4 grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
         {[
           ['Matching records', summary.total], ['Published', summary.published], ['Pending approval', summary.pending], ['Recorded views', summary.views],
         ].map(([label, value]) => <dl key={label} className="bg-white p-3.5"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}
       </div>
-      <div className="mb-4">
-        <DataDonutChart
-          title="Publication distribution"
-          description="Published and unpublished announcements matching the active filters."
-          centerValue={summary.total}
-          centerLabel="matching records"
-          segments={[
-            { label: 'Published', value: summary.published, color: '#0B8ED0' },
-            { label: 'Unpublished / draft', value: summary.unpublished, color: '#64748B' },
-          ]}
-        />
-      </div>
+      <section className="mb-4 rounded-lg border border-[#DDE7EF] p-4" aria-label="Announcement interactions">
+        <h2 className="text-sm font-bold text-[#0F172A]">Announcement interactions</h2>
+        <p className="mt-1 text-xs text-[#64748B]">Views and reactions for announcements on this page.</p>
+        {items.length === 0 ? <p className="mt-4 text-sm text-[#64748B]">No interaction data for the current selection.</p> : <div className="mt-4 space-y-3">{items.slice(0, 8).map((item) => {
+          const views = Number(item.views_count || 0);
+          const reactions = Number(item.reactions_count || 0);
+          const maximum = Math.max(1, ...items.slice(0, 8).map((row) => Math.max(Number(row.views_count || 0), Number(row.reactions_count || 0))));
+          return <div key={item.id} className="grid gap-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]"><p className="truncate text-xs font-semibold text-[#0F172A]" title={item.title}>{item.title}</p><div className="space-y-1"><div className="flex items-center gap-2"><span className="w-14 text-[11px] text-slate-500">Views</span><div className="h-3 flex-1 rounded bg-[#EEF6FB]"><div className="h-full rounded bg-[#0B8ED0]" style={{ width: `${views / maximum * 100}%` }} /></div><span className="w-8 text-right text-[11px] font-semibold tabular-nums">{views}</span></div><div className="flex items-center gap-2"><span className="w-14 text-[11px] text-slate-500">Likes</span><div className="h-3 flex-1 rounded bg-[#EEF6FB]"><div className="h-full rounded bg-[#0F2F62]" style={{ width: `${reactions / maximum * 100}%` }} /></div><span className="w-8 text-right text-[11px] font-semibold tabular-nums">{reactions}</span></div></div></div>;
+        })}</div>}
+      </section>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] pt-4"><h2 className="text-base font-black text-[#0F172A]">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigate('/dashboard/announcements/create-announcement')} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white"><Plus size={14} /> Create announcement</button><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
+      <div className="-mx-5 mb-4">
+        <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
+          <select value={audienceFilter} onChange={(e) => setAudienceFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All audiences</option>{Object.entries(ROLE_LABEL).filter(([value]) => value !== 'all').map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select>
+          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="all">All publication states</option><option value="published">Published</option><option value="draft">Unpublished / Draft</option></select>
+          <input type="date" aria-label="Created from" value={from} onChange={(e) => setFrom(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
+          <input type="date" aria-label="Created to" value={to} onChange={(e) => setTo(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs" />
+          <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A-Z</option><option value="most_viewed">Most viewed</option></select>
+        </TableFilterBar>
+      </div>
       {items.length === 0 ? <p className="py-8 text-center text-sm text-[#64748B]">No announcements match these filters.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-sm"><thead className="bg-[#F8FBFD]"><tr><th className="px-4 py-3">Title</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Audience</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{items.map((a) => {
         const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
         const canPublish = canModify && currentRole === 'ADMIN';

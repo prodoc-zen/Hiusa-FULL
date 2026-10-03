@@ -1,6 +1,7 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, MoreVertical, PencilLine, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserX, UsersRound } from 'lucide-react';
+import { BookOpen, BriefcaseBusiness, CalendarDays, CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, Hash, Image, KeyRound, Layers3, Mail, MoreVertical, PencilLine, Phone, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserRound, UserX, UsersRound } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
@@ -61,10 +62,13 @@ const emptyEditForm = {
   major: '', section: '',
 };
 
-function Field({ label, children, error, required = false }) {
+const FIELD_ICONS = { 'School ID': Hash, Email: Mail, 'First Name': UserRound, 'Last Name': UserRound, 'Contact Number': Phone, 'Profile photo (optional)': Image, Role: ShieldCheck, 'Organization Position': BriefcaseBusiness, 'Course / Program': BookOpen, 'Year Level': CalendarDays, 'Major / Specialization': Layers3, Section: Layers3, Password: KeyRound, 'Confirm Password': KeyRound };
+
+function Field({ label, children, error, required = false, className = '' }) {
+  const Icon = FIELD_ICONS[label];
   return (
-    <label className="block">
-      <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">{label}{required && <span className="ml-1 text-red-600" aria-label="required">*</span>}</span>
+    <label className={`block ${className}`}>
+      <span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#0F172A]">{Icon && <Icon size={14} aria-hidden="true" className="text-[#0878B7]" />}{label}{required && <span className="ml-1 text-red-600" aria-label="required">*</span>}</span>
       {children}
       {error && <span className="mt-1 block text-xs font-semibold text-red-600">{error}</span>}
     </label>
@@ -585,6 +589,10 @@ export default function AdminUsersPage() {
 
   const handleCreate = async (event) => {
     event.preventDefault();
+    if (createForm.role === 'STUDENT' && (!academicStructure.programs?.length || !createForm.program)) {
+      setModalFieldErrors({ program: [academicStructure.programs?.length ? 'Choose a course/program for this student.' : 'Configure a course/program before creating a student.'] });
+      return;
+    }
     if (createPhoto && (createPhoto.size > 2 * 1024 * 1024 || !['image/jpeg', 'image/png', 'image/webp'].includes(createPhoto.type))) { setModalFieldErrors({ photo: ['Choose a JPEG, PNG, or WebP image up to 2 MB.'] }); return; }
     setModalError('');
     setModalFieldErrors({});
@@ -713,15 +721,16 @@ export default function AdminUsersPage() {
       <Field label="Email" required error={modalFieldErrors.email?.[0]}>
         <input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
-      {form.role === 'STUDENT' && <Field label="Contact Number" error={modalFieldErrors.contact_number?.[0]}>
-        <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
-      </Field>}
       <Field label="First Name" required error={modalFieldErrors.first_name?.[0]}>
         <input value={form.first_name} onChange={(event) => setForm({ ...form, first_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
       <Field label="Last Name" required error={modalFieldErrors.last_name?.[0]}>
         <input value={form.last_name} onChange={(event) => setForm({ ...form, last_name: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </Field>
+      <Field label="Contact Number" error={modalFieldErrors.contact_number?.[0]}>
+        <input type="tel" value={form.contact_number} onChange={(event) => setForm({ ...form, contact_number: event.target.value })} placeholder="e.g. +63 912 345 6789" maxLength={30} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+      </Field>
+      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => (mode === 'create' ? setCreatePhoto : setEditPhoto)(event.target.files?.[0] || null)} className="w-full rounded-lg border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
       <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Role and academic details</h3></div>
       <Field label="Role" required error={modalFieldErrors.role?.[0]}>
         <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || (mode === 'edit' && selectedUser?.role === 'ADMIN')} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
@@ -730,7 +739,7 @@ export default function AdminUsersPage() {
           ))}
         </select>
       </Field>
-      <Field label="Organization Position" error={modalFieldErrors.position_title?.[0]}>
+      {['ADMIN', 'SBO_OFFICER'].includes(form.role) && <Field label="Organization Position" error={modalFieldErrors.position_title?.[0]}>
         <select
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
@@ -742,20 +751,19 @@ export default function AdminUsersPage() {
             <option key={position.id} value={position.title}>{position.title}</option>
           ))}
         </select>
-      </Field>
-      <Field label="Department"><input value={academicStructure.department || 'College of Computer Studies'} readOnly className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-slate-100 px-3 text-sm text-slate-500" /></Field>
-      <Field label="Course / Program" error={modalFieldErrors.program?.[0]}>
+      </Field>}
+      <Field label="Course / Program" required={form.role === 'STUDENT' && mode === 'create'} error={modalFieldErrors.program?.[0]}>
         <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
+        {form.role === 'STUDENT' && !academicStructure.programs?.length && <span className="mt-1 block text-xs text-amber-700">Configure a program in Programs & Sections first.</span>}
       </Field>
       <Field label="Year Level" error={modalFieldErrors.year_level?.[0]}>
         <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</select>
       </Field>
       <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
       <Field label="Section" error={modalFieldErrors.section?.[0]}><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
-      <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Photo and access</h3></div>
-      <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]}><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => (mode === 'create' ? setCreatePhoto : setEditPhoto)(event.target.files?.[0] || null)} className="w-full rounded-xl border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
       {mode === 'create' && (
         <>
+          <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Set password</h3></div>
           <Field label="Password" required error={modalFieldErrors.password?.[0]}>
             <input type="password" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
           </Field>
@@ -797,18 +805,13 @@ export default function AdminUsersPage() {
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
 
-      <section className="overflow-hidden rounded-3xl border border-[#DDE7EF] bg-white shadow-sm">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-[#DDE7EF] p-5">
-          <p className="text-sm font-semibold text-slate-600">{actorRole === 'SBO_OFFICER' ? 'Find students for consent-based fingerprint enrollment.' : 'Filter accounts, export the directory, or add a member.'}</p>
-          {actorRole !== 'SBO_OFFICER' && <div className="flex w-full flex-col gap-2 sm:w-auto"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
-        </div>
-
-
-        <div className="grid gap-3 bg-[#EEF6FB] p-4 sm:grid-cols-2">{(actorRole === 'SBO_OFFICER' ? [
+      <section className="flex flex-col gap-4 rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-4 shadow-sm lg:flex-row lg:items-center">
+        <div className="grid flex-1 gap-3 sm:grid-cols-2">{(actorRole === 'SBO_OFFICER' ? [
           ['Students', meta.total, GraduationCap], ['Fingerprint directory', 'Attendance use only', Fingerprint],
         ] : [
           ['Total users', meta.total, UsersRound], ['Students', roleSummary.STUDENT ?? 0, GraduationCap], ['Admins', roleSummary.ADMIN ?? 0, UserCheck], ['Super admins', roleSummary.SUPER_ADMIN ?? 0, ShieldCheck],
         ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-[#DDE7EF] bg-white p-4"><div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></div><Icon size={22} className="text-[#0878B7]" aria-hidden="true" /></dl>)}</div>
+        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -1015,8 +1018,8 @@ export default function AdminUsersPage() {
 
       <Modal open={showInvite} title="Invite existing account" description="Add one profile for this suborganization. The person's login stays the same." onClose={() => !busy && setShowInvite(false)} footer={<><button type="button" disabled={busy} onClick={() => setShowInvite(false)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold">Cancel</button><button type="submit" form="invite-account-form" disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Inviting…' : 'Invite'}</button></>}>
         <form id="invite-account-form" onSubmit={handleInvite} className="space-y-4">
-          <label className="block text-sm font-semibold text-[#0F172A]">School ID<input required inputMode="numeric" pattern="[0-9]*" maxLength={8} value={inviteForm.school_id} onChange={(event) => setInviteForm({ ...inviteForm, school_id: event.target.value.replace(/\D/g, '').slice(0, 8) })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3" /></label>
-          <label className="block text-sm font-semibold text-[#0F172A]">Role in this suborganization<select value={inviteForm.role} onChange={(event) => setInviteForm({ ...inviteForm, role: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3"><option value="STUDENT">Student</option><option value="SBO_OFFICER">SBO Officer</option><option value="DEPARTMENT_HEAD">Department Head</option></select></label>
+          <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="School ID" />School ID<input required inputMode="numeric" pattern="[0-9]*" maxLength={8} value={inviteForm.school_id} onChange={(event) => setInviteForm({ ...inviteForm, school_id: event.target.value.replace(/\D/g, '').slice(0, 8) })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3" /></label>
+          <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Role in this suborganization" />Role in this suborganization<select value={inviteForm.role} onChange={(event) => setInviteForm({ ...inviteForm, role: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3"><option value="STUDENT">Student</option><option value="SBO_OFFICER">SBO Officer</option><option value="DEPARTMENT_HEAD">Department Head</option></select></label>
           {modalError && <p role="alert" className="text-sm text-red-600">{modalError}</p>}
         </form>
       </Modal>

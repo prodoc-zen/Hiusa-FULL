@@ -1,4 +1,5 @@
 import { cloneElement, isValidElement, useId } from 'react';
+import FieldIcon from '../FieldIcon.jsx';
 
 export default function Field({ label, hint, error, required, children, className = '' }) {
   const generatedId = useId();
@@ -25,6 +26,7 @@ export default function Field({ label, hint, error, required, children, classNam
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <label htmlFor={controlId} className="text-[13px] font-semibold text-ink">
+        <FieldIcon label={label} />
         {label}
         {required && <span className="ml-0.5 text-danger" aria-hidden="true">*</span>}
       </label>

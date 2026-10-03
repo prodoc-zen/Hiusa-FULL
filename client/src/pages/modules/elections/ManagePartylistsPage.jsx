@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Flag, ImagePlus, Edit2, Trash2, Search, CirclePlus, ArrowLeft } from 'lucide-react';
@@ -180,7 +181,7 @@ export default function ManagePartylistsPage() {
                 className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm font-medium text-[#0F172A] outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0]"
               />
             </div>
-            {election.status !== 'closed' && (
+            {election.status !== 'closed' && !election.finalized_at && (
               <button
                 type="button"
                 onClick={() => setShowAdd(true)}
@@ -221,19 +222,19 @@ export default function ManagePartylistsPage() {
           <form id="add-partylist-form" onSubmit={handleAdd} className="space-y-4">
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div>
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Partylist Name *</label>
+                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Partylist Name *" />Partylist Name *</label>
                 <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="e.g. Alab" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </div>
               <div>
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Acronym</label>
+                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Acronym" />Acronym</label>
                 <input value={form.acronym} maxLength={30} onChange={(e) => setForm({ ...form, acronym: e.target.value.toUpperCase() })} placeholder="e.g. ALAB" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0]" />
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Description</label>
+                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>
                 <textarea value={form.description} maxLength={2000} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Party description or tagline..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
               </div>
               <div className="sm:col-span-2">
-                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
+                <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party Banner" />Party Banner</label>
                 <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                   {bannerPreview
                     ? <img src={bannerPreview} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
@@ -342,7 +343,7 @@ export default function ManagePartylistsPage() {
                   <h4 className="text-lg font-bold text-[#0F172A]">Party Identity</h4>
                   <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
                     <div>
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Official Party Name</label>
+                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Official Party Name" />Official Party Name</label>
                       <input
                         value={editing.name}
                         onChange={(event) => setEditing({ ...editing, name: event.target.value })}
@@ -350,7 +351,7 @@ export default function ManagePartylistsPage() {
                       />
                     </div>
                     <div>
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Acronym / Abbreviation</label>
+                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Acronym / Abbreviation" />Acronym / Abbreviation</label>
                       <input
                         value={editing.acronym || ''}
                         maxLength={30}
@@ -359,7 +360,7 @@ export default function ManagePartylistsPage() {
                       />
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Mission Statement</label>
+                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Mission Statement" />Mission Statement</label>
                       <textarea
                         value={editing.description || ''}
                         maxLength={2000}
@@ -372,7 +373,7 @@ export default function ManagePartylistsPage() {
                       </p>
                     </div>
                     <div className="sm:col-span-2">
-                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party Banner</label>
+                      <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party Banner" />Party Banner</label>
                       <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
                         {editBannerPreview
                           ? <img src={resolveAssetUrl(editBannerPreview)} alt="Banner preview" className="h-10 w-20 rounded object-cover border border-[#DDE7EF]" />
@@ -491,7 +492,7 @@ export default function ManagePartylistsPage() {
                       </div>
                       <p className="mt-1 text-sm text-[#64748B]">{partylist.description || 'No party description provided yet.'}</p>
                     </div>
-                    {election.status !== 'closed' && (
+                    {election.status !== 'closed' && !election.finalized_at && (
                       <div className="flex shrink-0 items-center gap-1">
                         <button
                           type="button"
@@ -544,10 +545,10 @@ export default function ManagePartylistsPage() {
                     )}
                   </div>
 
-                  <div className="border-t border-[#DDE7EF] pt-3">
-                    <p className="text-xs font-bold uppercase tracking-wider text-[#64748B]">
-                      Complete Slate ({partylistCandidates.length} candidate{partylistCandidates.length !== 1 ? 's' : ''})
-                    </p>
+                  <details className="border-t border-[#DDE7EF] pt-3">
+                    <summary className="cursor-pointer text-xs font-bold uppercase tracking-wider text-[#0878B7]">
+                      View complete slate ({partylistCandidates.length} candidate{partylistCandidates.length !== 1 ? 's' : ''})
+                    </summary>
                     {slate.length > 0 && (
                       <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
                         {slate.map((candidate) => {
@@ -563,7 +564,7 @@ export default function ManagePartylistsPage() {
                         })}
                       </div>
                     )}
-                  </div>
+                  </details>
                 </div>
               </article>
             );

@@ -74,7 +74,11 @@ class PositionManagementTest extends TestCase
         SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Treasurer', 'is_active' => true]);
 
         Sanctum::actingAs($admin);
-        $this->postJson('/api/users', $this->userPayload(71000002, 'STUDENT', 'Secretary'))
+        $this->postJson('/api/academic-structure/programs', [
+            'name' => 'BSIT',
+            'sections' => ['1' => 0, '2' => 0, '3' => 0, '4' => 0],
+        ])->assertCreated();
+        $this->postJson('/api/users', [...$this->userPayload(71000002, 'STUDENT', 'Secretary'), 'program' => 'BSIT'])
             ->assertUnprocessable()->assertJsonValidationErrors('position_title');
 
         $this->postJson('/api/users', $this->userPayload(71000003, 'SBO_OFFICER', 'Treasurer'))

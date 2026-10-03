@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from "react";
 import { Clock3, Download, Eye, X } from "lucide-react";
 import PaginationControls from "../../../components/PaginationControls";
@@ -211,7 +212,7 @@ export default function GeneralAuditLogPage() {
             ))}
           </select>
           <label className="text-[10px] font-bold uppercase text-slate-500">
-            From
+            <FieldIcon label="From" />From
             <input
               type="date"
               value={filters.from}
@@ -220,7 +221,7 @@ export default function GeneralAuditLogPage() {
             />
           </label>
           <label className="text-[10px] font-bold uppercase text-slate-500">
-            To
+            <FieldIcon label="To" />To
             <input
               type="date"
               value={filters.to}

@@ -2,9 +2,9 @@ import { render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ElectionResultsPage from './ElectionResultsPage';
 
-const { getElectionResults, electionContext } = vi.hoisted(() => ({ getElectionResults: vi.fn(), electionContext: { election: { id: 5, title: 'Final Council Election', status: 'closed', finalized_at: '2026-09-01T08:00:00Z', results_visible: true }, role: 'STUDENT' } }));
+const { getElectionResults, getElections, electionContext } = vi.hoisted(() => ({ getElectionResults: vi.fn(), getElections: vi.fn().mockResolvedValue([]), electionContext: { election: { id: 5, title: 'Final Council Election', status: 'closed', finalized_at: '2026-09-01T08:00:00Z', results_visible: true, voters_count: 30 }, role: 'STUDENT' } }));
 
-vi.mock('../../../services/electionService', () => ({ getElectionResults }));
+vi.mock('../../../services/electionService', () => ({ getElectionResults, getElections }));
 vi.mock('react-router-dom', () => ({
   useOutletContext: () => electionContext,
 }));
@@ -24,6 +24,7 @@ describe('ElectionResultsPage', () => {
     expect(await screen.findByText('Winner spotlight')).toBeInTheDocument();
     expect(screen.getAllByText('Ana Reyes').length).toBeGreaterThan(0);
     expect(screen.getByText('63%')).toBeInTheDocument();
+    expect(screen.getByText('30')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'President' })).toBeInTheDocument();
   });
 
