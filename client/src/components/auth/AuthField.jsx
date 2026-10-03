@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { Input } from '../ui';
+import FieldIcon from '../FieldIcon.jsx';
 
 export default function AuthField({
   id,
@@ -22,6 +23,7 @@ export default function AuthField({
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>
       <label htmlFor={controlId} className="text-[13px] font-semibold text-ink">
+        <FieldIcon label={label} />
         {label}
       </label>
       <div className="relative">

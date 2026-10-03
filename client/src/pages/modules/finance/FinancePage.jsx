@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
@@ -1259,10 +1260,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <summary className="min-h-11 cursor-pointer px-4 py-3 text-sm font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one here</summary>
               <form onSubmit={handleCreateSemester} className="border-t border-[#DDE7EF] p-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                <label className="text-xs font-bold text-slate-600">Semester name<input required value={semesterForm.name} onChange={(event) => setSemesterForm({ ...semesterForm, name: event.target.value })} placeholder="Semester 2026-2027" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
-                <label className="text-xs font-bold text-slate-600">Start date<input required type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
-                <label className="text-xs font-bold text-slate-600">End date<input required={!semesterForm.endToday} type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm disabled:bg-slate-100" /></label>
-                <div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, endToday: event.target.checked })} /> End today</label><button disabled={semesterSaving} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{semesterSaving ? 'Saving…' : 'Add'}</button></div>
+                <label className="text-xs font-bold text-slate-600"><FieldIcon label="Semester name" />Semester name<input required value={semesterForm.name} onChange={(event) => setSemesterForm({ ...semesterForm, name: event.target.value })} placeholder="Semester 2026-2027" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
+                <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<input required type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
+                <label className="text-xs font-bold text-slate-600"><FieldIcon label="End date" />End date<input required={!semesterForm.endToday} type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm disabled:bg-slate-100" /></label>
+                <div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, endToday: event.target.checked })} /> <FieldIcon label="End today" />End today</label><button disabled={semesterSaving} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{semesterSaving ? 'Saving…' : 'Add'}</button></div>
               </div>
               </form>
             </details>
@@ -1284,7 +1285,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </fieldset>
 
               <div className="grid gap-3 sm:grid-cols-2">
-                <label className="text-xs font-bold text-slate-600">Covered period
+                <label className="text-xs font-bold text-slate-600"><FieldIcon label="Covered period" />Covered period
                   <select value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="semester">Semester</option>
                     <option value="event">One event</option>
@@ -1292,23 +1293,23 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <option value="custom">Custom dates</option>
                   </select>
                 </label>
-                {reportForm.report_type === 'semester' ? <label className="text-xs font-bold text-slate-600">Semester
+                {reportForm.report_type === 'semester' ? <label className="text-xs font-bold text-slate-600"><FieldIcon label="Semester" />Semester
                   <select required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.name} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</select>
                 </label> : null}
-                {reportForm.report_type === 'event' && <label className="text-xs font-bold text-slate-600">Event
+                {reportForm.report_type === 'event' && <label className="text-xs font-bold text-slate-600"><FieldIcon label="Event" />Event
                   <select required value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="">Select event</option>
                     {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
                   </select>
                 </label>}
                 {reportForm.report_type === 'custom' && <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">Start date<input type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
-                  <label className="text-xs font-bold text-slate-600">End date<input type="date" required min={reportForm.period_start || undefined} value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<input type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="End date" />End date<input type="date" required min={reportForm.period_start || undefined} value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
                 </div>}
               </div>
 
               <div className="border-t border-[#DDE7EF] pt-4">
-                <label className="block max-w-xl text-xs font-bold text-slate-600">Letterhead image
+                <label className="block max-w-xl text-xs font-bold text-slate-600"><FieldIcon label="Letterhead image" />Letterhead image
                   <input type="file" accept=".jpg,.jpeg,.png,image/jpeg,image/png" onChange={(event) => {
                     const file = event.target.files?.[0] || null;
                     if (file && file.size > 5 * 1024 * 1024) {
@@ -1324,11 +1325,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
               {reportForm.document_type === 'income_statement' && (
                 <div className="grid gap-3 border-t border-[#DDE7EF] pt-4 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600">Letter date<input type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
-                  <label className="text-xs font-bold text-slate-600">Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Letter body<textarea value={reportForm.letter_body} onChange={(event) => setReportForm({ ...reportForm, letter_body: event.target.value })} rows={4} className="mt-1 w-full rounded-lg border border-[#DDE7EF] p-3 text-sm leading-6" placeholder="Leave blank to use a factual period and balance summary." /></label>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2">Closing<input value={reportForm.letter_closing} onChange={(event) => setReportForm({ ...reportForm, letter_closing: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Thank you." /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Letter date" />Letter date<input type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Subject" />Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Recipient" />Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Letter body" />Letter body<textarea value={reportForm.letter_body} onChange={(event) => setReportForm({ ...reportForm, letter_body: event.target.value })} rows={4} className="mt-1 w-full rounded-lg border border-[#DDE7EF] p-3 text-sm leading-6" placeholder="Leave blank to use a factual period and balance summary." /></label>
+                  <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Closing" />Closing<input value={reportForm.letter_closing} onChange={(event) => setReportForm({ ...reportForm, letter_closing: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Thank you." /></label>
                 </div>
               )}
 
@@ -1433,7 +1434,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <button type="button" disabled={reportExcelDownloading === report.id} onClick={() => handleExportSavedReport(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><FileSpreadsheet size={14} />{reportExcelDownloading === report.id ? 'Preparing...' : 'Export Excel'}</button><button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handleDownloadReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Download size={14} />{reportPdfDownloading === report.id ? 'Preparing...' : 'Download PDF'}</button>
                       <button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handlePreviewReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Eye size={14} />Preview / print</button>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id} onClick={() => handleSubmitReport(report)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for review'}</button></>}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600"><FieldIcon label="Supporting files" />Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id} onClick={() => handleSubmitReport(report)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for review'}</button></>}</div>
                   </div>
                 ))}
               </div>
@@ -1536,7 +1537,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             </div>
             <form className="space-y-4" onSubmit={handleCreate}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Description *</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description *" />Description *</label>
                 <input
                   type="text"
                   value={form.description}
@@ -1547,7 +1548,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Amount (₱) *</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Amount (₱) *" />Amount (₱) *</label>
                   <input
                     type="number"
                     min="0.01"
@@ -1559,7 +1560,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Type *</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Type *" />Type *</label>
                   <select
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
@@ -1572,7 +1573,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Category</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Category" />Category</label>
                   <select
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
@@ -1584,7 +1585,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Date *</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Date *" />Date *</label>
                   <input
                     type="date"
                     value={form.transaction_date}
@@ -1595,7 +1596,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Linked Budget</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Linked Budget" />Linked Budget</label>
                   <select
                     value={form.budget_id}
                     onChange={(e) => {
@@ -1614,7 +1615,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Linked Event</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Linked Event" />Linked Event</label>
                   <select
                     value={form.event_id}
                     onChange={(e) => setForm({ ...form, event_id: e.target.value })}
@@ -1628,7 +1629,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Receipt Reference</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Receipt Reference" />Receipt Reference</label>
                 <input
                   type="text"
                   value={form.receipt_reference}
@@ -1665,7 +1666,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             </p>
             <form className="space-y-4" onSubmit={handleCreateBudget}>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Title *</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Title *" />Title *</label>
                 <input
                   type="text"
                   value={budgetForm.title}
@@ -1676,7 +1677,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Allocated Amount (₱) *</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Allocated Amount (₱) *" />Allocated Amount (₱) *</label>
                   <input
                     type="number"
                     min="0"
@@ -1688,7 +1689,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[13px] font-semibold text-[#0F172A]">Warning Threshold (₱) *</label>
+                  <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Warning Threshold (₱) *" />Warning Threshold (₱) *</label>
                   <input
                     type="number"
                     min="0"
@@ -1701,7 +1702,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label className="text-[13px] font-semibold text-[#0F172A]">Linked Event (optional)</label>
+                <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Linked Event (optional)" />Linked Event (optional)</label>
                 <select
                   value={budgetForm.event_id}
                   onChange={(e) => setBudgetForm({ ...budgetForm, event_id: e.target.value })}

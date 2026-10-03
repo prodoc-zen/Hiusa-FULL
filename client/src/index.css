@@ -2,6 +2,15 @@
 
 @import "tailwindcss";
 
+.hiusa-toaster [data-sonner-toast] {
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(11, 24, 49, .08);
+}
+.hiusa-toaster [data-sonner-toast][data-type="success"] { background: #EBF7EF; border-color: #BBE8C9; color: #166534; }
+.hiusa-toaster [data-sonner-toast][data-type="error"] { background: #FBE9E9; border-color: #F2C7C7; color: #991B1B; }
+.hiusa-toaster [data-sonner-toast][data-type="warning"] { background: #FEF3DB; border-color: #F8DF9D; color: #92400E; }
+.hiusa-toaster [data-sonner-toast][data-type="info"] { background: #E7F4FB; border-color: #CDE9F7; color: #0F2F62; }
+
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
   --radius-lg: 1rem;

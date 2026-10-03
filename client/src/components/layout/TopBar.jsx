@@ -616,6 +616,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         title="Log Out"
         message="You will need to sign in again to access your dashboard."
         confirmText="Log Out"
+        variant="primary"
         busy={logoutBusy}
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
         onConfirm={handleLogout}

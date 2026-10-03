@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Award, ChevronDown, ImagePlus, Pencil, Plus, Search, Trash2, X } from 'lucide-react';
@@ -193,7 +194,7 @@ function CandidateForm({
       <form onSubmit={onSubmit} className="space-y-4">
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Student *</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Student *" />Student *</label>
             <StudentSearchDropdown
               users={users}
               value={form.user_id}
@@ -202,7 +203,7 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Position *</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Position *" />Position *</label>
             <div className="relative">
               <select
                 value={form.position_id}
@@ -219,7 +220,7 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Party List</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party List" />Party List</label>
             <div className="relative">
               <select
                 value={form.partylist_id}
@@ -236,7 +237,7 @@ function CandidateForm({
           </div>
 
           <div>
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Candidate Photo</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Candidate Photo" />Candidate Photo</label>
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2 transition hover:border-[#0B8ED0]/50 hover:bg-[#F8FBFD]">
               {imagePreview
                 ? <img src={resolveAssetUrl(imagePreview)} alt="Preview" className="h-9 w-9 rounded-full object-cover border border-[#DDE7EF]" />
@@ -248,7 +249,7 @@ function CandidateForm({
           </div>
 
           <div className="sm:col-span-2">
-            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Platform Statement</label>
+            <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Platform Statement" />Platform Statement</label>
             <textarea
               value={form.platform}
               maxLength={2000}
@@ -333,7 +334,7 @@ export default function ManageCandidatesPage() {
 
   const positions = useMemo(() => election?.positions || [], [election?.positions]);
   const candidates = useMemo(() => election?.candidates || [], [election?.candidates]);
-  const ballotLocked = (election?.votes || []).length > 0;
+  const ballotLocked = Boolean(election?.finalized_at) || (election?.votes || []).length > 0;
 
   const assignedUserIds = useMemo(() => new Set(candidates.map((candidate) => candidate.user_id)), [candidates]);
 
@@ -575,7 +576,7 @@ export default function ManageCandidatesPage() {
                         <p className="font-bold text-[#0F172A]">{name || 'Unknown Candidate'}</p>
                         <p className="text-xs text-[#64748B]">{position}</p>
                         <span className="inline-block mt-1 px-2 py-0.5 bg-[#EEF6FB] text-[#0F2F62] text-[10px] font-bold rounded-full">{partylist}</span>
-                        {candidate.platform && <p className="mt-2 text-sm text-slate-600">{candidate.platform}</p>}
+                        <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-[#0878B7]">View candidate details</summary><p className="mt-2 whitespace-pre-wrap">{candidate.platform || 'No campaign platform has been added.'}</p></details>
                       </div>
                     </div>
                     {election.status !== 'closed' && !ballotLocked && (

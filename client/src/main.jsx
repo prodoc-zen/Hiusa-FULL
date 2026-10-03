@@ -11,6 +11,7 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     <BrowserRouter>
       <App />
       <Toaster
+        className="hiusa-toaster"
         position="top-right"
         gap={10}
         closeButton

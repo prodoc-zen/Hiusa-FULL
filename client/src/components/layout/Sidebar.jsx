@@ -322,6 +322,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         title="Log Out"
         message="You will need to sign in again to access your dashboard."
         confirmText="Log Out"
+        variant="primary"
         busy={logoutBusy}
         onCancel={() => !logoutBusy && setLogoutConfirmOpen(false)}
         onConfirm={handleLogout}

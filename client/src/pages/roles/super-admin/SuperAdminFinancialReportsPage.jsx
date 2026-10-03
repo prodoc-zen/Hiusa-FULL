@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Download, Eye, FileText, RefreshCw, X } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -266,7 +267,7 @@ export default function SuperAdminFinancialReportsPage() {
           <button type="button" disabled={reviewing || !rejectionRemarks.trim()} onClick={submitReview} className="min-h-10 rounded-lg bg-red-600 px-4 text-sm font-bold text-white disabled:opacity-50">{reviewing ? 'Rejecting...' : 'Reject report'}</button>
         </>}
       >
-        <label className="block text-sm font-semibold text-[#0F172A]">Rejection reason
+        <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Rejection reason" />Rejection reason
           <textarea value={rejectionRemarks} onChange={(event) => setRejectionRemarks(event.target.value)} rows={4} className="mt-2 w-full resize-none rounded-lg border border-[#DDE7EF] p-3 text-sm focus:border-[#0B8ED0] focus:outline-none" placeholder="Describe the missing or incorrect report details." />
         </label>
       </Modal>

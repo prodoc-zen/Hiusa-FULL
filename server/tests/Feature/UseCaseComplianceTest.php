@@ -33,6 +33,53 @@ class UseCaseComplianceTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function test_closed_election_rejects_mutations_and_remains_tenant_scoped(): void
+    {
+        $admin = $this->user('ADMIN');
+        $foreignAdmin = $this->user('ADMIN');
+        $election = Election::create([
+            'organization_id' => $admin->organization_id,
+            'title' => 'Finished Election',
+            'start_time' => now()->subDays(2),
+            'end_time' => now()->subDay(),
+            'status' => 'closed',
+            'approved_at' => now()->subDays(3),
+            'finalized_at' => now()->subDays(3),
+        ]);
+
+        $this->authenticate($admin);
+        $this->postJson("/api/elections/{$election->id}/positions", ['title' => 'President', 'max_winners' => 1])->assertConflict();
+        $this->putJson("/api/elections/{$election->id}", ['title' => 'Renamed'])->assertConflict();
+        $this->putJson("/api/elections/{$election->id}", ['room' => 'Hall B'])->assertConflict();
+        $this->deleteJson("/api/elections/{$election->id}")->assertConflict();
+        $this->assertDatabaseHas('elections', ['id' => $election->id, 'title' => 'Finished Election']);
+
+        $this->authenticate($foreignAdmin);
+        $this->postJson("/api/elections/{$election->id}/positions", ['title' => 'President', 'max_winners' => 1])->assertNotFound();
+        $this->deleteJson("/api/elections/{$election->id}")->assertNotFound();
+    }
+
+    public function test_election_room_is_validated_and_kept_with_the_election(): void
+    {
+        $admin = $this->user('ADMIN');
+        $foreignAdmin = $this->user('ADMIN');
+        $this->authenticate($admin);
+
+        $electionId = $this->postJson('/api/elections', [
+            'title' => 'Campus Vote',
+            'room' => 'Student Center 204',
+            'start_time' => now()->addDay(),
+            'end_time' => now()->addDays(2),
+        ])->assertCreated()->assertJsonPath('room', 'Student Center 204')->json('id');
+
+        $this->putJson("/api/elections/{$electionId}", ['room' => str_repeat('x', 121)])->assertUnprocessable()->assertJsonValidationErrors('room');
+        $this->putJson("/api/elections/{$electionId}", ['room' => 'Online ballot'])->assertOk()->assertJsonPath('room', 'Online ballot');
+        $this->getJson("/api/elections/{$electionId}")->assertOk()->assertJsonPath('room', 'Online ballot');
+
+        $this->authenticate($foreignAdmin);
+        $this->putJson("/api/elections/{$electionId}", ['room' => 'Foreign room'])->assertNotFound();
+    }
+
     private function user(string $role, ?int $organizationId = null): User
     {
         $user = User::factory()->create([
@@ -59,6 +106,11 @@ class UseCaseComplianceTest extends TestCase
         $otherOrganization = Organization::factory()->create();
         $this->authenticate($admin);
 
+        $this->postJson('/api/academic-structure/programs', [
+            'name' => 'BSIT',
+            'sections' => ['1' => 0, '2' => 0, '3' => 0, '4' => 0],
+        ])->assertCreated();
+
         $created = $this->postJson('/api/users', [
             'organization_id' => $otherOrganization->id,
             'school_id' => 87654321,
@@ -68,6 +120,7 @@ class UseCaseComplianceTest extends TestCase
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => 'STUDENT',
+            'program' => 'BSIT',
         ])->assertCreated();
 
         $created->assertJsonPath('organization_id', $admin->organization_id);

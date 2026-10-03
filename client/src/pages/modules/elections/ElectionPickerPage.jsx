@@ -1,3 +1,4 @@
+import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
@@ -5,6 +6,7 @@ import {
   ChevronRight,
   Clock3,
   LoaderCircle,
+  MapPin,
   PencilLine,
   Plus,
   Power,
@@ -38,7 +40,7 @@ const statusLabels = {
 };
 
 const blankElection = () => ({
-  title: '', start_time: '', end_time: '', status: 'pending_approval', imageFile: null,
+  title: '', room: '', start_time: '', end_time: '', status: 'pending_approval', imageFile: null,
   positions: [{ title: '', max_winners: 1 }],
 });
 
@@ -119,16 +121,17 @@ function ElectionFormFields({ form, setForm, editing = false }) {
         onRemove={editing ? () => setForm((current) => ({ ...current, imageFile: null, image_url: '', remove_image: true })) : undefined}
       />
       <label className="block">
-        <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Election title *</span>
+        <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Election title *" />Election title *</span>
         <input data-autofocus value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. HIUSA General Elections 2026" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
       </label>
+      <label className="block"><span className="mb-1.5 flex items-center gap-1.5 text-[13px] font-semibold text-[#0F172A]"><MapPin size={14} aria-hidden="true" /> Voting room (optional)</span><input value={form.room || ''} maxLength={120} onChange={(event) => setForm((current) => ({ ...current, room: event.target.value }))} placeholder="Online ballot or room name" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Voting starts *</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting starts *" />Voting starts *</span>
           <input type="datetime-local" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
         </label>
         <label className="block">
-          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]">Voting ends *</span>
+          <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting ends *" />Voting ends *</span>
           <input type="datetime-local" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
         </label>
       </div>
@@ -216,7 +219,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     if (validationError) return setFormError(validationError);
     setSubmitting(true); setFormError('');
     try {
-      const created = await createElection({ ...form, title: form.title.trim(), start_time: localDateTimeToIso(form.start_time), end_time: localDateTimeToIso(form.end_time), positions: form.positions.filter((item) => item.title.trim()).map((item) => ({ title: item.title.trim(), max_winners: Number(item.max_winners) })) });
+      const created = await createElection({ ...form, title: form.title.trim(), room: form.room.trim(), start_time: localDateTimeToIso(form.start_time), end_time: localDateTimeToIso(form.end_time), positions: form.positions.filter((item) => item.title.trim()).map((item) => ({ title: item.title.trim(), max_winners: Number(item.max_winners) })) });
       setElections((current) => [created, ...current]); setForm(blankElection()); setShowCreate(false);
       setFeedback({ open: true, type: 'success', message: 'Election submitted for approval.' });
     } catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to create election.')); }
@@ -225,7 +228,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
 
   const openEdit = (election) => {
     setFormError('');
-    setEditForm({ id: election.id, title: election.title, image_url: election.image_url || '', imageFile: null, remove_image: false, start_time: isoToLocalDateTimeInput(election.start_time), end_time: isoToLocalDateTimeInput(election.end_time), status: election.status });
+    setEditForm({ id: election.id, title: election.title, room: election.room || '', image_url: election.image_url || '', imageFile: null, remove_image: false, start_time: isoToLocalDateTimeInput(election.start_time), end_time: isoToLocalDateTimeInput(election.end_time), status: election.status });
     setShowEdit(true);
   };
 
@@ -235,7 +238,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     if (validationError) return setFormError(validationError);
     setSubmitting(true); setFormError('');
     try {
-      const updated = await updateElection(editForm.id, { title: editForm.title.trim(), start_time: localDateTimeToIso(editForm.start_time), end_time: localDateTimeToIso(editForm.end_time), status: editForm.status, imageFile: editForm.imageFile, remove_image: editForm.remove_image ? 1 : undefined });
+      const updated = await updateElection(editForm.id, { title: editForm.title.trim(), room: editForm.room.trim(), start_time: localDateTimeToIso(editForm.start_time), end_time: localDateTimeToIso(editForm.end_time), status: editForm.status, imageFile: editForm.imageFile, remove_image: editForm.remove_image ? 1 : undefined });
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); setShowEdit(false);
       setFeedback({ open: true, type: 'success', message: 'Election updated.' });
     } catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to update election.')); }
@@ -315,13 +318,13 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
                 <div className="p-4 sm:p-5">
                   <h2 className="text-xl font-black leading-tight text-[#0F172A]">{election.title}</h2>
                   <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B]"><Clock3 size={13} /> {formatTimeline(election)}</p>
-                  <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div></div>
+                  <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
                   <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Select election <ChevronRight size={16} /></button>
                   {canManageElections && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EEF6FB] pt-3">
-                      <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> Edit</button>
-                      <button type="button" onClick={() => setDeleteTarget(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>
+                      {election.status !== 'closed' && <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> Edit</button>}
+                      {election.status !== 'closed' && <button type="button" onClick={() => setDeleteTarget(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>}
                       {election.status === 'pending_approval' && <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700"><CheckCircle2 size={14} /> In review</span>}
                       {election.status === 'upcoming' && !election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleFinalize(election.id)} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#EEF6FB] disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Finalize ballot</button>}
                       {election.status === 'upcoming' && election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'active')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Power size={14} />} Open voting</button>}

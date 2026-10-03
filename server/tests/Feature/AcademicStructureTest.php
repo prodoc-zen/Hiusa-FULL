@@ -186,6 +186,19 @@ class AcademicStructureTest extends TestCase
         $studentId = 87654350;
         $this->postJson('/api/users', [
             'school_id' => $studentId,
+            'first_name' => 'Contact', 'last_name' => 'Student',
+            'email' => 'contact.student@example.test',
+            'password' => 'password123', 'password_confirmation' => 'password123',
+            'role' => 'STUDENT',
+        ])->assertUnprocessable()->assertJsonValidationErrors('program');
+
+        $this->postJson('/api/academic-structure/programs', [
+            'name' => 'BSIT',
+            'sections' => ['1' => 0, '2' => 0, '3' => 0, '4' => 0],
+        ])->assertCreated();
+
+        $this->postJson('/api/users', [
+            'school_id' => $studentId,
             'first_name' => 'Contact',
             'last_name' => 'Student',
             'email' => 'contact.student@example.test',
@@ -193,6 +206,7 @@ class AcademicStructureTest extends TestCase
             'password' => 'password123',
             'password_confirmation' => 'password123',
             'role' => 'STUDENT',
+            'program' => 'BSIT',
         ])->assertCreated()->assertJsonPath('contact_number', '+63 917 123 4567');
 
         $this->putJson("/api/users/{$studentId}", [
