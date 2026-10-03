@@ -317,6 +317,16 @@ a {
 
 .app-overlay {
   top: var(--dashboard-navbar-bottom, 0px);
+  left: var(--dashboard-sidebar-width, 0px);
+}
+
+.dashboard-centered-popup {
+  left: calc((100vw + var(--dashboard-sidebar-width, 0px)) / 2);
+  max-width: min(36rem, calc(100vw - var(--dashboard-sidebar-width, 0px) - 2rem));
+}
+
+body:has(> .app-overlay) #root {
+  pointer-events: none;
 }
 
 @media (max-width: 1023px) {

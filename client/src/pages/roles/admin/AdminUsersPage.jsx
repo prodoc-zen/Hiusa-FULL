@@ -1,7 +1,7 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { dashboardPopupTop } from '../../../utils/dashboardPopupTop';
+import { dashboardPopupLeft, dashboardPopupTop } from '../../../utils/dashboardPopupPosition';
 import { BookOpen, BriefcaseBusiness, CalendarDays, CircleCheck, CircleX, Download, Eye, Fingerprint, GraduationCap, Hash, Image, KeyRound, Layers3, Mail, MoreVertical, PencilLine, Phone, ShieldCheck, Trash2, Upload, UserCheck, UserPlus, UserRound, UserX, UsersRound } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
@@ -152,6 +152,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
 
     const rect = triggerRef.current?.getBoundingClientRect();
     if (rect) {
+      const minLeft = dashboardPopupLeft();
       const menuWidth = 224;
       const menuHeight = 62 + (actions.length * 44);
       const minTop = dashboardPopupTop();
@@ -159,7 +160,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       const opensUpward = window.innerHeight - rect.bottom < visibleMenuHeight + 16 && rect.top - visibleMenuHeight - 8 >= minTop;
       const preferredTop = opensUpward ? rect.top - visibleMenuHeight - 8 : rect.bottom + 8;
       setMenuPosition({
-        left: Math.max(12, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12)),
+        left: Math.max(minLeft, Math.min(rect.right - menuWidth, window.innerWidth - menuWidth - 12)),
         top: Math.max(minTop, Math.min(preferredTop, window.innerHeight - visibleMenuHeight - 12)),
         origin: opensUpward ? 'bottom right' : 'top right',
       });
