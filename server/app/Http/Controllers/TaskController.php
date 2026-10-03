@@ -350,7 +350,7 @@ class TaskController extends Controller
         }
 
         if ($status === 'completed') {
-            $data['progress_percent'] = $data['progress_percent'] ?? 100;
+            $data['progress_percent'] = 100;
             $data['completed_at'] = $data['completed_at'] ?? now();
         } elseif ($task?->status === 'completed') {
             $data['completed_at'] = null;
