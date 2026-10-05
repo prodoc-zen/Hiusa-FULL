@@ -122,7 +122,7 @@ class FinancialAccountabilityController extends Controller
                 return response()->json(['message' => 'Only pending collections can be verified.'], 409);
             } if ($locked->collected_by === $request->user()->school_id) {
                 return response()->json(['message' => 'You cannot verify your own collection.'], 403);
-            } $transaction = $this->ledger($request, 'income', $locked->amount_collected, 'Collection', 'Collection '.$locked->reference, null, $locked->id, $locked->organization_id);
+            } $transaction = $this->ledger($request, 'income', $locked->amount_collected, 'Collection', 'Collection '.$locked->reference, null, $locked->id, $locked->organization_id, $locked->event_id);
             $locked->update(['status' => 'verified', 'verified_by' => $request->user()->school_id, 'verified_at' => now(), 'ledger_transaction_id' => $transaction->id]);
             $this->audit($request, 'collections', 'verified', $locked, $locked->organization_id);
 
@@ -442,9 +442,9 @@ class FinancialAccountabilityController extends Controller
         return $query;
     }
 
-    private function ledger(Request $request, string $type, $amount, string $category, string $description, ?int $payerId, int $entityId, ?int $organizationId = null): Transaction
+    private function ledger(Request $request, string $type, $amount, string $category, string $description, ?int $payerId, int $entityId, ?int $organizationId = null, ?int $eventId = null): Transaction
     {
-        return Transaction::create(['organization_id' => $organizationId ?? $request->user()->organization_id, 'recorded_by' => $request->user()->school_id, 'payer_id' => $payerId, 'type' => $type, 'amount' => $amount, 'category' => $category, 'description' => $description, 'receipt_reference' => 'FIN-'.strtoupper(Str::random(12)), 'transaction_date' => now()]);
+        return Transaction::create(['organization_id' => $organizationId ?? $request->user()->organization_id, 'recorded_by' => $request->user()->school_id, 'payer_id' => $payerId, 'event_id' => $eventId, 'type' => $type, 'amount' => $amount, 'category' => $category, 'description' => $description, 'receipt_reference' => 'FIN-'.strtoupper(Str::random(12)), 'transaction_date' => now()]);
     }
 
     private function audit(Request $r, string $module, string $action, $model, ?int $organizationId = null): void
