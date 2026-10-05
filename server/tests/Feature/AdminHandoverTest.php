@@ -105,13 +105,13 @@ class AdminHandoverTest extends TestCase
 
     public function test_member_search_lists_only_active_eligible_members_of_that_organization(): void
     {
-        User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'active', 'first_name' => 'Ana', 'last_name' => 'Reyes']);
-        User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'disabled', 'first_name' => 'Ana', 'last_name' => 'Disabled']);
-        User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'DEPARTMENT_HEAD', 'account_status' => 'active', 'first_name' => 'Ana', 'last_name' => 'Head']);
-        User::factory()->create(['organization_id' => Organization::factory()->create()->id, 'role' => 'STUDENT', 'account_status' => 'active', 'first_name' => 'Ana', 'last_name' => 'Elsewhere']);
+        User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'active', 'first_name' => 'Zyriel', 'last_name' => 'Reyes']);
+        User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'disabled', 'first_name' => 'Zyriel', 'last_name' => 'Disabled']);
+        User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'DEPARTMENT_HEAD', 'account_status' => 'active', 'first_name' => 'Zyriel', 'last_name' => 'Head']);
+        User::factory()->create(['organization_id' => Organization::factory()->create()->id, 'role' => 'STUDENT', 'account_status' => 'active', 'first_name' => 'Zyriel', 'last_name' => 'Elsewhere']);
         Sanctum::actingAs($this->director);
 
-        $members = $this->getJson("/api/system/organizations/{$this->organization->id}/members?search=Ana")->assertOk()->json();
+        $members = $this->getJson("/api/system/organizations/{$this->organization->id}/members?search=Zyriel")->assertOk()->json();
 
         $this->assertSame(['Reyes'], array_column($members, 'last_name'));
         $this->assertArrayNotHasKey('password_hash', $members[0]);
