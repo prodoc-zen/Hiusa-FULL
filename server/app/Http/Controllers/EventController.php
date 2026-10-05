@@ -184,10 +184,7 @@ class EventController extends Controller
             $budget->approval_remarks = $approval?->remarks;
         }
 
-        $latestForecast = FinancialForecast::where('organization_id', $events->first()->organization_id)
-            ->orderByDesc('forecast_period')
-            ->orderByDesc('id')
-            ->first();
+        $latestForecast = FinancialForecast::latestFor($events->first()->organization_id);
 
         foreach ($events as $event) {
             $eventBudgets = $event->budgets;

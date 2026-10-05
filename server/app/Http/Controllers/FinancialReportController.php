@@ -179,9 +179,7 @@ class FinancialReportController extends Controller
             'verified_collections' => round((float) $collectionQuery->sum('amount_collected'), 2),
             'recorded_remittances' => round((float) $remittanceQuery->sum('amount'), 2),
         ];
-        $latestForecast = FinancialForecast::where('organization_id', $organizationId)
-            ->orderByDesc('forecast_period')
-            ->first();
+        $latestForecast = FinancialForecast::latestFor($organizationId);
         $budgets = Budget::where('organization_id', $organizationId)
             ->when($event, fn ($query) => $query->where('event_id', $event->id))
             ->when($semester, fn ($query) => $query->where('financial_semester_id', $semester->id))
