@@ -8,8 +8,6 @@ use App\Models\FinancialForecast;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -33,7 +31,6 @@ class LatestForecastSelectionTest extends TestCase
     protected function setUp(): void
     {
         parent::setUp();
-        Http::fake([config('services.hiusa_ai.url').'/*' => fn () => throw new ConnectionException('Connection refused')]);
         $organization = Organization::factory()->create();
         $this->admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
         $this->event = Event::factory()->create([
