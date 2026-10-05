@@ -4,8 +4,14 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Budget;
+use App\Models\CashAdvance;
+use App\Models\CashAdvanceRepayment;
+use App\Models\Collection;
 use App\Models\Event;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Notification;
+use App\Models\Order;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Http\Request;
@@ -186,6 +192,10 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
+        if ($message = $this->systemSourceMessage($transaction)) {
+            return response()->json(['message' => $message], 409);
+        }
+
         $data = $request->validate($this->rules($request, true, $transaction));
 
         if ($message = $this->validateAndNormalizeLinks($request, $data, $transaction)) {
@@ -247,6 +257,10 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
+        if ($message = $this->systemSourceMessage($transaction)) {
+            return response()->json(['message' => $message], 409);
+        }
+
         if ($transaction->recorded_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
             return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
         }
@@ -259,6 +273,35 @@ class TransactionController extends Controller
         });
 
         return response()->json(['message' => 'Transaction deleted successfully.']);
+    }
+
+    private function systemSourceMessage(Transaction $transaction): ?string
+    {
+        if ($collection = Collection::where('ledger_transaction_id', $transaction->id)->first(['reference'])) {
+            return "This entry was recorded when collection {$collection->reference} was verified. Change it from Collections.";
+        }
+
+        if ($advance = CashAdvance::where('release_transaction_id', $transaction->id)->first(['reference'])) {
+            return "This entry was recorded when cash advance {$advance->reference} was released. Change it from Cash Advances.";
+        }
+
+        if ($repayment = CashAdvanceRepayment::where('ledger_transaction_id', $transaction->id)->first(['cash_advance_id'])) {
+            $reference = CashAdvance::whereKey($repayment->cash_advance_id)->value('reference');
+
+            return "This entry was recorded when a repayment for cash advance {$reference} was received. Change it from Cash Advances.";
+        }
+
+        if ($payment = InvoicePayment::where('ledger_transaction_id', $transaction->id)->first(['invoice_id'])) {
+            $reference = Invoice::whereKey($payment->invoice_id)->value('reference');
+
+            return "This entry was recorded when a payment for invoice {$reference} was approved. Change it from Student Financial Accounts.";
+        }
+
+        if ($order = Order::where('transaction_id', $transaction->id)->first(['id'])) {
+            return "This entry was recorded when merchandise order ORD-{$order->id} was paid. Change it from Manage Orders.";
+        }
+
+        return null;
     }
 
     private function validateAndNormalizeLinks(Request $request, array &$data, ?Transaction $transaction = null): ?string
