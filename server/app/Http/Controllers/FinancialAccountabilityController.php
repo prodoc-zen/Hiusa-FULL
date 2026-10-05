@@ -343,6 +343,9 @@ class FinancialAccountabilityController extends Controller
         try {
             return DB::transaction(function () use ($request, $invoice, $data) {
                 $locked = Invoice::where('organization_id', $request->user()->organization_id)->lockForUpdate()->findOrFail($invoice->id);
+                if ($locked->isVoided()) {
+                    return response()->json(['message' => "This invoice is already {$locked->status}."], 409);
+                }
                 $paid = (float) InvoicePayment::where('invoice_id', $locked->id)->where('status', 'approved')->sum('amount');
                 if ((float) $data['amount'] > (float) $locked->amount_due - $paid + 0.00001) {
                     return response()->json(['message' => 'Payment cannot exceed the invoice balance.'], 422);
@@ -360,6 +363,20 @@ class FinancialAccountabilityController extends Controller
         } catch (DomainException $exception) {
             return response()->json(['message' => $exception->getMessage()], 422);
         }
+    }
+
+    public function closeInvoice(Request $request, Invoice $invoice)
+    {
+        $this->sameOrganization($request, $invoice->organization_id);
+        $data = $request->validate(['status' => ['required', 'in:cancelled,waived'], 'reason' => ['required', 'string', 'max:500']]);
+
+        try {
+            $closed = $this->fulfillmentService->closeInvoice($invoice, $data['status'], $data['reason'], $request->user(), $request->ip());
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 409);
+        }
+
+        return response()->json($this->invoiceData($closed));
     }
 
     public function auditLogs(Request $request)
@@ -640,8 +657,9 @@ class FinancialAccountabilityController extends Controller
     private function invoiceData(Invoice $i): array
     {
         $paid = (float) $i->payments()->where('status', 'approved')->sum('amount');
+        $remaining = $i->isVoided() ? 0.0 : (float) $i->amount_due - $paid;
 
-        return [...$i->toArray(), 'amount_paid' => round($paid, 2), 'remaining_balance' => round((float) $i->amount_due - $paid, 2), 'clearance_status' => ((float) $i->amount_due - $paid) < 0.005 ? 'financially_cleared' : 'pending_clearance'];
+        return [...$i->toArray(), 'amount_paid' => round($paid, 2), 'remaining_balance' => round($remaining, 2), 'clearance_status' => $remaining < 0.005 ? 'financially_cleared' : 'pending_clearance'];
     }
 
     private function studentAccountRows($students, int $organizationId)
