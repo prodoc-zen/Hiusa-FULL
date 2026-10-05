@@ -173,9 +173,7 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
-        $forecast = FinancialForecast::where('organization_id', $request->user()->organization_id)
-            ->orderByDesc('forecast_period')
-            ->first();
+        $forecast = FinancialForecast::latestFor($request->user()->organization_id);
         $payload = [
             'predicted_income' => (float) ($forecast?->predicted_income ?? 0),
             'predicted_expense' => (float) ($forecast?->predicted_expense ?? 0),
