@@ -2,7 +2,10 @@
 
 namespace App\Services;
 
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Merchandise;
 use App\Models\Notification;
 use App\Models\Order;
@@ -13,6 +16,47 @@ use Illuminate\Support\Facades\DB;
 
 class OrderFulfillmentService
 {
+    /** Why this order cannot be paid from the order side: an invoice still bills it and is where its money is recorded. */
+    public function billedOnInvoiceMessage(Order $order): ?string
+    {
+        $invoice = $order->billingInvoice()->first();
+
+        if (! $invoice || $invoice->remainingBalance() < 0.005) {
+            return null;
+        }
+
+        return "This order is billed on invoice {$invoice->reference}. Record the payment on the invoice from Student Financial Accounts; the order is marked paid when the invoice is paid in full.";
+    }
+
+    /** The invoice's final payment already posted the money, so the order only needs approving, not a second entry. */
+    public function settleOrderPaidByInvoice(Invoice $invoice, User $actor): void
+    {
+        $order = Order::where('organization_id', $invoice->organization_id)->whereKey($invoice->order_id)->first();
+
+        if (! $order || $order->status !== 'pending') {
+            return;
+        }
+
+        $this->approvePayment($order, $actor, true);
+
+        ApprovalRequest::where('organization_id', $order->organization_id)
+            ->where('entity_type', 'payment')
+            ->where('entity_id', $order->id)
+            ->where('status', 'pending')
+            ->lockForUpdate()
+            ->get()
+            ->each(function (ApprovalRequest $approval) use ($invoice, $actor) {
+                $remarks = "Paid in full through invoice {$invoice->reference}.";
+                $approval->update(['status' => 'approved', 'active_key' => null, 'remarks' => $remarks, 'reviewed_by' => $actor->school_id, 'reviewed_at' => now()]);
+                AuditLog::create([
+                    'organization_id' => $approval->organization_id, 'user_id' => $actor->school_id, 'module' => 'approvals',
+                    'action' => 'payment_approved_from_invoice', 'record_type' => ApprovalRequest::class, 'record_id' => $approval->id,
+                    'new_values' => ['entity_type' => 'payment', 'entity_id' => $approval->entity_id, 'status' => 'approved', 'remarks' => $remarks],
+                    'created_at' => now(),
+                ]);
+            });
+    }
+
     public function approvePayment(Order $order, User $approver, bool $bypassOfficerReview = false): Order
     {
         if ($order->status === 'cancelled') {
@@ -29,6 +73,10 @@ class OrderFulfillmentService
             $oldOrderValues = $this->auditableOrderValues($lockedOrder);
 
             if (! $wasPaid) {
+                if ($message = $this->billedOnInvoiceMessage($lockedOrder)) {
+                    throw new DomainException($message);
+                }
+
                 $item = Merchandise::where('organization_id', $lockedOrder->organization_id)
                     ->whereKey($lockedOrder->merchandise_id)
                     ->lockForUpdate()
@@ -123,6 +171,17 @@ class OrderFulfillmentService
     private function ensureReceipt(Order $order, User $approver): void
     {
         if ($order->transaction_id) {
+            return;
+        }
+
+        $invoice = $order->billingInvoice()->first();
+        $invoiceEntryId = $invoice && $invoice->remainingBalance() < 0.005
+            ? InvoicePayment::where('invoice_id', $invoice->id)->where('status', 'approved')->whereNotNull('ledger_transaction_id')->latest('id')->value('ledger_transaction_id')
+            : null;
+
+        if ($invoiceEntryId) {
+            $order->update(['transaction_id' => $invoiceEntryId]);
+
             return;
         }
 

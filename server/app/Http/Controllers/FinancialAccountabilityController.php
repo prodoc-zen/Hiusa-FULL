@@ -14,6 +14,8 @@ use App\Models\Order;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\OrderFulfillmentService;
+use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
@@ -63,6 +65,8 @@ class FinancialAccountabilityController extends Controller
         'budgets',
         'orders',
     ];
+
+    public function __construct(private readonly OrderFulfillmentService $fulfillmentService) {}
 
     public function dashboard(Request $request)
     {
@@ -312,6 +316,9 @@ class FinancialAccountabilityController extends Controller
             if (! $order || (int) $order->student_id !== (int) $data['student_id']) {
                 return response()->json(['message' => 'The selected order must belong to this student.'], 422);
             }
+            if ($order->status !== 'pending') {
+                return response()->json(['message' => 'Only a pending order can be billed on a student charge.'], 422);
+            }
             if (Invoice::where('order_id', $order->id)->exists()) {
                 return response()->json(['message' => 'This order already has a student charge.'], 422);
             }
@@ -333,19 +340,26 @@ class FinancialAccountabilityController extends Controller
         $this->sameOrganization($request, $invoice->organization_id);
         $data = $request->validate(['amount' => ['required', 'decimal:0,2', 'gt:0']]);
 
-        return DB::transaction(function () use ($request, $invoice, $data) {
-            $locked = Invoice::where('organization_id', $request->user()->organization_id)->lockForUpdate()->findOrFail($invoice->id);
-            $paid = (float) InvoicePayment::where('invoice_id', $locked->id)->where('status', 'approved')->sum('amount');
-            if ((float) $data['amount'] > (float) $locked->amount_due - $paid + 0.00001) {
-                return response()->json(['message' => 'Payment cannot exceed the invoice balance.'], 422);
-            }$tx = $this->ledger($request, 'income', $data['amount'], 'Student Payment', 'Payment for '.$locked->reference, $locked->student_id, $locked->id);
-            InvoicePayment::create(['invoice_id' => $locked->id, 'amount' => $data['amount'], 'recorded_by' => $request->user()->school_id, 'status' => 'approved', 'ledger_transaction_id' => $tx->id]);
-            $remaining = (float) $locked->amount_due - $paid - (float) $data['amount'];
-            $locked->update(['status' => $remaining < 0.005 ? 'paid' : ($remaining < (float) $locked->amount_due ? 'partially_paid' : 'unpaid')]);
-            $this->audit($request, 'invoices', 'payment_approved', $locked);
+        try {
+            return DB::transaction(function () use ($request, $invoice, $data) {
+                $locked = Invoice::where('organization_id', $request->user()->organization_id)->lockForUpdate()->findOrFail($invoice->id);
+                $paid = (float) InvoicePayment::where('invoice_id', $locked->id)->where('status', 'approved')->sum('amount');
+                if ((float) $data['amount'] > (float) $locked->amount_due - $paid + 0.00001) {
+                    return response()->json(['message' => 'Payment cannot exceed the invoice balance.'], 422);
+                }$tx = $this->ledger($request, 'income', $data['amount'], 'Student Payment', 'Payment for '.$locked->reference, $locked->student_id, $locked->id);
+                InvoicePayment::create(['invoice_id' => $locked->id, 'amount' => $data['amount'], 'recorded_by' => $request->user()->school_id, 'status' => 'approved', 'ledger_transaction_id' => $tx->id]);
+                $remaining = (float) $locked->amount_due - $paid - (float) $data['amount'];
+                $locked->update(['status' => $remaining < 0.005 ? 'paid' : ($remaining < (float) $locked->amount_due ? 'partially_paid' : 'unpaid')]);
+                $this->audit($request, 'invoices', 'payment_approved', $locked);
+                if ($locked->status === 'paid' && $locked->order_id) {
+                    $this->fulfillmentService->settleOrderPaidByInvoice($locked, $request->user());
+                }
 
-            return response()->json($this->invoiceData($locked->fresh()));
-        });
+                return response()->json($this->invoiceData($locked->fresh()));
+            });
+        } catch (DomainException $exception) {
+            return response()->json(['message' => $exception->getMessage()], 422);
+        }
     }
 
     public function auditLogs(Request $request)
@@ -636,7 +650,7 @@ class FinancialAccountabilityController extends Controller
         $invoices = Invoice::with('payments')->where('organization_id', $organizationId)->whereIn('student_id', $studentIds)
             ->whereNotIn('status', ['paid', 'cancelled', 'waived'])->get()->groupBy('student_id');
         $orders = Order::with('merchandise:id,name,image_url')->where('organization_id', $organizationId)->whereIn('student_id', $studentIds)
-            ->where('status', 'pending')->whereDoesntHave('transaction')->get()->groupBy('student_id');
+            ->where('status', 'pending')->whereDoesntHave('transaction')->whereDoesntHave('billingInvoice')->get()->groupBy('student_id');
 
         return $students->map(function (User $student) use ($invoices, $orders) {
             $studentInvoices = $invoices->get($student->school_id, collect())->map(fn (Invoice $invoice) => $this->invoiceData($invoice))->values();

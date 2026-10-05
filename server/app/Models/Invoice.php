@@ -21,4 +21,10 @@ class Invoice extends Model
     {
         return $this->hasMany(InvoicePayment::class);
     }
+
+    /** What the student still owes on this charge: the amount due minus its approved payments. */
+    public function remainingBalance(): float
+    {
+        return round((float) $this->amount_due - (float) $this->payments()->where('status', 'approved')->sum('amount'), 2);
+    }
 }
