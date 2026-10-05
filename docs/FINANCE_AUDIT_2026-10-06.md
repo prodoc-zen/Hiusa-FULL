@@ -12,21 +12,28 @@ An end-to-end check of the financial module: every way money moves, whether ever
 | The overspending risk stayed stale after the allocation or warning threshold changed | Risk is recomputed on edits and on approval, with one shared rule on the Budget model | e91d23f |
 | The dashboard's "spent" figure was wrong when a budget had both income and expenses | Spending and income now come from the entries recorded against approved budgets | 6398761 |
 
+## Fixed and committed, not yet pushed
+
+| Problem | Fix | Commit |
+|---|---|---|
+| Ledger entries made by a verified collection, a released cash advance or its repayment, an approved invoice payment or a paid merchandise order could be edited or deleted like manual ones, leaving the source record saying verified, released or paid with the money gone | Editing or deleting one now returns a 409 that names the source record and the page to change it from; manual entries stay editable | d75ebcc |
+| An order billed on an invoice was owed twice on Student Financial Accounts, paying the invoice left the order pending, and marking the order paid posted a second income entry | The debt counts the invoice only. Paying the invoice in full marks the order paid and links it to that payment's ledger entry. Marking such an order paid from the order side or the approvals queue is refused while the invoice has a balance. Only a pending order can be billed on an invoice | b4a04e6 |
+| A verified collection linked to an event showed ₱0 income on the event's ledger filter, summary and event financial report | Verifying the collection copies its event to the ledger entry | e6fbcdc |
+| An event's financial summary counted pending and rejected budgets in its allocated and remaining amounts | Only approved budgets count | 20d9373 |
+| Budget advice, financial reports and event summaries used the forecast with the highest period text, so an old "Q4 2024 (Oct-Dec)" beat a new "2026-11" | One lookup picks the forecast generated most recently (created time, then id) | 8401d94 |
+| Forecasts were made for the month after the last month with entries, which was often the month in progress | Generation targets the next calendar month after today in Asia/Manila. The PHP fallback and the Python engine project to the same month, and an answer from an engine that predates the target is ignored | a9c1fad |
+
+The AI service needs a restart (`HIUSA_AI_RELOAD=false`) to pick up the forecast target. Until then the PHP fallback serves the same numbers, and the live parity test for the new behavior skips.
+
 ## Still open
 
 Listed most important first. File pointers are where the fix belongs.
 
-1. **System-created ledger entries can be edited or deleted.** Entries created by a verified collection, a released cash advance, an invoice payment or a paid merchandise order can be deleted from the ledger like manual ones. The source record then still says verified, released or paid, but the money is gone from the ledger. Block edit and delete for these in `TransactionController` (return a clear message pointing to the source record).
-2. **An order paid through an invoice is counted twice.** Linking an invoice to a pending order makes the student owe it twice on Student Financial Accounts. Paying the invoice leaves the order pending, and marking the order paid then records a second income entry for the same money. See the invoice and order payment paths in `FinancialAccountabilityController` and `OrderController`.
-3. **Event-linked collections are not attributed to the event.** A verified collection with an event does not carry the event to its ledger entry, so the event's ledger filter and event financial report show ₱0 income. Copy `event_id` when the collection is verified.
-4. **The event financial summary counts unapproved budgets.** Pending and rejected budgets are included in an event's allocated and remaining amounts. Only approved budgets should count (`EventController` financial summary).
-5. **Budget advice, financial reports and event summaries use an old forecast.** They pick the forecast with the highest period text, so "Q4 2024 (Oct-Dec)" wins over a newly generated "2026-11". Choose the most recent forecast by when it was generated.
-6. **Forecasts are made for the current month instead of the next.** Generated on October 6, the forecast period is October, which is mostly empty; it should be November.
-7. **The Department Head's approval card disagrees with the report.** The card recomputes totals from the live ledger, while the report, its PDF and its Excel file use the snapshot taken when it was generated. The card should show the snapshot.
-8. **Cash advances are treated as spending and earning.** Releases and repayments land in the income statement and the forecast input as ordinary expense and income, which distorts both. Exclude them or show them separately.
-9. **No checks against available funds.** A budget can be allocated, and a cash advance released, beyond the money in the ledger.
-10. **Financial semesters cannot be edited or removed.** Only list and create routes exist, so a wrong end date cannot be fixed.
-11. **Some use-case documents describe the old access rules.** `docs/view-financial-reports-history-use-case.md` and `docs/manage-financial-transactions-ledger-use-case.md` say officers and department heads cannot read the ledger, and that the SAO cannot read the audit log. Both changed (see decisions (a) and (f) in `docs/PAPER_SCOPE_ADDENDUM.md`).
+1. **The Department Head's approval card disagrees with the report.** The card recomputes totals from the live ledger, while the report, its PDF and its Excel file use the snapshot taken when it was generated. The card should show the snapshot.
+2. **Cash advances are treated as spending and earning.** Releases and repayments land in the income statement and the forecast input as ordinary expense and income, which distorts both. Exclude them or show them separately.
+3. **No checks against available funds.** A budget can be allocated, and a cash advance released, beyond the money in the ledger.
+4. **Financial semesters cannot be edited or removed.** Only list and create routes exist, so a wrong end date cannot be fixed.
+5. **Some use-case documents describe the old access rules.** `docs/view-financial-reports-history-use-case.md` and `docs/manage-financial-transactions-ledger-use-case.md` say officers and department heads cannot read the ledger, and that the SAO cannot read the audit log. Both changed (see decisions (a) and (f) in `docs/PAPER_SCOPE_ADDENDUM.md`).
 
 ## Checked and working
 
