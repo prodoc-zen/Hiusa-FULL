@@ -325,13 +325,13 @@ class TaskController extends Controller
 
     private function rules(bool $partial = false): array
     {
-        $required = $partial ? 'sometimes|required' : 'required';
+        $required = $partial ? ['sometimes', 'required'] : ['required'];
 
         return [
-            'title' => [$required, 'string', 'max:255'],
+            'title' => [...$required, 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'deadline' => [$required, 'date', 'after_or_equal:today'],
-            'status' => [$required, 'in:pending,in_progress,completed,overdue'],
+            'deadline' => [...$required, 'date', 'after_or_equal:today'],
+            'status' => [...$required, 'in:pending,in_progress,completed,overdue'],
             'assigned_to' => ['nullable', 'exists:users,school_id'],
             'event_id' => ['nullable', 'exists:events,id'],
             'task_type' => ['nullable', 'in:regular,workflow'],

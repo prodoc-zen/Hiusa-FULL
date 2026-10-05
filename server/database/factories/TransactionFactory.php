@@ -21,7 +21,7 @@ class TransactionFactory extends Factory
             'category' => fake()->randomElement(['membership', 'sponsorship', 'venue', 'materials', 'merchandise']),
             'amount' => fake()->randomFloat(2, 100, 20000),
             'description' => fake()->sentence(),
-            'receipt_reference' => fake()->optional()->unique()->bothify('RCPT-######'),
+            'receipt_reference' => fake()->boolean(70) ? fake()->unique()->bothify('RCPT-######') : null,
             'transaction_date' => fake()->dateTimeBetween('-6 months', 'now'),
         ];
     }
