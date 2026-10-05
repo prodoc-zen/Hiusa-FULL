@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SerializesLocalDates;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FinancialReport extends Model
 {
+    use SerializesLocalDates;
+
     public $timestamps = false;
 
     protected $guarded = [];
