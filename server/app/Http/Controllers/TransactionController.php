@@ -351,17 +351,8 @@ class TransactionController extends Controller
 
         $budget->update([
             'remaining_amount' => (float) $current + $delta,
-            'overspending_risk' => $this->overspendingRisk((float) $current + $delta, (float) $budget->warning_threshold),
+            'overspending_risk' => Budget::overspendingRiskFor((float) $current + $delta, (float) $budget->warning_threshold),
         ]);
-    }
-
-    private function overspendingRisk(float $remainingAmount, float $warningThreshold): string
-    {
-        if ($remainingAmount < 0) {
-            return 'high';
-        }
-
-        return $remainingAmount <= $warningThreshold ? 'medium' : 'low';
     }
 
     private function auditableValues(Transaction $transaction): array

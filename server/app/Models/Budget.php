@@ -41,6 +41,25 @@ class Budget extends Model
         return $this->belongsTo(FinancialSemester::class);
     }
 
+    /** What is left to spend: the allocation, plus income recorded against it, minus what was spent from it. */
+    public function recomputedRemaining(): float
+    {
+        $totals = $this->transactions()
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END), 0) as income, COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END), 0) as expense")
+            ->first();
+
+        return round((float) $this->allocated_amount + (float) $totals->income - (float) $totals->expense, 2);
+    }
+
+    public static function overspendingRiskFor(float $remaining, float $warningThreshold): string
+    {
+        if ($remaining < 0) {
+            return 'high';
+        }
+
+        return $remaining <= $warningThreshold ? 'medium' : 'low';
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);
