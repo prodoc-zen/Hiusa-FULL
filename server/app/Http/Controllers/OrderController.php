@@ -615,6 +615,10 @@ class OrderController extends Controller
             return response()->json(['message' => "Only pending orders can be reviewed. Current status: {$order->status}."], 422);
         }
 
+        if ($data['status'] === 'paid' && ($message = $this->fulfillmentService->billedOnInvoiceMessage($order))) {
+            return response()->json(['message' => $message], 422);
+        }
+
         try {
             if ($data['status'] === 'cancelled') {
                 if ($pendingApproval && $request->user()->role !== 'ADMIN') {

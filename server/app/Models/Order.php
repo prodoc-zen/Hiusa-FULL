@@ -6,6 +6,7 @@ use Database\Factories\OrderFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Order extends Model
 {
@@ -63,5 +64,11 @@ class Order extends Model
     public function transaction(): BelongsTo
     {
         return $this->belongsTo(Transaction::class);
+    }
+
+    /** The student charge that bills this order; a cancelled or waived one no longer does. */
+    public function billingInvoice(): HasOne
+    {
+        return $this->hasOne(Invoice::class)->whereNotIn('status', ['cancelled', 'waived']);
     }
 }
