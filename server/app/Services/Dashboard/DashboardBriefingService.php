@@ -660,7 +660,7 @@ class DashboardBriefingService
 
     private function financePillar(int $organizationId): array
     {
-        ['allocated' => $allocated, 'remaining' => $remaining, 'spent' => $spent] = $this->approvedBudgetTotals([$organizationId]);
+        ['allocated' => $allocated, 'remaining' => $remaining, 'spent' => $spent, 'income' => $income] = $this->approvedBudgetTotals([$organizationId]);
 
         $now = now();
         $currentNet = $this->netTransactions($organizationId, $now->copy()->subDays(30), $now);
@@ -670,7 +670,7 @@ class DashboardBriefingService
             'value' => round($remaining, 2),
             'unit' => 'currency',
             'label' => 'Available budget',
-            'context' => $this->budgetContext($allocated, $remaining, $spent, ''),
+            'context' => $this->budgetContext($allocated, $remaining, $spent, $income, ''),
             'delta' => [
                 'value' => round($currentNet - $previousNet, 2),
                 'period' => 'vs last 30 days',
@@ -687,21 +687,24 @@ class DashboardBriefingService
      */
     private function approvedBudgetTotals(iterable $organizationIds): array
     {
-        $totals = DB::table('budgets')->whereIn('organization_id', collect($organizationIds)->all())
-            ->where('submission_status', 'approved')
-            ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining, COALESCE(SUM(CASE WHEN allocated_amount > remaining_amount THEN allocated_amount - remaining_amount ELSE 0 END),0) as spent')
+        $approved = DB::table('budgets')->whereIn('organization_id', collect($organizationIds)->all())->where('submission_status', 'approved');
+        $budgets = (clone $approved)->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining')->first();
+        // Spending and income come from the entries recorded against the budgets, not from
+        // allocation minus remaining, which hides spending whenever income was added too.
+        $linked = DB::table('transactions')->whereIn('budget_id', (clone $approved)->select('id'))
+            ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount ELSE 0 END),0) as spent, COALESCE(SUM(CASE WHEN type = 'income' THEN amount ELSE 0 END),0) as income")
             ->first();
 
-        return ['allocated' => (float) $totals->allocated, 'remaining' => (float) $totals->remaining, 'spent' => (float) $totals->spent];
+        return ['allocated' => (float) $budgets->allocated, 'remaining' => (float) $budgets->remaining, 'spent' => (float) $linked->spent, 'income' => (float) $linked->income];
     }
 
-    private function budgetContext(float $allocated, float $remaining, float $spent, string $scope): string
+    private function budgetContext(float $allocated, float $remaining, float $spent, float $income, string $scope): string
     {
         if ($allocated <= 0) {
             return 'No approved budgets yet.';
         }
-        if (($incomeAdded = $remaining + $spent - $allocated) > 0.004) {
-            return sprintf('Includes ₱%s in income added to ₱%s allocated%s; ₱%s spent so far.', number_format($incomeAdded, 2), number_format($allocated, 2), $scope, number_format($spent, 2));
+        if ($income > 0.004) {
+            return sprintf('Includes ₱%s in income added to ₱%s allocated%s; ₱%s spent so far.', number_format($income, 2), number_format($allocated, 2), $scope, number_format($spent, 2));
         }
 
         return sprintf('₱%s left of ₱%s allocated%s (%s%% used).', number_format($remaining, 2), number_format($allocated, 2), $scope, round(($spent / $allocated) * 100, 1));
@@ -862,7 +865,7 @@ class DashboardBriefingService
 
     private function universityFinancePillar(Collection $organizationIds): array
     {
-        ['allocated' => $allocated, 'remaining' => $remaining, 'spent' => $spent] = $this->approvedBudgetTotals($organizationIds);
+        ['allocated' => $allocated, 'remaining' => $remaining, 'spent' => $spent, 'income' => $income] = $this->approvedBudgetTotals($organizationIds);
         $pendingReports = DB::table('financial_reports')->whereIn('organization_id', $organizationIds)
             ->whereIn('submission_status', ['pending_department_head', 'pending_sao'])->count();
         $scope = sprintf(' across %d organization(s)', $organizationIds->count());
@@ -871,7 +874,7 @@ class DashboardBriefingService
             'value' => round($remaining, 2),
             'unit' => 'currency',
             'label' => 'University-wide available budget',
-            'context' => sprintf('%s %d financial report(s) pending final approval.', $this->budgetContext($allocated, $remaining, $spent, $scope), $pendingReports),
+            'context' => sprintf('%s %d financial report(s) pending final approval.', $this->budgetContext($allocated, $remaining, $spent, $income, $scope), $pendingReports),
             'meter' => ['value' => round($spent, 2), 'limit' => round($allocated, 2)],
         ];
     }

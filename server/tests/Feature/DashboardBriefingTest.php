@@ -37,6 +37,11 @@ class DashboardBriefingTest extends TestCase
         config(['performance.api_cache.enabled' => false]);
     }
 
+    private function linkedEntry(Budget $budget, string $type, float $amount, User $recorder): void
+    {
+        Transaction::factory()->create(['organization_id' => $budget->organization_id, 'budget_id' => $budget->id, 'event_id' => null, 'payer_id' => null, 'recorded_by' => $recorder->school_id, 'type' => $type, 'amount' => $amount]);
+    }
+
     public function test_admin_briefing_shape_and_seeded_attention_conditions(): void
     {
         $organization = Organization::factory()->create();
@@ -680,9 +685,11 @@ class DashboardBriefingTest extends TestCase
     {
         $organization = Organization::factory()->create();
         $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
-        Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 1500, 'submission_status' => 'approved']);
-        Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 400, 'submission_status' => 'approved']);
+        $withIncome = Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 1500, 'submission_status' => 'approved']);
+        $withSpending = Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 1000, 'remaining_amount' => 400, 'submission_status' => 'approved']);
         Budget::factory()->create(['organization_id' => $organization->id, 'allocated_amount' => 5000, 'remaining_amount' => 5000, 'submission_status' => 'pending_department_head']);
+        $this->linkedEntry($withIncome, 'income', 500, $admin);
+        $this->linkedEntry($withSpending, 'expense', 600, $admin);
         Sanctum::actingAs($admin);
 
         $finance = $this->getJson('/api/dashboard/briefing')->assertOk()->json('pillars.finance');
@@ -699,8 +706,10 @@ class DashboardBriefingTest extends TestCase
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
-        Budget::factory()->create(['organization_id' => $orgA->id, 'allocated_amount' => 1000, 'remaining_amount' => 1500, 'submission_status' => 'approved']);
-        Budget::factory()->create(['organization_id' => $orgB->id, 'allocated_amount' => 1000, 'remaining_amount' => 400, 'submission_status' => 'approved']);
+        $withIncome = Budget::factory()->create(['organization_id' => $orgA->id, 'allocated_amount' => 1000, 'remaining_amount' => 1500, 'submission_status' => 'approved']);
+        $withSpending = Budget::factory()->create(['organization_id' => $orgB->id, 'allocated_amount' => 1000, 'remaining_amount' => 400, 'submission_status' => 'approved']);
+        $this->linkedEntry($withIncome, 'income', 500, $director);
+        $this->linkedEntry($withSpending, 'expense', 600, $director);
         Budget::factory()->create(['organization_id' => $orgB->id, 'allocated_amount' => 5000, 'remaining_amount' => 5000, 'submission_status' => 'pending_department_head']);
         Sanctum::actingAs($director);
 
