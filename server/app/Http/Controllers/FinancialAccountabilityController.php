@@ -197,7 +197,7 @@ class FinancialAccountabilityController extends Controller
             $locked = CashAdvance::where('organization_id', $request->user()->organization_id)->lockForUpdate()->findOrFail($advance->id);
             if ($locked->status !== 'approved') {
                 return response()->json(['message' => 'Only approved cash advances can be released.'], 409);
-            }$tx = $this->ledger($request, 'expense', $locked->amount, 'Cash Advance', 'Cash advance '.$locked->reference, $locked->borrower_id, $locked->id);
+            }$tx = $this->ledger($request, 'expense', $locked->amount, 'Cash Advance', 'Cash advance '.$locked->reference, $locked->borrower_id, $locked->id, null, $locked->event_id);
             $locked->update(['status' => 'released', 'released_by' => $request->user()->school_id, 'released_at' => now(), 'release_transaction_id' => $tx->id]);
             $this->audit($request, 'cash_advances', 'released', $locked);
 
@@ -218,7 +218,7 @@ class FinancialAccountabilityController extends Controller
             $repaid = (float) CashAdvanceRepayment::where('cash_advance_id', $locked->id)->sum('amount');
             if ((float) $data['amount'] > (float) $locked->amount - $repaid + 0.00001) {
                 return response()->json(['message' => 'Repayment cannot exceed the outstanding balance.'], 422);
-            }$tx = $this->ledger($request, 'income', $data['amount'], 'Cash Advance Repayment', 'Repayment for '.$locked->reference, $locked->borrower_id, $locked->id);
+            }$tx = $this->ledger($request, 'income', $data['amount'], 'Cash Advance Repayment', 'Repayment for '.$locked->reference, $locked->borrower_id, $locked->id, null, $locked->event_id);
             CashAdvanceRepayment::create([...$data, 'cash_advance_id' => $locked->id, 'recorded_by' => $request->user()->school_id, 'repaid_at' => now(), 'ledger_transaction_id' => $tx->id]);
             $remaining = (float) $locked->amount - $repaid - (float) $data['amount'];
             $locked->update(['status' => $remaining < 0.005 ? 'fully_repaid' : 'partially_repaid']);
@@ -346,7 +346,7 @@ class FinancialAccountabilityController extends Controller
                 $paid = (float) InvoicePayment::where('invoice_id', $locked->id)->where('status', 'approved')->sum('amount');
                 if ((float) $data['amount'] > (float) $locked->amount_due - $paid + 0.00001) {
                     return response()->json(['message' => 'Payment cannot exceed the invoice balance.'], 422);
-                }$tx = $this->ledger($request, 'income', $data['amount'], 'Student Payment', 'Payment for '.$locked->reference, $locked->student_id, $locked->id);
+                }$tx = $this->ledger($request, 'income', $data['amount'], 'Student Payment', 'Payment for '.$locked->reference, $locked->student_id, $locked->id, null, $locked->event_id);
                 InvoicePayment::create(['invoice_id' => $locked->id, 'amount' => $data['amount'], 'recorded_by' => $request->user()->school_id, 'status' => 'approved', 'ledger_transaction_id' => $tx->id]);
                 $remaining = (float) $locked->amount_due - $paid - (float) $data['amount'];
                 $locked->update(['status' => $remaining < 0.005 ? 'paid' : ($remaining < (float) $locked->amount_due ? 'partially_paid' : 'unpaid')]);
