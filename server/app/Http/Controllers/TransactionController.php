@@ -303,18 +303,18 @@ class TransactionController extends Controller
 
     private function rules(Request $request, bool $partial = false, ?Transaction $transaction = null): array
     {
-        $required = $partial ? 'sometimes|required' : 'required';
+        $required = $partial ? ['sometimes', 'required'] : ['required'];
         $eventId = $request->input('event_id', $transaction?->event_id);
 
         return [
-            'type' => [$required, 'in:income,expense'],
-            'amount' => [$required, 'numeric', 'min:0.01'],
-            'category' => [$required, 'string', 'max:100'],
-            'description' => [$required, 'string'],
+            'type' => [...$required, 'in:income,expense'],
+            'amount' => [...$required, 'numeric', 'min:0.01'],
+            'category' => [...$required, 'string', 'max:100'],
+            'description' => [...$required, 'string'],
             'budget_id' => ['nullable', 'exists:budgets,id'],
             'event_id' => ['nullable', 'exists:events,id'],
             'payer_id' => ['nullable', 'exists:users,school_id'],
-            'transaction_date' => [$required, 'date'],
+            'transaction_date' => [...$required, 'date'],
             'receipt_reference' => [
                 'nullable',
                 'string',

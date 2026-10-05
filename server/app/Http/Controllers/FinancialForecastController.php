@@ -247,12 +247,12 @@ class FinancialForecastController extends Controller
 
     private function rules(bool $partial = false): array
     {
-        $required = $partial ? 'sometimes|required' : 'required';
+        $required = $partial ? ['sometimes', 'required'] : ['required'];
 
         return [
-            'forecast_period' => [$required, 'string', 'max:100'],
-            'predicted_income' => [$required, 'numeric', 'min:0'],
-            'predicted_expense' => [$required, 'numeric', 'min:0'],
+            'forecast_period' => [...$required, 'string', 'max:100'],
+            'predicted_income' => [...$required, 'numeric', 'min:0'],
+            'predicted_expense' => [...$required, 'numeric', 'min:0'],
             'predicted_balance' => ['nullable', 'numeric'],
             'safe_spending_limit' => ['nullable', 'numeric', 'min:0'],
             'confidence_note' => ['nullable', 'string'],
