@@ -311,7 +311,8 @@ describe('FinancePage transaction search', () => {
     await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledWith(expect.objectContaining({
       title: 'First Semester Allocation', financial_semester_id: '3', allocated_amount: 1500,
     })));
-  });
+  // Loading exceljs and building the workbook can outlast the default 5s under a full parallel run.
+  }, 20000);
 });
 
 describe('FinancePage forecast explainability', () => {
