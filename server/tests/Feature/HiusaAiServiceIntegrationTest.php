@@ -49,7 +49,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
         Http::fake([
             'http://127.0.0.1:8001/api/v1/financial-forecast' => Http::response([
                 'algorithm' => 'ordinary_least_squares',
-                'forecast_period' => now()->addMonth()->format('Y-m'),
+                'forecast_period' => now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m'),
                 'sample_months' => 2,
                 'predicted_income' => 1400,
                 'predicted_expense' => 800,

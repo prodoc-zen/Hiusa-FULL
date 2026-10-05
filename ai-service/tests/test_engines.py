@@ -1,4 +1,6 @@
+import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 
 from app.engines.budget_advisory import advise_budget
 from app.engines.financial_forecasting import forecast_finances
@@ -30,6 +32,39 @@ def test_ols_forecast_matches_linear_monthly_history() -> None:
     # sample-size artifact, not a quality signal, so it must be labelled as such.
     assert result["fit_quality"] == "insufficient_data"
     assert result["is_reliable"] is False
+
+
+def test_ols_forecast_projects_to_the_requested_target_period() -> None:
+    monthly_records = [
+        {"period": "2026-06", "income": 100, "expense": 50},
+        {"period": "2026-07", "income": 200, "expense": 50},
+        {"period": "2026-08", "income": 300, "expense": 50},
+        {"period": "2026-09", "income": 400, "expense": 50},
+    ]
+
+    default = forecast_finances(ForecastRequest.model_validate({"monthly_records": monthly_records}))
+    targeted = forecast_finances(ForecastRequest.model_validate({
+        "monthly_records": monthly_records,
+        "target_period": "2026-11",
+    }))
+
+    assert default["forecast_period"] == "2026-10"
+    assert default["predicted_income"] == 500
+    assert targeted["forecast_period"] == "2026-11"
+    assert targeted["predicted_income"] == 600
+    assert targeted["predicted_expense"] == 50
+    assert targeted["sample_months"] == 4
+
+
+def test_ols_forecast_rejects_a_malformed_target_period() -> None:
+    with pytest.raises(ValidationError):
+        ForecastRequest.model_validate({
+            "monthly_records": [
+                {"period": "2026-01", "income": 1000, "expense": 600},
+                {"period": "2026-02", "income": 1200, "expense": 700},
+            ],
+            "target_period": "2026-13",
+        })
 
 
 def test_ols_forecast_flags_noisy_data_as_unreliable() -> None:
