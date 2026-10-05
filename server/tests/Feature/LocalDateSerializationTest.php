@@ -32,6 +32,7 @@ class LocalDateSerializationTest extends TestCase
             'amount' => 250,
             'budget_id' => null,
             'event_id' => null,
+            'receipt_reference' => 'RCPT-LOCALDATE',
             'transaction_date' => '2026-10-05 00:00:00',
         ]);
         $report = FinancialReport::create([
