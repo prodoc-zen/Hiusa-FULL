@@ -197,11 +197,13 @@ class EventController extends Controller
                 default => 1,
             })->first()?->overspending_risk;
 
+            $approvedBudgets = $eventBudgets->where('submission_status', 'approved');
+
             $event->financial_summary = [
-                'allocated_budget' => round((float) $eventBudgets->sum('allocated_amount'), 2),
+                'allocated_budget' => round((float) $approvedBudgets->sum('allocated_amount'), 2),
                 'spent' => round((float) $eventBudgets->sum('spent_amount'), 2),
                 'income' => round((float) $eventBudgets->sum('income_amount'), 2),
-                'remaining_budget' => round((float) $eventBudgets->sum('remaining_amount'), 2),
+                'remaining_budget' => round((float) $approvedBudgets->sum('remaining_amount'), 2),
                 'risk' => $risk ?? 'not_analyzed',
                 'latest_forecast' => $latestForecast?->only([
                     'id', 'forecast_period', 'predicted_income', 'predicted_expense',
