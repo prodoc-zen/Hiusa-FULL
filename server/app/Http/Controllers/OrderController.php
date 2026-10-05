@@ -555,6 +555,7 @@ class OrderController extends Controller
                         ? 'Cancelled by buyer: '.$remarks
                         : 'Cancelled by buyer.',
                 ]);
+                $this->fulfillmentService->cancelInvoiceOfClosedOrder($order, $request->user(), "Order ORD-{$order->id} was cancelled by the buyer.");
                 $this->notifyFulfillmentTeam(
                     $order,
                     'Merchandise Order Cancelled',

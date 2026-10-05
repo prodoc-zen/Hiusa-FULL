@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
-import { downloadFinancialReportPdf, generateFinancialReport } from './financeService';
+import { downloadFinancialReportPdf, generateFinancialReport, updateInvoiceStatus } from './financeService';
 
 vi.mock('./api', () => ({
   default: {
     get: vi.fn(),
     post: vi.fn(),
+    patch: vi.fn(),
   },
 }));
 
@@ -32,5 +33,14 @@ describe('financial report service', () => {
   it('requests the saved document as a PDF blob', () => {
     downloadFinancialReportPdf(41);
     expect(api.get).toHaveBeenCalledWith('/financial-reports/41/pdf', { responseType: 'blob' });
+  });
+});
+
+describe('invoice service', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it('cancels or waives an invoice with a reason through its status route', () => {
+    updateInvoiceStatus(7, { status: 'waived', reason: 'Scholar excused from the fee.' });
+    expect(api.patch).toHaveBeenCalledWith('/invoices/7/status', { status: 'waived', reason: 'Scholar excused from the fee.' });
   });
 });
