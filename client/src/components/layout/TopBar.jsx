@@ -9,6 +9,7 @@ import { getAccountProfiles, logout, switchAccountProfile } from '../../services
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
+import notify from '../../lib/notify';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
@@ -246,7 +247,10 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
       await markAllRead();
       setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
       setUnreadCount(0);
-    } catch {}
+      notify.success('All notifications marked as read.');
+    } catch {
+      notify.error('Could not mark notifications as read. Try again.');
+    }
   }
 
   async function handleNotificationClick(notification) {
@@ -487,7 +491,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     onClick={handleMarkAllRead}
                     className="text-xs font-bold text-[#0878B7] hover:underline"
                   >
-                    Mark all read
+                    Mark all as read
                   </button>
                 )}
               </div>

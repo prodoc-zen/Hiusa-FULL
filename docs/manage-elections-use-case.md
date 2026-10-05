@@ -27,6 +27,7 @@
 - **Set Voting Period:** create and edit forms capture start and end date/time.
 - **Configure Election Positions:** Admin configures one or more unique ballot positions during creation and can manage them later in the election workspace until voting begins.
 - **Edit Election:** Admin can open existing election details, update election information, and save changes.
+- **Approved Election Edits:** updating an approved election preserves its approval. Details remain locked once votes have been cast.
 - **Submit Election for Approval:** new elections are stored with `pending_approval` and an approval request for Department Head review.
 - **Review Approval Request:** Department Head review is handled by the approval workflow.
 - **Finalize Ballot:** after Department Head approval, an Admin adds candidates and party lists, then calls `PATCH /elections/{id}/finalize`. Every position needs a candidate and at least one candidate must belong to a party list. Finalization locks ballot setup.

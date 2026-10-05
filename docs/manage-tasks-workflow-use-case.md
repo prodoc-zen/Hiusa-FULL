@@ -36,3 +36,4 @@
 - **Generate Workflow:** the event planner proposes tasks first; an Admin must review and confirm before linked tasks become active.
 - **Assign Task:** Admin assigns tasks to SBO Officers.
 - **Monitor Task Status:** Admin task-progress route displays workload and completion progress. API responses expose dependency-derived `blocked` and `ready` workflow states, and blocked tasks cannot start or complete.
+- **Detailed Progress:** workload summaries list each officer's tasks, individual status and progress percentage, and a link to each task's detail view.

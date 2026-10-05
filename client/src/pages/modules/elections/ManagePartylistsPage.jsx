@@ -5,6 +5,7 @@ import { Flag, ImagePlus, Edit2, Trash2, Search, CirclePlus, ArrowLeft } from 'l
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
+import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { createPartylist, deletePartylist, getPartylists, updatePartylist } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
@@ -231,7 +232,7 @@ export default function ManagePartylistsPage() {
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>
-                <textarea value={form.description} maxLength={2000} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} placeholder="Party description or tagline..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none placeholder:text-[#94A3B8] transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                <RichTextEditor ariaLabel="Party description" value={form.description} maxLength={2000} onChange={(description) => setForm({ ...form, description })} rows={3} placeholder="Party description or tagline..." />
               </div>
               <div className="sm:col-span-2">
                 <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party Banner" />Party Banner</label>
@@ -361,12 +362,12 @@ export default function ManagePartylistsPage() {
                     </div>
                     <div className="sm:col-span-2">
                       <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Mission Statement" />Mission Statement</label>
-                      <textarea
+                      <RichTextEditor
                         value={editing.description || ''}
                         maxLength={2000}
-                        onChange={(event) => setEditing({ ...editing, description: event.target.value })}
+                        onChange={(description) => setEditing({ ...editing, description })}
                         rows={4}
-                        className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0]"
+                        ariaLabel="Mission statement"
                       />
                       <p className="mt-1 text-xs text-[#94A3B8]">
                         This statement appears in candidate pages and election records.
@@ -490,7 +491,7 @@ export default function ManagePartylistsPage() {
                         <h3 className="truncate text-lg font-extrabold text-[#0F172A]">{partylist.name}</h3>
                         {partylist.acronym && <span className="rounded-md bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">{partylist.acronym}</span>}
                       </div>
-                      <p className="mt-1 text-sm text-[#64748B]">{partylist.description || 'No party description provided yet.'}</p>
+                      <RichTextBody value={partylist.description || 'No party description provided yet.'} className="mt-1 text-sm text-[#64748B]" />
                     </div>
                     {election.status !== 'closed' && !election.finalized_at && (
                       <div className="flex shrink-0 items-center gap-1">

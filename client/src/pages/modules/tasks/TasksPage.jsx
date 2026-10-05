@@ -1,4 +1,5 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
+import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -260,9 +261,10 @@ export default function TasksPage({ initialTab = 'board' }) {
   const workloadByAssignee = allTasks.reduce((acc, t) => {
     if (!t.assignee) return acc;
     const key = t.assignee.school_id ?? t.assignee.id;
-    if (!acc[key]) acc[key] = { user: t.assignee, total: 0, completed: 0 };
+    if (!acc[key]) acc[key] = { user: t.assignee, total: 0, completed: 0, tasks: [] };
     acc[key].total += 1;
     if (t.status === 'completed') acc[key].completed += 1;
+    acc[key].tasks.push(t);
     return acc;
   }, {});
   const scoredAssignments = allTasks
@@ -320,7 +322,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             {officers.length === 0 && <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertCircle size={17} className="mt-0.5 shrink-0" /><div><p className="font-bold">Officer positions must be configured first.</p><p className="mt-1 text-xs leading-5">Add SBO positions under Users &amp; Positions, then assign a position to an active SBO officer before creating or delegating a task.</p></div></div>}
             <form className="mt-5 space-y-5" onSubmit={handleCreate}>
               <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Task Title *" />Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
-              <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label><textarea id="create-task-description" rows={5} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} placeholder="Describe the expected result, required materials, and completion criteria..." className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
+              <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label><RichTextEditor id="create-task-description" rows={5} value={form.description} onChange={(description) => setForm({ ...form, description })} placeholder="Describe the expected result, required materials, and completion criteria..." /></div>
               <div className="grid gap-4 sm:grid-cols-2">
                 <div className="space-y-1.5"><label htmlFor="create-task-assignee" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Assign To" />Assign To</label><select id="create-task-assignee" value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Recommend best-fit officer</option>{officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.first_name} {officer.last_name}{officer.position_title ? ` · ${officer.position_title}` : ''}</option>)}</select><p className="text-xs text-slate-500">Leaving this blank enables weighted officer recommendation.</p></div>
                 <div className="space-y-1.5"><label htmlFor="create-task-event" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Related Event" />Related Event</label><select id="create-task-event" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">General organization task</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select></div>
@@ -385,7 +387,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             <>
             <div className="space-y-3 p-3 lg:hidden" aria-label="Tasks">
               {filteredTasks.map((t) => <article key={t.id} className="min-w-0 rounded-lg border border-[#DDE7EF] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{t.title}</h3><p className="mt-1 line-clamp-2 text-xs text-slate-500">{t.description || 'No description'}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
+                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{t.title}</h3><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{t.event?.title || 'General organization task'}</dd></div></dl>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
                 <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{(canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}</div>
@@ -409,7 +411,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <tbody className="divide-y divide-[#DDE7EF] text-sm">
                   {filteredTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{t.title}</p><p className="mt-1 line-clamp-2 text-[10px] text-slate-500">{t.description || 'No description'}</p></td>
+                      <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{t.title}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" /></td>
                       <td className="px-5 py-4 font-medium text-slate-600">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}<p className="text-[10px] font-semibold text-[#0878B7]">{t.assignee?.position_title || t.assignee?.role?.replaceAll('_', ' ') || '-'}</p></td>
                       <td className="px-5 py-4 text-xs text-slate-600"><p>{t.assignee?.program || 'Program not recorded'}</p><p className="text-[10px] text-slate-500">{[t.assignee?.year_level, t.assignee?.section].filter(Boolean).join(' · ') || 'No year/section'}</p></td>
                       <td className="px-5 py-4 text-xs font-semibold text-slate-600">{t.event?.title || 'General organization task'}</td>
@@ -476,6 +478,12 @@ export default function TasksPage({ initialTab = 'board' }) {
                         style={{ width: `${entry.total > 0 ? (entry.completed / entry.total) * 100 : 0}%` }}
                       />
                     </div>
+                    <details className="mt-3 text-xs">
+                      <summary className="min-h-11 cursor-pointer py-2 font-bold text-[#0878B7] focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">Show {entry.total} task{entry.total === 1 ? '' : 's'} and progress</summary>
+                      <ul className="space-y-2 pt-2">
+                        {entry.tasks.map((task) => <li key={task.id} className="flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] py-2"><span className="min-w-0 font-semibold text-[#0F172A]">{task.title}</span><span className="text-slate-600">{capitalize(task.status)} · {Number(task.progress_percent || 0)}%</span><button type="button" onClick={() => openTaskDetails(task)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 font-bold text-[#0878B7]">View details</button></li>)}
+                      </ul>
+                    </details>
                   </div>
                 </div>
               ))}
@@ -530,9 +538,6 @@ export default function TasksPage({ initialTab = 'board' }) {
                                 {isRecommended && <span className="ml-2 rounded-full bg-[#E6F6FD] px-2 py-0.5 text-[10px] font-black uppercase text-[#0F2F62]">Recommended</span>}
                                 {positionTier && <span className="ml-2 rounded-full border border-[#DDE7EF] px-2 py-0.5 text-[10px] font-bold text-slate-500">{positionTier}</span>}
                               </p>
-                              {Number.isFinite(Number(ranking.final_score)) && (
-                                <span className="rounded-full bg-[#E6F6FD] px-2.5 py-1 text-xs font-black text-[#0F2F62]">{Number(ranking.final_score).toFixed(2)} fit</span>
-                              )}
                             </div>
                             <div className="mt-2 grid grid-cols-2 gap-2 text-[11px] text-slate-500 sm:grid-cols-4">
                               {positionScore != null && (
@@ -571,9 +576,6 @@ export default function TasksPage({ initialTab = 'board' }) {
                             Recommended: {task.assignee.first_name} {task.assignee.last_name}
                           </p>
                         </div>
-                        <span className="rounded-full bg-[#E6F6FD] px-2.5 py-1 text-xs font-black text-[#0F2F62]">
-                          {Number(task.final_score).toFixed(2)} fit
-                        </span>
                       </div>
                       <div className="mt-3 flex flex-wrap items-center gap-2">
                         <EngineBadge engine={task.id === lastDelegation?.taskId ? lastDelegation.engine : null} />
@@ -638,7 +640,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border border-[#DDE7EF] p-4">
                 <p className="text-xs font-bold uppercase text-slate-500">Description</p>
-                <p className="mt-2 text-sm leading-6 text-slate-700">{selectedTask.description || 'No description provided.'}</p>
+                <RichTextBody value={selectedTask.description || 'No description provided.'} className="mt-2 text-sm leading-6 text-slate-700" />
               </div>
               <div className="rounded-lg border border-[#DDE7EF] p-4">
                 <p className="text-xs font-bold uppercase text-slate-500">Related Event</p>

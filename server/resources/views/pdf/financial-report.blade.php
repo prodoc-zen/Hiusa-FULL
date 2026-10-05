@@ -23,7 +23,7 @@
         .report-table .columns { background: #0b1831; color: #fff; }
         .report-table .date { width: 22%; text-align: center; white-space: nowrap; }
         .report-table .description { width: 56%; }
-        .report-table .amount { width: 22%; text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+        .report-table .amount { width: 22%; text-align: right; white-space: nowrap; font-family: "DejaVu Sans", sans-serif; font-variant-numeric: tabular-nums; }
         .report-table .total-label { background: #e8f5ed; font-weight: 700; text-align: right; }
         .report-table .balance-label { background: #e6f6fd; font-weight: 700; text-align: right; }
         .report-table .spacer td { height: 8px; border: 0; padding: 0; }
@@ -47,19 +47,19 @@
         </thead>
         <tbody>
             @if ($openingBalance != 0.0)
-                <tr><td class="date">Before period</td><td class="description">Opening balance</td><td class="amount">PHP {{ number_format($openingBalance, 2) }}</td></tr>
+                <tr><td class="date">Before period</td><td class="description">Opening balance</td><td class="amount">₱{{ number_format($openingBalance, 2) }}</td></tr>
             @endif
             @forelse ($incomeTransactions as $transaction)
                 <tr>
                     <td class="date">{{ optional($transaction->transaction_date)->format('M j, Y') ?? $transaction->transaction_date }}</td>
                     <td class="description">{{ $transaction->category }} | {{ $transaction->description }}</td>
-                    <td class="amount">PHP {{ number_format((float) $transaction->amount, 2) }}</td>
+                    <td class="amount">₱{{ number_format((float) $transaction->amount, 2) }}</td>
                 </tr>
             @empty
-                <tr><td class="date">N/A</td><td class="description">No inflows recorded</td><td class="amount">PHP 0.00</td></tr>
+                <tr><td class="date">N/A</td><td class="description">No inflows recorded</td><td class="amount">₱0.00</td></tr>
             @endforelse
-            <tr><td colspan="2" class="total-label">TOTAL INFLOW</td><td class="amount">PHP {{ number_format($incomeTotal, 2) }}</td></tr>
-            <tr><td colspan="2" class="balance-label">BALANCE BEFORE OUTFLOWS</td><td class="amount">PHP {{ number_format($openingBalance + $incomeTotal, 2) }}</td></tr>
+            <tr><td colspan="2" class="total-label">TOTAL INFLOW</td><td class="amount">₱{{ number_format($incomeTotal, 2) }}</td></tr>
+            <tr><td colspan="2" class="balance-label">BALANCE BEFORE OUTFLOWS</td><td class="amount">₱{{ number_format($openingBalance + $incomeTotal, 2) }}</td></tr>
             <tr class="spacer"><td colspan="3"></td></tr>
             <tr><td colspan="3" class="section">CASH OUTFLOW</td></tr>
             <tr class="columns"><td class="date"><strong>Date</strong></td><td class="description"><strong>Description</strong></td><td class="amount"><strong>Amount</strong></td></tr>
@@ -67,13 +67,13 @@
                 <tr>
                     <td class="date">{{ optional($transaction->transaction_date)->format('M j, Y') ?? $transaction->transaction_date }}</td>
                     <td class="description">{{ $transaction->category }} | {{ $transaction->description }}</td>
-                    <td class="amount">PHP {{ number_format((float) $transaction->amount, 2) }}</td>
+                    <td class="amount">₱{{ number_format((float) $transaction->amount, 2) }}</td>
                 </tr>
             @empty
-                <tr><td class="date">N/A</td><td class="description">No cash outflows recorded</td><td class="amount">PHP 0.00</td></tr>
+                <tr><td class="date">N/A</td><td class="description">No cash outflows recorded</td><td class="amount">₱0.00</td></tr>
             @endforelse
-            <tr><td colspan="2" class="section">TOTAL OUTFLOW</td><td class="amount">PHP {{ number_format($expenseTotal, 2) }}</td></tr>
-            <tr><td colspan="2" class="balance-label">BALANCE</td><td class="amount">PHP {{ number_format($closingBalance, 2) }}</td></tr>
+            <tr><td colspan="2" class="section">TOTAL OUTFLOW</td><td class="amount">₱{{ number_format($expenseTotal, 2) }}</td></tr>
+            <tr><td colspan="2" class="balance-label">BALANCE</td><td class="amount">₱{{ number_format($closingBalance, 2) }}</td></tr>
         </tbody>
     </table>
 
@@ -81,8 +81,8 @@
         <p style="margin: 16px 0 4px; font-weight: 700;">COLLECTIONS AND REMITTANCES</p>
         <p style="margin: 0 0 4px; color: #475569;">Custody movements are shown separately. Remittances do not add ledger income.</p>
         <table class="report-table"><tbody>
-            <tr><td colspan="2">Verified collections</td><td class="amount">PHP {{ number_format($custody['verified_collections'], 2) }}</td></tr>
-            <tr><td colspan="2">Recorded remittances</td><td class="amount">PHP {{ number_format($custody['recorded_remittances'], 2) }}</td></tr>
+            <tr><td colspan="2">Verified collections</td><td class="amount">₱{{ number_format($custody['verified_collections'], 2) }}</td></tr>
+            <tr><td colspan="2">Recorded remittances</td><td class="amount">₱{{ number_format($custody['recorded_remittances'], 2) }}</td></tr>
         </tbody></table>
     @endif
 

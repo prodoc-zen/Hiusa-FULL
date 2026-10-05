@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import RichTextEditor from '../../../components/RichText';
 import { CheckCircle2, Circle, MessageSquareWarning, ShieldCheck } from 'lucide-react';
 import {
   Button,
@@ -11,7 +12,6 @@ import {
   SkeletonCard,
   StatusBadge,
   Tabs,
-  Textarea,
 } from '../../../components/ui';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
@@ -156,7 +156,7 @@ export default function StudentGrievancesPage() {
             </Field>
 
             <Field label="Tell us what happened" required hint="Include when and where this happened, and anyone involved." error={fieldErrors.description?.[0]}>
-              <Textarea value={description} onChange={(event) => setDescription(event.target.value)} maxLength={5000} rows={6} placeholder="Describe the situation in your own words..." />
+              <RichTextEditor ariaLabel="Tell us what happened" value={description} onChange={setDescription} maxLength={5000} rows={6} placeholder="Describe the situation in your own words..." />
             </Field>
 
             <Field label="Who should this go to?" required>

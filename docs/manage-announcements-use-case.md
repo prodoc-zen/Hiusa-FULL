@@ -27,6 +27,7 @@
 - **Accept Generated Draft:** saving the editable announcement links the versioned AI output to the new announcement and marks it accepted.
 - **Create Announcement:** Admin and SBO Officer use organization announcements. SAO uses the separate official-announcement endpoints and page, with no AI generation or organization approval step.
 - **Edit Announcement:** manage announcements now opens existing details, updates content, and saves the record.
+- **Content Formatting:** organization and official SAO announcement editors offer bold and alternate post fonts with a live preview. Formatting is stored as plain-text markers and rendered as React text, so existing posts and API fields remain compatible.
 - **Submit Announcement for Approval:** SBO Officer announcements create an Admin approval request.
 - **Review Approval Request:** Admin reviews announcement approval requests through the approval workflow.
 - **Publish Approved Announcement:** Admin publishes organization announcements according to the existing workflow. SAO can publish or schedule an identifiable official SAO announcement to selected organizations, departments, or roles.

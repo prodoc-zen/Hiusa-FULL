@@ -55,9 +55,21 @@ describe('SettingsPage', () => {
       first_name: 'Ramona',
       last_name: 'Castillo',
       email: 'dean.ccs@hiusa.local',
+      contact_number: null,
     }));
     expect(await screen.findByText('Profile changes saved.')).toBeInTheDocument();
     expect(JSON.parse(localStorage.getItem('user')).first_name).toBe('Ramona');
+  });
+
+  it('lets a user add an optional mobile number', async () => {
+    profileMocks.updateProfile.mockResolvedValue({ data: { ...storedUser, contact_number: '09171234567' } });
+    renderPage();
+
+    fireEvent.change(screen.getByLabelText('Mobile number (optional)'), { target: { value: '09171234567' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save profile' }));
+
+    await waitFor(() => expect(profileMocks.updateProfile).toHaveBeenCalledWith(expect.objectContaining({ contact_number: '09171234567' })));
+    expect(JSON.parse(localStorage.getItem('user')).contact_number).toBe('09171234567');
   });
 
   it('provides independent password visibility controls and blocks mismatched passwords', async () => {

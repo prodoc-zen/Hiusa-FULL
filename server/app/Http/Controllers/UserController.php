@@ -831,6 +831,7 @@ class UserController extends Controller
         $data = $request->validate([
             'first_name' => ['sometimes', 'required', 'string', 'max:60'],
             'last_name' => ['sometimes', 'required', 'string', 'max:60'],
+            'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'email' => [
                 'sometimes',
                 'required',

@@ -26,6 +26,7 @@ class FinancialReportPdfService
         $documentType = $report->document_type ?: 'financial_report';
         $documentLabel = $documentType === 'income_statement' ? 'Income Statement' : 'Financial Report';
         $letter = $this->letterDetails($report, $documentLabel, $periodNet);
+        $letter['body_html'] = $this->formatLetterBody($letter['body']);
 
         $html = view(
             $documentType === 'income_statement' ? 'pdf.income-statement' : 'pdf.financial-report',
@@ -82,10 +83,12 @@ class FinancialReportPdfService
         $period = $this->periodLabel($report);
 
         return [
-            'date' => Carbon::parse($details['date'] ?? $report->generated_at ?? now())->format('F j, Y'),
+            'date' => isset($details['date']) && $details['date'] !== ''
+                ? Carbon::parse($details['date'])->format('F j, Y')
+                : Carbon::parse($report->generated_at ?? now())->timezone('Asia/Manila')->format('F j, Y'),
             'subject' => trim((string) ($details['subject'] ?? '')) ?: 'Submission of '.$documentLabel,
             'recipient' => trim((string) ($details['recipient'] ?? '')) ?: 'To whom it may concern,',
-            'body' => trim((string) ($details['body'] ?? '')) ?: "Please find attached the {$documentLabel} for {$organizationName}, covering {$period}. The statement is based on the financial transactions recorded for this period. Net activity for the period is PHP ".number_format($periodNet, 2).'.',
+            'body' => trim((string) ($details['body'] ?? '')) ?: "Please find attached the {$documentLabel} for {$organizationName}, covering {$period}. The statement is based on the financial transactions recorded for this period. Net activity for the period is ₱".number_format($periodNet, 2).'.',
             'closing' => trim((string) ($details['closing'] ?? '')) ?: 'Thank you.',
         ];
     }
@@ -97,6 +100,28 @@ class FinancialReportPdfService
         }
 
         return Carbon::parse($report->period_start)->format('F j, Y').' to '.Carbon::parse($report->period_end)->format('F j, Y');
+    }
+
+    private function formatLetterBody(string $body): string
+    {
+        $escaped = e($body);
+        $format = function (string $text) use (&$format): string {
+            return preg_replace_callback(
+                '/\*\*([\s\S]+?)\*\*|\[font=(serif|handwritten)\]([\s\S]+?)\[\/font\]/',
+                function (array $match) use (&$format): string {
+                    if (str_starts_with($match[0], '**')) {
+                        return '<strong>'.$format($match[1]).'</strong>';
+                    }
+
+                    $font = $match[2] === 'serif' ? 'Times New Roman, serif' : 'cursive';
+
+                    return '<span style="font-family: '.$font.'">'.$format($match[3]).'</span>';
+                },
+                $text,
+            );
+        };
+
+        return str_replace(["\r\n", "\r", "\n"], '<br>', $format($escaped));
     }
 
     private function letterheadDataUri(?string $path): ?string

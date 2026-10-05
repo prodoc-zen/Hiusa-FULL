@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, Building2, Check, ClipboardCheck, Plus, Trash2, Undo2 } from 'lucide-react';
+import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
   Button, Card, DataTable, EmptyState, Field, IconButton, Input, PageHeader,
   Select, StatusBadge, Tabs, Textarea,
@@ -40,6 +40,7 @@ export default function SaoVenuesPage() {
   const [venueForm, setVenueForm] = useState(EMPTY_VENUE_FORM);
   const [venueFormError, setVenueFormError] = useState(null);
   const [venueSaving, setVenueSaving] = useState(false);
+  const [togglingVenueId, setTogglingVenueId] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
 
@@ -115,12 +116,15 @@ export default function SaoVenuesPage() {
   }
 
   async function toggleVenueActive(venue) {
+    setTogglingVenueId(venue.id);
     try {
       await updateVenue(venue.id, { is_active: !venue.is_active });
       notify.success(venue.is_active ? `"${venue.name}" marked inactive.` : `"${venue.name}" marked active.`);
       loadVenues();
     } catch (err) {
       notify.error(getApiErrorMessage(err, 'Could not update this venue.'));
+    } finally {
+      setTogglingVenueId(null);
     }
   }
 
@@ -192,7 +196,7 @@ export default function SaoVenuesPage() {
     { key: 'name', header: 'Venue', render: (venue) => <span className="font-bold text-ink">{venue.name}</span> },
     { key: 'location', header: 'Location' },
     { key: 'capacity', header: 'Capacity', align: 'right' },
-    { key: 'is_active', header: 'Status', render: (venue) => <StatusBadge status={venue.is_active ? 'active' : 'inactive'} /> },
+    { key: 'is_active', header: 'Status', render: (venue) => <button type="button" role="switch" aria-checked={venue.is_active} aria-label={`${venue.name} active status`} disabled={togglingVenueId === venue.id} onClick={() => toggleVenueActive(venue)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50"><span aria-hidden="true" className={`relative h-6 w-11 rounded-full transition-colors ${venue.is_active ? 'bg-[#0B8ED0]' : 'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${venue.is_active ? 'left-6' : 'left-1'}`} /></span><StatusBadge status={venue.is_active ? 'active' : 'inactive'} /></button> },
   ];
 
   const bookingColumns = [
@@ -228,7 +232,6 @@ export default function SaoVenuesPage() {
             onRetry={loadVenues}
             actions={(venue) => (
               <div className="flex justify-end gap-1.5">
-                <IconButton icon={venue.is_active ? Undo2 : Check} label={venue.is_active ? 'Mark inactive' : 'Mark active'} onClick={() => toggleVenueActive(venue)} />
                 <Button size="sm" variant="secondary" onClick={() => openVenueModal(venue)}>Edit</Button>
                 <IconButton icon={Trash2} label="Delete venue" variant="danger" onClick={() => setDeleteTarget(venue)} />
               </div>

@@ -184,6 +184,7 @@ class FinancialReportController extends Controller
             ->first();
         $budgets = Budget::where('organization_id', $organizationId)
             ->when($event, fn ($query) => $query->where('event_id', $event->id))
+            ->when($semester, fn ($query) => $query->where('financial_semester_id', $semester->id))
             ->whereNotNull('advice_generated_at')
             ->get([
                 'id', 'event_id', 'title', 'allocated_amount', 'remaining_amount',
@@ -489,7 +490,7 @@ class FinancialReportController extends Controller
     {
         $title = $context['report_title'];
         $statement = $context['income_statement'];
-        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is PHP ".number_format($statement['total_income'], 2).', total expenses are PHP '.number_format($statement['total_expense'], 2).', and net activity is PHP '.number_format($statement['net_balance'], 2).'. Opening balance is PHP '.number_format($statement['opening_balance'], 2).' and closing balance is PHP '.number_format($statement['closing_balance'], 2).'. Verified collections are PHP '.number_format($context['custody_movements']['verified_collections'], 2).' and recorded remittances are PHP '.number_format($context['custody_movements']['recorded_remittances'], 2).'. Remittances are not counted again as income.';
+        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is ₱".number_format($statement['total_income'], 2).', total expenses are ₱'.number_format($statement['total_expense'], 2).', and net activity is ₱'.number_format($statement['net_balance'], 2).'. Opening balance is ₱'.number_format($statement['opening_balance'], 2).' and closing balance is ₱'.number_format($statement['closing_balance'], 2).'. Verified collections are ₱'.number_format($context['custody_movements']['verified_collections'], 2).' and recorded remittances are ₱'.number_format($context['custody_movements']['recorded_remittances'], 2).'. Remittances are not counted again as income.';
 
         $generated = $this->groq->generate(
             'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, custody movements, latest OLS forecast when available, budget-advisory results, and audit-log summary. Distinguish period net activity from opening and closing balance. Remittances are custody movements and must never be added to income. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',

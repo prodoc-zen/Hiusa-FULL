@@ -1,4 +1,5 @@
 import { ShieldCheck, MessageSquareText } from 'lucide-react';
+import { RichTextBody } from '../../../../components/RichText';
 import { Card, EmptyState, ErrorState, Skeleton, SkeletonCard, StatusBadge } from '../../../../components/ui';
 import { StackedBar } from '../../../../components/charts';
 import { manilaDate } from '../../../../lib/format';
@@ -137,7 +138,7 @@ export default function EvaluationResultsPanel({ data, loading, error, onRetry, 
     <div className="flex flex-col gap-5">
       <Card
         title={data.window.title}
-        description={data.window.description || undefined}
+        description={data.window.description ? <RichTextBody as="span" value={data.window.description} /> : undefined}
         actions={<StatusBadge status={data.window.status} />}
       >
         <p className="text-sm font-medium text-ink-muted">

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { RichTextBody } from '../RichText';
 import { CalendarDays, CheckCircle2, Clock3, MapPin, Megaphone, Pin, ShieldCheck, Vote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import logo from '../../assets/Hiusa Logo.png';
@@ -76,7 +77,7 @@ export default function FeedPost({ item, organization }) {
 
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
         <h3 className="text-lg font-black leading-7 text-[#0F172A] sm:text-xl">{post.title}</h3>
-        {body && <p className="mt-2 whitespace-pre-line text-sm leading-6 text-[#0F172A] sm:text-[15px]">{body}</p>}
+        {body && <RichTextBody value={body} className="mt-2 text-sm leading-6 text-[#0F172A] sm:text-[15px]" />}
         {item.type === 'event' && (
           <div className="mt-4 space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-semibold text-[#64748B]">
             <p className="flex items-start gap-2"><Clock3 size={15} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(post.start_time)}</p>

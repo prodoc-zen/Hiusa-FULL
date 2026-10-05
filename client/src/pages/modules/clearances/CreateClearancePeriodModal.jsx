@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { X } from 'lucide-react';
-import { Button, Field, Input, Textarea } from '../../../components/ui';
+import { Button, Field, Input } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import RichTextEditor from '../../../components/RichText';
 import { createClearancePeriod } from '../../../services/clearanceService';
 import { getAcademicYears } from '../../../services/systemAdministrationService';
 import notify from '../../../lib/notify';
@@ -111,7 +112,7 @@ export default function CreateClearancePeriodModal({ open, onClose, onCreated })
         </div>
 
         <Field label="Description" hint="Optional context shown to signatories.">
-          <Textarea value={description} onChange={(event) => setDescription(event.target.value)} rows={2} />
+          <RichTextEditor ariaLabel="Clearance period description" value={description} onChange={setDescription} rows={3} />
         </Field>
 
         <Field label="Deadline" hint="Optional. Students see this on their checklist.">

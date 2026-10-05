@@ -43,6 +43,22 @@ describe('TopBar notifications', () => {
     expect(notificationMocks.getNotifications).toHaveBeenCalledOnce();
   });
 
+  it('marks every notification as read from the notification panel', async () => {
+    notificationMocks.getNotifications.mockResolvedValue({ data: { data: [
+      { id: 1, title: 'Budget review', message: 'Approved', is_read: false },
+      { id: 2, title: 'Event review', message: 'Pending', is_read: false },
+    ], unread_count: 2 } });
+    notificationMocks.markAllRead.mockResolvedValue({});
+    render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
+
+    await waitFor(() => expect(notificationMocks.getNotifications).toHaveBeenCalledOnce());
+    fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark all as read' }));
+
+    await waitFor(() => expect(notificationMocks.markAllRead).toHaveBeenCalledOnce());
+    expect(screen.queryByRole('button', { name: 'Mark all as read' })).not.toBeInTheDocument();
+  });
+
   it('keeps the admin home header compact above the dashboard briefing', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Alex', last_name: 'Rivera' }));
     render(<MemoryRouter><TopBar title="Admin Dashboard" pathname="/dashboard/admin" onMenuToggle={() => {}} /></MemoryRouter>);

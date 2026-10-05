@@ -1,7 +1,7 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Building2, CheckCircle2, Eye, EyeOff, IdCard, KeyRound, LockKeyhole, Mail, Save, ShieldCheck, UserRound } from 'lucide-react';
+import { Building2, CheckCircle2, Eye, EyeOff, IdCard, KeyRound, LockKeyhole, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
 import NotificationPreferences from '../../../components/profile/NotificationPreferences';
 import RecentActivity from '../../../components/profile/RecentActivity';
@@ -35,6 +35,7 @@ export default function SettingsPage() {
     first_name: currentUser.first_name || '',
     last_name: currentUser.last_name || '',
     email: currentUser.email || '',
+    contact_number: currentUser.contact_number || '',
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileError, setProfileError] = useState(null);
@@ -57,7 +58,8 @@ export default function SettingsPage() {
   const schoolId = currentUser.school_id || currentUser.id || 'N/A';
   const profileDirty = profileForm.first_name !== (currentUser.first_name || '')
     || profileForm.last_name !== (currentUser.last_name || '')
-    || profileForm.email !== (currentUser.email || '');
+    || profileForm.email !== (currentUser.email || '')
+    || profileForm.contact_number !== (currentUser.contact_number || '');
   const passwordLongEnough = pwForm.password.length >= 8;
   const passwordsMatch = Boolean(pwForm.password) && pwForm.password === pwForm.password_confirmation;
 
@@ -70,6 +72,7 @@ export default function SettingsPage() {
       first_name: currentUser.first_name || '',
       last_name: currentUser.last_name || '',
       email: currentUser.email || '',
+      contact_number: currentUser.contact_number || '',
     });
     setProfileError(null);
   }
@@ -92,6 +95,7 @@ export default function SettingsPage() {
         first_name: profileForm.first_name.trim(),
         last_name: profileForm.last_name.trim(),
         email: profileForm.email.trim(),
+        contact_number: profileForm.contact_number.trim() || null,
       });
       const updatedUser = { ...currentUser, ...response.data };
 
@@ -101,6 +105,7 @@ export default function SettingsPage() {
         first_name: updatedUser.first_name || '',
         last_name: updatedUser.last_name || '',
         email: updatedUser.email || '',
+        contact_number: updatedUser.contact_number || '',
       });
       showFeedback('success', 'Profile changes saved.');
     } catch (error) {
@@ -238,6 +243,14 @@ export default function SettingsPage() {
                     <input type="email" autoComplete="email" value={profileForm.email} onChange={(event) => setProfileForm({ ...profileForm, email: event.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
                   </span>
                   <span className="block text-[11px] font-medium text-[#94A3B8]">Used for account recovery and organization notifications.</span>
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Mobile number" />Mobile number (optional)</span>
+                  <span className="relative block">
+                    <Phone className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" size={16} />
+                    <input type="tel" autoComplete="tel" inputMode="tel" maxLength={30} value={profileForm.contact_number} onChange={(event) => setProfileForm({ ...profileForm, contact_number: event.target.value })} placeholder="e.g. 0917 123 4567" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-10 pr-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
+                  </span>
                 </label>
 
                 {profileError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-xs font-semibold text-red-700">{profileError}</p>}

@@ -1,4 +1,5 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
+import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import TableRowActions from "../../../components/TableRowActions";
@@ -11,7 +12,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Circle,
-  DollarSign,
+  PhilippinePeso,
   Download,
   ImagePlus,
   Info,
@@ -1853,11 +1854,7 @@ export default function MerchandisePage({ initialTab }) {
                         </h3>
                         <div className="shrink-0 text-right"><p className="text-lg font-black text-[#0878B7]">{fmt(item.effective_price ?? item.price)}</p>{item.promotion_available_to_viewer && <p className="text-xs text-slate-500"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slots left</p>}</div>
                       </div>
-                      {item.description && (
-                        <p className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500">
-                          {item.description}
-                        </p>
-                      )}
+                      {item.description && <RichTextBody value={item.description} className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500" />}
                       {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]"><FieldIcon label="Size / variant" />Size / variant
                         <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${item.name}`}>
                           <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} available</option>)}
@@ -2566,7 +2563,7 @@ export default function MerchandisePage({ initialTab }) {
             label: "Revenue",
             value: fmt(totalRevenue),
             helper: "From paid orders",
-            icon: DollarSign,
+            icon: PhilippinePeso,
           },
         ].map((stat) => (
           <article
@@ -3772,14 +3769,14 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">
                  <FieldIcon label="Description" /> Description
                 </label>
-                <textarea
+                <RichTextEditor
                   rows={2}
                   value={form.description}
-                  onChange={(e) =>
-                    setForm({ ...form, description: e.target.value })
+                  onChange={(description) =>
+                    setForm({ ...form, description })
                   }
                   placeholder="Optional description..."
-                  className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  ariaLabel="Product description"
                 />
               </div>
               <div className="space-y-1.5">
@@ -3935,14 +3932,14 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">
                  <FieldIcon label="Description" /> Description
                 </label>
-                <textarea
+                <RichTextEditor
                   rows={2}
                   value={editForm.description}
-                  onChange={(e) =>
-                    setEditForm({ ...editForm, description: e.target.value })
+                  onChange={(description) =>
+                    setEditForm({ ...editForm, description })
                   }
                   placeholder="Optional description..."
-                  className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  ariaLabel="Product description"
                 />
               </div>
               <div className="space-y-1.5">

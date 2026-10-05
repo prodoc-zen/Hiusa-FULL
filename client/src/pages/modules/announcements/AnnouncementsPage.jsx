@@ -13,6 +13,7 @@ import {
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
+import RichTextEditor from '../../../components/RichText';
 import PaginationControls from '../../../components/PaginationControls';
 import {
   getAnnouncements,
@@ -283,12 +284,11 @@ export default function AnnouncementsPage() {
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Content" />Content</label>
-                <textarea
+                <RichTextEditor
                   rows={5}
                   value={formBody}
-                  onChange={(e) => setFormBody(e.target.value)}
+                  onChange={setFormBody}
                   placeholder="Write your announcement..."
-                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
               <div className="space-y-1.5">

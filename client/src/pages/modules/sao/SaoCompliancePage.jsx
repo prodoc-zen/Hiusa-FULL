@@ -5,6 +5,7 @@ import {
   ProgressMeter, Select, StatusBadge, Tabs, Textarea,
 } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import notify from '../../../lib/notify';
@@ -297,7 +298,7 @@ export default function SaoCompliancePage() {
     { key: 'academic_year', header: 'Academic year' },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
     { key: 'is_active', header: 'Status', render: (type) => <StatusBadge status={type.is_active ? 'active' : 'inactive'} /> },
-    { key: 'description', header: 'Description', render: (type) => <span className="line-clamp-2 text-ink-muted">{type.description || 'No description.'}</span> },
+    { key: 'description', header: 'Description', render: (type) => <RichTextBody as="span" value={type.description || 'No description.'} className="line-clamp-2 text-ink-muted" /> },
   ];
 
   const queueColumns = [
@@ -469,7 +470,7 @@ export default function SaoCompliancePage() {
             <Input placeholder="e.g. Accomplishment report" value={typeForm.name} onChange={(event) => setTypeForm({ ...typeForm, name: event.target.value })} />
           </Field>
           <Field label="Description" hint="Shown to organizations alongside this requirement." className="sm:col-span-2">
-            <Textarea value={typeForm.description} onChange={(event) => setTypeForm({ ...typeForm, description: event.target.value })} />
+            <RichTextEditor ariaLabel="Requirement description" value={typeForm.description} onChange={(description) => setTypeForm({ ...typeForm, description })} rows={4} />
           </Field>
           <label className="flex items-center gap-2 text-sm font-semibold text-ink sm:col-span-2">
             <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={typeForm.is_active} onChange={(event) => setTypeForm({ ...typeForm, is_active: event.target.checked })} />

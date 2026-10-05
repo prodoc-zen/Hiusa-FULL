@@ -10,6 +10,7 @@ const financeMocks = vi.hoisted(() => ({
   getAuditLogs: vi.fn(),
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
+  createBudget: vi.fn(),
   getFinancialReports: vi.fn(),
   getFinancialReport: vi.fn(),
   getFinancialSemesters: vi.fn(),
@@ -24,7 +25,7 @@ vi.mock('../../../services/financeService', () => ({
   createTransaction: vi.fn(),
   updateTransaction: vi.fn(),
   generateForecast: vi.fn(),
-  createBudget: vi.fn(),
+  createBudget: financeMocks.createBudget,
   generateBudgetAdvice: vi.fn(),
   generateFinancialReport: financeMocks.generateFinancialReport,
   downloadFinancialReportPdf: financeMocks.downloadFinancialReportPdf,
@@ -276,18 +277,40 @@ describe('FinancePage transaction search', () => {
     await screen.findByText('August report');
     fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
     await waitFor(() => expect(financeMocks.getFinancialReport).toHaveBeenCalledWith(61));
-    expect(URL.createObjectURL).toHaveBeenCalled();
-    expect(URL.createObjectURL.mock.calls[0][0].type).toContain('ms-excel');
-    const workbookText = await new Promise((resolve) => {
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 12000 });
+    expect(URL.createObjectURL.mock.calls[0][0].type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    const workbookBuffer = await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
-      reader.readAsText(URL.createObjectURL.mock.calls[0][0]);
+      reader.readAsArrayBuffer(URL.createObjectURL.mock.calls[0][0]);
     });
-    expect(new DOMParser().parseFromString(workbookText, 'application/xml').querySelector('parsererror')).toBeNull();
-    expect(workbookText).toContain('Membership');
+    const { default: ExcelJS } = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(workbookBuffer);
+    expect(workbook.getWorksheet('Report').getColumn(3).values).toContain('Membership');
+    expect(workbook.getWorksheet('Report').getColumn(4).values).toContain(100);
+    expect(workbook.getWorksheet('Report').getColumn(4).numFmt).toBe('"₱"#,##0.00');
     expect(click).toHaveBeenCalled();
-    expect(click.mock.instances[0].download).toBe('hiusa-financial-report-61.xml');
+    expect(click.mock.instances[0].download).toBe('hiusa-financial-report-61.xlsx');
     click.mockRestore();
+  }, 15000);
+
+  it('submits a budget for the selected financial semester', async () => {
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [{ id: 3, name: 'First Semester' }] });
+    financeMocks.createBudget.mockResolvedValue({ data: { id: 9 } });
+    render(<FinancePage initialTab="budgets" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Propose Budget' }));
+    fireEvent.change(screen.getByPlaceholderText('e.g. Sports Fest 2026 Budget'), { target: { value: 'First Semester Allocation' } });
+    const [amount, threshold] = screen.getAllByPlaceholderText('0.00');
+    fireEvent.change(amount, { target: { value: '1500' } });
+    fireEvent.change(threshold, { target: { value: '200' } });
+    fireEvent.change(screen.getByLabelText('Financial semester (optional)'), { target: { value: '3' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Submit for Approval' }));
+
+    await waitFor(() => expect(financeMocks.createBudget).toHaveBeenCalledWith(expect.objectContaining({
+      title: 'First Semester Allocation', financial_semester_id: '3', allocated_amount: 1500,
+    })));
   });
 });
 
