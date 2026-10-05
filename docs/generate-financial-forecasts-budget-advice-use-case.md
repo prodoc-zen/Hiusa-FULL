@@ -16,7 +16,7 @@
 ## Implementation Coverage
 
 - **Role Access:** Only Admin can access financial insights and forecast APIs.
-- **Load Historical Transactions:** `POST /forecasts/generate` groups up to 36 months of organization ledger records by month.
+- **Load Historical Transactions:** `POST /forecasts/generate` groups up to 36 months of organization ledger records by month. Cash advance releases and repayments are left out, because that money is lent out and returned rather than spent or earned.
 - **Validate Financial Dataset:** generation remains available with fewer than two populated transaction months. The result warns when the history is too short for a reliable trend; manual forecast inputs retain numeric validation.
 - **Apply OLS Linear Regression:** the server calculates ordinary least squares slope and intercept values for chronological monthly income and expense series, fills internal inactive months with zero values, clamps impossible negative projections, and retains the raw projection for transparency. Month parsing explicitly pins the first day so end-of-month dates cannot shift the series.
 - **Forecast Budget Availability:** forecasts store predicted income, expense, and balance.
