@@ -2,10 +2,13 @@
 
 namespace App\Models;
 
+use App\Models\Concerns\SerializesLocalDates;
 use Illuminate\Database\Eloquent\Model;
 
 class CashAdvanceRepayment extends Model
 {
+    use SerializesLocalDates;
+
     protected $guarded = [];
 
     protected function casts(): array
