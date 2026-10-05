@@ -87,7 +87,7 @@ export default function StudentHomePage() {
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6 overflow-x-hidden">
       <RoleBriefing />
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_300px] xl:justify-center">
+      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           <div className="flex flex-wrap items-end justify-between gap-2">
             <div>

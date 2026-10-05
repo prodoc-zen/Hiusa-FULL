@@ -6,7 +6,7 @@ export const createVenue = (data) => api.post('/venues', data);
 export const updateVenue = (id, data) => api.put(`/venues/${id}`, data);
 export const deleteVenue = (id) => api.delete(`/venues/${id}`);
 
-// Approved slots only, for a chosen date range - never another organization's name.
+// Pending and approved slots for a chosen date range, with other organizations anonymized.
 export const getVenueAvailability = (id, params) => api.get(`/venues/${id}/availability`, { params });
 
 // Bookings: SUPER_ADMIN reviews across organizations, ADMIN/SBO_OFFICER see their own.

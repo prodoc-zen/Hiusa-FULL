@@ -1,4 +1,4 @@
-import { Building2, ClipboardCheck, FileText, Home, ShieldCheck, Target, Users } from 'lucide-react';
+import { Building2, ClipboardCheck, FilePlus2, FileText, History, Home, ShieldCheck, Users } from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
 
 // Single source of truth for role-to-sidebar-sections. Sidebar.jsx renders this;
@@ -135,8 +135,8 @@ export const NAV_STRUCTURE = [
     },
     roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
-  { id: 'submit-request', label: 'Submit Request', icon: ClipboardCheck, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
-  { id: 'audit-logs', label: 'General Audit Log', icon: ClipboardCheck, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
+  { id: 'submit-request', label: 'Submit Request', icon: FilePlus2, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
+  { id: 'audit-logs', label: 'General Audit Log', icon: History, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
   {
     id: 'governance',
     label: 'Governance',
@@ -149,17 +149,13 @@ export const NAV_STRUCTURE = [
       { id: 'gov-my-grievances', label: 'My Grievances', path: '/dashboard/my-grievances', roles: ['STUDENT'] },
       { id: 'gov-clearances', label: 'Clearances', path: '/dashboard/clearances', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'gov-my-clearance', label: 'My Clearance', path: '/dashboard/my-clearance', roles: ['STUDENT'] },
-      { id: 'gov-evaluation', label: 'Evaluation', path: '/dashboard/evaluation', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
-  { id: 'study-objectives', label: 'Study Objectives', icon: Target, path: '/dashboard/objectives', roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
 ];
 
 export const profileNav = [
   { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: Users },
 ];
-
-const studyObjectivesItem = NAV_STRUCTURE.find((item) => item.id === 'study-objectives');
 
 export const SUPER_ADMIN_NAV = [
   NAV_STRUCTURE[0],
@@ -169,23 +165,21 @@ export const SUPER_ADMIN_NAV = [
     icon: ShieldCheck,
     roles: ['SUPER_ADMIN'],
     children: [
+      { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
       { id: 'sao-colleges', label: 'Colleges', path: '/dashboard/super-admin/colleges', roles: ['SUPER_ADMIN'], icon: Building2 },
-      { id: 'sao-event-requirements', label: 'Event Requirements', path: '/dashboard/super-admin/event-requirements', roles: ['SUPER_ADMIN'], icon: FileText },
-      { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-academic-years', label: 'Academic Years', path: '/dashboard/super-admin/academic-years', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-event-requirements', label: 'Event Requirements', path: '/dashboard/super-admin/event-requirements', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-compliance', label: 'Compliance', path: '/dashboard/super-admin/compliance', roles: ['SUPER_ADMIN'] },
       { id: 'sao-venues', label: 'Venues', path: '/dashboard/super-admin/venues', roles: ['SUPER_ADMIN'] },
       { id: 'sao-grievances', label: 'Grievances', path: '/dashboard/super-admin/grievances', roles: ['SUPER_ADMIN'] },
       { id: 'sao-clearances', label: 'Clearances', path: '/dashboard/super-admin/clearances', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-evaluation', label: 'Evaluation', path: '/dashboard/super-admin/evaluation', roles: ['SUPER_ADMIN'] },
       { id: 'sao-audit-logs', label: 'Audit Trail', path: '/dashboard/super-admin/audit-logs', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'University Announcements', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
       { id: 'sao-financial-reports', label: 'Received Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },
     ],
   },
-  studyObjectivesItem,
 ];
 
 export function getVisibleChildren(item, role) {

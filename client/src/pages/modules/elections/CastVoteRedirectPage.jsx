@@ -31,7 +31,7 @@ export default function CastVoteRedirectPage() {
   if (error) return <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-5 text-sm text-red-700">{error}</p>;
   if (elections.length === 0) return <div className="relative overflow-hidden rounded-lg border border-[#DDE7EF] bg-white p-8 text-center"><div aria-hidden="true" className="pointer-events-none space-y-3 opacity-30 blur-sm"><div className="h-8 rounded-lg bg-[#DDE7EF]" /><div className="h-24 rounded-lg bg-[#EEF6FB]" /></div><div className="absolute inset-0 grid place-items-center bg-white/65 p-4"><div><h2 className="text-lg font-black text-[#0F172A]">No active election</h2><p className="mt-2 text-sm text-[#64748B]">Voting becomes available during an approved election period.</p></div></div></div>;
 
-  return <section className="mx-auto max-w-4xl"><h1 className="text-xl font-bold text-[#0F172A]">Active elections</h1><p className="mt-1 text-sm text-[#64748B]">Choose an election to vote or check your ballot receipt.</p><div className="mt-5 grid gap-4 sm:grid-cols-2">{elections.map((election) => {
+  return <section className="mx-auto max-w-6xl"><h1 className="text-xl font-bold text-[#0F172A]">Active elections</h1><p className="mt-1 text-sm text-[#64748B]">Choose an election to vote or check your ballot receipt.</p><div className="mt-5 grid gap-4 lg:grid-cols-2">{elections.map((election) => {
     const votes = election.my_votes || [];
     const start = new Date(election.start_time);
     const end = new Date(election.end_time);

@@ -1,93 +1,48 @@
-const MAX_DAYS = 14;
+import { useState } from 'react';
+import { Clock3 } from 'lucide-react';
 
-function startOfDay(date) {
-  const copy = new Date(date);
-  copy.setHours(0, 0, 0, 0);
-  return copy;
+const OPEN_HOUR = 5;
+const CLOSE_HOUR = 22;
+
+function manilaDay(value) {
+  return new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
-function endOfDay(date) {
-  const copy = new Date(date);
-  copy.setHours(23, 59, 59, 999);
-  return copy;
+function manilaHour(value) {
+  const [hour, minute] = new Date(value).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' }).split(':').map(Number);
+  return hour + minute / 60;
 }
 
-function formatTime(date) {
-  return date.toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' });
-}
-
-function formatDayLabel(date) {
-  return date.toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' });
-}
-
-function daysBetween(fromValue, toValue) {
-  if (!fromValue || !toValue) return [];
-  const start = startOfDay(new Date(`${fromValue}T00:00:00`));
-  const end = startOfDay(new Date(`${toValue}T00:00:00`));
-  const days = [];
-  for (let cursor = start; cursor <= end && days.length < MAX_DAYS; cursor = new Date(cursor.getTime() + 86400000)) {
-    days.push(new Date(cursor));
-  }
-  return days;
-}
-
-function blocksForDay(day, slots) {
-  const dayStart = startOfDay(day);
-  const dayEnd = endOfDay(day);
-  const dayMs = dayEnd.getTime() - dayStart.getTime();
-
-  return slots
-    .map((slot) => {
-      const slotStart = new Date(slot.start_time);
-      const slotEnd = new Date(slot.end_time);
-      const clampedStart = slotStart < dayStart ? dayStart : slotStart;
-      const clampedEnd = slotEnd > dayEnd ? dayEnd : slotEnd;
-      if (clampedEnd <= dayStart || clampedStart >= dayEnd) return null;
-
-      const startPct = ((clampedStart.getTime() - dayStart.getTime()) / dayMs) * 100;
-      const widthPct = Math.max(((clampedEnd.getTime() - clampedStart.getTime()) / dayMs) * 100, 1.5);
-      return { id: slot.id, startPct, widthPct, label: `Booked, ${formatTime(slotStart)} to ${formatTime(slotEnd)}` };
-    })
-    .filter(Boolean);
+function timeLabel(value) {
+  return new Date(value).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' });
 }
 
 export default function VenueAvailabilityTimeline({ from, to, slots }) {
-  const days = daysBetween(from, to);
-  const truncated = from && to && (new Date(to) - new Date(from)) / 86400000 + 1 > MAX_DAYS;
+  const [selectedDay, setSelectedDay] = useState('');
+  if (!from || !to || from > to) return <p className="text-sm text-ink-muted">Choose a date to see bookings.</p>;
 
-  if (days.length === 0) {
-    return <p className="text-sm font-medium text-ink-muted">Choose a date range to see when this venue is already booked.</p>;
-  }
+  const days = [];
+  const start = new Date(`${from}T12:00:00+08:00`);
+  const end = new Date(`${to}T12:00:00+08:00`);
+  for (let date = new Date(start); date <= end && days.length < 14; date.setUTCDate(date.getUTCDate() + 1)) days.push(manilaDay(date));
+  const activeDay = days.includes(selectedDay) ? selectedDay : days[0];
+  const bookings = slots.filter((slot) => manilaDay(slot.start_time) === activeDay);
 
-  return (
-    <div>
-      <div className="mb-3 flex items-center gap-4 text-xs font-semibold text-ink-muted">
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full bg-navy-800" aria-hidden="true" />Approved booking</span>
-        <span className="inline-flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded-full border border-line bg-subtle" aria-hidden="true" />Open</span>
-      </div>
-      <ul className="space-y-2" aria-label="Venue availability by day">
-        {days.map((day) => {
-          const blocks = blocksForDay(day, slots);
-          return (
-            <li key={day.toISOString()} className="flex items-center gap-3">
-              <span className="w-24 shrink-0 text-xs font-bold text-ink">{formatDayLabel(day)}</span>
-              <div className="relative h-8 flex-1 overflow-hidden rounded-control border border-line bg-subtle">
-                {blocks.map((block) => (
-                  <span
-                    key={block.id}
-                    role="img"
-                    aria-label={block.label}
-                    title={block.label}
-                    className="absolute top-0 h-full rounded-control bg-navy-800"
-                    style={{ left: `${block.startPct}%`, width: `${block.widthPct}%` }}
-                  />
-                ))}
-              </div>
-            </li>
-          );
-        })}
-      </ul>
-      {truncated && <p className="mt-2 text-xs font-medium text-ink-soft">Showing the first {MAX_DAYS} days of this range.</p>}
+  return <div>
+    <div className="flex gap-2 overflow-x-auto pb-3" aria-label="Choose a booking date">
+      {days.map((day) => <button key={day} type="button" onClick={() => setSelectedDay(day)} aria-pressed={day === activeDay} className={`min-h-11 shrink-0 rounded-lg border px-3 text-left text-xs font-bold focus-visible:outline-2 focus-visible:outline-[#16C7F3] ${day === activeDay ? 'border-[#0B8ED0] bg-[#EEF6FB] text-[#0F2F62]' : 'border-[#DDE7EF] bg-white text-[#64748B]'}`}>{new Date(`${day}T12:00:00+08:00`).toLocaleDateString('en-PH', { weekday: 'short', month: 'short', day: 'numeric', timeZone: 'Asia/Manila' })}</button>)}
     </div>
-  );
+    <div className="overflow-x-auto rounded-lg border border-[#DDE7EF] bg-white p-3">
+      <div className="min-w-[600px]">
+        <div className="flex justify-between text-[11px] font-semibold text-[#64748B]">{[5, 8, 11, 14, 17, 20, 22].map((hour) => <span key={hour}>{new Date(2020, 0, 1, hour).toLocaleTimeString('en-PH', { hour: 'numeric' })}</span>)}</div>
+        <div className="relative mt-2 h-12 rounded-md bg-[#EEF6FB]" aria-label="Booking hours, 5 AM to 10 PM">
+          {bookings.map((slot) => <div key={slot.id} title={`${slot.status === 'pending' ? 'Pending' : 'Reserved'} by ${slot.reserved_by || 'another organization'}: ${timeLabel(slot.start_time)} - ${timeLabel(slot.end_time)}`} className={`absolute inset-y-1 rounded ${slot.status === 'pending' ? 'bg-amber-500' : 'bg-[#0F2F62]'}`} style={{ left: `${Math.max(0, (manilaHour(slot.start_time) - OPEN_HOUR) / (CLOSE_HOUR - OPEN_HOUR) * 100)}%`, width: `${Math.min(100, (manilaHour(slot.end_time) - manilaHour(slot.start_time)) / (CLOSE_HOUR - OPEN_HOUR) * 100)}%` }} />)}
+        </div>
+      </div>
+    </div>
+    <div className="mt-3 grid gap-2 sm:grid-cols-2">
+      {bookings.length ? bookings.map((slot) => <div key={slot.id} className="flex items-start gap-2 rounded-lg border border-[#DDE7EF] bg-white p-3 text-xs"><Clock3 size={16} className="shrink-0 text-[#0878B7]" /><div><p className="font-bold text-[#0F172A]">{timeLabel(slot.start_time)} - {timeLabel(slot.end_time)}</p><p className="mt-0.5 text-[#64748B]">{slot.status === 'pending' ? 'Pending request from' : 'Reserved by'} {slot.reserved_by || 'another organization'}</p></div></div>) : <p className="text-sm text-[#64748B]">No bookings on this date.</p>}
+    </div>
+    {end > new Date(start.getTime() + 13 * 86400000) && <p className="mt-2 text-xs text-[#64748B]">Showing the first 14 days.</p>}
+  </div>;
 }

@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { getNotifications, markAllRead, markRead } from '../../../services/notificationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getNotificationDestination } from '../../../utils/notificationLinks';
+import { notificationIcon } from '../../../utils/notificationIcon';
 
 export default function SaoNotificationsPage() {
   const navigate = useNavigate();
@@ -59,7 +60,8 @@ export default function SaoNotificationsPage() {
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         {loading ? <div className="h-48 animate-pulse bg-slate-100" /> : notifications.length ? <div className="divide-y divide-[#DDE7EF]">{notifications.map((notification) => {
           const destination = getNotificationDestination(notification, 'SUPER_ADMIN');
-          return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`flex w-full items-start gap-3 p-4 text-left hover:bg-[#F8FBFD] ${notification.is_read ? '' : 'bg-[#EEF6FB]'}`}><span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${notification.is_read ? 'bg-slate-200' : 'bg-[#16C7F3]'}`} /><div className="min-w-0 flex-1"><p className="font-bold text-[#0F172A]">{notification.title}</p><p className="mt-1 text-sm text-slate-600">{notification.message}</p><p className="mt-2 text-xs text-slate-500">{new Date(notification.sent_at || notification.created_at).toLocaleString('en-PH')}</p></div>{destination && <ExternalLink size={16} className="mt-1 shrink-0 text-[#0878B7]" />}</button>;
+          const Icon = notificationIcon(notification);
+          return <button key={notification.id} type="button" onClick={() => openNotification(notification)} className={`flex w-full items-start gap-3 border-l-4 p-4 text-left hover:bg-[#F8FBFD] ${notification.is_read ? 'border-transparent' : 'border-[#0B8ED0] bg-[#E6F6FD]'}`}><Icon size={19} className={`mt-0.5 shrink-0 ${notification.is_read ? 'text-slate-400' : 'text-[#0878B7]'}`} aria-hidden="true" /><div className="min-w-0 flex-1"><p className="font-bold text-[#0F172A]">{notification.title}</p><p className="mt-1 text-sm text-slate-600">{notification.message}</p><p className="mt-2 text-xs text-slate-500">{new Date(notification.sent_at || notification.created_at).toLocaleString('en-PH')}</p></div>{destination && <ExternalLink size={16} className="mt-1 shrink-0 text-[#0878B7]" />}</button>;
         })}</div> : <div className="p-10 text-center"><Bell size={38} className="mx-auto text-slate-200" /><p className="mt-3 text-sm font-semibold text-slate-500">No SAO notifications yet.</p></div>}
       </section>
     </div>

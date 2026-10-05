@@ -13,8 +13,8 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const APPROVAL_TYPE_LABEL = { event: 'Events', election: 'Elections', announcement: 'Announcements', payment: 'Merchandise Orders', financial_report: 'Financial Reports' };
-const APPROVAL_TYPE_ORDER = ['event', 'election', 'announcement', 'payment', 'financial_report'];
+const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', payment: 'Merchandise Orders', financial_report: 'Financial Reports' };
+const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'payment', 'financial_report'];
 
 export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
@@ -68,7 +68,7 @@ export default function DepartmentHeadHomePage() {
     .filter((e) => e.status === 'upcoming' || e.status === 'approved')
     .sort((a, b) => new Date(a.start_time) - new Date(b.start_time))
     .slice(0, 4);
-  const recentAnnouncements = data.announcements.filter((a) => a.is_published).slice(0, 3);
+  const recentAnnouncements = data.announcements.filter((a) => a.is_published).sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at)).slice(0, 3);
 
   const stat = (val) => loading ? '-' : val;
 
@@ -208,6 +208,7 @@ export default function DepartmentHeadHomePage() {
                 <p className="py-4 text-center text-sm text-slate-500">Nothing awaiting your review.</p>
               ) : (
                 <div className="space-y-3">
+                  {data.pendingApprovals.slice(0, 3).map((request) => <NavLink key={request.id} to="/dashboard/department-head/approvals" className="block rounded-lg border border-amber-200 bg-amber-50 p-3 hover:bg-amber-100"><p className="break-words text-xs font-bold text-[#0F172A]">{request.title || `${APPROVAL_TYPE_LABEL[request.entity_type] || 'Request'} #${request.id}`}</p><p className="mt-1 text-[11px] text-amber-800">{APPROVAL_TYPE_LABEL[request.entity_type] || 'Approval'} · {formatDate(request.requested_at)}</p></NavLink>)}
                   {approvalsByType.map((row) => {
                     const pct = Math.round((row.count / totalPendingApprovals) * 100);
                     return (

@@ -62,6 +62,12 @@ class VenueBookingController extends Controller
             'end_time' => ['required', 'date', 'after:start_time'],
         ]);
 
+        $start = Carbon::parse($data['start_time'])->setTimezone('Asia/Manila');
+        $end = Carbon::parse($data['end_time'])->setTimezone('Asia/Manila');
+        if (! $start->isSameDay($end) || $start->format('H:i') < '05:00' || $end->format('H:i') > '22:00') {
+            return response()->json(['message' => 'Choose a time on one day between 5:00 AM and 10:00 PM.'], 422);
+        }
+
         $organizationId = $request->user()->organization_id;
         if (! empty($data['event_id'])) {
             $event = Event::where('organization_id', $organizationId)->find($data['event_id']);
@@ -70,19 +76,25 @@ class VenueBookingController extends Controller
             }
         }
 
-        if ($this->hasApprovedOverlap($data['venue_id'], $data['start_time'], $data['end_time'])) {
-            return response()->json(['message' => 'This venue already has an approved booking that overlaps the requested time.'], 422);
-        }
+        $booking = DB::transaction(function () use ($data, $organizationId, $request) {
+            Venue::whereKey($data['venue_id'])->lockForUpdate()->first();
+            if ($this->hasApprovedOverlap($data['venue_id'], $data['start_time'], $data['end_time'], null, true)) {
+                return null;
+            }
 
-        $booking = VenueBooking::create([
-            'venue_id' => $data['venue_id'],
-            'event_id' => $data['event_id'] ?? null,
-            'organization_id' => $organizationId,
-            'start_time' => $data['start_time'],
-            'end_time' => $data['end_time'],
-            'status' => 'pending',
-            'requested_by' => $request->user()->school_id,
-        ]);
+            return VenueBooking::create([
+                'venue_id' => $data['venue_id'],
+                'event_id' => $data['event_id'] ?? null,
+                'organization_id' => $organizationId,
+                'start_time' => $data['start_time'],
+                'end_time' => $data['end_time'],
+                'status' => 'pending',
+                'requested_by' => $request->user()->school_id,
+            ]);
+        });
+        if (! $booking) {
+            return response()->json(['message' => 'This venue already has a pending or approved booking during that time. Choose another slot.'], 422);
+        }
 
         AuditLog::create([
             'organization_id' => $organizationId,
@@ -255,10 +267,10 @@ class VenueBookingController extends Controller
         return response()->json($booking->load('venue:id,name,location'));
     }
 
-    private function hasApprovedOverlap(int $venueId, $startTime, $endTime, ?int $excludingBookingId = null): bool
+    private function hasApprovedOverlap(int $venueId, $startTime, $endTime, ?int $excludingBookingId = null, bool $includePending = false): bool
     {
         return VenueBooking::where('venue_id', $venueId)
-            ->where('status', 'approved')
+            ->whereIn('status', $includePending ? ['pending', 'approved'] : ['approved'])
             ->when($excludingBookingId, fn ($q, $id) => $q->whereKeyNot($id))
             ->where('start_time', '<', Carbon::parse($endTime))
             ->where('end_time', '>', Carbon::parse($startTime))

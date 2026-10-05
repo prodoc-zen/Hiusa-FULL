@@ -9,6 +9,7 @@ import { getAccountProfiles, logout, switchAccountProfile } from '../../services
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
+import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
@@ -529,21 +530,23 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     <p className="text-sm text-slate-500">No notifications yet</p>
                   </div>
                 ) : (
-                  recent5.map((n) => (
+                  recent5.map((n) => {
+                    const Icon = notificationIcon(n);
+                    return (
                     <button
                       key={n.id}
                       type="button"
                       onClick={() => handleNotificationClick(n)}
-                      className={`flex w-full items-start gap-3 px-4 py-3 text-left transition hover:bg-[#F8FBFD] ${!n.is_read ? 'bg-[#EEF6FB]' : ''}`}
+                      className={`flex w-full items-start gap-3 border-l-4 px-4 py-3 text-left transition hover:bg-[#F8FBFD] ${!n.is_read ? 'border-[#0B8ED0] bg-[#E6F6FD]' : 'border-transparent'}`}
                     >
-                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.is_read ? 'bg-slate-200' : 'bg-[#16C7F3]'}`} />
+                      <Icon size={18} className={`mt-0.5 shrink-0 ${n.is_read ? 'text-slate-400' : 'text-[#0878B7]'}`} aria-hidden="true" />
                       <div className="min-w-0 flex-1">
                         <p className={`truncate text-[13px] font-semibold ${n.is_read ? 'text-slate-500' : 'text-[#0F172A]'}`}>{n.title}</p>
                         <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.message}</p>
                         <p className="mt-1 text-[11px] font-medium text-slate-300">{timeAgo(n.created_at)}</p>
                       </div>
                     </button>
-                  ))
+                  ); })
                 )}
               </div>
             </div>

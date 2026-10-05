@@ -35,7 +35,7 @@ class SetupChecklistTest extends TestCase
         $setup = $this->checklistFor($admin);
         $steps = $this->steps($setup);
 
-        $this->assertSame(['positions', 'members', 'academic', 'budget', 'event'], array_keys($steps), 'No compliance step before the SAO publishes requirements, and no evaluation step without an open window.');
+        $this->assertSame(['positions', 'members', 'academic', 'budget', 'event'], array_keys($steps), 'No compliance step before the SAO publishes requirements.');
         $this->assertSame(0, $setup['completed']);
         $this->assertSame('/dashboard/admin/users', $steps['members']['href']);
         $this->assertSame('/dashboard/finance/budget-allocation', $steps['budget']['href']);
@@ -77,7 +77,7 @@ class SetupChecklistTest extends TestCase
         $this->assertSame('/dashboard/super-admin/admins', $steps['admins']['href']);
     }
 
-    public function test_a_student_checklist_covers_contact_fingerprint_registration_and_an_open_evaluation(): void
+    public function test_a_student_checklist_omits_evaluation_even_when_a_window_is_open(): void
     {
         $organization = Organization::factory()->create();
         $student = User::factory()->create(['organization_id' => $organization->id, 'role' => 'STUDENT', 'account_status' => 'active', 'contact_number' => '09171234567']);
@@ -85,11 +85,10 @@ class SetupChecklistTest extends TestCase
 
         $steps = $this->steps($this->checklistFor($student));
 
-        $this->assertSame(['contact', 'fingerprint', 'event', 'evaluation'], array_keys($steps));
+        $this->assertSame(['contact', 'fingerprint', 'event'], array_keys($steps));
         $this->assertTrue($steps['contact']['done']);
         $this->assertNull($steps['fingerprint']['href'], 'Fingerprint enrollment happens in person, so there is nothing to link.');
         $this->assertSame('/dashboard/events/activity-calendar', $steps['event']['href']);
-        $this->assertSame('/dashboard/evaluation', $steps['evaluation']['href']);
     }
 
     public function test_a_department_head_only_sees_steps_that_apply_to_the_role(): void

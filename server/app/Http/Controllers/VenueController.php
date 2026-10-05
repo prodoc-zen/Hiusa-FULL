@@ -18,14 +18,21 @@ class VenueController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
-        // Approved slots only, without organization names - callers may see
-        // rival organizations' bookings here and must not learn whose they are.
         $slots = VenueBooking::where('venue_id', $venue->id)
-            ->where('status', 'approved')
+            ->whereIn('status', ['pending', 'approved'])
             ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
             ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)))
             ->orderBy('start_time')
-            ->get(['id', 'start_time', 'end_time']);
+            ->get(['id', 'organization_id', 'status', 'start_time', 'end_time'])
+            ->map(fn (VenueBooking $booking) => [
+                'id' => $booking->id,
+                'start_time' => $booking->start_time,
+                'end_time' => $booking->end_time,
+                'status' => $booking->status,
+                'reserved_by' => $booking->organization_id === $request->user()->organization_id
+                    ? 'Your organization'
+                    : 'Another organization',
+            ]);
 
         return response()->json($slots);
     }

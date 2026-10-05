@@ -40,6 +40,8 @@ const statusLabels = {
   closed: 'Closed',
 };
 
+const EXECUTIVE_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Business Manager', 'PIO'];
+
 const blankElection = () => ({
   title: '', room: '', start_time: '', end_time: '', status: 'pending_approval', imageFile: null,
   positions: [{ title: '', max_winners: 1 }],
@@ -144,6 +146,14 @@ function ElectionFormFields({ form, setForm, editing = false }) {
             <div><legend className="text-[13px] font-bold text-[#0F172A]">Ballot positions *</legend><p className="mt-0.5 text-xs text-[#64748B]">Add every position voters will see.</p></div>
             <button type="button" onClick={() => setForm((current) => ({ ...current, positions: [...current.positions, { title: '', max_winners: 1 }] }))} className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-[#0B8ED0]/30 bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"><Plus size={14} /> Add position</button>
           </div>
+          <button type="button" onClick={() => setForm((current) => ({
+            ...current,
+            positions: [
+              ...current.positions.filter((position) => position.title.trim()),
+              ...EXECUTIVE_POSITIONS.filter((title) => !current.positions.some((position) => position.title.trim().toLowerCase() === title.toLowerCase())).map((title) => ({ title, max_winners: 1 })),
+            ],
+          }))} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0F2F62] hover:border-[#0B8ED0] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><Plus size={14} /> Add executive positions</button>
+          <p className="mt-1 text-xs text-[#64748B]">President through PIO. You can still add or edit other positions below.</p>
           <div className="mt-3 space-y-3">
             {form.positions.map((position, index) => (
               <div key={`${index}-${form.positions.length}`} className="grid gap-2 rounded-lg border border-[#DDE7EF] bg-white p-3 sm:grid-cols-[minmax(0,1fr)_110px_42px] sm:border-0 sm:bg-transparent sm:p-0">

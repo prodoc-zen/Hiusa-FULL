@@ -17,23 +17,23 @@ const insight = {
 };
 
 describe('AiInsightCard', () => {
-  it('shows the advisory title, an engine badge, and a closed Why disclosure by default', () => {
+  it('shows the advisory title and a closed plain-language explanation by default', () => {
     render(<MemoryRouter><AiInsightCard insight={insight} /></MemoryRouter>);
 
     expect(screen.getByText(insight.title)).toBeInTheDocument();
-    expect(screen.getByText('Budget advisory engine')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /Why\?/i })).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('From your records')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Why am I seeing this/i })).toHaveAttribute('aria-expanded', 'false');
     expect(screen.queryByText(/Deterministic budget-advisory engine/)).not.toBeInTheDocument();
   });
 
-  it('reveals the method, inputs, and formula when Why? is opened', () => {
+  it('explains the source values without exposing technical implementation details', () => {
     render(<MemoryRouter><AiInsightCard insight={insight} /></MemoryRouter>);
 
-    fireEvent.click(screen.getByRole('button', { name: /Why\?/i }));
+    fireEvent.click(screen.getByRole('button', { name: /Why am I seeing this/i }));
 
-    expect(screen.getByText(/Deterministic budget-advisory engine/)).toBeInTheDocument();
-    expect(screen.getByText(/Allocated Amount: 60,000/)).toBeInTheDocument();
-    expect(screen.getByText(/Formula:/)).toBeInTheDocument();
+    expect(screen.getByText(/allocated amount \(60,000\)/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Deterministic budget-advisory engine/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Formula:/)).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: /Open/i })).toHaveAttribute('href', insight.href);
   });
 });

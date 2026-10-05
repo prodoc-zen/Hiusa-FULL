@@ -229,14 +229,17 @@ function StepTracker({ status }) {
   return (
     <div className="flex flex-col">
       <StepNode active={status === "pending"} done={done1} label="Ordered" />
+      <p className="ml-10 text-[11px] text-slate-500">Your order has been placed.</p>
       <div
         className={`ml-[13px] h-6 w-px ${done1 ? "bg-emerald-400" : "bg-slate-200"}`}
       />
       <StepNode active={status === "paid"} done={done2} label="Paid" />
+      <p className="ml-10 text-[11px] text-slate-500">{done1 ? 'Payment approved. Bring your claim token to pickup.' : 'Awaiting payment approval.'}</p>
       <div
         className={`ml-[13px] h-6 w-px ${done2 ? "bg-emerald-400" : "bg-slate-200"}`}
       />
       <StepNode active={status === "claimed"} done={false} label="Claimed" />
+      <p className="ml-10 text-[11px] text-slate-500">{done2 ? 'Items handed over and token used.' : 'Show your token when collecting your items.'}</p>
     </div>
   );
 }
@@ -513,6 +516,7 @@ export default function MerchandisePage({ initialTab }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [inventorySearch, setInventorySearch] = useState("");
+  const [inventoryCategory, setInventoryCategory] = useState("all");
   const [orderFilters, setOrderFilters] = useState(EMPTY_ORDER_FILTERS);
   const [orderSummary, setOrderSummary] = useState(null);
   const [orderFilterOptions, setOrderFilterOptions] = useState({
@@ -549,6 +553,7 @@ export default function MerchandisePage({ initialTab }) {
   });
   const [exportingOrders, setExportingOrders] = useState(false);
   const [studentItemSearch, setStudentItemSearch] = useState("");
+  const [productPreview, setProductPreview] = useState(null);
   const [studentCategory, setStudentCategory] = useState("all");
   const [studentItemSort, setStudentItemSort] = useState("featured");
   const [studentOrderSearch, setStudentOrderSearch] = useState("");
@@ -1317,6 +1322,12 @@ export default function MerchandisePage({ initialTab }) {
       return;
     }
 
+    const alreadyInCart = cart.find((row) => cartKey(row.item) === cartKey(cartItem))?.quantity || 0;
+    if (alreadyInCart + requested > cartItem.stock_quantity) {
+      setCartError(`Cannot exceed available stock. ${item.name} has only ${cartItem.stock_quantity} unit(s).`);
+      return false;
+    }
+
     setCart((prev) => {
       const existing = prev.find((row) => cartKey(row.item) === cartKey(cartItem));
 
@@ -1342,6 +1353,7 @@ export default function MerchandisePage({ initialTab }) {
     });
 
     setDraftQty((prev) => ({ ...prev, [item.id]: 1 }));
+    return true;
   }
 
   function changeCartQty(itemId, nextQty) {
@@ -1573,8 +1585,10 @@ export default function MerchandisePage({ initialTab }) {
   );
   const cartQuantity = cart.reduce((sum, row) => sum + row.quantity, 0);
 
-  const filteredInventoryItems = items.filter((i) =>
-    i.name?.toLowerCase().includes(inventorySearch.toLowerCase()),
+  const inventoryCategories = [...new Set(items.map((item) => item.category).filter(Boolean))].sort();
+  const filteredInventoryItems = items.filter((item) =>
+    (inventoryCategory === "all" || item.category === inventoryCategory) &&
+    item.name?.toLowerCase().includes(inventorySearch.toLowerCase()),
   );
 
   const studentCategories = [
@@ -1688,6 +1702,13 @@ export default function MerchandisePage({ initialTab }) {
       <div className="space-y-6">
         {feedbackPopup}
         <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
+        <Modal open={Boolean(productPreview)} title={productPreview?.name} onClose={() => setProductPreview(null)} maxWidth="max-w-xl" footer={productPreview && <button type="button" onClick={() => { if (addToCart(productPreview)) setProductPreview(null); }} disabled={productPreview.stock_quantity === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white disabled:opacity-50"><ShoppingBag size={16} />Add to cart</button>}>
+          {cartError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{cartError}</p>}
+          {productPreview && <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
+            {productPreview.image_url ? <img src={resolveAssetUrl(productPreview.image_url)} alt={productPreview.name} className="aspect-square w-full rounded-lg border border-[#DDE7EF] object-cover" /> : <div className="grid aspect-square place-items-center rounded-lg bg-[#EEF6FB]"><Package size={42} className="text-[#0878B7]" /></div>}
+            <div className="min-w-0 space-y-3"><p className="text-xl font-black text-[#0F2F62]">{fmt(productPreview.effective_price ?? productPreview.price)}</p><p className="text-sm font-semibold text-[#0F172A]">{productPreview.stock_quantity} unit{productPreview.stock_quantity === 1 ? '' : 's'} in stock</p>{productPreview.description && <RichTextBody value={productPreview.description} className="text-sm leading-6 text-slate-600" />}{productPreview.variants?.length > 0 && <label className="block text-xs font-bold text-[#0F2F62]">Size / variant<select value={selectedVariants[productPreview.id] || ''} onChange={(event) => setSelectedVariants((current) => ({ ...current, [productPreview.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Select variant</option>{productPreview.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} in stock</option>)}</select></label>}<label className="block text-xs font-bold text-[#0F2F62]">Quantity<input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => setDraftQty((current) => ({ ...current, [productPreview.id]: Math.max(1, Math.min(productPreview.stock_quantity, Number(event.target.value || 1))) }))} className="mt-1 h-11 w-24 rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label></div>
+          </div>}
+        </Modal>
         {/* Student metric cards */}
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           {[
@@ -1755,29 +1776,29 @@ export default function MerchandisePage({ initialTab }) {
                     className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-500"
                   />
                 </label>
-                <select
+                <div className="relative"><SlidersHorizontal size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select
                   aria-label="Filter merchandise category"
                   value={studentCategory}
                   onChange={(event) => setStudentCategory(event.target.value)}
-                  className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-[13px] font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 >
                   {studentCategories.map((category) => (
                     <option key={category} value={category}>
                       {category === "all" ? "All categories" : category}
                     </option>
                   ))}
-                </select>
-                <select
+                </select></div>
+                <div className="relative"><Settings2 size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select
                   aria-label="Sort merchandise"
                   value={studentItemSort}
                   onChange={(event) => setStudentItemSort(event.target.value)}
-                  className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-[13px] font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+                  className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-[13px] font-semibold text-slate-600 outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                 >
                   <option value="featured">Available first</option>
                   <option value="stock">Most stock</option>
                   <option value="price-low">Price: low to high</option>
                   <option value="price-high">Price: high to low</option>
-                </select>
+                </select></div>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEF6FB] pt-3">
                 <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -1855,6 +1876,7 @@ export default function MerchandisePage({ initialTab }) {
                         <div className="shrink-0 text-right"><p className="text-lg font-black text-[#0878B7]">{fmt(item.effective_price ?? item.price)}</p>{item.promotion_available_to_viewer && <p className="text-xs text-slate-500"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slots left</p>}</div>
                       </div>
                       {item.description && <RichTextBody value={item.description} className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500" />}
+                      <button type="button" onClick={() => { setCartError(null); setProductPreview(item); }} className="mt-2 w-fit text-xs font-bold text-[#0878B7] hover:underline">View product details</button>
                       {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]"><FieldIcon label="Size / variant" />Size / variant
                         <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${item.name}`}>
                           <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} available</option>)}
@@ -2610,6 +2632,7 @@ export default function MerchandisePage({ initialTab }) {
               </p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
+              <div className="relative min-w-0"><SlidersHorizontal size={14} className="pointer-events-none absolute left-3 top-3 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter inventory by category" value={inventoryCategory} onChange={(event) => setInventoryCategory(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><option value="all">All categories</option>{inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>
               <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-500" />
                 <input
@@ -2677,11 +2700,11 @@ export default function MerchandisePage({ initialTab }) {
                           {item.category}
                         </span>
                       )}
-                      <span
-                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${item.is_low_stock ? "bg-amber-50 text-amber-700" : stockBadge(item.stock_quantity)}`}
+                      {(item.is_low_stock || item.stock_quantity === 0) && <span
+                        className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${item.stock_quantity === 0 ? stockBadge(0) : "bg-amber-50 text-amber-700"}`}
                       >
-                        {item.is_low_stock ? "Low Stock" : stockLabel(item.stock_quantity)}
-                      </span>
+                        {item.stock_quantity === 0 ? "Out of Stock" : "Low Stock"}
+                      </span>}
                     </div>
                   </div>
 
@@ -3625,7 +3648,7 @@ export default function MerchandisePage({ initialTab }) {
                 Review pending and claimed tokens.
               </p>
               </div>
-              <select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select>
+              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select></div>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -3670,7 +3693,7 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4">{o.student?.program || "-"}</td>
                         <td className="px-4 py-4 uppercase">{o.payment_method || "-"}</td>
                         <td className="px-4 py-4 font-bold">{o.quantity}</td>
-                        <td className="px-4 py-4"><span className="font-bold text-emerald-700">{o.status === 'claimed' ? 'Claimed' : 'Pending claim'}</span><br /><span className="font-mono text-xs">{o.claim_token || '-'}</span></td>
+                        <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-bold ${o.status === 'claimed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{o.status === 'claimed' ? 'Claimed' : 'Pending claim'}</span><br /><span className="font-mono text-xs">{o.claim_token || '-'}</span></td>
                         <td className="px-4 py-4"><TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[{ label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) }]} /></td>
                       </tr>
                     ))}

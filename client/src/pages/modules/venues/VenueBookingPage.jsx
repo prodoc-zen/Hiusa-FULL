@@ -6,6 +6,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
+import { localDateTimeToIso } from '../../../utils/dateTime';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { createVenueBooking, getVenueAvailability, getVenueBookings, getVenues, withdrawVenueBooking } from '../../../services/venueService';
@@ -47,6 +48,7 @@ export default function VenueBookingPage() {
   const [requestOpen, setRequestOpen] = useState(false);
   const [requestError, setRequestError] = useState(null);
   const [requestSubmitting, setRequestSubmitting] = useState(false);
+  const [submittedBooking, setSubmittedBooking] = useState(null);
 
   const [bookings, setBookings] = useState({ loading: true, error: null, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
   const [bookingsPage, setBookingsPage] = useState(1);
@@ -112,23 +114,30 @@ export default function VenueBookingPage() {
       setRequestError('The end time must be after the start time.');
       return;
     }
+    const startClock = requestForm.start_time.slice(11, 16);
+    const endClock = requestForm.end_time.slice(11, 16);
+    if (requestForm.start_time.slice(0, 10) !== requestForm.end_time.slice(0, 10) || startClock < '05:00' || endClock > '22:00') {
+      setRequestError('Choose a time on one day between 5:00 AM and 10:00 PM.');
+      return;
+    }
 
     setRequestSubmitting(true);
     setRequestError(null);
     try {
-      await createVenueBooking({
+      const response = await createVenueBooking({
         venue_id: Number(requestForm.venue_id),
         event_id: requestForm.event_id || null,
-        start_time: requestForm.start_time,
-        end_time: requestForm.end_time,
+        start_time: localDateTimeToIso(requestForm.start_time),
+        end_time: localDateTimeToIso(requestForm.end_time),
       });
-      notify.success('Booking request sent to SAO for review.');
+      setSubmittedBooking(response.data);
       setRequestOpen(false);
       loadBookings(1);
       setBookingsPage(1);
       loadAvailability();
     } catch (err) {
       setRequestError(getApiErrorMessage(err, 'Could not submit this booking request.'));
+      if (err.response?.status === 422) loadAvailability();
     } finally {
       setRequestSubmitting(false);
     }
@@ -174,7 +183,7 @@ export default function VenueBookingPage() {
     <div className="space-y-5 pb-8">
       <PageHeader title="Venues" description="Check availability, request a booking, and track your organization's requests." />
 
-      <Card title="Find a venue" description="Approved bookings for the venue you pick, across the date range you choose.">
+      <Card title="Find a venue" description="Pending requests and approved bookings for the venue and dates you choose.">
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Venue">
             <Select value={selectedVenueId} onChange={(event) => setSelectedVenueId(event.target.value)} disabled={venues.loading || venues.items.length === 0}>
@@ -269,6 +278,7 @@ export default function VenueBookingPage() {
           <Field label="End" required>
             <input type="datetime-local" value={requestForm.end_time} onChange={(event) => setRequestForm({ ...requestForm, end_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </Field>
+          <p className="text-xs text-[#64748B] sm:col-span-2">Bookings run from 5:00 AM to 10:00 PM on one day.</p>
           <Field label="Link to an event" hint="Optional" className="sm:col-span-2">
             <Select value={requestForm.event_id} onChange={(event) => setRequestForm({ ...requestForm, event_id: event.target.value })}>
               <option value="">Not linked to an event</option>
@@ -277,6 +287,13 @@ export default function VenueBookingPage() {
           </Field>
           {requestError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{requestError}</p>}
         </form>
+      </Modal>
+
+      <Modal open={Boolean(submittedBooking)} title="Booking request sent" description="SAO will review this request. This is your booking reference, not an approval." onClose={() => setSubmittedBooking(null)} maxWidth="max-w-md" footer={<Button onClick={() => setSubmittedBooking(null)}>Done</Button>}>
+        {submittedBooking && <div className="rounded-lg border border-[#DDE7EF] bg-[#FFFDF7] p-5">
+          <div className="flex items-center gap-2 border-b border-dashed border-[#DDE7EF] pb-3 text-[#0F2F62]"><CalendarRange size={20} aria-hidden="true" /><span className="text-sm font-black">Venue request #{submittedBooking.id}</span></div>
+          <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs font-semibold text-[#64748B]">Venue</dt><dd className="font-bold text-[#0F172A]">{submittedBooking.venue?.name || 'Selected venue'}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Requested time</dt><dd className="font-bold text-[#0F172A]">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Status</dt><dd><StatusBadge status="pending" /></dd></div></dl>
+        </div>}
       </Modal>
 
       <ConfirmModal
