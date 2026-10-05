@@ -73,6 +73,22 @@
                 <tr><td class="date">N/A</td><td class="description">No cash outflows recorded</td><td class="amount">₱0.00</td></tr>
             @endforelse
             <tr><td colspan="2" class="section">TOTAL OUTFLOW</td><td class="amount">₱{{ number_format($expenseTotal, 2) }}</td></tr>
+            @if ($cashAdvanceEntries->isNotEmpty())
+                <tr><td colspan="2" class="balance-label">BALANCE BEFORE CASH ADVANCES</td><td class="amount">₱{{ number_format($openingBalance + $incomeTotal - $expenseTotal, 2) }}</td></tr>
+                <tr class="spacer"><td colspan="3"></td></tr>
+                <tr><td colspan="3" class="section">CASH ADVANCES</td></tr>
+                <tr><td colspan="3">Money lent out and returned, not income or expense. Releases reduce the balance and repayments increase it.</td></tr>
+                <tr class="columns"><td class="date"><strong>Date</strong></td><td class="description"><strong>Description</strong></td><td class="amount"><strong>Amount</strong></td></tr>
+                @foreach ($cashAdvanceEntries as $transaction)
+                    <tr>
+                        <td class="date">{{ optional($transaction->transaction_date)->format('M j, Y') ?? $transaction->transaction_date }}</td>
+                        <td class="description">{{ $transaction->category }} | {{ $transaction->description }}</td>
+                        <td class="amount">₱{{ number_format((float) $transaction->amount, 2) }}</td>
+                    </tr>
+                @endforeach
+                <tr><td colspan="2" class="total-label">Cash advances released</td><td class="amount">₱{{ number_format($cashAdvancesReleased, 2) }}</td></tr>
+                <tr><td colspan="2" class="total-label">Cash advance repayments</td><td class="amount">₱{{ number_format($cashAdvanceRepayments, 2) }}</td></tr>
+            @endif
             <tr><td colspan="2" class="balance-label">BALANCE</td><td class="amount">₱{{ number_format($closingBalance, 2) }}</td></tr>
         </tbody>
     </table>

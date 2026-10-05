@@ -207,6 +207,16 @@ function printReport(rows, title) {
   return true;
 }
 
+function cashAdvanceExportRows(cashAdvances) {
+  const released = Number(cashAdvances?.released || 0);
+  const repayments = Number(cashAdvances?.repayments || 0);
+  if (!released && !repayments) return [];
+  return [
+    { Section: 'Cash advances', Item: 'Cash advances released', Details: 'Money lent out. Not counted as an expense.', 'Amount (₱)': released.toFixed(2), Date: '' },
+    { Section: 'Cash advances', Item: 'Cash advance repayments', Details: 'Money returned. Not counted as income.', 'Amount (₱)': repayments.toFixed(2), Date: '' },
+  ];
+}
+
 function ledgerExportRows(transactions = [], custody = null) {
   return [
     ...(['verified_collections', 'recorded_remittances'].map((item) => ({
@@ -217,7 +227,7 @@ function ledgerExportRows(transactions = [], custody = null) {
       Date: '',
     }))),
     ...transactions.map((transaction) => ({
-      Section: 'Ledger transaction',
+      Section: transaction.cash_advance ? 'Cash advance entry' : 'Ledger transaction',
       Item: `${transaction.category} (${transaction.type})`,
       Details: transaction.description,
       'Amount (₱)': Number(transaction.amount).toFixed(2),
@@ -583,15 +593,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       const response = await getFinancialReport(report.id);
       const detail = response.data;
       const transactions = detail.transactions || [];
-      const income = transactions.filter((transaction) => transaction.type === 'income').reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-      const expense = transactions.filter((transaction) => transaction.type === 'expense').reduce((sum, transaction) => sum + Number(transaction.amount), 0);
-      const opening = Number(detail.report.opening_balance_snapshot || 0);
+      const { totals } = detail;
+      const advances = cashAdvanceExportRows(detail.cash_advances);
       const rows = [
         { Section: 'Report', Item: report.title, Details: report.summary_text || '', 'Amount (₱)': '', Date: '' },
         { Section: 'Report', Item: 'Period', Details: `${String(detail.report.period_start || '').slice(0, 10)} to ${String(detail.report.period_end || '').slice(0, 10)}`, 'Amount (₱)': '', Date: '' },
         { Section: 'Report', Item: 'Event', Details: detail.report.event?.title || 'All organization events', 'Amount (₱)': '', Date: '' },
         { Section: 'Report', Item: 'Status', Details: String(detail.report.submission_status || 'draft').replaceAll('_', ' '), 'Amount (₱)': '', Date: '' },
-        ...[['Opening balance', opening], ['Income', income], ['Expenses', expense], ['Net activity', income - expense], ['Closing balance', opening + income - expense]].map(([item, amount]) => ({ Section: 'Totals', Item: item, Details: '', 'Amount (₱)': Number(amount).toFixed(2), Date: '' })),
+        ...[['Opening balance', totals.opening_balance], ['Income', totals.income], ['Expenses', totals.expense], ['Net activity', totals.balance], ['Closing balance', totals.closing_balance]].map(([item, amount]) => ({
+          Section: 'Totals', Item: item, Details: item === 'Closing balance' && advances.length ? 'Opening balance and net activity, less cash advances released, plus cash advance repayments.' : '', 'Amount (₱)': Number(amount).toFixed(2), Date: '',
+        })),
+        ...advances,
         ...ledgerExportRows(transactions, detail.report.custody_snapshot),
       ];
       await downloadExcel(rows, `hiusa-financial-report-${report.id}.xlsx`, report.title);
@@ -658,6 +670,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         'Amount (₱)': Number(generatedReport?.totals?.[item] || 0).toFixed(2),
         Date: '',
       })),
+      ...cashAdvanceExportRows(generatedReport?.cash_advances),
       ...(generatedReport?.by_category || []).map((row) => ({
         Section: 'Category summary',
         Item: `${row.category} (${row.type})`,
@@ -1382,6 +1395,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   <p className="text-slate-500">Expenses <strong className="block text-red-600">{fmt(generatedReport.totals.expense)}</strong></p>
                   <p className="text-slate-500">{generatedReport.report.document_type === 'income_statement' ? 'Net income' : 'Closing balance'} <strong className="block text-[#0F172A]">{fmt(generatedReport.report.document_type === 'income_statement' ? generatedReport.totals.balance : generatedReport.totals.closing_balance)}</strong></p>
                 </div>
+                {(generatedReport.cash_advances?.released > 0 || generatedReport.cash_advances?.repayments > 0) && <p className="mt-3 text-xs text-slate-600">Cash advances released: <strong>{fmt(generatedReport.cash_advances.released)}</strong> · Cash advance repayments: <strong>{fmt(generatedReport.cash_advances.repayments)}</strong>. Money lent out and returned is not income or expense.</p>}
                 {generatedReport.custody && <p className="mt-3 text-xs text-slate-600">Verified collections: <strong>{fmt(generatedReport.custody.verified_collections)}</strong> · Recorded remittances: <strong>{fmt(generatedReport.custody.recorded_remittances)}</strong>. Remittances do not add ledger income.</p>}
                 <p className="mt-3 text-xs text-slate-500">
                   Includes {(generatedReport.transactions || []).length} ledger entries, {(generatedReport.audit_logs || []).length} audit entries,
