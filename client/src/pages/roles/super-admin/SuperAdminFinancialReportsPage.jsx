@@ -206,7 +206,7 @@ export default function SuperAdminFinancialReportsPage() {
         ) : (
           <div className="p-8 text-center">
             <p className="font-semibold text-[#0F172A]">No received reports found.</p>
-            <p className="mt-1 text-sm text-slate-500">Reports appear after Department Head approval.</p>
+            <p className="mt-1 text-sm text-slate-500">Only reports approved by a Department Head appear here. A notification about a report deadline does not mean a report has been submitted.</p>
           </div>
         )}
         <PaginationControls currentPage={meta.current_page || 1} totalItems={meta.total || 0} pageSize={meta.per_page || 20} onPageChange={load} label="received reports" />

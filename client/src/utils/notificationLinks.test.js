@@ -24,5 +24,6 @@ describe('getNotificationDestination', () => {
     expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
     expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals');
     expect(getNotificationDestination({ reference_type: 'budget' }, 'SUPER_ADMIN')).toBeNull();
+    expect(getNotificationDestination({ reference_type: 'financial_report_deadline' }, 'SUPER_ADMIN')).toBeNull();
   });
 });

@@ -53,7 +53,6 @@ class SetupChecklistService
             ),
             $this->step('requirements', 'Publish the accreditation requirements', 'Organizations then see what to submit and by when.', DB::table('compliance_requirement_types')->exists(), '/dashboard/super-admin/compliance'),
             $this->step('venues', 'List the venues organizations can book', 'Bookings are checked against each other for conflicts.', DB::table('venues')->exists(), '/dashboard/super-admin/venues'),
-            $this->step('evaluation', 'Open an evaluation window', 'Collects the acceptability responses the study reports for SO4.', DB::table('evaluation_windows')->exists(), '/dashboard/super-admin/evaluation'),
             $this->step(
                 'announcement',
                 'Publish a university announcement',
@@ -78,7 +77,6 @@ class SetupChecklistService
                 : null,
             $this->step('budget', 'Propose your first budget', 'Approved budgets become the money your dashboard tracks.', $scoped('budgets')->exists(), '/dashboard/finance/budget-allocation'),
             $this->step('event', 'Plan your first event', 'The AI planner drafts the tasks and suggests who should take each one.', $scoped('events')->exists(), '/dashboard/events/manage-events'),
-            $this->evaluationStep($user),
         ];
     }
 
@@ -94,20 +92,7 @@ class SetupChecklistService
             $user->role === 'STUDENT'
                 ? $this->step('event', 'Register for an upcoming event', 'Reserve your spot so organizers can plan for you.', DB::table('event_registrations')->where('user_id', $user->school_id)->exists(), '/dashboard/events/activity-calendar')
                 : null,
-            $this->evaluationStep($user),
         ];
-    }
-
-    private function evaluationStep(User $user): ?array
-    {
-        $openWindowId = DB::table('evaluation_windows')->where('status', 'open')->orderByDesc('id')->value('id');
-        if ($openWindowId === null || ! isset(config('evaluation.role_instruments')[$user->role])) {
-            return null;
-        }
-
-        $answered = DB::table('evaluation_responses')->where('evaluation_window_id', $openWindowId)->where('user_id', $user->school_id)->whereNotNull('submitted_at')->exists();
-
-        return $this->step('evaluation', 'Answer the system evaluation', 'Your answers measure how well HIUSA works for your organization.', $answered, '/dashboard/evaluation');
     }
 
     private function step(string $key, string $label, string $detail, bool $done, ?string $href): array

@@ -1,6 +1,19 @@
-import { useEffect, useRef } from 'react';
+import { createElement, useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { X } from 'lucide-react';
+import { CalendarDays, ClipboardCheck, FileText, MapPin, ReceiptText, ShoppingBag, Users, Vote, X } from 'lucide-react';
+
+function iconForTitle(title) {
+  const value = String(title || '').toLowerCase();
+  if (/election|ballot|vote/.test(value)) return createElement(Vote, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/venue|booking/.test(value)) return createElement(MapPin, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/event|calendar/.test(value)) return createElement(CalendarDays, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/receipt/.test(value)) return createElement(ReceiptText, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/order|product|merchandise|stock/.test(value)) return createElement(ShoppingBag, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/report|document/.test(value)) return createElement(FileText, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/approval|request/.test(value)) return createElement(ClipboardCheck, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  if (/user|account|profile|member/.test(value)) return createElement(Users, { size: 19, className: 'shrink-0 text-brand-700', 'aria-hidden': true });
+  return null;
+}
 
 export default function Modal({
   open,
@@ -16,6 +29,7 @@ export default function Modal({
   const panelRef = useRef(null);
   const onCloseRef = useRef(onClose);
   const closeOnEscapeRef = useRef(closeOnEscape);
+  const titleIcon = iconForTitle(title);
 
   useEffect(() => {
     onCloseRef.current = onClose;
@@ -105,8 +119,8 @@ export default function Modal({
       >
         {(title || description || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">
-            <div>
-              {title && <h2 id="modal-title" className="text-lg font-extrabold text-ink">{title}</h2>}
+            <div className="min-w-0">
+              {title && <h2 id="modal-title" className="flex items-center gap-2 break-words text-lg font-extrabold text-ink">{titleIcon}{title}</h2>}
               {description && <p className="mt-1 text-sm font-medium leading-5 text-ink-muted">{description}</p>}
             </div>
             {onClose && (

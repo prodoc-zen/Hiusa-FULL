@@ -1526,10 +1526,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               <div className="mt-5 h-28 animate-pulse rounded-lg bg-slate-100" />
             ) : (
               <div className="mt-5 space-y-3 text-sm text-slate-600">
-                <p><span className="font-bold text-[#0F172A]">Schedule:</span> {formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</p>
-                <p><span className="font-bold text-[#0F172A]">Location:</span> {selectedEvent.location || 'Not specified'}</p>
-                <p><span className="font-bold text-[#0F172A]">Event type:</span> {selectedEvent.planning_details?.event_type || 'Not specified'}</p>
-                <p><span className="font-bold text-[#0F172A]">Expected participants:</span> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</p>
+                <p className="flex items-start gap-2"><Clock size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Schedule:</strong> {formatDateTime(selectedEvent.start_time)} to {formatDateTime(selectedEvent.end_time)}</span></p>
+                <p className="flex items-start gap-2"><MapPin size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Location:</strong> {selectedEvent.location || 'Not specified'}</span></p>
+                <p className="flex items-start gap-2"><Calendar size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Event type:</strong> {selectedEvent.planning_details?.event_type || 'Not specified'}</span></p>
+                <p className="flex items-start gap-2"><Users size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Expected participants:</strong> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</span></p>
                 <div><span className="font-bold text-[#0F172A]">Description:</span><RichTextBody value={selectedEvent.description || 'No description provided.'} className="mt-1" /></div>
                 <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
                   <div>

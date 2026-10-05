@@ -149,6 +149,18 @@ describe("MerchandisePage buyer experience", () => {
     expect(await screen.findByText("Cancelled by buyer.")).toBeInTheDocument();
   });
 
+  it("opens product details with stock and adds the chosen quantity to the cart", async () => {
+    render(<MemoryRouter><MerchandisePage initialTab="order" /></MemoryRouter>);
+    await screen.findByText("HIUSA Shirt");
+    fireEvent.click(screen.getAllByRole('button', { name: 'View product details' })[0]);
+    const dialog = screen.getByRole('dialog');
+    expect(within(dialog).getByText('8 units in stock')).toBeInTheDocument();
+    fireEvent.change(within(dialog).getByLabelText('Quantity'), { target: { value: '2' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add to cart' }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    expect(screen.getByText(/2 x HIUSA Shirt added to cart/)).toBeInTheDocument();
+  });
+
   it("shows a limited promotion, requires a variant, and opens product images", async () => {
     merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [{
       ...products[0], image_url: "/uploads/merchandise/shirt.jpg",

@@ -12,6 +12,7 @@ import {
   Pencil,
   Plus,
   Printer,
+  ReceiptText,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -1472,11 +1473,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           ) : personalReceipts.length === 0 ? (
             <p className="p-8 text-center text-sm text-slate-500">No receipts available yet.</p>
           ) : (
-            <div className="divide-y divide-[#DDE7EF]">
+            <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
               {personalReceipts.map((receipt) => (
-                <div key={receipt.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
+                <article key={receipt.id} className="flex min-w-0 flex-col rounded-lg border border-[#DDE7EF] bg-[#FFFDF7] p-4">
+                  <div className="flex items-center gap-2 border-b border-dashed border-[#DDE7EF] pb-3 text-[#0F2F62]"><ReceiptText size={19} aria-hidden="true" /><span className="text-xs font-black uppercase">Receipt</span></div>
                   <div className="min-w-0">
-                    <p className="font-bold text-[#0F172A]">{receipt.description}</p>
+                    <p className="mt-3 break-words font-bold text-[#0F172A]">{receipt.description}</p>
                     <p className="mt-1 text-xs text-slate-500">
                       {formatLedgerDate(receipt.transaction_date)} - {receipt.event?.title || receipt.budget?.title || receipt.category}
                     </p>
@@ -1484,7 +1486,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       {receiptLabel(receipt) || `Receipt #${receipt.id}`}
                     </p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                  <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-dashed border-[#DDE7EF] pt-3">
                     <p className="text-sm font-black tabular-nums text-[#0F172A]">{fmt(receipt.amount)}</p>
                     <button
                       type="button"
@@ -1495,7 +1497,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       View Receipt
                     </button>
                   </div>
-                </div>
+                </article>
               ))}
             </div>
           )}

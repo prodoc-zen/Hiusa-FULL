@@ -60,10 +60,11 @@ class VenueBookingTest extends TestCase
 
         $student = $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($student);
+        $this->getJson("/api/venues/{$venue->id}/availability")->assertForbidden();
         $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertForbidden();
     }
 
@@ -83,6 +84,13 @@ class VenueBookingTest extends TestCase
             'start_time' => $day->copy()->setTime(9, 0)->toISOString(),
             'end_time' => $day->copy()->setTime(11, 0)->toISOString(),
         ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($adminB);
+        $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'start_time' => $day->copy()->setTime(10, 0)->toISOString(),
+            'end_time' => $day->copy()->setTime(12, 0)->toISOString(),
+        ])->assertStatus(422);
 
         Sanctum::actingAs($superAdmin);
         $this->patchJson("/api/venue-bookings/{$firstBookingId}/review", ['status' => 'approved'])->assertOk();
@@ -117,8 +125,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($admin);
         $bookingId = $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($superAdmin);
@@ -142,8 +150,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($adminA);
         $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertCreated();
 
         Sanctum::actingAs($adminB);
@@ -160,8 +168,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($admin);
         $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertCreated();
 
         Sanctum::actingAs($superAdmin);
@@ -170,11 +178,7 @@ class VenueBookingTest extends TestCase
 
     public function test_approving_two_overlapping_pending_bookings_for_the_same_venue_rejects_the_second(): void
     {
-        // Two pending bookings for the same overlapping slot can coexist
-        // (store() only checks against already-approved bookings), so the
-        // race is between two approvals: whichever commits first wins, and
-        // the venue row lock in review() means the second approval always
-        // sees the first's committed result instead of racing past it.
+        // Preserve the approval-time defense for overlapping legacy records.
         $superAdmin = $this->user('SUPER_ADMIN');
         $orgA = Organization::factory()->create();
         $orgB = Organization::factory()->create();
@@ -191,11 +195,19 @@ class VenueBookingTest extends TestCase
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($adminB);
-        $secondBookingId = $this->postJson('/api/venue-bookings', [
+        $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
             'start_time' => $day->copy()->setTime(10, 0)->toISOString(),
             'end_time' => $day->copy()->setTime(12, 0)->toISOString(),
-        ])->assertCreated()->json('id');
+        ])->assertStatus(422);
+        $secondBookingId = VenueBooking::create([
+            'venue_id' => $venue->id,
+            'organization_id' => $orgB->id,
+            'start_time' => $day->copy()->setTime(10, 0)->toISOString(),
+            'end_time' => $day->copy()->setTime(12, 0)->toISOString(),
+            'status' => 'pending',
+            'requested_by' => $adminB->school_id,
+        ])->id;
 
         Sanctum::actingAs($superAdmin);
         $this->patchJson("/api/venue-bookings/{$firstBookingId}/review", ['status' => 'approved'])->assertOk();
@@ -205,7 +217,7 @@ class VenueBookingTest extends TestCase
         $this->assertSame('pending', VenueBooking::find($secondBookingId)->status);
     }
 
-    public function test_venue_availability_returns_approved_slots_within_range_without_organization_names(): void
+    public function test_venue_availability_returns_pending_and_approved_slots_without_exposing_other_organizations(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
         $organization = Organization::factory()->create();
@@ -220,6 +232,8 @@ class VenueBookingTest extends TestCase
             'start_time' => $day->copy()->setTime(9, 0)->toISOString(),
             'end_time' => $day->copy()->setTime(11, 0)->toISOString(),
         ])->assertCreated()->json('id');
+        $this->getJson("/api/venues/{$venue->id}/availability?from={$day->copy()->startOfDay()->toISOString()}&to={$day->copy()->endOfDay()->toISOString()}")
+            ->assertOk()->assertJsonPath('0.status', 'pending');
         Sanctum::actingAs($superAdmin);
         $this->patchJson("/api/venue-bookings/{$bookingId}/review", ['status' => 'approved'])->assertOk();
 
@@ -229,10 +243,39 @@ class VenueBookingTest extends TestCase
         $this->assertCount(1, $slots);
         $this->assertArrayNotHasKey('organization', $slots[0]);
         $this->assertArrayNotHasKey('organization_id', $slots[0]);
+        $this->assertSame('Your organization', $slots[0]['reserved_by']);
+
+        Sanctum::actingAs($this->user('ADMIN'));
+        $otherSlots = $this->getJson("/api/venues/{$venue->id}/availability?from={$day->copy()->startOfDay()->toISOString()}&to={$day->copy()->endOfDay()->toISOString()}")
+            ->assertOk()->json();
+        $this->assertSame('Another organization', $otherSlots[0]['reserved_by']);
+
+        Sanctum::actingAs($officer);
 
         $outOfRange = $this->getJson("/api/venues/{$venue->id}/availability?from={$day->copy()->addDays(2)->toISOString()}&to={$day->copy()->addDays(3)->toISOString()}")
             ->assertOk()->json();
         $this->assertCount(0, $outOfRange);
+    }
+
+    public function test_booking_times_must_be_within_the_same_5am_to_10pm_manila_day(): void
+    {
+        $admin = $this->user('ADMIN');
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+        $day = now('Asia/Manila')->addWeek()->startOfDay();
+        Sanctum::actingAs($admin);
+
+        foreach ([[4, 6], [21, 23]] as [$startHour, $endHour]) {
+            $this->postJson('/api/venue-bookings', [
+                'venue_id' => $venue->id,
+                'start_time' => $day->copy()->setTime($startHour, 0)->toISOString(),
+                'end_time' => $day->copy()->setTime($endHour, 0)->toISOString(),
+            ])->assertStatus(422);
+        }
+        $this->postJson('/api/venue-bookings', [
+            'venue_id' => $venue->id,
+            'start_time' => $day->copy()->setTime(5, 0)->toISOString(),
+            'end_time' => $day->copy()->setTime(22, 0)->toISOString(),
+        ])->assertCreated();
     }
 
     public function test_venue_bookings_index_filters_by_from_and_to(): void
@@ -270,8 +313,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($adminA);
         $bookingId = $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($adminB);
@@ -295,8 +338,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($officer);
         $futureBookingId = $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addWeek()->toISOString(),
-            'end_time' => now()->addWeek()->addHour()->toISOString(),
+            'start_time' => now()->addWeek()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addWeek()->setTime(10, 0)->toISOString(),
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($superAdmin);
@@ -331,8 +374,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($admin);
         $bookingId = $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertCreated()->json('id');
 
         $staleBooking = VenueBooking::findOrFail($bookingId);
@@ -366,8 +409,8 @@ class VenueBookingTest extends TestCase
         Sanctum::actingAs($childAdmin);
         $bookingId = $this->postJson('/api/venue-bookings', [
             'venue_id' => $venue->id,
-            'start_time' => now()->addDay()->toISOString(),
-            'end_time' => now()->addDay()->addHour()->toISOString(),
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(10, 0)->toISOString(),
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($superAdmin);

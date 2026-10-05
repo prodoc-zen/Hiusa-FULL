@@ -98,7 +98,7 @@ function ApprovalReceipt({ request }) {
   const rows = [
     ['Request number', `#${request.id}`],
     ['Type', ENTITY_LABEL[request.entity_type] || request.entity_type],
-    ['Status', request.status],
+    ['Status', <span className={`inline-flex rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${STATUS_BADGE[request.status] || 'bg-slate-100 text-slate-700'}`}>{request.status}</span>],
     ['Required role', request.required_role],
     ['Requester', `${request.requester?.first_name || ''} ${request.requester?.last_name || ''}`.trim() || '-'],
     ['School ID', request.requester?.school_id || '-'],
