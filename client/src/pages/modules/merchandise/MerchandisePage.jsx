@@ -154,8 +154,6 @@ const stockBadge = (qty) => {
   if (qty < 10) return "bg-amber-50 text-amber-700";
   return "bg-emerald-50 text-emerald-700";
 };
-const stockLabel = (qty) =>
-  qty === 0 ? "Out of Stock" : qty < 10 ? "Low Stock" : "Available";
 
 const orderBadge = {
   pending: "bg-[#E6F6FD] text-[#0F2F62]",
