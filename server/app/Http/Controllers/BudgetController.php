@@ -118,6 +118,10 @@ class BudgetController extends Controller
             $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
         }
 
+        if (array_key_exists('allocated_amount', $data) || array_key_exists('warning_threshold', $data)) {
+            $data['overspending_risk'] = Budget::overspendingRiskFor((float) ($data['remaining_amount'] ?? $budget->remaining_amount), $warningThreshold);
+        }
+
         if ($this->isAwaitingSaoOrApproved($budget) && $this->hasMaterialBudgetChange($data)) {
             $this->restartApprovalAtDepartmentHead($budget, $request);
         }

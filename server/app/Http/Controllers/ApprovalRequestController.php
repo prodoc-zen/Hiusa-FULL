@@ -239,11 +239,13 @@ class ApprovalRequestController extends Controller
             return;
         }
 
+        $remaining = $budget->recomputedRemaining();
         $budget->update([
             'submission_status' => 'approved',
             'department_head_approved_by' => $request->user()->role === 'DEPARTMENT_HEAD' ? $request->user()->school_id : $budget->department_head_approved_by,
             'department_head_approved_at' => $request->user()->role === 'DEPARTMENT_HEAD' ? now() : $budget->department_head_approved_at,
-            'remaining_amount' => $budget->allocated_amount,
+            'remaining_amount' => $remaining,
+            'overspending_risk' => Budget::overspendingRiskFor($remaining, (float) $budget->warning_threshold),
         ]);
     }
 
