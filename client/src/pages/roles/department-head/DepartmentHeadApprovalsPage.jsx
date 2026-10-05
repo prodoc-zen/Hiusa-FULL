@@ -88,7 +88,11 @@ function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'financial_report') {
-    return `${summary.organization?.acronym || 'Organization'} | ${formatDate(summary.period_start)} - ${formatDate(summary.period_end)} | Inflows ₱${Number(summary.total_income || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Outflows ₱${Number(summary.total_expense || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const peso = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const advances = Number(summary.cash_advances_released) > 0 || Number(summary.cash_advance_repayments) > 0
+      ? ` | Cash advances released ${peso(summary.cash_advances_released)} | Cash advance repayments ${peso(summary.cash_advance_repayments)}`
+      : '';
+    return `${summary.organization?.acronym || 'Organization'} | ${formatDate(summary.period_start)} - ${formatDate(summary.period_end)} | Inflows ${peso(summary.total_income)} | Outflows ${peso(summary.total_expense)}${advances}`;
   }
 
   return null;

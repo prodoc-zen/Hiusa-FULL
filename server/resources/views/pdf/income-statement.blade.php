@@ -64,6 +64,15 @@
         </tbody>
     </table>
 
+    @if ($cashAdvancesReleased > 0 || $cashAdvanceRepayments > 0)
+        <p style="margin: 16px 0 4px; font-weight: 700;">CASH ADVANCES</p>
+        <p style="margin: 0 0 4px; color: #475569;">Cash advances are money lent out and returned. They are excluded from income, expenses and net income.</p>
+        <table class="report-table"><tbody>
+            <tr><td>Cash advances released</td><td class="amount">₱{{ number_format($cashAdvancesReleased, 2) }}</td></tr>
+            <tr><td>Cash advance repayments</td><td class="amount">₱{{ number_format($cashAdvanceRepayments, 2) }}</td></tr>
+        </tbody></table>
+    @endif
+
     @if ($custody)
         <p style="margin: 16px 0 4px; font-weight: 700;">COLLECTIONS AND REMITTANCES</p>
         <p style="margin: 0 0 4px; color: #475569;">Remittances are custody movements and are excluded from net income.</p>

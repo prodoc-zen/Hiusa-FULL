@@ -13,6 +13,7 @@ use App\Models\Notification;
 use App\Models\Order;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
+use App\Services\FinancialReportStatement;
 use App\Services\OrderFulfillmentService;
 use DomainException;
 use Illuminate\Http\Request;
@@ -443,7 +444,7 @@ class ApprovalRequestController extends Controller
 
     private function financialReportSummary(FinancialReport $report): array
     {
-        $transactions = $report->savedTransactions();
+        $statement = FinancialReportStatement::from($report->savedTransactions());
 
         return [
             'organization' => $report->organization?->only(['id', 'name', 'acronym']),
@@ -454,9 +455,11 @@ class ApprovalRequestController extends Controller
             'submission_status' => $report->submission_status,
             'signatories' => $report->signatories,
             'supporting_documents' => $report->supporting_documents ?? [],
-            'total_income' => round((float) $transactions->where('type', 'income')->sum('amount'), 2),
-            'total_expense' => round((float) $transactions->where('type', 'expense')->sum('amount'), 2),
-            'net_balance' => round((float) $transactions->where('type', 'income')->sum('amount') - (float) $transactions->where('type', 'expense')->sum('amount'), 2),
+            'total_income' => $statement['totals']['income'],
+            'total_expense' => $statement['totals']['expense'],
+            'net_balance' => $statement['totals']['balance'],
+            'cash_advances_released' => $statement['cash_advances']['released'],
+            'cash_advance_repayments' => $statement['cash_advances']['repayments'],
         ];
     }
 
