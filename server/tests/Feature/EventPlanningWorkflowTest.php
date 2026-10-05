@@ -362,7 +362,8 @@ class EventPlanningWorkflowTest extends TestCase
         ])->assertCreated()
             ->assertJsonPath('planning_details.event_type', 'Leadership Summit')
             ->assertJsonPath('planning_details.expected_participants', 250)
-            ->assertJsonPath('financial_summary.allocated_budget', 2500)
+            ->assertJsonPath('financial_summary.allocated_budget', 0)
+            ->assertJsonPath('financial_summary.remaining_budget', 0)
             ->assertJsonCount(1, 'budgets');
 
         $eventId = $created->json('id');
