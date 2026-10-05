@@ -12,6 +12,7 @@ use App\Services\GroqResponsesService;
 use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class BudgetController extends Controller
 {
@@ -27,7 +28,7 @@ class BudgetController extends Controller
             'page' => ['nullable', 'integer', 'min:1'],
         ]);
 
-        $budgets = Budget::with('event:id,title')
+        $budgets = Budget::with(['event:id,title', 'financialSemester:id,name,starts_on,ends_on'])
             ->where('organization_id', $request->user()->organization_id)
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
@@ -47,6 +48,7 @@ class BudgetController extends Controller
             'allocated_amount' => ['required', 'numeric', 'min:0.01'],
             'warning_threshold' => ['required', 'numeric', 'min:0', 'lte:allocated_amount'],
             'event_id' => ['nullable', 'exists:events,id'],
+            'financial_semester_id' => ['nullable', 'integer', Rule::exists('financial_semesters', 'id')->where('organization_id', $request->user()->organization_id)],
             'advisory_note' => ['nullable', 'string'],
             'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
@@ -75,7 +77,7 @@ class BudgetController extends Controller
             return $budget;
         });
 
-        return response()->json($budget->load('event:id,title'), 201);
+        return response()->json($budget->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']), 201);
     }
 
     public function update(Request $request, $id)
@@ -92,6 +94,7 @@ class BudgetController extends Controller
             'allocated_amount' => ['sometimes', 'required', 'numeric', 'min:0.01'],
             'warning_threshold' => ['sometimes', 'required', 'numeric', 'min:0'],
             'event_id' => ['nullable', 'exists:events,id'],
+            'financial_semester_id' => ['nullable', 'integer', Rule::exists('financial_semesters', 'id')->where('organization_id', $request->user()->organization_id)],
             'advisory_note' => ['nullable', 'string'],
             'overspending_risk' => ['nullable', 'in:low,medium,high'],
         ]);
@@ -126,7 +129,7 @@ class BudgetController extends Controller
             $this->restartApprovalAtDepartmentHead($budget, $request);
         }
 
-        return response()->json($budget->fresh()->load('event:id,title'));
+        return response()->json($budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']));
     }
 
     public function destroy(Request $request, $id)
@@ -294,6 +297,7 @@ class BudgetController extends Controller
             'allocated_amount',
             'warning_threshold',
             'event_id',
+            'financial_semester_id',
             'advisory_note',
             'overspending_risk',
         ])) > 0;
@@ -406,6 +410,7 @@ class BudgetController extends Controller
         return $budget->only([
             'id',
             'event_id',
+            'financial_semester_id',
             'title',
             'allocated_amount',
             'remaining_amount',

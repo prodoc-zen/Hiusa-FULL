@@ -33,6 +33,11 @@ class Budget extends Model
         return $this->belongsTo(Event::class);
     }
 
+    public function financialSemester(): BelongsTo
+    {
+        return $this->belongsTo(FinancialSemester::class);
+    }
+
     public function transactions(): HasMany
     {
         return $this->hasMany(Transaction::class);

@@ -316,8 +316,21 @@ a {
 }
 
 .app-overlay {
-  top: var(--dashboard-navbar-bottom, 0px);
-  left: var(--dashboard-sidebar-width, 0px);
+  inset: 0;
+}
+
+.modal-surface {
+  background-image: radial-gradient(circle at 8% 0%, rgba(113, 199, 250, 0.12), transparent 34%),
+    radial-gradient(circle at 100% 16%, rgba(65, 105, 240, 0.08), transparent 36%),
+    radial-gradient(circle at 50% 100%, rgba(16, 12, 176, 0.035), transparent 42%);
+}
+
+.modal-surface > header {
+  background: linear-gradient(135deg, rgba(238, 246, 251, 0.95), rgba(255, 255, 255, 0.92) 55%);
+}
+
+h1 {
+  text-transform: uppercase;
 }
 
 .dashboard-centered-popup {
@@ -336,13 +349,16 @@ body:has(> .app-overlay) #root {
 }
 
 .app-overlay > [role='dialog'] {
-  max-height: calc(100dvh - var(--dashboard-navbar-bottom, 0px) - 2rem);
+  max-height: calc(100dvh - 2rem);
 }
 
 .hiusa-overlay > :where(form, section, div) {
-  max-height: calc(100dvh - var(--dashboard-navbar-bottom, 0px) - 2rem);
-  max-width: 100%;
+  max-height: calc(100dvh - 2rem);
+  max-width: min(100%, 52rem);
   overflow-y: auto;
+  background-image: radial-gradient(circle at 8% 0%, rgba(113, 199, 250, 0.10), transparent 33%),
+    radial-gradient(circle at 100% 16%, rgba(65, 105, 240, 0.07), transparent 36%),
+    radial-gradient(circle at 50% 100%, rgba(16, 12, 176, 0.025), transparent 42%);
 }
 
 @media (max-width: 767px) {
@@ -398,11 +414,11 @@ body:has(> .app-overlay) #root {
   }
 
   .hiusa-overlay {
-    padding: 0.5rem !important;
+    padding: 1rem !important;
   }
 
   .hiusa-overlay > :where(form, section, div) {
-    max-height: calc(100dvh - var(--dashboard-navbar-bottom, 0px) - 1rem);
+    max-height: calc(100dvh - 2rem);
     max-width: 100%;
     overflow-x: hidden;
     overflow-y: auto;

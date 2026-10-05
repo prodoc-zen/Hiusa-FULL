@@ -2,6 +2,7 @@ import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, Clock, Coins, Download, Eye, FileText, Megaphone, Package, Search, Vote, X } from 'lucide-react';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
+import notify from '../../../lib/notify';
 import PaginationControls from '../../../components/PaginationControls';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -69,8 +70,8 @@ function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'budget') {
-    const amount = Number(summary.allocated_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
-    return `Allocation: PHP ${amount}${summary.event_title ? ` | ${summary.event_title}` : ''}`;
+    const amount = Number(summary.allocated_amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `Allocation: ₱${amount}${summary.event_title ? ` | ${summary.event_title}` : ''}`;
   }
 
   if (entityType === 'election') {
@@ -82,12 +83,12 @@ function summaryLine(entityType, summary) {
   }
 
   if (entityType === 'payment') {
-    const total = Number(summary.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 });
-    return `${summary.item || 'Merchandise'} | Buyer: ${summary.buyer || 'Unknown'} | PHP ${total}${summary.payment_reference ? ` | Ref: ${summary.payment_reference}` : ''}`;
+    const total = Number(summary.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${summary.item || 'Merchandise'} | Buyer: ${summary.buyer || 'Unknown'} | ₱${total}${summary.payment_reference ? ` | Ref: ${summary.payment_reference}` : ''}`;
   }
 
   if (entityType === 'financial_report') {
-    return `${summary.organization?.acronym || 'Organization'} | ${formatDate(summary.period_start)} - ${formatDate(summary.period_end)} | Inflows PHP ${Number(summary.total_income || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })} | Outflows PHP ${Number(summary.total_expense || 0).toLocaleString('en-PH', { minimumFractionDigits: 2 })}`;
+    return `${summary.organization?.acronym || 'Organization'} | ${formatDate(summary.period_start)} - ${formatDate(summary.period_end)} | Inflows ₱${Number(summary.total_income || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} | Outflows ₱${Number(summary.total_expense || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   }
 
   return null;
@@ -251,9 +252,11 @@ export default function DepartmentHeadApprovalsPage() {
     try {
       await reviewApprovalRequest(request.id, { status: action, remarks: remarks.trim() || null });
       setModalState({ open: false, request: null, action: null });
+      notify.success(`Request ${action}.`);
       load();
     } catch {
       setError('Failed to submit review. Please try again.');
+      notify.error('Failed to submit review. Please try again.');
     } finally {
       setSubmitting(false);
     }

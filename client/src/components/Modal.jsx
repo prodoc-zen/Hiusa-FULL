@@ -88,7 +88,7 @@ export default function Modal({
 
   return createPortal(
     <div
-      className="app-overlay overlay-fade-in fixed inset-0 z-[70] flex items-end justify-center bg-navy-950/55 p-0 backdrop-blur-sm sm:items-center sm:p-4"
+      className="app-overlay overlay-fade-in fixed inset-0 z-[70] flex items-center justify-center bg-navy-950/55 p-4 backdrop-blur-sm sm:p-6"
       role="presentation"
       onMouseDown={(event) => {
         if (closeOnBackdrop && event.target === event.currentTarget) {
@@ -101,7 +101,7 @@ export default function Modal({
         role="dialog"
         aria-modal="true"
         aria-labelledby={title ? 'modal-title' : undefined}
-        className={`modal-pop-in flex max-h-[calc(100dvh-0.75rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-t-3xl border border-line bg-surface shadow-raised sm:max-h-[calc(100dvh-2rem)] sm:rounded-3xl`}
+        className={`modal-pop-in modal-surface flex max-h-[calc(100dvh-2rem)] w-full ${maxWidth} flex-col overflow-hidden rounded-2xl border border-white/80 bg-surface shadow-raised sm:max-h-[calc(100dvh-3rem)]`}
       >
         {(title || description || onClose) && (
           <header className="flex shrink-0 items-start justify-between gap-3 border-b border-line px-4 py-3 sm:gap-4 sm:px-5 sm:py-4">

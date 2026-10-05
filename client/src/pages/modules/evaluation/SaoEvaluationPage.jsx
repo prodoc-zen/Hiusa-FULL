@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { RichTextBody } from '../../../components/RichText';
 import { Download, Plus, Unlock, Lock, Pencil } from 'lucide-react';
 import {
   Button,
@@ -103,7 +104,7 @@ function WindowsTab() {
     { key: 'title', header: 'Window', render: (row) => (
       <div className="min-w-0">
         <p className="truncate font-bold text-ink" title={row.title}>{row.title}</p>
-        {row.description && <p className="truncate text-xs font-medium text-ink-muted" title={row.description}>{row.description}</p>}
+        {row.description && <RichTextBody value={row.description} className="truncate text-xs font-medium text-ink-muted" />}
       </div>
     ) },
     { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },

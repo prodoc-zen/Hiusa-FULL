@@ -828,7 +828,7 @@ class UseCaseComplianceTest extends TestCase
         $this->getJson("/api/elections/{$election->id}/results")->assertOk();
     }
 
-    public function test_approved_election_changes_reopen_approval_and_votes_lock_details(): void
+    public function test_approved_election_changes_keep_approval_and_votes_lock_details(): void
     {
         $admin = $this->user('ADMIN');
         $departmentHead = $this->user('DEPARTMENT_HEAD', $admin->organization_id);
@@ -849,12 +849,10 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($admin);
         $this->putJson("/api/elections/{$electionId}", ['title' => 'Revised Election'])
             ->assertOk()
-            ->assertJsonPath('status', 'pending_approval')
-            ->assertJsonPath('approved_at', null);
-        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'pending']);
+            ->assertJsonPath('status', 'upcoming');
+        $this->assertNotNull(Election::findOrFail($electionId)->approved_at);
+        $this->assertDatabaseHas('approval_requests', ['id' => $approval->id, 'status' => 'approved']);
 
-        $this->authenticate($departmentHead);
-        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
         $election = Election::findOrFail($electionId);
         $election->update(['status' => 'active', 'start_time' => now()->subHour(), 'end_time' => now()->addHour(), 'finalized_at' => now()]);
         $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);

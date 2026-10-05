@@ -7,6 +7,7 @@ import { unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus, getRequirementTypes, getSubmissions, submitComplianceDocument } from '../../../services/complianceService';
 import ComplianceDropzone, { validateComplianceFile } from './ComplianceDropzone';
+import { RichTextBody } from '../../../components/RichText';
 
 function getCurrentRole() {
   try {
@@ -148,7 +149,7 @@ export default function OrganizationCompliancePage() {
                   <h3 className="text-base font-bold text-ink">{requirement.requirement_name}</h3>
                   <StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} />
                 </div>
-                {requirement.description && <p className="mt-1 max-w-xl text-sm font-medium text-ink-muted">{requirement.description}</p>}
+                {requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xl text-sm font-medium text-ink-muted" />}
                 <p className={`mt-2 text-xs font-semibold ${deadlineTone(requirement)}`}>
                   Due {manilaDate(requirement.deadline_at, 'long')} ({relativeTime(requirement.deadline_at)})
                 </p>

@@ -3,7 +3,9 @@
 namespace Tests\Feature;
 
 use App\Models\ApprovalRequest;
+use App\Models\Budget;
 use App\Models\FinancialReport;
+use App\Models\FinancialSemester;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\Transaction;
@@ -18,6 +20,25 @@ use Tests\TestCase;
 class FinancialReportSubmissionWorkflowTest extends TestCase
 {
     use RefreshDatabase;
+
+    public function test_semester_report_includes_only_budgets_assigned_to_that_semester(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $first = FinancialSemester::create(['organization_id' => $organization->id, 'name' => 'First Semester', 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31']);
+        $second = FinancialSemester::create(['organization_id' => $organization->id, 'name' => 'Second Semester', 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31']);
+        Budget::create(['organization_id' => $organization->id, 'financial_semester_id' => $first->id, 'title' => 'First Allocation', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+        Budget::create(['organization_id' => $organization->id, 'financial_semester_id' => $second->id, 'title' => 'Second Allocation', 'allocated_amount' => 2000, 'remaining_amount' => 2000, 'warning_threshold' => 100, 'advice_generated_at' => now()]);
+        Sanctum::actingAs($admin);
+
+        $this->postJson('/api/financial-reports/generate', [
+            'report_type' => 'semester',
+            'financial_semester_id' => $first->id,
+            'signatories' => $this->signatories(),
+        ])->assertCreated()
+            ->assertJsonCount(1, 'budget_advisories')
+            ->assertJsonPath('budget_advisories.0.title', 'First Allocation');
+    }
 
     public function test_financial_report_moves_from_admin_to_department_head_then_sao(): void
     {

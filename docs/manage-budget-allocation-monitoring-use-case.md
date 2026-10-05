@@ -18,6 +18,7 @@
 
 - **Role Access:** Admin can monitor, create, edit, and review budget proposals. Super Admin and Department Head do not access budget records.
 - **Create Budget Allocation:** the Admin-only budget form captures title, amount, warning threshold, and optional linked event. Admin event creation can also atomically create an event-linked proposal from the same validated budget fields.
+- **Semester Allocation:** Admin can optionally attach a financial semester when proposing or editing a budget. The API rejects semesters from another organization and returns the semester name with the budget list. Semester reports include advisories only for budgets attached to their semester.
 - **Validate Budget Details:** server validation enforces non-negative amounts and organization-scoped event links.
 - **Submit Request for Approval:** every budget proposal requires review by a different Admin account. The requester cannot approve their own request.
 - **Review Approval Request:** approval decisions are handled by the approval workflow.

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Modal from '../../../../components/Modal';
-import { Button, Field, Input, SegmentedControl, Textarea } from '../../../../components/ui';
+import RichTextEditor from '../../../../components/RichText';
+import { Button, Field, Input, SegmentedControl } from '../../../../components/ui';
 
 function toDateTimeLocal(value) {
   if (!value) return '';
@@ -87,9 +88,10 @@ export default function WindowFormModal({ open, window: editingWindow, busy, err
         </Field>
 
         <Field label="Description" hint="Shown to respondents above the questionnaire.">
-          <Textarea
+          <RichTextEditor
+            ariaLabel="Evaluation description"
             value={form.description}
-            onChange={(event) => setForm((prev) => ({ ...prev, description: event.target.value }))}
+            onChange={(description) => setForm((prev) => ({ ...prev, description }))}
             rows={3}
           />
         </Field>

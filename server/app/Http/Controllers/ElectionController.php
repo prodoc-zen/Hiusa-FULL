@@ -313,14 +313,7 @@ class ElectionController extends Controller
         unset($data['image'], $data['remove_image']);
 
         try {
-            DB::transaction(function () use ($election, $request, &$data) {
-                if ($election->approved_at && $this->hasMaterialElectionChange($data)) {
-                    $data['status'] = 'pending_approval';
-                    $data['approved_at'] = null;
-                    $data['finalized_at'] = null;
-                    $this->reopenApproval($election, $request);
-                }
-
+            DB::transaction(function () use ($election, &$data) {
                 $election->update($data);
             });
         } catch (\Throwable $exception) {
@@ -353,17 +346,6 @@ class ElectionController extends Controller
         return response()->json($freshElection);
     }
 
-    private function hasMaterialElectionChange(array $data): bool
-    {
-        return count(array_intersect(array_keys($data), [
-            'title',
-            'room',
-            'start_time',
-            'end_time',
-            'image_url',
-        ])) > 0;
-    }
-
     private function validElectionStatusTransition(string $currentStatus, string $nextStatus): bool
     {
         $allowed = [
@@ -374,16 +356,6 @@ class ElectionController extends Controller
         ];
 
         return in_array($nextStatus, $allowed[$currentStatus] ?? [], true);
-    }
-
-    private function reopenApproval(Election $election, Request $request): void
-    {
-        ApprovalRequest::where('entity_type', 'election')
-            ->where('entity_id', $election->id)
-            ->where('organization_id', $election->organization_id)
-            ->latest('id')
-            ->first()
-            ?->reopen($request->user()->id, config('approvals.routes.election'));
     }
 
     private function ballotIsLockedResponse(Election $election)

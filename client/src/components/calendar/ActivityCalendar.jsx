@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
+import { resolveAssetUrl } from '../../utils/assetUrl';
+import { RichTextBody } from '../RichText';
 
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const MAX_VISIBLE_PER_DAY = 2;
@@ -136,8 +138,10 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
                   onClick={() => onSelectEvent(event)}
                   className="flex w-full flex-col gap-1 rounded-lg border border-[#DDE7EF] p-3 text-left transition hover:border-[#0B8ED0]/30 hover:bg-[#F8FBFD] sm:flex-row sm:items-center sm:justify-between"
                 >
-                  <div className="min-w-0">
+                  {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-md object-cover" />}
+                  <div className="min-w-0 flex-1">
                     <p className="truncate font-bold text-[#0F172A]">{event.title}</p>
+                    {event.description && <RichTextBody value={event.description} className="mt-1 line-clamp-2 text-xs text-slate-600" />}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
                       <span className="flex items-center gap-1"><Clock size={12} className="text-slate-500" />
                         {event.isMultiDay ? `${shortDate(event.start_time)} - ${shortDate(event.end_time)}` : shortTime(event.start_time)}
@@ -197,6 +201,11 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
   }
 
   function selectDay(iso) {
+    const dayEvents = eventsByDate[iso] || [];
+    if (dayEvents.length === 1) {
+      onSelectEvent(dayEvents[0]);
+      return;
+    }
     setSelectedIso((current) => (current === iso ? null : iso));
   }
 
@@ -339,6 +348,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       onClick={() => onSelectEvent(event)}
                       className={`flex min-h-[42px] w-full items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] px-3 py-2 text-left transition hover:bg-[#F8FBFD] ${event.isContinuation ? 'opacity-70' : ''}`}
                     >
+                      {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />}
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-bold text-[#0F172A]">
                           {event.isContinuation ? `${event.title} - day ${event.dayIndex} of ${event.dayTotal}` : event.title}

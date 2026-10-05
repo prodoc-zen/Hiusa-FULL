@@ -10,6 +10,7 @@ import {
   updateElectionCandidate,
 } from '../../../services/electionService';
 import Modal from '../../../components/Modal';
+import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { fetchAllPages } from '../../../services/pagination';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -250,13 +251,13 @@ function CandidateForm({
 
           <div className="sm:col-span-2">
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Platform Statement" />Platform Statement</label>
-            <textarea
+            <RichTextEditor
               value={form.platform}
               maxLength={2000}
-              onChange={(event) => setForm({ ...form, platform: event.target.value })}
+              onChange={(platform) => setForm({ ...form, platform })}
               rows={3}
               placeholder="Candidate's platform and vision..."
-              className="w-full resize-none rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+              ariaLabel="Platform statement"
             />
           </div>
         </div>
@@ -576,7 +577,7 @@ export default function ManageCandidatesPage() {
                         <p className="font-bold text-[#0F172A]">{name || 'Unknown Candidate'}</p>
                         <p className="text-xs text-[#64748B]">{position}</p>
                         <span className="inline-block mt-1 px-2 py-0.5 bg-[#EEF6FB] text-[#0F2F62] text-[10px] font-bold rounded-full">{partylist}</span>
-                        <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-[#0878B7]">View candidate details</summary><p className="mt-2 whitespace-pre-wrap">{candidate.platform || 'No campaign platform has been added.'}</p></details>
+                        <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-[#0878B7]">View candidate details</summary><RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-2" /></details>
                       </div>
                     </div>
                     {election.status !== 'closed' && !ballotLocked && (

@@ -34,6 +34,9 @@ import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
 import PersonalAttendanceSummary from '../../../components/events/PersonalAttendanceSummary';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
+import RichTextEditor, { RichTextBody } from '../../../components/RichText';
+import notify from '../../../lib/notify';
 import { formatDateTime, isoToLocalDateTimeInput, localDateTimeToIso, replaceIsoDateTimes } from '../../../utils/dateTime';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import { confirmFingerprintAttendance, identifyAttendanceFingerprint } from '../../../services/fingerprintService';
@@ -651,8 +654,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setSelectedEvent(response.data);
       setEvents((current) => current.map((event) => event.id === response.data.id ? response.data : event));
       setEventRows((current) => current.map((event) => event.id === response.data.id ? response.data : event));
+      notify.success(`Event marked ${status}.`);
     } catch (err) {
-      setStatusError(getApiErrorMessage(err, 'We could not update the event status. Please try again.'));
+      const message = getApiErrorMessage(err, 'We could not update the event status. Please try again.');
+      setStatusError(message);
+      notify.error(message);
     } finally {
       setStatusUpdating(false);
     }
@@ -954,7 +960,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     return (
                       <article key={evt.id} className="p-4 sm:p-5">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{evt.title}</h3><p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">{evt.description || 'No description provided'}</p></div>
+                          <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{evt.title}</h3><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" /></div>
                           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{statusLabel[evt.status] || capitalize(evt.status)}</span>
                         </div>
                         <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
@@ -990,7 +996,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <tbody className="divide-y divide-[#DDE7EF] text-sm">
                       {pagedEvents.map((evt) => (
                         <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
-                          <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{evt.title}</p><p className="mt-1 line-clamp-2 text-[10px] text-slate-500">{evt.description || 'No description provided'}</p></td>
+                          <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{evt.title}</p><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" /></td>
                           <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${evt.creator.first_name} ${evt.creator.last_name}` : '-'}<p className="text-[10px] text-[#0878B7]">{evt.creator?.position_title || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
                           <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
@@ -1155,7 +1161,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Task name" />Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-semibold outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
                           <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Due date and time" />Due date and time</label><input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="What needs to be done?" />What needs to be done?</label><textarea id={`workflow-description-${index}`} aria-label={`Task ${index + 1} description`} value={task.description || ''} onChange={(event) => updateWorkflowTask(index, 'description', event.target.value)} rows={2} className="mt-1.5 w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm leading-6 outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="What needs to be done?" />What needs to be done?</label><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></div>
                           <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="When should it happen?" />When should it happen?</label><select id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></select></div>
                           <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Importance" />Importance</label><select id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select></div>
                           <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Best officer role" />Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
@@ -1508,6 +1514,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       {selectedEvent && (
         <AccessibleOverlay label="Event details" onClose={closeEventDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+            {selectedEvent.image_url && <img src={resolveAssetUrl(selectedEvent.image_url)} alt="" className="mb-5 max-h-72 w-full rounded-lg object-cover" />}
             <div className="flex items-start justify-between gap-4">
               <div>
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[selectedEvent.status] || capitalize(selectedEvent.status)}</span>
@@ -1523,7 +1530,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <p><span className="font-bold text-[#0F172A]">Location:</span> {selectedEvent.location || 'Not specified'}</p>
                 <p><span className="font-bold text-[#0F172A]">Event type:</span> {selectedEvent.planning_details?.event_type || 'Not specified'}</p>
                 <p><span className="font-bold text-[#0F172A]">Expected participants:</span> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</p>
-                <p className="whitespace-pre-wrap"><span className="font-bold text-[#0F172A]">Description:</span> {selectedEvent.description || 'No description provided.'}</p>
+                <div><span className="font-bold text-[#0F172A]">Description:</span><RichTextBody value={selectedEvent.description || 'No description provided.'} className="mt-1" /></div>
                 <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Attendance Summary</p>
@@ -1715,13 +1722,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>
-                <textarea
+                <RichTextEditor
                   id="event-description"
                   rows={3}
                   value={form.description}
-                  onChange={(e) => setForm({ ...form, description: e.target.value })}
+                  onChange={(description) => setForm({ ...form, description })}
                   placeholder="Brief description..."
-                  className="w-full rounded-lg border border-[#DDE7EF] px-3 py-2.5 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 resize-none"
                 />
               </div>
               <div className="space-y-1.5">

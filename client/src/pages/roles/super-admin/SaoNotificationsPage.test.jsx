@@ -48,7 +48,7 @@ describe('SaoNotificationsPage', () => {
 
   it('marks every SAO notification as read', async () => {
     renderPage();
-    fireEvent.click(await screen.findByRole('button', { name: 'Mark all read' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Mark all as read' }));
 
     await waitFor(() => expect(notificationMocks.markAllRead).toHaveBeenCalledOnce());
   });

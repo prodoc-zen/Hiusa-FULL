@@ -4,6 +4,7 @@ import { Bot, CheckCircle, ImagePlus, Send } from 'lucide-react';
 import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
 import { useNavigate } from 'react-router-dom';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import RichTextEditor from '../../../components/RichText';
 
 const AUDIENCE_OPTIONS = [
   { label: 'All Members', value: 'all' },
@@ -181,12 +182,12 @@ export default function CreateAnnouncementPage() {
                 {generating ? 'Generating draft...' : generationQuota.remaining < 1 ? 'Daily limit reached' : 'Generate Draft'}
               </button>
             </div>
-            <textarea
+            <RichTextEditor
               id="announcement-content"
               value={body}
-              onChange={(event) => setBody(event.target.value)}
+              onChange={setBody}
               placeholder="Write your announcement content here..."
-              className="min-h-[320px] w-full resize-y rounded-lg border border-[#DDE7EF] bg-white p-4 text-sm leading-6 text-slate-700 outline-none transition focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 lg:min-h-[460px]"
+              rows={12}
             />
             <p className="mt-1.5 text-right text-[11px] font-medium text-slate-500">{body.length.toLocaleString()} characters</p>
           </div>

@@ -1,4 +1,5 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
+import RichTextEditor from '../../../components/RichText';
 import { useCallback, useEffect, useState } from 'react';
 import {
   AlertTriangle,
@@ -152,22 +153,34 @@ function reportTable(rows, title) {
   const headers = Object.keys(rows[0] || {});
   const heading = headers.map((header) => `<th>${escapeHtml(header)}</th>`).join('');
   const body = rows.map((row) => `<tr>${headers.map((header) => `<td>${escapeHtml(row[header])}</td>`).join('')}</tr>`).join('');
-  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px}h1{font-size:20px}p{color:#64748B;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px}th,td{border:1px solid #DDE7EF;padding:8px;text-align:left}th{background:#EEF6FB}@media print{body{padding:0}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString())}</p><table><thead><tr>${heading}</tr></thead><tbody>${body}</tbody></table></body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${escapeHtml(title)}</title><style>body{font-family:Arial,sans-serif;color:#0f172a;padding:24px}h1{font-size:20px}p{color:#64748B;font-size:12px}table{width:100%;border-collapse:collapse;margin-top:18px;font-size:12px}th,td{border:1px solid #DDE7EF;padding:8px;text-align:left}th{background:#EEF6FB}@media print{body{padding:0}}</style></head><body><h1>${escapeHtml(title)}</h1><p>Generated ${escapeHtml(new Date().toLocaleString('en-PH', { timeZone: 'Asia/Manila' }))} Philippine time</p><table><thead><tr>${heading}</tr></thead><tbody>${body}</tbody></table></body></html>`;
 }
 
-function downloadExcel(rows, filename, title) {
+async function downloadExcel(rows, filename, title) {
   if (!rows.length) return false;
+  const { default: ExcelJS } = await import('exceljs');
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet('Report');
   const headers = Object.keys(rows[0]);
-  const cell = (value, numeric = false) => {
-    const amount = Number(value);
-    const isNumber = numeric && value !== '' && value !== null && Number.isFinite(amount);
-    return `<Cell${isNumber ? ' ss:StyleID="Money"' : ''}><Data ss:Type="${isNumber ? 'Number' : 'String'}">${escapeHtml(isNumber ? amount : value)}</Data></Cell>`;
-  };
-  const heading = `<Row>${headers.map((header) => `<Cell ss:StyleID="Header"><Data ss:Type="String">${escapeHtml(header)}</Data></Cell>`).join('')}</Row>`;
-  const columns = headers.map((header) => `<Column ss:AutoFitWidth="0" ss:Width="${/details|description/i.test(header) ? 300 : /amount|total/i.test(header) ? 125 : /date/i.test(header) ? 110 : 180}"/>`).join('');
-  const body = rows.map((row) => `<Row>${headers.map((header) => cell(row[header], /amount|total/i.test(header))).join('')}</Row>`).join('');
-  const workbook = `<?xml version="1.0" encoding="UTF-8"?><Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet" xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"><Styles><Style ss:ID="Header"><Font ss:Bold="1" ss:Color="#FFFFFF"/><Interior ss:Color="#0F2F62" ss:Pattern="Solid"/></Style><Style ss:ID="Money"><NumberFormat ss:Format="0.00"/></Style></Styles><Worksheet ss:Name="Report"><Table>${columns}<Row><Cell><Data ss:Type="String">${escapeHtml(title)}</Data></Cell></Row>${heading}${body}</Table></Worksheet></Workbook>`;
-  const blob = new Blob([workbook], { type: 'application/vnd.ms-excel;charset=utf-8;' });
+  sheet.columns = headers.map((header) => ({ header, key: header, width: /details|description/i.test(header) ? 44 : /amount|total/i.test(header) ? 20 : 25 }));
+  sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+  sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2F62' } };
+  for (const row of rows) {
+    const cells = {};
+    for (const header of headers) {
+      const value = row[header];
+      const amount = Number(value);
+      cells[header] = /amount|total/i.test(header) && value !== '' && value != null && Number.isFinite(amount) ? amount : String(value ?? '');
+    }
+    sheet.addRow(cells);
+  }
+  headers.forEach((header, index) => {
+    if (/amount|total/i.test(header)) sheet.getColumn(index + 1).numFmt = '"₱"#,##0.00';
+  });
+  workbook.creator = 'HIUSA';
+  workbook.subject = title;
+  const buffer = await workbook.xlsx.writeBuffer();
+  const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement('a'), { href: url, download: filename });
   document.body.appendChild(a);
@@ -199,14 +212,14 @@ function ledgerExportRows(transactions = [], custody = null) {
       Section: 'Custody movements',
       Item: item.replaceAll('_', ' '),
       Details: 'Remittances are excluded from ledger income.',
-      'Amount (PHP)': Number(custody?.[item] || 0).toFixed(2),
+      'Amount (₱)': Number(custody?.[item] || 0).toFixed(2),
       Date: '',
     }))),
     ...transactions.map((transaction) => ({
       Section: 'Ledger transaction',
       Item: `${transaction.category} (${transaction.type})`,
       Details: transaction.description,
-      'Amount (PHP)': Number(transaction.amount).toFixed(2),
+      'Amount (₱)': Number(transaction.amount).toFixed(2),
       Date: String(transaction.transaction_date || '').slice(0, 10),
     })),
   ];
@@ -261,7 +274,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [budgets, setBudgets] = useState([]);
   const [events, setEvents] = useState([]);
   const [showBudgetForm, setShowBudgetForm] = useState(false);
-  const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+  const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
   const [budgetFormError, setBudgetFormError] = useState(null);
   const [budgetFormSubmitting, setBudgetFormSubmitting] = useState(false);
   const [budgetAdviceGenerating, setBudgetAdviceGenerating] = useState(null);
@@ -360,9 +373,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         allocated_amount: parseFloat(budgetForm.allocated_amount),
         warning_threshold: parseFloat(budgetForm.warning_threshold),
         event_id: budgetForm.event_id || null,
+        financial_semester_id: budgetForm.financial_semester_id || null,
       });
       setShowBudgetForm(false);
-      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
       showFeedback('success', 'Budget proposal submitted for approval.');
       load(txMeta.current_page);
     } catch (err) {
@@ -380,7 +394,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
   useEffect(() => {
     if (startBudgetProposal && canProposeBudget) {
-      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '' });
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
       setBudgetFormError(null);
       setShowBudgetForm(true);
     }
@@ -572,14 +586,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       const expense = transactions.filter((transaction) => transaction.type === 'expense').reduce((sum, transaction) => sum + Number(transaction.amount), 0);
       const opening = Number(detail.report.opening_balance_snapshot || 0);
       const rows = [
-        { Section: 'Report', Item: report.title, Details: report.summary_text || '', 'Amount (PHP)': '', Date: '' },
-        { Section: 'Report', Item: 'Period', Details: `${String(detail.report.period_start || '').slice(0, 10)} to ${String(detail.report.period_end || '').slice(0, 10)}`, 'Amount (PHP)': '', Date: '' },
-        { Section: 'Report', Item: 'Event', Details: detail.report.event?.title || 'All organization events', 'Amount (PHP)': '', Date: '' },
-        { Section: 'Report', Item: 'Status', Details: String(detail.report.submission_status || 'draft').replaceAll('_', ' '), 'Amount (PHP)': '', Date: '' },
-        ...[['Opening balance', opening], ['Income', income], ['Expenses', expense], ['Net activity', income - expense], ['Closing balance', opening + income - expense]].map(([item, amount]) => ({ Section: 'Totals', Item: item, Details: '', 'Amount (PHP)': Number(amount).toFixed(2), Date: '' })),
+        { Section: 'Report', Item: report.title, Details: report.summary_text || '', 'Amount (₱)': '', Date: '' },
+        { Section: 'Report', Item: 'Period', Details: `${String(detail.report.period_start || '').slice(0, 10)} to ${String(detail.report.period_end || '').slice(0, 10)}`, 'Amount (₱)': '', Date: '' },
+        { Section: 'Report', Item: 'Event', Details: detail.report.event?.title || 'All organization events', 'Amount (₱)': '', Date: '' },
+        { Section: 'Report', Item: 'Status', Details: String(detail.report.submission_status || 'draft').replaceAll('_', ' '), 'Amount (₱)': '', Date: '' },
+        ...[['Opening balance', opening], ['Income', income], ['Expenses', expense], ['Net activity', income - expense], ['Closing balance', opening + income - expense]].map(([item, amount]) => ({ Section: 'Totals', Item: item, Details: '', 'Amount (₱)': Number(amount).toFixed(2), Date: '' })),
         ...ledgerExportRows(transactions, detail.report.custody_snapshot),
       ];
-      downloadExcel(rows, `hiusa-financial-report-${report.id}.xml`, report.title);
+      await downloadExcel(rows, `hiusa-financial-report-${report.id}.xlsx`, report.title);
       showFeedback('success', 'Excel report exported.');
     } catch (cause) {
       showFeedback('error', getApiErrorMessage(cause, 'Could not export the saved report.'));
@@ -621,7 +635,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     }
   }
 
-  function exportGeneratedReport(format) {
+  async function exportGeneratedReport(format) {
     if (format === 'pdf') {
       handleDownloadReportPdf(generatedReport.report);
       return;
@@ -631,53 +645,55 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         Section: 'AI financial summary',
         Item: generatedReport?.report?.title,
         Details: generatedReport?.report?.summary_text,
-        'Amount (PHP)': '',
+        'Amount (₱)': '',
         Date: '',
       },
-      { Section: 'Report', Item: 'Period', Details: `${String(generatedReport?.report?.period_start || '').slice(0, 10)} to ${String(generatedReport?.report?.period_end || '').slice(0, 10)}`, 'Amount (PHP)': '', Date: '' },
-      { Section: 'Report', Item: 'Event', Details: generatedReport?.report?.event?.title || 'All organization events', 'Amount (PHP)': '', Date: '' },
+      { Section: 'Report', Item: 'Period', Details: `${String(generatedReport?.report?.period_start || '').slice(0, 10)} to ${String(generatedReport?.report?.period_end || '').slice(0, 10)}`, 'Amount (₱)': '', Date: '' },
+      { Section: 'Report', Item: 'Event', Details: generatedReport?.report?.event?.title || 'All organization events', 'Amount (₱)': '', Date: '' },
       ...['income', 'expense', 'balance'].map((item) => ({
         Section: 'Income statement',
         Item: item,
         Details: '',
-        'Amount (PHP)': Number(generatedReport?.totals?.[item] || 0).toFixed(2),
+        'Amount (₱)': Number(generatedReport?.totals?.[item] || 0).toFixed(2),
         Date: '',
       })),
       ...(generatedReport?.by_category || []).map((row) => ({
         Section: 'Category summary',
         Item: `${row.category} (${row.type})`,
         Details: '',
-        'Amount (PHP)': Number(row.total || 0).toFixed(2),
+        'Amount (₱)': Number(row.total || 0).toFixed(2),
         Date: '',
       })),
       ...(generatedReport?.latest_ols_forecast ? [{
         Section: 'OLS forecast',
         Item: generatedReport.latest_ols_forecast.forecast_period,
         Details: `Income ${fmt(generatedReport.latest_ols_forecast.predicted_income)}; expense ${fmt(generatedReport.latest_ols_forecast.predicted_expense)}; balance ${fmt(generatedReport.latest_ols_forecast.predicted_balance)}; safe spending ${fmt(generatedReport.latest_ols_forecast.safe_spending_limit)}`,
-        'Amount (PHP)': '',
+        'Amount (₱)': '',
         Date: '',
       }] : []),
       ...(generatedReport?.budget_advisories || []).map((budget) => ({
         Section: 'Budget advisory',
         Item: budget.title,
         Details: `Recommended ${fmt(budget.recommended_allocation)}; safe ceiling ${fmt(budget.safe_spending_limit)}; risk ${budget.overspending_risk || 'not set'}; ${budget.advisory_note || ''}`,
-        'Amount (PHP)': Number(budget.remaining_amount || 0).toFixed(2),
+        'Amount (₱)': Number(budget.remaining_amount || 0).toFixed(2),
         Date: String(budget.advice_generated_at || '').slice(0, 10),
       })),
       ...(generatedReport?.audit_logs || []).map((log) => ({
         Section: 'Audit log',
         Item: `${log.module}.${log.action}`,
         Details: `${log.record_type || 'record'} #${log.record_id || ''}`,
-        'Amount (PHP)': '',
+        'Amount (₱)': '',
         Date: String(log.created_at || '').slice(0, 10),
       })),
       ...ledgerExportRows(generatedReport?.transactions, generatedReport?.custody),
     ];
     const title = generatedReport?.report?.title || 'Financial Report';
-    const exported = downloadExcel(rows, `hiusa-${generatedReport?.report?.document_type === 'income_statement' ? 'income-statement' : 'financial-report'}-${generatedReport?.report?.id || 'new'}.xml`, title);
-    showFeedback(exported ? 'success' : 'info', exported
-      ? 'Excel report exported.'
-      : 'This report has no rows to export.');
+    try {
+      const exported = await downloadExcel(rows, `hiusa-${generatedReport?.report?.document_type === 'income_statement' ? 'income-statement' : 'financial-report'}-${generatedReport?.report?.id || 'new'}.xlsx`, title);
+      showFeedback(exported ? 'success' : 'info', exported ? 'Excel report exported.' : 'This report has no rows to export.');
+    } catch (err) {
+      showFeedback('error', getApiErrorMessage(err, 'Could not export this report.'));
+    }
   }
 
   async function handleExport(type, format = 'excel') {
@@ -693,7 +709,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         'Total (₱)': Number(c.total).toFixed(2),
       }));
       const exported = format === 'excel'
-        ? downloadExcel(rows, `hiusa-category-breakdown-${yyyy}-${mm}.xml`, 'Category Breakdown')
+        ? await downloadExcel(rows, `hiusa-category-breakdown-${yyyy}-${mm}.xlsx`, 'Category Breakdown')
         : printReport(rows, 'Category Breakdown');
       if (exported) {
         showFeedback('success', format === 'excel' ? 'Excel report exported.' : 'Print-ready report opened. Choose Save as PDF in the print dialog.');
@@ -721,7 +737,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       if (type === 'monthly') {
         const filtered = all.filter((tx) => String(tx.transaction_date).startsWith(`${yyyy}-${mm}`));
         const exported = format === 'excel'
-          ? downloadExcel(filtered.map(toRow), `hiusa-monthly-${yyyy}-${mm}.xml`, `Monthly Financial Summary - ${yyyy}-${mm}`)
+          ? await downloadExcel(filtered.map(toRow), `hiusa-monthly-${yyyy}-${mm}.xlsx`, `Monthly Financial Summary - ${yyyy}-${mm}`)
           : printReport(filtered.map(toRow), `Monthly Financial Summary - ${yyyy}-${mm}`);
         if (exported) {
           showFeedback('success', format === 'excel' ? 'Excel report exported.' : 'Print-ready report opened. Choose Save as PDF in the print dialog.');
@@ -733,7 +749,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         cutoff.setMonth(cutoff.getMonth() - 6);
         const filtered = all.filter((tx) => new Date(tx.transaction_date) >= cutoff);
         const exported = format === 'excel'
-          ? downloadExcel(filtered.map(toRow), `hiusa-semester-${yyyy}.xml`, `Semester Financial Report - ${yyyy}`)
+          ? await downloadExcel(filtered.map(toRow), `hiusa-semester-${yyyy}.xlsx`, `Semester Financial Report - ${yyyy}`)
           : printReport(filtered.map(toRow), `Semester Financial Report - ${yyyy}`);
         if (exported) {
           showFeedback('success', format === 'excel' ? 'Excel report exported.' : 'Print-ready report opened. Choose Save as PDF in the print dialog.');
@@ -742,7 +758,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         }
       } else if (type === 'log') {
         const exported = format === 'excel'
-          ? downloadExcel(all.map(toRow), `hiusa-transaction-log-${yyyy}-${mm}-${dd}.xml`, 'Full Transaction Log')
+          ? await downloadExcel(all.map(toRow), `hiusa-transaction-log-${yyyy}-${mm}-${dd}.xlsx`, 'Full Transaction Log')
           : printReport(all.map(toRow), 'Full Transaction Log');
         if (exported) {
           showFeedback('success', format === 'excel' ? 'Excel report exported.' : 'Print-ready report opened. Choose Save as PDF in the print dialog.');
@@ -1058,6 +1074,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </span>
                     </div>
                     {b.event && <p className="mt-1 text-xs text-slate-600">{b.event.title}</p>}
+                    {b.financial_semester && <p className="mt-1 text-xs font-semibold text-[#0F2F62]">Semester: {b.financial_semester.name}</p>}
                     <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:flex sm:flex-wrap sm:gap-x-8">
                       <div><dt className="text-slate-600">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</dd></div>
                       <div><dt className="text-slate-600">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.remaining_amount)}</dd></div>
@@ -1328,7 +1345,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   <label className="text-xs font-bold text-slate-600"><FieldIcon label="Letter date" />Letter date<input type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
                   <label className="text-xs font-bold text-slate-600"><FieldIcon label="Subject" />Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
                   <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Recipient" />Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
-                  <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Letter body" />Letter body<textarea value={reportForm.letter_body} onChange={(event) => setReportForm({ ...reportForm, letter_body: event.target.value })} rows={4} className="mt-1 w-full rounded-lg border border-[#DDE7EF] p-3 text-sm leading-6" placeholder="Leave blank to use a factual period and balance summary." /></label>
+                  <div className="text-xs font-bold text-slate-600 sm:col-span-2"><label htmlFor="income-letter-body"><FieldIcon label="Letter body" />Letter body</label><RichTextEditor id="income-letter-body" value={reportForm.letter_body} onChange={(letter_body) => setReportForm({ ...reportForm, letter_body })} rows={4} maxLength={2000} placeholder="Leave blank to use a factual period and balance summary." /></div>
                   <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Closing" />Closing<input value={reportForm.letter_closing} onChange={(event) => setReportForm({ ...reportForm, letter_closing: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Thank you." /></label>
                 </div>
               )}
@@ -1713,6 +1730,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <option key={ev.id} value={ev.id}>{ev.title}</option>
                   ))}
                 </select>
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="budget-semester" className="text-[13px] font-semibold text-[#0F172A]">Financial semester (optional)</label>
+                <select id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">
+                  <option value="">No semester</option>
+                  {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.name}</option>)}
+                </select>
+                <button type="button" onClick={() => { setShowBudgetForm(false); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-[#0878B7] underline hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one in Financial Reports</button>
               </div>
               {budgetFormError && <p className="text-xs text-red-600">{budgetFormError}</p>}
               <div className="flex justify-end gap-3 pt-2">

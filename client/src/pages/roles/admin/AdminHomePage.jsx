@@ -18,7 +18,7 @@ const cards = [
   ['pending_tasks', 'Pending Tasks', '/dashboard/tasks/task-board', ClipboardList],
   ['new_announcements', 'New Announcements', '/dashboard/announcements/view-announcements', Megaphone],
 ];
-const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { maximumFractionDigits: 0 })}`;
+const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
 function FinancialMovement({ rows }) {
   const largest = Math.max(1, ...rows.flatMap((row) => [Number(row.income), Number(row.expense)]));

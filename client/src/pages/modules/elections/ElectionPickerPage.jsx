@@ -1,4 +1,5 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
+import notify from '../../../lib/notify';
 import { useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
@@ -216,13 +217,13 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   const handleCreate = async (event) => {
     event.preventDefault();
     const validationError = validateForm(form, true);
-    if (validationError) return setFormError(validationError);
+    if (validationError) { setFormError(validationError); notify.error(validationError); return; }
     setSubmitting(true); setFormError('');
     try {
       const created = await createElection({ ...form, title: form.title.trim(), room: form.room.trim(), start_time: localDateTimeToIso(form.start_time), end_time: localDateTimeToIso(form.end_time), positions: form.positions.filter((item) => item.title.trim()).map((item) => ({ title: item.title.trim(), max_winners: Number(item.max_winners) })) });
       setElections((current) => [created, ...current]); setForm(blankElection()); setShowCreate(false);
       setFeedback({ open: true, type: 'success', message: 'Election submitted for approval.' });
-    } catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to create election.')); }
+    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to create election.'); setFormError(message); notify.error(message); }
     finally { setSubmitting(false); }
   };
 
@@ -235,13 +236,13 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   const handleEdit = async (event) => {
     event.preventDefault();
     const validationError = validateForm(editForm, false);
-    if (validationError) return setFormError(validationError);
+    if (validationError) { setFormError(validationError); notify.error(validationError); return; }
     setSubmitting(true); setFormError('');
     try {
       const updated = await updateElection(editForm.id, { title: editForm.title.trim(), room: editForm.room.trim(), start_time: localDateTimeToIso(editForm.start_time), end_time: localDateTimeToIso(editForm.end_time), status: editForm.status, imageFile: editForm.imageFile, remove_image: editForm.remove_image ? 1 : undefined });
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); setShowEdit(false);
       setFeedback({ open: true, type: 'success', message: 'Election updated.' });
-    } catch (requestError) { setFormError(getApiErrorMessage(requestError, 'Unable to update election.')); }
+    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election.'); setFormError(message); notify.error(message); }
     finally { setSubmitting(false); }
   };
 
@@ -252,7 +253,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
       const updated = await updateElection(id, { status });
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
       setFeedback({ open: true, type: 'success', message: status === 'active' ? 'Election opened for voting.' : 'Election closed.' });
-    } catch (requestError) { setError(getApiErrorMessage(requestError, 'Unable to update election status.')); }
+    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election status.'); setError(message); notify.error(message); }
     finally { setStatusBusy({ id: null, target: '' }); }
   };
 
@@ -263,7 +264,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
       const updated = await finalizeElection(id);
       setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
       setFeedback({ open: true, type: 'success', message: 'Ballot finalized. Open voting during the scheduled period.' });
-    } catch (requestError) { setError(getApiErrorMessage(requestError, 'Unable to finalize the ballot.')); }
+    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to finalize the ballot.'); setError(message); notify.error(message); }
     finally { setStatusBusy({ id: null, target: '' }); }
   };
 
@@ -271,7 +272,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     if (!deleteTarget || deleting) return;
     setDeleting(true);
     try { await deleteElection(deleteTarget.id, { confirmed: 1 }); setElections((current) => current.filter((item) => item.id !== deleteTarget.id)); setDeleteTarget(null); setFeedback({ open: true, type: 'success', message: 'Election deleted.' }); }
-    catch (requestError) { setDeleteTarget(null); setError(getApiErrorMessage(requestError, 'Unable to delete election.')); }
+    catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to delete election.'); setDeleteTarget(null); setError(message); notify.error(message); }
     finally { setDeleting(false); }
   };
 

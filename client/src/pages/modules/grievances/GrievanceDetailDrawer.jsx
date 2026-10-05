@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { ShieldCheck, UserRound } from 'lucide-react';
 import { Button, Drawer, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import { RichTextBody } from '../../../components/RichText';
 import { manilaDate, relativeTime } from '../../../lib/format';
 import {
   ALLOWED_TRANSITIONS,
@@ -131,7 +132,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
 
             <div>
               <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Description</p>
-              <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-ink">{grievance.description}</p>
+              <RichTextBody value={grievance.description} className="mt-1 text-sm leading-6 text-ink" />
             </div>
 
             <div>
