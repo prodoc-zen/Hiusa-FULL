@@ -11,7 +11,6 @@ use App\Models\Event;
 use App\Models\FinancialReport;
 use App\Models\Notification;
 use App\Models\Order;
-use App\Models\Transaction;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\OrderFulfillmentService;
@@ -444,9 +443,7 @@ class ApprovalRequestController extends Controller
 
     private function financialReportSummary(FinancialReport $report): array
     {
-        $transactions = Transaction::where('organization_id', $report->organization_id)
-            ->whereIn('id', $report->source_transaction_ids ?? [])
-            ->get(['type', 'amount']);
+        $transactions = $report->savedTransactions();
 
         return [
             'organization' => $report->organization?->only(['id', 'name', 'acronym']),

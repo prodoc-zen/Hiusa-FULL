@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Models\Concerns\SerializesLocalDates;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Collection;
 
 class FinancialReport extends Model
 {
@@ -40,6 +41,25 @@ class FinancialReport extends Model
     public function getHasLetterheadAttribute(): bool
     {
         return filled($this->letterhead_path);
+    }
+
+    /**
+     * The ledger entries as they were when the report was generated. Every total the
+     * report shows (card, PDF, Excel) must come from these rows. A report saved before
+     * snapshots existed has none, so it reads the live ledger entries it listed.
+     */
+    public function savedTransactions(): Collection
+    {
+        if ($this->transactions_snapshot !== null) {
+            return collect($this->transactions_snapshot);
+        }
+
+        return Transaction::with(['event:id,title', 'budget:id,title'])
+            ->where('organization_id', $this->organization_id)
+            ->whereIn('id', $this->source_transaction_ids ?? [])
+            ->orderBy('transaction_date')
+            ->orderBy('id')
+            ->get();
     }
 
     public function aiOutput(): BelongsTo

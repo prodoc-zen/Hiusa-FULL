@@ -71,14 +71,7 @@ class FinancialReportController extends Controller
             return response()->json(['message' => 'Financial report not found.'], 404);
         }
 
-        $transactionIds = $financialReport->source_transaction_ids ?? [];
-        $transactions = $financialReport->transactions_snapshot !== null
-            ? $financialReport->transactions_snapshot
-            : Transaction::with(['event:id,title', 'budget:id,title'])
-                ->where('organization_id', $financialReport->organization_id)
-                ->whereIn('id', $transactionIds)
-                ->orderBy('transaction_date')
-                ->get();
+        $transactions = $financialReport->savedTransactions();
 
         return response()->json([
             'report' => $financialReport->load([
@@ -343,14 +336,8 @@ class FinancialReportController extends Controller
         }
 
         $financialReport->load(['organization:id,name,acronym', 'event:id,title']);
-        $transactions = $financialReport->transactions_snapshot !== null
-            ? collect($financialReport->transactions_snapshot)->map(fn (array $row) => new Transaction($row))
-            : Transaction::with(['event:id,title', 'budget:id,title'])
-                ->where('organization_id', $financialReport->organization_id)
-                ->whereIn('id', $financialReport->source_transaction_ids ?? [])
-                ->orderBy('transaction_date')
-                ->orderBy('id')
-                ->get();
+        $transactions = $financialReport->savedTransactions()
+            ->map(fn (array|Transaction $row) => $row instanceof Transaction ? $row : new Transaction($row));
         $openingBalance = $financialReport->opening_balance_snapshot !== null
             ? (float) $financialReport->opening_balance_snapshot
             : ($financialReport->event_id || ! $financialReport->period_start
