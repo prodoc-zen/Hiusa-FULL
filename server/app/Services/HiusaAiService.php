@@ -8,10 +8,11 @@ use Illuminate\Support\Facades\Log;
 
 class HiusaAiService
 {
-    public function financialForecast(array $monthlyRecords): ?array
+    public function financialForecast(array $monthlyRecords, ?string $targetPeriod = null): ?array
     {
         return $this->post('/api/v1/financial-forecast', [
             'monthly_records' => $monthlyRecords,
+            'target_period' => $targetPeriod,
         ]);
     }
 

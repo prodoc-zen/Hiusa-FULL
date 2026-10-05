@@ -63,6 +63,7 @@ class FinancialForecastController extends Controller
         ]);
 
         $months = $data['months'] ?? 12;
+        $targetPeriod = now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m');
         $rows = Transaction::query()
             ->where('organization_id', $request->user()->organization_id)
             ->whereDate('transaction_date', '>=', now()->startOfMonth()->subMonths($months - 1))
@@ -102,7 +103,7 @@ class FinancialForecastController extends Controller
             ]));
         }
 
-        $analysis = ($recordedMonths >= 2 ? $this->pythonForecast($monthly->all()) : null) ?? $this->localForecast($monthly->all());
+        $analysis = ($recordedMonths >= 2 ? $this->pythonForecast($monthly->all(), $targetPeriod) : null) ?? $this->localForecast($monthly->all(), $targetPeriod);
         if ($recordedMonths < 2) {
             $analysis['is_reliable'] = false;
             $analysis['fit_quality'] = 'insufficient_data';
@@ -347,12 +348,13 @@ class FinancialForecastController extends Controller
         ];
     }
 
-    private function pythonForecast(array $monthly): ?array
+    private function pythonForecast(array $monthly, string $targetPeriod): ?array
     {
-        $result = $this->aiService->financialForecast($monthly);
+        $result = $this->aiService->financialForecast($monthly, $targetPeriod);
 
+        // An engine that predates target_period answers for the month after the history, not the requested month.
         if (! is_array($result)
-            || ! Carbon::hasFormat((string) ($result['forecast_period'] ?? ''), 'Y-m')
+            || ($result['forecast_period'] ?? null) !== $targetPeriod
             || ! isset($result['income_model'], $result['expense_model'])
             || ! is_numeric($result['predicted_income'] ?? null)
             || ! is_numeric($result['predicted_expense'] ?? null)
@@ -369,14 +371,14 @@ class FinancialForecastController extends Controller
         ];
     }
 
-    private function localForecast(array $monthly): array
+    private function localForecast(array $monthly, string $targetPeriod): array
     {
         $firstPeriod = $this->periodStart($monthly[0]['period']);
         $points = collect($monthly)->map(fn (array $month) => [
             ...$month,
             'x' => $firstPeriod->diffInMonths($this->periodStart($month['period'])),
         ]);
-        $nextPeriod = $this->periodStart($monthly[array_key_last($monthly)]['period'])->addMonth();
+        $nextPeriod = $this->periodStart($targetPeriod);
         $nextX = $firstPeriod->diffInMonths($nextPeriod);
         $incomeModel = $this->ols($points->pluck('x')->all(), $points->pluck('income')->all());
         $expenseModel = $this->ols($points->pluck('x')->all(), $points->pluck('expense')->all());

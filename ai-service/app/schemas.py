@@ -14,6 +14,7 @@ class MonthlyFinancialRecord(BaseModel):
 
 class ForecastRequest(BaseModel):
     monthly_records: list[MonthlyFinancialRecord] = Field(min_length=2, max_length=120)
+    target_period: str | None = Field(default=None, pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
 
     @model_validator(mode="after")
     def validate_unique_periods(self) -> "ForecastRequest":

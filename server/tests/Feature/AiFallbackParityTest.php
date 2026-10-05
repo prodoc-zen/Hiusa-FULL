@@ -361,9 +361,57 @@ class AiFallbackParityTest extends TestCase
         $this->assertEqualsWithDelta($live['expense_model']['r_squared'], $response->json('model_details.expense.r_squared'), 0.0001);
     }
 
-    private function seedMonthlyTransactions(User $admin, array $incomeExpensePairs): void
+    public function test_php_forecast_fallback_matches_the_live_python_engine_when_the_history_ends_before_the_current_month(): void
     {
-        $monthsAgo = count($incomeExpensePairs) - 1;
+        config(['services.hiusa_ai.key' => env('HIUSA_AI_SERVICE_KEY')]);
+
+        $monthly = [
+            ['period' => '2030-01', 'income' => 500, 'expense' => 600],
+            ['period' => '2030-02', 'income' => 50, 'expense' => 650],
+            ['period' => '2030-03', 'income' => 480, 'expense' => 700],
+            ['period' => '2030-04', 'income' => 60, 'expense' => 750],
+            ['period' => '2030-05', 'income' => 510, 'expense' => 800],
+            ['period' => '2030-06', 'income' => 40, 'expense' => 850],
+        ];
+
+        // The forecast is for the month after today, so a history that stopped last month is projected two months past its last record.
+        $live = app(HiusaAiService::class)->financialForecast($monthly, '2030-08');
+
+        if ($live === null) {
+            $this->markTestSkipped('Live HIUSA AI service at '.config('services.hiusa_ai.url').' is not reachable.');
+        }
+
+        if (($live['forecast_period'] ?? null) !== '2030-08') {
+            $this->markTestSkipped('Live HIUSA AI service predates target_period; restart it (HIUSA_AI_RELOAD=false) to pick up the engine change.');
+        }
+
+        $admin = $this->user('ADMIN');
+        $this->seedMonthlyTransactions($admin, [
+            [500, 600], [50, 650], [480, 700], [60, 750], [510, 800], [40, 850],
+        ], 1);
+
+        Http::fake([
+            'http://127.0.0.1:8001/api/v1/financial-forecast' => fn () => throw new ConnectionException('Connection refused'),
+            'http://127.0.0.1:8001/api/v1/budget-advice' => fn () => throw new ConnectionException('Connection refused'),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $response = $this->postJson('/api/forecasts/generate', ['months' => 7]);
+
+        $response->assertCreated()
+            ->assertJsonPath('model_details.engine', 'php-fallback')
+            ->assertJsonPath('forecast_period', now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m'));
+        $this->assertSame(number_format($live['predicted_income'], 2, '.', ''), $response->json('predicted_income'));
+        $this->assertSame(number_format($live['predicted_expense'], 2, '.', ''), $response->json('predicted_expense'));
+        $this->assertSame($live['fit_quality'], $response->json('model_details.fit_quality'));
+        $this->assertSame($live['sample_months'], $response->json('model_details.sample_months'));
+        $this->assertEqualsWithDelta($live['income_model']['r_squared'], $response->json('model_details.income.r_squared'), 0.0001);
+        $this->assertEqualsWithDelta($live['expense_model']['r_squared'], $response->json('model_details.expense.r_squared'), 0.0001);
+    }
+
+    private function seedMonthlyTransactions(User $admin, array $incomeExpensePairs, int $endingMonthsAgo = 0): void
+    {
+        $monthsAgo = count($incomeExpensePairs) - 1 + $endingMonthsAgo;
 
         foreach ($incomeExpensePairs as [$income, $expense]) {
             // Start at a month boundary before subtracting so dates such as

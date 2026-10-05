@@ -101,7 +101,11 @@ def forecast_finances(request: ForecastRequest) -> dict:
     x_values = [float(_month_number(record.period) - first_month) for record in records]
     income_model = _ols(x_values, [record.income for record in records])
     expense_model = _ols(x_values, [record.expense for record in records])
-    next_month_number = _month_number(records[-1].period) + 1
+    next_month_number = (
+        _month_number(request.target_period)
+        if request.target_period
+        else _month_number(records[-1].period) + 1
+    )
     next_x = float(next_month_number - first_month)
     raw_predicted_income = round(income_model.intercept + income_model.slope * next_x, 2)
     raw_predicted_expense = round(expense_model.intercept + expense_model.slope * next_x, 2)
