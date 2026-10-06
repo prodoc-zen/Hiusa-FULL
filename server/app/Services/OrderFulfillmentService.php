@@ -57,6 +57,50 @@ class OrderFulfillmentService
             });
     }
 
+    /**
+     * Cancels or waives a student charge nobody has paid on. Cancelled means it should not have
+     * been charged; waived means it was owed and the student is excused. Either way it stops
+     * being a debt.
+     *
+     * @throws DomainException when the charge is closed already or a payment was approved on it
+     */
+    public function closeInvoice(Invoice $invoice, string $status, string $reason, User $actor, ?string $ipAddress = null): Invoice
+    {
+        return DB::transaction(function () use ($invoice, $status, $reason, $actor, $ipAddress) {
+            $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->firstOrFail();
+
+            if ($message = $locked->closeRefusal()) {
+                throw new DomainException($message);
+            }
+
+            $locked->update(['status' => $status, 'status_reason' => $reason]);
+            AuditLog::create([
+                'organization_id' => $locked->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role,
+                'module' => 'invoices', 'action' => $status, 'description' => 'Invoice '.$locked->reference.' was '.$status.'.',
+                'record_type' => Invoice::class, 'record_id' => $locked->id, 'new_values' => $locked->getAttributes(),
+                'ip_address' => $ipAddress, 'created_at' => now(),
+            ]);
+
+            return $locked->fresh();
+        });
+    }
+
+    /** An order that will never be paid no longer bills the student, so its invoice is cancelled with it unless a payment was already approved on it. */
+    public function cancelInvoiceOfClosedOrder(Order $order, User $actor, string $reason): void
+    {
+        $invoice = Invoice::where('organization_id', $order->organization_id)->where('order_id', $order->id)->first();
+
+        if (! $invoice) {
+            return;
+        }
+
+        try {
+            $this->closeInvoice($invoice, 'cancelled', $reason, $actor);
+        } catch (DomainException) {
+            // Closed already, or money was received on it: staff settle what is left.
+        }
+    }
+
     public function approvePayment(Order $order, User $approver, bool $bypassOfficerReview = false): Order
     {
         if ($order->status === 'cancelled') {
@@ -161,6 +205,7 @@ class OrderFulfillmentService
                 'review_remarks' => $remarks,
                 'status' => 'cancelled',
             ]);
+            $this->cancelInvoiceOfClosedOrder($lockedOrder, $reviewer, "Order ORD-{$lockedOrder->id} was rejected.");
             $this->notifyBuyer($lockedOrder, 'Payment Rejected', $remarks);
             $this->audit($lockedOrder->fresh(), $reviewer, 'payment_rejected', $oldOrderValues);
 

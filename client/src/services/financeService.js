@@ -49,6 +49,7 @@ export const repayCashAdvance = (id, data) => api.post(`/cash-advances/${id}/rep
 export const getStudentDebts = (params) => api.get('/student-debts', { params });
 export const createInvoice = (data) => api.post('/invoices', data);
 export const recordInvoicePayment = (invoiceId, data) => api.post(`/invoices/${invoiceId}/payments`, data);
+export const updateInvoiceStatus = (invoiceId, data) => api.patch(`/invoices/${invoiceId}/status`, data);
 export const getAuditLogs = (params) => api.get('/audit-logs', { params });
 export const exportAuditLogs = (params) => api.get('/audit-logs/export', { params, responseType: 'blob' });
 

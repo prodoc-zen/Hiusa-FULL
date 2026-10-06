@@ -66,6 +66,7 @@ class FinancialForecastController extends Controller
         $targetPeriod = now('Asia/Manila')->startOfMonth()->addMonth()->format('Y-m');
         $rows = Transaction::query()
             ->where('organization_id', $request->user()->organization_id)
+            ->excludingCashAdvances()
             ->whereDate('transaction_date', '>=', now()->startOfMonth()->subMonths($months - 1))
             ->orderBy('transaction_date')
             ->get(['id', 'type', 'amount', 'transaction_date']);

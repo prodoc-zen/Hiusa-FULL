@@ -14,6 +14,7 @@ use App\Models\FinancialSemester;
 use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Services\FinancialReportPdfService;
+use App\Services\FinancialReportStatement;
 use App\Services\GroqResponsesService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -71,14 +72,7 @@ class FinancialReportController extends Controller
             return response()->json(['message' => 'Financial report not found.'], 404);
         }
 
-        $transactionIds = $financialReport->source_transaction_ids ?? [];
-        $transactions = $financialReport->transactions_snapshot !== null
-            ? $financialReport->transactions_snapshot
-            : Transaction::with(['event:id,title', 'budget:id,title'])
-                ->where('organization_id', $financialReport->organization_id)
-                ->whereIn('id', $transactionIds)
-                ->orderBy('transaction_date')
-                ->get();
+        $transactions = $financialReport->savedTransactions();
 
         return response()->json([
             'report' => $financialReport->load([
@@ -87,6 +81,7 @@ class FinancialReportController extends Controller
                 'saoApprover:school_id,first_name,last_name',
             ]),
             'transactions' => $transactions,
+            ...FinancialReportStatement::from($transactions, $this->openingBalanceFor($financialReport)),
         ]);
     }
 
@@ -152,16 +147,15 @@ class FinancialReportController extends Controller
             ->orderBy('transaction_date')
             ->get();
 
-        $income = (float) $transactions->where('type', 'income')->sum('amount');
-        $expense = (float) $transactions->where('type', 'expense')->sum('amount');
-        $balance = $income - $expense;
+        $cashAdvanceKinds = Transaction::cashAdvanceKinds($transactions->pluck('id'));
+        $transactions->each(fn (Transaction $transaction) => $transaction->setAttribute('cash_advance', $cashAdvanceKinds[$transaction->id] ?? null));
         $openingBalance = $event ? 0.0 : $this->openingBalance($organizationId, $start);
-        $closingBalance = $openingBalance + $balance;
+        $statement = FinancialReportStatement::from($transactions, $openingBalance);
         $title = $this->title($data['document_type'], $data['report_type'], $start, $end, $event);
         if ($semester) {
             $title = ($data['document_type'] === 'income_statement' ? 'Income Statement' : 'Financial Report').' - '.$semester->name;
         }
-        $byCategory = $transactions
+        $byCategory = FinancialReportStatement::ordinary($transactions)
             ->groupBy(fn (Transaction $transaction) => $transaction->category.'|'.$transaction->type)
             ->map(fn ($rows) => [
                 'category' => $rows->first()->category,
@@ -201,14 +195,15 @@ class FinancialReportController extends Controller
             'document_type' => $data['document_type'],
             'income_statement' => [
                 'record_count' => $transactions->count(),
-                'total_income' => round($income, 2),
-                'total_expense' => round($expense, 2),
-                'net_balance' => round($balance, 2),
-                'opening_balance' => round($openingBalance, 2),
-                'closing_balance' => round($closingBalance, 2),
+                'total_income' => $statement['totals']['income'],
+                'total_expense' => $statement['totals']['expense'],
+                'net_balance' => $statement['totals']['balance'],
+                'opening_balance' => $statement['totals']['opening_balance'],
+                'closing_balance' => $statement['totals']['closing_balance'],
             ],
             'expense_and_income_by_category' => $byCategory->all(),
             'custody_movements' => $custody,
+            'cash_advances' => $statement['cash_advances'],
             'latest_ols_forecast' => $latestForecast?->only([
                 'forecast_period', 'predicted_income', 'predicted_expense', 'predicted_balance',
                 'safe_spending_limit', 'confidence_note', 'model_details',
@@ -234,7 +229,7 @@ class FinancialReportController extends Controller
         ];
 
         try {
-            $result = DB::transaction(function () use ($request, $data, $event, $semester, $start, $end, $title, $summary, $transactions, $income, $expense, $balance, $openingBalance, $closingBalance, $organizationId, $byCategory, $custody, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
+            $result = DB::transaction(function () use ($request, $data, $event, $semester, $start, $end, $title, $summary, $transactions, $openingBalance, $statement, $organizationId, $byCategory, $custody, $latestForecast, $budgets, $auditLogs, $reportContext, $letterheadPath, $letterDetails) {
                 $aiOutput = AiOutput::create([
                     'organization_id' => $organizationId,
                     'feature_type' => 'FINANCIAL_SUMMARY',
@@ -275,6 +270,7 @@ class FinancialReportController extends Controller
                             'id', 'organization_id', 'event_id', 'budget_id', 'transaction_date',
                             'description', 'category', 'type', 'amount', 'receipt_reference',
                         ]),
+                        'cash_advance' => $transaction->getAttribute('cash_advance'),
                         'event' => $transaction->event?->only(['id', 'title']),
                         'budget' => $transaction->budget?->only(['id', 'title']),
                     ])->all(),
@@ -310,13 +306,7 @@ class FinancialReportController extends Controller
 
                 return [
                     'report' => $report->load(['event:id,title', 'generator:school_id,first_name,last_name']),
-                    'totals' => [
-                        'income' => round($income, 2),
-                        'expense' => round($expense, 2),
-                        'balance' => round($balance, 2),
-                        'opening_balance' => round($openingBalance, 2),
-                        'closing_balance' => round($closingBalance, 2),
-                    ],
+                    ...$statement,
                     'by_category' => $byCategory,
                     'custody' => $custody,
                     'latest_ols_forecast' => $latestForecast,
@@ -343,20 +333,9 @@ class FinancialReportController extends Controller
         }
 
         $financialReport->load(['organization:id,name,acronym', 'event:id,title']);
-        $transactions = $financialReport->transactions_snapshot !== null
-            ? collect($financialReport->transactions_snapshot)->map(fn (array $row) => new Transaction($row))
-            : Transaction::with(['event:id,title', 'budget:id,title'])
-                ->where('organization_id', $financialReport->organization_id)
-                ->whereIn('id', $financialReport->source_transaction_ids ?? [])
-                ->orderBy('transaction_date')
-                ->orderBy('id')
-                ->get();
-        $openingBalance = $financialReport->opening_balance_snapshot !== null
-            ? (float) $financialReport->opening_balance_snapshot
-            : ($financialReport->event_id || ! $financialReport->period_start
-                ? 0.0
-                : $this->openingBalance($financialReport->organization_id, $financialReport->period_start->toDateString()));
-        $pdf = $this->pdf->render($financialReport, $transactions, $openingBalance);
+        $transactions = $financialReport->savedTransactions()
+            ->map(fn (array|Transaction $row) => $row instanceof Transaction ? $row : new Transaction($row));
+        $pdf = $this->pdf->render($financialReport, $transactions, $this->openingBalanceFor($financialReport));
 
         return response($pdf['content'], 200, [
             'Content-Type' => 'application/pdf',
@@ -472,6 +451,17 @@ class FinancialReportController extends Controller
         };
     }
 
+    private function openingBalanceFor(FinancialReport $report): float
+    {
+        if ($report->opening_balance_snapshot !== null) {
+            return (float) $report->opening_balance_snapshot;
+        }
+
+        return $report->event_id || ! $report->period_start
+            ? 0.0
+            : $this->openingBalance($report->organization_id, $report->period_start->toDateString());
+    }
+
     private function openingBalance(int $organizationId, string $periodStart): float
     {
         $totals = Transaction::query()
@@ -488,10 +478,14 @@ class FinancialReportController extends Controller
     {
         $title = $context['report_title'];
         $statement = $context['income_statement'];
-        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is ₱".number_format($statement['total_income'], 2).', total expenses are ₱'.number_format($statement['total_expense'], 2).', and net activity is ₱'.number_format($statement['net_balance'], 2).'. Opening balance is ₱'.number_format($statement['opening_balance'], 2).' and closing balance is ₱'.number_format($statement['closing_balance'], 2).'. Verified collections are ₱'.number_format($context['custody_movements']['verified_collections'], 2).' and recorded remittances are ₱'.number_format($context['custody_movements']['recorded_remittances'], 2).'. Remittances are not counted again as income.';
+        $advances = $context['cash_advances'];
+        $advanceNote = $advances['released'] > 0 || $advances['repayments'] > 0
+            ? ' Cash advances released are ₱'.number_format($advances['released'], 2).' and cash advance repayments are ₱'.number_format($advances['repayments'], 2).'; they are money lent out and returned, so they are not counted as income or expense.'
+            : '';
+        $fallback = "{$title} includes {$statement['record_count']} ledger record(s). Total income is ₱".number_format($statement['total_income'], 2).', total expenses are ₱'.number_format($statement['total_expense'], 2).', and net activity is ₱'.number_format($statement['net_balance'], 2).'. Opening balance is ₱'.number_format($statement['opening_balance'], 2).' and closing balance is ₱'.number_format($statement['closing_balance'], 2).'. Verified collections are ₱'.number_format($context['custody_movements']['verified_collections'], 2).' and recorded remittances are ₱'.number_format($context['custody_movements']['recorded_remittances'], 2).'. Remittances are not counted again as income.'.$advanceNote;
 
         $generated = $this->groq->generate(
-            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, custody movements, latest OLS forecast when available, budget-advisory results, and audit-log summary. Distinguish period net activity from opening and closing balance. Remittances are custody movements and must never be added to income. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',
+            'Write a concise, human-readable student-organization financial report using only the supplied data. Cover the income statement, expense summary, custody movements, latest OLS forecast when available, budget-advisory results, and audit-log summary. Distinguish period net activity from opening and closing balance. Remittances are custody movements and must never be added to income. Cash advances are money lent out and returned, never income or expense: report them separately when they are not zero. Preserve every figure and risk label. Clearly say when an input section has no data. Return plain text only; do not use Markdown, asterisks, backticks, or heading markers.',
             json_encode($context, JSON_PRETTY_PRINT | JSON_THROW_ON_ERROR),
             650,
             0.2,
