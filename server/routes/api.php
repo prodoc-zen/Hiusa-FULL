@@ -114,9 +114,11 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/system/organizations', [SystemAdministrationController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations', [SystemAdministrationController::class, 'storeOrganization'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/organizations/{organization}', [SystemAdministrationController::class, 'updateOrganization'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/organizations/{organization}/logo', [SystemAdministrationController::class, 'uploadOrganizationLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/colleges', [CollegeController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges', [CollegeController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/colleges/{college}', [CollegeController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/colleges/{college}/logo', [CollegeController::class, 'uploadLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/system/colleges/{college}', [CollegeController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/academic-years', [AcademicYearController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/academic-years/{academicYear}/semesters', [AcademicSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -173,6 +175,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
 
     // Task Routes
     Route::get('/tasks', [TaskController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/tasks/recommendation', [TaskController::class, 'recommendation'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/tasks', [TaskController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentTaskSemester::class]);
     Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentTaskSemester::class]);

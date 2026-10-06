@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, ClipboardList, ExternalLink, Plus, ShieldCheck, Undo2 } from 'lucide-react';
+import { Check, ClipboardList, ExternalLink, Plus, ShieldCheck } from 'lucide-react';
 import {
   Button, Card, DataTable, EmptyState, Field, IconButton, Input, PageHeader,
   ProgressMeter, Select, StatusBadge, Tabs, Textarea,
@@ -300,7 +300,6 @@ export default function SaoCompliancePage() {
     { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{type.name}</span> },
     { key: 'academic_year', header: 'Academic year' },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
-    { key: 'is_active', header: 'Status', render: (type) => <StatusBadge status={type.is_active ? 'active' : 'inactive'} /> },
     { key: 'description', header: 'Description', render: (type) => <RichTextBody as="span" value={type.description || 'No description.'} className="line-clamp-2 text-ink-muted" /> },
   ];
 
@@ -334,6 +333,7 @@ export default function SaoCompliancePage() {
       {activeTab === 'overview' && (
         <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
           <DataTable
+            stickyHeader={false}
             columns={overviewColumns}
             rowKey={(row) => row.organization_id}
             rows={overview.organizations}
@@ -359,6 +359,7 @@ export default function SaoCompliancePage() {
           actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
         >
           <DataTable
+            stickyHeader={false}
             columns={typeColumns}
             rows={types.items}
             loading={types.loading}
@@ -366,7 +367,7 @@ export default function SaoCompliancePage() {
             onRetry={loadTypes}
             actions={(type) => (
               <div className="flex justify-end gap-1.5">
-                <IconButton icon={type.is_active ? Undo2 : Check} label={type.is_active ? 'Mark inactive' : 'Mark active'} onClick={() => toggleTypeActive(type)} />
+                <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-ink"><span className="sr-only">{type.name} active</span><input type="checkbox" role="switch" aria-label={`${type.name} active`} checked={Boolean(type.is_active)} onChange={() => toggleTypeActive(type)} className="peer sr-only" /><span aria-hidden="true" className="relative h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#0B8ED0] before:absolute before:left-1 before:top-1 before:h-5 before:w-5 before:rounded-full before:bg-white before:shadow-sm before:transition-transform peer-checked:before:translate-x-5" /></label>
                 <Button size="sm" variant="secondary" onClick={() => openTypeModal(type)}>Edit</Button>
               </div>
             )}
@@ -386,6 +387,7 @@ export default function SaoCompliancePage() {
       {activeTab === 'queue' && (
         <Card title="Review queue" description="Open a submission's document, then approve it or return it with remarks.">
           <DataTable
+            stickyHeader={false}
             columns={queueColumns}
             rows={queue.items}
             loading={queue.loading}

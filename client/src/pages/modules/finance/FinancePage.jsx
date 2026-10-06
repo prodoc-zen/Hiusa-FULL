@@ -40,6 +40,7 @@ import {
   submitFinancialReport,
 } from '../../../services/financeService';
 import { getEvents } from '../../../services/eventService';
+import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { fetchAllPages } from '../../../services/pagination';
 import FeedbackToast from '../../../components/FeedbackToast';
 import EngineBadge from '../../../components/ai/EngineBadge';
@@ -251,6 +252,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [txFilters, setTxFilters] = useState({ type: '', event_id: '', from: '', to: '' });
+  const [academicPeriods, setAcademicPeriods] = useState([]);
+  const [transactionPeriodId, setTransactionPeriodId] = useState('');
   const [txMeta, setTxMeta] = useState({ current_page: 1, last_page: 1, total: 0, per_page: 10 });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const [forecastGenerating, setForecastGenerating] = useState(false);
@@ -295,6 +298,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canViewInvoices = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canProposeBudget = currentUserRole === 'ADMIN';
   const canGenerateBudgetAdvice = currentUserRole === 'ADMIN';
+
+  useEffect(() => {
+    if (canViewTransactions) getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([]));
+  }, [canViewTransactions]);
 
   const closeFeedback = useCallback(() => {
     setFeedback((current) => ({ ...current, open: false }));
@@ -802,6 +809,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
   const clearTransactionFilters = () => {
     const cleared = { type: '', event_id: '', from: '', to: '' };
+    setTransactionPeriodId('');
     setTxFilters(cleared);
     setSearch('');
     load(1, cleared, '');
@@ -877,6 +885,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]"
           >
+            <select aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; const period = academicPeriods.find((item) => String(item.id) === id); setTransactionPeriodId(id); setTxFilters((current) => ({ ...current, from: period?.starts_on?.slice(0, 10) || '', to: period?.ends_on?.slice(0, 10) || '' })); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</select>
             <select
               value={txFilters.type}
               onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
@@ -1530,12 +1539,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <p className="mt-1 text-sm text-slate-500">Approved payments are reflected in your balance.</p>
           </div>
           {invoices.length === 0 ? <p className="p-8 text-center text-sm text-emerald-700">Financially cleared. No outstanding invoices.</p> : (
-            <div className="divide-y divide-[#DDE7EF]">{invoices.map((invoice) => (
-              <div key={invoice.id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between">
-                <div><p className="font-bold text-[#0F172A]">{invoice.description}</p><p className="mt-1 text-xs text-slate-500">{invoice.reference} · Due {invoice.due_date || 'Not set'} · {String(invoice.status).replace('_', ' ')}</p></div>
-                <div className="grid grid-cols-1 gap-2 text-left text-xs text-slate-500 sm:grid-cols-3 sm:gap-4 sm:text-right"><span>Due<strong className="block text-sm text-[#0F172A]">{fmt(invoice.amount_due)}</strong></span><span>Paid<strong className="block text-sm text-emerald-700">{fmt(invoice.amount_paid)}</strong></span><span>Balance<strong className="block text-sm text-red-600">{fmt(invoice.remaining_balance)}</strong></span></div>
-              </div>
-            ))}</div>
+            <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-[#F8FBFD] text-xs font-bold uppercase text-slate-600"><tr><th scope="col" className="px-5 py-3">Description</th><th scope="col" className="px-5 py-3">Reference</th><th scope="col" className="px-5 py-3">Due date</th><th scope="col" className="px-5 py-3">Status</th><th scope="col" className="px-5 py-3 text-right">Amount due</th><th scope="col" className="px-5 py-3 text-right">Paid</th><th scope="col" className="px-5 py-3 text-right">Balance</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{invoices.map((invoice) => <tr key={invoice.id}><td className="px-5 py-3 font-semibold text-[#0F172A]">{invoice.description}</td><td className="px-5 py-3 text-slate-600">{invoice.reference || '—'}</td><td className="px-5 py-3 text-slate-600">{invoice.due_date || 'Not set'}</td><td className="px-5 py-3 capitalize text-slate-600">{String(invoice.status).replaceAll('_', ' ')}</td><td className="px-5 py-3 text-right tabular-nums">{fmt(invoice.amount_due)}</td><td className="px-5 py-3 text-right tabular-nums text-emerald-700">{fmt(invoice.amount_paid)}</td><td className="px-5 py-3 text-right tabular-nums font-bold text-red-700">{fmt(invoice.remaining_balance)}</td></tr>)}</tbody></table></div>
           )}
         </section>
       )}

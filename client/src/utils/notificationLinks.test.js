@@ -24,6 +24,13 @@ describe('getNotificationDestination', () => {
     expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
     expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals');
     expect(getNotificationDestination({ reference_type: 'budget' }, 'SUPER_ADMIN')).toBeNull();
-    expect(getNotificationDestination({ reference_type: 'financial_report_deadline' }, 'SUPER_ADMIN')).toBeNull();
+    expect(getNotificationDestination({ reference_type: 'financial_report_deadline' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
+  });
+
+  it('routes SAO review notices to their workspaces', () => {
+    expect(getNotificationDestination({ reference_type: 'organization_compliance_submission' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance');
+    expect(getNotificationDestination({ reference_type: 'venue_booking' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/venues');
+    expect(getNotificationDestination({ reference_type: 'grievance' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/grievances');
+    expect(getNotificationDestination({ reference_type: 'App\\Models\\EvaluationWindow' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/evaluation');
   });
 });

@@ -517,6 +517,7 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($admin);
         $response = $this->postJson('/api/tasks', [
             'title' => 'Recommended assignment',
+            'assigned_to' => $availableOfficer->school_id,
             'deadline' => now()->addWeek(),
             'status' => 'pending',
         ])->assertCreated();
@@ -535,10 +536,11 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($admin);
         $this->postJson('/api/tasks', [
             'title' => 'Task without a configured officer position',
+            'assigned_to' => $officer->school_id,
             'deadline' => now()->addWeek(),
             'status' => 'pending',
         ])->assertUnprocessable()
-            ->assertJsonPath('message', 'Assign an active SBO position to at least one officer before using task delegation.');
+            ->assertJsonPath('message', 'Selected task links must belong to this organization.');
     }
 
     public function test_event_financial_report_is_computed_summarized_and_saved(): void

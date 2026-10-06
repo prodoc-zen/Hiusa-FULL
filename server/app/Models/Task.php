@@ -15,7 +15,12 @@ class Task extends Model
 
     protected $guarded = [];
 
-    protected $appends = ['workflow_status'];
+    protected $appends = ['workflow_status', 'task_kind'];
+
+    public function getTaskKindAttribute(): string
+    {
+        return $this->event_id ? 'event_related' : 'standalone';
+    }
 
     protected static function booted(): void
     {

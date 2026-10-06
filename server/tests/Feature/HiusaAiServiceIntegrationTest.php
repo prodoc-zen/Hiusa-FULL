@@ -121,6 +121,7 @@ class HiusaAiServiceIntegrationTest extends TestCase
         Sanctum::actingAs($admin);
         $this->postJson('/api/tasks', [
             'title' => 'Python recommended task',
+            'assigned_to' => $recommendedOfficer->school_id,
             'deadline' => now()->addWeek(),
             'status' => 'pending',
         ])->assertCreated()

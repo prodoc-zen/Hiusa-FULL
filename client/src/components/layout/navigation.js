@@ -143,6 +143,7 @@ export const NAV_STRUCTURE = [
     icon: ShieldCheck,
     roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'],
     children: [
+      { id: 'gov-evaluation', label: 'Evaluation', path: '/dashboard/evaluation', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
       { id: 'gov-compliance', label: 'Compliance', path: '/dashboard/compliance', roles: ['ADMIN'] },
       { id: 'gov-venues', label: 'Venues', path: '/dashboard/venues', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'gov-grievances', label: 'Grievances', path: '/dashboard/grievances', roles: ['ADMIN'] },
@@ -200,7 +201,8 @@ export function resolveItemPath(item, role) {
 }
 
 export function getNavForRole(role) {
-  return role === 'SUPER_ADMIN' ? SUPER_ADMIN_NAV : NAV_STRUCTURE.filter((item) => item.roles.includes(role));
+  const items = role === 'SUPER_ADMIN' ? SUPER_ADMIN_NAV : NAV_STRUCTURE.filter((item) => item.roles.includes(role));
+  return items.filter((item) => !item.children || getVisibleChildren(item, role).length > 0);
 }
 
 // Flattens the role's nav into individual pages for the command palette: leaf pages

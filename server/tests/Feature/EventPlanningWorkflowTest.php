@@ -88,6 +88,10 @@ class EventPlanningWorkflowTest extends TestCase
         $outputId = $response->json('ai_output.id');
         $this->postJson("/api/events/{$event->id}/workflows/{$outputId}/confirm", [
             'tasks' => $response->json('workflow.tasks'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('tasks.0.assigned_to');
+        $reviewedTasks = array_map(fn (array $task) => [...$task, 'assigned_to' => $officer->school_id], $response->json('workflow.tasks'));
+        $this->postJson("/api/events/{$event->id}/workflows/{$outputId}/confirm", [
+            'tasks' => $reviewedTasks,
         ])->assertCreated()->assertJsonCount(3, 'tasks');
 
         $tasks = Task::where('event_id', $event->id)->orderBy('sequence')->get();
@@ -180,7 +184,7 @@ class EventPlanningWorkflowTest extends TestCase
         Sanctum::actingAs($admin);
 
         $draft = $this->postJson("/api/events/{$event->id}/generate-plan", ['requirements' => 'Create an editable workflow.'])->assertCreated();
-        $tasks = $draft->json('workflow.tasks');
+        $tasks = array_map(fn (array $task) => [...$task, 'assigned_to' => $task['recommendation']['recommended_officer_id']], $draft->json('workflow.tasks'));
         $recommended = $tasks[0]['recommendation']['recommended_officer_id'];
         $alternate = collect($tasks[0]['recommendation']['rankings'])->first(fn ($row) => $row['officer_id'] !== $recommended);
         $tasks[0]['assigned_to'] = $alternate['officer_id'];
@@ -300,7 +304,8 @@ class EventPlanningWorkflowTest extends TestCase
         Sanctum::actingAs($admin);
 
         $draft = $this->postJson("/api/events/{$event->id}/generate-plan", ['requirements' => 'Create the full operational workflow.'])->assertCreated();
-        $created = $this->postJson("/api/events/{$event->id}/workflows/{$draft->json('ai_output.id')}/confirm", ['tasks' => $draft->json('workflow.tasks')])->assertCreated();
+        $reviewedTasks = array_map(fn (array $task) => [...$task, 'assigned_to' => $officer->school_id], $draft->json('workflow.tasks'));
+        $created = $this->postJson("/api/events/{$event->id}/workflows/{$draft->json('ai_output.id')}/confirm", ['tasks' => $reviewedTasks])->assertCreated();
         $createdTaskIds = collect($created->json('tasks'))->pluck('id');
 
         Sanctum::actingAs($officer);

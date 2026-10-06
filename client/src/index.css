@@ -27,6 +27,22 @@ select:not([multiple]):not(.appearance-none) {
   background-position: right 12px center;
 }
 
+input[type='date'],
+input[type='time'],
+input[type='datetime-local'] {
+  border-radius: 12px;
+  color-scheme: light;
+}
+
+input[type='date']::-webkit-calendar-picker-indicator,
+input[type='time']::-webkit-calendar-picker-indicator,
+input[type='datetime-local']::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  border-radius: 9999px;
+  background-color: #E6F6FD;
+  padding: 8px;
+}
+
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
   --radius-lg: 1rem;

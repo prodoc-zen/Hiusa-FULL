@@ -6,9 +6,19 @@ export const getSystemOverview = (params) => unwrap(api.get('/system/overview', 
 export const getSystemOrganizations = (params) => unwrap(api.get('/system/organizations', { params }));
 export const createSystemOrganization = (payload) => unwrap(api.post('/system/organizations', payload));
 export const updateSystemOrganization = (id, payload) => unwrap(api.put(`/system/organizations/${id}`, payload));
+export const uploadSystemOrganizationLogo = (id, file) => {
+  const data = new FormData();
+  data.append('logo', file);
+  return unwrap(api.post(`/system/organizations/${id}/logo`, data));
+};
 export const getSystemColleges = () => unwrap(api.get('/system/colleges'));
 export const createSystemCollege = (payload) => unwrap(api.post('/system/colleges', payload));
 export const updateSystemCollege = (id, payload) => unwrap(api.put(`/system/colleges/${id}`, payload));
+export const uploadSystemCollegeLogo = (id, file) => {
+  const data = new FormData();
+  data.append('logo', file);
+  return unwrap(api.post(`/system/colleges/${id}/logo`, data));
+};
 export const deleteSystemCollege = (id) => unwrap(api.delete(`/system/colleges/${id}`));
 export const getAcademicYears = () => unwrap(api.get('/system/academic-years'));
 export const getAcademicPeriods = () => unwrap(api.get('/academic-periods'));

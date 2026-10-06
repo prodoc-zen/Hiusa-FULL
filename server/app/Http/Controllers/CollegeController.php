@@ -7,6 +7,7 @@ use App\Models\College;
 use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
 
 class CollegeController extends Controller
@@ -42,6 +43,26 @@ class CollegeController extends Controller
         return response()->json($college->fresh());
     }
 
+    public function uploadLogo(Request $request, College $college)
+    {
+        $request->validate(['logo' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:2048']]);
+        $path = $request->file('logo')->store('college-logos', 'public');
+        $oldUrl = $college->logo_url;
+        try {
+            $college->update(['logo_url' => Storage::disk('public')->url($path)]);
+            $this->audit($request, $college, 'logo_updated');
+        } catch (\Throwable $error) {
+            Storage::disk('public')->delete($path);
+            throw $error;
+        }
+        $oldPath = is_string($oldUrl) ? parse_url($oldUrl, PHP_URL_PATH) : null;
+        if (is_string($oldPath) && str_starts_with($oldPath, '/storage/')) {
+            Storage::disk('public')->delete(substr($oldPath, strlen('/storage/')));
+        }
+
+        return response()->json($college->fresh());
+    }
+
     public function destroy(Request $request, College $college)
     {
         if (Organization::where('college', $college->name)->exists()) {
@@ -49,6 +70,10 @@ class CollegeController extends Controller
         }
         $this->audit($request, $college, 'deleted');
         $college->delete();
+        $logoPath = is_string($college->logo_url) ? parse_url($college->logo_url, PHP_URL_PATH) : null;
+        if (is_string($logoPath) && str_starts_with($logoPath, '/storage/')) {
+            Storage::disk('public')->delete(substr($logoPath, strlen('/storage/')));
+        }
 
         return response()->noContent();
     }

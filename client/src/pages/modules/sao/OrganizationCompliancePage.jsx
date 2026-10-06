@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { File, Lock, ShieldCheck } from 'lucide-react';
-import { Button, Card, Drawer, EmptyState, ErrorState, PageHeader, ProgressMeter, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, PageHeader, ProgressMeter, SkeletonCard, StatusBadge } from '../../../components/ui';
 import notify from '../../../lib/notify';
 import { manilaDate, relativeTime } from '../../../lib/format';
 import { unwrapList } from '../../../services/pagination';
@@ -141,42 +141,21 @@ export default function OrganizationCompliancePage() {
       )}
 
       {!state.loading && !state.error && state.requirements.length > 0 && (
-        <Card bodyClassName="divide-y divide-line p-0">
-          {state.requirements.map((requirement) => (
-            <div key={requirement.requirement_type_id} className="flex flex-col gap-3 p-5 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="text-base font-bold text-ink">{requirement.requirement_name}</h3>
-                  <StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} />
-                </div>
-                {requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xl text-sm font-medium text-ink-muted" />}
-                <p className={`mt-2 text-xs font-semibold ${deadlineTone(requirement)}`}>
-                  Due {manilaDate(requirement.deadline_at, 'long')} ({relativeTime(requirement.deadline_at)})
-                </p>
-                {requirement.submission?.file_original_name && (
-                  <p className="mt-2 inline-flex items-center gap-1.5 text-xs font-medium text-ink-muted">
-                    <File size={13} aria-hidden="true" /> {requirement.submission.file_original_name} - submitted {manilaDate(requirement.submission.submitted_at, 'long')}
-                  </p>
-                )}
-                {requirement.status === 'returned' && requirement.submission?.remarks && (
-                  <div className="mt-3 rounded-control border border-danger/30 bg-danger-tint p-3">
-                    <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">SAO remarks</p>
-                    <p className="mt-1 text-sm font-medium text-danger-strong">{requirement.submission.remarks}</p>
-                  </div>
-                )}
-                {requirement.status === 'approved' && (
-                  <p className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold text-ink-muted">
-                    <Lock size={14} aria-hidden="true" /> Approved{requirement.submission?.reviewed_at ? ` on ${manilaDate(requirement.submission.reviewed_at, 'long')}` : ''} and locked from further changes.
-                  </p>
-                )}
-              </div>
-              {requirement.status !== 'approved' && (
-                <Button variant="secondary" size="sm" className="shrink-0" onClick={() => openUpload(requirement)}>
-                  {requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document'}
-                </Button>
-              )}
-            </div>
-          ))}
+        <Card>
+          <DataTable
+            stickyHeader={false}
+            caption="Organization compliance requirements"
+            rowKey={(requirement) => requirement.requirement_type_id}
+            rows={state.requirements}
+            columns={[
+              { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && requirement.submission?.remarks && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.submission.remarks}</p>}</div> },
+              { key: 'date', header: 'Submitted', render: (requirement) => requirement.submission?.submitted_at ? manilaDate(requirement.submission.submitted_at, 'long') : 'Not submitted' },
+              { key: 'deadline', header: 'Deadline', render: (requirement) => <span className={deadlineTone(requirement)}>{manilaDate(requirement.deadline_at, 'long')} <span className="block text-xs">{relativeTime(requirement.deadline_at)}</span></span> },
+              { key: 'status', header: 'Status', render: (requirement) => <StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} /> },
+              { key: 'file', header: 'Upload', render: (requirement) => requirement.submission?.file_original_name ? <span className="inline-flex items-center gap-1 text-xs"><File size={13} aria-hidden="true" />{requirement.submission.file_original_name}</span> : 'No file' },
+            ]}
+            actions={(requirement) => requirement.status !== 'approved' ? <Button variant="secondary" size="sm" onClick={() => openUpload(requirement)}>{requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document'}</Button> : <span className="inline-flex items-center gap-1 text-xs text-ink-muted"><Lock size={13} />Locked</span>}
+          />
         </Card>
       )}
 

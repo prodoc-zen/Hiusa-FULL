@@ -21,7 +21,7 @@ import UserIdentityCard from '../../../components/users/UserIdentityCard';
 import SectionDistributionChart from '../../../components/users/SectionDistributionChart';
 
 const accountRoles = ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD'];
-const filterRoles = ['SUPER_ADMIN', ...accountRoles];
+const filterRoles = accountRoles;
 const ROLE_LABELS = {
   SUPER_ADMIN: 'Super Admin',
   STUDENT: 'Student',
