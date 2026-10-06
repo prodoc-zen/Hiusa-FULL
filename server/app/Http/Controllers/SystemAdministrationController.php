@@ -12,7 +12,6 @@ use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use Illuminate\Http\Request;
-use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
@@ -255,40 +254,15 @@ class SystemAdministrationController extends Controller
         }
 
         $organizationId = $user->getRawOriginal('organization_id');
-        if ($user->account_status === 'active' && ! User::where('organization_id', $organizationId)
-            ->where('role', 'ADMIN')->where('account_status', 'active')
-            ->whereKeyNot($user->school_id)->exists()) {
-            return response()->json(['message' => 'Assign another active Admin before deleting the last one.'], 422);
-        }
-
-        try {
-            DB::transaction(function () use ($user, $organizationId) {
-                $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
-                if ($user->accountProfiles()->count() > 1) {
-                    $replacement = $user->accountProfiles()->whereKeyNot($profile->id)->firstOrFail();
-                    DB::table('users')->where('school_id', $user->school_id)->update([
-                        'organization_id' => $replacement->organization_id,
-                        'role' => $replacement->role,
-                        'account_status' => $replacement->account_status,
-                        'position_title' => $replacement->position_title,
-                    ]);
-                    $user->tokens()->where('account_profile_id', $profile->id)->delete();
-                    $profile->delete();
-                } else {
-                    $user->tokens()->delete();
-                    $user->delete();
-                }
-            });
-        } catch (QueryException) {
-            return response()->json(['message' => 'This administrator has linked records and cannot be deleted. Deactivate the account instead.'], 409);
-        }
+        $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
+        $result = app(\App\Services\AccountProfileDeletionService::class)->remove($request->user(), $profile);
 
         $this->audit($request, 'administrator_deleted', $user, [
             'administrator_id' => $user->school_id,
             'organization_id' => $organizationId,
         ], 'SAO removed an organization administrator account.');
 
-        return response()->json(['message' => 'Administrator account removed.']);
+        return response()->json(['message' => 'Administrator profile removed.', ...$result]);
     }
 
     /** Active members whose primary organization is this one, to pick an administrator successor from. */

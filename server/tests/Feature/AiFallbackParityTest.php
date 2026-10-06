@@ -580,6 +580,40 @@ class AiFallbackParityTest extends TestCase
         $this->assertSame('within_limit', $advice['allocation_status']);
     }
 
+    public function test_live_budget_engine_matches_both_php_fallbacks_for_financial_risks(): void
+    {
+        config(['services.hiusa_ai.key' => env('HIUSA_AI_SERVICE_KEY')]);
+        foreach ([[500, 900, 100, 0, 0, 0.8], [1000, 200, 2000, 300, 0, 0.5], [1000, 950, 500, 0, 200, 0.8], [0, 0, 1000, 0, 0, 0.8]] as $values) {
+            $payload = array_combine(['predicted_income', 'predicted_expense', 'current_available_budget', 'committed_expenses', 'warning_threshold', 'safety_ratio'], $values);
+            $live = app(HiusaAiService::class)->budgetAdvice($payload);
+            if ($live === null) {
+                $this->markTestSkipped('Local HIUSA AI service is not reachable.');
+            }
+            foreach ([BudgetController::class, FinancialForecastController::class] as $controller) {
+                $fallback = $this->invokeLocalBudgetAdvice(app($controller), $payload);
+                foreach (['estimated_available_budget', 'safe_spending_limit', 'recommended_allocation', 'reserve_amount', 'allocation_status', 'forecast_risk', 'overspending_risk', 'possible_deficit', 'expense_to_income_ratio'] as $field) {
+                    $this->assertEquals($live[$field], $fallback[$field], "$controller differs on $field");
+                }
+            }
+        }
+    }
+
+    public function test_budget_endpoint_accepts_and_persists_live_python_advice(): void
+    {
+        config(['services.hiusa_ai.key' => env('HIUSA_AI_SERVICE_KEY')]);
+        if (app(HiusaAiService::class)->budgetAdvice(['predicted_income' => 0, 'predicted_expense' => 0, 'current_available_budget' => 1000]) === null) {
+            $this->markTestSkipped('Local HIUSA AI service is not reachable.');
+        }
+        $admin = $this->user('ADMIN');
+        $budget = Budget::create(['organization_id' => $admin->organization_id, 'title' => 'Live engine verification', 'allocated_amount' => 1000, 'remaining_amount' => 1000, 'warning_threshold' => 100]);
+        FinancialForecast::create(['organization_id' => $admin->organization_id, 'forecast_period' => now()->addMonth()->format('Y-m'), 'predicted_income' => 500, 'predicted_expense' => 900]);
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/budgets/'.$budget->id.'/advice')->assertOk()
+            ->assertJsonPath('engine', 'python-fastapi')->assertJsonPath('advice.recommended_allocation', 480)
+            ->assertJsonPath('advice.reserve_amount', 520)->assertJsonPath('advice.forecast_risk', 'overspending');
+        $this->assertSame('high', $budget->fresh()->overspending_risk);
+    }
+
     private function invokeLocalBudgetAdvice(object $controller, array $payload): array
     {
         $method = new ReflectionMethod($controller, 'localBudgetAdvice');

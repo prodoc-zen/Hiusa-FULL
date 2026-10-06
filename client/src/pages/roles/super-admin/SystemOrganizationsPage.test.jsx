@@ -6,7 +6,7 @@ const mocks = vi.hoisted(() => ({
   getSystemOrganizations: vi.fn(), getSystemColleges: vi.fn(), createSystemOrganization: vi.fn(), updateSystemOrganization: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
-const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn() }));
+const profileMocks = vi.hoisted(() => ({ getProfileCandidates: vi.fn(), inviteAccountProfile: vi.fn(), getManagedAccountProfiles: vi.fn(), deleteAccountProfile: vi.fn() }));
 vi.mock('../../../services/authService', () => profileMocks);
 
 describe('SystemOrganizationsPage', () => {
@@ -16,6 +16,7 @@ describe('SystemOrganizationsPage', () => {
     mocks.getSystemOrganizations.mockResolvedValue({ data: [{ id: 3, name: 'Main SBO', acronym: 'SBO', college: 'College of Arts', is_active: true, users_count: 0, administrators: [] }], current_page: 1, last_page: 1 });
     profileMocks.getProfileCandidates.mockResolvedValue({ data: { data: [{ school_id: 123, first_name: 'Ana', last_name: 'Reyes', email: 'ana@example.test' }], current_page: 1, last_page: 1, total: 1 } });
     profileMocks.inviteAccountProfile.mockResolvedValue({ data: { id: 9, organization_id: 3 } });
+    profileMocks.getManagedAccountProfiles.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0 } });
   });
 
   it('opens searchable membership from the organization action menu', async () => {
@@ -53,6 +54,20 @@ describe('SystemOrganizationsPage', () => {
     fireEvent.change(screen.getByLabelText('Role in destination organization'), { target: { value: 'ADMIN' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
     await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 4, school_id: 123, role: 'ADMIN' }));
+  });
+
+  it('opens profile management from the editor and preserves unsaved changes', async () => {
+    render(<SystemOrganizationsPage />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+    expect(screen.getByRole('menuitem', { name: 'Manage user profiles' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
+    fireEvent.change(screen.getByLabelText('Organization name'), { target: { value: 'Unsaved change' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Manage user profiles' }));
+    expect(screen.queryByRole('dialog', { name: 'Edit organization' })).not.toBeInTheDocument();
+    expect(await screen.findByText('No profiles found in the organizations you manage.')).toBeInTheDocument();
+    expect(profileMocks.getManagedAccountProfiles).toHaveBeenCalledWith(expect.objectContaining({ organization_id: 3 }));
+    fireEvent.click(screen.getByRole('button', { name: 'Close modal' }));
+    expect(screen.getByLabelText('Organization name')).toHaveValue('Unsaved change');
   });
 
   it('offers catalog colleges when adding an organization', async () => {

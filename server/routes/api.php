@@ -63,6 +63,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
     Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
     Route::get('/account-profiles/candidates', [AccountProfileController::class, 'candidates'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/account-profiles', [AccountProfileController::class, 'members'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::delete('/account-profiles/{profile}', [AccountProfileController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
     Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
     Route::post('/logout', [UserController::class, 'logout'])->middleware('throttle:api-write');
 

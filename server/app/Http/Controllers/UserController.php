@@ -8,7 +8,6 @@ use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -614,36 +613,11 @@ class UserController extends Controller
 
         $oldValues = $this->auditableUserValues($user);
 
-        try {
-            DB::transaction(function () use ($user, $profile) {
-                if ($user->accountProfiles()->count() > 1) {
-                    $user->tokens()->where('account_profile_id', $profile->id)->delete();
-                    if ((int) $user->getRawOriginal('organization_id') === (int) $profile->organization_id) {
-                        $replacement = $user->accountProfiles()->whereKeyNot($profile->id)
-                            ->orderByRaw("CASE WHEN account_status = 'active' THEN 0 ELSE 1 END")
-                            ->firstOrFail();
-                        DB::table('users')->where('school_id', $user->school_id)->update([
-                            'organization_id' => $replacement->organization_id,
-                            'role' => $replacement->role,
-                            'account_status' => $replacement->account_status,
-                            'position_title' => $replacement->position_title,
-                        ]);
-                    }
-                    $profile->delete();
-                } else {
-                    $user->tokens()->delete();
-                    $user->delete();
-                }
-            });
-        } catch (QueryException $e) {
-            return response()->json([
-                'message' => 'Cannot delete this user - they have existing records (transactions, tasks, etc.) linked to their account.',
-            ], 409);
-        }
+        $result = app(\App\Services\AccountProfileDeletionService::class)->remove($request->user(), $profile);
 
         $this->recordUserAudit($request, 'deleted', $user, $oldValues, []);
 
-        return response()->json(['message' => 'Account access removed successfully.']);
+        return response()->json(['message' => 'Organization profile removed successfully.', ...$result]);
     }
 
     public function register(Request $request)
