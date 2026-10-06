@@ -19,6 +19,11 @@ class NotificationController extends Controller
         $muted = $request->user()->mutedNotificationTypes();
         $query = Notification::where('user_id', $request->user()->id)
             ->where('organization_id', $request->user()->organization_id)
+            ->where(function ($query) {
+                $query->whereNull('reference_type')->orWhereNotIn('reference_type', [
+                    'App\\Models\\EvaluationWindow', 'evaluation_window', 'evaluationwindow',
+                ]);
+            })
             ->when($muted !== [], fn ($query) => $query->whereNotIn('notification_type', $muted))
             ->where(function ($query) {
                 $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());

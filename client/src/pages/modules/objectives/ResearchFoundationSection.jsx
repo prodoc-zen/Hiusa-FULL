@@ -28,7 +28,7 @@ function FoundationObjective({ objective }) {
         <StatusBadge status={objective.status} tone={tone} label={label} />
       </div>
       <div className="mt-3 sm:pl-[52px]">
-        <ObjectiveDetails objective={objective} fallbackLabel="the evaluation module" />
+        <ObjectiveDetails objective={objective} />
       </div>
     </div>
   );
@@ -40,7 +40,7 @@ export default function ResearchFoundationSection({ so1, so4 }) {
   return (
     <Card
       title="Research foundation"
-      description="Assessing current SBO practice and evaluating this system's acceptability both live in the Evaluation module."
+      description="Current SBO practice and system acceptability are assessed through the study's research process."
     >
       <div className="grid gap-6 divide-y divide-line-soft sm:grid-cols-2 sm:divide-x sm:divide-y-0 sm:gap-0">
         <div className="sm:pr-6">{so1 && <FoundationObjective objective={so1} />}</div>

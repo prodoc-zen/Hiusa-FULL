@@ -115,11 +115,11 @@ class ObjectivesOverviewTest extends TestCase
         $this->assertNull($student['href']);
     }
 
-    public function test_acceptability_is_shown_only_when_the_group_clears_the_anonymity_threshold(): void
+    public function test_retired_evaluation_records_are_not_exposed_in_objective_evidence(): void
     {
         $org = Organization::factory()->create();
         $window = EvaluationWindow::create(['title' => 'Acceptability survey', 'status' => 'closed', 'opens_at' => now()->subMonth(), 'closes_at' => now()->subDay()]);
-        $answers = collect(config('evaluation.instruments.officer.items'))->where('type', 'likert')->mapWithKeys(fn ($item) => [$item['code'] => 4])->all();
+        $answers = ['acceptability' => 4];
         $respond = function () use ($window, $org, $answers) {
             EvaluationResponse::create([
                 'evaluation_window_id' => $window->id,
@@ -148,9 +148,10 @@ class ObjectivesOverviewTest extends TestCase
 
         $respond();
         $rows = $acceptabilityRows();
-        $this->assertCount(1, $rows);
-        $this->assertStringContainsString('officers', $rows->first()['label']);
-        $this->assertEquals(4.0, $rows->first()['value']);
+        $this->assertCount(0, $rows);
+        $payload = $this->getJson('/api/objectives/overview')->assertOk()->json();
+        $this->assertSame([], $this->objective($payload, 'SO1')['evidence']);
+        $this->assertSame([], $this->objective($payload, 'SO4')['evidence']);
     }
 
     public function test_query_count_does_not_grow_with_organization_size(): void

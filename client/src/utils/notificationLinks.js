@@ -37,7 +37,7 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'evaluationwindow' || referenceType === 'evaluation_window') {
-    return role === 'SUPER_ADMIN' ? '/dashboard/super-admin/evaluation' : null;
+    return null;
   }
 
   if (referenceType === 'clearance_period' || referenceType === 'clearance_signature') {

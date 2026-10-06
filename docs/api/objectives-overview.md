@@ -9,7 +9,7 @@ Response shape: as in `docs/design/WAVE_B_CONTRACT.md`. `unit` is `count`, or `m
 | Code | Evidence | Source |
 |---|---|---|
 | GO | Organizations onboarded (SAO only), active member accounts | organizations, users |
-| SO1 | Responses describing current practices | evaluation_responses |
+| SO1 | No in-app evidence; assessed through the study research process | external research |
 | SO2.1 | Forecasts (OLS), budget advisories, AI financial summaries; ledger transactions and receipts for org roles; approved financial reports for the SAO (no ledger rows) | financial_forecasts, budgets.overspending_risk, ai_outputs FINANCIAL_SUMMARY, transactions, financial_reports |
 | SO2.2 | AI event plans, completed events, check-ins by fingerprint and manually | ai_outputs EVENT_WORKFLOW, events, attendance.method |
 | SO2.3 | Officer scores calculated, tasks delegated with a recorded ranking, AI explanations | task_recommendations, tasks.delegation_snapshot, ai_outputs TASK_EXPLANATION |
@@ -17,6 +17,6 @@ Response shape: as in `docs/design/WAVE_B_CONTRACT.md`. `unit` is `count`, or `m
 | SO2.5 | Orders, claim tokens issued, orders claimed, GCash payments verified | orders |
 | SO2.6 | Announcements published, AI-drafted announcements, notifications delivered | announcements, ai_outputs ANNOUNCEMENT_DRAFT, notifications |
 | SO3 | Modules with activity in the last 90 days | audit_logs.module |
-| SO4 | Acceptability responses; overall acceptability per respondent group, only for the latest closed window and only when the group clears the anonymity rules | evaluation_responses via EvaluationController::results |
+| SO4 | No in-app evidence; assessed through the study research process | external research |
 
 Not reported because no backing data exists: task delegation overrides (the system does not record which recommendation was declined).

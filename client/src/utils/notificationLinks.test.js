@@ -31,6 +31,6 @@ describe('getNotificationDestination', () => {
     expect(getNotificationDestination({ reference_type: 'organization_compliance_submission' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance');
     expect(getNotificationDestination({ reference_type: 'venue_booking' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/venues');
     expect(getNotificationDestination({ reference_type: 'grievance' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/grievances');
-    expect(getNotificationDestination({ reference_type: 'App\\Models\\EvaluationWindow' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/evaluation');
+    expect(getNotificationDestination({ reference_type: 'App\\Models\\EvaluationWindow' }, 'SUPER_ADMIN')).toBeNull();
   });
 });
