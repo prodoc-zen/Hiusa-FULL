@@ -92,7 +92,8 @@ class AccountProfileController extends Controller
         ]);
         $organizations = $this->managedOrganizations($request->user(), false);
         if (! empty($data['organization_id'])) {
-            $organizations->whereKey($data['organization_id'])->firstOrFail();
+            $organizations->whereKey($data['organization_id']);
+            (clone $organizations)->firstOrFail();
         }
         $query = AccountProfile::whereIn('organization_id', $organizations->select('id'))
             ->with(['organization:id,name,acronym,college,is_active', 'user' => fn ($query) => $query

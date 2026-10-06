@@ -7,6 +7,7 @@ use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -97,6 +98,32 @@ class AccountProfileDeletionTest extends TestCase
         $this->getJson('/api/account-profiles?per_page=51')->assertUnprocessable();
         $this->deleteJson('/api/account-profiles/'.$foreign->accountProfiles()->firstOrFail()->id)->assertNotFound();
         $this->assertSame($main->id, $user->organization_id);
+    }
+
+    public function test_organization_filter_does_not_add_a_mysql_unsupported_limit_to_the_profile_subquery(): void
+    {
+        [$main, $child, $admin, $user] = $this->setupMembers();
+        $sao = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]);
+        $queries = [];
+        DB::listen(function ($query) use (&$queries) {
+            if (str_contains($query->sql, 'account_profiles') && preg_match('/\bin\s*\(select\b/i', $query->sql)) {
+                $queries[] = $query->sql;
+            }
+        });
+
+        foreach ([$admin, $sao] as $actor) {
+            Sanctum::actingAs($actor);
+            $this->getJson('/api/account-profiles?organization_id='.$child->id.'&per_page=1')
+                ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.school_id', $user->school_id)
+                ->assertJsonPath('data.0.organization_id', $child->id);
+            $this->getJson('/api/account-profiles?organization_id='.$main->id.'&search='.$user->school_id)
+                ->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.organization_id', $main->id);
+        }
+
+        $this->assertNotEmpty($queries);
+        foreach ($queries as $query) {
+            $this->assertDoesNotMatchRegularExpression('/\bin\s*\(select\b[^)]*\blimit\b/i', $query);
+        }
     }
 
     public function test_self_and_admin_profiles_are_protected_and_sao_counts_secondary_admins(): void
