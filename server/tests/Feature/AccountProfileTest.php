@@ -46,7 +46,7 @@ class AccountProfileTest extends TestCase
         $this->assertSame($main->id, $student->fresh()->organization_id);
     }
 
-    public function test_only_suborganization_admin_can_invite_and_profiles_cannot_be_stolen(): void
+    public function test_duplicate_memberships_are_rejected_and_profiles_cannot_be_stolen(): void
     {
         $main = Organization::factory()->create();
         $student = User::factory()->create(['organization_id' => $main->id, 'role' => 'STUDENT', 'password_hash' => 'password123']);
@@ -54,11 +54,11 @@ class AccountProfileTest extends TestCase
         $adminToken = $this->postJson('/api/login', ['school_id' => $admin->school_id, 'password' => 'password'])->json('access_token');
         $this->withToken($adminToken)->postJson('/api/account-profiles/invite', [
             'school_id' => $student->school_id, 'role' => 'STUDENT',
-        ])->assertForbidden();
+        ])->assertStatus(409);
 
-        $child = Organization::factory()->create(['parent_organization_id' => $main->id]);
+        $child = Organization::factory()->create(['parent_organization_id' => $main->id, 'college' => $main->college]);
         $childAdmin = User::factory()->admin()->create(['organization_id' => $child->id]);
-        $foreignStudent = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
+        $foreignStudent = User::factory()->student()->create(['organization_id' => Organization::factory()->create(['college' => 'Other College'])->id]);
         $this->app['auth']->forgetGuards();
         $childToken = $this->postJson('/api/login', ['school_id' => $childAdmin->school_id, 'password' => 'password'])->json('access_token');
         $this->app['auth']->forgetGuards();

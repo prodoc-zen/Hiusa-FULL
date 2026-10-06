@@ -1,5 +1,4 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { dashboardPopupLeft, dashboardPopupTop } from '../../../utils/dashboardPopupPosition';
@@ -12,7 +11,7 @@ import TableFilterBar from '../../../components/TableFilterBar';
 import UserImportDrawer from '../../../components/users/UserImportDrawer';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
-import { inviteAccountProfile } from '../../../services/authService';
+import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
@@ -97,7 +96,7 @@ const ACTION_ICON_COLORS = {
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
 };
 
-export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete }) {
+export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete, onAddProfile }) {
   const menuId = useId();
   const [expanded, setExpanded] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 12, top: 12, origin: 'top right' });
@@ -110,6 +109,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
   const actions = [
     canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
     { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, color: 'view', onClick: onView },
+    ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onAddProfile && user.role !== 'SUPER_ADMIN' && { key: 'membership', label: `Add ${name} to an organization`, menuLabel: 'Add to organization', title: 'Add organization profile', icon: UserPlus, color: 'view', onClick: onAddProfile },
     canManageFingerprint && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
     user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, color: 'verify', onClick: onVerify },
     canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
@@ -385,11 +385,9 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
 
 export default function AdminUsersPage() {
   let actorRole = '';
-  let isSuborganization = false;
   try {
     const actor = JSON.parse(localStorage.getItem('user') || '{}');
     actorRole = actor?.role || '';
-    isSuborganization = Boolean(actor?.organization?.parent_organization_id);
   } catch {}
   const roles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : accountRoles;
   const visibleFilterRoles = actorRole === 'SBO_OFFICER' ? ['STUDENT'] : filterRoles;
@@ -413,7 +411,7 @@ export default function AdminUsersPage() {
   const [editPhoto, setEditPhoto] = useState(null);
   const [showCreate, setShowCreate] = useState(false);
   const [showInvite, setShowInvite] = useState(false);
-  const [inviteForm, setInviteForm] = useState({ school_id: '', role: 'STUDENT' });
+  const [inviteUser, setInviteUser] = useState(null);
   const [selectedUser, setSelectedUser] = useState(null);
   const [profileUser, setProfileUser] = useState(null);
   const [profileDebt, setProfileDebt] = useState(null);
@@ -436,23 +434,6 @@ export default function AdminUsersPage() {
 
   const [createForm, setCreateForm] = useState(emptyCreateForm);
   const [editForm, setEditForm] = useState(emptyEditForm);
-
-  async function handleInvite(event) {
-    event.preventDefault();
-    setBusy(true);
-    setModalError('');
-    try {
-      await inviteAccountProfile(inviteForm);
-      setShowInvite(false);
-      setInviteForm({ school_id: '', role: 'STUDENT' });
-      setFeedback({ open: true, type: 'success', message: 'Account invited to this suborganization.' });
-      await load();
-    } catch (cause) {
-      setModalError(firstError(cause) || 'Could not invite this account.');
-    } finally {
-      setBusy(false);
-    }
-  }
 
   // Debounced so typing doesn't fire a request per keystroke - role/search are
   // now server-side filters (the endpoint paginates), not a client-side scan.
@@ -815,7 +796,7 @@ export default function AdminUsersPage() {
         ] : [
           ['Total users', meta.total, UsersRound], ['Students', roleSummary.STUDENT ?? 0, GraduationCap], ['Admins', roleSummary.ADMIN ?? 0, UserCheck], ['Super admins', roleSummary.SUPER_ADMIN ?? 0, ShieldCheck],
         ]).map(([label, value, Icon]) => <dl key={label} className="flex items-start justify-between rounded-lg border border-[#DDE7EF] bg-white p-4"><div><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></div><Icon size={22} className="text-[#0878B7]" aria-hidden="true" /></dl>)}</div>
-        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}{isSuborganization && <button type="button" onClick={() => { setModalError(''); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Invite existing account</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
+        {actorRole !== 'SBO_OFFICER' && <div className="flex flex-wrap gap-2 lg:w-48 lg:flex-col"><button onClick={exportUsers} disabled={!meta.total} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={15} /> Export</button>{actorRole === 'ADMIN' && <button type="button" onClick={() => setShowImport(true)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><Upload size={15} /> Import</button>}{actorRole === 'ADMIN' && <button type="button" onClick={() => { setInviteUser(null); setShowInvite(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0F2F62] hover:bg-[#F8FBFD]"><UserPlus size={15} /> Add existing user</button>}<button onClick={openCreate} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]"><UserPlus size={15} /> New User</button></div>}
       </section>
 
       <div className="grid gap-4 lg:grid-cols-2">
@@ -873,7 +854,7 @@ export default function AdminUsersPage() {
             <article key={user.id} className="min-w-0 rounded-xl border border-[#DDE7EF] p-4">
               <div className="flex min-w-0 items-start justify-between gap-2">
                 <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
-                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
+                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span>{user.fingerprint_enrolled && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[#0878B7]">Fingerprint enrolled</span>}</div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
@@ -927,6 +908,7 @@ export default function AdminUsersPage() {
                       actorRole={actorRole}
                       onEdit={() => openEdit(user)}
                       onView={() => openProfile(user)}
+                      onAddProfile={() => { setInviteUser(user); setShowInvite(true); }}
                       onFingerprint={() => setFingerprintTarget(user)}
                       onVerify={() => setFingerprintVerifyTarget(user)}
                       onDeactivate={() => setDisableTarget(user)}
@@ -1020,13 +1002,7 @@ export default function AdminUsersPage() {
         {userForm(createForm, setCreateForm, 'create')}
       </Modal>
 
-      <Modal open={showInvite} title="Invite existing account" description="Add one profile for this suborganization. The person's login stays the same." onClose={() => !busy && setShowInvite(false)} footer={<><button type="button" disabled={busy} onClick={() => setShowInvite(false)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold">Cancel</button><button type="submit" form="invite-account-form" disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Inviting…' : 'Invite'}</button></>}>
-        <form id="invite-account-form" onSubmit={handleInvite} className="space-y-4">
-          <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="School ID" />School ID<input required inputMode="numeric" pattern="[0-9]*" maxLength={8} value={inviteForm.school_id} onChange={(event) => setInviteForm({ ...inviteForm, school_id: event.target.value.replace(/\D/g, '').slice(0, 8) })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3" /></label>
-          <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Role in this suborganization" />Role in this suborganization<select value={inviteForm.role} onChange={(event) => setInviteForm({ ...inviteForm, role: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3"><option value="STUDENT">Student</option><option value="SBO_OFFICER">SBO Officer</option><option value="DEPARTMENT_HEAD">Department Head</option></select></label>
-          {modalError && <p role="alert" className="text-sm text-red-600">{modalError}</p>}
-        </form>
-      </Modal>
+      {showInvite && <AddExistingUserModal initialUser={inviteUser} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
 
       <Modal
         open={Boolean(selectedUser)}
