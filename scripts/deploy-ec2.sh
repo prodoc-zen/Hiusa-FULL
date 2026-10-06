@@ -69,6 +69,9 @@ echo "Refreshing Laravel caches..."
 "${compose[@]}" exec -T laravel php artisan optimize:clear
 "${compose[@]}" exec -T laravel php artisan optimize
 
+# Apache's OPcache does not revalidate files; reload it after replacing caches.
+"${compose[@]}" restart laravel
+
 site_address="$(sed -n 's/^SITE_ADDRESS=//p' .env | tail -n 1)"
 if [[ -z "$site_address" ]]; then
     echo "SITE_ADDRESS is missing from .env." >&2
@@ -90,6 +93,8 @@ if [[ "$healthy" != true ]]; then
     echo "Review logs immediately; restore the pre-deployment backup if the release is not recoverable." >&2
     exit 1
 fi
+
+bash scripts/check-membership-routes.sh "$site_address"
 
 echo
 "${compose[@]}" ps
