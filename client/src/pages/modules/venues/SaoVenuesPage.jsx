@@ -145,11 +145,13 @@ export default function SaoVenuesPage() {
   function openReview(booking, action) {
     setReviewState({ booking, action });
     setRejectRemarks('');
-    if (action === 'approve') {
+    if (action === 'approve' && booking.venue_id) {
       setConflicts({ loading: true, items: [] });
       getVenueAvailability(booking.venue_id, { from: booking.start_time, to: booking.end_time })
         .then((response) => setConflicts({ loading: false, items: (unwrapList(response.data)).filter((slot) => slot.id !== booking.id) }))
         .catch(() => setConflicts({ loading: false, items: [] }));
+    } else {
+      setConflicts({ loading: false, items: [] });
     }
   }
 
@@ -157,7 +159,7 @@ export default function SaoVenuesPage() {
     setReviewBusy(true);
     try {
       await reviewVenueBooking(reviewState.booking.id, { status: 'approved' });
-      notify.success(`Booking for "${reviewState.booking.venue?.name}" approved.`);
+      notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" approved.`);
       setReviewState(null);
       loadBookings(bookingsPage);
     } catch (err) {
@@ -172,7 +174,7 @@ export default function SaoVenuesPage() {
     setReviewBusy(true);
     try {
       await reviewVenueBooking(reviewState.booking.id, { status: 'rejected', remarks: rejectRemarks.trim() });
-      notify.success(`Booking for "${reviewState.booking.venue?.name}" rejected.`);
+      notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" rejected.`);
       setReviewState(null);
       setRejectRemarks('');
       loadBookings(bookingsPage);
@@ -201,7 +203,7 @@ export default function SaoVenuesPage() {
 
   const bookingColumns = [
     { key: 'organization', header: 'Organization', render: (booking) => booking.organization?.name || 'Unknown' },
-    { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || 'Unknown' },
+    { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || booking.off_campus_location || 'Unknown' },
     { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
     { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
     { key: 'status', header: 'Status', render: (booking) => <StatusBadge status={booking.status} /> },
@@ -349,7 +351,7 @@ export default function SaoVenuesPage() {
       <Modal
         open={reviewState?.action === 'approve'}
         title="Approve this booking?"
-        description={reviewState?.booking ? `${reviewState.booking.venue?.name} - ${formatRange(reviewState.booking.start_time, reviewState.booking.end_time)}` : undefined}
+        description={reviewState?.booking ? `${reviewState.booking.venue?.name || reviewState.booking.off_campus_location} - ${formatRange(reviewState.booking.start_time, reviewState.booking.end_time)}` : undefined}
         onClose={reviewBusy ? undefined : () => setReviewState(null)}
         closeOnEscape={!reviewBusy}
         footer={(

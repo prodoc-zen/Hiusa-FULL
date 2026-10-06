@@ -11,9 +11,15 @@ export const createSystemCollege = (payload) => unwrap(api.post('/system/college
 export const updateSystemCollege = (id, payload) => unwrap(api.put(`/system/colleges/${id}`, payload));
 export const deleteSystemCollege = (id) => unwrap(api.delete(`/system/colleges/${id}`));
 export const getAcademicYears = () => unwrap(api.get('/system/academic-years'));
+export const getAcademicPeriods = () => unwrap(api.get('/academic-periods'));
+export const getActiveAcademicPeriod = () => unwrap(api.get('/academic-periods/active'));
+export const createAcademicSemester = (yearId, payload) => unwrap(api.post(`/system/academic-years/${yearId}/semesters`, payload));
+export const activateAcademicSemester = (id) => unwrap(api.patch(`/system/academic-semesters/${id}/active`));
+export const closeAcademicSemester = (id) => unwrap(api.patch(`/system/academic-semesters/${id}/close`));
 export const createAcademicYear = (payload) => unwrap(api.post('/system/academic-years', payload));
 export const updateAcademicYear = (id, payload) => unwrap(api.put(`/system/academic-years/${id}`, payload));
 export const makeAcademicYearCurrent = (id) => unwrap(api.patch(`/system/academic-years/${id}/current`));
+export const closeAcademicYear = (id) => unwrap(api.patch(`/system/academic-years/${id}/close`));
 export const deleteAcademicYear = (id) => unwrap(api.delete(`/system/academic-years/${id}`));
 export const getSystemAdmins = (params) => unwrap(api.get('/system/admins', { params }));
 export const createSystemAdmin = (payload) => unwrap(api.post('/system/admins', payload));

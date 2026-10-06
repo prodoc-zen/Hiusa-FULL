@@ -12,6 +12,7 @@ import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { getAcademicYears } from '../../../services/systemAdministrationService';
 import {
   createRequirementType,
   getComplianceStatus,
@@ -72,6 +73,7 @@ export default function SaoCompliancePage() {
   const [types, setTypes] = useState({ loading: true, error: null, items: [] });
   const [typeModal, setTypeModal] = useState(null);
   const [typeForm, setTypeForm] = useState(EMPTY_TYPE_FORM);
+  const [academicYears, setAcademicYears] = useState([]);
   const [typeFormError, setTypeFormError] = useState(null);
   const [typeSaving, setTypeSaving] = useState(false);
 
@@ -117,6 +119,7 @@ export default function SaoCompliancePage() {
   }, [queueStatus, queueOrg]);
 
   useEffect(() => { if (role === 'SUPER_ADMIN') loadOverview(); }, [loadOverview, role]);
+  useEffect(() => { if (role === 'SUPER_ADMIN') getAcademicYears().then(setAcademicYears).catch(() => setAcademicYears([])); }, [role]);
   useEffect(() => { if (role === 'SUPER_ADMIN') loadTypes(); }, [loadTypes, role]);
   useEffect(() => { if (role === 'SUPER_ADMIN') loadQueue(queuePage); }, [loadQueue, queuePage, role]);
   useEffect(() => { setQueuePage(1); }, [queueStatus, queueOrg]);
@@ -461,7 +464,10 @@ export default function SaoCompliancePage() {
       >
         <form onSubmit={handleTypeSubmit} className="grid gap-4 sm:grid-cols-2">
           <Field label="Academic year" required>
-            <Input data-autofocus placeholder="2026-2027" value={typeForm.academic_year} onChange={(event) => setTypeForm({ ...typeForm, academic_year: event.target.value })} />
+            <select autoFocus value={typeForm.academic_year} onChange={(event) => setTypeForm({ ...typeForm, academic_year: event.target.value })} className="h-11 w-full rounded-lg border border-line-soft bg-white px-3 text-sm">
+              <option value="">Choose academic year</option>
+              {academicYears.map((year) => <option key={year.id} value={year.label}>{year.label}{year.is_current ? ' · Current' : ''}</option>)}
+            </select>
           </Field>
           <Field label="Deadline" required>
             <Input type="date" value={typeForm.deadline_at} onChange={(event) => setTypeForm({ ...typeForm, deadline_at: event.target.value })} />
@@ -473,7 +479,7 @@ export default function SaoCompliancePage() {
             <RichTextEditor ariaLabel="Requirement description" value={typeForm.description} onChange={(description) => setTypeForm({ ...typeForm, description })} rows={4} />
           </Field>
           <label className="flex items-center gap-2 text-sm font-semibold text-ink sm:col-span-2">
-            <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={typeForm.is_active} onChange={(event) => setTypeForm({ ...typeForm, is_active: event.target.checked })} />
+            <input type="checkbox" role="switch" aria-checked={typeForm.is_active} className="h-4 w-4 accent-brand-700" checked={typeForm.is_active} onChange={(event) => setTypeForm({ ...typeForm, is_active: event.target.checked })} />
             Active (organizations must submit against this requirement)
           </label>
           {typeFormError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{typeFormError}</p>}

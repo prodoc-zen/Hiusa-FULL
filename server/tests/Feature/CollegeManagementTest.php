@@ -23,8 +23,9 @@ class CollegeManagementTest extends TestCase
         $this->postJson('/api/system/colleges', ['name' => 'New College'])->assertForbidden();
 
         Sanctum::actingAs($director);
-        $college = $this->postJson('/api/system/colleges', ['name' => 'Old College', 'code' => 'OLD'])
-            ->assertCreated()->json();
+        $college = $this->postJson('/api/system/colleges', ['name' => 'Old College', 'code' => 'OLD', 'color' => '#123ABC'])
+            ->assertCreated()->assertJsonPath('color', '#123ABC')->json();
+        $this->postJson('/api/system/colleges', ['name' => 'Bad color', 'color' => 'blue'])->assertUnprocessable()->assertJsonValidationErrors('color');
         $this->getJson('/api/system/colleges')->assertOk()->assertJsonPath('0.organizations_count', 1);
         $this->postJson('/api/system/colleges', ['name' => 'Old College'])->assertUnprocessable()->assertJsonValidationErrors('name');
         $this->deleteJson('/api/system/colleges/'.$college['id'])->assertStatus(409);

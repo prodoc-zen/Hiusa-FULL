@@ -46,6 +46,9 @@ class EventRequirementSubmissionTest extends TestCase
         $this->withToken($token)->postJson('/api/event-requirements', [
             'name' => 'Invalid requirement', 'allowed_extensions' => ['exe'],
         ])->assertUnprocessable();
+        $this->withToken($token)->postJson('/api/event-requirements', [
+            'name' => 'Non-PDF requirement', 'allowed_extensions' => ['png'],
+        ])->assertUnprocessable();
         $requirement = $this->withToken($token)->postJson('/api/event-requirements', [
             'name' => 'Event proposal', 'allowed_extensions' => ['pdf'],
         ])->assertCreated();

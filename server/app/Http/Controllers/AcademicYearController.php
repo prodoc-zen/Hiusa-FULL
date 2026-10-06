@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicYear;
+use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\ClearancePeriod;
 use App\Models\ComplianceRequirementType;
@@ -20,7 +21,7 @@ class AcademicYearController extends Controller
 {
     public function index()
     {
-        return response()->json(AcademicYear::orderByDesc('starts_on')->get());
+        return response()->json(AcademicYear::with('semesters')->orderByDesc('starts_on')->get());
     }
 
     public function store(Request $request)
@@ -39,6 +40,11 @@ class AcademicYearController extends Controller
     public function update(Request $request, AcademicYear $academicYear)
     {
         $data = $this->validated($request, $academicYear);
+        if ($academicYear->semesters()->where(fn ($query) => $query
+            ->where('starts_on', '<', $data['starts_on'])
+            ->orWhere('ends_on', '>', $data['ends_on']))->exists()) {
+            throw ValidationException::withMessages(['starts_on' => ['Academic year dates must still contain its semesters.']]);
+        }
         if ($data['label'] !== $academicYear->label && $this->isInUse($academicYear)) {
             throw ValidationException::withMessages(['label' => ["{$academicYear->label} already labels requirements or clearance periods, so its name stays."]]);
         }
@@ -51,10 +57,35 @@ class AcademicYearController extends Controller
 
     public function makeCurrent(Request $request, AcademicYear $academicYear)
     {
+        if ($academicYear->closed_at) {
+            throw ValidationException::withMessages(['academic_year' => ['A completed academic year cannot be reopened.']]);
+        }
+        if (AcademicSemester::where('status', 'active')->exists() && ! $academicYear->is_current) {
+            throw ValidationException::withMessages(['academic_year' => ['Activate a semester in this year to change the active academic period.']]);
+        }
         DB::transaction(function () use ($request, $academicYear) {
             AcademicYear::whereKeyNot($academicYear->id)->where('is_current', true)->update(['is_current' => false]);
             $academicYear->update(['is_current' => true]);
             $this->audit($request, 'academic_year_made_current', $academicYear);
+        });
+
+        return response()->json($academicYear->fresh());
+    }
+
+    public function close(Request $request, AcademicYear $academicYear)
+    {
+        if (! $academicYear->is_current || $academicYear->closed_at || $academicYear->semesters()->count() !== 2
+            || $academicYear->semesters()->where('status', '!=', 'completed')->exists()) {
+            throw ValidationException::withMessages(['academic_year' => ['Close both semesters before completing the current academic year.']]);
+        }
+        DB::transaction(function () use ($academicYear, $request) {
+            AcademicYear::orderBy('id')->lockForUpdate()->first();
+            $year = AcademicYear::whereKey($academicYear->id)->lockForUpdate()->firstOrFail();
+            if (! $year->is_current || $year->closed_at || $year->semesters()->count() !== 2 || $year->semesters()->where('status', '!=', 'completed')->exists()) {
+                throw ValidationException::withMessages(['academic_year' => ['This academic year is not ready to close.']]);
+            }
+            $year->update(['is_current' => false, 'closed_at' => now()]);
+            $this->audit($request, 'academic_year_closed', $year);
         });
 
         return response()->json($academicYear->fresh());
@@ -77,7 +108,8 @@ class AcademicYearController extends Controller
 
     private function isInUse(AcademicYear $year): bool
     {
-        return ComplianceRequirementType::where('academic_year', $year->label)->exists()
+        return $year->semesters()->exists()
+            || ComplianceRequirementType::where('academic_year', $year->label)->exists()
             || ClearancePeriod::where('academic_year', $year->label)->exists();
     }
 

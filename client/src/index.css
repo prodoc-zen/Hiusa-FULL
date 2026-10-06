@@ -448,3 +448,9 @@ body:has(> .app-overlay) #root {
     flex: 1 1 10rem;
   }
 }
+.sidebar-scroll {
+  scrollbar-width: none;
+}
+.sidebar-scroll::-webkit-scrollbar {
+  display: none;
+}

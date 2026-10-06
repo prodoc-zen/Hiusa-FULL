@@ -7,9 +7,10 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { createAcademicYear, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, updateAcademicYear } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 const EMPTY_FORM = { label: '', starts_on: '', ends_on: '' };
+const EMPTY_SEMESTER = { number: '1', starts_on: '', ends_on: '' };
 
 const YEAR_START_STEPS = [
   { label: "Publish this year's accreditation requirements", to: '/dashboard/super-admin/compliance' },
@@ -34,7 +35,11 @@ export default function AcademicYearsPage() {
   const [saving, setSaving] = useState(false);
   const [currentTarget, setCurrentTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [closeYearTarget, setCloseYearTarget] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [semesterYear, setSemesterYear] = useState(null);
+  const [semesterForm, setSemesterForm] = useState(EMPTY_SEMESTER);
+  const [semesterErrors, setSemesterErrors] = useState({});
 
   const load = useCallback(async () => {
     setYears((current) => ({ ...current, loading: true, error: '' }));
@@ -106,15 +111,60 @@ export default function AcademicYearsPage() {
     }
   }
 
+  async function confirmCloseYear() {
+    setBusy(true);
+    try {
+      await closeAcademicYear(closeYearTarget.id);
+      notify.success(`AY ${closeYearTarget.label} completed`);
+      setCloseYearTarget(null);
+      await load();
+    } catch (cause) {
+      notify.error(getApiErrorMessage(cause, 'The academic year could not be closed.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function saveSemester() {
+    setBusy(true);
+    setSemesterErrors({});
+    try {
+      await createAcademicSemester(semesterYear.id, { ...semesterForm, number: Number(semesterForm.number) });
+      notify.success('Semester added');
+      setSemesterYear(null);
+      setSemesterForm(EMPTY_SEMESTER);
+      await load();
+    } catch (cause) {
+      setSemesterErrors(cause?.response?.data?.errors || {});
+      if (!cause?.response?.data?.errors) notify.error(getApiErrorMessage(cause, 'The semester was not saved.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function changeSemester(semester, action) {
+    setBusy(true);
+    try {
+      if (action === 'activate') await activateAcademicSemester(semester.id);
+      else await closeAcademicSemester(semester.id);
+      notify.success(action === 'activate' ? 'Academic semester activated' : 'Academic semester completed');
+      await load();
+    } catch (cause) {
+      notify.error(getApiErrorMessage(cause, 'The semester could not be changed.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const columns = [
     { key: 'label', header: 'Academic year', render: (year) => <span className="font-bold text-ink">{year.label}</span> },
     { key: 'dates', header: 'Dates', render: (year) => `${manilaDate(year.starts_on, 'long')} to ${manilaDate(year.ends_on, 'long')}` },
-    { key: 'status', header: 'Status', render: (year) => (year.is_current ? <StatusBadge tone="info" label="Current" /> : <span className="text-xs font-medium text-ink-muted">Not current</span>) },
+    { key: 'status', header: 'Status', render: (year) => (year.is_current ? <StatusBadge tone="info" label="Current" /> : <span className="text-xs font-medium text-ink-muted">{year.closed_at ? 'Completed' : 'Not current'}</span>) },
   ];
 
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader title="Academic years" description="Set the current academic year. Accreditation is measured against its requirements, and new requirement sets and clearance periods use it." />
+      <PageHeader title="Academic periods" description="SAO sets the university-wide academic year and semester. Completed periods remain available for records." />
 
       {current && (
         <Card title={`${current.label} is the current year`} description={`${manilaDate(current.starts_on, 'long')} to ${manilaDate(current.ends_on, 'long')}`}>
@@ -141,7 +191,8 @@ export default function AcademicYearsPage() {
           onRetry={load}
           actions={(year) => (
             <div className="flex justify-end gap-1.5">
-              {!year.is_current && <Button size="sm" variant="secondary" onClick={() => setCurrentTarget(year)}>Make current</Button>}
+              {!year.is_current && !year.closed_at && <Button size="sm" variant="secondary" onClick={() => setCurrentTarget(year)}>Make current</Button>}
+              {year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && <Button size="sm" variant="secondary" onClick={() => setCloseYearTarget(year)}>Close year</Button>}
               <Button size="sm" variant="secondary" onClick={() => openModal(year)}>Edit</Button>
               {!year.is_current && <IconButton icon={Trash2} label={`Remove ${year.label}`} variant="danger" onClick={() => setDeleteTarget(year)} />}
             </div>
@@ -157,6 +208,28 @@ export default function AcademicYearsPage() {
           )}
         />
       </Card>
+
+      <Card title="Semesters" description="Activating a semester completes the previous active semester and sets its academic year as current.">
+        {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
+            {(year.semesters || []).length < 2 && <Button size="sm" variant="secondary" onClick={() => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); }}>Add semester</Button>}
+          </div>
+          <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
+            <div><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="ml-2 text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><span className="ml-2 text-xs font-semibold capitalize text-ink-muted">{semester.status}</span></div>
+            {semester.status === 'upcoming' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>Set as active</Button>}
+            {semester.status === 'active' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'close')}>Close semester</Button>}
+          </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
+        </div>)}
+      </Card>
+
+      <Modal open={Boolean(semesterYear)} title={`Add semester to AY ${semesterYear?.label || ''}`} onClose={busy ? undefined : () => setSemesterYear(null)} maxWidth="max-w-lg" footer={<><Button variant="secondary" disabled={busy} onClick={() => setSemesterYear(null)}>Cancel</Button><Button loading={busy} disabled={!semesterForm.starts_on || !semesterForm.ends_on} onClick={saveSemester}>Add semester</Button></>}>
+        <div className="space-y-4">
+          <Field label="Semester" required error={semesterErrors.number?.[0]}><select value={semesterForm.number} onChange={(event) => setSemesterForm((current) => ({ ...current, number: event.target.value }))} className="h-11 w-full rounded-lg border border-line-soft bg-white px-3"><option value="1">1st Semester</option><option value="2">2nd Semester</option></select></Field>
+          <Field label="Starts on" required error={semesterErrors.starts_on?.[0]}><Input type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm((current) => ({ ...current, starts_on: event.target.value }))} /></Field>
+          <Field label="Ends on" required error={semesterErrors.ends_on?.[0]}><Input type="date" value={semesterForm.ends_on} onChange={(event) => setSemesterForm((current) => ({ ...current, ends_on: event.target.value }))} /></Field>
+        </div>
+      </Modal>
 
       <Modal
         open={Boolean(modal)}
@@ -199,6 +272,17 @@ export default function AcademicYearsPage() {
         busy={busy}
         onCancel={() => !busy && setCurrentTarget(null)}
         onConfirm={confirmCurrent}
+      />
+      <ConfirmModal
+        open={Boolean(closeYearTarget)}
+        title="Complete academic year"
+        message="Both semesters will remain available as historical records. Activate a semester in a new year to resume current operations."
+        recordName={closeYearTarget?.label}
+        confirmText="Close year"
+        variant="primary"
+        busy={busy}
+        onCancel={() => !busy && setCloseYearTarget(null)}
+        onConfirm={confirmCloseYear}
       />
       <ConfirmModal
         open={Boolean(deleteTarget)}

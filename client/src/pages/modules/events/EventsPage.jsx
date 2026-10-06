@@ -24,6 +24,8 @@ import {
   X,
 } from 'lucide-react';
 import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
+import { getAcademicPeriods } from '../../../services/systemAdministrationService';
+import { getVenues } from '../../../services/venueService';
 import { getTasks } from '../../../services/taskService';
 import { getAcademicStructure, getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
@@ -126,7 +128,7 @@ function getEventBudgetStatus(event) {
 }
 
 const emptyEventForm = () => ({
-  title: '', date: '', startTime: '', endDate: '', endTime: '', location: '', description: '', imageFile: null,
+  title: '', date: '', startTime: '', endDate: '', endTime: '', venue_type: 'on_campus', venue_id: '', location: '', description: '', imageFile: null,
   requires_budget: false, event_type: '', expected_participants: '', requirements: '', resources: '',
   proposed_budget_amount: '', budget_warning_threshold: '', budget_notes: '', vendor_deadlines: '', logistics_checklist: '',
   proposed_budget_id: null,
@@ -352,6 +354,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [eventPageSize, setEventPageSize] = useState(10);
   const [eventSort, setEventSort] = useState('start_asc');
   const [eventReload, setEventReload] = useState(0);
+  const [academicPeriods, setAcademicPeriods] = useState([]);
+  const [campusVenues, setCampusVenues] = useState([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [tasksPage, setTasksPage] = useState(1);
   const [attendancePage, setAttendancePage] = useState(1);
   const pageSize = 10;
@@ -394,6 +399,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const currentUserRole = currentUser?.role ?? '';
   const canCreateEvents = currentUserRole === 'ADMIN';
   const canManageAttendance = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
+  const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
+
+  useEffect(() => {
+    getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([]));
+  }, []);
+  useEffect(() => {
+    if (currentUserRole === 'ADMIN') getVenues({ per_page: 100 }).then((response) => setCampusVenues(response.data?.data || [])).catch(() => setCampusVenues([]));
+  }, [currentUserRole]);
 
   function load() {
     setLoading(true);
@@ -402,8 +415,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     // browsable event table is loaded separately with backend pagination.
     const canLoadTasks = currentUserRole === 'ADMIN' || currentUserRole === 'SBO_OFFICER';
     const requests = canLoadTasks
-      ? [fetchAllPages((p) => getEvents(p).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
-      : [fetchAllPages((p) => getEvents(p).then((r) => r.data)), Promise.resolve([])];
+      ? [fetchAllPages((p) => getEvents({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)), fetchAllPages((p) => getTasks(p).then((r) => r.data))]
+      : [fetchAllPages((p) => getEvents({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)), Promise.resolve([])];
     Promise.all(requests)
       .then(([eventList, taskList]) => {
         setEvents(eventList);
@@ -414,13 +427,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       .finally(() => setLoading(false));
   }
 
-  useEffect(load, [currentUserRole]);
+  useEffect(load, [currentUserRole, selectedPeriodId]);
 
   useEffect(() => {
     let active = true;
     const timer = window.setTimeout(() => {
       setEventListLoading(true);
-      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort })
+      getEvents({ page: eventsPage, per_page: eventPageSize, search: search || undefined, date: dateFilter || undefined, status: eventStatusFilter || undefined, sort: eventSort, academic_semester_id: selectedPeriodId || undefined })
         .then((response) => {
           if (!active) return;
           setEventRows(Array.isArray(response.data?.data) ? response.data.data : []);
@@ -431,7 +444,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }, 250);
 
     return () => { active = false; window.clearTimeout(timer); };
-  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search]);
+  }, [dateFilter, eventPageSize, eventReload, eventSort, eventStatusFilter, eventsPage, search, selectedPeriodId]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -558,6 +571,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         requires_budget: form.requires_budget,
         planning_details: {
           event_type: form.event_type,
+          venue_type: form.venue_type,
+          venue_id: form.venue_type === 'on_campus' ? form.venue_id : null,
           expected_participants: form.expected_participants ? Number(form.expected_participants) : null,
           requirements: form.requirements,
           resources: form.resources,
@@ -604,6 +619,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       endDate,
       endTime,
       location: event.location || '',
+      venue_type: planning.venue_type || 'off_campus',
+      venue_id: planning.venue_id || '',
       description: event.description || '',
       imageFile: null,
       requires_budget: Boolean(event.requires_budget),
@@ -805,7 +822,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   useEffect(() => {
     setEventsPage(1);
-  }, [search, dateFilter, eventStatusFilter, eventSort]);
+  }, [search, dateFilter, eventStatusFilter, eventSort, selectedPeriodId]);
 
   useEffect(() => {
     const timeout = window.setTimeout(() => setDebouncedAttendanceSearch(attendanceSearch.trim()), 250);
@@ -884,6 +901,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'events' && (
         <section className="space-y-4">
+          {academicPeriods.length > 0 && <label className="block max-w-sm text-xs font-semibold text-slate-700">Academic period
+            <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">
+              <option value="">Active period</option>
+              {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}
+            </select>
+          </label>}
+          {viewingHistory && <p className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
           <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">All Events</h2>
@@ -910,7 +934,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   <Calendar size={15} /> <span className="hidden sm:inline">Calendar</span>
                 </button>
               </div>
-              {canCreateEvents && (
+              {canCreateEvents && !viewingHistory && (
                 <button onClick={openCreateForm} className="flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition">
                   <Plus size={16} />
                   <span className="hidden sm:inline">Create Event</span>
@@ -1710,15 +1734,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </div>
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="event-location" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Location" />Location</label>
-                <input
-                  id="event-location"
-                  type="text"
-                  value={form.location}
-                  onChange={(e) => setForm({ ...form, location: e.target.value })}
-                  placeholder="e.g. Main Auditorium"
-                  className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
-                />
+                <label htmlFor="event-venue-type" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Venue type" />Venue type</label>
+                <select id="event-venue-type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value, venue_id: '', location: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></select>
+                {form.venue_type === 'on_campus' ? <><label htmlFor="event-campus-venue" className="block text-[13px] font-semibold text-[#0F172A]">SAO venue</label><select id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></> : <><label htmlFor="event-location" className="block text-[13px] font-semibold text-[#0F172A]">Off-campus location</label><input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></>}
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>

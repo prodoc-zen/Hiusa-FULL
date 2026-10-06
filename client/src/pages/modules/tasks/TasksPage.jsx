@@ -17,6 +17,7 @@ import {
 import { getTasks, createTask, updateTaskStatus } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
+import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import PaginationControls from '../../../components/PaginationControls';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
@@ -78,6 +79,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
   const [taskFilters, setTaskFilters] = useState({ status: '', assignee: '', event: '', type: '' });
+  const [academicPeriods, setAcademicPeriods] = useState([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [page, setPage] = useState(1);
   const [selectedTask, setSelectedTask] = useState(null);
   const [progressForm, setProgressForm] = useState({ progress_percent: 0, progress_note: '' });
@@ -97,6 +100,10 @@ export default function TasksPage({ initialTab = 'board' }) {
   })();
   const canManageTasks = currentUserRole === 'ADMIN';
   const canUpdateAssignedTasks = currentUserRole === 'SBO_OFFICER';
+  const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
+  const canEditTasks = (canManageTasks || canUpdateAssignedTasks) && !viewingHistory;
+
+  useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
 
   // Memoised so it is a stable dependency for the load effect below; a fresh object
   // each render would refire the effect on every render.
@@ -105,13 +112,14 @@ export default function TasksPage({ initialTab = 'board' }) {
     ...(taskFilters.assignee ? { assigned_to: taskFilters.assignee } : {}),
     ...(taskFilters.event ? { event_id: taskFilters.event } : {}),
     ...(taskFilters.type ? { task_type: taskFilters.type } : {}),
-  }), [taskFilters]);
+    ...(selectedPeriodId ? { academic_semester_id: selectedPeriodId } : {}),
+  }), [taskFilters, selectedPeriodId]);
 
   function load() {
     setLoading(true);
     setError(null);
     const usersRequest = canManageTasks ? fetchAllPages(getUsers, { role: 'SBO_OFFICER', account_status: 'active' }) : Promise.resolve([]);
-    const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]);
+    const eventsRequest = canManageTasks ? fetchAllPages((p) => getEvents({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)) : Promise.resolve([]);
     // The board table pages on the server with the active status/assignee/event/type
     // filters; the complete task set (status totals, workload, ranking) is fetched
     // separately in loadTotals() so paging and filter changes here don't re-walk it.
@@ -136,11 +144,11 @@ export default function TasksPage({ initialTab = 'board' }) {
   // and is kept in its own effect so board paging/filtering never re-triggers it.
   function loadTotals() {
     Promise.all([
-      getTasks({ status: 'pending', per_page: 1 }),
-      getTasks({ status: 'in_progress', per_page: 1 }),
-      getTasks({ status: 'completed', per_page: 1 }),
-      getTasks({ status: 'overdue', per_page: 1 }),
-      fetchAllPages((p) => getTasks(p).then((r) => r.data)),
+      getTasks({ status: 'pending', per_page: 1, academic_semester_id: selectedPeriodId || undefined }),
+      getTasks({ status: 'in_progress', per_page: 1, academic_semester_id: selectedPeriodId || undefined }),
+      getTasks({ status: 'completed', per_page: 1, academic_semester_id: selectedPeriodId || undefined }),
+      getTasks({ status: 'overdue', per_page: 1, academic_semester_id: selectedPeriodId || undefined }),
+      fetchAllPages((p) => getTasks({ ...p, academic_semester_id: selectedPeriodId || undefined }).then((r) => r.data)),
     ])
       .then(([pendingRes, inProgressRes, completedRes, overdueRes, fullTasks]) => {
         setStatusTotals({
@@ -154,8 +162,8 @@ export default function TasksPage({ initialTab = 'board' }) {
       .catch(() => {});
   }
 
-  useEffect(load, [canManageTasks, page, serverFilters]);
-  useEffect(loadTotals, [canManageTasks]);
+  useEffect(load, [canManageTasks, page, serverFilters, selectedPeriodId]);
+  useEffect(loadTotals, [canManageTasks, selectedPeriodId]);
 
   useEffect(() => {
     setActiveTab(initialTab);
@@ -286,9 +294,11 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   return (
     <div className="space-y-6">
+      {academicPeriods.length > 0 && activeTab !== 'create' && <label className="block max-w-sm text-xs font-semibold text-[#0F172A]">Academic period<select value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); setSelectedTask(null); setPage(1); }} className="mt-1 block h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</select></label>}
+      {viewingHistory && <p className="text-xs font-medium text-[#64748B]">Completed semester tasks are available for viewing only.</p>}
       {activeTab !== 'create' && <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
-          { label: 'Total Tasks', value: totalTasksCount, helper: 'All time', icon: ListChecks },
+          { label: 'Total Tasks', value: totalTasksCount, helper: academicPeriods.length ? 'Selected period' : 'All time', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },
@@ -351,7 +361,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             </div>
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <button type="button" onClick={exportVisibleTasks} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:flex-none"><Download size={14} />Export</button>
-              {canManageTasks && (
+              {canManageTasks && !viewingHistory && (
                 <button type="button" onClick={() => navigate('/dashboard/tasks/create-task')} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] sm:flex-none">
                   <Plus size={16} />
                   <span>Create Task</span>
@@ -390,7 +400,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{t.title}</h3><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{t.event?.title || 'General organization task'}</dd></div></dl>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
-                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{(canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{(canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}</div>
+                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}</div>
               </article>)}
             </div>
             <div className="hidden overflow-x-auto lg:block">
@@ -426,9 +436,9 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <td className="px-5 py-4">
                         <TableRowActions subject={t.title} label="Task actions" actions={[
                           { label: 'View task', icon: Eye, onClick: () => openTaskDetails(t) },
-                          (canManageTasks || canUpdateAssignedTasks) && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start task', icon: CheckCircle2, onClick: () => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)) },
-                          (canManageTasks || canUpdateAssignedTasks) && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete task', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
-                          canManageTasks && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0) },
+                          canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start task', icon: CheckCircle2, onClick: () => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)) },
+                          canEditTasks && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete task', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
+                          canManageTasks && !viewingHistory && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0) },
                         ]} />
                       </td>
                     </tr>
@@ -649,7 +659,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               </div>
             </div>
 
-            {(canManageTasks || canUpdateAssignedTasks) && selectedTask.status !== 'completed' && (
+            {canEditTasks && selectedTask.status !== 'completed' && (
               <div className="mt-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
                 <h3 className="text-sm font-bold text-[#0F172A]">Add Progress Update</h3>
                 <div className="mt-3 grid gap-3 sm:grid-cols-[140px_1fr]">
@@ -665,7 +675,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <button type="button" disabled={progressSaving || !progressForm.progress_note.trim()} onClick={saveProgressUpdate} className="mt-3 h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{progressSaving ? 'Saving...' : 'Save Progress Update'}</button>
               </div>
             )}
-            {canManageTasks && selectedTask.status === 'completed' && (
+            {canManageTasks && !viewingHistory && selectedTask.status === 'completed' && (
               <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <h3 className="text-sm font-bold text-amber-900">Reopen task</h3>
                 <p className="mt-1 text-xs leading-5 text-amber-800">Reset this completed task to Not Started and clear its completion progress.</p>

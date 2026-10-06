@@ -122,7 +122,7 @@ class SystemAdministrationController extends Controller
     public function admins(Request $request)
     {
         $filters = $request->validate(['organization_id' => ['nullable', 'integer', 'exists:organizations,id'], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,disabled,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = User::with('organization:id,name,acronym,college')
+        $query = User::with('organization:id,name,acronym,college,parent_organization_id')
             ->where('role', 'ADMIN')
             ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION'));
         if (! empty($filters['organization_id'])) {

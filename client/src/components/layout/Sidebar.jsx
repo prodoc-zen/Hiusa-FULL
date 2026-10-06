@@ -1,12 +1,33 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { ChevronDown, LogOut, PanelLeftClose, PanelLeftOpen, X } from 'lucide-react';
+import { BadgeCheck, BookOpen, Bot, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard, FileText, Fingerprint, Flag, GraduationCap, History, ListChecks, MapPin, Megaphone, MessageSquare, Newspaper, Package, PanelLeftClose, PanelLeftOpen, Plus, ReceiptText, SearchCheck, ShieldCheck, ShoppingCart, Store, TicketCheck, UsersRound, Vote, WalletCards, X, ChevronDown, LogOut } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
 import { ROLE_LABELS, getNavForRole, getVisibleChildren, profileNav, resolveItemPath } from './navigation';
+
+const unitIcons = {
+  'financial-ledger': BookOpen, collections: WalletCards, 'student-accounts': UsersRound,
+  'budget-allocation': CreditCard, 'financial-insights': ChartColumn, 'transaction-history': History,
+  'personal-receipts': ReceiptText, 'statement-of-account': FileText,
+  'manage-events': CalendarDays, 'event-planner': ClipboardList, 'check-in': Fingerprint, 'activity-calendar': CalendarDays,
+  'task-board': ListChecks, 'create-task': Plus, 'assigned-tasks': ClipboardCheck, 'task-progress': ChartColumn, 'ai-delegation': Bot,
+  'manage-elections': Vote, 'manage-candidates': UsersRound, 'manage-voters': BadgeCheck,
+  'manage-partylists': Flag, 'cast-vote': Vote, 'election-results': ChartColumn,
+  'manage-inventory': Package, 'manage-orders': ShoppingCart, 'claim-tokens': TicketCheck,
+  'order-merchandise': Store, 'my-orders': ReceiptText,
+  'manage-announcements': Megaphone, 'create-announcement': Plus, 'view-announcements': Newspaper,
+  'manage-users': UsersRound, 'participant-biometrics': Fingerprint, 'manage-positions': BadgeCheck,
+  'manage-programs-sections': GraduationCap,
+  'gov-compliance': ClipboardCheck, 'gov-venues': MapPin, 'gov-grievances': MessageSquare,
+  'gov-my-grievances': MessageSquare, 'gov-clearances': ShieldCheck, 'gov-my-clearance': SearchCheck,
+  'sao-admins': UsersRound, 'sao-organizations': Store, 'sao-academic-years': CalendarDays,
+  'sao-compliance': ClipboardCheck, 'sao-venues': MapPin, 'sao-grievances': MessageSquare,
+  'sao-clearances': ShieldCheck, 'sao-audit-logs': History, 'sao-announcements': Megaphone,
+  'sao-notifications': Newspaper,
+};
 
 function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = false }) {
   return (
@@ -29,13 +50,14 @@ function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = fal
   );
 }
 
-function SubNavItem({ label, path, onClick }) {
+function SubNavItem({ label, path, icon: Icon, onClick }) {
   return (
     <NavLink
       to={path}
       onClick={onClick}
-      className={({ isActive }) => `flex min-h-10 items-center rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+      className={({ isActive }) => `flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
     >
+      <Icon size={14} className="shrink-0" aria-hidden="true" />
       {label}
     </NavLink>
   );
@@ -46,7 +68,7 @@ function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
   const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
 
   return (
-    <div className={`flex items-center gap-3 rounded-lg bg-white/[0.06] px-3 py-3 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${name} · ${roleLabel}` : undefined}>
+    <div className={`flex items-center gap-3 px-2 py-2 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${name} · ${roleLabel}` : undefined}>
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
       <div className={`min-w-0 flex-1 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
         <p className="truncate text-sm font-bold text-white">{name}</p>
@@ -211,7 +233,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         </button>
       </div>
 
-      <nav onScroll={() => setFlyout(null)} className={`flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
+      <nav onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
         <div className="flex-1 space-y-1">
           {nav.map((item) => {
             const visibleChildren = getVisibleChildren(item, role);
@@ -219,7 +241,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
             if (visibleChildren.length <= 1) {
               const child = visibleChildren[0];
               return (
-                <NavItem key={item.id} label={child?.label || item.label} path={child?.path || itemPath} icon={child?.icon || item.icon} end={!child} onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />
+                <NavItem key={item.id} label={child?.label || item.label} path={child?.path || itemPath} icon={child?.icon || unitIcons[child?.id] || item.icon} end={!child} onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />
               );
             }
 
@@ -262,7 +284,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                   <div className={`ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3 ${desktopCollapsed ? 'lg:hidden' : ''}`}>
                     {visibleChildren.map((sub) => (
                       <div key={sub.id} onClick={handleNavItemClick}>
-                        <SubNavItem label={sub.label} path={sub.path} />
+                        <SubNavItem label={sub.label} path={sub.path} icon={sub.icon || unitIcons[sub.id] || item.icon} />
                       </div>
                     ))}
                   </div>
@@ -272,7 +294,9 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
           })}
         </div>
 
-        <div className="mt-3 space-y-1">
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.06] p-2">
+          <OfficerProfile user={user} roleLabel={roleLabel} desktopCollapsed={desktopCollapsed} />
+          <div className="mt-1 border-t border-white/10 pt-1">
           {profileNav.map((item) => (
             <div key={item.path} onClick={handleNavItemClick}>
               <NavItem {...item} desktopCollapsed={desktopCollapsed} />
@@ -282,10 +306,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
             <LogOut size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
             <span className={desktopCollapsed ? 'lg:sr-only' : ''}>Logout</span>
           </button>
-        </div>
-
-        <div className="mt-4 border-t border-white/10 pt-4">
-          <OfficerProfile user={user} roleLabel={roleLabel} desktopCollapsed={desktopCollapsed} />
+          </div>
         </div>
       </nav>
     </>
@@ -294,12 +315,12 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   return (
     <>
       {isOpen && <div className="mobile-nav-overlay fixed inset-0 z-40 bg-[#0B1831]/60 backdrop-blur-sm lg:hidden" onClick={onClose} />}
-      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`mobile-nav-overlay fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col bg-[#0B1831] shadow-2xl transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
+      <aside ref={sidebarRef} inert={!isDesktop && !isOpen} role={!isDesktop && isOpen ? 'dialog' : undefined} aria-modal={!isDesktop && isOpen ? 'true' : undefined} aria-label={!isDesktop && isOpen ? 'Navigation menu' : undefined} className={`mobile-nav-overlay fixed inset-y-0 left-0 z-50 flex w-[min(280px,88vw)] flex-col rounded-r-xl bg-[#0B1831]/95 shadow-2xl backdrop-blur-md transition-[transform,width] duration-300 ease-in-out motion-reduce:transition-none sm:w-[260px] lg:translate-x-0 lg:shadow-none ${desktopCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'} ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}>{sidebarContent}</aside>
       {flyoutGroup && createPortal(
         <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
           <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>
           <nav aria-label={`${flyoutGroup.label} pages`} className="space-y-0.5">
-            {getVisibleChildren(flyoutGroup, role).map((child) => <NavLink key={child.id} to={child.path} onClick={() => setFlyout(null)} className={({ isActive }) => `block min-h-11 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${isActive ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}>{child.label}</NavLink>)}
+            {getVisibleChildren(flyoutGroup, role).map((child) => { const Icon = child.icon || unitIcons[child.id] || flyoutGroup.icon; return <NavLink key={child.id} to={child.path} onClick={() => setFlyout(null)} className={({ isActive }) => `flex min-h-11 items-center gap-2 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${isActive ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}><Icon size={16} aria-hidden="true" />{child.label}</NavLink>; })}
           </nav>
         </div>,
         document.body,
