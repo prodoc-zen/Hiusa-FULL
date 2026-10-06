@@ -9,6 +9,7 @@ use App\Models\User;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class AccountProfileController extends Controller
@@ -106,9 +107,13 @@ class AccountProfileController extends Controller
     public function invite(Request $request)
     {
         $actor = $request->user();
+        $roles = ['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'];
+        if ($actor->role === 'SUPER_ADMIN') {
+            $roles[] = 'ADMIN';
+        }
         $data = $request->validate([
             'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
-            'role' => ['required', 'in:STUDENT,SBO_OFFICER,DEPARTMENT_HEAD'],
+            'role' => ['required', Rule::in($roles)],
             'organization_id' => ['sometimes', 'required', 'integer'],
         ]);
 
