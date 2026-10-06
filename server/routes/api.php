@@ -61,7 +61,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
-    Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/account-profiles/candidates', [AccountProfileController::class, 'candidates'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
     Route::post('/logout', [UserController::class, 'logout'])->middleware('throttle:api-write');
 
     // Profile Routes (authenticated user updates own profile/password)

@@ -29,6 +29,17 @@ vi.mock('../../../hooks/useFingerprintReader', () => ({
 }));
 
 describe('UserActionDock', () => {
+  it('lets managers open organization membership and hides it from officers', () => {
+    const onAddProfile = vi.fn();
+    const user = { school_id: 123, first_name: 'Ana', last_name: 'Reyes', role: 'STUDENT', account_status: 'active' };
+    const view = render(<UserActionDock user={user} actorRole="ADMIN" onAddProfile={onAddProfile} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Ana Reyes' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Add Ana Reyes to an organization' }));
+    expect(onAddProfile).toHaveBeenCalledOnce();
+    view.rerender(<UserActionDock user={user} actorRole="SBO_OFFICER" onAddProfile={onAddProfile} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Open actions for Ana Reyes' }));
+    expect(screen.queryByRole('menuitem', { name: 'Add Ana Reyes to an organization' })).not.toBeInTheDocument();
+  });
   beforeEach(() => {
     vi.clearAllMocks();
     fingerprintMocks.reader.enrollFingerprint.mockResolvedValue({ samples: ['one', 'two', 'three', 'four'], sampleFormat: 5 });

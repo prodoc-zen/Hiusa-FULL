@@ -29,6 +29,7 @@ import ConfirmModal from "../../../components/ConfirmModal";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
 import TableRowActions from "../../../components/TableRowActions";
 import AdminHandoverDrawer from "./AdminHandoverDrawer";
+import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 
 const LEADERSHIP_TITLES = [
   "Adviser",
@@ -72,6 +73,7 @@ export default function SystemAdminsPage() {
   const [resetTarget, setResetTarget] = useState(null);
   const [handoverTarget, setHandoverTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [membershipUser, setMembershipUser] = useState(null);
   const [showPassword, setShowPassword] = useState(false);
 
   const load = useCallback(async () => {
@@ -249,6 +251,7 @@ export default function SystemAdminsPage() {
 
   return (
     <div className="space-y-6">
+      {membershipUser && <AddExistingUserModal initialUser={membershipUser} onClose={() => setMembershipUser(null)} onAdded={() => setSuccess('Organization profile added to the existing user.')} />}
       <div className="flex justify-end">
         <button
           type="button"
@@ -389,6 +392,7 @@ export default function SystemAdminsPage() {
                     </td>
                     <td className="p-4 text-right">
                       <TableRowActions subject={`${admin.first_name} ${admin.last_name}`} label="Administrator actions" actions={[
+                        { label: 'Add to organization', icon: UserPlus, onClick: () => setMembershipUser(admin) },
                         { label: 'Hand over role', icon: ArrowRightLeft, disabled: admin.account_status !== 'active', onClick: () => setHandoverTarget(admin) },
                         { label: 'Reset access', icon: KeyRound, disabled: admin.account_status !== 'active', onClick: () => setResetTarget(admin) },
                         { label: 'Edit administrator', icon: PencilLine, onClick: () => openEdit(admin) },

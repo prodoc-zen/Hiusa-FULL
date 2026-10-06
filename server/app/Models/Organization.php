@@ -25,6 +25,11 @@ class Organization extends Model
         return $this->hasMany(User::class);
     }
 
+    public function accountProfiles(): HasMany
+    {
+        return $this->hasMany(AccountProfile::class);
+    }
+
     public function parentOrganization(): BelongsTo
     {
         return $this->belongsTo(Organization::class, 'parent_organization_id');
