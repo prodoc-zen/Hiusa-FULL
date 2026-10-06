@@ -216,6 +216,9 @@ echo "Starting HIUSA..."
 echo "Optimizing Laravel..."
 "${compose[@]}" exec -T laravel php artisan optimize
 
+# Apache's OPcache does not revalidate files; reload it after replacing caches.
+"${compose[@]}" restart laravel
+
 echo
 "${compose[@]}" ps
 echo
@@ -228,4 +231,6 @@ fi
 if ! curl -fsS --max-time 15 "$app_url/up" >/dev/null 2>&1; then
     echo "The external health check is not reachable yet. DNS/TLS propagation may still be pending." >&2
     echo "Inspect logs with: docker compose -f compose.production.yml logs --tail=100" >&2
+else
+    bash scripts/check-membership-routes.sh "$app_url"
 fi

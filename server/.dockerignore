@@ -2,6 +2,7 @@
 .env.*
 vendor
 node_modules
+bootstrap/cache/*.php
 storage
 public/storage
 public/uploads/*

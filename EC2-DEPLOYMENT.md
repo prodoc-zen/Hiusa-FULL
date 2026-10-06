@@ -146,6 +146,23 @@ Laravel caches, and verifies the public health endpoint. It never deletes Docker
 volumes. A source rollback does not undo a database migration; restore the
 pre-deployment backup if an incompatible migration cannot be repaired forward.
 
+Laravel restarts after cache refresh because production OPcache does not check
+file timestamps. Builds exclude local compiled Laravel caches. Deployment also
+checks the membership organization and candidate endpoints without a token;
+both must return `401`. A `404` stops the deployment check rather than leaving
+Admin and SAO with broken membership dialogs.
+
+If either page reports that `api/account-profiles/organizations` could not be
+found, update the running backend along with the frontend:
+
+```bash
+cd ~/Hiusa-FULL
+bash scripts/deploy-ec2.sh
+bash scripts/check-membership-routes.sh https://YOUR_DOMAIN
+```
+
+Pushing source to GitHub alone does not rebuild the running Laravel container.
+
 ## 6. Back up application data
 
 ```bash
