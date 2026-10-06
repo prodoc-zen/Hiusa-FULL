@@ -43,6 +43,8 @@ export const switchAccountProfile = (profileId) => api.post(`/user/profiles/${pr
 export const inviteAccountProfile = (data) => api.post('/account-profiles/invite', data);
 export const getProfileOrganizations = () => api.get('/account-profiles/organizations');
 export const getProfileCandidates = (params) => api.get('/account-profiles/candidates', { params });
+export const getManagedAccountProfiles = (params) => api.get('/account-profiles', { params });
+export const deleteAccountProfile = (profileId) => api.delete(`/account-profiles/${profileId}`);
  
 
 

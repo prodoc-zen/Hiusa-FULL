@@ -19,9 +19,8 @@ class AccountProfileRouteCacheTest extends TestCase
             $this->refreshApplication();
             $this->assertTrue($this->app->routesAreCached());
 
-            foreach (['organizations', 'candidates', 'invite'] as $endpoint) {
-                $method = $endpoint === 'invite' ? 'POST' : 'GET';
-                $url = '/api/account-profiles/'.$endpoint;
+            foreach (['organizations' => 'GET', 'candidates' => 'GET', 'invite' => 'POST', '' => 'GET', '1' => 'DELETE'] as $endpoint => $method) {
+                $url = rtrim('/api/account-profiles/'.$endpoint, '/');
                 $route = $this->app['router']->getRoutes()->match(Request::create($url, $method));
                 $this->assertContains('auth:sanctum', $route->gatherMiddleware());
                 $this->assertContains('role:SUPER_ADMIN,ADMIN', $route->gatherMiddleware());

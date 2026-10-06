@@ -12,6 +12,7 @@ import UserImportDrawer from '../../../components/users/UserImportDrawer';
 import { createUser, deleteUser, disableUser, getAcademicStructure, getSboPositions, getUsers, reactivateUser, updateUser, uploadUserPhoto } from '../../../services/userService';
 import { getStudentDebts } from '../../../services/financeService';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
+import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
 import { enrollFingerprint, identifyFingerprint, removeFingerprint } from '../../../services/fingerprintService';
 import { useFingerprintReader } from '../../../hooks/useFingerprintReader';
 import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
@@ -96,7 +97,7 @@ const ACTION_ICON_COLORS = {
   delete: 'border-red-200 bg-red-50 text-red-600 hover:bg-red-100',
 };
 
-export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete, onAddProfile }) {
+export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint, onVerify, onDeactivate, onReactivate, onDelete, onAddProfile, onManageProfiles }) {
   const menuId = useId();
   const [expanded, setExpanded] = useState(false);
   const [menuPosition, setMenuPosition] = useState({ left: 12, top: 12, origin: 'top right' });
@@ -110,11 +111,12 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
     canManageAccount && { key: 'edit', label: `Edit ${name}`, menuLabel: 'Edit user', title: 'Edit user', icon: PencilLine, color: 'edit', onClick: onEdit },
     { key: 'view', label: `View ${name}`, menuLabel: 'View profile', title: 'View user', icon: Eye, color: 'view', onClick: onView },
     ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onAddProfile && user.role !== 'SUPER_ADMIN' && { key: 'membership', label: `Add ${name} to an organization`, menuLabel: 'Add to organization', title: 'Add organization profile', icon: UserPlus, color: 'view', onClick: onAddProfile },
+    ['ADMIN', 'SUPER_ADMIN'].includes(actorRole) && onManageProfiles && user.role !== 'SUPER_ADMIN' && { key: 'profiles', label: `Manage profiles for ${name}`, menuLabel: 'Manage profiles', title: 'Manage organization profiles', icon: UserPlus, color: 'view', onClick: onManageProfiles },
     canManageFingerprint && { key: 'fingerprint', label: `${user.fingerprint_enrolled ? 'Re-enroll' : 'Enroll'} fingerprint for ${name}`, menuLabel: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', title: user.fingerprint_enrolled ? 'Re-enroll fingerprint' : 'Enroll fingerprint', icon: Fingerprint, color: user.fingerprint_enrolled ? 'enrolledFingerprint' : 'fingerprint', onClick: onFingerprint },
     user.role !== 'SUPER_ADMIN' && { key: 'verify', label: `Verify identity for ${name}`, menuLabel: 'Verify identity (1:N)', title: 'Identify one fingerprint against the organization', icon: UserCheck, color: 'verify', onClick: onVerify },
     canManageAccount && user.account_status !== 'disabled' && { key: 'deactivate', label: `Deactivate ${name}`, menuLabel: 'Deactivate account', title: 'Deactivate user', icon: UserX, color: 'deactivate', onClick: onDeactivate },
     canManageAccount && user.account_status !== 'active' && { key: 'reactivate', label: `Reactivate ${name}`, menuLabel: 'Reactivate account', title: 'Reactivate user', icon: UserCheck, color: 'reactivate', onClick: onReactivate },
-    canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete account', title: 'Delete user', icon: Trash2, color: 'delete', onClick: onDelete },
+    canManageAccount && { key: 'delete', label: `Delete ${name}`, menuLabel: 'Delete profile', title: 'Delete organization profile', icon: Trash2, color: 'delete', onClick: onDelete },
   ].filter(Boolean);
 
   useEffect(() => {
@@ -421,6 +423,7 @@ export default function AdminUsersPage() {
   const [disableTarget, setDisableTarget] = useState(null);
   const [reactivateTarget, setReactivateTarget] = useState(null);
   const [deleteTarget, setDeleteTarget] = useState(null);
+  const [managedProfileUser, setManagedProfileUser] = useState(null);
   const [fingerprintTarget, setFingerprintTarget] = useState(null);
   const [fingerprintVerifyTarget, setFingerprintVerifyTarget] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -679,7 +682,7 @@ export default function AdminUsersPage() {
     try {
       await deleteUser(deleteTarget.id);
       await refreshUsers();
-      setFeedback({ open: true, type: 'success', message: `${deleteTarget.first_name} ${deleteTarget.last_name} was permanently deleted.` });
+      setFeedback({ open: true, type: 'success', message: `${deleteTarget.first_name} ${deleteTarget.last_name} had their organization profile removed.` });
       setDeleteTarget(null);
     } catch (deleteError) {
       setError(firstError(deleteError) || 'Unable to delete this user because linked records may still exist.');
@@ -854,7 +857,7 @@ export default function AdminUsersPage() {
             <article key={user.id} className="min-w-0 rounded-xl border border-[#DDE7EF] p-4">
               <div className="flex min-w-0 items-start justify-between gap-2">
                 <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
-                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
+                <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span>{user.fingerprint_enrolled && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[#0878B7]">Fingerprint enrolled</span>}</div>
               <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="col-span-2 min-w-0"><dt className="text-slate-500">Program / Major</dt><dd className="break-words font-semibold text-slate-700">{[user.program, user.major].filter(Boolean).join(' / ') || '-'}</dd></div><div><dt className="text-slate-500">Year level</dt><dd className="font-semibold text-slate-700">{user.year_level || '-'}</dd></div><div><dt className="text-slate-500">Section</dt><dd className="font-semibold text-slate-700">{user.section || '-'}</dd></div></dl>
@@ -908,7 +911,7 @@ export default function AdminUsersPage() {
                       actorRole={actorRole}
                       onEdit={() => openEdit(user)}
                       onView={() => openProfile(user)}
-                      onAddProfile={() => { setInviteUser(user); setShowInvite(true); }}
+                      onManageProfiles={() => setManagedProfileUser(user)} onAddProfile={() => { setInviteUser(user); setShowInvite(true); }}
                       onFingerprint={() => setFingerprintTarget(user)}
                       onVerify={() => setFingerprintVerifyTarget(user)}
                       onDeactivate={() => setDisableTarget(user)}
@@ -1002,6 +1005,7 @@ export default function AdminUsersPage() {
         {userForm(createForm, setCreateForm, 'create')}
       </Modal>
 
+      {managedProfileUser && <ManageAccountProfilesModal user={managedProfileUser} onClose={() => setManagedProfileUser(null)} onDeleted={(result) => { setFeedback({ open: true, type: 'success', message: result.message }); load(); }} />}
       {showInvite && <AddExistingUserModal actorRole={actorRole} initialUser={inviteUser} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
 
       <Modal
@@ -1047,11 +1051,11 @@ export default function AdminUsersPage() {
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
-        title="Delete User Permanently"
-        message="This removes the account permanently. The system will block deletion if the user has linked operational records."
+        title="Delete organization profile"
+        message="Remove this organization profile. Other profiles remain available. If this is the final profile, the user account is also deleted. Linked records can prevent final deletion."
         recordName={deleteTarget ? `${deleteTarget.first_name} ${deleteTarget.last_name}` : ''}
         confirmationText={deleteTarget ? String(deleteTarget.school_id) : ''}
-        confirmText="Delete User"
+        confirmText="Delete profile"
         variant="danger"
         busy={busy}
         onCancel={() => !busy && setDeleteTarget(null)}

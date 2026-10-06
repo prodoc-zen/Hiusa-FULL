@@ -6,6 +6,7 @@ use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\User;
+use App\Services\AccountProfileDeletionService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -14,6 +15,8 @@ use Illuminate\Validation\ValidationException;
 
 class AccountProfileController extends Controller
 {
+    public function __construct(private readonly AccountProfileDeletionService $profileDeletion) {}
+
     public function index(Request $request)
     {
         return response()->json([
@@ -43,22 +46,17 @@ class AccountProfileController extends Controller
         return response()->json(['user' => $user, 'active_profile_id' => $profile->id]);
     }
 
-    private function managedOrganizations(User $actor): Builder
+    private function managedOrganizations(User $actor, bool $activeOnly = true): Builder
     {
-        $query = Organization::where('organization_type', 'STUDENT_ORGANIZATION')->where('is_active', true);
-        if ($actor->role !== 'SUPER_ADMIN') {
-            $college = Organization::whereKey($actor->organization_id)->value('college');
-            $query->where('college', $college)->where(fn ($query) => $query
-                ->where('id', $actor->organization_id)->orWhere('parent_organization_id', $actor->organization_id));
-        }
-
-        return $query;
+        return $this->profileDeletion->organizationsFor($actor)->when($activeOnly, fn ($query) => $query->where('is_active', true));
     }
 
     private function targetOrganization(Request $request, int $organizationId, bool $lock = false): Organization
     {
         $query = $this->managedOrganizations($request->user());
-        if ($lock) $query->lockForUpdate();
+        if ($lock) {
+            $query->lockForUpdate();
+        }
         $organization = $query->findOrFail($organizationId);
         if (! trim($organization->college ?? '')) {
             throw ValidationException::withMessages(['organization_id' => ['Assign a college to this organization before adding existing users.']]);
@@ -80,8 +78,59 @@ class AccountProfileController extends Controller
 
     public function organizations(Request $request)
     {
-        return response()->json($this->managedOrganizations($request->user())->orderBy('name')
-            ->get(['id', 'name', 'acronym', 'college', 'parent_organization_id']));
+        $request->validate(['include_inactive' => ['nullable', 'boolean']]);
+
+        return response()->json($this->managedOrganizations($request->user(), ! $request->boolean('include_inactive'))->orderBy('name')
+            ->get(['id', 'name', 'acronym', 'college', 'parent_organization_id', 'is_active']));
+    }
+
+    public function members(Request $request)
+    {
+        $data = $request->validate([
+            'organization_id' => ['nullable', 'integer'], 'user_school_id' => ['nullable', 'integer'],
+            'search' => ['nullable', 'string', 'max:120'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
+        ]);
+        $organizations = $this->managedOrganizations($request->user(), false);
+        if (! empty($data['organization_id'])) {
+            $organizations->whereKey($data['organization_id'])->firstOrFail();
+        }
+        $query = AccountProfile::whereIn('organization_id', $organizations->select('id'))
+            ->with(['organization:id,name,acronym,college,is_active', 'user' => fn ($query) => $query
+                ->without('organization')->select('school_id', 'organization_id', 'role', 'first_name', 'last_name', 'email')->withCount('accountProfiles')])
+            ->when(! empty($data['user_school_id']), fn ($query) => $query->where('user_school_id', $data['user_school_id']));
+        foreach (preg_split('/\s+/', trim($data['search'] ?? ''), -1, PREG_SPLIT_NO_EMPTY) as $term) {
+            $query->whereHas('user', fn ($query) => $query->where(fn ($query) => $query
+                ->where('first_name', 'like', '%'.$term.'%')->orWhere('last_name', 'like', '%'.$term.'%')
+                ->orWhere('email', 'like', '%'.$term.'%')->orWhere('school_id', 'like', '%'.$term.'%')));
+        }
+        $rows = $query->orderBy('user_school_id')->orderBy('id')->paginate($data['per_page'] ?? 20);
+        $rows->getCollection()->transform(fn ($profile) => [
+            'id' => $profile->id, 'organization_id' => $profile->organization_id, 'organization' => $profile->organization,
+            'school_id' => $profile->user_school_id, 'first_name' => $profile->user->first_name,
+            'last_name' => $profile->user->last_name, 'email' => $profile->user->email,
+            'role' => $profile->role, 'account_status' => $profile->account_status,
+            'profiles_count' => $profile->user->account_profiles_count,
+            'is_primary' => (int) $profile->organization_id === (int) $profile->user->getRawOriginal('organization_id'),
+            'deletion_block_reason' => $this->profileDeletion->permissionFailure($request->user(), $profile),
+        ]);
+
+        return response()->json($rows);
+    }
+
+    public function destroy(Request $request, AccountProfile $profile)
+    {
+        return DB::transaction(function () use ($request, $profile) {
+            $result = $this->profileDeletion->remove($request->user(), $profile);
+            AuditLog::create([
+                'organization_id' => $profile->organization_id, 'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role, 'module' => 'users', 'action' => 'account_profile_deleted',
+                'record_type' => AccountProfile::class, 'record_id' => $profile->id,
+                'old_values' => ['school_id' => $profile->user_school_id, 'role' => $profile->role],
+                'new_values' => $result, 'ip_address' => $request->ip(), 'created_at' => now(),
+            ]);
+
+            return response()->json(['message' => $result['account_deleted'] ? 'Final profile and user account deleted.' : 'Organization profile deleted.', ...$result]);
+        });
     }
 
     public function candidates(Request $request)
