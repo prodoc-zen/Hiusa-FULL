@@ -7,6 +7,7 @@ import { Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
 import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
+import { getActiveAcademicPeriod } from '../../services/systemAdministrationService';
 import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
@@ -63,6 +64,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const [cartOpen, setCartOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [activeAcademicPeriod, setActiveAcademicPeriod] = useState(null);
   const [selectedNotification, setSelectedNotification] = useState(null);
   const [cartItems, setCartItems] = useState([]);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
@@ -73,6 +75,10 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const notifRef = useRef(null);
   const cartRef = useRef(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    getActiveAcademicPeriod().then(setActiveAcademicPeriod).catch(() => setActiveAcademicPeriod(null));
+  }, []);
 
   useEffect(() => {
     const header = headerRef.current;
@@ -362,7 +368,10 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
             {parentLabel && <span aria-hidden="true" className="px-1.5 text-ink-soft">/</span>}
             {parentLabel && <span>{parentLabel}</span>}
           </nav>
-          <h1 className="break-words text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <h1 className="break-words text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
+            {activeAcademicPeriod?.academic_year?.label && <span className="rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
+          </div>
           {!isRoleHome && headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
         </div>
 

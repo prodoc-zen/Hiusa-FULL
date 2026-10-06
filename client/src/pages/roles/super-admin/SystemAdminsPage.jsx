@@ -1,5 +1,5 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -136,7 +136,7 @@ export default function SystemAdminsPage() {
       const matchesStatus =
         statusFilter === "all" || admin.account_status === statusFilter;
       return matchesSearch && matchesOrganization && matchesStatus;
-    });
+    }).sort((left, right) => Number(Boolean(left.organization?.parent_organization_id)) - Number(Boolean(right.organization?.parent_organization_id)));
   }, [admins, organizationFilter, search, statusFilter]);
 
   const activeCount = admins.filter(
@@ -363,8 +363,10 @@ export default function SystemAdminsPage() {
                 </tr>
               </thead>
               <tbody>
-                {visibleAdmins.map((admin) => (
-                  <tr key={admin.school_id} className="border-t border-[#DDE7EF] hover:bg-[#F8FBFD]">
+                {visibleAdmins.map((admin, index) => (
+                  <Fragment key={admin.school_id}>
+                    {(index === 0 || Boolean(admin.organization?.parent_organization_id) !== Boolean(visibleAdmins[index - 1].organization?.parent_organization_id)) && <tr className="bg-[#EEF6FB]"><th colSpan={5} scope="rowgroup" className="px-4 py-2 text-left text-xs font-bold text-[#0F2F62]">{admin.organization?.parent_organization_id ? 'Sub organizations' : 'Main organizations'}</th></tr>}
+                  <tr className="border-t border-[#DDE7EF] hover:bg-[#F8FBFD]">
                     <td className="p-4">
                       <p className="font-bold text-[#0F172A]">
                         {admin.first_name} {admin.last_name}
@@ -393,6 +395,7 @@ export default function SystemAdminsPage() {
                       ]} />
                     </td>
                   </tr>
+                  </Fragment>
                 ))}
               </tbody>
             </table>

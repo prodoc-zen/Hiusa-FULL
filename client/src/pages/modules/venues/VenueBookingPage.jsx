@@ -33,7 +33,7 @@ function formatRange(start, end) {
   return `${manilaDate(start, 'long')}, ${new Date(start).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })} - ${new Date(end).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}`;
 }
 
-const EMPTY_REQUEST_FORM = { venue_id: '', event_id: '', start_time: '', end_time: '' };
+const EMPTY_REQUEST_FORM = { venue_type: 'on_campus', venue_id: '', off_campus_location: '', event_id: '', start_time: '', end_time: '' };
 
 export default function VenueBookingPage() {
   const role = useMemo(() => getCurrentRole(), []);
@@ -93,10 +93,12 @@ export default function VenueBookingPage() {
 
   const selectedVenue = venues.items.find((venue) => String(venue.id) === String(selectedVenueId));
 
-  function openRequestForm() {
+  function openRequestForm(offCampus = false) {
     setRequestError(null);
     setRequestForm({
+      venue_type: offCampus === true ? 'off_campus' : 'on_campus',
       venue_id: selectedVenueId,
+      off_campus_location: '',
       event_id: '',
       start_time: range.from ? `${range.from}T09:00` : '',
       end_time: range.from ? `${range.from}T17:00` : '',
@@ -106,8 +108,8 @@ export default function VenueBookingPage() {
 
   async function handleRequestSubmit(event) {
     event.preventDefault();
-    if (!requestForm.venue_id || !requestForm.start_time || !requestForm.end_time) {
-      setRequestError('Choose a venue and both a start and end time.');
+    if ((requestForm.venue_type === 'on_campus' && !requestForm.venue_id) || (requestForm.venue_type === 'off_campus' && !requestForm.off_campus_location.trim()) || !requestForm.start_time || !requestForm.end_time) {
+      setRequestError('Choose an on-campus venue or enter an off-campus location and both times.');
       return;
     }
     if (new Date(requestForm.end_time) <= new Date(requestForm.start_time)) {
@@ -125,7 +127,9 @@ export default function VenueBookingPage() {
     setRequestError(null);
     try {
       const response = await createVenueBooking({
-        venue_id: Number(requestForm.venue_id),
+        venue_type: requestForm.venue_type,
+        venue_id: requestForm.venue_type === 'on_campus' ? Number(requestForm.venue_id) : null,
+        off_campus_location: requestForm.venue_type === 'off_campus' ? requestForm.off_campus_location.trim() : null,
         event_id: requestForm.event_id || null,
         start_time: localDateTimeToIso(requestForm.start_time),
         end_time: localDateTimeToIso(requestForm.end_time),
@@ -168,7 +172,7 @@ export default function VenueBookingPage() {
   }
 
   const bookingColumns = [
-    { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || 'Unknown' },
+    { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || booking.off_campus_location || 'Unknown' },
     { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
     { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
     { key: 'status', header: 'Status', render: (booking) => <StatusBadge status={booking.status} /> },
@@ -182,6 +186,7 @@ export default function VenueBookingPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader title="Venues" description="Check availability, request a booking, and track your organization's requests." />
+      <div className="flex justify-end"><Button variant="secondary" onClick={() => openRequestForm(true)}>Request an off-campus venue</Button></div>
 
       <Card title="Find a venue" description="Pending requests and approved bookings for the venue and dates you choose.">
         <div className="grid gap-4 sm:grid-cols-3">
@@ -247,7 +252,7 @@ export default function VenueBookingPage() {
               icon={ClipboardList}
               title="No booking requests yet"
               description="Requests your organization sends to SAO will show up here with their status."
-              action={<Button leftIcon={CalendarRange} onClick={openRequestForm} disabled={!selectedVenueId}>Request a venue</Button>}
+              action={<Button leftIcon={CalendarRange} onClick={openRequestForm}>Request a venue</Button>}
             />
           )}
         />
@@ -266,12 +271,13 @@ export default function VenueBookingPage() {
         )}
       >
         <form onSubmit={handleRequestSubmit} className="grid gap-4 sm:grid-cols-2">
-          <Field label="Venue" required className="sm:col-span-2">
+          <Field label="Venue type" required className="sm:col-span-2"><Select value={requestForm.venue_type} onChange={(event) => setRequestForm({ ...requestForm, venue_type: event.target.value })}><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></Select></Field>
+          {requestForm.venue_type === 'on_campus' ? <Field label="Venue" required className="sm:col-span-2">
             <Select data-autofocus value={requestForm.venue_id} onChange={(event) => setRequestForm({ ...requestForm, venue_id: event.target.value })}>
               <option value="">Choose a venue</option>
               {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}
             </Select>
-          </Field>
+          </Field> : <Field label="Off-campus location" required className="sm:col-span-2"><input data-autofocus maxLength={255} value={requestForm.off_campus_location} onChange={(event) => setRequestForm({ ...requestForm, off_campus_location: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm" /></Field>}
           <Field label="Start" required>
             <input type="datetime-local" value={requestForm.start_time} onChange={(event) => setRequestForm({ ...requestForm, start_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </Field>
@@ -292,7 +298,7 @@ export default function VenueBookingPage() {
       <Modal open={Boolean(submittedBooking)} title="Booking request sent" description="SAO will review this request. This is your booking reference, not an approval." onClose={() => setSubmittedBooking(null)} maxWidth="max-w-md" footer={<Button onClick={() => setSubmittedBooking(null)}>Done</Button>}>
         {submittedBooking && <div className="rounded-lg border border-[#DDE7EF] bg-[#FFFDF7] p-5">
           <div className="flex items-center gap-2 border-b border-dashed border-[#DDE7EF] pb-3 text-[#0F2F62]"><CalendarRange size={20} aria-hidden="true" /><span className="text-sm font-black">Venue request #{submittedBooking.id}</span></div>
-          <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs font-semibold text-[#64748B]">Venue</dt><dd className="font-bold text-[#0F172A]">{submittedBooking.venue?.name || 'Selected venue'}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Requested time</dt><dd className="font-bold text-[#0F172A]">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Status</dt><dd><StatusBadge status="pending" /></dd></div></dl>
+          <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs font-semibold text-[#64748B]">Venue</dt><dd className="font-bold text-[#0F172A]">{submittedBooking.venue?.name || submittedBooking.off_campus_location || 'Selected venue'}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Requested time</dt><dd className="font-bold text-[#0F172A]">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Status</dt><dd><StatusBadge status="pending" /></dd></div></dl>
         </div>}
       </Modal>
 

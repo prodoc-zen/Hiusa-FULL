@@ -9,6 +9,7 @@ class VenueBooking extends Model
 {
     protected $fillable = [
         'venue_id',
+        'off_campus_location',
         'event_id',
         'organization_id',
         'start_time',

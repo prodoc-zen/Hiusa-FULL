@@ -13,13 +13,18 @@ const authMocks = vi.hoisted(() => ({
   getAccountProfiles: vi.fn(),
   switchAccountProfile: vi.fn(),
 }));
+const periodMocks = vi.hoisted(() => ({
+  getActiveAcademicPeriod: vi.fn(),
+}));
 
 vi.mock('../../services/notificationService', () => notificationMocks);
 vi.mock('../../services/authService', () => authMocks);
+vi.mock('../../services/systemAdministrationService', () => periodMocks);
 
 describe('TopBar notifications', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    periodMocks.getActiveAcademicPeriod.mockResolvedValue({ number: 2, academic_year: { label: '2026-2027' } });
     localStorage.clear();
     localStorage.setItem('user', JSON.stringify({ role: 'STUDENT', first_name: 'Test', last_name: 'User' }));
     notificationMocks.getNotifications.mockResolvedValue({ data: { data: [], unread_count: 0 } });
@@ -52,6 +57,7 @@ describe('TopBar notifications', () => {
     render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
 
     await waitFor(() => expect(notificationMocks.getNotifications).toHaveBeenCalledOnce());
+    expect(await screen.findByText('AY 2026-2027 · 2nd Semester')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Mark all as read' }));
 
@@ -68,6 +74,16 @@ describe('TopBar notifications', () => {
     expect(within(header).getByRole('button', { name: 'Cart' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
+  });
+
+  it('keeps the dashboard visible when the active period has no academic year', async () => {
+    periodMocks.getActiveAcademicPeriod.mockResolvedValue({ number: 2 });
+    render(<MemoryRouter><TopBar title="Admin Dashboard" pathname="/dashboard/admin" onMenuToggle={() => {}} /></MemoryRouter>);
+
+    await waitFor(() => expect(periodMocks.getActiveAcademicPeriod).toHaveBeenCalledOnce());
+    await act(async () => { await Promise.resolve(); });
+    expect(screen.getByRole('heading', { name: 'Admin Dashboard' })).toBeInTheDocument();
+    expect(screen.queryByText(/Semester/)).not.toBeInTheDocument();
   });
 
   it('publishes the navbar bottom for portaled overlays and clears it on unmount', () => {

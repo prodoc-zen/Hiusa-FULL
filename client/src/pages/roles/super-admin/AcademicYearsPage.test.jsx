@@ -3,13 +3,17 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { createAcademicYear, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
+import { closeAcademicYear, createAcademicYear, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
   createAcademicYear: vi.fn(),
   updateAcademicYear: vi.fn(),
   makeAcademicYearCurrent: vi.fn(),
+  closeAcademicYear: vi.fn(),
+  createAcademicSemester: vi.fn(),
+  activateAcademicSemester: vi.fn(),
+  closeAcademicSemester: vi.fn(),
   deleteAcademicYear: vi.fn(),
 }));
 vi.mock('../../../services/clearanceService', () => ({ createClearancePeriod: vi.fn() }));
@@ -47,6 +51,18 @@ describe('AcademicYearsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Make current' }));
 
     await waitFor(() => expect(makeAcademicYearCurrent).toHaveBeenCalledWith(2));
+  });
+
+  it('closes the year only after both semesters are completed', async () => {
+    vi.mocked(getAcademicYears).mockResolvedValue([
+      { ...years[1], semesters: [{ id: 1, number: 1, status: 'completed' }, { id: 2, number: 2, status: 'completed' }] },
+    ]);
+    vi.mocked(closeAcademicYear).mockResolvedValue({ ...years[1], is_current: false });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Close year' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Complete academic year' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Close year' }));
+    await waitFor(() => expect(closeAcademicYear).toHaveBeenCalledWith(1));
   });
 
   it('suggests the label from the start date and shows field errors from the server', async () => {
