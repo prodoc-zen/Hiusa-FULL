@@ -16,6 +16,9 @@ const authMocks = vi.hoisted(() => ({
 
 vi.mock('../../services/notificationService', () => notificationMocks);
 vi.mock('../../services/authService', () => authMocks);
+vi.mock('../../services/systemAdministrationService', () => ({
+  getActiveAcademicPeriod: vi.fn().mockResolvedValue({ number: 2, academic_year: { label: '2026-2027' } }),
+}));
 
 describe('TopBar notifications', () => {
   beforeEach(() => {
@@ -52,6 +55,7 @@ describe('TopBar notifications', () => {
     render(<MemoryRouter><TopBar title="Dashboard" pathname="/dashboard/student" onMenuToggle={() => {}} /></MemoryRouter>);
 
     await waitFor(() => expect(notificationMocks.getNotifications).toHaveBeenCalledOnce());
+    expect(await screen.findByText('AY 2026-2027 · 2nd Semester')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Notifications' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Mark all as read' }));
 

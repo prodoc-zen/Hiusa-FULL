@@ -3,6 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
+use App\Models\AcademicYear;
+use App\Models\AcademicSemester;
 use App\Models\ComplianceRequirementType;
 use App\Models\Notification;
 use App\Models\Organization;
@@ -43,7 +45,8 @@ class ComplianceController extends Controller
         if ($request->user()->role === 'ADMIN') {
             // ADMIN only needs what it must act on: active requirements for
             // the current academic year, never past years or retired types.
-            $query->where('is_active', true)->where('academic_year', $this->accreditation->currentAcademicYear());
+            $query->where('is_active', true)->where('academic_year', $this->accreditation->currentAcademicYear())
+                ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id));
         } else {
             $query->when($filters['academic_year'] ?? null, fn ($q, $year) => $q->where('academic_year', $year));
         }
@@ -54,15 +57,17 @@ class ComplianceController extends Controller
     public function storeRequirementType(Request $request)
     {
         $data = $request->validate([
-            'academic_year' => ['required', 'string', 'max:20'],
+            'academic_year' => ['required', 'string', 'max:20', ...(AcademicYear::exists() ? [Rule::exists('academic_years', 'label')] : [])],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:3000'],
             'deadline_at' => ['required', 'date'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
+        $activeSemester = AcademicSemester::active();
         $requirementType = ComplianceRequirementType::create([
             ...$data,
+            'academic_semester_id' => $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester?->id : null,
             'is_active' => $data['is_active'] ?? true,
             'created_by' => $request->user()->school_id,
         ]);
@@ -104,6 +109,9 @@ class ComplianceController extends Controller
 
     public function updateRequirementType(Request $request, ComplianceRequirementType $requirementType)
     {
+        if ($requirementType->academic_semester_id && $requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:3000'],
@@ -175,7 +183,8 @@ class ComplianceController extends Controller
         }
 
         $academicYear = $filters['academic_year'] ?? $this->accreditation->currentAcademicYear();
-        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)->get();
+        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
+            ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
 
         $organizationIds = $organizations->pluck('id');
         $submissions = OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)
@@ -242,6 +251,10 @@ class ComplianceController extends Controller
             'requirement_type_id' => ['required', 'integer', Rule::exists('compliance_requirement_types', 'id')->where('is_active', true)],
             'document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
         ]);
+        $requirement = ComplianceRequirementType::findOrFail($data['requirement_type_id']);
+        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
 
         $organizationId = $request->user()->organization_id;
 
@@ -357,6 +370,9 @@ class ComplianceController extends Controller
             if (! $locked || $locked->status !== 'submitted') {
                 return ['error' => 'not_pending'];
             }
+            if ($locked->requirementType?->academic_semester_id && $locked->requirementType->academic_semester_id !== AcademicSemester::active()?->id) {
+                return ['error' => 'historical'];
+            }
 
             if (! $locked->submitted_at || ! $locked->submitted_at->equalTo($data['submitted_at'])) {
                 return ['error' => 'stale'];
@@ -376,7 +392,7 @@ class ComplianceController extends Controller
             return response()->json([
                 'message' => $result['error'] === 'stale'
                     ? 'This submission was resubmitted after you loaded it. Refresh and review the latest version.'
-                    : 'Only a pending submission can be reviewed.',
+                    : ($result['error'] === 'historical' ? 'Completed semester submissions are read only.' : 'Only a pending submission can be reviewed.'),
             ], 409);
         }
 

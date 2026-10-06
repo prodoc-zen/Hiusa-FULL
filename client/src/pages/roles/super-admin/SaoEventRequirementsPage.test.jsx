@@ -24,15 +24,10 @@ describe('SaoEventRequirementsPage', () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [] } });
   });
 
-  it('shows instructions and persists a new checklist order', async () => {
-    mocks.reorderEventRequirements.mockResolvedValue({ data: [
-      { id: 2, name: 'Budget', allowed_extensions: ['xlsx'], is_active: true },
-      { id: 1, name: 'Proposal', description: 'Signed', allowed_extensions: ['pdf'], is_active: true },
-    ] });
+  it('shows instructions without reorder controls', async () => {
     render(<SaoEventRequirementsPage />);
     expect(await screen.findByText('Signed')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Move Proposal down' }));
-    await waitFor(() => expect(mocks.reorderEventRequirements).toHaveBeenCalledWith([2, 1]));
+    expect(screen.queryByRole('button', { name: 'Move Proposal down' })).not.toBeInTheDocument();
   });
 
   it('sends the description when adding a requirement', async () => {
@@ -41,7 +36,6 @@ describe('SaoEventRequirementsPage', () => {
     await screen.findByText('Proposal');
     fireEvent.change(screen.getByPlaceholderText('Event proposal'), { target: { value: 'Permit' } });
     fireEvent.change(screen.getByLabelText('Instructions for organizations'), { target: { value: 'Signed by adviser' } });
-    fireEvent.click(screen.getByLabelText('PDF'));
     fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
     await waitFor(() => expect(mocks.createEventRequirement).toHaveBeenCalledWith(expect.objectContaining({
       name: 'Permit', description: 'Signed by adviser', allowed_extensions: ['pdf'],

@@ -3031,7 +3031,7 @@ export default function MerchandisePage({ initialTab }) {
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#DDE7EF] px-4 py-2">
               <p className="text-xs text-slate-500">Open an order to review payment and pickup details.</p>
               <div role="group" aria-label="Order queue view" className="flex rounded-lg border border-[#DDE7EF] p-0.5">
-                {[["auto", "Auto"], ["table", "Table"], ["cards", "Cards"]].map(([view, label]) => (
+                {[["auto", "Responsive"], ["cards", "Cards"]].map(([view, label]) => (
                   <button key={view} type="button" aria-pressed={orderQueueView === view} onClick={() => setOrderQueueView(view)} className={`min-h-10 rounded-md px-3 text-xs font-bold ${orderQueueView === view ? "bg-[#0F2F62] text-white" : "text-[#0F2F62]"}`}>{label}</button>
                 ))}
               </div>
@@ -3051,7 +3051,7 @@ export default function MerchandisePage({ initialTab }) {
               </p>
             ) : (
               <>
-              <div className={`${orderQueueView === 'table' ? 'hidden' : orderQueueView === 'cards' ? 'grid gap-3 p-3 sm:grid-cols-2' : 'grid gap-3 p-3 xl:hidden'}`}>
+              <div className={orderQueueView === 'cards' ? 'grid gap-3 p-3 sm:grid-cols-2' : 'grid gap-3 p-3 xl:hidden'}>
                 {filteredOfficerOrders.map((order) => (
                   <FulfillmentOrderRow
                     key={order.id}
@@ -3063,7 +3063,7 @@ export default function MerchandisePage({ initialTab }) {
                   />
                 ))}
               </div>
-              <div className={`${orderQueueView === 'cards' ? 'hidden' : orderQueueView === 'table' ? 'overflow-x-auto' : 'hidden overflow-x-auto xl:block'}`}>
+              <div className={orderQueueView === 'cards' ? 'hidden' : 'hidden overflow-x-auto xl:block'}>
                 <table className="w-full min-w-[1100px] text-left">
                   <thead className="bg-[#F8FBFD] text-[11px] font-bold uppercase tracking-wider text-slate-500">
                     <tr>

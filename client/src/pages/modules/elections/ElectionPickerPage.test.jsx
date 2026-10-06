@@ -10,6 +10,12 @@ const electionMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../services/electionService', () => electionMocks);
+vi.mock('../../../services/systemAdministrationService', () => ({
+  getAcademicPeriods: vi.fn().mockResolvedValue([
+    { id: 1, number: 1, status: 'completed', academic_year: { label: '2026-2027' } },
+    { id: 2, number: 2, status: 'active', academic_year: { label: '2026-2027' } },
+  ]),
+}));
 
 describe('ElectionPickerPage', () => {
   beforeEach(() => {
@@ -40,6 +46,16 @@ describe('ElectionPickerPage', () => {
     await waitFor(() => expect(screen.getByText('Election artwork')).toBeInTheDocument());
     expect(screen.getByLabelText('Election title *')).toBeInTheDocument();
     expect(screen.getByText('Choose image')).toBeInTheDocument();
+    expect(screen.getByText('Informative letter (PDF) *')).toBeInTheDocument();
+  });
+
+  it('shows a completed semester as read only', async () => {
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const period = await screen.findByLabelText('Academic period');
+    fireEvent.change(period, { target: { value: '1' } });
+    await screen.findByText('Completed semester elections are available for viewing only.');
+    expect(screen.queryByRole('button', { name: 'Create election' })).not.toBeInTheDocument();
+    expect(electionMocks.getElections).toHaveBeenCalledWith({ academic_semester_id: '1' });
   });
 
   it('opens the creation form when launched from the approval-request selector', async () => {

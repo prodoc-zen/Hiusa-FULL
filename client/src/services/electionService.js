@@ -2,7 +2,7 @@ import api from './api';
 
 const unwrap = (response) => response.data;
 
-export const getElections = async () => unwrap(await api.get('/elections'));
+export const getElections = async (params = {}) => unwrap(await api.get('/elections', { params }));
 export const getElectionDetails = async (id) => unwrap(await api.get(`/elections/${id}`));
 function toElectionFormData(payload, method = null) {
   const fd = new FormData();
@@ -11,6 +11,10 @@ function toElectionFormData(payload, method = null) {
   Object.entries(payload).forEach(([key, value]) => {
     if (key === 'imageFile') {
       if (value) fd.append('image', value);
+      return;
+    }
+    if (key === 'informativeLetterFile') {
+      if (value) fd.append('informative_letter', value);
       return;
     }
     if (key === 'positions') {
@@ -27,8 +31,17 @@ function toElectionFormData(payload, method = null) {
 }
 
 export const createElection = async (payload) => {
-  const requestPayload = payload.imageFile ? toElectionFormData(payload) : payload;
+  const requestPayload = payload.imageFile || payload.informativeLetterFile ? toElectionFormData(payload) : payload;
   return unwrap(await api.post('/elections', requestPayload));
+};
+export const downloadElectionLetter = async (id) => {
+  const response = await api.get(`/elections/${id}/informative-letter`, { responseType: 'blob' });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `election-${id}-informative-letter.pdf`;
+  link.click();
+  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
 };
 export const updateElection = async (id, payload) => {
   if (payload.imageFile || payload.remove_image) {

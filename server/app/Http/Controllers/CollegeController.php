@@ -59,6 +59,7 @@ class CollegeController extends Controller
             'name' => ['required', 'string', 'max:255', Rule::unique('colleges', 'name')->ignore($college?->id)],
             'code' => ['nullable', 'string', 'max:50', Rule::unique('colleges', 'code')->ignore($college?->id)],
             'description' => ['nullable', 'string', 'max:2000'],
+            'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
     }

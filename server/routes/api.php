@@ -6,6 +6,7 @@ use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\ClassListImportController;
 use App\Http\Controllers\AccountProfileController;
 use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\AcademicSemesterController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
@@ -39,6 +40,9 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserPhotoController;
 use App\Http\Controllers\VenueBookingController;
 use App\Http\Controllers\VenueController;
+use App\Http\Middleware\EnsureCurrentEventSemester;
+use App\Http\Middleware\EnsureCurrentElectionSemester;
+use App\Http\Middleware\EnsureCurrentTaskSemester;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
 
@@ -54,6 +58,8 @@ Route::post('/password/reset', [UserController::class, 'resetPassword'])->middle
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
 
 Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(function () {
+    Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
+    Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');
     Route::post('/user/profiles/{profile}/switch', [AccountProfileController::class, 'switch'])->middleware('throttle:api-write');
     Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:ADMIN']);
@@ -113,9 +119,13 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::put('/system/colleges/{college}', [CollegeController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/system/colleges/{college}', [CollegeController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/academic-years', [AcademicYearController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::post('/system/academic-years/{academicYear}/semesters', [AcademicSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/system/academic-semesters/{academicSemester}/active', [AcademicSemesterController::class, 'activate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/system/academic-semesters/{academicSemester}/close', [AcademicSemesterController::class, 'close'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/academic-years', [AcademicYearController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/academic-years/{academicYear}', [AcademicYearController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-years/{academicYear}/current', [AcademicYearController::class, 'makeCurrent'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::patch('/system/academic-years/{academicYear}/close', [AcademicYearController::class, 'close'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/system/academic-years/{academicYear}', [AcademicYearController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/system/admins', [SystemAdministrationController::class, 'admins'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/admins', [SystemAdministrationController::class, 'storeAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -135,8 +145,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::post('/users/{id}/fingerprint', [FingerprintController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::delete('/users/{id}/fingerprint', [FingerprintController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/fingerprints/identify', [FingerprintController::class, 'identify'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/events/{id}/attendance/fingerprint', [FingerprintController::class, 'attend'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/events/{id}/attendance/fingerprint/confirm', [FingerprintController::class, 'confirmAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/events/{id}/attendance/fingerprint', [FingerprintController::class, 'attend'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER', EnsureCurrentEventSemester::class]);
+    Route::post('/events/{id}/attendance/fingerprint/confirm', [FingerprintController::class, 'confirmAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER', EnsureCurrentEventSemester::class]);
 
     // Event Routes
     Route::get('/events', [EventController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
@@ -147,26 +157,26 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::put('/event-requirements/{requirement}', [EventRequirementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/event-requirements/{requirement}', [EventRequirementController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/events/{event}/submission', [EventRequirementController::class, 'showSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
-    Route::post('/events/{event}/submission', [EventRequirementController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/events/{event}/submission', [EventRequirementController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentEventSemester::class]);
     Route::get('/events/{event}/submission/files/{file}', [EventRequirementController::class, 'download'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::get('/events/{id}', [EventController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::post('/events', [EventController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::put('/events/{id}', [EventController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware(['throttle:ai-generation', 'role:ADMIN']);
+    Route::put('/events/{id}', [EventController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentEventSemester::class]);
+    Route::delete('/events/{id}', [EventController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentEventSemester::class]);
+    Route::patch('/events/{id}/status', [EventController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentEventSemester::class]);
+    Route::post('/events/{id}/generate-plan', [EventController::class, 'generatePlan'])->middleware(['throttle:ai-generation', 'role:ADMIN', EnsureCurrentEventSemester::class]);
     Route::get('/events/{id}/workflows', [EventController::class, 'workflowHistory'])->middleware(['throttle:api-read', 'role:ADMIN']);
-    Route::post('/events/{id}/workflows/{aiOutput}/confirm', [EventController::class, 'confirmWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::patch('/events/{id}/workflows/{aiOutput}/discard', [EventController::class, 'discardWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/events/{id}/workflows/{aiOutput}/confirm', [EventController::class, 'confirmWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentEventSemester::class]);
+    Route::patch('/events/{id}/workflows/{aiOutput}/discard', [EventController::class, 'discardWorkflow'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentEventSemester::class]);
     Route::get('/events/{id}/attendance', [EventController::class, 'getAttendance'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/events/{id}/attendance', [EventController::class, 'recordAttendance'])->middleware(['throttle:attendance', 'role:ADMIN,SBO_OFFICER', EnsureCurrentEventSemester::class]);
 
     // Task Routes
     Route::get('/tasks', [TaskController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/tasks', [TaskController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::put('/tasks/{id}', [TaskController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentTaskSemester::class]);
+    Route::delete('/tasks/{id}', [TaskController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentTaskSemester::class]);
+    Route::patch('/tasks/{id}/status', [TaskController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', EnsureCurrentTaskSemester::class]);
 
     // Finance Routes - Budgets
     Route::get('/budgets', [BudgetController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
@@ -243,22 +253,23 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}', [ElectionController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
+    Route::get('/elections/{id}/informative-letter', [ElectionController::class, 'informativeLetter'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/results', [ElectionController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/voters', [ElectionController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT', EnsureCurrentElectionSemester::class]);
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::patch('/elections/{id}/finalize', [ElectionController::class, 'finalize'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::delete('/elections/{id}', [ElectionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);
+    Route::patch('/elections/{id}/finalize', [ElectionController::class, 'finalize'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);
+    Route::delete('/elections/{id}', [ElectionController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);
     Route::get('/elections/{id}/positions', [ElectionController::class, 'positionsIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/elections/{id}/positions', [ElectionController::class, 'positionsStore'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::put('/elections/{id}/positions/{positionId}', [ElectionController::class, 'positionsUpdate'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::delete('/elections/{id}/positions/{positionId}', [ElectionController::class, 'positionsDestroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
-    Route::post('/elections/{id}/candidates', [ElectionController::class, 'candidatesStore'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
-    Route::put('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesUpdate'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
-    Route::delete('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesDestroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
+    Route::post('/elections/{id}/positions', [ElectionController::class, 'positionsStore'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);
+    Route::put('/elections/{id}/positions/{positionId}', [ElectionController::class, 'positionsUpdate'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);
+    Route::delete('/elections/{id}/positions/{positionId}', [ElectionController::class, 'positionsDestroy'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);
+    Route::post('/elections/{id}/candidates', [ElectionController::class, 'candidatesStore'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', EnsureCurrentElectionSemester::class]);
+    Route::put('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesUpdate'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', EnsureCurrentElectionSemester::class]);
+    Route::delete('/elections/{id}/candidates/{candidateId}', [ElectionController::class, 'candidatesDestroy'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER', EnsureCurrentElectionSemester::class]);
     Route::get('/partylists', [ElectionController::class, 'partylistsIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::post('/partylists', [ElectionController::class, 'partylistsStore'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/partylists/{id}', [ElectionController::class, 'partylistsUpdate'])->middleware(['throttle:api-write', 'role:ADMIN']);

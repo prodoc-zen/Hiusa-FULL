@@ -3,6 +3,7 @@
 namespace App\Services\Compliance;
 
 use App\Models\AcademicYear;
+use App\Models\AcademicSemester;
 use App\Models\ComplianceRequirementType;
 use App\Models\OrganizationComplianceSubmission;
 use Illuminate\Support\Collection;
@@ -40,7 +41,8 @@ class AccreditationStatusService
             return $organizationIds->mapWithKeys(fn ($id) => [$id => 'not_applicable'])->all();
         }
 
-        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)->get();
+        $requirementTypes = ComplianceRequirementType::where('academic_year', $academicYear)->where('is_active', true)
+            ->where(fn ($period) => $period->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))->get();
 
         if ($requirementTypes->isEmpty()) {
             return $organizationIds->mapWithKeys(fn ($id) => [$id => 'not_applicable'])->all();

@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
+use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\Election;
@@ -71,10 +72,15 @@ class ElectionController extends Controller
 
     public function index(Request $request)
     {
+        $filters = $request->validate(['academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id']]);
         $this->synchronizeScheduledStatuses($request->user()->organization_id);
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
             ->where('organization_id', $request->user()->organization_id);
+        $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        if ($selectedSemesterId) {
+            $query->where('academic_semester_id', $selectedSemesterId);
+        }
 
         if ($request->user()?->role === 'STUDENT') {
             $query->where(function ($studentQuery) {
@@ -146,6 +152,10 @@ class ElectionController extends Controller
 
     public function store(Request $request)
     {
+        $semester = AcademicSemester::active();
+        if (AcademicSemester::exists() && ! $semester) {
+            return response()->json(['message' => 'SAO must activate an academic semester before new elections can be created.'], 409);
+        }
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'room' => ['nullable', 'string', 'max:120'],
@@ -154,19 +164,29 @@ class ElectionController extends Controller
             'status' => ['nullable', 'in:upcoming,active,closed,pending_approval'],
             'results_visible' => ['boolean'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,jpg,webp', 'max:5120'],
+            'informative_letter' => [$semester ? 'required' : 'nullable', 'file', 'mimes:pdf', 'max:10240'],
             'positions' => ['sometimes', 'array', 'min:1', 'max:30'],
             'positions.*.title' => ['required', 'string', 'max:100', 'distinct:ignore_case'],
             'positions.*.max_winners' => ['required', 'integer', 'min:1', 'max:20'],
         ]);
+        if ($semester && (Carbon::parse($data['start_time'])->toDateString() < $semester->starts_on->toDateString()
+            || Carbon::parse($data['end_time'])->toDateString() > $semester->ends_on->toDateString())) {
+            throw ValidationException::withMessages(['start_time' => ['The voting period must fall within the active semester.']]);
+        }
 
         $imageUrl = $request->hasFile('image') ? $this->storeElectionImage($request) : null;
+        $letterPath = $request->hasFile('informative_letter')
+            ? $request->file('informative_letter')->store('election-letters/'.$request->user()->organization_id, 'local')
+            : null;
 
         try {
-            $election = DB::transaction(function () use ($data, $request, $imageUrl) {
+            $election = DB::transaction(function () use ($data, $request, $imageUrl, $letterPath, $semester) {
                 $election = Election::create([
                     'title' => trim($data['title']),
                     'room' => $data['room'] ?? null,
                     'image_url' => $imageUrl,
+                    'informative_letter_path' => $letterPath,
+                    'academic_semester_id' => $semester?->id,
                     'start_time' => $data['start_time'],
                     'end_time' => $data['end_time'],
                     'status' => 'pending_approval',
@@ -193,6 +213,9 @@ class ElectionController extends Controller
             });
         } catch (\Throwable $exception) {
             $this->deleteElectionImage($imageUrl);
+            if ($letterPath) {
+                Storage::disk('local')->delete($letterPath);
+            }
 
             throw $exception;
         }
@@ -208,6 +231,19 @@ class ElectionController extends Controller
         );
 
         return response()->json($election, 201);
+    }
+
+    public function informativeLetter(Request $request, $id)
+    {
+        $election = Election::where('organization_id', $request->user()->organization_id)->findOrFail($id);
+        if (! in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'], true)) {
+            abort(403);
+        }
+        if (! $election->informative_letter_path || ! Storage::disk('local')->exists($election->informative_letter_path)) {
+            abort(404);
+        }
+
+        return Storage::disk('local')->download($election->informative_letter_path, 'election-informative-letter.pdf');
     }
 
     public function finalize(Request $request, $id)
@@ -404,6 +440,7 @@ class ElectionController extends Controller
         $baseQuery = fn () => Election::query()
             ->where('organization_id', $organizationId)
             ->whereNotNull('approved_at')
+            ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))
             ->when($electionId, fn ($query) => $query->whereKey($electionId));
 
         // Keep the persisted workflow status aligned with the approved voting
@@ -441,6 +478,7 @@ class ElectionController extends Controller
         $oldValues = $this->auditableElectionValues($election);
         $electionId = $election->id;
         $imageUrl = $election->image_url;
+        $letterPath = $election->informative_letter_path;
 
         ApprovalRequest::where('organization_id', $election->organization_id)
             ->where('entity_type', 'election')
@@ -449,6 +487,9 @@ class ElectionController extends Controller
 
         $election->delete();
         $this->deleteElectionImage($imageUrl);
+        if ($letterPath) {
+            Storage::disk('local')->delete($letterPath);
+        }
         $this->recordElectionAudit($request, 'deleted', Election::class, $electionId, $oldValues, null);
 
         return response()->json(['message' => 'Election deleted successfully']);

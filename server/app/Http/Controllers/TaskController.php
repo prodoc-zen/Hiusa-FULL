@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AiOutput;
+use App\Models\AcademicSemester;
 use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Notification;
@@ -89,6 +90,7 @@ class TaskController extends Controller
         $paging = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
+            'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
         ]);
 
         $query = Task::with([
@@ -101,6 +103,10 @@ class TaskController extends Controller
             ->where('organization_id', $request->user()->organization_id)
             ->orderBy('deadline', 'asc')
             ->orderBy('id');
+        $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        if ($selectedSemesterId) {
+            $query->where('academic_semester_id', $selectedSemesterId);
+        }
 
         if ($request->user()->role === 'SBO_OFFICER') {
             $query->where('assigned_to', $request->user()->id);
@@ -127,6 +133,9 @@ class TaskController extends Controller
 
     public function store(Request $request)
     {
+        if (AcademicSemester::exists() && ! AcademicSemester::active()) {
+            return response()->json(['message' => 'SAO must activate an academic semester before new tasks can be created.'], 409);
+        }
         $data = $request->validate($this->rules());
 
         if (! $this->validOrganizationLinks($request, $data)) {
@@ -406,6 +415,7 @@ class TaskController extends Controller
         if (! empty($data['event_id'])) {
             return Event::where('organization_id', $request->user()->organization_id)
                 ->where('id', $data['event_id'])
+                ->when(AcademicSemester::active(), fn ($event, $semester) => $event->where('academic_semester_id', $semester->id))
                 ->exists();
         }
 
