@@ -73,8 +73,8 @@ function pythonExecutable(root) {
   return process.platform === 'win32' ? 'python' : 'python3';
 }
 
-function addCheck(checks, name, executable, args, cwd) {
-  checks.push({ name, executable, args, cwd });
+function addCheck(checks, name, executable, args, cwd, timeout) {
+  checks.push({ name, executable, args, cwd, timeout });
 }
 
 function planChecks(root, files) {
@@ -90,7 +90,7 @@ function planChecks(root, files) {
     /^client\/(src\/.*\.[cm]?[jt]sx?$|e2e\/.*\.[cm]?[jt]s$|.*config\.[cm]?js$)/.test(file));
 
   if (clientCode) {
-    addCheck(checks, 'Frontend unit tests', npm, ['run', 'test:unit'], clientRoot);
+    addCheck(checks, 'Frontend unit tests', npm, ['run', 'test:unit'], clientRoot, 180_000);
     addCheck(checks, 'Frontend production build', npm, ['run', 'build'], clientRoot);
   }
   if (clientJs) {
@@ -158,7 +158,7 @@ try {
   const checks = planChecks(root, files);
 
   for (const check of checks) {
-    const result = run(check.executable, check.args, { cwd: check.cwd });
+    const result = run(check.executable, check.args, { cwd: check.cwd, timeout: check.timeout });
     if (result.error || result.status !== 0) {
       emit(failurePayload(event, { ...check, ...result }));
       process.exit(0);

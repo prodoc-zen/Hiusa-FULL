@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useState } from 'react';
 import { CheckCircle2, Download, TriangleAlert } from 'lucide-react';
 import { importUsers } from '../../services/userService';
@@ -109,7 +110,7 @@ export default function UserImportDrawer({ open, onClose, onImported }) {
               <ul className="divide-y divide-line-soft rounded-control border border-line">
                 {problems.map((row) => (
                   <li key={row.row} className="px-3 py-2.5">
-                    <p className="text-sm font-semibold text-ink">Row {row.row}{row.name ? `: ${row.name}` : ''}</p>
+                    <p className="text-sm font-semibold text-ink">Row {row.row}{row.name ? `: ${formatDisplayText(row.name)}` : ''}</p>
                     <ul className="mt-1 list-disc space-y-0.5 pl-5 text-xs font-medium text-ink-muted">
                       {row.errors.map((message) => <li key={message}>{message}</li>)}
                     </ul>

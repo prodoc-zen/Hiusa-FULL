@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { Building2 } from 'lucide-react';
 import DataTable from '../ui/DataTable';
 import EmptyState from '../ui/EmptyState';
@@ -21,7 +22,7 @@ const COLUMNS = [
     render: (row) => (
       <div className="flex min-w-0 items-center gap-2.5">
         <OrgMark name={row.name} acronym={row.abbreviation} size="sm" />
-        <span className="truncate font-semibold text-ink">{row.name}</span>
+        <span className="truncate font-semibold text-ink">{formatDisplayText(row.name)}</span>
       </div>
     ),
   },

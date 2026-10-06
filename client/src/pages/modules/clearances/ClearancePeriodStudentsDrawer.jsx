@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Drawer, EmptyState, ErrorState, Input, SkeletonText, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
@@ -39,7 +40,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
   }
 
   return (
-    <Drawer open={Boolean(period)} title={period?.title} description={period ? `${period.academic_year} · SAO signature line` : undefined} onClose={onClose} width="max-w-lg">
+    <Drawer open={Boolean(period)} title={formatDisplayText(period?.title)} description={period ? `${period.academic_year} · SAO signature line` : undefined} onClose={onClose} width="max-w-lg">
       {period && (
         <div className="flex flex-col gap-4">
           <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" />

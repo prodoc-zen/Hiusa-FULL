@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { Button, Card, DataTable, Input, PageHeader, Select } from '../../../components/ui';
@@ -96,7 +97,7 @@ export default function SignatoryClearancesPage() {
       header: 'Student',
       render: (row) => (
         <div>
-          <p className="font-bold text-ink">{row.student ? `${row.student.first_name} ${row.student.last_name}` : `Student ${row.student_id}`}</p>
+          <p className="font-bold text-ink">{row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : `Student ${row.student_id}`}</p>
           <p className="text-xs font-medium text-ink-muted">{row.student_id}</p>
         </div>
       ),
@@ -123,7 +124,7 @@ export default function SignatoryClearancesPage() {
               {row.status === 'pending' && (
                 <input
                   type="checkbox"
-                  aria-label={`Select ${row.student ? `${row.student.first_name} ${row.student.last_name}` : row.student_id} for bulk clear`}
+                  aria-label={`Select ${row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : row.student_id} for bulk clear`}
                   checked={selectedIds.has(row.id)}
                   onChange={() => toggleRow(row.id)}
                   className="h-4 w-4 accent-brand-700"
@@ -150,7 +151,7 @@ export default function SignatoryClearancesPage() {
               <div className="w-48">
                 <Select aria-label="Filter by clearance period" value={periodId} onChange={(event) => setPeriodId(event.target.value)}>
                   <option value="">All periods</option>
-                  {periods.map((period) => <option key={period.id} value={period.id}>{period.title}</option>)}
+                  {periods.map((period) => <option key={period.id} value={period.id}>{formatDisplayText(period.title)}</option>)}
                 </Select>
               </div>
               <div className="w-40">

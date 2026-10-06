@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import {
@@ -215,7 +216,7 @@ export default function AnnouncementsPage() {
               {pagedAnnouncements.map((a) => (
                 <div key={a.id} className="flex flex-col gap-3 p-5 transition hover:bg-[#F8FBFD] sm:flex-row sm:items-center sm:justify-between">
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-[#0F172A]">{a.title}</p>
+                    <p className="font-bold text-[#0F172A]">{formatDisplayText(a.title)}</p>
                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs font-medium text-slate-500">
                       <span>{formatDate(a.created_at)}</span>
                       <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2 py-0.5 text-[11px] font-bold text-slate-500">

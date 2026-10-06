@@ -277,7 +277,7 @@ describe('FinancePage transaction search', () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<FinancePage initialTab="reports" />);
-    await screen.findByText('August report');
+    await screen.findByText('August Report');
     fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
     await waitFor(() => expect(financeMocks.getFinancialReport).toHaveBeenCalledWith(61));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 12000 });
@@ -314,7 +314,7 @@ describe('FinancePage transaction search', () => {
     URL.revokeObjectURL = vi.fn();
     const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
     render(<FinancePage initialTab="reports" />);
-    await screen.findByText('October report');
+    await screen.findByText('October Report');
     fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
     await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 12000 });
     const workbookBuffer = await new Promise((resolve) => {

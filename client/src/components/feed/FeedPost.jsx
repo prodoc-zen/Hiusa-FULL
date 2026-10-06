@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useState } from 'react';
 import { RichTextBody } from '../RichText';
 import { CalendarDays, CheckCircle2, Clock3, MapPin, Megaphone, Pin, ShieldCheck, Vote } from 'lucide-react';
@@ -76,7 +77,7 @@ export default function FeedPost({ item, organization }) {
       </header>
 
       <div className="px-4 pb-4 sm:px-5 sm:pb-5">
-        <h3 className="text-lg font-black leading-7 text-[#0F172A] sm:text-xl">{post.title}</h3>
+        <h3 className="text-lg font-black leading-7 text-[#0F172A] sm:text-xl">{formatDisplayText(post.title)}</h3>
         {body && <RichTextBody value={body} className="mt-2 text-sm leading-6 text-[#0F172A] sm:text-[15px]" />}
         {item.type === 'event' && (
           <div className="mt-4 space-y-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-semibold text-[#64748B]">
@@ -92,7 +93,7 @@ export default function FeedPost({ item, organization }) {
         )}
       </div>
 
-      <PostMedia url={post.image_url} title={post.title} />
+      <PostMedia url={post.image_url} title={formatDisplayText(post.title)} />
 
       <footer className="p-3 sm:px-5 sm:py-4">
         {item.type === 'announcement' && (

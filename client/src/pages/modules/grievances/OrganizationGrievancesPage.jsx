@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, DataTable, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
@@ -71,7 +72,7 @@ export default function OrganizationGrievancesPage() {
       header: 'Grievance',
       render: (row) => (
         <button type="button" onClick={() => setSelected(row)} className="text-left font-bold text-ink hover:text-brand-700">
-          {row.title}
+          {formatDisplayText(row.title)}
           <span className="block text-xs font-medium text-ink-muted">{row.category}</span>
         </button>
       ),
@@ -82,7 +83,7 @@ export default function OrganizationGrievancesPage() {
       key: 'filer',
       header: 'Filed by',
       render: (row) => ('submitted_by' in row
-        ? <span className="text-ink-muted">{row.submitter ? `${row.submitter.first_name} ${row.submitter.last_name}` : `Student ${row.submitted_by}`}</span>
+        ? <span className="text-ink-muted">{row.submitter ? `${formatDisplayText(row.submitter.first_name)} ${formatDisplayText(row.submitter.last_name)}` : `Student ${row.submitted_by}`}</span>
         : <StatusBadge tone="info" label="Confidential" />),
     },
     { key: 'created_at', header: 'Filed', render: (row) => <span className="text-ink-muted">{relativeTime(row.created_at)}</span> },

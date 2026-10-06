@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -100,7 +101,7 @@ export default function ElectionDetailPage() {
       <section aria-label="Ballot configuration actions" className="rounded-lg border border-[#DDE7EF] bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <p className="text-sm font-bold text-[#0F172A]">{election.title}</p>
+            <p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(election.title)}</p>
             <p className="mt-1 text-xs font-medium text-slate-600">{positions.length} positions, {candidates.length} candidates, {votes.length} votes</p>
           </div>
           {!ballotLocked && (
@@ -131,7 +132,7 @@ export default function ElectionDetailPage() {
           <div key={position.id} className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
             <div className="mb-4 flex items-center justify-between">
               <div>
-                <h3 className="text-base font-bold text-[#0F172A]">{position.title}</h3>
+                <h3 className="text-base font-bold text-[#0F172A]">{formatDisplayText(position.title)}</h3>
                 <p className="text-sm text-slate-500">Up to {position.max_winners} winner{position.max_winners > 1 ? 's' : ''}</p>
               </div>
               <div className="flex items-center gap-2">
@@ -154,8 +155,8 @@ export default function ElectionDetailPage() {
                 return (
                   <div key={candidate.id} className="flex items-center justify-between rounded-lg bg-[#F8FBFD] px-4 py-3">
                     <div>
-                      <p className="font-semibold text-[#0F172A]">{name}</p>
-                      <p className="text-xs text-slate-500">{candidate.partylist?.name || 'Independent'}</p>
+                      <p className="font-semibold text-[#0F172A]">{formatDisplayText(name)}</p>
+                      <p className="text-xs text-slate-500">{formatDisplayText(candidate.partylist?.name) || 'Independent'}</p>
                     </div>
                     <span className="text-xs font-bold text-[#0878B7]">{votes.filter((vote) => vote.candidate_id === candidate.id).length} votes</span>
                   </div>

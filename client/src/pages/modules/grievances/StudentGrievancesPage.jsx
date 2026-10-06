@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import RichTextEditor from '../../../components/RichText';
 import { CheckCircle2, Circle, MessageSquareWarning, ShieldCheck } from 'lucide-react';
@@ -210,7 +211,7 @@ export default function StudentGrievancesPage() {
               <div className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
-                    <p className="text-base font-bold text-ink">{grievance.title}</p>
+                    <p className="text-base font-bold text-ink">{formatDisplayText(grievance.title)}</p>
                     <p className="text-xs font-medium text-ink-muted">Addressed to {addressedToLabel(grievance)} · Filed {relativeTime(grievance.created_at)}</p>
                   </div>
                   <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />

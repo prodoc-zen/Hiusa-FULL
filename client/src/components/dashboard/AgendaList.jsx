@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { CalendarDays } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import EmptyState from '../ui/EmptyState';
@@ -10,7 +11,7 @@ function Row({ item }) {
         <CalendarDays size={18} aria-hidden="true" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-bold text-ink">{item.title}</p>
+        <p className="truncate text-sm font-bold text-ink">{formatDisplayText(item.title)}</p>
         <p className="mt-0.5 text-xs font-medium text-ink-muted">
           {manilaDate(item.starts_at)} &middot; {relativeTime(item.starts_at)}
           {item.location ? ` · ${item.location}` : ''}

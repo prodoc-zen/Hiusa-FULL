@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarDays, Check, Clock, Coins, Download, Eye, FileText, Megaphone, Package, Search, Vote, X } from 'lucide-react';
@@ -115,7 +117,7 @@ function ApprovalReceipt({ request }) {
     ['Reviewer', `${request.reviewer?.first_name || ''} ${request.reviewer?.last_name || ''}`.trim() || '-'],
     ['Reviewed', formatDateTime(request.reviewed_at)],
   ];
-  return <section className="border-y-2 border-[#0F2F62] bg-white py-3"><h4 className="pb-3 text-sm font-black text-[#0F2F62]">{request.title}</h4><dl className="border-t border-[#DDE7EF] sm:grid sm:grid-cols-2">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 border-b border-[#DDE7EF] py-2 pr-2 text-xs"><dt className="font-bold text-[#64748B]">{label}</dt><dd className="break-words font-semibold text-[#0F172A]">{value || '-'}</dd></div>)}</dl><div className="py-3 text-xs leading-5 text-[#0F172A]"><strong className="block text-[#64748B]">Record summary</strong>{summaryLine(request.entity_type, request.summary) || 'No additional summary available.'}</div>{request.status !== 'pending' && <p className="border-t border-[#DDE7EF] pt-3 text-xs"><strong>Review remarks:</strong> {request.remarks || 'No remarks recorded.'}</p>}</section>;
+  return <section className="border-y-2 border-[#0F2F62] bg-white py-3"><h4 className="pb-3 text-sm font-black text-[#0F2F62]">{formatDisplayText(request.title)}</h4><dl className="border-t border-[#DDE7EF] sm:grid sm:grid-cols-2">{rows.map(([label, value]) => <div key={label} className="grid grid-cols-[110px_minmax(0,1fr)] gap-2 border-b border-[#DDE7EF] py-2 pr-2 text-xs"><dt className="font-bold text-[#64748B]">{label}</dt><dd className="break-words font-semibold text-[#0F172A]">{value || '-'}</dd></div>)}</dl><div className="py-3 text-xs leading-5 text-[#0F172A]"><strong className="block text-[#64748B]">Record summary</strong>{summaryLine(request.entity_type, request.summary) || 'No additional summary available.'}</div>{request.status !== 'pending' && <p className="border-t border-[#DDE7EF] pt-3 text-xs"><strong>Review remarks:</strong> {request.remarks || 'No remarks recorded.'}</p>}</section>;
 }
 
 function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
@@ -133,7 +135,7 @@ function ReviewModal({ open, request, action, onCancel, onConfirm, busy }) {
     <AccessibleOverlay label={`${isReject ? 'Reject' : 'Approve'} request`} onClose={() => !busy && onCancel()} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
       <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl">
         <h3 className="text-lg font-extrabold text-[#0F172A]">
-          {isReject ? 'Reject' : 'Approve'} "{request.title}"
+          {isReject ? 'Reject' : 'Approve'} "{formatDisplayText(request.title)}"
         </h3>
         <div className="mt-4"><ApprovalReceipt request={request} /></div>
         <div className="mt-4 space-y-1.5">
@@ -293,8 +295,8 @@ export default function DepartmentHeadApprovalsPage() {
           <select value={entityFilter} onChange={(event) => setEntityFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm">
             <option value="all">All request types</option>{Object.entries(ENTITY_LABEL).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
           </select>
-          <input type="date" aria-label="Requested from" value={from} onChange={(event) => setFrom(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-          <input type="date" aria-label="Requested to" value={to} onChange={(event) => setTo(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+          <DateTimeInput type="date" aria-label="Requested from" value={from} onChange={(event) => setFrom(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
+          <DateTimeInput type="date" aria-label="Requested to" value={to} onChange={(event) => setTo(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
           <select value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select>
         </div>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -336,7 +338,7 @@ export default function DepartmentHeadApprovalsPage() {
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-[#0F172A]">{request.title}</p>
+                        <p className="font-bold text-[#0F172A]">{formatDisplayText(request.title)}</p>
                         <span className="rounded-full border border-[#DDE7EF] bg-[#F8FBFD] px-2 py-0.5 text-[11px] font-bold text-slate-500">
                           {ENTITY_LABEL[request.entity_type] || request.entity_type}
                         </span>
@@ -348,7 +350,7 @@ export default function DepartmentHeadApprovalsPage() {
                         <p className="mt-1 text-xs text-slate-500">{summaryLine(request.entity_type, request.summary)}</p>
                       )}
                       <p className="mt-1 text-xs text-slate-500">
-                        Requested by {request.requester ? `${request.requester.first_name} ${request.requester.last_name}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
+                        Requested by {request.requester ? `${formatDisplayText(request.requester.first_name)} ${formatDisplayText(request.requester.last_name)}` : 'Unknown'} ({request.requester?.school_id || 'No ID'}) | {formatDateTime(request.requested_at)}
                       </p>
                       <p className="mt-1 text-xs text-slate-500">{[request.requester?.role, request.requester?.position_title, request.requester?.program, request.requester?.year_level, request.requester?.section].filter(Boolean).join(' · ') || 'No requester profile details'}</p>
                       {request.status !== 'pending' && request.remarks && (
@@ -405,11 +407,11 @@ export default function DepartmentHeadApprovalsPage() {
       {details && (
         <AccessibleOverlay label="Approval request details" onClose={() => setDetails(null)} closeOnBackdrop className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Request #{details.id} · {ENTITY_LABEL[details.entity_type]}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{details.title}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
+            <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Request #{details.id} · {ENTITY_LABEL[details.entity_type]}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{formatDisplayText(details.title)}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
             <div className="mt-5"><ApprovalReceipt request={details} /></div>
             {details.entity_type === 'financial_report' && <>
               <button type="button" onClick={downloadReportPdf} disabled={pdfDownloading} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Download size={15}/>{pdfDownloading ? 'Preparing PDF...' : 'Download submitted report'}</button>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents.</p>}</div></div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Required signatories</p>{Object.entries(details.summary?.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{formatDisplayText(name)}</strong></p>)}</div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Supporting documents</p>{(details.summary?.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14}/>{document.name}</a>)}{!(details.summary?.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents.</p>}</div></div>
             </>}
           </div>
         </AccessibleOverlay>

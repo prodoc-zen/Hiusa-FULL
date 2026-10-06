@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import FieldIcon from '../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -157,7 +158,7 @@ export default function OrganizationSelectPage() {
                   <option value="">{loading ? 'Loading organizations...' : 'Select your organization...'}</option>
                   {filteredOrganizations.map((organization) => (
                     <option key={organization.id} value={organization.id}>
-                      {organization.organization_type === 'SYSTEM_ADMINISTRATION' ? `${organization.name} (System Access)` : organization.name}
+                      {organization.organization_type === 'SYSTEM_ADMINISTRATION' ? `${formatDisplayText(organization.name)} (System Access)` : formatDisplayText(organization.name)}
                     </option>
                   ))}
                 </select>
@@ -183,7 +184,7 @@ export default function OrganizationSelectPage() {
                           : 'border-[#DDE7EF] bg-white text-slate-600 hover:border-[#0B8ED0] hover:text-[#0878B7]'
                       }`}
                     >
-                      {organization.acronym || organization.name}
+                      {organization.acronym || formatDisplayText(organization.name)}
                     </button>
                   ))}
                 </div>

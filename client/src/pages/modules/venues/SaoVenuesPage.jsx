@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
@@ -195,10 +196,10 @@ export default function SaoVenuesPage() {
   }
 
   const venueColumns = [
-    { key: 'name', header: 'Venue', render: (venue) => <span className="font-bold text-ink">{venue.name}</span> },
+    { key: 'name', header: 'Venue', render: (venue) => <span className="font-bold text-ink">{formatDisplayText(venue.name)}</span> },
     { key: 'location', header: 'Location' },
     { key: 'capacity', header: 'Capacity', align: 'right' },
-    { key: 'is_active', header: 'Status', render: (venue) => <button type="button" role="switch" aria-checked={venue.is_active} aria-label={`${venue.name} active status`} disabled={togglingVenueId === venue.id} onClick={() => toggleVenueActive(venue)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50"><span aria-hidden="true" className={`relative h-6 w-11 rounded-full transition-colors ${venue.is_active ? 'bg-[#0B8ED0]' : 'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${venue.is_active ? 'left-6' : 'left-1'}`} /></span><StatusBadge status={venue.is_active ? 'active' : 'inactive'} /></button> },
+    { key: 'is_active', header: 'Status', render: (venue) => <button type="button" role="switch" aria-checked={venue.is_active} aria-label={`${formatDisplayText(venue.name)} active status`} disabled={togglingVenueId === venue.id} onClick={() => toggleVenueActive(venue)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50"><span aria-hidden="true" className={`relative h-6 w-11 rounded-full transition-colors ${venue.is_active ? 'bg-[#0B8ED0]' : 'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${venue.is_active ? 'left-6' : 'left-1'}`} /></span><StatusBadge status={venue.is_active ? 'active' : 'inactive'} /></button> },
   ];
 
   const bookingColumns = [
@@ -271,7 +272,7 @@ export default function SaoVenuesPage() {
                 </Select>
                 <Select aria-label="Filter by venue" value={venueFilter} onChange={(event) => setVenueFilter(event.target.value)} className="sm:w-56">
                   <option value="">All venues</option>
-                  {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}
+                  {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}
                 </Select>
                 {bookingFiltersActive && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter('pending'); setVenueFilter(''); }}>Clear filters</Button>}
                 <p className="text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto">{bookings.meta.total} {bookings.meta.total === 1 ? 'request' : 'requests'}</p>

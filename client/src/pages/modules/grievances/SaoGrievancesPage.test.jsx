@@ -48,7 +48,7 @@ describe('SaoGrievancesPage', () => {
     render(<SaoGrievancesPage />);
     const rows = await screen.findAllByRole('row');
     // rows[0] is the header row; the table body should lead with Critical.
-    expect(within(rows[1]).getByText('Critical concern')).toBeTruthy();
+    expect(within(rows[1]).getByText('Critical Concern')).toBeTruthy();
   });
 
   it('renders the status and urgency summary strip from the count queries', async () => {

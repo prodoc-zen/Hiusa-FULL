@@ -5,6 +5,20 @@ export const ROLE_LABELS = {
   STUDENT: 'Student',
 };
 
+const DISPLAY_ACRONYMS = new Map(['HIUSA', 'SAO', 'SBO', 'CCS', 'PSITS', 'CCJE', 'CBA', 'CHTM', 'COE', 'CTE', 'BSIT', 'BSCS', 'BSIS', 'BSCE', 'IT', 'ICT', 'ID', 'AY', 'II', 'III', 'IV', 'GCash', 'CpE', 'BSCpE'].map((word) => [word.toLowerCase(), word]));
+
+export function formatDisplayText(value) {
+  if (typeof value !== 'string') return value;
+  const firstWord = value.search(/[\p{L}\p{N}]/u);
+  return value.replace(/https?:\/\/\S+|\S+@\S+|[\p{L}\p{N}]+(?:['’][\p{L}]+)*/gu, (word, index) => {
+    if (/[@\d]/.test(word) || /^https?:/i.test(word)) return word;
+    const canonical = DISPLAY_ACRONYMS.get(word.toLowerCase());
+    if (canonical) return canonical;
+    if (index > firstWord && ['a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with'].includes(word.toLowerCase())) return word.toLowerCase();
+    return word.toLocaleLowerCase('en-PH').replace(/(^|['’])\p{L}/gu, (letter) => letter.toLocaleUpperCase('en-PH'));
+  });
+}
+
 export function humanizeIdentifier(value) {
   if (value === null || value === undefined || value === '') return '';
   const text = String(value);

@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import { Heart, Search } from 'lucide-react';
 import { getAnnouncements, setAnnouncementReaction } from '../../../services/announcementService';
@@ -28,8 +29,8 @@ function AnnouncementCard({ announcement, onReaction }) {
   }
   return <article className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
     <header className="border-b border-[#DDE7EF] px-4 py-3 sm:px-5"><p className="text-sm font-bold text-[#0F172A]">{organizationName(announcement)}</p><p className="text-xs text-[#64748B]">{new Date(announcement.published_at || announcement.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })}</p></header>
-    <div className="px-4 py-4 sm:px-5"><h2 className="text-lg font-bold text-[#0F172A]">{announcement.title}</h2><RichTextBody value={announcement.body} className="mt-2 text-sm leading-6 text-[#0F172A]" /></div>
-    {announcement.image_url && <img src={resolveAssetUrl(announcement.image_url)} alt={announcement.title} loading="lazy" className="max-h-[640px] w-full border-y border-[#DDE7EF] object-contain" />}
+    <div className="px-4 py-4 sm:px-5"><h2 className="text-lg font-bold text-[#0F172A]">{formatDisplayText(announcement.title)}</h2><RichTextBody value={announcement.body} className="mt-2 text-sm leading-6 text-[#0F172A]" /></div>
+    {announcement.image_url && <img src={resolveAssetUrl(announcement.image_url)} alt={formatDisplayText(announcement.title)} loading="lazy" className="max-h-[640px] w-full border-y border-[#DDE7EF] object-contain" />}
     <footer className="px-4 py-3 sm:px-5"><button type="button" onClick={toggleReaction} disabled={busy} aria-pressed={Boolean(announcement.is_liked)} className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-sm font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50 ${announcement.is_liked ? 'bg-red-50 text-red-700' : 'text-[#0F2F62] hover:bg-[#EEF6FB]'}`}><Heart size={18} fill={announcement.is_liked ? 'currentColor' : 'none'} /> {announcement.is_liked ? 'Liked' : 'Like'} <span aria-label={`${announcement.reactions_count || 0} reactions`}>{announcement.reactions_count || 0}</span></button>{error && <p role="alert" className="mt-2 text-xs text-red-700">{error}</p>}</footer>
   </article>;
 }
