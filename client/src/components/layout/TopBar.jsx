@@ -370,7 +370,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
           </nav>
           <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <h1 className="break-words text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
-            {activeAcademicPeriod && <span className="rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
+            {activeAcademicPeriod?.academic_year?.label && <span className="rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
           </div>
           {!isRoleHome && headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
         </div>

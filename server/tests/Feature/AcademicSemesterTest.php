@@ -80,7 +80,7 @@ class AcademicSemesterTest extends TestCase
         $this->patchJson("/api/system/academic-semesters/{$first}/active")->assertOk()->assertJsonPath('status', 'active');
 
         Sanctum::actingAs($admin);
-        $this->getJson('/api/academic-periods/active')->assertOk()->assertJsonPath('id', $first);
+        $this->getJson('/api/academic-periods/active')->assertOk()->assertJsonPath('id', $first)->assertJsonPath('academic_year.label', '2026-2027');
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertForbidden();
         Sanctum::actingAs($director);
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertOk();
