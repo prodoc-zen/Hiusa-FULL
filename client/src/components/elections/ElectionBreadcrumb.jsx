@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { CalendarDays, ChevronLeft, LayoutDashboard, ListChecks, Trophy, UserRoundCheck, UsersRound, Vote } from 'lucide-react';
 import { NavLink } from 'react-router-dom';
 import { resolveAssetUrl } from '../../utils/assetUrl';
@@ -68,7 +69,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
             </span>
           </div>
           <p className="mt-3 text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">Selected election</p>
-          <h1 className="mt-1 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{election?.title}</h1>
+          <h1 className="mt-1 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{formatDisplayText(election?.title)}</h1>
           <p className="mt-2 text-sm font-medium text-[#64748B]">Manage this election from one focused workspace.</p>
         </div>
       </div>

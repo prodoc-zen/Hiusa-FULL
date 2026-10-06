@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { getSystemOrganizationMembers, handoverSystemAdmin } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -114,8 +115,8 @@ export default function AdminHandoverDrawer({ admin, onClose, onDone }) {
                       <label className="flex cursor-pointer items-center gap-3 px-3 py-2.5 hover:bg-subtle">
                         <input type="radio" name="successor" checked={successorId === member.school_id} onChange={() => setSuccessorId(member.school_id)} className="h-4 w-4 accent-brand-700" />
                         <span className="min-w-0">
-                          <span className="block truncate text-sm font-semibold text-ink">{member.first_name} {member.last_name}</span>
-                          <span className="block text-xs font-medium text-ink-muted">{ROLE_LABELS[member.role] || humanizeIdentifier(member.role)}{member.position_title ? ` · ${member.position_title}` : ''} · {member.school_id}</span>
+                          <span className="block truncate text-sm font-semibold text-ink">{formatDisplayText(member.first_name)} {formatDisplayText(member.last_name)}</span>
+                          <span className="block text-xs font-medium text-ink-muted">{ROLE_LABELS[member.role] || humanizeIdentifier(member.role)}{member.position_title ? ` · ${formatDisplayText(member.position_title)}` : ''} · {member.school_id}</span>
                         </span>
                       </label>
                     </li>

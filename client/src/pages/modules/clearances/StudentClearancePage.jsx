@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleDashed, ClipboardCheck, PauseCircle } from 'lucide-react';
 import { Card, DrawnCheck, EmptyState, ErrorState, ProgressMeter, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
@@ -87,13 +88,13 @@ export default function StudentClearancePage() {
     <div className="flex flex-col gap-4">
       <div>
         <h1 className="text-[28px] font-extrabold leading-tight text-ink">My clearance</h1>
-        <p className="mt-1 text-sm font-medium text-ink-muted-strong">{selected.title} · {selected.academic_year}</p>
+        <p className="mt-1 text-sm font-medium text-ink-muted-strong">{formatDisplayText(selected.title)} · {selected.academic_year}</p>
       </div>
 
       {periods.length > 1 && (
         <Select aria-label="Choose clearance period" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
           {[...periods].sort((a, b) => b.clearance_period_id - a.clearance_period_id).map((entry) => (
-            <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{entry.title} ({entry.academic_year})</option>
+            <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{formatDisplayText(entry.title)} ({entry.academic_year})</option>
           ))}
         </Select>
       )}
@@ -103,7 +104,7 @@ export default function StudentClearancePage() {
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <DrawnCheck label="Clearance complete" size="lg" />
             <p className="text-lg font-bold text-ink">Your clearance is complete!</p>
-            <p className="max-w-sm text-sm font-medium text-ink-muted">Every required signature for {selected.title} has been cleared.</p>
+            <p className="max-w-sm text-sm font-medium text-ink-muted">Every required signature for {formatDisplayText(selected.title)} has been cleared.</p>
           </div>
         </Card>
       ) : (

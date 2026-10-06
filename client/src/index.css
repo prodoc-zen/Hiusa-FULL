@@ -43,6 +43,10 @@ input[type='datetime-local']::-webkit-calendar-picker-indicator {
   padding: 8px;
 }
 
+input.hiusa-date-time::-webkit-calendar-picker-indicator {
+  display: none;
+}
+
 @theme {
   --font-sans: 'Poppins', ui-sans-serif, system-ui, sans-serif;
   --radius-lg: 1rem;

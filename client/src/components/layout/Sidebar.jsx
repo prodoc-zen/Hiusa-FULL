@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
@@ -68,10 +69,10 @@ function OfficerProfile({ user, roleLabel, desktopCollapsed }) {
   const name = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
 
   return (
-    <div className={`flex items-center gap-3 px-2 py-2 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${name} · ${roleLabel}` : undefined}>
+    <div className={`flex items-center gap-3 px-2 py-2 ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`} title={desktopCollapsed ? `${formatDisplayText(name)} · ${roleLabel}` : undefined}>
       <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">{initials}</div>
       <div className={`min-w-0 flex-1 ${desktopCollapsed ? 'lg:sr-only' : ''}`}>
-        <p className="truncate text-sm font-bold text-white">{name}</p>
+        <p className="truncate text-sm font-bold text-white">{formatDisplayText(name)}</p>
         <p className="truncate text-xs font-medium text-slate-300 capitalize">{roleLabel}</p>
       </div>
     </div>

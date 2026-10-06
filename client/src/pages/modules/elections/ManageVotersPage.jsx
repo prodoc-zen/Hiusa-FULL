@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Users, Search, CheckCircle, Clock } from 'lucide-react';
@@ -119,7 +120,7 @@ export default function ManageVotersPage() {
       <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <div className="flex flex-col justify-between gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center">
           <div>
-            <h3 className="text-base font-bold text-[#0F172A]">Voters: {election.title}</h3>
+            <h3 className="text-base font-bold text-[#0F172A]">Voters: {formatDisplayText(election.title)}</h3>
             <p className="text-sm font-medium text-[#64748B]">
               {eligibleTotal} eligible {eligibleTotal === 1 ? 'voter' : 'voters'} for this election
               {eligibleTotal > perPage && ` · showing ${voters.length} on this page`}
@@ -183,7 +184,7 @@ export default function ManageVotersPage() {
                         <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-[10px] font-black text-white">
                           {voter.first_name?.[0] ?? ''}{voter.last_name?.[0] ?? ''}
                         </div>
-                        <span className="truncate font-semibold text-[#0F172A]">{voter.first_name} {voter.last_name}</span>
+                        <span className="truncate font-semibold text-[#0F172A]">{formatDisplayText(voter.first_name)} {formatDisplayText(voter.last_name)}</span>
                       </div>
                     </td>
                     <td className="max-w-[120px] truncate px-4 py-3.5 font-mono text-xs text-[#64748B]">{voter.school_id}</td>

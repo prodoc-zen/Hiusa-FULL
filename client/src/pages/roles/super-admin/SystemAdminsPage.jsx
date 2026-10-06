@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -315,7 +316,7 @@ export default function SystemAdminsPage() {
             <option value="">All organizations</option>
             {organizations.map((organization) => (
               <option key={organization.id} value={organization.id}>
-                {organization.acronym}: {organization.name}
+                {organization.acronym}: {formatDisplayText(organization.name)}
               </option>
             ))}
           </select>
@@ -369,17 +370,17 @@ export default function SystemAdminsPage() {
                   <tr className="border-t border-[#DDE7EF] hover:bg-[#F8FBFD]">
                     <td className="p-4">
                       <p className="font-bold text-[#0F172A]">
-                        {admin.first_name} {admin.last_name}
+                        {formatDisplayText(admin.first_name)} {formatDisplayText(admin.last_name)}
                       </p>
                       <p className="text-xs text-slate-500">
                         {admin.email} · {admin.school_id}
                       </p>
                     </td>
                     <td className="p-4 font-semibold text-slate-600">
-                      {admin.organization?.acronym || admin.organization?.name || "Not assigned"}
+                      {admin.organization?.acronym || formatDisplayText(admin.organization?.name) || "Not assigned"}
                     </td>
                     <td className="p-4 text-slate-600">
-                      {admin.position_title || "Organization Admin"}
+                      {formatDisplayText(admin.position_title) || "Organization Admin"}
                     </td>
                     <td className="p-4">
                       <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${statusStyle(admin.account_status)}`}>
@@ -477,7 +478,7 @@ export default function SystemAdminsPage() {
                     .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
                     .map((organization) => (
                       <option key={organization.id} value={organization.id}>
-                        {organization.acronym}: {organization.name}{organization.is_active ? "" : " (inactive)"}
+                        {organization.acronym}: {formatDisplayText(organization.name)}{organization.is_active ? "" : " (inactive)"}
                       </option>
                     ))}
                 </select>

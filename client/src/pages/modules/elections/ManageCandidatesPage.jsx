@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -213,7 +214,7 @@ function CandidateForm({
               >
                 <option value="">Select a position...</option>
                 {positions.map((position) => (
-                  <option key={position.id} value={position.id}>{position.title}</option>
+                  <option key={position.id} value={position.id}>{formatDisplayText(position.title)}</option>
                 ))}
               </select>
               <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -230,7 +231,7 @@ function CandidateForm({
               >
                 <option value="">Independent</option>
                 {partylists.map((partylist) => (
-                  <option key={partylist.id} value={partylist.id}>{partylist.name}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
+                  <option key={partylist.id} value={partylist.id}>{formatDisplayText(partylist.name)}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
                 ))}
               </select>
               <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
@@ -449,12 +450,12 @@ export default function ManageCandidatesPage() {
     <div className="space-y-5">
       <section aria-label="Candidate filters and actions" className="flex flex-col gap-4 rounded-lg border border-[#DDE7EF] bg-white p-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-[#0F172A]">{candidates.length} candidates registered for {election.title}</p>
+          <p className="text-sm font-semibold text-[#0F172A]">{candidates.length} candidates registered for {formatDisplayText(election.title)}</p>
           <div className="mt-2 flex flex-wrap gap-1.5">
             <button onClick={() => setPosFilter('All')} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === 'All' ? 'bg-[#0F2F62] text-white' : 'border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]'}`}>All</button>
             {positions.map((position) => (
               <button key={position.id} onClick={() => setPosFilter(String(position.id))} className={`px-2.5 py-1 text-[11px] font-bold rounded-full transition ${posFilter === String(position.id) ? 'bg-[#0F2F62] text-white' : 'border border-[#DDE7EF] text-slate-600 hover:bg-[#EEF6FB]'}`}>
-                {position.title}
+                {formatDisplayText(position.title)}
               </button>
             ))}
           </div>
@@ -570,11 +571,11 @@ export default function ManageCandidatesPage() {
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex items-start gap-3 min-w-0 flex-1">
                       {candidate.image_url
-                        ? <img src={resolveAssetUrl(candidate.image_url)} alt={name} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
+                        ? <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className="h-9 w-9 shrink-0 rounded-full border border-[#DDE7EF] object-cover" />
                         : <Avatar name={name || 'Candidate'} size="md" />
                       }
                       <div className="min-w-0">
-                        <p className="font-bold text-[#0F172A]">{name || 'Unknown Candidate'}</p>
+                        <p className="font-bold text-[#0F172A]">{formatDisplayText(name) || 'Unknown Candidate'}</p>
                         <p className="text-xs text-[#64748B]">{position}</p>
                         <span className="inline-block mt-1 px-2 py-0.5 bg-[#EEF6FB] text-[#0F2F62] text-[10px] font-bold rounded-full">{partylist}</span>
                         <details className="mt-3 text-sm text-slate-600"><summary className="cursor-pointer font-semibold text-[#0878B7]">View candidate details</summary><RichTextBody value={candidate.platform || 'No campaign platform has been added.'} className="mt-2" /></details>

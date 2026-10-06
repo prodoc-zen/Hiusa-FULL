@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from "react";
 import { Clock3, Download, Eye, X } from "lucide-react";
@@ -213,7 +215,7 @@ export default function GeneralAuditLogPage() {
           </select>
           <label className="text-[10px] font-bold uppercase text-slate-500">
             <FieldIcon label="From" />From
-            <input
+            <DateTimeInput
               type="date"
               value={filters.from}
               onChange={(event) => update("from", event.target.value)}
@@ -222,7 +224,7 @@ export default function GeneralAuditLogPage() {
           </label>
           <label className="text-[10px] font-bold uppercase text-slate-500">
             <FieldIcon label="To" />To
-            <input
+            <DateTimeInput
               type="date"
               value={filters.to}
               onChange={(event) => update("to", event.target.value)}
@@ -276,12 +278,12 @@ export default function GeneralAuditLogPage() {
               <tbody className="divide-y divide-[#DDE7EF]">
                 {logs.map((log) => <tr key={log.id} className="align-top hover:bg-[#F8FBFD]">
                   <td className="whitespace-nowrap px-3 py-3 text-[#64748B]">{log.created_at ? new Date(log.created_at).toLocaleString('en-PH') : 'Unknown'}</td>
-                  <td className="px-3 py-3 font-semibold text-[#0F172A]">{log.actor?.name || 'System'}</td>
-                  <td className="px-3 py-3 text-[#64748B]">{log.actor?.role_label || humanizeIdentifier(log.actor?.role)}{log.actor?.position_title ? ` / ${log.actor.position_title}` : ''}</td>
-                  {isSao && <td className="px-3 py-3 text-[#0F172A]">{log.organization?.name || '-'}</td>}
+                  <td className="px-3 py-3 font-semibold text-[#0F172A]">{formatDisplayText(log.actor?.name) || 'System'}</td>
+                  <td className="px-3 py-3 text-[#64748B]">{log.actor?.role_label || humanizeIdentifier(log.actor?.role)}{log.actor?.position_title ? ` / ${formatDisplayText(log.actor.position_title)}` : ''}</td>
+                  {isSao && <td className="px-3 py-3 text-[#0F172A]">{formatDisplayText(log.organization?.name) || '-'}</td>}
                   <td className="px-3 py-3">{log.module_label || humanizeIdentifier(log.module)}</td>
                   <td className="px-3 py-3">{log.action_category_label || humanizeIdentifier(log.action_category)}</td>
-                  <td className="max-w-64 px-3 py-3"><p className="font-semibold text-[#0F172A]">{log.subject || log.affected_user?.name || '-'}</p><p className="mt-1 line-clamp-2 text-[#64748B]">{log.description}</p></td>
+                  <td className="max-w-64 px-3 py-3"><p className="font-semibold text-[#0F172A]">{log.subject || formatDisplayText(log.affected_user?.name) || '-'}</p><p className="mt-1 line-clamp-2 text-[#64748B]">{log.description}</p></td>
                   <td className="px-3 py-3 font-mono text-[#64748B]">{log.record_id ?? '-'}</td>
                   <td className="px-3 py-3"><TableRowActions subject={`Audit record ${log.id}`} label="Audit actions" actions={[{ label: 'View details', icon: Eye, onClick: () => { setSelectedLog(log); setChangesPage(1); } }]} /></td>
                 </tr>)}

@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card, DataTable, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
@@ -103,8 +104,8 @@ export default function SaoGrievancesPage() {
       header: 'Grievance',
       render: (row) => (
         <button type="button" onClick={() => setSelected(row)} className="text-left font-bold text-ink hover:text-brand-700">
-          {row.title}
-          <span className="block text-xs font-medium text-ink-muted">{row.category} · {row.organization_id ? (row.organization?.name || 'Organization') : 'Student Affairs Office'}</span>
+          {formatDisplayText(row.title)}
+          <span className="block text-xs font-medium text-ink-muted">{row.category} · {row.organization_id ? (formatDisplayText(row.organization?.name) || 'Organization') : 'Student Affairs Office'}</span>
         </button>
       ),
     },
@@ -115,7 +116,7 @@ export default function SaoGrievancesPage() {
       header: 'Filed by',
       render: (row) => (
         <span className="text-ink-muted">
-          {row.submitter ? `${row.submitter.first_name} ${row.submitter.last_name}` : `Student ${row.submitted_by}`}
+          {row.submitter ? `${formatDisplayText(row.submitter.first_name)} ${formatDisplayText(row.submitter.last_name)}` : `Student ${row.submitted_by}`}
           {row.is_anonymous && <span className="ml-1.5 text-ink-soft">(anonymous to org)</span>}
         </span>
       ),

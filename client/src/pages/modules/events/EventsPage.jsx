@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
@@ -286,7 +288,7 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
         </div>
       </fieldset>
       {result && <div className={`mt-3 rounded-lg border px-3 py-2.5 text-xs font-semibold ${result.type === 'success' ? 'border-emerald-200 bg-emerald-50 text-emerald-800' : result.type === 'warning' ? 'border-amber-200 bg-amber-50 text-amber-800' : 'border-red-200 bg-red-50 text-red-700'}`}>
-        {result.user && <p className="mb-0.5 font-black">{result.user.first_name} {result.user.last_name} · {result.user.school_id}</p>}
+        {result.user && <p className="mb-0.5 font-black">{formatDisplayText(result.user.first_name)} {formatDisplayText(result.user.last_name)} · {result.user.school_id}</p>}
         <p>{result.message}</p>
       </div>}
       <div className="mt-auto flex flex-wrap gap-2 pt-4">
@@ -314,7 +316,7 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
         <div className="space-y-4">
           <div className="flex items-start gap-3">
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">{pendingConfirmation.user?.first_name?.[0]}{pendingConfirmation.user?.last_name?.[0]}</span>
-            <div className="min-w-0"><p className="text-sm font-black text-[#0F172A]">Is this the correct Student?</p><p className="mt-1 truncate text-base font-black text-[#0F172A]">{pendingConfirmation.user?.first_name} {pendingConfirmation.user?.last_name}</p><p className="text-xs font-semibold leading-5 text-slate-500">School ID {pendingConfirmation.user?.school_id} · {[pendingConfirmation.user?.program, pendingConfirmation.user?.year_level, pendingConfirmation.user?.section].filter(Boolean).join(' · ') || 'Academic profile unavailable'}</p></div>
+            <div className="min-w-0"><p className="text-sm font-black text-[#0F172A]">Is this the correct Student?</p><p className="mt-1 truncate text-base font-black text-[#0F172A]">{formatDisplayText(pendingConfirmation.user?.first_name)} {formatDisplayText(pendingConfirmation.user?.last_name)}</p><p className="text-xs font-semibold leading-5 text-slate-500">School ID {pendingConfirmation.user?.school_id} · {[pendingConfirmation.user?.program, pendingConfirmation.user?.year_level, pendingConfirmation.user?.section].filter(Boolean).join(' · ') || 'Academic profile unavailable'}</p></div>
           </div>
           <div className="grid grid-cols-2 gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-[11px]">
             <div><p className="font-bold uppercase tracking-wide text-slate-500">Action</p><p className="mt-1 font-black text-[#0878B7]">{pendingConfirmation.action === 'check_out' ? 'Check out' : 'Check in'}</p></div>
@@ -971,7 +973,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 resultLabel={eventTotal === 1 ? 'event' : 'events'}
                 secondaryClassName="grid gap-3 sm:grid-cols-3"
               >
-                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Event date" />Event date<input type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
+                <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Event date" />Event date<DateTimeInput type="date" value={dateFilter} onChange={(event) => setDateFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
                 <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Status" />Status<select value={eventStatusFilter} onChange={(event) => setEventStatusFilter(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['planning', 'approved', 'ongoing', 'completed', 'cancelled'].map((value) => <option key={value} value={value}>{statusLabel[value] || capitalize(value)}</option>)}</select></label>
                 <label className="text-[10px] font-bold uppercase tracking-wide text-slate-500"><FieldIcon label="Sort by" />Sort by<select value={eventSort} onChange={(event) => setEventSort(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="start_asc">Soonest</option><option value="start_desc">Latest date</option><option value="newest">Newest created</option><option value="title">Title</option></select></label>
               </TableFilterBar>
@@ -1000,7 +1002,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     return (
                       <article key={evt.id} className="p-4 sm:p-5">
                         <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{evt.title}</h3><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" /></div>
+                          <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{formatDisplayText(evt.title)}</h3><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" /></div>
                           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{statusLabel[evt.status] || capitalize(evt.status)}</span>
                         </div>
                         <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
@@ -1036,8 +1038,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <tbody className="divide-y divide-[#DDE7EF] text-sm">
                       {pagedEvents.map((evt) => (
                         <tr key={evt.id} className="transition hover:bg-[#F8FBFD]">
-                          <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{evt.title}</p><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" /></td>
-                          <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${evt.creator.first_name} ${evt.creator.last_name}` : '-'}<p className="text-[10px] text-[#0878B7]">{evt.creator?.position_title || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
+                          <td className="max-w-[260px] px-5 py-4"><p className="font-bold text-[#0F172A]">{formatDisplayText(evt.title)}</p><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-[10px] text-slate-500" /></td>
+                          <td className="px-5 py-4 text-xs font-semibold text-slate-600">{evt.creator ? `${formatDisplayText(evt.creator.first_name)} ${formatDisplayText(evt.creator.last_name)}` : '-'}<p className="text-[10px] text-[#0878B7]">{formatDisplayText(evt.creator?.position_title) || evt.creator?.role?.replaceAll('_', ' ') || '-'}</p></td>
                           <td className="px-5 py-4 font-medium text-slate-600">
                             <div className="flex items-center gap-1.5">
                               <Clock size={13} className="text-slate-500" />
@@ -1131,7 +1133,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   <label htmlFor="planning-event" className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Event" />Event</label>
                   <select id="planning-event" value={planForm.event_id} onChange={(event) => selectPlanningEvent(event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none transition focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="">Choose an event</option>
-                    {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+                    {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
                   </select>
                   {selectedPlanningEvent && <p className="mt-2 flex items-start gap-1.5 text-[11px] leading-5 text-slate-500"><Calendar size={13} className="mt-0.5 shrink-0 text-[#0878B7]" /> {formatDateTime(selectedPlanningEvent.start_time)}{selectedPlanningEvent.location ? ` at ${selectedPlanningEvent.location}` : ''}</p>}
                 </div>
@@ -1200,18 +1202,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <div><label htmlFor={`workflow-title-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Task name" />Task name</label><input id={`workflow-title-${index}`} aria-label={`Task ${index + 1} title`} value={task.title} onChange={(event) => updateWorkflowTask(index, 'title', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm font-semibold outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /></div>
-                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Due date and time" />Due date and time</label><input id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
+                          <div><label htmlFor={`workflow-deadline-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Due date and time" />Due date and time</label><DateTimeInput id={`workflow-deadline-${index}`} aria-label={`Task ${index + 1} deadline`} type="datetime-local" value={isoToLocalDateTimeInput(task.deadline)} onChange={(event) => updateWorkflowTask(index, 'deadline', localDateTimeToIso(event.target.value))} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20" /><p className="mt-1 text-[11px] leading-5 text-slate-500">{dueDateHint}</p></div>
                           <div className="lg:col-span-2"><label htmlFor={`workflow-description-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="What needs to be done?" />What needs to be done?</label><RichTextEditor id={`workflow-description-${index}`} ariaLabel={`Task ${index + 1} description`} value={task.description || ''} onChange={(description) => updateWorkflowTask(index, 'description', description)} rows={3} /></div>
                           <div><label htmlFor={`workflow-phase-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="When should it happen?" />When should it happen?</label><select id={`workflow-phase-${index}`} aria-label={`Task ${index + 1} phase`} value={task.phase} onChange={(event) => updateWorkflowTask(index, 'phase', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pre_event">Before the event</option><option value="event_day">During the event</option><option value="post_event">After the event</option></select></div>
                           <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Importance" />Importance</label><select id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select></div>
                           <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Best officer role" />Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
-                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="This can start after" />This can start after</label><select id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{candidate.title || `To-do ${candidateIndex + 1}`}</option>)}</select></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Assign to" />Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><select id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {ranking.name}, {ranking.position_title}, {scoreLabel(ranking.final_score)} overall match</option>)}</select><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
+                          <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="This can start after" />This can start after</label><select id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{formatDisplayText(candidate.title) || `To-do ${candidateIndex + 1}`}</option>)}</select></div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Assign to" />Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><select id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {formatDisplayText(ranking.name)}, {formatDisplayText(ranking.position_title)}, {scoreLabel(ranking.final_score)} overall match</option>)}</select><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
                         </div>
 
                         {selectedOfficer && (
                           <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#0F172A]">Why {selectedOfficer.name} was suggested</p><span className="rounded-full bg-[#0878B7] px-2.5 py-1 text-[11px] font-bold text-white">{scoreLabel(selectedOfficer.final_score)} overall match</span></div>
+                            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-bold text-[#0F172A]">Why {formatDisplayText(selectedOfficer.name)} was suggested</p><span className="rounded-full bg-[#0878B7] px-2.5 py-1 text-[11px] font-bold text-white">{scoreLabel(selectedOfficer.final_score)} overall match</span></div>
                             <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">{[['Role match', selectedOfficer.role_score], ['Available workload', selectedOfficer.workload_score], ['Past task completion', selectedOfficer.performance_score], ['Not recently assigned', selectedOfficer.recency_score]].map(([label, value]) => <div key={label} className="rounded-md border border-[#DDE7EF] bg-white px-3 py-2"><p className="text-[10px] font-semibold text-slate-500">{label}</p><p className="mt-0.5 text-xs font-black text-[#0F172A]">{scoreLabel(value)}</p></div>)}</div>
                             {Number.isFinite(Number(selectedOfficer.active_tasks)) && <p className="mt-2 text-[11px] leading-5 text-slate-600">This officer currently has {selectedOfficer.active_tasks} open task{Number(selectedOfficer.active_tasks) === 1 ? '' : 's'} out of a limit of {selectedOfficer.max_active_tasks}.</p>}
                           </div>
@@ -1255,12 +1257,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <tbody className="divide-y divide-[#DDE7EF] text-sm">
                   {pagedEventTasks.map((t) => (
                     <tr key={t.id} className="transition hover:bg-[#F8FBFD]">
-                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{t.title}</td>
+                      <td className="max-w-[220px] truncate px-5 py-4 font-bold text-[#0F172A]">{formatDisplayText(t.title)}</td>
                       <td className="max-w-[160px] truncate px-5 py-4 font-medium text-slate-600">
-                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
+                        {t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}
                       </td>
                       <td className="max-w-[160px] truncate px-5 py-4 font-medium text-slate-600">
-                        {t.event?.title ?? '-'}
+                        {formatDisplayText(t.event?.title) ?? '-'}
                       </td>
                       <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-600">{formatDateTime(t.deadline)}</td>
                       <td className="px-5 py-4">
@@ -1312,13 +1314,13 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <button
                       key={evt.id}
                       type="button"
-                      aria-label={`Open attendance for ${evt.title}`}
+                      aria-label={`Open attendance for ${formatDisplayText(evt.title)}`}
                       onClick={() => handleSelectAttEvent(evt.id)}
                       className={`group flex w-full items-start gap-3 rounded-lg border px-3.5 py-3.5 text-left transition focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/40 ${selectedAttEventId === evt.id ? 'border-[#0B8ED0] bg-[#EEF6FB] shadow-sm' : 'border-transparent bg-white hover:border-[#DDE7EF]'}`}
                     >
                       <span className={`mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full ${evt.status === 'ongoing' ? 'bg-emerald-500 ring-4 ring-emerald-100' : evt.status === 'completed' ? 'bg-slate-400' : 'bg-[#0878B7]'}`} />
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-[13px] font-bold text-[#0F172A]">{evt.title}</p>
+                        <p className="truncate text-[13px] font-bold text-[#0F172A]">{formatDisplayText(evt.title)}</p>
                         <p className="mt-1 flex items-center gap-1.5 text-[11px] font-medium text-slate-500"><Clock size={12} /> {formatDateTime(evt.start_time)}</p>
                         {evt.location && <p className="mt-1 flex items-center gap-1.5 truncate text-[11px] font-medium text-slate-500"><MapPin size={12} /> {evt.location}</p>}
                       </div>
@@ -1364,7 +1366,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide ${statusBadge[attendanceEvent?.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[attendanceEvent?.status] || capitalize(attendanceEvent?.status)}</span>
                             {attendanceEvent?.status === 'ongoing' && <span className="inline-flex items-center gap-1.5 text-[11px] font-bold text-emerald-700"><span className="h-1.5 w-1.5 rounded-full bg-emerald-500" /> Live now</span>}
                           </div>
-                          <h3 className="mt-2 truncate text-lg font-black text-[#0F172A] sm:text-xl">{attendanceEvent?.title ?? '-'}</h3>
+                          <h3 className="mt-2 truncate text-lg font-black text-[#0F172A] sm:text-xl">{formatDisplayText(attendanceEvent?.title) ?? '-'}</h3>
                           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-medium text-slate-500">
                             <span className="inline-flex items-center gap-1.5"><Clock size={13} className="text-[#0878B7]" />{formatDateTime(attendanceEvent?.start_time)}</span>
                             {attendanceEvent?.location && <span className="inline-flex items-center gap-1.5"><MapPin size={13} className="text-[#0878B7]" />{attendanceEvent.location}</span>}
@@ -1438,7 +1440,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                     className="flex w-full items-center gap-3 border-b border-[#DDE7EF] px-3 py-2.5 text-left transition last:border-b-0 hover:bg-[#F8FBFD]"
                                   >
                                     <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#0878B7] text-[10px] font-black text-white">{u.first_name?.[0]}{u.last_name?.[0]}</span>
-                                    <span className="min-w-0"><span className="block truncate text-[13px] font-semibold text-[#0F172A]">{u.first_name} {u.last_name}</span><span className="block text-[11px] font-medium text-slate-500">{u.school_id} · {capitalize(u.role)}</span></span>
+                                    <span className="min-w-0"><span className="block truncate text-[13px] font-semibold text-[#0F172A]">{formatDisplayText(u.first_name)} {formatDisplayText(u.last_name)}</span><span className="block text-[11px] font-medium text-slate-500">{u.school_id} · {capitalize(u.role)}</span></span>
                                   </button>
                                 ))}
                               </div>
@@ -1491,7 +1493,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           {pagedAttendanceRecords.map((rec) => (
                             <article key={rec.id} className="p-4">
                               <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0"><p className="truncate text-[13px] font-bold text-[#0F172A]">{rec.user ? `${rec.user.first_name} ${rec.user.last_name}` : '-'}</p><p className="mt-0.5 text-[11px] font-medium text-slate-500">School ID {rec.user?.school_id ?? '-'}</p></div>
+                                <div className="min-w-0"><p className="truncate text-[13px] font-bold text-[#0F172A]">{rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : '-'}</p><p className="mt-0.5 text-[11px] font-medium text-slate-500">School ID {rec.user?.school_id ?? '-'}</p></div>
                                 <span className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
                               </div>
                               <div className="mt-3 grid grid-cols-2 gap-3 rounded-lg bg-[#F8FBFD] p-3 text-[11px]">
@@ -1520,7 +1522,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             {pagedAttendanceRecords.map((rec) => (
                               <tr key={rec.id} className="transition hover:bg-[#F8FBFD]">
                                 <td className="px-5 py-3.5 font-bold text-[#0F172A]">
-                                  {rec.user ? `${rec.user.first_name} ${rec.user.last_name}` : '-'}
+                                  {rec.user ? `${formatDisplayText(rec.user.first_name)} ${formatDisplayText(rec.user.last_name)}` : '-'}
                                 </td>
                                 <td className="px-5 py-3.5 font-medium text-slate-600">{rec.user?.school_id ?? '-'}</td>
                                 <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold text-slate-700">{[rec.user?.program, rec.user?.major].filter(Boolean).join(' · ') || '-'}</p><p>{[rec.user?.year_level, rec.user?.section, rec.user?.department].filter(Boolean).join(' · ') || '-'}</p></td>
@@ -1533,7 +1535,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                                   <span className={`rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${attendanceStatusBadge[rec.status] || attendanceStatusBadge.present}`}>{capitalize(rec.status || 'present')}</span>
                                 </td>
                                 <td className="px-5 py-3.5 text-xs font-medium text-slate-600"><p>{formatDateTime(rec.check_in_time)}</p><p className="text-[10px] text-slate-500">Out: {formatDateTime(rec.check_out_time)}</p></td>
-                                <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold">{rec.recorder ? `${rec.recorder.first_name} ${rec.recorder.last_name}` : '-'}</p><p className="text-[10px]">{rec.recorder?.position_title || rec.recorder?.role || '-'}</p></td>
+                                <td className="px-5 py-3.5 text-xs text-slate-600"><p className="font-semibold">{rec.recorder ? `${formatDisplayText(rec.recorder.first_name)} ${formatDisplayText(rec.recorder.last_name)}` : '-'}</p><p className="text-[10px]">{formatDisplayText(rec.recorder?.position_title) || rec.recorder?.role || '-'}</p></td>
                               </tr>
                             ))}
                             {!filteredAttendanceRecords.length && <tr><td colSpan={8} className="px-5 py-10 text-center text-sm text-slate-500">No attendance records match the filters.</td></tr>}
@@ -1558,7 +1560,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
             <div className="flex items-start justify-between gap-4">
               <div>
                 <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[selectedEvent.status] || capitalize(selectedEvent.status)}</span>
-                <h2 className="mt-3 text-xl font-extrabold text-[#0F172A]">{selectedEvent.title}</h2>
+                <h2 className="mt-3 text-xl font-extrabold text-[#0F172A]">{formatDisplayText(selectedEvent.title)}</h2>
               </div>
               <button type="button" aria-label="Close event details" onClick={closeEventDetails} className="grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
@@ -1639,7 +1641,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         {selectedEvent.budgets.map((budget) => (
                           <div key={budget.id} className="rounded-lg bg-[#F8FBFD] p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2">
-                              <p className="font-bold text-[#0F172A]">{budget.title}</p>
+                              <p className="font-bold text-[#0F172A]">{formatDisplayText(budget.title)}</p>
                               <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${budgetStatusBadge[budget.approval_status] || budgetStatusBadge.pending}`}>
                                 {capitalize(budget.approval_status || 'pending')}
                               </span>
@@ -1713,7 +1715,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label htmlFor="event-start-date" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Start Date *" />Start Date *</label>
-                  <input
+                  <DateTimeInput
                     id="event-start-date"
                     type="date"
                     value={form.date}
@@ -1723,7 +1725,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="event-start-time" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Start Time *" />Start Time *</label>
-                  <input
+                  <DateTimeInput
                     id="event-start-time"
                     type="time"
                     value={form.startTime}
@@ -1735,7 +1737,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label htmlFor="event-end-date" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="End Date" />End Date</label>
-                  <input
+                  <DateTimeInput
                     id="event-end-date"
                     type="date"
                     value={form.endDate}
@@ -1745,7 +1747,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 </div>
                 <div className="space-y-1.5">
                   <label htmlFor="event-end-time" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="End Time" />End Time</label>
-                  <input
+                  <DateTimeInput
                     id="event-end-time"
                     type="time"
                     value={form.endTime}
@@ -1757,7 +1759,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               <div className="space-y-1.5">
                 <label htmlFor="event-venue-type" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Venue type" />Venue type</label>
                 <select id="event-venue-type" value={form.venue_type} onChange={(e) => setForm({ ...form, venue_type: e.target.value, venue_id: '', location: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="on_campus">On campus</option><option value="off_campus">Off campus</option></select>
-                {form.venue_type === 'on_campus' ? <><label htmlFor="event-campus-venue" className="block text-[13px] font-semibold text-[#0F172A]">SAO venue</label><select id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select></> : <><label htmlFor="event-location" className="block text-[13px] font-semibold text-[#0F172A]">Off-campus location</label><input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></>}
+                {form.venue_type === 'on_campus' ? <><label htmlFor="event-campus-venue" className="block text-[13px] font-semibold text-[#0F172A]">SAO venue</label><select id="event-campus-venue" value={form.venue_id} onChange={(e) => setForm({ ...form, venue_id: e.target.value, location: campusVenues.find((venue) => String(venue.id) === e.target.value)?.name || '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Choose a venue</option>{campusVenues.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}</select></> : <><label htmlFor="event-location" className="block text-[13px] font-semibold text-[#0F172A]">Off-campus location</label><input id="event-location" type="text" value={form.location} onChange={(e) => setForm({ ...form, location: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></>}
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="event-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label>

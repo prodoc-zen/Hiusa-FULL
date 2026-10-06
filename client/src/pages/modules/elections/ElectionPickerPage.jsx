@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import notify from '../../../lib/notify';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -137,11 +139,11 @@ function ElectionFormFields({ form, setForm, editing = false }) {
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting starts *" />Voting starts *</span>
-          <input type="datetime-local" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+          <DateTimeInput type="datetime-local" value={form.start_time} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
         </label>
         <label className="block">
           <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Voting ends *" />Voting ends *</span>
-          <input type="datetime-local" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
+          <DateTimeInput type="datetime-local" value={form.end_time} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" />
         </label>
       </div>
       <p className="-mt-3 text-xs text-[#64748B]">Times use this device’s local timezone.</p>
@@ -341,7 +343,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
                   <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyles[election.status] || statusStyles.closed}`}>{election.status === 'active' && <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />}{statusLabels[election.status] || election.status}</span>
                 </div>
                 <div className="p-4 sm:p-5">
-                  <h2 className="text-xl font-black leading-tight text-[#0F172A]">{election.title}</h2>
+                  <h2 className="text-xl font-black leading-tight text-[#0F172A]">{formatDisplayText(election.title)}</h2>
                   <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B]"><Clock3 size={13} /> {formatTimeline(election)}</p>
                   <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>

@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import Button from '../ui/Button';
 import { greetingFor, manilaDate } from '../../lib/format';
 
@@ -21,7 +22,7 @@ export default function BriefingHeader({ user, summary, actions }) {
             {manilaDate(new Date(), 'weekday')} &middot; {roleLabel} &middot; {scopeLabel}
           </p>
           <h2 className="mt-1.5 text-xl font-bold leading-tight text-ink sm:text-2xl">
-            Good {greetingFor()}, {user.first_name}
+            Good {greetingFor()}, {formatDisplayText(user.first_name)}
           </h2>
           <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-muted">{summary.headline}</p>
         </div>

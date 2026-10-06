@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useState } from 'react';
 import { ShieldCheck, UserRound } from 'lucide-react';
 import { Button, Drawer, Field, StatusBadge, Textarea } from '../../../components/ui';
@@ -34,7 +35,7 @@ function IdentitySection({ grievance, viewerRole }) {
     <div className="flex items-start gap-3 rounded-card border border-line bg-subtle p-3">
       <UserRound size={18} className="mt-0.5 shrink-0 text-ink-muted" aria-hidden="true" />
       <div>
-        <p className="text-sm font-bold text-ink">{name}</p>
+        <p className="text-sm font-bold text-ink">{formatDisplayText(name)}</p>
         {viewerRole === 'SUPER_ADMIN' && grievance.is_anonymous && (
           <p className="mt-0.5 text-xs font-medium text-ink-muted">Filed anonymously toward the organization. Handle with added discretion.</p>
         )}
@@ -114,7 +115,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
 
   return (
     <>
-      <Drawer open={Boolean(grievance)} title={grievance?.title} description={grievance ? `Filed ${relativeTime(grievance.created_at)}` : undefined} onClose={onClose}>
+      <Drawer open={Boolean(grievance)} title={formatDisplayText(grievance?.title)} description={grievance ? `Filed ${relativeTime(grievance.created_at)}` : undefined} onClose={onClose}>
         {grievance && (
           <div className="flex flex-col gap-5">
             <div className="flex flex-wrap items-center gap-2">

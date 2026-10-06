@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, ClipboardList, ExternalLink, Plus, ShieldCheck } from 'lucide-react';
 import {
@@ -297,7 +298,7 @@ export default function SaoCompliancePage() {
   ];
 
   const typeColumns = [
-    { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{type.name}</span> },
+    { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{formatDisplayText(type.name)}</span> },
     { key: 'academic_year', header: 'Academic year' },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
     { key: 'description', header: 'Description', render: (type) => <RichTextBody as="span" value={type.description || 'No description.'} className="line-clamp-2 text-ink-muted" /> },
@@ -367,7 +368,7 @@ export default function SaoCompliancePage() {
             onRetry={loadTypes}
             actions={(type) => (
               <div className="flex justify-end gap-1.5">
-                <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-ink"><span className="sr-only">{type.name} active</span><input type="checkbox" role="switch" aria-label={`${type.name} active`} checked={Boolean(type.is_active)} onChange={() => toggleTypeActive(type)} className="peer sr-only" /><span aria-hidden="true" className="relative h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#0B8ED0] before:absolute before:left-1 before:top-1 before:h-5 before:w-5 before:rounded-full before:bg-white before:shadow-sm before:transition-transform peer-checked:before:translate-x-5" /></label>
+                <label className="inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-ink"><span className="sr-only">{formatDisplayText(type.name)} active</span><input type="checkbox" role="switch" aria-label={`${formatDisplayText(type.name)} active`} checked={Boolean(type.is_active)} onChange={() => toggleTypeActive(type)} className="peer sr-only" /><span aria-hidden="true" className="relative h-7 w-12 rounded-full bg-slate-300 transition peer-checked:bg-emerald-500 peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[#0B8ED0] before:absolute before:left-1 before:top-1 before:h-5 before:w-5 before:rounded-full before:bg-white before:shadow-sm before:transition-transform peer-checked:before:translate-x-5" /></label>
                 <Button size="sm" variant="secondary" onClick={() => openTypeModal(type)}>Edit</Button>
               </div>
             )}

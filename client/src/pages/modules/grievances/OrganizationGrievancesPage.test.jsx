@@ -50,9 +50,9 @@ describe('OrganizationGrievancesPage', () => {
   it('never renders an identity for an anonymous filer, showing a dignified confidential badge instead', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([ANONYMOUS_GRIEVANCE]));
     render(<OrganizationGrievancesPage />);
-    const [titleElement] = await screen.findAllByText('Unsafe stairwell');
+    const [titleElement] = await screen.findAllByText('Unsafe Stairwell');
     const table = within(titleElement.closest('[data-view="table"]'));
-    expect(table.getByText('Unsafe stairwell')).toBeInTheDocument();
+    expect(table.getByText('Unsafe Stairwell')).toBeInTheDocument();
     expect(table.getByText('Confidential')).toBeInTheDocument();
     expect(table.queryByText(/Student \d/)).not.toBeInTheDocument();
   });
@@ -62,7 +62,7 @@ describe('OrganizationGrievancesPage', () => {
     mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Bulb replaced.' } });
 
     render(<OrganizationGrievancesPage />);
-    const [tableTrigger] = await screen.findAllByText('Unsafe stairwell');
+    const [tableTrigger] = await screen.findAllByText('Unsafe Stairwell');
     fireEvent.click(tableTrigger);
 
     expect(screen.getByText('Filed anonymously')).toBeInTheDocument();

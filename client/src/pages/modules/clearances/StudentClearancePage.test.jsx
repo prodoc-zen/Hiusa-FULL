@@ -71,7 +71,7 @@ describe('StudentClearancePage', () => {
 
     render(<StudentClearancePage />);
     // The current period is the incomplete one, chosen by default.
-    expect(await screen.findByText('Second period · 2026-2027')).toBeInTheDocument();
+    expect(await screen.findByText('Second Period · 2026-2027')).toBeInTheDocument();
 
     fireEvent.change(screen.getByLabelText('Choose clearance period'), { target: { value: '1' } });
     expect(await screen.findByText('Your clearance is complete!')).toBeInTheDocument();

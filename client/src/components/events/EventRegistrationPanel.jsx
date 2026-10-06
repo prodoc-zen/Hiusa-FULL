@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import { CalendarCheck, Users } from 'lucide-react';
 import { cancelEventRegistration, getEventRegistrations, getMyEventRegistrations, registerForEvent } from '../../services/eventService';
@@ -165,7 +166,7 @@ function OrganizerRoster({ event }) {
             return (
               <li key={registration.id} className="flex flex-wrap items-center justify-between gap-2 py-2.5">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink">{name}</p>
+                  <p className="truncate text-sm font-semibold text-ink">{formatDisplayText(name)}</p>
                   <p className="text-xs font-medium text-ink-muted">{detail || registration.user_id} · {formatDateTime(registration.registered_at)}</p>
                 </div>
                 <RegistrationBadge status={registration.status} />

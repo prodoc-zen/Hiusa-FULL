@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
@@ -431,7 +432,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     cartItems.map((row) => (
                       <div key={row.item?.id || row.item?.name} className="flex items-center justify-between gap-3 border-b border-[#EEF6FB] px-4 py-3 last:border-b-0">
                         <div className="min-w-0">
-                          <p className="truncate text-[13px] font-semibold text-[#0F172A]">{row.item?.name || 'Item'}</p>
+                          <p className="truncate text-[13px] font-semibold text-[#0F172A]">{formatDisplayText(row.item?.name) || 'Item'}</p>
                           <p className="text-[11px] text-slate-500">Qty: {row.quantity || 0} - {formatMoney(row.item?.price || 0)}</p>
                         </div>
                         <p className="text-xs font-black text-[#0F172A]">{formatMoney((row.item?.price || 0) * (row.quantity || 0))}</p>
@@ -516,7 +517,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     >
                       Back to notifications
                     </button>
-                    <p className="text-sm font-black text-[#0F172A]">{selectedNotification.title}</p>
+                    <p className="text-sm font-black text-[#0F172A]">{formatDisplayText(selectedNotification.title)}</p>
                     <p className="mt-2 whitespace-pre-wrap text-xs leading-relaxed text-slate-500">{selectedNotification.message}</p>
                     <p className="mt-3 text-[11px] font-medium text-slate-300">{timeAgo(selectedNotification.created_at)}</p>
                     {getNotificationDestination(selectedNotification, user?.role) && (
@@ -550,7 +551,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     >
                       <Icon size={18} className={`mt-0.5 shrink-0 ${n.is_read ? 'text-slate-400' : 'text-[#0878B7]'}`} aria-hidden="true" />
                       <div className="min-w-0 flex-1">
-                        <p className={`truncate text-[13px] font-semibold ${n.is_read ? 'text-slate-500' : 'text-[#0F172A]'}`}>{n.title}</p>
+                        <p className={`truncate text-[13px] font-semibold ${n.is_read ? 'text-slate-500' : 'text-[#0F172A]'}`}>{formatDisplayText(n.title)}</p>
                         <p className="mt-0.5 line-clamp-2 text-xs text-slate-500">{n.message}</p>
                         <p className="mt-1 text-[11px] font-medium text-slate-300">{timeAgo(n.created_at)}</p>
                       </div>
@@ -604,7 +605,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
                     const current = profile.id === (activeProfileId ?? user?.active_profile_id);
                     return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-default ${current ? 'bg-[#EEF6FB]' : 'hover:bg-[#F8FBFD] active:bg-[#EEF6FB]'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>
                       <span aria-hidden="true" className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold ${current ? 'bg-[#0F2F62] text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{(profile.organization?.acronym || profile.organization?.name || '?').slice(0, 2).toUpperCase()}</span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0F172A]">{profile.organization?.name || 'Organization'}</span><span className="block text-xs text-slate-600">{ROLE_LABELS[profile.role] || profile.role}</span></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-slate-600">{ROLE_LABELS[profile.role] || profile.role}</span></span>
                       {current && <span className="text-xs font-semibold text-[#0F2F62]">Current</span>}
                     </button>;
                   })}

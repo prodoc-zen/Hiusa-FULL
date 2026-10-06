@@ -23,7 +23,7 @@ describe('ManageAnnouncementsPage', () => {
 
   it('expands a row to show announcement details and management actions', async () => {
     render(<MemoryRouter><ManageAnnouncementsPage /></MemoryRouter>);
-    fireEvent.click(await screen.findByRole('button', { name: 'Campus update' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Campus Update' }));
     expect(screen.getByText('Room change')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Create announcement' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Campus update' }));

@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, MapPin } from 'lucide-react';
 import { resolveAssetUrl } from '../../utils/assetUrl';
@@ -140,7 +141,7 @@ function DayPanel({ iso, eventsByDate, onSelectEvent }) {
                 >
                   {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-16 w-16 shrink-0 rounded-md object-cover" />}
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-bold text-[#0F172A]">{event.title}</p>
+                    <p className="truncate font-bold text-[#0F172A]">{formatDisplayText(event.title)}</p>
                     {event.description && <RichTextBody value={event.description} className="mt-1 line-clamp-2 text-xs text-slate-600" />}
                     <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-medium text-slate-500">
                       <span className="flex items-center gap-1"><Clock size={12} className="text-slate-500" />
@@ -351,7 +352,7 @@ export default function ActivityCalendar({ events, loading, onSelectEvent, initi
                       {event.image_url && <img src={resolveAssetUrl(event.image_url)} alt="" loading="lazy" className="h-12 w-12 shrink-0 rounded-md object-cover" />}
                       <div className="min-w-0">
                         <p className="truncate text-[13px] font-bold text-[#0F172A]">
-                          {event.isContinuation ? `${event.title} - day ${event.dayIndex} of ${event.dayTotal}` : event.title}
+                          {event.isContinuation ? `${formatDisplayText(event.title)} - day ${event.dayIndex} of ${event.dayTotal}` : formatDisplayText(event.title)}
                         </p>
                         <p className="text-[11px] font-medium text-slate-500">
                           {event.isMultiDay ? `${shortDate(event.start_time)} - ${shortDate(event.end_time)}` : shortTime(event.start_time)}

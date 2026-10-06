@@ -29,11 +29,13 @@
 - **Create Task:** `/dashboard/tasks/create-task` is a dedicated creation workspace that captures title, description, assignee, related event, deadline, and status, with assignment-readiness guidance. The Task Board action navigates here instead of opening a duplicate modal.
 - **Reopen Completed Task:** an Admin may reset a completed task to Not Started. This clears its completion timestamp and progress while recording a progress-history entry; assignees cannot reopen it.
 - **Link Task to Event:** task creation supports optional `event_id` and validates organization ownership.
-- **Evaluate Officer Eligibility:** `TaskController` requires an active SBO Officer with an assigned SBO position before either manual or automatic delegation, then checks active/completed task counts.
+- **Evaluate Officer Eligibility:** `TaskController` requires an active SBO Officer with an assigned SBO position, then checks active/completed task counts for the recommendation and final assignment.
 - **Rule-Based Weighted Scoring:** role, workload, performance, and final scores are calculated using configurable normalized weights. Every evaluated officer is stored in `task_recommendations`; eligible officers retain scores/ranks and excluded officers retain an explicit reason such as overload, inactive account, missing position, or inactive position.
-- **Recommend Best-Fit Officer:** when no officer is selected, the server scores every active SBO Officer and assigns the highest-ranked candidate.
+- **Recommend Best-Fit Officer:** the recommendation endpoint scores eligible SBO Officers for both standalone and event tasks. The Admin must explicitly select the final assignee; previewing a ranking never assigns a task automatically.
 - **Generate Task Explanation Using Groq LLM:** Groq receives the already-calculated ranking facts only. Numeric-fact validation rejects explanations that alter or invent figures; failed explanations are logged as failed while the deterministic score breakdown remains visible.
 - **Generate Workflow:** the event planner proposes tasks first; an Admin must review and confirm before linked tasks become active.
 - **Assign Task:** Admin assigns tasks to SBO Officers.
 - **Monitor Task Status:** Admin task-progress route displays workload and completion progress. API responses expose dependency-derived `blocked` and `ready` workflow states, and blocked tasks cannot start or complete.
 - **Detailed Progress:** workload summaries list each officer's tasks, individual status and progress percentage, and a link to each task's detail view.
+- **Task Types and Periods:** standalone tasks do not require an event. Both task types inherit the active academic semester on creation and retain their original semester and assignee in history.
+- **Filtered Summaries:** status and task-type counts use server totals with the same type, status, assignee, priority, deadline, event, and academic-period filters as the board. Board pagination does not change these counts.

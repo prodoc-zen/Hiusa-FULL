@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import {
@@ -173,9 +174,9 @@ export default function DashboardPage() {
                 <tbody className="divide-y divide-[#DDE7EF] text-sm">
                   {urgentTasks.map((t) => (
                     <tr key={t.id} className="hover:bg-[#F8FBFD]">
-                      <td className="max-w-[220px] truncate px-5 py-3.5 font-semibold text-[#0F172A]">{t.title}</td>
+                      <td className="max-w-[220px] truncate px-5 py-3.5 font-semibold text-[#0F172A]">{formatDisplayText(t.title)}</td>
                       <td className="max-w-[160px] truncate px-5 py-3.5 text-slate-500">
-                        {t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}
+                        {t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}
                       </td>
                       <td className="px-5 py-3.5 text-slate-500 tabular-nums">
                         {t.deadline ? new Date(t.deadline).toLocaleDateString('en-PH', { month: 'short', day: 'numeric' }) : '-'}

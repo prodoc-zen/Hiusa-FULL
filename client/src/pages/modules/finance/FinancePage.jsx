@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor from '../../../components/RichText';
 import { useCallback, useEffect, useState } from 'react';
@@ -916,16 +918,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               aria-label="Filter by event"
             >
               <option value="">All events</option>
-              {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+              {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
             </select>
-            <input
+            <DateTimeInput
               type="date"
               value={txFilters.from}
               onChange={(e) => setTxFilters({ ...txFilters, from: e.target.value })}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
               aria-label="Filter from date"
             />
-            <input
+            <DateTimeInput
               type="date"
               value={txFilters.to}
               onChange={(e) => setTxFilters({ ...txFilters, to: e.target.value })}
@@ -1091,13 +1093,13 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <div key={b.id} className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-bold text-[#0F172A]">{b.title}</p>
+                      <p className="font-bold text-[#0F172A]">{formatDisplayText(b.title)}</p>
                       <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold capitalize ${budgetStatusBadge[b.approval_status] || 'bg-slate-100 text-slate-500'}`}>
                         {b.approval_status || 'pending'}
                       </span>
                     </div>
-                    {b.event && <p className="mt-1 text-xs text-slate-600">{b.event.title}</p>}
-                    {b.financial_semester && <p className="mt-1 text-xs font-semibold text-[#0F2F62]">Semester: {b.financial_semester.name}</p>}
+                    {b.event && <p className="mt-1 text-xs text-slate-600">{formatDisplayText(b.event.title)}</p>}
+                    {b.financial_semester && <p className="mt-1 text-xs font-semibold text-[#0F2F62]">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
                     <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:flex sm:flex-wrap sm:gap-x-8">
                       <div><dt className="text-slate-600">Allocated</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.allocated_amount)}</dd></div>
                       <div><dt className="text-slate-600">Remaining</dt><dd className="mt-0.5 font-semibold tabular-nums text-[#0F172A]">{fmt(b.remaining_amount)}</dd></div>
@@ -1301,8 +1303,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <form onSubmit={handleCreateSemester} className="border-t border-[#DDE7EF] p-4">
               <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                 <label className="text-xs font-bold text-slate-600"><FieldIcon label="Semester name" />Semester name<input required value={semesterForm.name} onChange={(event) => setSemesterForm({ ...semesterForm, name: event.target.value })} placeholder="Semester 2026-2027" className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
-                <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<input required type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
-                <label className="text-xs font-bold text-slate-600"><FieldIcon label="End date" />End date<input required={!semesterForm.endToday} type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm disabled:bg-slate-100" /></label>
+                <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<DateTimeInput required type="date" value={semesterForm.starts_on} onChange={(event) => setSemesterForm({ ...semesterForm, starts_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" /></label>
+                <label className="text-xs font-bold text-slate-600"><FieldIcon label="End date" />End date<DateTimeInput required={!semesterForm.endToday} type="date" value={semesterForm.ends_on} disabled={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, ends_on: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm disabled:bg-slate-100" /></label>
                 <div className="flex items-end gap-3"><label className="flex min-h-11 items-center gap-2 text-xs font-semibold text-slate-700"><input type="checkbox" checked={semesterForm.endToday} onChange={(event) => setSemesterForm({ ...semesterForm, endToday: event.target.checked })} /> <FieldIcon label="End today" />End today</label><button disabled={semesterSaving} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{semesterSaving ? 'Saving…' : 'Add'}</button></div>
               </div>
               </form>
@@ -1334,17 +1336,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   </select>
                 </label>
                 {reportForm.report_type === 'semester' ? <label className="text-xs font-bold text-slate-600"><FieldIcon label="Semester" />Semester
-                  <select required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.name} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</select>
+                  <select required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</select>
                 </label> : null}
                 {reportForm.report_type === 'event' && <label className="text-xs font-bold text-slate-600"><FieldIcon label="Event" />Event
                   <select required value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="">Select event</option>
-                    {events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}
+                    {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
                   </select>
                 </label>}
                 {reportForm.report_type === 'custom' && <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<input type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
-                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="End date" />End date<input type="date" required min={reportForm.period_start || undefined} value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<DateTimeInput type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="End date" />End date<DateTimeInput type="date" required min={reportForm.period_start || undefined} value={reportForm.period_end} onChange={(event) => setReportForm({ ...reportForm, period_end: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
                 </div>}
               </div>
 
@@ -1365,7 +1367,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
               {reportForm.document_type === 'income_statement' && (
                 <div className="grid gap-3 border-t border-[#DDE7EF] pt-4 sm:grid-cols-2">
-                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Letter date" />Letter date<input type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
+                  <label className="text-xs font-bold text-slate-600"><FieldIcon label="Letter date" />Letter date<DateTimeInput type="date" value={reportForm.letter_date} onChange={(event) => setReportForm({ ...reportForm, letter_date: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label>
                   <label className="text-xs font-bold text-slate-600"><FieldIcon label="Subject" />Subject<input value={reportForm.letter_subject} onChange={(event) => setReportForm({ ...reportForm, letter_subject: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to Submission of Income Statement" /></label>
                   <label className="text-xs font-bold text-slate-600 sm:col-span-2"><FieldIcon label="Recipient" />Recipient<input value={reportForm.letter_recipient} onChange={(event) => setReportForm({ ...reportForm, letter_recipient: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" placeholder="Defaults to To whom it may concern" /></label>
                   <div className="text-xs font-bold text-slate-600 sm:col-span-2"><label htmlFor="income-letter-body"><FieldIcon label="Letter body" />Letter body</label><RichTextEditor id="income-letter-body" value={reportForm.letter_body} onChange={(letter_body) => setReportForm({ ...reportForm, letter_body })} rows={4} maxLength={2000} placeholder="Leave blank to use a factual period and balance summary." /></div>
@@ -1389,7 +1391,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <div className="mt-5 border-t border-[#DDE7EF] pt-5">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <h3 className="font-bold text-[#0F172A]">{generatedReport.report.title}</h3>
+                    <h3 className="font-bold text-[#0F172A]">{formatDisplayText(generatedReport.report.title)}</h3>
                     <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">{generatedReport.report.summary_text}</p>
                     {generatedReport.ai_summary_status === 'unavailable' && <p className="mt-2 text-xs font-semibold text-amber-700">AI summary was unavailable. This report was saved with backend-calculated totals and a deterministic summary; generate it again to retry.</p>}
                   </div>
@@ -1423,7 +1425,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <span className="mb-3 inline-block rounded-full bg-[#E6F6FD] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">
                 {report.period}
               </span>
-              <h3 className="text-base font-bold text-[#0F172A]">{report.title}</h3>
+              <h3 className="text-base font-bold text-[#0F172A]">{formatDisplayText(report.title)}</h3>
               <p className="mt-1 text-sm font-medium text-slate-500">{report.desc}</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <button
@@ -1454,7 +1456,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
                 <select aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select>
                 <select aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></select>
-                <select aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select>
+                <select aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</select>
               </div>
             </div>
             {reports.length === 0 ? (
@@ -1466,7 +1468,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 {visibleReports.map((report) => (
                   <div key={report.id} className="p-5">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                      <p className="font-bold text-[#0F172A]">{report.title}</p>
+                      <p className="font-bold text-[#0F172A]">{formatDisplayText(report.title)}</p>
                       <span className="text-xs text-slate-500">{String(report.generated_at || '').slice(0, 10)}</span>
                     </div>
                     <p className="mt-1 text-xs text-slate-500">{report.summary_text}</p>
@@ -1475,7 +1477,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <button type="button" disabled={reportExcelDownloading === report.id} onClick={() => handleExportSavedReport(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><FileSpreadsheet size={14} />{reportExcelDownloading === report.id ? 'Preparing...' : 'Export Excel'}</button><button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handleDownloadReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Download size={14} />{reportPdfDownloading === report.id ? 'Preparing...' : 'Download PDF'}</button>
                       <button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handlePreviewReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Eye size={14} />Preview / print</button>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600"><FieldIcon label="Supporting files" />Supporting files<input aria-label={`Supporting documents for ${report.title}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id} onClick={() => handleSubmitReport(report)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for review'}</button></>}</div>
+                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600"><FieldIcon label="Supporting files" />Supporting files<input aria-label={`Supporting documents for ${formatDisplayText(report.title)}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id} onClick={() => handleSubmitReport(report)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for review'}</button></>}</div>
                   </div>
                 ))}
               </div>
@@ -1503,7 +1505,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   <div className="min-w-0">
                     <p className="mt-3 break-words font-bold text-[#0F172A]">{receipt.description}</p>
                     <p className="mt-1 text-xs text-slate-500">
-                      {formatLedgerDate(receipt.transaction_date)} - {receipt.event?.title || receipt.budget?.title || receipt.category}
+                      {formatLedgerDate(receipt.transaction_date)} - {formatDisplayText(receipt.event?.title) || formatDisplayText(receipt.budget?.title) || receipt.category}
                     </p>
                     <p className="mt-1 text-xs font-semibold text-[#0878B7]">
                       {receiptLabel(receipt) || `Receipt #${receipt.id}`}
@@ -1561,7 +1563,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       {activeTab === 'audit' && currentUserRole === 'ADMIN' && (
         <section className="rounded-lg border border-[#DDE7EF] bg-white">
           <div className="border-b border-[#DDE7EF] p-5"><h2 className="text-lg font-bold text-[#0F172A]">Admin Audit Logs</h2><p className="mt-1 text-sm text-slate-500">Read-only activity history across financial, approval, order, and system modules.</p></div>
-          {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No audit activity recorded.</p> : <div className="divide-y divide-[#DDE7EF]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0878B7]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-500">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {log.actor?.name || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {log.affected_user.name} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
+          {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No audit activity recorded.</p> : <div className="divide-y divide-[#DDE7EF]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0878B7]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-500">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {formatDisplayText(log.actor?.name) || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {formatDisplayText(log.affected_user.name)} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
         </section>
       )}
 
@@ -1623,7 +1625,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Date *" />Date *</label>
-                  <input
+                  <DateTimeInput
                     type="date"
                     value={form.transaction_date}
                     onChange={(e) => setForm({ ...form, transaction_date: e.target.value })}
@@ -1646,7 +1648,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <option value="">No linked budget</option>
                     {budgets.map((budget) => (
                       <option key={budget.id} value={budget.id} disabled={budget.approval_status !== 'approved'}>
-                        {budget.title}{budget.approval_status !== 'approved' ? ` (${budget.approval_status || 'pending'})` : ''}
+                        {formatDisplayText(budget.title)}{budget.approval_status !== 'approved' ? ` (${budget.approval_status || 'pending'})` : ''}
                       </option>
                     ))}
                   </select>
@@ -1660,7 +1662,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   >
                     <option value="">No linked event</option>
                     {events.map((event) => (
-                      <option key={event.id} value={event.id}>{event.title}</option>
+                      <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>
                     ))}
                   </select>
                 </div>
@@ -1747,7 +1749,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 >
                   <option value="">No linked event</option>
                   {events.map((ev) => (
-                    <option key={ev.id} value={ev.id}>{ev.title}</option>
+                    <option key={ev.id} value={ev.id}>{formatDisplayText(ev.title)}</option>
                   ))}
                 </select>
               </div>
@@ -1755,7 +1757,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <label htmlFor="budget-semester" className="text-[13px] font-semibold text-[#0F172A]">Financial semester (optional)</label>
                 <select id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">
                   <option value="">No semester</option>
-                  {semesters.map((semester) => <option key={semester.id} value={semester.id}>{semester.name}</option>)}
+                  {semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)}</option>)}
                 </select>
                 <button type="button" onClick={() => { setShowBudgetForm(false); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-[#0878B7] underline hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one in Financial Reports</button>
               </div>

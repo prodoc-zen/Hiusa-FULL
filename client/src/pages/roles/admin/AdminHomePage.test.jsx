@@ -17,7 +17,7 @@ describe('AdminHomePage', () => {
 
   it('shows live operational counts, ledger movement, announcement preview, and destinations', async () => {
     render(<MemoryRouter><AdminHomePage /></MemoryRouter>);
-    expect(await screen.findByText('Enrollment notice')).toBeInTheDocument();
+    expect(await screen.findByText('Enrollment Notice')).toBeInTheDocument();
     expect(screen.getByText('Pending Orders').closest('a')).toHaveTextContent('4');
     expect(screen.getByText('Approval Requests').closest('a')).toHaveTextContent('2');
     expect(screen.getByRole('img', { name: /monthly ledger income and expenses/i })).toBeInTheDocument();

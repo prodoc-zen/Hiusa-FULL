@@ -75,7 +75,7 @@ describe('StudentGrievancesPage', () => {
     }));
 
     expect(await screen.findByRole('tab', { selected: true })).toHaveTextContent('My grievances');
-    expect(await screen.findByText('Harassment near the guard post')).toBeInTheDocument();
+    expect(await screen.findByText('Harassment Near the Guard Post')).toBeInTheDocument();
     expect(screen.getByText('Critical urgency')).toBeInTheDocument();
     expect(screen.getByText('ai-service')).toBeInTheDocument();
   });

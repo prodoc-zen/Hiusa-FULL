@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { CalendarCheck2, Clock3 } from 'lucide-react';
 import PaginationControls from '../PaginationControls';
@@ -49,7 +50,7 @@ export default function PersonalAttendanceSummary() {
         </div>
         {(data?.records || []).length === 0 ? <p className="mt-5 rounded-lg border border-dashed border-[#DDE7EF] p-6 text-center text-sm text-[#64748B]">No attendance has been recorded for your events yet.</p> : <div className="mt-4 space-y-2">
           {data.records.map((record) => <article key={record.id} className="rounded-lg border border-[#DDE7EF] p-4">
-            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-[#0F172A]">{record.event?.title}</h3><p className="mt-1 text-xs text-[#64748B]">{dateTime(record.event?.start_time)}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${statusStyle[record.status] || 'bg-slate-100 text-slate-700'}`}>{record.status}</span></div>
+            <div className="flex flex-wrap items-start justify-between gap-2"><div><h3 className="font-bold text-[#0F172A]">{formatDisplayText(record.event?.title)}</h3><p className="mt-1 text-xs text-[#64748B]">{dateTime(record.event?.start_time)}</p></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${statusStyle[record.status] || 'bg-slate-100 text-slate-700'}`}>{record.status}</span></div>
             <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-xs text-[#64748B]"><span className="inline-flex items-center gap-1"><Clock3 size={13} /> In: {record.status === 'absent' ? 'Not recorded' : time(record.check_in_time)}</span><span>Out: {time(record.check_out_time)}</span>{record.status !== 'absent' && record.method && <span>Method: {record.method.replaceAll('_', ' ')}</span>}</div>
           </article>)}
         </div>}

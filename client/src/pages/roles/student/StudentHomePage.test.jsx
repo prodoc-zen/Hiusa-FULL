@@ -33,7 +33,7 @@ describe('StudentHomePage', () => {
   it('renders an organization-centered responsive feed from one paginated request', async () => {
     render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
     expect(await screen.findByRole('region', { name: 'Organization feed' })).toBeInTheDocument();
-    expect(screen.getByRole('heading', { name: 'Classes suspended' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'Classes Suspended' })).toBeInTheDocument();
     expect(screen.getByText('Pinned')).toBeInTheDocument();
     expect(screen.getByText('Important')).toBeInTheDocument();
     expect(getStudentFeed).toHaveBeenCalledWith(1, 12);
@@ -43,7 +43,7 @@ describe('StudentHomePage', () => {
   it('finishes loading the feed under the application StrictMode wrapper', async () => {
     render(<StrictMode><MemoryRouter><StudentHomePage /></MemoryRouter></StrictMode>);
 
-    expect(await screen.findByRole('heading', { name: 'Classes suspended' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Classes Suspended' })).toBeInTheDocument();
     expect(screen.queryAllByRole('status')).toHaveLength(0);
   });
 });

@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { useOutletContext } from 'react-router-dom';
@@ -171,7 +172,7 @@ export default function ManagePartylistsPage() {
 
       <section aria-label="Party roster search and actions" className="rounded-lg border border-[#DDE7EF] bg-white p-4">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className="text-sm font-semibold text-[#0F172A]">{election.title}</p>
+          <p className="text-sm font-semibold text-[#0F172A]">{formatDisplayText(election.title)}</p>
           <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
             <div className="relative w-full sm:w-72">
               <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" />
@@ -288,7 +289,7 @@ export default function ManagePartylistsPage() {
                   Manage Party Lists
                 </button>
                 <h3 className="mt-2 text-[30px] leading-tight font-black text-[#0F172A]">
-                  {editing.name || 'Edit Partylist'}
+                  {formatDisplayText(editing.name) || 'Edit Partylist'}
                 </h3>
                 <p className="mt-1 text-xs font-medium text-[#64748B]">Edit list</p>
               </div>
@@ -421,7 +422,7 @@ export default function ManagePartylistsPage() {
 
                       return (
                         <div key={candidate.id} className="flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2">
-                          <span className="text-sm font-semibold text-[#0F172A]">{name}</span>
+                          <span className="text-sm font-semibold text-[#0F172A]">{formatDisplayText(name)}</span>
                           <span className="text-xs font-medium text-[#64748B]">{position}</span>
                         </div>
                       );
@@ -481,14 +482,14 @@ export default function ManagePartylistsPage() {
             return (
               <article key={partylist.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
                 {partylist.banner_url
-                  ? <img src={resolveAssetUrl(partylist.banner_url)} alt={`${partylist.name} banner`} className="h-24 w-full object-cover" />
+                  ? <img src={resolveAssetUrl(partylist.banner_url)} alt={`${formatDisplayText(partylist.name)} banner`} className="h-24 w-full object-cover" />
                   : <div className="h-2" style={{ backgroundColor: CARD_ACCENTS[index % CARD_ACCENTS.length] }} />
                 }
                 <div className="space-y-4 p-5">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="truncate text-lg font-extrabold text-[#0F172A]">{partylist.name}</h3>
+                        <h3 className="truncate text-lg font-extrabold text-[#0F172A]">{formatDisplayText(partylist.name)}</h3>
                         {partylist.acronym && <span className="rounded-md bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">{partylist.acronym}</span>}
                       </div>
                       <RichTextBody value={partylist.description || 'No party description provided yet.'} className="mt-1 text-sm text-[#64748B]" />
@@ -532,10 +533,10 @@ export default function ManagePartylistsPage() {
                           return (
                             <div key={candidate.id} className="text-center">
                               {candidate.image_url
-                                ? <img src={resolveAssetUrl(candidate.image_url)} alt={name} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
+                                ? <img src={resolveAssetUrl(candidate.image_url)} alt={formatDisplayText(name)} className="mx-auto h-16 w-16 rounded-full object-cover border border-[#DDE7EF]" />
                                 : <div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-[#DDE7EF] bg-white text-sm font-bold text-[#0F2F62]">{getInitials(name)}</div>
                               }
-                              <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{name}</p>
+                              <p className="mt-2 truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(name)}</p>
                               <span className="mt-1 inline-flex rounded-full bg-[#EEF6FB] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-[#0F2F62]">
                                 {position}
                               </span>
@@ -558,7 +559,7 @@ export default function ManagePartylistsPage() {
 
                           return (
                             <div key={candidate.id} className="flex items-center justify-between gap-2 rounded-md bg-[#F8FBFD] px-2.5 py-2">
-                              <span className="truncate text-sm font-semibold text-[#0F172A]">{name}</span>
+                              <span className="truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(name)}</span>
                               <span className="text-xs font-medium text-[#64748B]">{position}</span>
                             </div>
                           );

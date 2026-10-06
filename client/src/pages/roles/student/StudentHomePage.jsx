@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { CalendarDays, ChevronRight, Inbox, RefreshCw, ShieldCheck, Vote } from 'lucide-react';
 import { Link } from 'react-router-dom';
@@ -115,7 +116,7 @@ export default function StudentHomePage() {
           {activeElection && (
             <section className="rounded-lg border border-[#0B8ED0]/25 bg-white p-4 shadow-sm">
               <div className="flex items-center justify-between"><span className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-[#0878B7]"><Vote size={14} /> Active election</span><span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" /></div>
-              <h2 className="mt-3 text-base font-black leading-6 text-[#0F172A]">{activeElection.title}</h2>
+              <h2 className="mt-3 text-base font-black leading-6 text-[#0F172A]">{formatDisplayText(activeElection.title)}</h2>
               <p className="mt-1 text-xs leading-5 text-[#64748B]">{activeElection.has_voted ? 'Your ballot has been securely submitted.' : 'Review the candidates and cast your ballot before voting closes.'}</p>
               {activeElection.has_voted ? <span className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-lg bg-emerald-50 text-xs font-bold text-emerald-700"><ShieldCheck size={15} /> Vote submitted</span> : <Link to={`/elections/${activeElection.id}/vote`} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-sm font-bold text-white hover:bg-[#0F2F62]"><ShieldCheck size={16} /> Enter secure voting</Link>}
             </section>
@@ -124,7 +125,7 @@ export default function StudentHomePage() {
           <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm">
             <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-black text-[#0F172A]">Coming up</h2><CalendarDays size={17} className="text-[#0878B7]" /></div>
             <div className="mt-3 divide-y divide-[#DDE7EF]">
-              {upcomingEvents.length ? upcomingEvents.map((event) => <div key={event.id} className="flex gap-3 py-3 first:pt-1"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] px-1 text-center text-[9px] font-black uppercase text-[#0F2F62]">{formatEventDate(event.start_time)}</span><div className="min-w-0"><p className="line-clamp-2 text-xs font-bold leading-5 text-[#0F172A]">{event.title}</p>{event.location && <p className="mt-0.5 truncate text-[11px] text-[#64748B]">{event.location}</p>}</div></div>) : <p className="py-4 text-xs text-[#64748B]">No upcoming events yet.</p>}
+              {upcomingEvents.length ? upcomingEvents.map((event) => <div key={event.id} className="flex gap-3 py-3 first:pt-1"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] px-1 text-center text-[9px] font-black uppercase text-[#0F2F62]">{formatEventDate(event.start_time)}</span><div className="min-w-0"><p className="line-clamp-2 text-xs font-bold leading-5 text-[#0F172A]">{formatDisplayText(event.title)}</p>{event.location && <p className="mt-0.5 truncate text-[11px] text-[#64748B]">{event.location}</p>}</div></div>) : <p className="py-4 text-xs text-[#64748B]">No upcoming events yet.</p>}
             </div>
             <Link to="/dashboard/events/activity-calendar" className="mt-2 inline-flex h-10 w-full items-center justify-center gap-1 text-xs font-bold text-[#0878B7] hover:underline">Open activity calendar <ChevronRight size={14} /></Link>
           </section>

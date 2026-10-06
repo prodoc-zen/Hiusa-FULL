@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CalendarRange, ClipboardList, MapPin } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, Field, PageHeader, Select, StatusBadge } from '../../../components/ui';
@@ -192,14 +194,14 @@ export default function VenueBookingPage() {
         <div className="grid gap-4 sm:grid-cols-3">
           <Field label="Venue">
             <Select value={selectedVenueId} onChange={(event) => setSelectedVenueId(event.target.value)} disabled={venues.loading || venues.items.length === 0}>
-              {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{venue.name} - capacity {venue.capacity}</option>)}
+              {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)} - capacity {venue.capacity}</option>)}
             </Select>
           </Field>
           <Field label="From">
-            <input type="date" value={range.from} max={range.to} onChange={(event) => setRange({ ...range, from: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <DateTimeInput type="date" value={range.from} max={range.to} onChange={(event) => setRange({ ...range, from: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </Field>
           <Field label="To">
-            <input type="date" value={range.to} min={range.from} onChange={(event) => setRange({ ...range, to: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <DateTimeInput type="date" value={range.to} min={range.from} onChange={(event) => setRange({ ...range, to: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </Field>
         </div>
 
@@ -213,7 +215,7 @@ export default function VenueBookingPage() {
           <div className="mt-5 border-t border-line pt-5">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <div>
-                <p className="text-sm font-bold text-ink">{selectedVenue.name}</p>
+                <p className="text-sm font-bold text-ink">{formatDisplayText(selectedVenue.name)}</p>
                 <p className="text-xs font-medium text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
               </div>
               <Button size="sm" onClick={openRequestForm}>Request this venue</Button>
@@ -275,20 +277,20 @@ export default function VenueBookingPage() {
           {requestForm.venue_type === 'on_campus' ? <Field label="Venue" required className="sm:col-span-2">
             <Select data-autofocus value={requestForm.venue_id} onChange={(event) => setRequestForm({ ...requestForm, venue_id: event.target.value })}>
               <option value="">Choose a venue</option>
-              {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}
+              {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}
             </Select>
           </Field> : <Field label="Off-campus location" required className="sm:col-span-2"><input data-autofocus maxLength={255} value={requestForm.off_campus_location} onChange={(event) => setRequestForm({ ...requestForm, off_campus_location: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm" /></Field>}
           <Field label="Start" required>
-            <input type="datetime-local" value={requestForm.start_time} onChange={(event) => setRequestForm({ ...requestForm, start_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <DateTimeInput type="datetime-local" value={requestForm.start_time} onChange={(event) => setRequestForm({ ...requestForm, start_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </Field>
           <Field label="End" required>
-            <input type="datetime-local" value={requestForm.end_time} onChange={(event) => setRequestForm({ ...requestForm, end_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            <DateTimeInput type="datetime-local" value={requestForm.end_time} onChange={(event) => setRequestForm({ ...requestForm, end_time: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
           </Field>
           <p className="text-xs text-[#64748B] sm:col-span-2">Bookings run from 5:00 AM to 10:00 PM on one day.</p>
           <Field label="Link to an event" hint="Optional" className="sm:col-span-2">
             <Select value={requestForm.event_id} onChange={(event) => setRequestForm({ ...requestForm, event_id: event.target.value })}>
               <option value="">Not linked to an event</option>
-              {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{eventItem.title}</option>)}
+              {events.map((eventItem) => <option key={eventItem.id} value={eventItem.id}>{formatDisplayText(eventItem.title)}</option>)}
             </Select>
           </Field>
           {requestError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{requestError}</p>}
@@ -298,7 +300,7 @@ export default function VenueBookingPage() {
       <Modal open={Boolean(submittedBooking)} title="Booking request sent" description="SAO will review this request. This is your booking reference, not an approval." onClose={() => setSubmittedBooking(null)} maxWidth="max-w-md" footer={<Button onClick={() => setSubmittedBooking(null)}>Done</Button>}>
         {submittedBooking && <div className="rounded-lg border border-[#DDE7EF] bg-[#FFFDF7] p-5">
           <div className="flex items-center gap-2 border-b border-dashed border-[#DDE7EF] pb-3 text-[#0F2F62]"><CalendarRange size={20} aria-hidden="true" /><span className="text-sm font-black">Venue request #{submittedBooking.id}</span></div>
-          <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs font-semibold text-[#64748B]">Venue</dt><dd className="font-bold text-[#0F172A]">{submittedBooking.venue?.name || submittedBooking.off_campus_location || 'Selected venue'}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Requested time</dt><dd className="font-bold text-[#0F172A]">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Status</dt><dd><StatusBadge status="pending" /></dd></div></dl>
+          <dl className="mt-4 space-y-3 text-sm"><div><dt className="text-xs font-semibold text-[#64748B]">Venue</dt><dd className="font-bold text-[#0F172A]">{formatDisplayText(submittedBooking.venue?.name) || submittedBooking.off_campus_location || 'Selected venue'}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Requested time</dt><dd className="font-bold text-[#0F172A]">{formatRange(submittedBooking.start_time, submittedBooking.end_time)}</dd></div><div><dt className="text-xs font-semibold text-[#64748B]">Status</dt><dd><StatusBadge status="pending" /></dd></div></dl>
         </div>}
       </Modal>
 

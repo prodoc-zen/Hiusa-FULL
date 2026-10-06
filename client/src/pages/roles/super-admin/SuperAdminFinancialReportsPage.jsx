@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Check, Download, Eye, FileText, RefreshCw, X } from 'lucide-react';
@@ -160,7 +161,7 @@ export default function SuperAdminFinancialReportsPage() {
         >
           <select aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All organizations</option>
-            {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.acronym} - {organization.name}</option>)}
+            {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.acronym} - {formatDisplayText(organization.name)}</option>)}
           </select>
           <select aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All document types</option>
@@ -191,8 +192,8 @@ export default function SuperAdminFinancialReportsPage() {
                 <article key={report.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
                   <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] text-[#0F2F62]"><FileText size={18} /></span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold text-[#0F172A]">{report.title}</p>
-                    <p className="mt-1 text-xs text-slate-500">{report.organization?.acronym || report.organization?.name} · {documentLabel(report.document_type)} · {date(report.submitted_at || report.generated_at)}</p>
+                    <p className="font-bold text-[#0F172A]">{formatDisplayText(report.title)}</p>
+                    <p className="mt-1 text-xs text-slate-500">{report.organization?.acronym || formatDisplayText(report.organization?.name)} · {documentLabel(report.document_type)} · {date(report.submitted_at || report.generated_at)}</p>
                   </div>
                   <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${approval ? 'bg-amber-100 text-amber-800' : report.submission_status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}`}>{statusLabel(report.submission_status)}</span>
                   <div className="flex gap-2">
@@ -214,7 +215,7 @@ export default function SuperAdminFinancialReportsPage() {
 
       <Modal
         open={Boolean(detail)}
-        title={detail?.report?.title || 'Financial report'}
+        title={formatDisplayText(detail?.report?.title) || 'Financial report'}
         description={detail?.report ? `${detail.report.organization?.name || ''} · ${documentLabel(detail.report.document_type)} · ${statusLabel(detail.report.submission_status)}` : ''}
         onClose={() => setDetail(null)}
         maxWidth="max-w-4xl"
@@ -231,7 +232,7 @@ export default function SuperAdminFinancialReportsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border border-[#DDE7EF] p-4">
               <h3 className="text-sm font-bold text-[#0F172A]">Required signatories</h3>
-              {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{name}</strong></p>)}
+              {Object.entries(detail.report.signatories || {}).map(([role, name]) => <p key={role} className="mt-2 text-sm capitalize text-slate-600">{role.replaceAll('_', ' ')}: <strong>{formatDisplayText(name)}</strong></p>)}
             </div>
             <div className="rounded-lg border border-[#DDE7EF] p-4">
               <h3 className="text-sm font-bold text-[#0F172A]">Supporting documents</h3>

@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -173,14 +174,14 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       ref={menuRef}
       id={menuId}
       role="menu"
-      aria-label={`Actions for ${name}`}
+      aria-label={`Actions for ${formatDisplayText(name)}`}
       aria-hidden={!expanded}
       style={{ left: menuPosition.left, top: menuPosition.top, transformOrigin: menuPosition.origin }}
       className={`fixed z-[100] max-h-[calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px)] w-56 overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white/95 p-2 shadow-[0_18px_50px_-18px_rgba(15,23,42,0.28)] backdrop-blur-xl transition-[opacity,transform,visibility] duration-200 ease-out ${expanded ? 'visible translate-y-0 scale-100 opacity-100' : 'invisible pointer-events-none -translate-y-1 scale-[0.97] opacity-0'}`}
     >
       <div className="mb-1 border-b border-slate-100 px-2.5 py-2">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">User actions</p>
-        <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{name}</p>
+        <p className="mt-0.5 truncate text-xs font-semibold text-slate-500">{formatDisplayText(name)}</p>
       </div>
       <div className="space-y-0.5">
         {actions.map((action) => {
@@ -212,7 +213,7 @@ export function UserActionDock({ user, actorRole, onEdit, onView, onFingerprint,
       <button
         ref={triggerRef}
         type="button"
-        aria-label={`${expanded ? 'Close' : 'Open'} actions for ${name}`}
+        aria-label={`${expanded ? 'Close' : 'Open'} actions for ${formatDisplayText(name)}`}
         aria-expanded={expanded}
         aria-haspopup="menu"
         aria-controls={menuId}
@@ -360,7 +361,7 @@ function FingerprintVerificationModal({ expectedUser, onClose }) {
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0878B7]">Expected account</p>
           <div className="mt-2 flex items-center gap-3">
             <span className="grid h-10 w-10 place-items-center rounded-full bg-[#E6F6FD] text-sm font-black text-[#0F2F62]">{expectedUser.first_name?.[0]}{expectedUser.last_name?.[0]}</span>
-            <div><p className="text-sm font-black text-[#0F172A]">{expectedUser.first_name} {expectedUser.last_name}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
+            <div><p className="text-sm font-black text-[#0F172A]">{formatDisplayText(expectedUser.first_name)} {formatDisplayText(expectedUser.last_name)}</p><p className="text-xs font-medium text-slate-500">School ID {expectedUser.school_id} · {ROLE_LABELS[expectedUser.role] || expectedUser.role}</p></div>
           </div>
         </div>
 
@@ -751,19 +752,19 @@ export default function AdminUsersPage() {
         >
           <option value="">{['ADMIN', 'SBO_OFFICER'].includes(form.role) ? 'Choose a position' : 'Not available for this role'}</option>
           {sboPositions.filter((position) => position.is_active && position.role === form.role && !/^adviser$/i.test(position.title.trim())).map((position) => (
-            <option key={position.id} value={position.title}>{position.title}</option>
+            <option key={position.id} value={position.title}>{formatDisplayText(position.title)}</option>
           ))}
         </select>
       </Field>}
       <Field label="Course / Program" required={form.role === 'STUDENT' && mode === 'create'} error={modalFieldErrors.program?.[0]}>
-        <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
+        <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</select>
         {form.role === 'STUDENT' && !academicStructure.programs?.length && <span className="mt-1 block text-xs text-amber-700">Configure a program in Programs & Sections first.</span>}
       </Field>
       <Field label="Year Level" error={modalFieldErrors.year_level?.[0]}>
         <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</select>
       </Field>
       <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
-      <Field label="Section" error={modalFieldErrors.section?.[0]}><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select></Field>
+      <Field label="Section" error={modalFieldErrors.section?.[0]}><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</select></Field>
       {mode === 'create' && (
         <>
           <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Set password</h3></div>
@@ -860,9 +861,9 @@ export default function AdminUsersPage() {
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
           </select>
-          <select aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{program.name}</option>)}</select>
+          <select aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</select>
           <select aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</select>
-          <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{section.name}</option>)}</select>
+          <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</select>
           <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
           <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
         </TableFilterBar>
@@ -871,7 +872,7 @@ export default function AdminUsersPage() {
           {!loading && sortedUsers.map((user) => (
             <article key={user.id} className="min-w-0 rounded-xl border border-[#DDE7EF] p-4">
               <div className="flex min-w-0 items-start justify-between gap-2">
-                <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{user.first_name} {user.last_name}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
+                <div className="min-w-0"><h2 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</h2><p className="mt-1 font-mono text-xs text-slate-500">{user.school_id}</p></div>
                 <UserActionDock user={user} actorRole={actorRole} onEdit={() => openEdit(user)} onView={() => openProfile(user)} onFingerprint={() => setFingerprintTarget(user)} onVerify={() => setFingerprintVerifyTarget(user)} onDeactivate={() => setDisableTarget(user)} onReactivate={() => setReactivateTarget(user)} onDelete={() => setDeleteTarget(user)} />
               </div>
               <div className="mt-3 flex flex-wrap gap-2 text-xs font-semibold"><span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span><span className={`rounded-full px-2.5 py-1 ${user.account_status === 'active' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{user.account_status === 'active' ? 'Active' : 'Inactive'}</span>{user.fingerprint_enrolled && <span className="rounded-full bg-sky-50 px-2.5 py-1 text-[#0878B7]">Fingerprint enrolled</span>}</div>
@@ -907,7 +908,7 @@ export default function AdminUsersPage() {
               {!loading && sortedUsers.map((user) => (
                 <tr key={user.id} className="hover:bg-[#F8FBFD]">
                   <td className="px-4 py-3.5 font-mono text-xs text-[#64748B]">{user.school_id}</td>
-                  <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{user.first_name} {user.last_name}</td>
+                  <td className="px-4 py-3.5 font-semibold text-[#0F172A]">{formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}</td>
                   <td className="px-4 py-3.5">
                     <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{ROLE_LABELS[user.role] || user.role}</span>
                   </td>
@@ -979,7 +980,7 @@ export default function AdminUsersPage() {
               <div className="mt-3 grid gap-3 sm:grid-cols-3">{[['Invoice balance', profileDebt.invoice_debt], ['Reserved merchandise', profileDebt.reserved_order_debt], ['Total outstanding', profileDebt.total_debt]].map(([label, amount]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-white p-3"><p className="text-xs font-bold text-slate-500">{label}</p><p className="mt-1 text-xl font-black text-[#0F172A]">₱{Number(amount || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p></div>)}</div>
               {profileDebt.total_debt > 0 && <div className="mt-4 space-y-3">
                 {profileDebt.invoices?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Unsettled invoices</p>{profileDebt.invoices.map((invoice) => <div key={invoice.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>{invoice.reference}</strong><br /><span className="text-xs text-slate-500">{invoice.description}</span></span><strong>₱{Number(invoice.remaining_balance || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
-                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{order.merchandise?.name || 'Merchandise item'}</span></span><strong>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
+                {profileDebt.reserved_orders?.length > 0 && <div><p className="text-sm font-bold text-[#0F172A]">Reserved merchandise awaiting payment</p>{profileDebt.reserved_orders.map((order) => <div key={order.id} className="mt-2 flex justify-between gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-sm"><span><strong>Order ORD-{order.id}</strong><br /><span className="text-xs text-slate-500">{formatDisplayText(order.merchandise?.name) || 'Merchandise item'}</span></span><strong>₱{Number(order.total_price || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></div>)}</div>}
               </div>}
               {profileDebt.total_debt <= 0 && <p className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">No current invoices or reserved-merchandise debt found.</p>}
             </>}

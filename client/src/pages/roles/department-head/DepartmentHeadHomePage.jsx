@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { Vote, BarChart3, CalendarDays, ClipboardCheck, Megaphone } from 'lucide-react';
@@ -135,7 +136,7 @@ export default function DepartmentHeadHomePage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Active Election</p>
-                  <h3 className="mt-1 text-lg font-black text-[#0F172A]">{activeElection.title}</h3>
+                  <h3 className="mt-1 text-lg font-black text-[#0F172A]">{formatDisplayText(activeElection.title)}</h3>
                   <p className="mt-1 text-sm text-slate-500">
                     {formatDate(activeElection.start_time)} to {formatDate(activeElection.end_time)}
                   </p>
@@ -183,7 +184,7 @@ export default function DepartmentHeadHomePage() {
                       <CalendarDays size={18} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-[#0F172A]">{ev.title}</p>
+                      <p className="truncate font-semibold text-[#0F172A]">{formatDisplayText(ev.title)}</p>
                       <p className="text-xs text-slate-500">{formatDate(ev.start_time)}{ev.location ? ` - ${ev.location}` : ''}</p>
                     </div>
                     <span className="shrink-0 rounded-full bg-[#E6F6FD] px-2.5 py-0.5 text-[11px] font-bold capitalize text-[#0F2F62]">{ev.status}</span>
@@ -208,7 +209,7 @@ export default function DepartmentHeadHomePage() {
                 <p className="py-4 text-center text-sm text-slate-500">Nothing awaiting your review.</p>
               ) : (
                 <div className="space-y-3">
-                  {data.pendingApprovals.slice(0, 3).map((request) => <NavLink key={request.id} to="/dashboard/department-head/approvals" className="block rounded-lg border border-amber-200 bg-amber-50 p-3 hover:bg-amber-100"><p className="break-words text-xs font-bold text-[#0F172A]">{request.title || `${APPROVAL_TYPE_LABEL[request.entity_type] || 'Request'} #${request.id}`}</p><p className="mt-1 text-[11px] text-amber-800">{APPROVAL_TYPE_LABEL[request.entity_type] || 'Approval'} · {formatDate(request.requested_at)}</p></NavLink>)}
+                  {data.pendingApprovals.slice(0, 3).map((request) => <NavLink key={request.id} to="/dashboard/department-head/approvals" className="block rounded-lg border border-amber-200 bg-amber-50 p-3 hover:bg-amber-100"><p className="break-words text-xs font-bold text-[#0F172A]">{formatDisplayText(request.title) || `${APPROVAL_TYPE_LABEL[request.entity_type] || 'Request'} #${request.id}`}</p><p className="mt-1 text-[11px] text-amber-800">{APPROVAL_TYPE_LABEL[request.entity_type] || 'Approval'} · {formatDate(request.requested_at)}</p></NavLink>)}
                   {approvalsByType.map((row) => {
                     const pct = Math.round((row.count / totalPendingApprovals) * 100);
                     return (
@@ -246,7 +247,7 @@ export default function DepartmentHeadHomePage() {
                       <Megaphone size={15} />
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-semibold text-[#0F172A]">{a.title}</p>
+                      <p className="truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(a.title)}</p>
                       <p className="line-clamp-2 text-xs text-slate-500">{a.body}</p>
                     </div>
                   </div>

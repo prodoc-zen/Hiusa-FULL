@@ -1,3 +1,4 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
@@ -174,7 +175,7 @@ export default function SettingsPage() {
             </div>
             <h2 className="mt-4 break-words text-lg font-extrabold text-white">{fullName}</h2>
             <span className="mt-2 inline-flex rounded-full bg-[#16C7F3]/15 px-3 py-1 text-[11px] font-bold text-[#16C7F3]">{roleLabel(currentUser.role)}</span>
-            {currentUser.position_title && <p className="mt-2 text-xs font-medium text-slate-300">{currentUser.position_title}</p>}
+            {currentUser.position_title && <p className="mt-2 text-xs font-medium text-slate-300">{formatDisplayText(currentUser.position_title)}</p>}
           </div>
 
           <div className="divide-y divide-[#DDE7EF] px-5">

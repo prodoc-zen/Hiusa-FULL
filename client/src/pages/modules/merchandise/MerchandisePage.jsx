@@ -1,3 +1,5 @@
+import { formatDisplayText } from '../../../utils/displayText.js';
+import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from "react";
@@ -93,9 +95,9 @@ function CatalogFields({ value, onChange, images, onImagesChange }) {
       <div className="flex items-center justify-between gap-2"><div><h3 className="text-sm font-bold text-[#0F2F62]">Sizes and variants</h3><p className="text-xs text-slate-600">Add sizes for wearable items. Each has its own stock and optional image.</p></div><button type="button" onClick={() => { onChange({ ...value, variants: [...variants, { name: "", stock_quantity: 0 }] }); onImagesChange([...images, null]); }} className="shrink-0 rounded-lg border border-[#0878B7] px-3 py-2 text-xs font-bold text-[#0878B7]">Add variant</button></div>
       {variants.map((variant, index) => <div key={variant.id || `new-${index}`} className="grid gap-2 rounded-lg border border-[#DDE7EF] bg-white p-2 sm:grid-cols-[1fr_5rem_auto_auto]">
         <div><input list="merchandise-size-options" value={variant.name} onChange={(event) => changeVariant(index, { name: event.target.value })} placeholder="Size / variant" aria-label={`Variant ${index + 1} name`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" /><datalist id="merchandise-size-options">{STANDARD_SIZES.map((size) => <option key={size} value={size} />)}</datalist></div>
-        <input type="number" min="0" value={variant.stock_quantity} onChange={(event) => changeVariant(index, { stock_quantity: event.target.value })} aria-label={`${variant.name || `Variant ${index + 1}`} stock`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" />
+        <input type="number" min="0" value={variant.stock_quantity} onChange={(event) => changeVariant(index, { stock_quantity: event.target.value })} aria-label={`${formatDisplayText(variant.name) || `Variant ${index + 1}`} stock`} className="h-10 w-full rounded-lg border border-[#DDE7EF] px-2 text-sm" />
         <label className="cursor-pointer rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-semibold text-[#0F2F62]">{images[index] ? "Image selected" : variant.image_url ? "Change image" : "Add image"}<input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" onChange={(event) => onImagesChange(images.map((file, imageIndex) => imageIndex === index ? event.target.files[0] : file))} /></label>
-        <button type="button" aria-label={`Remove ${variant.name || `variant ${index + 1}`}`} onClick={() => { onChange({ ...value, variants: variants.filter((_, rowIndex) => rowIndex !== index) }); onImagesChange(images.filter((_, rowIndex) => rowIndex !== index)); }} className="grid h-10 w-10 place-items-center rounded-lg text-red-700 hover:bg-red-50"><X size={16} /></button>
+        <button type="button" aria-label={`Remove ${formatDisplayText(variant.name) || `variant ${index + 1}`}`} onClick={() => { onChange({ ...value, variants: variants.filter((_, rowIndex) => rowIndex !== index) }); onImagesChange(images.filter((_, rowIndex) => rowIndex !== index)); }} className="grid h-10 w-10 place-items-center rounded-lg text-red-700 hover:bg-red-50"><X size={16} /></button>
       </div>)}
       {variants.length > 0 && <p className="text-xs font-semibold text-[#0F2F62]">Total variant stock: {variants.reduce((sum, row) => sum + (Number(row.stock_quantity) || 0), 0)}</p>}
     </section>
@@ -108,7 +110,7 @@ function ProductImageViewer({ lightbox, onChange, onClose }) {
   if (!images.length) return null;
   const imageIndex = Math.min(lightbox.index, images.length - 1);
   return <AccessibleOverlay label={`${lightbox.item.name} images`} onClose={onClose} className="fixed inset-0 z-[75] flex items-center justify-center bg-[#0B1831]/85 p-4">
-    <div className="w-full max-w-3xl rounded-xl bg-white p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 className="font-bold text-[#0F2F62]">{lightbox.item.name}</h2><button type="button" onClick={onClose} aria-label="Close image viewer" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={20} /></button></div><img src={resolveAssetUrl(images[imageIndex])} alt={`${lightbox.item.name} image ${imageIndex + 1}`} className="mt-3 max-h-[65vh] w-full rounded-lg bg-[#F8FBFD] object-contain" />{images.length > 1 && <div className="mt-3 flex items-center justify-center gap-3"><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex - 1 + images.length) % images.length })} aria-label="Previous image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronLeft size={20} /></button><span className="text-sm text-slate-600">{imageIndex + 1} of {images.length}</span><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex + 1) % images.length })} aria-label="Next image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronRight size={20} /></button></div>}</div>
+    <div className="w-full max-w-3xl rounded-xl bg-white p-4 shadow-2xl"><div className="flex items-center justify-between gap-3"><h2 className="font-bold text-[#0F2F62]">{formatDisplayText(lightbox.item.name)}</h2><button type="button" onClick={onClose} aria-label="Close image viewer" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={20} /></button></div><img src={resolveAssetUrl(images[imageIndex])} alt={`${formatDisplayText(lightbox.item.name)} image ${imageIndex + 1}`} className="mt-3 max-h-[65vh] w-full rounded-lg bg-[#F8FBFD] object-contain" />{images.length > 1 && <div className="mt-3 flex items-center justify-center gap-3"><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex - 1 + images.length) % images.length })} aria-label="Previous image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronLeft size={20} /></button><span className="text-sm text-slate-600">{imageIndex + 1} of {images.length}</span><button type="button" onClick={() => onChange({ ...lightbox, index: (imageIndex + 1) % images.length })} aria-label="Next image" className="grid h-10 w-10 place-items-center rounded-lg border"><ChevronRight size={20} /></button></div>}</div>
   </AccessibleOverlay>;
 }
 const EMPTY_ORDER_FILTERS = {
@@ -310,7 +312,7 @@ function AddStockModal({
           {variants?.length > 0 && <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Variant" />Variant
             <select value={variantId} onChange={(event) => onVariantChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" required>
               <option value="">Select variant</option>
-              {variants.map((variant) => <option key={variant.id} value={variant.id}>{variant.name} · {variant.stock_quantity} in stock</option>)}
+              {variants.map((variant) => <option key={variant.id} value={variant.id}>{formatDisplayText(variant.name)} · {variant.stock_quantity} in stock</option>)}
             </select>
           </label>}
           <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -404,7 +406,7 @@ function FulfillmentOrderRow({
 
         <div className="min-w-0 border-t border-[#EEF6FB] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
           <p className="truncate text-sm font-bold text-[#0F172A]">
-            {order.merchandise?.name || "Unavailable item"}
+            {formatDisplayText(order.merchandise?.name) || "Unavailable item"}
           </p>
           <p className="mt-1 text-xs text-slate-500">
             {order.quantity} x {fmt(order.unit_price ?? Number(order.total_price) / Number(order.quantity || 1))}
@@ -449,7 +451,7 @@ function FulfillmentOrderRow({
                 <CheckCircle size={14} /> Claimed {fmtDate(order.claimed_at)}
               </p>
               <p className="mt-1 text-[10px] text-emerald-700/80">
-                Released by {order.claim_verifier ? `${order.claim_verifier.first_name} ${order.claim_verifier.last_name}` : "authorized staff"}
+                Released by {order.claim_verifier ? `${formatDisplayText(order.claim_verifier.first_name)} ${formatDisplayText(order.claim_verifier.last_name)}` : "authorized staff"}
               </p>
             </div>
           ) : order.status === "cancelled" ? (
@@ -1700,11 +1702,11 @@ export default function MerchandisePage({ initialTab }) {
       <div className="space-y-6">
         {feedbackPopup}
         <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
-        <Modal open={Boolean(productPreview)} title={productPreview?.name} onClose={() => setProductPreview(null)} maxWidth="max-w-xl" footer={productPreview && <button type="button" onClick={() => { if (addToCart(productPreview)) setProductPreview(null); }} disabled={productPreview.stock_quantity === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white disabled:opacity-50"><ShoppingBag size={16} />Add to cart</button>}>
+        <Modal open={Boolean(productPreview)} title={formatDisplayText(productPreview?.name)} onClose={() => setProductPreview(null)} maxWidth="max-w-xl" footer={productPreview && <button type="button" onClick={() => { if (addToCart(productPreview)) setProductPreview(null); }} disabled={productPreview.stock_quantity === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white disabled:opacity-50"><ShoppingBag size={16} />Add to cart</button>}>
           {cartError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{cartError}</p>}
           {productPreview && <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
-            {productPreview.image_url ? <img src={resolveAssetUrl(productPreview.image_url)} alt={productPreview.name} className="aspect-square w-full rounded-lg border border-[#DDE7EF] object-cover" /> : <div className="grid aspect-square place-items-center rounded-lg bg-[#EEF6FB]"><Package size={42} className="text-[#0878B7]" /></div>}
-            <div className="min-w-0 space-y-3"><p className="text-xl font-black text-[#0F2F62]">{fmt(productPreview.effective_price ?? productPreview.price)}</p><p className="text-sm font-semibold text-[#0F172A]">{productPreview.stock_quantity} unit{productPreview.stock_quantity === 1 ? '' : 's'} in stock</p>{productPreview.description && <RichTextBody value={productPreview.description} className="text-sm leading-6 text-slate-600" />}{productPreview.variants?.length > 0 && <label className="block text-xs font-bold text-[#0F2F62]">Size / variant<select value={selectedVariants[productPreview.id] || ''} onChange={(event) => setSelectedVariants((current) => ({ ...current, [productPreview.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Select variant</option>{productPreview.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} in stock</option>)}</select></label>}<label className="block text-xs font-bold text-[#0F2F62]">Quantity<input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => setDraftQty((current) => ({ ...current, [productPreview.id]: Math.max(1, Math.min(productPreview.stock_quantity, Number(event.target.value || 1))) }))} className="mt-1 h-11 w-24 rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label></div>
+            {productPreview.image_url ? <img src={resolveAssetUrl(productPreview.image_url)} alt={formatDisplayText(productPreview.name)} className="aspect-square w-full rounded-lg border border-[#DDE7EF] object-cover" /> : <div className="grid aspect-square place-items-center rounded-lg bg-[#EEF6FB]"><Package size={42} className="text-[#0878B7]" /></div>}
+            <div className="min-w-0 space-y-3"><p className="text-xl font-black text-[#0F2F62]">{fmt(productPreview.effective_price ?? productPreview.price)}</p><p className="text-sm font-semibold text-[#0F172A]">{productPreview.stock_quantity} unit{productPreview.stock_quantity === 1 ? '' : 's'} in stock</p>{productPreview.description && <RichTextBody value={productPreview.description} className="text-sm leading-6 text-slate-600" />}{productPreview.variants?.length > 0 && <label className="block text-xs font-bold text-[#0F2F62]">Size / variant<select value={selectedVariants[productPreview.id] || ''} onChange={(event) => setSelectedVariants((current) => ({ ...current, [productPreview.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Select variant</option>{productPreview.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{formatDisplayText(variant.name)} · {variant.stock_quantity} in stock</option>)}</select></label>}<label className="block text-xs font-bold text-[#0F2F62]">Quantity<input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => setDraftQty((current) => ({ ...current, [productPreview.id]: Math.max(1, Math.min(productPreview.stock_quantity, Number(event.target.value || 1))) }))} className="mt-1 h-11 w-24 rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label></div>
           </div>}
         </Modal>
         {/* Student metric cards */}
@@ -1844,9 +1846,9 @@ export default function MerchandisePage({ initialTab }) {
                   >
                     <div className="relative overflow-hidden bg-[#F8FBFD]">
                       {item.image_url ? (
-                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} className="block w-full" aria-label={`View ${item.name} images`}><img
+                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} className="block w-full" aria-label={`View ${formatDisplayText(item.name)} images`}><img
                           src={resolveAssetUrl(item.image_url)}
-                          alt={item.name}
+                          alt={formatDisplayText(item.name)}
                           className={`h-48 w-full object-cover transition duration-300 group-hover:scale-[1.02] ${item.stock_quantity === 0 ? "grayscale" : ""}`}
                         /></button>
                       ) : (
@@ -1869,15 +1871,15 @@ export default function MerchandisePage({ initialTab }) {
                       <div className="mb-2 flex flex-wrap gap-1">{item.promotion_available_to_viewer && <span className="rounded-full bg-[#F9EAA6] px-2 py-0.5 text-[10px] font-bold text-[#0F2F62]">FIRST {item.promotion_buyer_limit} BUYERS</span>}<span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">ACTIVE</span></div>
                       <div className="flex items-start justify-between gap-3">
                         <h3 className="min-w-0 font-bold leading-snug text-[#0F172A]">
-                          {item.name}
+                          {formatDisplayText(item.name)}
                         </h3>
                         <div className="shrink-0 text-right"><p className="text-lg font-black text-[#0878B7]">{fmt(item.effective_price ?? item.price)}</p>{item.promotion_available_to_viewer && <p className="text-xs text-slate-500"><s>{fmt(item.price)}</s> · {item.promotion_remaining} buyer slots left</p>}</div>
                       </div>
                       {item.description && <RichTextBody value={item.description} className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500" />}
                       <button type="button" onClick={() => { setCartError(null); setProductPreview(item); }} className="mt-2 w-fit text-xs font-bold text-[#0878B7] hover:underline">View product details</button>
                       {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]"><FieldIcon label="Size / variant" />Size / variant
-                        <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${item.name}`}>
-                          <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{variant.name} · {variant.stock_quantity} available</option>)}
+                        <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${formatDisplayText(item.name)}`}>
+                          <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{formatDisplayText(variant.name)} · {variant.stock_quantity} available</option>)}
                         </select>
                       </label>}
                       <div className="mt-auto flex items-center gap-2 border-t border-[#EEF6FB] pt-4">
@@ -1894,7 +1896,7 @@ export default function MerchandisePage({ initialTab }) {
                           }
                           disabled={item.stock_quantity === 0}
                           className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label={`Decrease quantity for ${item.name}`}
+                          aria-label={`Decrease quantity for ${formatDisplayText(item.name)}`}
                         >
                           <Minus size={14} />
                         </button>
@@ -1930,7 +1932,7 @@ export default function MerchandisePage({ initialTab }) {
                           }
                           disabled={item.stock_quantity === 0}
                           className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
-                          aria-label={`Increase quantity for ${item.name}`}
+                          aria-label={`Increase quantity for ${formatDisplayText(item.name)}`}
                         >
                           <Plus size={14} />
                         </button>
@@ -2004,7 +2006,7 @@ export default function MerchandisePage({ initialTab }) {
                       {row.item.image_url ? (
                         <img
                           src={resolveAssetUrl(row.item.image_url)}
-                          alt={row.item.name}
+                          alt={formatDisplayText(row.item.name)}
                           className="h-full w-full object-cover"
                         />
                       ) : (
@@ -2015,7 +2017,7 @@ export default function MerchandisePage({ initialTab }) {
                     </div>
                     <div className="min-w-40 flex-1">
                       <p className="font-bold text-[#0F172A]">
-                        {row.item.name}
+                        {formatDisplayText(row.item.name)}
                       </p>
                       <p className="text-xs text-slate-500">
                           {row.item.variant_name ? `${row.item.variant_name} · ` : ""}{fmt(itemPrice(row.item))} each · {row.item.stock_quantity} available
@@ -2028,7 +2030,7 @@ export default function MerchandisePage({ initialTab }) {
                           changeCartQty(cartKey(row.item), row.quantity - 1)
                         }
                         className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD]"
-                        aria-label={`Decrease quantity for ${row.item.name}`}
+                        aria-label={`Decrease quantity for ${formatDisplayText(row.item.name)}`}
                       >
                         <Minus size={13} />
                       </button>
@@ -2042,7 +2044,7 @@ export default function MerchandisePage({ initialTab }) {
                         }
                         disabled={row.quantity >= row.item.stock_quantity}
                         className="grid h-9 w-9 place-items-center rounded-lg border border-[#DDE7EF] text-slate-600 hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-40"
-                        aria-label={`Increase quantity for ${row.item.name}`}
+                        aria-label={`Increase quantity for ${formatDisplayText(row.item.name)}`}
                       >
                         <Plus size={13} />
                       </button>
@@ -2050,7 +2052,7 @@ export default function MerchandisePage({ initialTab }) {
                         type="button"
                         onClick={() => removeFromCart(cartKey(row.item))}
                         className="ml-1 grid h-9 w-9 place-items-center rounded-lg border border-red-100 text-red-600 hover:bg-red-50"
-                        aria-label={`Remove ${row.item.name} from cart`}
+                        aria-label={`Remove ${formatDisplayText(row.item.name)} from cart`}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -2150,7 +2152,7 @@ export default function MerchandisePage({ initialTab }) {
                           {(o.variant?.image_url || o.merchandise?.image_url) ? (
                             <img
                               src={resolveAssetUrl(o.variant?.image_url || o.merchandise?.image_url)}
-                              alt={o.merchandise?.name ?? "Merchandise"}
+                              alt={formatDisplayText(o.merchandise?.name) ?? "Merchandise"}
                               className="h-full w-full object-cover"
                             />
                           ) : (
@@ -2164,7 +2166,7 @@ export default function MerchandisePage({ initialTab }) {
                             ORD-{o.id}
                           </p>
                           <p className="mt-0.5 truncate font-bold text-[#0F172A]">
-                            {o.merchandise?.name ?? "-"}
+                            {formatDisplayText(o.merchandise?.name) ?? "-"}
                           </p>
                           <p className="text-[13px] text-slate-500">
                             Qty: {o.quantity} · Total: {fmt(o.total_price)}
@@ -2293,7 +2295,7 @@ export default function MerchandisePage({ initialTab }) {
                   >
                     <div>
                       <p className="text-sm font-bold text-[#0F172A]">
-                        {row.item.name}
+                        {formatDisplayText(row.item.name)}
                       </p>
                       <p className="text-xs text-slate-500">
                         Qty: {row.quantity} × {fmt(itemPrice(row.item))} · {row.item.stock_quantity} in stock
@@ -2611,9 +2613,9 @@ export default function MerchandisePage({ initialTab }) {
           {topSellers.length === 0 ? <p className="mt-2 text-sm text-slate-500">No paid merchandise sales yet.</p> : <>
             <div className="mt-4 grid grid-cols-3 items-end gap-2 rounded-lg bg-[#EEF6FB] p-3 sm:gap-4">{[1, 0, 2].map((rank) => {
               const seller = topSellers[rank];
-              return seller ? <div key={`${seller.id}-${rank}`} className="text-center"><div className="mb-2 flex h-8 items-center justify-center text-[#0F2F62]">{rank === 0 ? <Crown size={26} aria-label="First place" /> : <span className="text-sm font-bold">#{rank + 1}</span>}</div><div className="truncate text-xs font-bold text-[#0F172A]" title={seller.name}>{seller.name}</div><div className={`mt-2 flex flex-col items-center justify-center rounded-t-lg bg-[#0F2F62] px-1 text-white ${rank === 0 ? 'h-28' : rank === 1 ? 'h-20' : 'h-16'}`}><span className="text-lg font-black tabular-nums">{seller.quantity}</span><span className="text-[10px]">sold</span></div></div> : <div key={rank} />;
+              return seller ? <div key={`${seller.id}-${rank}`} className="text-center"><div className="mb-2 flex h-8 items-center justify-center text-[#0F2F62]">{rank === 0 ? <Crown size={26} aria-label="First place" /> : <span className="text-sm font-bold">#{rank + 1}</span>}</div><div className="truncate text-xs font-bold text-[#0F172A]" title={formatDisplayText(seller.name)}>{formatDisplayText(seller.name)}</div><div className={`mt-2 flex flex-col items-center justify-center rounded-t-lg bg-[#0F2F62] px-1 text-white ${rank === 0 ? 'h-28' : rank === 1 ? 'h-20' : 'h-16'}`}><span className="text-lg font-black tabular-nums">{seller.quantity}</span><span className="text-[10px]">sold</span></div></div> : <div key={rank} />;
             })}</div>
-            <ol className="mt-3 space-y-2">{topSellers.map((seller, index) => <li key={`${seller.id}-${index}`} className="flex items-center gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs"><strong className="w-6 text-[#0878B7]">#{index + 1}</strong><span className="min-w-0 flex-1 truncate font-semibold text-[#0F2F62]">{seller.name}</span><span className="text-slate-500">{fmt(seller.collected)} collected</span><strong className="tabular-nums text-[#0F2F62]">{seller.quantity} sold</strong></li>)}</ol>
+            <ol className="mt-3 space-y-2">{topSellers.map((seller, index) => <li key={`${seller.id}-${index}`} className="flex items-center gap-3 rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs"><strong className="w-6 text-[#0878B7]">#{index + 1}</strong><span className="min-w-0 flex-1 truncate font-semibold text-[#0F2F62]">{formatDisplayText(seller.name)}</span><span className="text-slate-500">{fmt(seller.collected)} collected</span><strong className="tabular-nums text-[#0F2F62]">{seller.quantity} sold</strong></li>)}</ol>
           </>}
         </section>
       )}
@@ -2673,9 +2675,9 @@ export default function MerchandisePage({ initialTab }) {
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-3">
                       {item.image_url ? (
-                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} aria-label={`View ${item.name} images`}><img
+                        <button type="button" onClick={() => setLightbox({ item, index: 0 })} aria-label={`View ${formatDisplayText(item.name)} images`}><img
                           src={resolveAssetUrl(item.image_url)}
-                          alt={item.name}
+                          alt={formatDisplayText(item.name)}
                           className="h-14 w-14 rounded-lg border border-[#DDE7EF] object-cover"
                         /></button>
                       ) : (
@@ -2685,7 +2687,7 @@ export default function MerchandisePage({ initialTab }) {
                       )}
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-[#0F172A]">
-                          {item.name}
+                          {formatDisplayText(item.name)}
                         </p>
                         <p className="text-xs font-medium text-slate-500">
                           {item.promotion_available_to_viewer ? <><strong className="text-[#0878B7]">{fmt(item.effective_price)}</strong> <s>{fmt(item.price)}</s> · {item.promotion_remaining} slots left</> : `${fmt(item.price)} per unit`}
@@ -2728,7 +2730,7 @@ export default function MerchandisePage({ initialTab }) {
                     >
                       Add Stock
                     </button>
-                    <button type="button" role="switch" aria-checked={item.is_active} aria-label={`Selling status for ${item.name}`} onClick={() => confirmSellingToggle(item)} className="inline-flex items-center gap-2 text-xs font-bold text-[#0F2F62]"><span>{item.is_active ? "ACTIVE" : "INACTIVE"}</span><span className={`relative h-6 w-11 rounded-full transition ${item.is_active ? "bg-emerald-600" : "bg-slate-400"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${item.is_active ? "left-6" : "left-1"}`} /></span></button>
+                    <button type="button" role="switch" aria-checked={item.is_active} aria-label={`Selling status for ${formatDisplayText(item.name)}`} onClick={() => confirmSellingToggle(item)} className="inline-flex items-center gap-2 text-xs font-bold text-[#0F2F62]"><span>{item.is_active ? "ACTIVE" : "INACTIVE"}</span><span className={`relative h-6 w-11 rounded-full transition ${item.is_active ? "bg-emerald-600" : "bg-slate-400"}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition ${item.is_active ? "left-6" : "left-1"}`} /></span></button>
                     <div className="flex items-center gap-2">
                       <button
                         type="button"
@@ -2742,7 +2744,7 @@ export default function MerchandisePage({ initialTab }) {
                         type="button"
                         onClick={() => confirmDeleteProduct(item)}
                         className="grid h-7 w-7 place-items-center rounded-md border border-red-100 text-red-500 transition hover:bg-red-50"
-                        aria-label={`Delete ${item.name}`}
+                        aria-label={`Delete ${formatDisplayText(item.name)}`}
                       >
                         <Trash2 size={13} />
                       </button>
@@ -2839,7 +2841,7 @@ export default function MerchandisePage({ initialTab }) {
                 <option value="">All merchandise</option>
                 {orderFilterOptions.merchandise?.map((item) => (
                   <option key={item.id} value={item.id}>
-                    {item.name}
+                    {formatDisplayText(item.name)}
                   </option>
                 ))}
               </select>
@@ -2879,7 +2881,7 @@ export default function MerchandisePage({ initialTab }) {
                     <option value="">All programs</option>
                     {orderFilterOptions.programs?.map((program) => (
                       <option key={program.id} value={program.name}>
-                        {program.name}
+                        {formatDisplayText(program.name)}
                       </option>
                     ))}
                   </select>
@@ -2934,7 +2936,7 @@ export default function MerchandisePage({ initialTab }) {
                     <option value="">All sections</option>
                     {availableSections.map((section) => (
                       <option key={section.id} value={section.name}>
-                        {section.name}
+                        {formatDisplayText(section.name)}
                       </option>
                     ))}
                   </select>
@@ -3004,7 +3006,7 @@ export default function MerchandisePage({ initialTab }) {
                       className="text-[11px] font-bold text-slate-500"
                     >
                       {label}
-                      <input
+                      <DateTimeInput
                         type="date"
                         value={orderFilters[key]}
                         onChange={(event) =>
@@ -3096,13 +3098,13 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4">
                           <p className="text-left font-semibold text-[#0F172A]">
                             {o.student
-                              ? `${o.student.first_name} ${o.student.last_name}`
+                              ? `${formatDisplayText(o.student.first_name)} ${formatDisplayText(o.student.last_name)}`
                               : "-"}
                           </p>
                           <p className="mt-0.5 font-mono text-[10px] text-slate-500">{o.student?.school_id}</p>
                           {o.student?.position_title && (
                             <p className="text-[10px] font-semibold text-[#0878B7]">
-                              {o.student.position_title}
+                              {formatDisplayText(o.student.position_title)}
                             </p>
                           )}
                           <p className="mt-1 max-w-52 truncate text-[10px] text-slate-500">
@@ -3111,7 +3113,7 @@ export default function MerchandisePage({ initialTab }) {
                               .join(" · ") || "No academic profile"}
                           </p>
                         </td>
-                        <td className="px-4 py-4 text-xs font-semibold text-[#0F2F62]">{(o.student?.role || '-').replaceAll('_', ' ')}{o.student?.position_title && <p className="mt-1 text-[10px] text-[#64748B]">{o.student.position_title}</p>}</td>
+                        <td className="px-4 py-4 text-xs font-semibold text-[#0F2F62]">{(o.student?.role || '-').replaceAll('_', ' ')}{o.student?.position_title && <p className="mt-1 text-[10px] text-[#64748B]">{formatDisplayText(o.student.position_title)}</p>}</td>
                         <td className="hidden px-4 py-4 text-xs">
                           <p className="font-semibold text-slate-700">
                             {o.student?.program || "Program not recorded"}
@@ -3131,7 +3133,7 @@ export default function MerchandisePage({ initialTab }) {
                         </td>
                         <td className="px-4 py-4">
                           <p className="font-semibold text-slate-700">
-                            {o.merchandise?.name ?? "-"}
+                            {formatDisplayText(o.merchandise?.name) ?? "-"}
                           </p>
                           <p className="text-[10px] text-slate-500">
                             {o.merchandise?.category || "Uncategorized"} ·{" "}
@@ -3176,13 +3178,13 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="mt-1">
                             <strong>Processed:</strong>{" "}
                             {o.processor
-                              ? `${o.processor.first_name} ${o.processor.last_name}`
+                              ? `${formatDisplayText(o.processor.first_name)} ${formatDisplayText(o.processor.last_name)}`
                               : "-"}
                           </p>
                           <p>
                             <strong>Approved:</strong>{" "}
                             {o.approver
-                              ? `${o.approver.first_name} ${o.approver.last_name}`
+                              ? `${formatDisplayText(o.approver.first_name)} ${formatDisplayText(o.approver.last_name)}`
                               : "-"}
                           </p>
                         </td>
@@ -3195,7 +3197,7 @@ export default function MerchandisePage({ initialTab }) {
                           <p className="mt-2 text-[10px] text-slate-500">
                             Released by{" "}
                             {o.claim_verifier
-                              ? `${o.claim_verifier.first_name} ${o.claim_verifier.last_name}`
+                              ? `${formatDisplayText(o.claim_verifier.first_name)} ${formatDisplayText(o.claim_verifier.last_name)}`
                               : "-"}
                           </p>
                           {o.status === "paid" && o.claim_token && (
@@ -3309,7 +3311,7 @@ export default function MerchandisePage({ initialTab }) {
                   Merchandise drill-down
                 </p>
                 <h2 className="mt-1 text-xl font-black text-[#0F172A]">
-                  {analyticsModal.title}
+                  {formatDisplayText(analyticsModal.title)}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Users and matching orders for the active cohort filters.
@@ -3394,7 +3396,7 @@ export default function MerchandisePage({ initialTab }) {
                             {user.school_id}
                           </td>
                           <td className="px-3 py-3 font-bold text-[#0F172A]">
-                            {user.first_name} {user.last_name}
+                            {formatDisplayText(user.first_name)} {formatDisplayText(user.last_name)}
                             <p className="font-normal text-slate-500">
                               {user.email}
                             </p>
@@ -3414,11 +3416,11 @@ export default function MerchandisePage({ initialTab }) {
                           <td className="px-3 py-3">
                             {(user.role || "").replaceAll("_", " ")}
                             <p className="text-[#0878B7]">
-                              {user.position_title || "-"}
+                              {formatDisplayText(user.position_title) || "-"}
                             </p>
                           </td>
                           <td className="px-3 py-3 font-semibold">
-                            {order?.merchandise?.name || "Did not purchase"}
+                            {formatDisplayText(order?.merchandise?.name) || "Did not purchase"}
                           </td>
                           <td className="px-3 py-3">
                             {order?.quantity ?? "-"}
@@ -3449,11 +3451,11 @@ export default function MerchandisePage({ initialTab }) {
                           </td>
                           <td className="px-3 py-3">
                             {order?.approver
-                              ? `${order.approver.first_name} ${order.approver.last_name}`
+                              ? `${formatDisplayText(order.approver.first_name)} ${formatDisplayText(order.approver.last_name)}`
                               : "-"}
                             <p className="text-slate-500">
                               {order?.claim_verifier
-                                ? `${order.claim_verifier.first_name} ${order.claim_verifier.last_name}`
+                                ? `${formatDisplayText(order.claim_verifier.first_name)} ${formatDisplayText(order.claim_verifier.last_name)}`
                                 : "-"}
                             </p>
                           </td>
@@ -3502,7 +3504,7 @@ export default function MerchandisePage({ initialTab }) {
                   Order record
                 </p>
                 <h2 className="mt-1 text-xl font-black text-[#0F172A]">
-                  ORD-{orderDetails.id} · {orderDetails.merchandise?.name}
+                  ORD-{orderDetails.id} · {formatDisplayText(orderDetails.merchandise?.name)}
                 </h2>
                 <p className="mt-1 text-xs text-slate-500">
                   Complete user, payment, approval, and fulfillment information.
@@ -3562,10 +3564,10 @@ export default function MerchandisePage({ initialTab }) {
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
                             {entry.user
-                              ? `${entry.user.first_name} ${entry.user.last_name}`
+                              ? `${formatDisplayText(entry.user.first_name)} ${formatDisplayText(entry.user.last_name)}`
                               : "System"}
                             {entry.user?.position_title
-                              ? ` · ${entry.user.position_title}`
+                              ? ` · ${formatDisplayText(entry.user.position_title)}`
                               : entry.user?.role
                                 ? ` · ${entry.user.role.replaceAll("_", " ")}`
                                 : ""}
@@ -3683,7 +3685,7 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4 font-mono text-xs font-black text-[#0878B7]">ORD-{o.id}</td>
                         <td className="px-4 py-4 font-semibold text-[#0F172A]">
                           {o.student
-                            ? `${o.student.first_name} ${o.student.last_name}`
+                            ? `${formatDisplayText(o.student.first_name)} ${formatDisplayText(o.student.last_name)}`
                             : "-"}
                         </td>
                         <td className="px-4 py-4">{o.student?.section || "-"}</td>
@@ -3878,7 +3880,7 @@ export default function MerchandisePage({ initialTab }) {
       <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
 
       {auditModal && <AccessibleOverlay label={`${auditModal.item.name} audit history`} onClose={() => setAuditModal(null)} className="fixed inset-0 z-[70] flex items-center justify-center bg-[#0B1831]/50 p-4">
-        <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-[#0F2F62]">{auditModal.item.name} history</h2><button type="button" onClick={() => setAuditModal(null)} aria-label="Close audit history" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={18} /></button></div>{auditModal.logs.length === 0 ? <p className="mt-4 text-sm text-slate-500">No recorded changes yet.</p> : <ol className="mt-4 space-y-3">{auditModal.logs.map((log) => <li key={log.id} className="rounded-lg border border-[#DDE7EF] p-3 text-xs"><div className="flex flex-wrap justify-between gap-1"><strong className="capitalize text-[#0F2F62]">{log.action.replaceAll("_", " ")}</strong><time className="text-slate-500">{fmtDateTime(log.created_at)}</time></div><p className="mt-1 text-slate-600">{log.user ? `${log.user.first_name} ${log.user.last_name}` : log.user_id || "System"} · {log.actor_role || log.user?.role || ""}</p>{log.new_values?.note && <p className="mt-1">Note: {log.new_values.note}</p>}{log.old_values?.stock_quantity !== undefined && <p className="mt-1">Stock: {log.old_values.stock_quantity} → {log.new_values?.stock_quantity}{log.new_values?.variant_name ? ` · ${log.new_values.variant_name}` : ""}</p>}{log.old_values?.price !== undefined && log.old_values.price !== log.new_values?.price && <p className="mt-1">Price: {fmt(log.old_values.price)} → {fmt(log.new_values?.price)}</p>}</li>)}</ol>}</div>
+        <div className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-xl bg-white p-5 shadow-2xl"><div className="flex items-center justify-between gap-2"><h2 className="font-bold text-[#0F2F62]">{formatDisplayText(auditModal.item.name)} history</h2><button type="button" onClick={() => setAuditModal(null)} aria-label="Close audit history" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-slate-100"><X size={18} /></button></div>{auditModal.logs.length === 0 ? <p className="mt-4 text-sm text-slate-500">No recorded changes yet.</p> : <ol className="mt-4 space-y-3">{auditModal.logs.map((log) => <li key={log.id} className="rounded-lg border border-[#DDE7EF] p-3 text-xs"><div className="flex flex-wrap justify-between gap-1"><strong className="capitalize text-[#0F2F62]">{log.action.replaceAll("_", " ")}</strong><time className="text-slate-500">{fmtDateTime(log.created_at)}</time></div><p className="mt-1 text-slate-600">{log.user ? `${formatDisplayText(log.user.first_name)} ${formatDisplayText(log.user.last_name)}` : log.user_id || "System"} · {log.actor_role || log.user?.role || ""}</p>{log.new_values?.note && <p className="mt-1">Note: {log.new_values.note}</p>}{log.old_values?.stock_quantity !== undefined && <p className="mt-1">Stock: {log.old_values.stock_quantity} → {log.new_values?.stock_quantity}{log.new_values?.variant_name ? ` · ${log.new_values.variant_name}` : ""}</p>}{log.old_values?.price !== undefined && log.old_values.price !== log.new_values?.price && <p className="mt-1">Price: {fmt(log.old_values.price)} → {fmt(log.new_values?.price)}</p>}</li>)}</ol>}</div>
       </AccessibleOverlay>}
 
       {showEditForm && (
