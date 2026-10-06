@@ -14,7 +14,7 @@ import {
   Plus,
   X,
 } from 'lucide-react';
-import { getTasks, createTask, updateTaskStatus } from '../../../services/taskService';
+import { getTasks, createTask, previewTaskRecommendation, updateTaskStatus } from '../../../services/taskService';
 import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
@@ -78,7 +78,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [search, setSearch] = useState('');
-  const [taskFilters, setTaskFilters] = useState({ status: '', assignee: '', event: '', type: '' });
+  const [taskFilters, setTaskFilters] = useState({ status: '', assignee: '', event: '', type: '', priority: '', deadline: '' });
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [page, setPage] = useState(1);
@@ -90,7 +90,9 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [rankingOpen, setRankingOpen] = useState(false);
   const pageSize = 10;
 
-  const [form, setForm] = useState({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
+  const [form, setForm] = useState({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
+  const [preview, setPreview] = useState(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
   const [formError, setFormError] = useState(null);
   const [createSuccess, setCreateSuccess] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
@@ -102,6 +104,7 @@ export default function TasksPage({ initialTab = 'board' }) {
   const canUpdateAssignedTasks = currentUserRole === 'SBO_OFFICER';
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
   const canEditTasks = (canManageTasks || canUpdateAssignedTasks) && !viewingHistory;
+  const selectedTaskPeriod = academicPeriods.find((period) => period.id === selectedTask?.academic_semester_id);
 
   useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
 
@@ -111,7 +114,9 @@ export default function TasksPage({ initialTab = 'board' }) {
     ...(taskFilters.status ? { status: taskFilters.status } : {}),
     ...(taskFilters.assignee ? { assigned_to: taskFilters.assignee } : {}),
     ...(taskFilters.event ? { event_id: taskFilters.event } : {}),
-    ...(taskFilters.type ? { task_type: taskFilters.type } : {}),
+    ...(taskFilters.type ? { task_kind: taskFilters.type } : {}),
+    ...(taskFilters.priority ? { priority: taskFilters.priority } : {}),
+    ...(taskFilters.deadline ? { deadline_from: taskFilters.deadline, deadline_to: taskFilters.deadline } : {}),
     ...(selectedPeriodId ? { academic_semester_id: selectedPeriodId } : {}),
   }), [taskFilters, selectedPeriodId]);
 
@@ -171,7 +176,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   async function handleCreate(e) {
     e.preventDefault();
-    if (!form.title || !form.deadline) return;
+    if (!form.title || !form.deadline || !form.assigned_to || (form.task_kind === 'event_related' && !form.event_id)) return;
     setFormSubmitting(true);
     setFormError(null);
     setCreateSuccess('');
@@ -179,21 +184,40 @@ export default function TasksPage({ initialTab = 'board' }) {
       const res = await createTask({
         title: form.title,
         description: form.description,
-        assigned_to: form.assigned_to || null,
-        event_id: form.event_id || null,
+        task_kind: form.task_kind,
+        category: form.category,
+        preferred_role: form.preferred_role || null,
+        priority: form.priority,
+        assigned_to: form.assigned_to,
+        event_id: form.task_kind === 'event_related' ? form.event_id : null,
         deadline: form.deadline,
         status: form.status,
       });
       const detail = getDelegationDetail(res.data);
       if (detail) setLastDelegation({ taskId: res.data.id, ...detail });
       setCreateSuccess(`Task “${res.data.title}” was created${res.data.assignee ? ` and assigned to ${res.data.assignee.first_name} ${res.data.assignee.last_name}` : ''}.`);
-      setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
+      setForm({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' });
+      setPreview(null);
       load();
       loadTotals();
     } catch (err) {
       setFormError(err.response?.data?.message ?? 'Failed to create task.');
     } finally {
       setFormSubmitting(false);
+    }
+  }
+
+  async function loadRecommendation() {
+    if (!form.title.trim()) return;
+    setPreviewLoading(true);
+    setFormError(null);
+    try {
+      const response = await previewTaskRecommendation({ title: form.title, task_type: 'regular', category: form.category, preferred_role: form.preferred_role || null });
+      setPreview(response.data.delegation);
+    } catch (requestError) {
+      setFormError(requestError.response?.data?.message || 'Unable to evaluate officers.');
+    } finally {
+      setPreviewLoading(false);
     }
   }
 
@@ -284,11 +308,14 @@ export default function TasksPage({ initialTab = 'board' }) {
     taskFilters.status && `Status: ${capitalize(taskFilters.status)}`,
     taskFilters.assignee && `Assignee: ${officers.find((officer) => String(officer.school_id) === String(taskFilters.assignee))?.first_name || taskFilters.assignee}`,
     taskFilters.event && `Event: ${events.find((event) => String(event.id) === String(taskFilters.event))?.title || taskFilters.event}`,
+    taskFilters.type && `Type: ${taskFilters.type === 'standalone' ? 'Standalone' : 'Event-related'}`,
+    taskFilters.priority && `Priority: ${capitalize(taskFilters.priority)}`,
+    taskFilters.deadline && `Deadline: ${taskFilters.deadline}`,
   ].filter(Boolean);
 
   const clearTaskFilters = () => {
     setSearch('');
-    setTaskFilters({ status: '', assignee: '', event: '', type: '' });
+    setTaskFilters({ status: '', assignee: '', event: '', type: '', priority: '', deadline: '' });
     setPage(1);
   };
 
@@ -299,6 +326,8 @@ export default function TasksPage({ initialTab = 'board' }) {
       {activeTab !== 'create' && <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Tasks', value: totalTasksCount, helper: academicPeriods.length ? 'Selected period' : 'All time', icon: ListChecks },
+          { label: 'Event-Related', value: allTasks.filter((task) => Boolean(task.event_id)).length, helper: 'Linked to an event', icon: ListChecks },
+          { label: 'Standalone', value: allTasks.filter((task) => !task.event_id).length, helper: 'Organization work', icon: ListChecks },
           { label: 'In Progress', value: counts.in_progress || 0, helper: 'Active assignments', icon: Clock },
           { label: 'Completed', value: counts.completed || 0, helper: 'Successfully done', icon: CheckCircle2 },
           { label: 'Overdue', value: counts.overdue || 0, helper: 'Past deadline', icon: AlertCircle },
@@ -326,27 +355,30 @@ export default function TasksPage({ initialTab = 'board' }) {
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
             <div className="border-b border-[#DDE7EF] pb-5">
               <h2 className="text-lg font-bold text-[#0F172A]">Task details</h2>
-              <p className="mt-1 text-sm text-slate-500">Connect the assignment to an event when relevant, then select an officer or let the scoring engine recommend one.</p>
+              <p className="mt-1 text-sm text-slate-500">Choose a task type, review officer fit, then make the final assignment.</p>
             </div>
             {createSuccess && <div className="mt-5 flex items-start gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-700"><CheckCircle2 size={17} className="mt-0.5 shrink-0" />{createSuccess}</div>}
             {officers.length === 0 && <div className="mt-5 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800"><AlertCircle size={17} className="mt-0.5 shrink-0" /><div><p className="font-bold">Officer positions must be configured first.</p><p className="mt-1 text-xs leading-5">Add SBO positions under Users &amp; Positions, then assign a position to an active SBO officer before creating or delegating a task.</p></div></div>}
             <form className="mt-5 space-y-5" onSubmit={handleCreate}>
-              <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Task Title *" />Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
+              <fieldset className="space-y-2"><legend className="text-[13px] font-semibold text-[#0F172A]">Task type</legend><div className="flex flex-wrap gap-3">{[['standalone', 'Standalone task'], ['event_related', 'Event-related task']].map(([value, label]) => <label key={value} className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-sm"><input type="radio" name="task-kind" checked={form.task_kind === value} onChange={() => setForm({ ...form, task_kind: value, event_id: '' })} />{label}</label>)}</div></fieldset>
+              <div className="space-y-1.5"><label htmlFor="create-task-title" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Task Title *" />Task Title *</label><input id="create-task-title" type="text" value={form.title} onChange={(e) => { setForm({ ...form, title: e.target.value, assigned_to: '' }); setPreview(null); }} placeholder="e.g. Prepare election materials" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" /></div>
               <div className="space-y-1.5"><label htmlFor="create-task-description" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Description" />Description</label><RichTextEditor id="create-task-description" rows={5} value={form.description} onChange={(description) => setForm({ ...form, description })} placeholder="Describe the expected result, required materials, and completion criteria..." /></div>
+              <div className="grid gap-4 sm:grid-cols-3"><label className="text-[13px] font-semibold text-[#0F172A]">Assigned category<select value={form.category} onChange={(event) => { setForm({ ...form, category: event.target.value, assigned_to: '' }); setPreview(null); }} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">{['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}</select></label><label className="text-[13px] font-semibold text-[#0F172A]">Required position<select value={form.preferred_role} onChange={(event) => { setForm({ ...form, preferred_role: event.target.value, assigned_to: '' }); setPreview(null); }} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Any eligible position</option>{[...new Set(officers.map((officer) => officer.position_title).filter(Boolean))].map((position) => <option key={position} value={position}>{position}</option>)}</select></label><label className="text-[13px] font-semibold text-[#0F172A]">Priority<select value={form.priority} onChange={(event) => setForm({ ...form, priority: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</select></label></div>
               <div className="grid gap-4 sm:grid-cols-2">
-                <div className="space-y-1.5"><label htmlFor="create-task-assignee" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Assign To" />Assign To</label><select id="create-task-assignee" value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Recommend best-fit officer</option>{officers.map((officer) => <option key={officer.id} value={officer.id}>{officer.first_name} {officer.last_name}{officer.position_title ? ` · ${officer.position_title}` : ''}</option>)}</select><p className="text-xs text-slate-500">Leaving this blank enables weighted officer recommendation.</p></div>
-                <div className="space-y-1.5"><label htmlFor="create-task-event" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Related Event" />Related Event</label><select id="create-task-event" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">General organization task</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select></div>
+                <div className="space-y-1.5"><label htmlFor="create-task-assignee" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Assign To" />Assign To *</label><select id="create-task-assignee" disabled={!preview?.rankings?.length} value={form.assigned_to} onChange={(e) => setForm({ ...form, assigned_to: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100"><option value="">Review recommendation first</option>{(preview?.rankings || []).map((officer) => <option key={officer.officer_id} value={officer.officer_id}>{officer.name}{officer.position_title ? ` · ${officer.position_title}` : ''}</option>)}</select></div>
+                {form.task_kind === 'event_related' && <div className="space-y-1.5"><label htmlFor="create-task-event" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Related Event" />Related Event *</label><select id="create-task-event" value={form.event_id} onChange={(e) => setForm({ ...form, event_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Select an event</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select></div>}
                 <div className="space-y-1.5"><label htmlFor="create-task-deadline" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Deadline *" />Deadline *</label><input id="create-task-deadline" type="date" value={form.deadline} onChange={(e) => setForm({ ...form, deadline: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
                 <div className="space-y-1.5"><label htmlFor="create-task-status" className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Initial Status" />Initial Status</label><select id="create-task-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="pending">Pending</option><option value="in_progress">In Progress</option></select></div>
               </div>
+              <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><button type="button" disabled={previewLoading || !form.title.trim()} onClick={loadRecommendation} className="h-10 rounded-lg border border-[#0B8ED0] bg-white px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50">{previewLoading ? 'Evaluating...' : 'Review officer recommendation'}</button>{preview?.rankings?.length ? <div className="mt-3 space-y-2"><p className="text-xs font-semibold text-slate-600">Admin chooses the final assignee.</p>{preview.rankings.map((officer) => <button key={officer.officer_id} type="button" onClick={() => setForm({ ...form, assigned_to: String(officer.officer_id) })} className="flex min-h-11 w-full items-center justify-between rounded-lg border border-[#DDE7EF] bg-white px-3 text-left text-sm hover:border-[#0B8ED0]"><span>{officer.name} · {officer.position_title}{officer.rank === 1 ? ' · Recommended' : ''}</span><span className="font-bold">{officer.final_score}</span></button>)}</div> : preview && <p className="mt-2 text-sm text-amber-800">No eligible officers are available.</p>}</div>
               {formError && <p className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-semibold text-red-700">{formError}</p>}
-              <div className="flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Clear Form</button><button type="submit" disabled={formSubmitting || officers.length === 0 || !form.title || !form.deadline} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
+              <div className="flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-5"><button type="button" onClick={() => { setForm({ title: '', description: '', task_kind: 'standalone', category: 'coordination', preferred_role: '', priority: 'medium', assigned_to: '', event_id: '', deadline: '', status: 'pending' }); setPreview(null); setFormError(null); setCreateSuccess(''); }} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Clear Form</button><button type="submit" disabled={formSubmitting || officers.length === 0 || !form.title || !form.deadline || !form.assigned_to || (form.task_kind === 'event_related' && !form.event_id)} className="inline-flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"><Plus size={16} />{formSubmitting ? 'Creating...' : 'Create Task'}</button></div>
             </form>
           </div>
 
           <aside className="space-y-4">
             <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm"><h3 className="font-bold text-[#0F172A]">Assignment readiness</h3><div className="mt-4 space-y-3">{[['Active SBO officers', officers.length], ['Available events', events.length], ['Current open tasks', tasks.filter((task) => !['completed', 'cancelled'].includes(task.status)).length]].map(([label, value]) => <div key={label} className="flex items-center justify-between rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 py-2.5"><span className="text-xs font-semibold text-slate-500">{label}</span><strong className="text-lg text-[#0F172A]">{value}</strong></div>)}</div></div>
-            <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-5"><Bot size={20} className="text-[#0878B7]" /><h3 className="mt-3 font-bold text-[#0F172A]">Best-fit recommendation</h3><p className="mt-2 text-sm leading-6 text-slate-600">If no officer is chosen, the system evaluates active SBO officers using role fit, current workload, and prior completion performance. The result and explanation remain visible in AI Delegation.</p></div>
+            <div className="rounded-lg border border-[#DDE7EF] bg-[#EEF6FB] p-5"><Bot size={20} className="text-[#0878B7]" /><h3 className="mt-3 font-bold text-[#0F172A]">Best-fit recommendation</h3><p className="mt-2 text-sm leading-6 text-slate-600">Review eligible officers using role fit, current workload, and prior completion performance. Choose the final assignee before creating the task. The result and explanation remain visible in AI Delegation.</p></div>
             <div className="rounded-lg border border-[#DDE7EF] bg-white p-5"><h3 className="font-bold text-[#0F172A]">Before creating</h3><ul className="mt-3 space-y-2 text-xs leading-5 text-slate-500"><li>• Use a specific, outcome-based title.</li><li>• Include completion criteria in the description.</li><li>• Set a realistic deadline before its linked event.</li><li>• Review assignments later from Task Board.</li></ul></div>
           </aside>
         </section>
@@ -383,6 +415,9 @@ export default function TasksPage({ initialTab = 'board' }) {
             <select aria-label="Filter tasks by status" value={taskFilters.status} onChange={(event) => setTaskFilters({ ...taskFilters, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['pending', 'in_progress', 'completed', 'overdue'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select>
             {canManageTasks && <select aria-label="Filter tasks by assignee" value={taskFilters.assignee} onChange={(event) => setTaskFilters({ ...taskFilters, assignee: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All assignees</option>{officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{officer.first_name} {officer.last_name}</option>)}</select>}
             <select aria-label="Filter tasks by event" value={taskFilters.event} onChange={(event) => setTaskFilters({ ...taskFilters, event: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{event.title}</option>)}</select>
+            <select aria-label="Filter tasks by type" value={taskFilters.type} onChange={(event) => setTaskFilters({ ...taskFilters, type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All task types</option><option value="event_related">Event-related</option><option value="standalone">Standalone</option></select>
+            <select aria-label="Filter tasks by priority" value={taskFilters.priority} onChange={(event) => setTaskFilters({ ...taskFilters, priority: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All priorities</option>{['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}</select>
+            <input type="date" aria-label="Filter tasks by deadline" value={taskFilters.deadline} onChange={(event) => setTaskFilters({ ...taskFilters, deadline: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm" />
           </TableFilterBar>
 
           {loading ? (
@@ -397,7 +432,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             <>
             <div className="space-y-3 p-3 lg:hidden" aria-label="Tasks">
               {filteredTasks.map((t) => <article key={t.id} className="min-w-0 rounded-lg border border-[#DDE7EF] p-4">
-                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{t.title}</h3><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
+                <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{t.title}</h3><p className="mt-1 text-xs font-semibold text-[#0878B7]">{t.event_id ? 'Event task' : 'Standalone task'}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{t.event?.title || 'General organization task'}</dd></div></dl>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
                 <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}</div>
@@ -425,7 +460,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                       <td className="px-5 py-4 font-medium text-slate-600">{t.assignee ? `${t.assignee.first_name} ${t.assignee.last_name}` : '-'}<p className="text-[10px] font-semibold text-[#0878B7]">{t.assignee?.position_title || t.assignee?.role?.replaceAll('_', ' ') || '-'}</p></td>
                       <td className="px-5 py-4 text-xs text-slate-600"><p>{t.assignee?.program || 'Program not recorded'}</p><p className="text-[10px] text-slate-500">{[t.assignee?.year_level, t.assignee?.section].filter(Boolean).join(' · ') || 'No year/section'}</p></td>
                       <td className="px-5 py-4 text-xs font-semibold text-slate-600">{t.event?.title || 'General organization task'}</td>
-                      <td className="px-5 py-4 text-xs"><p className="font-semibold text-slate-600">{capitalize(t.task_type || 'regular')}</p><div className="mt-1 h-1.5 w-24 rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-[10px] text-slate-500">{t.progress_percent || 0}% complete</p></td>
+                      <td className="px-5 py-4 text-xs"><p className="font-semibold text-slate-600">{t.event_id ? 'Event task' : 'Standalone task'}</p><div className="mt-1 h-1.5 w-24 rounded-full bg-slate-100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-[10px] text-slate-500">{t.progress_percent || 0}% complete</p></td>
                       <td className="px-5 py-4 font-medium text-slate-600">{formatDate(t.deadline)}</td>
                       <td className="px-5 py-4">
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>
@@ -641,6 +676,7 @@ export default function TasksPage({ initialTab = 'board' }) {
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">{selectedTask.title}</h2>
+                <p className="mt-1 text-xs font-semibold text-[#0878B7]">{selectedTask.event_id ? 'Event task' : 'Standalone task'}</p>
                 <p className="mt-1 text-sm text-slate-500">Due {formatDate(selectedTask.deadline)} · {capitalize(selectedTask.workflow_status || selectedTask.status)}</p>
                 {selectedTask.workflow_status === 'blocked' && selectedTask.dependency && <p className="mt-1 text-xs font-semibold text-amber-700">Blocked by {selectedTask.dependency.title}</p>}
               </div>
@@ -652,12 +688,17 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <p className="text-xs font-bold uppercase text-slate-500">Description</p>
                 <RichTextBody value={selectedTask.description || 'No description provided.'} className="mt-2 text-sm leading-6 text-slate-700" />
               </div>
-              <div className="rounded-lg border border-[#DDE7EF] p-4">
+              {selectedTask.event_id && <div className="rounded-lg border border-[#DDE7EF] p-4">
                 <p className="text-xs font-bold uppercase text-slate-500">Related Event</p>
                 <p className="mt-2 text-sm font-semibold text-[#0F172A]">{selectedTask.event?.title || 'No linked event'}</p>
+                {selectedTask.event?.start_time && <p className="mt-1 text-xs text-slate-500">Event date: {formatDate(selectedTask.event.start_time)}</p>}
+                {selectedTask.task_type === 'workflow' && <p className="mt-1 text-xs text-slate-500">Workflow: {capitalize(selectedTask.phase || 'Event workflow')}</p>}
                 {selectedTask.ai_recommendation_note && <p className="mt-3 text-xs leading-5 text-slate-500">{selectedTask.ai_recommendation_note}</p>}
-              </div>
+              </div>}
             </div>
+
+            <dl className="mt-4 grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-xs sm:grid-cols-2"><div><dt className="font-semibold text-slate-500">Assigned officer</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTask.assignee ? `${selectedTask.assignee.first_name} ${selectedTask.assignee.last_name}` : 'Unassigned'}</dd></div><div><dt className="font-semibold text-slate-500">Priority</dt><dd className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedTask.priority || 'medium')}</dd></div><div><dt className="font-semibold text-slate-500">Category</dt><dd className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedTask.category || 'coordination')}</dd></div><div><dt className="font-semibold text-slate-500">Required position</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTask.preferred_role || 'Any eligible position'}</dd></div><div><dt className="font-semibold text-slate-500">Progress</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTask.progress_percent || 0}%</dd></div><div><dt className="font-semibold text-slate-500">Academic period</dt><dd className="mt-1 font-bold text-[#0F172A]">{selectedTaskPeriod ? `AY ${selectedTaskPeriod.academic_year?.label} · ${selectedTaskPeriod.number === 1 ? '1st' : '2nd'} Semester` : 'Not recorded'}</dd></div></dl>
+            {!selectedTask.event_id && selectedTask.ai_recommendation_note && <p className="mt-3 rounded-lg border border-[#DDE7EF] p-4 text-xs leading-5 text-slate-600">{selectedTask.ai_recommendation_note}</p>}
 
             {canEditTasks && selectedTask.status !== 'completed' && (
               <div className="mt-5 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">

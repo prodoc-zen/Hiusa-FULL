@@ -2,12 +2,13 @@ import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Building2, PencilLine, Plus, Search, Users } from 'lucide-react';
-import { createSystemOrganization, getSystemColleges, getSystemOrganizations, updateSystemOrganization } from '../../../services/systemAdministrationService';
+import { createSystemOrganization, getSystemColleges, getSystemOrganizations, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { fetchAllPages } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
-const empty = { name: '', acronym: '', college: '', parent_organization_id: '', description: '', is_active: true };
+const empty = { name: '', acronym: '', college: '', parent_organization_id: '', description: '', color: '#0B8ED0', is_active: true };
 const inputClass = 'mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 font-normal outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20';
 
 export default function SystemOrganizationsPage() {
@@ -20,6 +21,7 @@ export default function SystemOrganizationsPage() {
   const [notice, setNotice] = useState('');
   const [search, setSearch] = useState('');
   const [form, setForm] = useState(null);
+  const [logoFile, setLogoFile] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
 
@@ -51,16 +53,19 @@ export default function SystemOrganizationsPage() {
     event.preventDefault();
     setBusy(true);
     setError('');
+    let saved = null;
     try {
       const payload = { ...form, parent_organization_id: form.parent_organization_id || null };
-      if (form.id) await updateSystemOrganization(form.id, payload);
-      else await createSystemOrganization(payload);
+      saved = form.id ? await updateSystemOrganization(form.id, payload) : await createSystemOrganization(payload);
+      if (logoFile) await uploadSystemOrganizationLogo(saved.id, logoFile);
       setForm(null);
+      setLogoFile(null);
       setNotice(form.id ? 'Organization updated.' : 'Organization added.');
       await load();
       setParentItems(await fetchAllPages((params) => getSystemOrganizations(params)));
     } catch (cause) {
-      setError(getApiErrorMessage(cause, 'Could not save the organization.'));
+      if (saved) setForm(saved);
+      setError(getApiErrorMessage(cause, saved ? 'Organization saved, but its logo could not be uploaded. Retry saving the logo.' : 'Could not save the organization.'));
     } finally {
       setBusy(false);
     }
@@ -70,13 +75,13 @@ export default function SystemOrganizationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-end"><button type="button" onClick={() => setForm(empty)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Plus size={17} /> Add organization</button></div>
+      <div className="flex justify-end"><button type="button" onClick={() => { setLogoFile(null); setForm(empty); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Plus size={17} /> Add organization</button></div>
       <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><div className="flex gap-2"><label className="flex min-h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3"><Search size={16} className="text-slate-500" /><input aria-label="Search organizations" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} onKeyDown={(event) => event.key === 'Enter' && load()} placeholder="Search name, code, or department" className="w-full outline-none" /></label><button type="button" onClick={() => load()} className="rounded-lg bg-[#0F2F62] px-4 text-sm font-bold text-white">Search</button></div></div>
       {error && !form && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={() => load()} className="font-bold underline">Retry</button></p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
       {loading && <p role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-4 text-sm text-slate-600">Loading organizations...</p>}
       <section className="grid gap-4 lg:grid-cols-2">
-        {items.map((org, index) => <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="text-sm font-bold text-[#0F2F62] lg:col-span-2">{org.college || 'No college assigned'}</h2>}<article className="rounded-lg border border-[#DDE7EF] bg-white p-5"><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><Building2 size={19} /></span><div><h3 className="font-bold text-slate-900">{org.name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No department assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {org.parent_organization.name}</p>}</div></div><span className={`h-fit rounded-full px-2 py-1 text-[10px] font-bold ${org.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{org.is_active ? 'ACTIVE' : 'INACTIVE'}</span></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" /><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} /> {org.users_count} members · {org.administrators?.length || 0} admins</span><button type="button" onClick={() => setForm(org)} className="inline-flex min-h-11 items-center gap-1 text-[#0878B7]"><PencilLine size={14} /> Edit</button></div></article></Fragment>)}
+        {items.map((org, index) => <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] lg:col-span-2"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className="rounded-lg border border-[#DDE7EF] bg-white p-5"><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} />}</span><div><h3 className="font-bold text-slate-900">{org.name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No department assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {org.parent_organization.name}</p>}</div></div><span className={`h-fit rounded-full px-2 py-1 text-[10px] font-bold ${org.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{org.is_active ? 'ACTIVE' : 'INACTIVE'}</span></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" /><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} /> {org.users_count} members · {org.administrators?.length || 0} admins</span><button type="button" onClick={() => { setLogoFile(null); setForm(org); }} className="inline-flex min-h-11 items-center gap-1 text-[#0878B7]"><PencilLine size={14} /> Edit</button></div></article></Fragment>)}
       </section>
       {!loading && !items.length && <div className="rounded-lg border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">No student organizations match this view.</div>}
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs font-semibold text-slate-600"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Previous</button><span>Page {page} of {lastPage}</span><button type="button" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Next</button></nav>}
@@ -85,6 +90,8 @@ export default function SystemOrganizationsPage() {
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Organization code" />Organization code<input required value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} className={inputClass} /></label>
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Main organization" />Main organization<select value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })} className={inputClass}><option value="">This is a main organization</option>{parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{parent.name}</option>)}</select></label>
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Department / college" />Department / college<select required={Boolean(form.parent_organization_id)} value={form.college || ''} onChange={(event) => setForm({ ...form, college: event.target.value })} className={inputClass}><option value="">Select a college</option>{form.college && !colleges.some((college) => college.name === form.college) && <option value={form.college}>{form.college}</option>}{colleges.filter((college) => college.is_active || college.name === form.college).map((college) => <option key={college.id} value={college.name}>{college.name}</option>)}</select></label>
+        <label className="text-sm font-semibold text-slate-700">Organization color<input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="mt-1 h-11 w-20 rounded-lg border border-[#DDE7EF] bg-white p-1" /></label>
+        <label className="text-sm font-semibold text-slate-700">Organization logo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm" />{logoFile && <span className="mt-1 block text-xs text-slate-500">{logoFile.name}</span>}</label>
         <div className="text-sm font-semibold text-slate-700"><label htmlFor="organization-description"><FieldIcon label="Description" />Description</label><RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} /></div>
         <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={Boolean(form.is_active)} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} /> <FieldIcon label="Active organization" />Active organization</label>
       </div><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setForm(null)} className="min-h-11 rounded-lg px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save organization'}</button></div></form></AccessibleOverlay>}

@@ -19,6 +19,7 @@ export default function DataTable({
   filters,
   pagination,
   caption,
+  stickyHeader = true,
 }) {
   if (loading) {
     return (
@@ -81,7 +82,7 @@ export default function DataTable({
       <div className="hidden md:block" data-view="table">
         <table className="w-full border-collapse text-sm">
           {caption && <caption className="sr-only">{caption}</caption>}
-          <thead className="sticky top-0 z-10 bg-subtle">
+          <thead className={`${stickyHeader ? 'sticky top-0 z-10' : ''} bg-subtle`}>
             <tr>
               {columns.map((column) => (
                 <th

@@ -6,6 +6,9 @@ export const getTasks = (params) =>
 export const createTask = (data) =>
   api.post('/tasks', data);
 
+export const previewTaskRecommendation = (data) =>
+  api.post('/tasks/recommendation', data);
+
 export const updateTask = (id, data) =>
   api.put(`/tasks/${id}`, data);
 

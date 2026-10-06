@@ -16,6 +16,7 @@ use App\Services\TaskDelegationService;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class TaskController extends Controller
 {
@@ -91,12 +92,16 @@ class TaskController extends Controller
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
             'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
+            'task_kind' => ['nullable', 'in:event_related,standalone'],
+            'priority' => ['nullable', 'in:low,medium,high,critical'],
+            'deadline_from' => ['nullable', 'date'],
+            'deadline_to' => ['nullable', 'date', 'after_or_equal:deadline_from'],
         ]);
 
         $query = Task::with([
             'assignee:school_id,first_name,last_name,email,role,position_title,department,program,major,year_level,section',
             'creator:school_id,first_name,last_name,role,position_title',
-            'event:id,title',
+            'event:id,title,start_time',
             'dependency:id,title,status',
             'progressUpdates.author:school_id,first_name,last_name',
         ])
@@ -128,6 +133,22 @@ class TaskController extends Controller
             $query->where('task_type', $request->task_type);
         }
 
+        if ($request->task_kind === 'event_related') {
+            $query->whereNotNull('event_id');
+        } elseif ($request->task_kind === 'standalone') {
+            $query->whereNull('event_id');
+        }
+
+        if ($request->filled('priority')) {
+            $query->where('priority', $request->priority);
+        }
+        if ($request->filled('deadline_from')) {
+            $query->whereDate('deadline', '>=', $request->deadline_from);
+        }
+        if ($request->filled('deadline_to')) {
+            $query->whereDate('deadline', '<=', $request->deadline_to);
+        }
+
         return response()->json($query->paginate($paging['per_page'] ?? 20));
     }
 
@@ -138,28 +159,42 @@ class TaskController extends Controller
         }
         $data = $request->validate($this->rules());
 
+        if (($data['task_kind'] ?? null) === 'event_related' && empty($data['event_id'])) {
+            return response()->json(['message' => 'Select a related event for an event task.', 'errors' => ['event_id' => ['Select a related event for an event task.']]], 422);
+        }
+        if (($data['task_kind'] ?? null) === 'standalone' && ! empty($data['event_id'])) {
+            return response()->json(['message' => 'A standalone task cannot have a related event.', 'errors' => ['event_id' => ['A standalone task cannot have a related event.']]], 422);
+        }
+
         if (! $this->validOrganizationLinks($request, $data)) {
             return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
+        }
+
+        if (empty($data['assigned_to'])) {
+            return response()->json(['message' => 'Review the recommendation and choose an eligible officer before creating the task.', 'errors' => ['assigned_to' => ['Choose an eligible officer.']]], 422);
+        }
+
+        $this->recommendOfficer($request);
+        $eligibleIds = collect($this->lastDelegation['rankings'] ?? [])->pluck('officer_id')->map(fn ($id) => (string) $id);
+        if (! $eligibleIds->contains((string) $data['assigned_to'])) {
+            return response()->json(['message' => 'The selected officer is not eligible for this task.', 'errors' => ['assigned_to' => ['Choose an eligible officer from the recommendation.']]], 422);
         }
 
         $assignee = ! empty($data['assigned_to'])
             ? $this->eligibleOfficerQuery($request)
                 ->where('school_id', $data['assigned_to'])
                 ->first()
-            : $this->recommendOfficer($request);
+            : null;
 
         if (! $assignee) {
             if (! empty($data['assigned_to'])) {
                 return response()->json(['message' => 'The selected officer is not an active SBO Officer with an active position.'], 422);
             }
-            if ($this->eligibleOfficerQuery($request)->exists()) {
-                return response()->json(['message' => 'No eligible SBO Officer is currently available. All configured officers may be at workload capacity.'], 422);
-            }
-
-            return response()->json(['message' => 'Assign an active SBO position to at least one officer before using task delegation.'], 422);
+            return response()->json(['message' => 'The selected officer is not eligible for this task.', 'errors' => ['assigned_to' => ['Choose an eligible officer from the recommendation.']]], 422);
         }
 
         $data['assigned_to'] = $assignee->school_id;
+        unset($data['task_kind']);
         $data = $this->applyAssignmentScoring($data, $assignee, $request);
 
         $data = $this->normalizeCompletionFields($data);
@@ -206,12 +241,26 @@ class TaskController extends Controller
         $response = $task->load([
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
-            'event:id,title',
+            'event:id,title,start_time',
             'progressUpdates.author:school_id,first_name,last_name',
         ])->toArray();
         $response['delegation'] = $this->lastDelegation;
 
         return response()->json($response, 201);
+    }
+
+    public function recommendation(Request $request)
+    {
+        $request->validate([
+            'title' => ['required', 'string', 'max:255'],
+            'task_type' => ['nullable', 'in:regular,workflow'],
+            'category' => ['nullable', 'in:finance,publicity,documentation,logistics,coordination'],
+            'preferred_role' => ['nullable', 'string', 'max:100', Rule::exists('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('is_active', true))],
+        ]);
+
+        $this->recommendOfficer($request);
+
+        return response()->json(['delegation' => $this->lastDelegation]);
     }
 
     public function update(Request $request, $id)
@@ -227,6 +276,17 @@ class TaskController extends Controller
         }
 
         $data = $request->validate($this->rules(true));
+
+        if (($data['task_kind'] ?? null) === 'event_related' && empty($data['event_id'] ?? $task->event_id)) {
+            return response()->json(['message' => 'Select a related event for an event task.', 'errors' => ['event_id' => ['Select a related event for an event task.']]], 422);
+        }
+        if (($data['task_kind'] ?? null) === 'standalone') {
+            if (! empty($data['event_id'])) {
+                return response()->json(['message' => 'A standalone task cannot have a related event.', 'errors' => ['event_id' => ['A standalone task cannot have a related event.']]], 422);
+            }
+            $data['event_id'] = null;
+        }
+        unset($data['task_kind']);
 
         if (! $this->validOrganizationLinks($request, $data)) {
             return response()->json(['message' => 'Selected task links must belong to this organization.'], 422);
@@ -250,7 +310,7 @@ class TaskController extends Controller
         return response()->json($task->fresh()->load([
             'assignee:school_id,first_name,last_name',
             'creator:school_id,first_name,last_name',
-            'event:id,title',
+            'event:id,title,start_time',
         ]));
     }
 
@@ -344,6 +404,10 @@ class TaskController extends Controller
             'assigned_to' => ['nullable', 'exists:users,school_id'],
             'event_id' => ['nullable', 'exists:events,id'],
             'task_type' => ['nullable', 'in:regular,workflow'],
+            'task_kind' => ['nullable', 'in:event_related,standalone'],
+            'category' => ['nullable', 'in:finance,publicity,documentation,logistics,coordination'],
+            'priority' => ['nullable', 'in:low,medium,high,critical'],
+            'preferred_role' => ['nullable', 'string', 'max:100', Rule::exists('sbo_positions', 'title')->where(fn ($query) => $query->where('organization_id', request()->user()->organization_id)->where('role', 'SBO_OFFICER')->where('is_active', true))],
             'is_ai_generated' => ['boolean'],
             'progress_percent' => ['nullable', 'integer', 'min:0', 'max:100'],
             'completed_at' => ['nullable', 'date'],
@@ -455,7 +519,7 @@ class TaskController extends Controller
             $result = $this->aiService->taskDelegation(
                 (string) $request->input('title', 'Untitled task'),
                 [$payload],
-                $request->input('task_type')
+                $request->input('category') ?: $request->input('task_type')
             );
             $this->rememberAiRankings($result);
 
@@ -585,7 +649,7 @@ class TaskController extends Controller
             ->count();
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
-        $area = $this->inferTaskArea((string) $request->input('title', 'Untitled task'), $request->input('task_type'));
+        $area = $this->inferTaskArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type'));
         [$roleScore, $tier] = $this->positionRelevance($assignee->position_title, $area);
         $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
         $hasHistory = $historicalTasks > 0;
@@ -661,12 +725,13 @@ class TaskController extends Controller
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
         $candidates = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->where('role', 'SBO_OFFICER')->where('account_status', 'active'))
+            ->when($request->filled('preferred_role'), fn ($query) => $query->where('users.position_title', $request->preferred_role))
             ->orderBy('school_id')
             ->get();
         $result = $this->aiService->taskDelegation(
             (string) $request->input('title', 'Untitled task'),
             $candidates->map(fn (User $officer) => $this->officerPayload($officer, $request))->values()->all(),
-            $request->input('task_type')
+            $request->input('category') ?: $request->input('task_type')
         );
         $this->rememberAiRankings($result);
         $recommendedId = $result['recommended_officer_id'] ?? null;
@@ -735,6 +800,7 @@ class TaskController extends Controller
         return User::where('users.organization_id', $request->user()->organization_id)
             ->where('users.role', 'SBO_OFFICER')
             ->where('users.account_status', 'active')
+            ->when($request->filled('preferred_role'), fn ($query) => $query->where('users.position_title', $request->preferred_role))
             ->whereNotNull('users.position_title')
             ->whereRaw("TRIM(users.position_title) <> ''")
             ->whereExists(function ($query) {
@@ -788,7 +854,7 @@ class TaskController extends Controller
     // produced the numeric scores).
     private function assignmentExplanation(array $taskData, User $assignee, array $scores): string
     {
-        $area = $scores['task_area'] ?? $this->inferTaskArea((string) ($taskData['title'] ?? 'Untitled task'), $taskData['task_type'] ?? null);
+        $area = $scores['task_area'] ?? $this->inferTaskArea((string) ($taskData['title'] ?? 'Untitled task'), $taskData['category'] ?? $taskData['task_type'] ?? null);
         $tier = $scores['position_tier'] ?? $this->positionRelevance($assignee->position_title, $area)[1];
         $tierPhrase = self::TIER_PHRASE[$tier] ?? $tier;
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';

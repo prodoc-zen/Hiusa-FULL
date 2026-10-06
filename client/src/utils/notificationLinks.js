@@ -16,9 +16,32 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'financial_report_deadline') {
-    if (role === 'SUPER_ADMIN') return null;
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
     if (role === 'ADMIN') return '/dashboard/finance/transaction-history';
     return null;
+  }
+
+  if (referenceType === 'organization_compliance_submission' || referenceType === 'compliance_requirement_type') {
+    return role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance' : '/dashboard/compliance';
+  }
+
+  if (referenceType === 'venue_booking') {
+    return role === 'SUPER_ADMIN' ? '/dashboard/super-admin/venues' : '/dashboard/venues';
+  }
+
+  if (referenceType === 'grievance') {
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/grievances';
+    if (role === 'ADMIN') return '/dashboard/grievances';
+    if (role === 'STUDENT') return '/dashboard/my-grievances';
+    return null;
+  }
+
+  if (referenceType === 'evaluationwindow' || referenceType === 'evaluation_window') {
+    return role === 'SUPER_ADMIN' ? '/dashboard/super-admin/evaluation' : null;
+  }
+
+  if (referenceType === 'clearance_period' || referenceType === 'clearance_signature') {
+    return role === 'SUPER_ADMIN' ? '/dashboard/super-admin/clearances' : null;
   }
 
   if (referenceType === 'event') {

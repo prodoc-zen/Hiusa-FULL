@@ -79,8 +79,8 @@ export default function RoleBriefing() {
       </div>
       {insights.length > 0 && (
           <section aria-labelledby="briefing-insights" className="overflow-hidden rounded-card border border-line bg-surface">
-            <h2 id="briefing-insights" className="border-b border-line px-4 py-3 text-base font-bold text-ink sm:px-5">What HIUSA noticed</h2>
-            <div className="divide-y divide-line-soft px-4 sm:px-5">
+            <h2 id="briefing-insights" className="border-b border-line px-5 py-4 text-base font-bold text-ink sm:px-6">What HIUSA noticed</h2>
+            <div className="divide-y divide-line-soft px-5 sm:px-6">
               {insights.map((insight) => <AiInsightCard key={`${insight.engine}-${insight.title}`} insight={insight} />)}
             </div>
           </section>

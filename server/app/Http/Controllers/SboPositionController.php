@@ -53,6 +53,7 @@ class SboPositionController extends Controller
     public function update(Request $request, SboPosition $position)
     {
         abort_unless($position->organization_id === $request->user()->organization_id, 404);
+        abort_if($position->role === 'ADMIN' && $this->isSaoAdviserTitle($position->title), 403, 'This position is managed by SAO.');
         if ($request->has('title')) {
             $request->merge(['title' => trim((string) $request->input('title'))]);
             $this->rejectSaoReservedAdviserTitle($request->input('title'));
@@ -86,6 +87,7 @@ class SboPositionController extends Controller
     public function destroy(Request $request, SboPosition $position)
     {
         abort_unless($position->organization_id === $request->user()->organization_id, 404);
+        abort_if($position->role === 'ADMIN' && $this->isSaoAdviserTitle($position->title), 403, 'This position is managed by SAO.');
         $old = $position->getAttributes();
 
         DB::transaction(function () use ($position) {
@@ -108,12 +110,15 @@ class SboPositionController extends Controller
 
     private function rejectSaoReservedAdviserTitle(mixed $title): void
     {
-        $normalized = strtolower(trim((string) $title));
-
-        if (in_array($normalized, ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true)) {
+        if ($this->isSaoAdviserTitle($title)) {
             throw ValidationException::withMessages([
                 'title' => ['The Adviser position is assigned only by the Student Affairs Office.'],
             ]);
         }
+    }
+
+    private function isSaoAdviserTitle(mixed $title): bool
+    {
+        return in_array(strtolower(trim((string) $title)), ['adviser', 'advisor', 'organization adviser', 'organization advisor'], true);
     }
 }

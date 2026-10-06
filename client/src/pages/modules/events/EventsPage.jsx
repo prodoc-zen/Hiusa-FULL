@@ -26,7 +26,7 @@ import {
 import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { getVenues } from '../../../services/venueService';
-import { getTasks } from '../../../services/taskService';
+import { getTasks, previewTaskRecommendation } from '../../../services/taskService';
 import { getAcademicStructure, getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
@@ -369,6 +369,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [workflowDraft, setWorkflowDraft] = useState(null);
   const [workflowOutputId, setWorkflowOutputId] = useState(null);
   const [workflowAction, setWorkflowAction] = useState(false);
+  const [rankingTaskKey, setRankingTaskKey] = useState(null);
   const [workflowHistory, setWorkflowHistory] = useState([]);
   const [workflowHistoryError, setWorkflowHistoryError] = useState('');
   const [planError, setPlanError] = useState(null);
@@ -718,7 +719,22 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   function updateWorkflowTask(index, field, value) {
-    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, [field]: value } : task) }));
+    setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((task, taskIndex) => taskIndex === index ? { ...task, [field]: value, ...(['title', 'recommended_role'].includes(field) ? { assigned_to: null, recommendation: { rankings: [] } } : {}) } : task) }));
+  }
+
+  async function reviewWorkflowOfficer(index) {
+    const task = workflowDraft?.tasks[index];
+    if (!task?.title?.trim()) return;
+    setRankingTaskKey(task.key);
+    setPlanError(null);
+    try {
+      const response = await previewTaskRecommendation({ title: task.title, task_type: 'workflow', preferred_role: task.recommended_role || null });
+      setWorkflowDraft((current) => ({ ...current, tasks: current.tasks.map((item) => item.key === task.key ? { ...item, assigned_to: null, recommendation: response.data.delegation || { rankings: [] } } : item) }));
+    } catch (requestError) {
+      setPlanError(getApiErrorMessage(requestError, 'Could not review eligible officers.'));
+    } finally {
+      setRankingTaskKey(null);
+    }
   }
 
   function removeWorkflowTask(index) {
@@ -732,9 +748,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
   async function confirmWorkflow() {
     if (!workflowDraft || !workflowOutputId) return;
-    const incompleteTask = workflowDraft.tasks.findIndex((task) => !task.title?.trim() || !task.deadline);
+    const incompleteTask = workflowDraft.tasks.findIndex((task) => !task.title?.trim() || !task.deadline || !task.assigned_to);
     if (incompleteTask !== -1) {
-      setPlanError(`To-do ${incompleteTask + 1} needs a name and due date before you can save it.`);
+      setPlanError(`To-do ${incompleteTask + 1} needs a name, due date, and selected officer before you can save it.`);
       return;
     }
     setWorkflowAction(true); setPlanError(null);
@@ -1190,7 +1206,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           <div><label htmlFor={`workflow-priority-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Importance" />Importance</label><select id={`workflow-priority-${index}`} aria-label={`Task ${index + 1} priority`} value={task.priority} onChange={(event) => updateWorkflowTask(index, 'priority', event.target.value)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]">{['low', 'medium', 'high', 'critical'].map((value) => <option key={value} value={value}>{capitalize(value)}</option>)}</select></div>
                           <div><label htmlFor={`workflow-role-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Best officer role" />Best officer role</label><input id={`workflow-role-${index}`} aria-label={`Task ${index + 1} recommended role`} value={task.recommended_role || ''} onChange={(event) => updateWorkflowTask(index, 'recommended_role', event.target.value)} placeholder="Example: Secretary" className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]" /></div>
                           <div><label htmlFor={`workflow-order-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="This can start after" />This can start after</label><select id={`workflow-order-${index}`} aria-label={`Task ${index + 1} dependency`} value={task.depends_on_key || ''} onChange={(event) => updateWorkflowTask(index, 'depends_on_key', event.target.value || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">It can start right away</option>{workflowDraft.tasks.slice(0, index).map((candidate, candidateIndex) => <option key={candidate.key} value={candidate.key}>{candidate.title || `To-do ${candidateIndex + 1}`}</option>)}</select></div>
-                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Assign to" />Assign to</label><select id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="mt-1.5 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Let the system choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {ranking.name}, {ranking.position_title}, {scoreLabel(ranking.final_score)} overall match</option>)}</select>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">The system will check for the best available officer when you save this task.</p>}</div>
+                          <div className="lg:col-span-2"><label htmlFor={`workflow-officer-${index}`} className="text-xs font-bold text-[#0F172A]"><FieldIcon label="Assign to" />Assign to *</label><div className="mt-1.5 flex flex-col gap-2 sm:flex-row"><select id={`workflow-officer-${index}`} aria-label={`Task ${index + 1} officer`} value={task.assigned_to || ''} onChange={(event) => updateWorkflowTask(index, 'assigned_to', Number(event.target.value) || null)} className="h-11 min-w-0 flex-1 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="">Choose an eligible officer</option>{task.recommendation?.rankings?.map((ranking) => <option key={ranking.officer_id} value={ranking.officer_id}>{ranking.rank}. {ranking.name}, {ranking.position_title}, {scoreLabel(ranking.final_score)} overall match</option>)}</select><button type="button" disabled={rankingTaskKey === task.key || !task.title?.trim()} onClick={() => reviewWorkflowOfficer(index)} className="h-11 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50">{rankingTaskKey === task.key ? 'Evaluating...' : 'Review officers'}</button></div>{!task.recommendation?.rankings?.length && <p className="mt-1 text-[11px] font-medium text-slate-500">Review eligible officers, then choose the final assignee.</p>}</div>
                         </div>
 
                         {selectedOfficer && (
@@ -1207,7 +1223,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
                 <div className="mt-5 flex flex-col gap-3 border-t border-[#DDE7EF] pt-5 sm:flex-row sm:items-center sm:justify-between">
                   <p className="text-xs leading-5 text-slate-500">Saving will create {workflowDraft.tasks.length} task{workflowDraft.tasks.length === 1 ? '' : 's'} and notify the assigned officers.</p>
-                  <div className="flex flex-col-reverse gap-2 sm:flex-row"><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-11 rounded-lg border border-red-200 bg-white px-4 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50">Remove Draft</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0} onClick={confirmWorkflow} className="h-11 rounded-lg bg-[#0878B7] px-5 text-xs font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:opacity-50">{workflowAction ? 'Saving and assigning…' : 'Save and Assign Tasks'}</button></div>
+                  <div className="flex flex-col-reverse gap-2 sm:flex-row"><button type="button" disabled={workflowAction} onClick={discardWorkflow} className="h-11 rounded-lg border border-red-200 bg-white px-4 text-xs font-bold text-red-600 transition hover:bg-red-50 disabled:opacity-50">Remove Draft</button><button type="button" disabled={workflowAction || workflowDraft.tasks.length === 0 || workflowDraft.tasks.some((task) => !task.assigned_to)} onClick={confirmWorkflow} className="h-11 rounded-lg bg-[#0878B7] px-5 text-xs font-bold text-white transition hover:bg-[#0F2F62] focus:outline-none focus:ring-2 focus:ring-[#16C7F3] focus:ring-offset-2 disabled:opacity-50">{workflowAction ? 'Saving and assigning…' : 'Save and Assign Tasks'}</button></div>
                 </div>
               </div>
             )}
@@ -1556,6 +1572,11 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                 <p className="flex items-start gap-2"><Users size={16} className="mt-0.5 shrink-0 text-[#0878B7]" aria-hidden="true" /><span><strong className="text-[#0F172A]">Expected participants:</strong> {selectedEvent.planning_details?.expected_participants || 'Not specified'}</span></p>
                 <div><span className="font-bold text-[#0F172A]">Description:</span><RichTextBody value={selectedEvent.description || 'No description provided.'} className="mt-1" /></div>
                 <div className="grid gap-3 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 sm:grid-cols-2">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Preparation progress</p>
+                    <p className="mt-1 font-bold text-[#0F172A]">{selectedEvent.tasks_count ? `${Math.round((selectedEvent.completed_tasks_count || 0) / selectedEvent.tasks_count * 100)}%` : 'No linked tasks'}</p>
+                    <p className="mt-1 text-xs text-slate-500">{selectedEvent.completed_tasks_count || 0} of {selectedEvent.tasks_count || 0} event tasks completed</p>
+                  </div>
                   <div>
                     <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Attendance Summary</p>
                     <p className="mt-1 font-bold text-[#0F172A]">{selectedEvent.attendance_records_count ?? 0} recorded</p>

@@ -52,6 +52,7 @@ class EventController extends Controller
             ->withCount([
                 'attendanceRecords',
                 'tasks',
+                'tasks as completed_tasks_count' => fn ($tasks) => $tasks->where('status', 'completed'),
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ]);
         $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
@@ -131,7 +132,7 @@ class EventController extends Controller
 
         $event = Event::with($relations)
             ->where('organization_id', $request->user()->organization_id)
-            ->withCount('attendanceRecords')
+            ->withCount(['attendanceRecords', 'tasks', 'tasks as completed_tasks_count' => fn ($tasks) => $tasks->where('status', 'completed')])
             ->find($id);
 
         if (! $event) {
@@ -692,7 +693,7 @@ class EventController extends Controller
                 'workflow',
                 $task['recommended_role'],
             );
-            $task['assigned_to'] = $task['recommendation']['recommended_officer_id'];
+            $task['assigned_to'] = null;
         }
         unset($task);
         $planText = $this->workflowAsText($workflow);
@@ -758,7 +759,7 @@ class EventController extends Controller
             'tasks.*.deadline' => ['required', 'date', 'after:now'],
             'tasks.*.depends_on_key' => ['nullable', 'string', 'max:60'],
             'tasks.*.recommended_role' => ['nullable', 'string', 'max:100'],
-            'tasks.*.assigned_to' => ['nullable', 'integer'],
+            'tasks.*.assigned_to' => ['required', 'integer'],
         ]);
         $keyPositions = collect($data['tasks'])->pluck('key')->flip();
         $activePositions = SboPosition::where('organization_id', $event->organization_id)
@@ -790,7 +791,7 @@ class EventController extends Controller
             foreach ($data['tasks'] as $sequence => $draft) {
                 $recommendation = $this->delegation->recommend($event->organization_id, $draft['title'], 'workflow', $draft['recommended_role'] ?? null);
                 $recommendedId = $recommendation['recommended_officer_id'];
-                $assignedTo = $draft['assigned_to'] ?? $recommendedId;
+                $assignedTo = $draft['assigned_to'];
                 if ($assignedTo === null || ! collect($recommendation['rankings'])->contains('officer_id', (int) $assignedTo)) {
                     abort(422, "No officer is currently available for '{$draft['title']}'. Check officer status, positions, and open task limits.");
                 }

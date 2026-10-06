@@ -105,6 +105,7 @@ class TaskDelegationServiceTest extends TestCase
 
         $taskId = $this->postJson('/api/tasks', [
             'title' => 'Coordinate the event',
+            'assigned_to' => $eligible->school_id,
             'deadline' => now()->addWeek(),
             'status' => 'pending',
         ])->assertCreated()->assertJsonPath('assigned_to', $eligible->school_id)->json('id');
@@ -142,10 +143,11 @@ class TaskDelegationServiceTest extends TestCase
 
         $this->postJson('/api/tasks', [
             'title' => 'Another assignment',
+            'assigned_to' => $officer->school_id,
             'deadline' => now()->addWeek(),
             'status' => 'pending',
         ])->assertUnprocessable()
-            ->assertJsonPath('message', 'No eligible SBO Officer is currently available. All configured officers may be at workload capacity.');
+            ->assertJsonPath('message', 'The selected officer is not eligible for this task.');
 
         $this->assertDatabaseCount('task_recommendations', 0);
     }

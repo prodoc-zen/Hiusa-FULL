@@ -148,7 +148,8 @@ describe('EventsPage approval-request launch', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Add to-do' }));
     expect(screen.getByLabelText('Task 2 officer')).toHaveValue('');
-    expect(screen.getByText('The system will check for the best available officer when you save this task.')).toBeInTheDocument();
+    expect(screen.getByText('Review eligible officers, then choose the final assignee.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Save and Assign Tasks' })).toBeDisabled();
   });
 
   it('presents check-in as a live door-management workspace', async () => {
