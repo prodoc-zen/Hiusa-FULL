@@ -227,6 +227,7 @@ describe('FinancePage transaction search', () => {
     render(<FinancePage initialTab="reports" />);
 
     fireEvent.click(await screen.findByRole('radio', { name: /Income Statement/i }));
+    await screen.findByRole('option', { name: /Semester 2026-2027/ });
     fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
     expect(screen.getByLabelText('Letter body')).toBeInTheDocument();
     const header = new File(['header'], 'organization-header.png', { type: 'image/png' });
@@ -350,6 +351,7 @@ describe('FinancePage transaction search', () => {
     } });
     financeMocks.getFinancialSemesters.mockResolvedValue({ data: [{ id: 3, name: 'Semester 2026-2027', starts_on: '2026-06-01', ends_on: '2026-09-27' }] });
     render(<FinancePage initialTab="reports" />);
+    await screen.findByRole('option', { name: /Semester 2026-2027/ });
     fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
     for (const title of ['Treasurer', 'President', 'Adviser', 'SBO Adviser']) {
       fireEvent.change(screen.getByPlaceholderText(`${title} full name`), { target: { value: `${title} Name` } });

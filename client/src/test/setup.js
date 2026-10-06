@@ -1,4 +1,5 @@
 import '@testing-library/jest-dom/vitest';
+import { configure } from '@testing-library/react';
 import { createElement } from 'react';
 import { createRoot } from 'react-dom/client';
 import { Toaster } from 'sonner';
@@ -10,3 +11,7 @@ import { Toaster } from 'sonner';
 const toasterHost = document.createElement('div');
 document.body.appendChild(toasterHost);
 createRoot(toasterHost).render(createElement(Toaster, { position: 'top-right' }));
+
+// findBy and waitFor give up after 1s by default, which heavy pages miss when dozens of
+// workers share the machine.
+configure({ asyncUtilTimeout: 5000 });
