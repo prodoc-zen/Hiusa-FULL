@@ -34,7 +34,7 @@ const FULL_PAYLOAD = {
     buildObjective({
       code: 'SO1',
       title: 'Assess current governance and financial practices',
-      mechanism: 'Evaluation module Section B/C',
+      mechanism: 'Study research process outside the application',
       status: 'no_data',
       evidence: [{ label: 'Assessments run', value: 0, unit: 'count', href: null }],
       last_activity_at: null,
@@ -74,7 +74,7 @@ const FULL_PAYLOAD = {
       title: 'Evaluate the level of acceptability of the proposed system',
       mechanism: 'Weighted mean with Table 3 interpretation bands',
       status: 'no_data',
-      evidence: [{ label: 'Responses collected', value: 0, unit: 'count', href: '/dashboard/evaluation' }],
+      evidence: [],
       last_activity_at: null,
     }),
   ],
@@ -157,14 +157,12 @@ describe('StudyObjectivesPage', () => {
     expect(screen.getByText('76%')).toBeInTheDocument();
 
     // Zero evidence is reported honestly, never padded, with a next action when one exists.
-    expect(screen.getAllByText('No activity yet').length).toBeGreaterThanOrEqual(2);
-    const openEvaluationLink = screen.getByRole('link', { name: /Open the evaluation module/i });
-    expect(openEvaluationLink).toHaveAttribute('href', '/dashboard/evaluation');
+    expect(screen.getAllByText('No activity yet').length).toBeGreaterThanOrEqual(1);
+    expect(screen.queryByRole('link', { name: /evaluation/i })).not.toBeInTheDocument();
 
-    // SO1's evidence has no href, so its no-data notice carries no action button;
-    // SO4's does, so exactly one "Open ..." action renders across the whole page.
+    // Research objectives have no in-app destination.
     expect(screen.getByText(/SO1: Assess current governance/)).toBeInTheDocument();
-    expect(screen.getAllByRole('link', { name: /^Open /i })).toHaveLength(1);
+    expect(screen.queryAllByRole('link', { name: /^Open /i })).toHaveLength(0);
 
     // SO3 synthesizes everything above.
     expect(screen.getByText(/SO3: Define and develop the best features/)).toBeInTheDocument();

@@ -13,7 +13,7 @@ import TableRowActions from "../../../components/TableRowActions";
 
 const MODULE_OPTIONS = [
   "academic_structure", "ai_workflows", "announcements", "approvals", "attendance", "biometrics", "budgets",
-  "cash_advances", "clearances", "collections", "colleges", "compliance", "elections", "evaluation",
+  "cash_advances", "clearances", "collections", "colleges", "compliance", "elections",
   "event_registrations", "events", "financial_forecasts", "financial_ledger", "financial_reports",
   "global_announcements", "grievances", "invoices", "merchandise", "orders", "positions", "remittances",
   "system_administration", "task_delegation", "tasks", "transactions", "users", "venue_bookings", "venues",

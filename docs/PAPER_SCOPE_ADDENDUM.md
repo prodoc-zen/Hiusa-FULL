@@ -1,5 +1,7 @@
 # HIUSA Paper Scope Addendum
 
+Update (2026-10-06): The in-app Evaluation feature has been removed for all roles. Earlier references below to questionnaire pages, evaluation windows, and in-app survey results describe the retired feature. SO1 and SO4 remain research objectives assessed outside the application; existing survey records are retained without user-facing access.
+
 This addendum records where the running system goes beyond the submitted paper (HIUSA - FINAL), and which decisions settle the places where the paper contradicts itself. Use it to update Chapters I and III before the defense, so the panel never meets a feature or a rule the paper does not mention.
 
 Each entry says what the paper says, what the system does, and the change to make in the paper.

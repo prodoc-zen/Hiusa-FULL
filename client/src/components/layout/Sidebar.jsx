@@ -21,7 +21,7 @@ const unitIcons = {
   'manage-announcements': Megaphone, 'create-announcement': Plus, 'view-announcements': Newspaper,
   'manage-users': UsersRound, 'participant-biometrics': Fingerprint, 'manage-positions': BadgeCheck,
   'manage-programs-sections': GraduationCap,
-  'gov-evaluation': ClipboardList, 'gov-compliance': ClipboardCheck, 'gov-venues': MapPin, 'gov-grievances': MessageSquare,
+  'gov-compliance': ClipboardCheck, 'gov-venues': MapPin, 'gov-grievances': MessageSquare,
   'gov-my-grievances': MessageSquare, 'gov-clearances': ShieldCheck, 'gov-my-clearance': SearchCheck,
   'sao-admins': UsersRound, 'sao-organizations': Store, 'sao-academic-years': CalendarDays,
   'sao-compliance': ClipboardCheck, 'sao-venues': MapPin, 'sao-grievances': MessageSquare,

@@ -9,12 +9,12 @@ describe('role navigation destinations', () => {
     }
   });
 
-  it('offers the Department Head evaluation through Governance and search', () => {
-    const governance = getNavForRole('DEPARTMENT_HEAD').find((item) => item.id === 'governance');
-    expect(getVisibleChildren(governance, 'DEPARTMENT_HEAD').map((item) => item.path)).toEqual(['/dashboard/evaluation']);
-    expect(getFlatPages('DEPARTMENT_HEAD')).toContainEqual(expect.objectContaining({
-      label: 'Evaluation', path: '/dashboard/evaluation', section: 'Governance',
-    }));
+  it.each(['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'])('omits Evaluation from navigation and search for %s', (role) => {
+    expect(getFlatPages(role).some((item) => item.path.includes('evaluation'))).toBe(false);
+  });
+
+  it('omits the empty Department Head Governance group', () => {
+    expect(getNavForRole('DEPARTMENT_HEAD').some((item) => item.id === 'governance')).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((item) => item.path === '/dashboard/compliance')).toBe(false);
   });
 });

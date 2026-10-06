@@ -31,10 +31,7 @@ class ObjectivesEvidenceService
     {
     }
 
-    /**
-     * @param  array<int, array{code: string, n: int, anonymized: bool, overall_mean: ?float, overall_label: ?string}>  $acceptability
-     */
-    public function overview(User $viewer, array $acceptability): array
+    public function overview(User $viewer): array
     {
         $isSao = $viewer->role === 'SUPER_ADMIN';
         $orgId = $isSao ? null : $viewer->organization_id;
@@ -46,7 +43,7 @@ class ObjectivesEvidenceService
                 : ['type' => 'organization', 'organization' => $this->organization($orgId)],
             'objectives' => [
                 $this->generalObjective($orgId, $isSao),
-                $this->so1($orgId, $isSao),
+                $this->so1(),
                 $this->financial($orgId, $isSao),
                 $this->events($orgId),
                 $this->tasks($orgId),
@@ -54,7 +51,7 @@ class ObjectivesEvidenceService
                 $this->merchandise($orgId),
                 $this->communication($orgId, $isSao),
                 $this->so3($orgId),
-                $this->so4($orgId, $isSao, $acceptability),
+                $this->so4(),
             ],
         ];
     }
@@ -80,17 +77,15 @@ class ObjectivesEvidenceService
         );
     }
 
-    private function so1(?int $orgId, bool $isSao): array
+    private function so1(): array
     {
-        $responses = $this->scoped(DB::table('evaluation_responses'), $orgId);
-
         return $this->objective(
             'SO1',
             'Assess current practices and problems',
             'Identify and assess the current student governance and financial management practices of student body organizations, according to their processes and the problems they encounter.',
-            'In-app questionnaire, section B (current processes and problems), anonymized and aggregated.',
-            [$this->metric('Responses describing current practices', (clone $responses)->count(), 'count', $isSao ? '/dashboard/super-admin/evaluation' : '/dashboard/evaluation')],
-            $this->latest($responses, 'submitted_at'),
+            'Assessed through the study research process outside the application.',
+            [],
+            null,
         );
     }
 
@@ -215,7 +210,7 @@ class ObjectivesEvidenceService
     private function so3(?int $orgId): array
     {
         $since = Carbon::now()->subDays(self::LIVE_WINDOW_DAYS);
-        $modules = $this->scoped(DB::table('audit_logs'), $orgId)->where('created_at', '>=', $since)->distinct()->count('module');
+        $modules = $this->scoped(DB::table('audit_logs'), $orgId)->where('module', '!=', 'evaluation')->where('created_at', '>=', $since)->distinct()->count('module');
 
         return $this->objective(
             'SO3',
@@ -227,30 +222,15 @@ class ObjectivesEvidenceService
         );
     }
 
-    private function so4(?int $orgId, bool $isSao, array $acceptability): array
+    private function so4(): array
     {
-        $responses = $this->scoped(DB::table('evaluation_responses'), $orgId);
-        $href = $isSao ? '/dashboard/super-admin/evaluation' : '/dashboard/evaluation';
-        $evidence = [$this->metric('Acceptability responses recorded', (clone $responses)->count(), 'count', $href)];
-
-        foreach ($acceptability as $group) {
-            if (! $group['anonymized'] && $group['overall_label'] !== null) {
-                $evidence[] = $this->metric(
-                    "Overall acceptability ({$group['code']}): {$group['overall_label']}",
-                    $group['overall_mean'],
-                    'mean',
-                    $href,
-                );
-            }
-        }
-
         return $this->objective(
             'SO4',
             'Evaluate acceptability',
             'Evaluate the level of acceptability of the proposed system.',
-            'Role-specific questionnaires on a 5-point scale, interpreted by weighted mean (Table 3); small groups are withheld to protect anonymity.',
-            $evidence,
-            $this->latest($responses, 'submitted_at'),
+            'Assessed through the study research process outside the application.',
+            [],
+            null,
         );
     }
 

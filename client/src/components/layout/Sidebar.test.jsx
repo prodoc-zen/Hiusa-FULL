@@ -102,15 +102,13 @@ describe('desktop sidebar rail', () => {
     expect(screen.queryByText('Account')).not.toBeInTheDocument();
   });
 
-  it.each([false, true])('routes a Department Head to Evaluation with collapsed=%s', (initialCollapsed) => {
+  it.each([false, true])('omits Evaluation and empty Governance for a Department Head with collapsed=%s', (initialCollapsed) => {
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Test', last_name: 'Head' }));
     render(<MemoryRouter initialEntries={['/dashboard/department-head']}><SidebarHarness initialCollapsed={initialCollapsed} /></MemoryRouter>);
 
     expect(screen.queryByRole('link', { name: 'Governance' })).not.toBeInTheDocument();
-    const evaluation = screen.getByRole('link', { name: 'Evaluation' });
-    expect(evaluation).toHaveAttribute('href', '/dashboard/evaluation');
-    fireEvent.click(evaluation);
-    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/evaluation');
+    expect(screen.queryByRole('link', { name: 'Evaluation' })).not.toBeInTheDocument();
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/department-head');
     expect(screen.queryByRole('link', { name: 'Compliance' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Clearances' })).not.toBeInTheDocument();
   });
