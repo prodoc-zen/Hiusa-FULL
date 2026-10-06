@@ -110,6 +110,72 @@ class ExistingOrganizationMembershipTest extends TestCase
         }
     }
 
+    public function test_sao_can_assign_one_existing_admin_to_multiple_suborganizations_and_switch_scopes(): void
+    {
+        $main = $this->organization();
+        $children = [
+            $this->organization(['parent_organization_id' => $main->id]),
+            $this->organization(['parent_organization_id' => $main->id]),
+        ];
+        $admin = User::factory()->admin()->create(['organization_id' => $main->id, 'department' => $main->college]);
+        $password = $admin->getRawOriginal('password_hash');
+        $students = array_map(fn ($child) => User::factory()->student()->create(['organization_id' => $child->id]), $children);
+        $sao = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]);
+        Sanctum::actingAs($sao);
+        $profiles = [];
+
+        foreach ($children as $child) {
+            $this->getJson('/api/account-profiles/candidates?'.http_build_query(['organization_id' => $child->id, 'search' => $admin->school_id]))
+                ->assertOk()->assertJsonPath('data.0.school_id', $admin->school_id);
+            $profiles[] = $this->postJson('/api/account-profiles/invite', ['organization_id' => $child->id, 'school_id' => $admin->school_id, 'role' => 'ADMIN'])
+                ->assertCreated()->assertJsonPath('role', 'ADMIN')->assertJsonPath('organization_id', $child->id)->json('id');
+        }
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $children[0]->id, 'school_id' => $admin->school_id, 'role' => 'ADMIN'])->assertStatus(409);
+        $this->assertCount(3, $admin->accountProfiles()->get());
+        $this->assertSame($main->id, $admin->fresh()->organization_id);
+        $this->assertSame('ADMIN', $admin->fresh()->role);
+        $this->assertSame($password, $admin->fresh()->getRawOriginal('password_hash'));
+        $rows = collect($this->getJson('/api/system/organizations?per_page=100')->assertOk()->json('data'));
+        foreach ($children as $child) {
+            $this->assertSame(1, $rows->firstWhere('id', $child->id)['administrators_count']);
+            $this->assertSame(2, $rows->firstWhere('id', $child->id)['users_count']);
+        }
+
+        $this->app['auth']->forgetGuards();
+        $token = $this->postJson('/api/login', ['school_id' => $admin->school_id, 'password' => 'password'])->assertOk()->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $this->withToken($token)->getJson('/api/user/profiles')->assertOk()->assertJsonCount(3, 'profiles');
+        foreach ($children as $index => $child) {
+            $this->withToken($token)->postJson('/api/user/profiles/'.$profiles[$index].'/switch')
+                ->assertOk()->assertJsonPath('user.role', 'ADMIN')->assertJsonPath('user.organization_id', $child->id);
+            $this->withToken($token)->getJson('/api/users')->assertOk()
+                ->assertJsonFragment(['school_id' => $students[$index]->school_id])
+                ->assertJsonMissing(['school_id' => $students[1 - $index]->school_id]);
+            $this->withToken($token)->getJson('/api/system/organizations')->assertForbidden();
+        }
+    }
+
+    public function test_only_sao_can_assign_admin_membership_and_college_eligibility_still_applies(): void
+    {
+        $main = $this->organization();
+        $child = $this->organization(['parent_organization_id' => $main->id]);
+        $student = User::factory()->student()->create(['organization_id' => $main->id]);
+        $foreignAdmin = User::factory()->admin()->create(['organization_id' => $this->organization(['college' => 'College of Business'])->id]);
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $main->id]));
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $child->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
+            ->assertUnprocessable()->assertJsonValidationErrors('role');
+        $this->assertDatabaseMissing('account_profiles', ['organization_id' => $child->id, 'user_school_id' => $student->school_id]);
+
+        Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]));
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $child->id, 'school_id' => $foreignAdmin->school_id, 'role' => 'ADMIN'])
+            ->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        $this->assertDatabaseMissing('account_profiles', ['organization_id' => $child->id, 'user_school_id' => $foreignAdmin->school_id]);
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $child->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
+            ->assertCreated()->assertJsonPath('role', 'ADMIN');
+        $this->assertSame('STUDENT', $student->fresh()->role);
+        $this->assertSame($main->id, $student->fresh()->organization_id);
+    }
+
     public function test_member_roles_cannot_search_or_add_profiles(): void
     {
         $target = $this->organization();
@@ -127,7 +193,7 @@ class ExistingOrganizationMembershipTest extends TestCase
         $source = $this->organization();
         $student = User::factory()->student()->create(['organization_id' => $source->id]);
         Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => $target->id]));
-        $this->postJson('/api/account-profiles/invite', ['organization_id' => $target->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $target->id, 'school_id' => $student->school_id, 'role' => 'SUPER_ADMIN'])
             ->assertUnprocessable()->assertJsonValidationErrors('role');
         foreach ([$this->organization(['is_active' => false]), Organization::where('slug', 'student-affairs-office')->firstOrFail()] as $invalid) {
             $this->postJson('/api/account-profiles/invite', ['organization_id' => $invalid->id, 'school_id' => $student->school_id, 'role' => 'STUDENT'])->assertNotFound();

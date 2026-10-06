@@ -251,7 +251,7 @@ export default function SystemAdminsPage() {
 
   return (
     <div className="space-y-6">
-      {membershipUser && <AddExistingUserModal initialUser={membershipUser} onClose={() => setMembershipUser(null)} onAdded={() => setSuccess('Organization profile added to the existing user.')} />}
+      {membershipUser && <AddExistingUserModal actorRole="SUPER_ADMIN" initialUser={membershipUser} onClose={() => setMembershipUser(null)} onAdded={() => setSuccess('Organization profile added to the existing user.')} />}
       <div className="flex justify-end">
         <button
           type="button"

@@ -76,6 +76,7 @@ class SystemAdministrationController extends Controller
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = Organization::withCount('accountProfiles as users_count')->with(['administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
+            ->withCount(['accountProfiles as administrators_count' => fn ($query) => $query->where('role', 'ADMIN')])
             ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION');
         if (! empty($filters['search'])) {
             $query->where(fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%')->orWhere('acronym', 'like', '%'.$filters['search'].'%')->orWhere('college', 'like', '%'.$filters['search'].'%'));

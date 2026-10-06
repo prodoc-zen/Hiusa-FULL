@@ -38,6 +38,22 @@ describe('AddExistingUserModal', () => {
     expect(await screen.findByRole('radio', { name: /Maria Reyes/ })).not.toBeChecked();
   });
 
+  it('lets SAO assign an Admin profile to an existing user in a suborganization', async () => {
+    render(<AddExistingUserModal actorRole="SUPER_ADMIN" initialUser={user} onClose={vi.fn()} />);
+    await screen.findByRole('option', { name: 'Computing Club (Suborganization)' });
+    fireEvent.change(screen.getByLabelText('Destination organization'), { target: { value: '9' } });
+    fireEvent.click(await screen.findByRole('radio', { name: /Maria Reyes/ }));
+    fireEvent.change(screen.getByLabelText('Role in destination organization'), { target: { value: 'ADMIN' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
+    await waitFor(() => expect(mocks.inviteAccountProfile).toHaveBeenCalledWith({ school_id: user.school_id, organization_id: 9, role: 'ADMIN' }));
+  });
+
+  it.each(['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', null])('does not offer Admin assignment for actor %s', async (actorRole) => {
+    render(<AddExistingUserModal actorRole={actorRole} organization={organization} onClose={vi.fn()} />);
+    await screen.findByRole('radio', { name: /Maria Reyes/ });
+    expect(screen.queryByRole('option', { name: 'Admin', exact: true })).not.toBeInTheDocument();
+  });
+
   it('loads authorized destinations and prefilters a user from the action menu by school ID', async () => {
     render(<AddExistingUserModal initialUser={user} onClose={vi.fn()} />);
     expect(await screen.findByRole('option', { name: 'Computing Club (Suborganization)' })).toBeInTheDocument();

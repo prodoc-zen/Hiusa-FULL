@@ -1002,7 +1002,7 @@ export default function AdminUsersPage() {
         {userForm(createForm, setCreateForm, 'create')}
       </Modal>
 
-      {showInvite && <AddExistingUserModal initialUser={inviteUser} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
+      {showInvite && <AddExistingUserModal actorRole={actorRole} initialUser={inviteUser} onClose={() => setShowInvite(false)} onAdded={() => { setFeedback({ open: true, type: 'success', message: 'User added to the organization.' }); load(); }} />}
 
       <Modal
         open={Boolean(selectedUser)}

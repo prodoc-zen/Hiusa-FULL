@@ -8,7 +8,7 @@ import { formatDisplayText } from '../../utils/displayText';
 
 const control = 'mt-1 min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm text-[#0F172A] outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20 disabled:bg-slate-100';
 
-export default function AddExistingUserModal({ organization = null, initialUser = null, onClose, onAdded }) {
+export default function AddExistingUserModal({ organization = null, initialUser = null, actorRole = null, onClose, onAdded }) {
   const formId = useId();
   const [organizations, setOrganizations] = useState(organization ? [organization] : []);
   const [organizationId, setOrganizationId] = useState(organization ? String(organization.id) : '');
@@ -92,7 +92,7 @@ export default function AddExistingUserModal({ organization = null, initialUser 
       {target && (loading || pendingSearch) && <p role="status" className="text-sm text-[#64748B]">Searching users...</p>}
       {target && !loading && !pendingSearch && !error && <fieldset><legend className="text-sm font-semibold text-[#0F172A]">Choose a user</legend>{users.length === 0 ? <p className="mt-2 text-sm text-[#64748B]">No eligible users found in this college.</p> : <div className="mt-2 max-h-60 space-y-2 overflow-y-auto">{users.map((user) => <label key={user.school_id} className="flex min-h-11 cursor-pointer items-start gap-3 rounded-lg border border-[#DDE7EF] p-3 text-sm hover:bg-[#F8FBFD]"><input type="radio" name={`${formId}-user`} checked={selected?.school_id === user.school_id} disabled={busy} onChange={() => setSelected(user)} className="mt-1" /><span className="min-w-0 break-words"><strong>{formatDisplayText(`${user.first_name} ${user.last_name}`)}</strong><span className="block text-xs text-[#64748B]">School ID {user.school_id} · {user.email}</span></span></label>)}</div>}</fieldset>}
       {target && meta.lastPage > 1 && <nav aria-label="Existing user pages" className="flex items-center justify-between gap-2 text-xs text-[#64748B]"><button type="button" disabled={busy || loading || page <= 1} onClick={() => { setLoading(true); setSelected(null); setPage(page - 1); }} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-50">Previous</button><span>Page {page} of {meta.lastPage} · {meta.total} users</span><button type="button" disabled={busy || loading || page >= meta.lastPage} onClick={() => { setLoading(true); setSelected(null); setPage(page + 1); }} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-50">Next</button></nav>}
-      <label className="block text-sm font-semibold text-[#0F172A]">Role in destination organization<select value={role} disabled={busy} onChange={(event) => setRole(event.target.value)} className={control}><option value="STUDENT">Student</option><option value="SBO_OFFICER">SBO Officer</option><option value="DEPARTMENT_HEAD">Department Head</option></select></label>
+      <label className="block text-sm font-semibold text-[#0F172A]">Role in destination organization<select value={role} disabled={busy} onChange={(event) => setRole(event.target.value)} className={control}><option value="STUDENT">Student</option><option value="SBO_OFFICER">SBO Officer</option><option value="DEPARTMENT_HEAD">Department Head</option>{actorRole === 'SUPER_ADMIN' && <option value="ADMIN">Admin</option>}</select></label>
       {selected && <p className="text-xs text-[#64748B]">Selected: {formatDisplayText(`${selected.first_name} ${selected.last_name}`)} · School ID {selected.school_id}</p>}
     </form>
   </Modal>;
