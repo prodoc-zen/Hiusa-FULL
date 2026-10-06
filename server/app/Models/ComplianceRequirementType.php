@@ -10,6 +10,7 @@ class ComplianceRequirementType extends Model
 {
     protected $fillable = [
         'academic_year',
+        'academic_semester_id',
         'name',
         'description',
         'deadline_at',

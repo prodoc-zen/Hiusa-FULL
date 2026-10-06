@@ -68,6 +68,27 @@ class VenueBookingTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_off_campus_request_uses_a_typed_location_and_sao_can_review_it(): void
+    {
+        $sao = $this->user('SUPER_ADMIN');
+        $org = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $org->id);
+        $times = [
+            'start_time' => now()->addDay()->setTime(9, 0)->toISOString(),
+            'end_time' => now()->addDay()->setTime(11, 0)->toISOString(),
+        ];
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/venue-bookings', ['venue_type' => 'off_campus', ...$times])->assertUnprocessable()->assertJsonValidationErrors('off_campus_location');
+        $bookingId = $this->postJson('/api/venue-bookings', [
+            'venue_type' => 'off_campus',
+            'off_campus_location' => 'City Convention Center',
+            ...$times,
+        ])->assertCreated()->assertJsonPath('off_campus_location', 'City Convention Center')->json('id');
+        $this->assertNull(VenueBooking::findOrFail($bookingId)->venue_id);
+        Sanctum::actingAs($sao);
+        $this->patchJson("/api/venue-bookings/{$bookingId}/review", ['status' => 'approved'])->assertOk()->assertJsonPath('status', 'approved');
+    }
+
     public function test_overlap_is_rejected_but_touching_boundary_is_allowed(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');

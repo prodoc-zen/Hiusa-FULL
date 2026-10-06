@@ -19,6 +19,13 @@ class Task extends Model
 
     protected static function booted(): void
     {
+        static::creating(function (Task $task) {
+            if (! $task->academic_semester_id) {
+                $task->academic_semester_id = $task->event_id
+                    ? Event::whereKey($task->event_id)->value('academic_semester_id')
+                    : AcademicSemester::active()?->id;
+            }
+        });
         // Assignment recency is a delegation factor, so every path that hands
         // a task to someone (create, reassign, AI workflow) is dated here.
         static::saving(function (Task $task) {

@@ -1,6 +1,6 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
-import { useCallback, useEffect, useState } from 'react';
+import { Fragment, useCallback, useEffect, useState } from 'react';
 import { Building2, PencilLine, Plus, Search, Users } from 'lucide-react';
 import { createSystemOrganization, getSystemColleges, getSystemOrganizations, updateSystemOrganization } from '../../../services/systemAdministrationService';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -27,7 +27,10 @@ export default function SystemOrganizationsPage() {
     setLoading(true);
     try {
       const data = await getSystemOrganizations({ search, per_page: 100, page: requestedPage });
-      setItems(data.data || []);
+      setItems((data.data || []).sort((left, right) =>
+        (left.college || '').localeCompare(right.college || '')
+        || Number(Boolean(left.parent_organization_id)) - Number(Boolean(right.parent_organization_id))
+        || left.name.localeCompare(right.name)));
       setPage(data.current_page || requestedPage);
       setLastPage(data.last_page || 1);
       setError('');
@@ -73,7 +76,7 @@ export default function SystemOrganizationsPage() {
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
       {loading && <p role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-4 text-sm text-slate-600">Loading organizations...</p>}
       <section className="grid gap-4 lg:grid-cols-2">
-        {items.map((org) => <article key={org.id} className="rounded-lg border border-[#DDE7EF] bg-white p-5"><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><Building2 size={19} /></span><div><h3 className="font-bold text-slate-900">{org.name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No department assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs text-[#0878B7]">Part of {org.parent_organization.name}</p>}</div></div><span className={`h-fit rounded-full px-2 py-1 text-[10px] font-bold ${org.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{org.is_active ? 'ACTIVE' : 'INACTIVE'}</span></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" /><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} /> {org.users_count} members · {org.administrators?.length || 0} admins</span><button type="button" onClick={() => setForm(org)} className="inline-flex min-h-11 items-center gap-1 text-[#0878B7]"><PencilLine size={14} /> Edit</button></div></article>)}
+        {items.map((org, index) => <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="text-sm font-bold text-[#0F2F62] lg:col-span-2">{org.college || 'No college assigned'}</h2>}<article className="rounded-lg border border-[#DDE7EF] bg-white p-5"><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><Building2 size={19} /></span><div><h3 className="font-bold text-slate-900">{org.name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No department assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {org.parent_organization.name}</p>}</div></div><span className={`h-fit rounded-full px-2 py-1 text-[10px] font-bold ${org.is_active ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-100 text-slate-600'}`}>{org.is_active ? 'ACTIVE' : 'INACTIVE'}</span></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" /><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} /> {org.users_count} members · {org.administrators?.length || 0} admins</span><button type="button" onClick={() => setForm(org)} className="inline-flex min-h-11 items-center gap-1 text-[#0878B7]"><PencilLine size={14} /> Edit</button></div></article></Fragment>)}
       </section>
       {!loading && !items.length && <div className="rounded-lg border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500">No student organizations match this view.</div>}
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs font-semibold text-slate-600"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Previous</button><span>Page {page} of {lastPage}</span><button type="button" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Next</button></nav>}

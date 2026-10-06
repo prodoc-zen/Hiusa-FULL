@@ -14,6 +14,15 @@ class Election extends Model
 
     protected $guarded = [];
 
+    protected $hidden = ['informative_letter_path'];
+
+    protected $appends = ['has_informative_letter'];
+
+    public function getHasInformativeLetterAttribute(): bool
+    {
+        return filled($this->informative_letter_path);
+    }
+
     protected function casts(): array
     {
         return [

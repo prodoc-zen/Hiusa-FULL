@@ -1,6 +1,6 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import notify from '../../../lib/notify';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   CalendarDays,
   CheckCircle2,
@@ -21,7 +21,8 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import { createElection, deleteElection, finalizeElection, getElections, updateElection } from '../../../services/electionService';
+import { createElection, deleteElection, downloadElectionLetter, finalizeElection, getElections, updateElection } from '../../../services/electionService';
+import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
@@ -43,7 +44,7 @@ const statusLabels = {
 const EXECUTIVE_POSITIONS = ['President', 'Vice President', 'Secretary', 'Treasurer', 'Auditor', 'Business Manager', 'PIO'];
 
 const blankElection = () => ({
-  title: '', room: '', start_time: '', end_time: '', status: 'pending_approval', imageFile: null,
+  title: '', room: '', start_time: '', end_time: '', status: 'pending_approval', imageFile: null, informativeLetterFile: null,
   positions: [{ title: '', max_winners: 1 }],
 });
 
@@ -123,6 +124,11 @@ function ElectionFormFields({ form, setForm, editing = false }) {
         onChange={(imageFile) => setForm((current) => ({ ...current, imageFile, remove_image: false }))}
         onRemove={editing ? () => setForm((current) => ({ ...current, imageFile: null, image_url: '', remove_image: true })) : undefined}
       />
+      {!editing && <label className="block rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4">
+        <span className="block text-[13px] font-semibold text-[#0F172A]">Informative letter (PDF) *</span>
+        <input type="file" accept="application/pdf,.pdf" required onChange={(event) => setForm((current) => ({ ...current, informativeLetterFile: event.target.files?.[0] || null }))} className="mt-2 block w-full text-sm text-[#0F172A] file:mr-3 file:rounded-lg file:border-0 file:bg-[#E6F6FD] file:px-3 file:py-2 file:font-semibold file:text-[#0F2F62]" />
+        <span className="mt-1 block text-xs text-[#64748B]">Attach the informative letter before submitting for approval. Maximum 10 MB.</span>
+      </label>}
       <label className="block">
         <span className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Election title *" />Election title *</span>
         <input data-autofocus value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} placeholder="e.g. HIUSA General Elections 2026" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none placeholder:text-[#94A3B8] focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15" />
@@ -176,6 +182,8 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   const [elections, setElections] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [academicPeriods, setAcademicPeriods] = useState([]);
+  const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -190,15 +198,17 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   const [statusBusy, setStatusBusy] = useState({ id: null, target: '' });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
   const pageSize = 6;
+  const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
 
-  const loadElections = async () => {
+  const loadElections = useCallback(async () => {
     setLoading(true); setError('');
-    try { const data = await getElections(); setElections(Array.isArray(data) ? data : []); }
+    try { const data = await getElections({ academic_semester_id: selectedPeriodId || undefined }); setElections(Array.isArray(data) ? data : []); }
     catch { setError('Unable to load elections.'); }
     finally { setLoading(false); }
-  };
+  }, [selectedPeriodId]);
 
-  useEffect(() => { loadElections(); }, []);
+  useEffect(() => { loadElections(); }, [loadElections]);
+  useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
   useEffect(() => {
     if (startCreate && canManageElections) {
       setForm(blankElection());
@@ -292,8 +302,12 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] p-4 sm:p-5">
           <p className="max-w-2xl text-sm text-[#64748B]">Select an election to manage its ballot and voting period.</p>
-          {canManageElections && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62]"><Plus size={16} /> Create election</button>}
+          {canManageElections && !viewingHistory && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62]"><Plus size={16} /> Create election</button>}
         </div>
+        {academicPeriods.length > 0 && <label className="block px-4 pt-4 text-xs font-semibold text-[#0F172A] sm:px-5">Academic period
+          <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</select>
+        </label>}
+        {viewingHistory && <p className="px-4 pt-3 text-xs font-medium text-[#64748B] sm:px-5">Completed semester elections are available for viewing only.</p>}
         <div className="grid gap-3 p-4 md:grid-cols-[minmax(0,1fr)_220px] sm:p-5">
           <label className="relative"><span className="sr-only">Search elections</span><Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94A3B8]" /><input value={searchTerm} onChange={(event) => setSearchTerm(event.target.value)} placeholder="Search by election title..." className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]" /></label>
           <select aria-label="Filter elections by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-semibold text-[#0F172A] outline-none focus:border-[#0B8ED0]"><option value="all">All statuses</option><option value="pending_approval">Pending approval</option><option value="upcoming">Upcoming</option><option value="active">Live</option><option value="closed">Closed</option></select>
@@ -332,7 +346,8 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
                   <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
                   <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Select election <ChevronRight size={16} /></button>
-                  {canManageElections && (
+                  {election.has_informative_letter && currentUser?.role !== 'STUDENT' && <button type="button" onClick={() => downloadElectionLetter(election.id).catch((requestError) => notify.error(getApiErrorMessage(requestError, 'Unable to download the letter.')))} className="mt-2 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#0878B7] hover:underline"><Upload size={14} className="rotate-180" /> Informative letter</button>}
+                  {canManageElections && !viewingHistory && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EEF6FB] pt-3">
                       {election.status !== 'closed' && <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> Edit</button>}
                       {election.status !== 'closed' && <button type="button" onClick={() => setDeleteTarget(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>}

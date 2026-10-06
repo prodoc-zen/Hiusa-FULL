@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
+use App\Models\AcademicSemester;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
@@ -14,11 +15,12 @@ use Illuminate\Validation\Rule;
 
 class EventRequirementController extends Controller
 {
-    private const SUPPORTED_EXTENSIONS = ['pdf', 'png', 'jpg', 'jpeg', 'doc', 'docx', 'xls', 'xlsx'];
+    private const SUPPORTED_EXTENSIONS = ['pdf'];
 
     public function index(Request $request)
     {
         return response()->json(EventRequirement::query()
+            ->forPeriod(AcademicSemester::active()?->id)
             ->when($request->user()->role !== 'SUPER_ADMIN', fn ($query) => $query->where('is_active', true))
             ->orderBy('sort_order')->orderBy('id')->get());
     }
@@ -28,12 +30,16 @@ class EventRequirementController extends Controller
         $data = $this->validateRequirement($request);
 
         $data['sort_order'] = (int) EventRequirement::max('sort_order') + 1;
+        $data['academic_semester_id'] = AcademicSemester::active()?->id;
 
         return response()->json(EventRequirement::create($data), 201);
     }
 
     public function update(Request $request, EventRequirement $requirement)
     {
+        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
         $data = $this->validateRequirement($request);
         $requirement->update($data);
 
@@ -46,7 +52,7 @@ class EventRequirementController extends Controller
             'ids' => ['required', 'array', 'min:1'],
             'ids.*' => ['required', 'integer', 'distinct', Rule::exists('event_requirements', 'id')],
         ]);
-        $current = EventRequirement::pluck('id')->sort()->values()->all();
+        $current = EventRequirement::forPeriod(AcademicSemester::active()?->id)->pluck('id')->sort()->values()->all();
         $submitted = collect($data['ids'])->map(fn ($id) => (int) $id)->sort()->values()->all();
         if ($current !== $submitted) {
             return response()->json(['message' => 'Include every requirement exactly once when reordering.'], 422);
@@ -58,11 +64,14 @@ class EventRequirementController extends Controller
             }
         });
 
-        return response()->json(EventRequirement::orderBy('sort_order')->orderBy('id')->get());
+        return response()->json(EventRequirement::forPeriod(AcademicSemester::active()?->id)->orderBy('sort_order')->orderBy('id')->get());
     }
 
     public function destroy(EventRequirement $requirement)
     {
+        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
         if (EventRequirementFile::where('requirement_id', $requirement->id)->exists()) {
             return response()->json(['message' => 'This requirement has submitted files. Deactivate it to preserve those records.'], 409);
         }
@@ -79,6 +88,8 @@ class EventRequirementController extends Controller
             'description' => ['nullable', 'string', 'max:500'],
             'allowed_extensions' => ['required', 'array', 'min:1'],
             'allowed_extensions.*' => ['required', 'string', 'distinct', Rule::in(self::SUPPORTED_EXTENSIONS)],
+            'venue_type' => ['sometimes', 'in:all,on_campus,off_campus'],
+            'is_optional' => ['sometimes', 'boolean'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
     }
@@ -91,7 +102,7 @@ class EventRequirementController extends Controller
 
         return response()->json([
             'event' => $event->only(['id', 'title', 'organization_id', 'status']),
-            'requirements' => EventRequirement::where('is_active', true)->orderBy('sort_order')->orderBy('id')->get(),
+            'requirements' => EventRequirement::forEvent($event)->where('is_active', true)->orderBy('sort_order')->orderBy('id')->get(),
             'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions')
                 ->where('event_id', $event->id)->orderBy('requirement_id')->get(),
             'approval_status' => ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->latest('id')->value('status'),
@@ -109,20 +120,23 @@ class EventRequirementController extends Controller
         }
 
         $request->validate(['documents' => ['required', 'array'], 'documents.*' => ['required', 'file', 'max:10240']]);
-        $requirements = EventRequirement::where('is_active', true)->get();
+        $requirements = EventRequirement::forEvent($event)->where('is_active', true)->get();
         if ($requirements->isEmpty()) {
             return response()->json(['message' => 'SAO has not configured any event requirements.'], 422);
         }
 
         $documents = $request->file('documents', []);
-        if (array_diff($requirements->pluck('id')->all(), array_map('intval', array_keys($documents)))
+        if (array_diff($requirements->where('is_optional', false)->pluck('id')->all(), array_map('intval', array_keys($documents)))
             || array_diff(array_map('intval', array_keys($documents)), $requirements->pluck('id')->all())) {
-            return response()->json(['message' => 'Upload one file for every active SAO requirement.'], 422);
+            return response()->json(['message' => 'Upload a PDF for every required SAO item.'], 422);
         }
 
         foreach ($requirements as $requirement) {
+            if (! isset($documents[$requirement->id])) {
+                continue;
+            }
             Validator::make(['file' => $documents[$requirement->id]], [
-                'file' => ['required', 'file', 'max:10240', 'mimes:'.implode(',', $requirement->allowed_extensions)],
+                'file' => ['required', 'file', 'max:10240', 'mimes:pdf'],
             ])->validate();
         }
 
@@ -132,6 +146,9 @@ class EventRequirementController extends Controller
             DB::transaction(function () use ($request, $event, $requirements, $documents, $previousApproval, &$storedPaths) {
                 EventRequirementFile::where('event_id', $event->id)->delete();
                 foreach ($requirements as $requirement) {
+                    if (! isset($documents[$requirement->id])) {
+                        continue;
+                    }
                     $file = $documents[$requirement->id];
                     $path = $file->store('event-requirements/'.$event->organization_id.'/'.$event->id, 'local');
                     $storedPaths[] = $path;

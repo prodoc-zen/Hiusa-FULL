@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
 use App\Models\EventRequirement;
+use App\Models\AcademicSemester;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Budget;
@@ -14,6 +15,7 @@ use App\Models\Notification;
 use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\Venue;
 use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
 use Carbon\Carbon;
@@ -42,6 +44,7 @@ class EventController extends Controller
             'status' => ['nullable', 'in:planning,approved,ongoing,completed,cancelled'],
             'date' => ['nullable', 'date_format:Y-m-d'],
             'sort' => ['nullable', 'in:start_asc,start_desc,newest,title'],
+            'academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id'],
         ]);
 
         $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
@@ -51,6 +54,10 @@ class EventController extends Controller
                 'tasks',
                 'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
             ]);
+        $selectedSemesterId = $paging['academic_semester_id'] ?? AcademicSemester::active()?->id;
+        if ($selectedSemesterId) {
+            $query->where('academic_semester_id', $selectedSemesterId);
+        }
 
         if ($user->role === 'DEPARTMENT_HEAD') {
             $submittedEventIds = ApprovalRequest::where('organization_id', $user->organization_id)
@@ -212,6 +219,10 @@ class EventController extends Controller
 
     public function store(Request $request)
     {
+        $activeSemester = AcademicSemester::active();
+        if (AcademicSemester::exists() && ! $activeSemester) {
+            return response()->json(['message' => 'SAO must activate an academic semester before new events can be created.'], 409);
+        }
         $data = $request->validate([
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
@@ -219,7 +230,9 @@ class EventController extends Controller
             'end_time' => ['required', 'date', 'after:start_time'],
             'location' => ['nullable', 'string', 'max:255'],
             'requires_budget' => ['boolean'],
-            'planning_details' => ['nullable', 'array:budget_notes,vendor_deadlines,logistics_checklist,event_type,expected_participants,requirements,resources,proposed_budget_amount,budget_warning_threshold'],
+            'planning_details' => ['nullable', 'array:budget_notes,vendor_deadlines,logistics_checklist,event_type,expected_participants,requirements,resources,proposed_budget_amount,budget_warning_threshold,venue_type,venue_id'],
+            'planning_details.venue_type' => ['nullable', 'in:on_campus,off_campus'],
+            'planning_details.venue_id' => ['nullable', 'integer'],
             'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
             'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
             'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
@@ -231,6 +244,21 @@ class EventController extends Controller
             'planning_details.budget_warning_threshold' => ['nullable', 'numeric', 'min:0'],
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
         ]);
+        if (data_get($data, 'planning_details.venue_type') === 'on_campus') {
+            $venue = Venue::whereKey(data_get($data, 'planning_details.venue_id'))->where('is_active', true)->first();
+            if (! $venue) {
+                return response()->json(['message' => 'Choose an active SAO on-campus venue.'], 422);
+            }
+            $data['location'] = $venue->name;
+        } elseif (data_get($data, 'planning_details.venue_type') === 'off_campus' && blank($data['location'] ?? null)) {
+            return response()->json(['message' => 'Enter the off-campus location.'], 422);
+        }
+        if ($activeSemester && (
+            substr($data['start_time'], 0, 10) < $activeSemester->starts_on->toDateString()
+            || substr($data['end_time'], 0, 10) > $activeSemester->ends_on->toDateString()
+        )) {
+            return response()->json(['message' => 'Event dates must fall within the active academic semester.'], 422);
+        }
 
         $proposedBudget = (float) data_get($data, 'planning_details.proposed_budget_amount', 0);
         $warningThreshold = (float) data_get($data, 'planning_details.budget_warning_threshold', 0);
@@ -249,16 +277,17 @@ class EventController extends Controller
             $data['image_url'] = Storage::disk('public')->url($request->file('image')->store('events', 'public'));
         }
 
-        $event = DB::transaction(function () use ($data, $request, $proposedBudget, $warningThreshold) {
+        $event = DB::transaction(function () use ($data, $request, $proposedBudget, $warningThreshold, $activeSemester) {
             $event = Event::create([
                 ...$data,
                 'requires_budget' => $data['requires_budget'] ?? false,
                 'status' => 'planning',
                 'created_by' => $request->user()->id,
                 'organization_id' => $request->user()->organization_id,
+                'academic_semester_id' => $activeSemester?->id,
             ]);
 
-            if (! EventRequirement::where('is_active', true)->exists()) {
+            if (! EventRequirement::forEvent($event)->where('is_active', true)->exists()) {
                 ApprovalRequest::create([
                     'organization_id' => $request->user()->organization_id,
                     'entity_type' => 'event',
@@ -306,6 +335,9 @@ class EventController extends Controller
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
+        if ($event->academic_semester_id && $event->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Historical semester events are read only.'], 409);
+        }
 
         if ($event->created_by !== $request->user()->id && $request->user()->role !== 'ADMIN') {
             return response()->json(['message' => 'You are not authorized to edit this event.'], 403);
@@ -319,7 +351,9 @@ class EventController extends Controller
             'location' => ['nullable', 'string', 'max:255'],
             'status' => ['sometimes', 'required', 'in:planning,approved,ongoing,completed,cancelled'],
             'requires_budget' => ['boolean'],
-            'planning_details' => ['nullable', 'array:budget_notes,vendor_deadlines,logistics_checklist,event_type,expected_participants,requirements,resources,proposed_budget_amount,budget_warning_threshold'],
+            'planning_details' => ['nullable', 'array:budget_notes,vendor_deadlines,logistics_checklist,event_type,expected_participants,requirements,resources,proposed_budget_amount,budget_warning_threshold,venue_type,venue_id'],
+            'planning_details.venue_type' => ['nullable', 'in:on_campus,off_campus'],
+            'planning_details.venue_id' => ['nullable', 'integer'],
             'planning_details.budget_notes' => ['nullable', 'string', 'max:5000'],
             'planning_details.vendor_deadlines' => ['nullable', 'string', 'max:5000'],
             'planning_details.logistics_checklist' => ['nullable', 'string', 'max:5000'],
@@ -332,6 +366,15 @@ class EventController extends Controller
             'image' => ['nullable', 'image', 'mimes:jpeg,png,webp', 'max:5120'],
             'remove_image' => ['sometimes', 'boolean'],
         ]);
+        if (data_get($data, 'planning_details.venue_type') === 'on_campus') {
+            $venue = Venue::whereKey(data_get($data, 'planning_details.venue_id'))->where('is_active', true)->first();
+            if (! $venue) {
+                return response()->json(['message' => 'Choose an active SAO on-campus venue.'], 422);
+            }
+            $data['location'] = $venue->name;
+        } elseif (data_get($data, 'planning_details.venue_type') === 'off_campus' && blank($data['location'] ?? null)) {
+            return response()->json(['message' => 'Enter the off-campus location.'], 422);
+        }
 
         $existingPlanning = $event->planning_details ?? [];
         $updatedPlanning = array_key_exists('planning_details', $data)
@@ -367,6 +410,12 @@ class EventController extends Controller
 
         if ($endTime->lte($startTime)) {
             return response()->json(['message' => 'End time must be after start time.'], 422);
+        }
+        if ($event->academic_semester_id) {
+            $semester = AcademicSemester::findOrFail($event->academic_semester_id);
+            if ($startTime->toDateString() < $semester->starts_on->toDateString() || $endTime->toDateString() > $semester->ends_on->toDateString()) {
+                return response()->json(['message' => 'Event dates must fall within its academic semester.'], 422);
+            }
         }
 
         if (($data['status'] ?? null) === 'approved' && ! $event->approved_at) {
@@ -411,7 +460,7 @@ class EventController extends Controller
 
     private function resubmitIfRejected(Event $event): void
     {
-        if (EventRequirement::where('is_active', true)->exists()) {
+        if (EventRequirement::forEvent($event)->where('is_active', true)->exists()) {
             return;
         }
         ApprovalRequest::where('entity_type', 'event')
@@ -452,7 +501,7 @@ class EventController extends Controller
 
     private function reopenApproval(Event $event, Request $request): void
     {
-        if (EventRequirement::where('is_active', true)->exists()) {
+        if (EventRequirement::forEvent($event)->where('is_active', true)->exists()) {
             return;
         }
         ApprovalRequest::where('entity_type', 'event')

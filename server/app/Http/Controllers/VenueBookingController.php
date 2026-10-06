@@ -56,7 +56,9 @@ class VenueBookingController extends Controller
     public function store(Request $request)
     {
         $data = $request->validate([
-            'venue_id' => ['required', 'integer', Rule::exists('venues', 'id')->where('is_active', true)],
+            'venue_type' => ['nullable', 'in:on_campus,off_campus'],
+            'venue_id' => [Rule::requiredIf($request->input('venue_type', 'on_campus') === 'on_campus'), 'nullable', 'integer', Rule::exists('venues', 'id')->where('is_active', true)],
+            'off_campus_location' => [Rule::requiredIf($request->input('venue_type') === 'off_campus'), 'nullable', 'string', 'max:255'],
             'event_id' => ['nullable', 'integer'],
             'start_time' => ['required', 'date'],
             'end_time' => ['required', 'date', 'after:start_time'],
@@ -76,14 +78,18 @@ class VenueBookingController extends Controller
             }
         }
 
-        $booking = DB::transaction(function () use ($data, $organizationId, $request) {
-            Venue::whereKey($data['venue_id'])->lockForUpdate()->first();
-            if ($this->hasApprovedOverlap($data['venue_id'], $data['start_time'], $data['end_time'], null, true)) {
-                return null;
+        $offCampus = ($data['venue_type'] ?? 'on_campus') === 'off_campus';
+        $booking = DB::transaction(function () use ($data, $organizationId, $request, $offCampus) {
+            if (! $offCampus) {
+                Venue::whereKey($data['venue_id'])->lockForUpdate()->first();
+                if ($this->hasApprovedOverlap($data['venue_id'], $data['start_time'], $data['end_time'], null, true)) {
+                    return null;
+                }
             }
 
             return VenueBooking::create([
-                'venue_id' => $data['venue_id'],
+                'venue_id' => $offCampus ? null : $data['venue_id'],
+                'off_campus_location' => $offCampus ? trim($data['off_campus_location']) : null,
                 'event_id' => $data['event_id'] ?? null,
                 'organization_id' => $organizationId,
                 'start_time' => $data['start_time'],
@@ -109,7 +115,7 @@ class VenueBookingController extends Controller
             'created_at' => now(),
         ]);
 
-        $venueName = Venue::find($data['venue_id'])?->name;
+        $venueName = $offCampus ? $data['off_campus_location'] : Venue::find($data['venue_id'])?->name;
         User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get(['school_id', 'organization_id'])
             ->each(fn (User $sao) => Notification::create([
                 'organization_id' => $sao->organization_id,
@@ -139,7 +145,7 @@ class VenueBookingController extends Controller
                 return ['conflict' => 'Only a pending booking can be reviewed.'];
             }
 
-            if ($data['status'] === 'approved') {
+            if ($data['status'] === 'approved' && $booking->venue_id) {
                 // Lock the venue row itself, not just this booking, so a
                 // concurrent approval of a different overlapping booking for
                 // the same venue cannot pass its own overlap check before
