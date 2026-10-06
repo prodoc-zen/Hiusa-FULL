@@ -14,39 +14,7 @@ class FinancialReportPdfService
 {
     public function render(FinancialReport $report, Collection $transactions, float $openingBalance): array
     {
-        $incomeTransactions = $transactions->where('type', 'income')->values();
-        $expenseTransactions = $transactions->where('type', 'expense')->values();
-        $incomeTotal = round((float) $incomeTransactions->sum('amount'), 2);
-        $expenseTotal = round((float) $expenseTransactions->sum('amount'), 2);
-        $periodNet = round($incomeTotal - $expenseTotal, 2);
-        $closingBalance = round($openingBalance + $periodNet, 2);
-
-        $incomeCategories = $this->categoryRows($incomeTransactions);
-        $expenseCategories = $this->categoryRows($expenseTransactions);
-        $documentType = $report->document_type ?: 'financial_report';
-        $documentLabel = $documentType === 'income_statement' ? 'Income Statement' : 'Financial Report';
-        $letter = $this->letterDetails($report, $documentLabel, $periodNet);
-        $letter['body_html'] = $this->formatLetterBody($letter['body']);
-
-        $html = view(
-            $documentType === 'income_statement' ? 'pdf.income-statement' : 'pdf.financial-report',
-            [
-                'report' => $report,
-                'organization' => $report->organization,
-                'letterheadDataUri' => $this->letterheadDataUri($report->letterhead_path),
-                'letter' => $letter,
-                'incomeTransactions' => $incomeTransactions,
-                'expenseTransactions' => $expenseTransactions,
-                'incomeCategories' => $incomeCategories,
-                'expenseCategories' => $expenseCategories,
-                'incomeTotal' => $incomeTotal,
-                'expenseTotal' => $expenseTotal,
-                'periodNet' => $periodNet,
-                'openingBalance' => round($openingBalance, 2),
-                'closingBalance' => $closingBalance,
-                'custody' => $report->custody_snapshot,
-            ],
-        )->render();
+        $html = $this->html($report, $transactions, $openingBalance);
 
         $options = new Options;
         $options->set('defaultFont', 'DejaVu Sans');
@@ -59,9 +27,55 @@ class FinancialReportPdfService
         $font = $dompdf->getFontMetrics()->getFont('DejaVu Sans', 'normal');
         $dompdf->getCanvas()->page_text(500, 812, 'Page {PAGE_NUM} of {PAGE_COUNT}', $font, 8, [0.39, 0.45, 0.55]);
 
-        $filename = Str::slug($report->title ?: $documentLabel).'-'.$report->id.'.pdf';
+        $filename = Str::slug($report->title ?: $this->documentLabel($report)).'-'.$report->id.'.pdf';
 
         return ['content' => $dompdf->output(), 'filename' => $filename];
+    }
+
+    public function html(FinancialReport $report, Collection $transactions, float $openingBalance): string
+    {
+        $statement = FinancialReportStatement::from($transactions, $openingBalance);
+        $ordinary = FinancialReportStatement::ordinary($transactions);
+        $incomeTransactions = $ordinary->where('type', 'income')->values();
+        $expenseTransactions = $ordinary->where('type', 'expense')->values();
+        $incomeTotal = $statement['totals']['income'];
+        $expenseTotal = $statement['totals']['expense'];
+        $periodNet = $statement['totals']['balance'];
+        $closingBalance = $statement['totals']['closing_balance'];
+
+        $incomeCategories = $this->categoryRows($incomeTransactions);
+        $expenseCategories = $this->categoryRows($expenseTransactions);
+        $documentType = $report->document_type ?: 'financial_report';
+        $letter = $this->letterDetails($report, $this->documentLabel($report), $periodNet);
+        $letter['body_html'] = $this->formatLetterBody($letter['body']);
+
+        return view(
+            $documentType === 'income_statement' ? 'pdf.income-statement' : 'pdf.financial-report',
+            [
+                'report' => $report,
+                'organization' => $report->organization,
+                'letterheadDataUri' => $this->letterheadDataUri($report->letterhead_path),
+                'letter' => $letter,
+                'incomeTransactions' => $incomeTransactions,
+                'expenseTransactions' => $expenseTransactions,
+                'cashAdvanceEntries' => FinancialReportStatement::cashAdvances($transactions),
+                'incomeCategories' => $incomeCategories,
+                'expenseCategories' => $expenseCategories,
+                'incomeTotal' => $incomeTotal,
+                'expenseTotal' => $expenseTotal,
+                'cashAdvancesReleased' => $statement['cash_advances']['released'],
+                'cashAdvanceRepayments' => $statement['cash_advances']['repayments'],
+                'periodNet' => $periodNet,
+                'openingBalance' => $statement['totals']['opening_balance'],
+                'closingBalance' => $closingBalance,
+                'custody' => $report->custody_snapshot,
+            ],
+        )->render();
+    }
+
+    private function documentLabel(FinancialReport $report): string
+    {
+        return ($report->document_type ?: 'financial_report') === 'income_statement' ? 'Income Statement' : 'Financial Report';
     }
 
     private function categoryRows(Collection $transactions): Collection

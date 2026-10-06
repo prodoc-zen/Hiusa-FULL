@@ -227,6 +227,7 @@ describe('FinancePage transaction search', () => {
     render(<FinancePage initialTab="reports" />);
 
     fireEvent.click(await screen.findByRole('radio', { name: /Income Statement/i }));
+    await screen.findByRole('option', { name: /Semester 2026-2027/ });
     fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
     expect(screen.getByLabelText('Letter body')).toBeInTheDocument();
     const header = new File(['header'], 'organization-header.png', { type: 'image/png' });
@@ -268,6 +269,8 @@ describe('FinancePage transaction search', () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 61, title: 'August report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
     financeMocks.getFinancialReport.mockResolvedValue({ data: {
       report: { opening_balance_snapshot: '20.00', custody_snapshot: { verified_collections: 100, recorded_remittances: 40 } },
+      totals: { opening_balance: 20, income: 100, expense: 0, balance: 100, closing_balance: 120 },
+      cash_advances: { released: 0, repayments: 0 },
       transactions: [{ id: 7, type: 'income', category: 'Fees', amount: '100.00', description: 'Membership', transaction_date: '2026-08-12' }],
     } });
     URL.createObjectURL = vi.fn(() => 'blob:report');
@@ -293,6 +296,72 @@ describe('FinancePage transaction search', () => {
     expect(click).toHaveBeenCalled();
     expect(click.mock.instances[0].download).toBe('hiusa-financial-report-61.xlsx');
     click.mockRestore();
+  }, 15000);
+
+  it('exports cash advances in their own section, apart from income and expense', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 62, title: 'October report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
+    financeMocks.getFinancialReport.mockResolvedValue({ data: {
+      report: { opening_balance_snapshot: '0.00', custody_snapshot: { verified_collections: 0, recorded_remittances: 0 } },
+      totals: { opening_balance: 0, income: 1000, expense: 325, balance: 675, closing_balance: 375 },
+      cash_advances: { released: 500, repayments: 200 },
+      transactions: [
+        { id: 7, type: 'income', category: 'Membership', amount: '1000.00', description: 'Fees', transaction_date: '2026-10-05', cash_advance: null },
+        { id: 8, type: 'expense', category: 'Cash Advance', amount: '500.00', description: 'Cash advance ADV-1', transaction_date: '2026-10-06', cash_advance: 'release' },
+        { id: 9, type: 'income', category: 'Cash Advance Repayment', amount: '200.00', description: 'Repayment for ADV-1', transaction_date: '2026-10-06', cash_advance: 'repayment' },
+      ],
+    } });
+    URL.createObjectURL = vi.fn(() => 'blob:report');
+    URL.revokeObjectURL = vi.fn();
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    render(<FinancePage initialTab="reports" />);
+    await screen.findByText('October report');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 12000 });
+    const workbookBuffer = await new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.readAsArrayBuffer(URL.createObjectURL.mock.calls[0][0]);
+    });
+    const { default: ExcelJS } = await import('exceljs');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(workbookBuffer);
+    const rows = [];
+    workbook.getWorksheet('Report').eachRow((row, number) => {
+      if (number > 1) rows.push({ section: row.getCell(1).value, item: row.getCell(2).value, amount: row.getCell(4).value });
+    });
+    const amountOf = (section, item) => rows.find((row) => row.section === section && row.item === item)?.amount;
+    expect(amountOf('Totals', 'Income')).toBe(1000);
+    expect(amountOf('Totals', 'Expenses')).toBe(325);
+    expect(amountOf('Totals', 'Net activity')).toBe(675);
+    expect(amountOf('Totals', 'Closing balance')).toBe(375);
+    expect(amountOf('Cash advances', 'Cash advances released')).toBe(500);
+    expect(amountOf('Cash advances', 'Cash advance repayments')).toBe(200);
+    expect(amountOf('Cash advance entry', 'Cash Advance (expense)')).toBe(500);
+    expect(amountOf('Cash advance entry', 'Cash Advance Repayment (income)')).toBe(200);
+    expect(amountOf('Ledger transaction', 'Membership (income)')).toBe(1000);
+    click.mockRestore();
+  }, 15000);
+
+  it('shows the cash advances beside a generated report without adding them to income or expense', async () => {
+    financeMocks.generateFinancialReport.mockResolvedValue({ data: {
+      report: { id: 53, document_type: 'financial_report', title: 'October Financial Report', summary_text: 'Recorded totals.' },
+      totals: { income: 1000, expense: 325, balance: 675, opening_balance: 0, closing_balance: 375 },
+      cash_advances: { released: 500, repayments: 200 },
+      transactions: [], audit_logs: [], budget_advisories: [],
+    } });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [{ id: 3, name: 'Semester 2026-2027', starts_on: '2026-06-01', ends_on: '2026-09-27' }] });
+    render(<FinancePage initialTab="reports" />);
+    await screen.findByRole('option', { name: /Semester 2026-2027/ });
+    fireEvent.change(await screen.findByRole('combobox', { name: 'Semester' }), { target: { value: '3' } });
+    for (const title of ['Treasurer', 'President', 'Adviser', 'SBO Adviser']) {
+      fireEvent.change(screen.getByPlaceholderText(`${title} full name`), { target: { value: `${title} Name` } });
+    }
+    fireEvent.click(screen.getByRole('button', { name: 'Generate Financial Report' }));
+
+    expect(await screen.findByText(/Cash advances released:/, {}, { timeout: 8000 })).toHaveTextContent('Cash advances released: ₱500.00 · Cash advance repayments: ₱200.00. Money lent out and returned is not income or expense.');
+    expect(screen.getByText('Income')).toHaveTextContent('₱1,000.00');
+    expect(screen.getByText('Expenses')).toHaveTextContent('₱325.00');
+  // Rendering the generated report can outlast the default waits under a full parallel run.
   }, 15000);
 
   it('submits a budget for the selected financial semester', async () => {
