@@ -42,6 +42,7 @@ export default function AcademicYearsPage() {
   const [semesterErrors, setSemesterErrors] = useState({});
   const [semesterDeleteTarget, setSemesterDeleteTarget] = useState(null);
   const [semesterDeleteError, setSemesterDeleteError] = useState(null);
+  const [yearDeleteError, setYearDeleteError] = useState('');
 
   const load = useCallback(async () => {
     setYears((current) => ({ ...current, loading: true, error: '' }));
@@ -100,14 +101,14 @@ export default function AcademicYearsPage() {
 
   async function confirmDelete() {
     setBusy(true);
+    setYearDeleteError('');
     try {
       await deleteAcademicYear(deleteTarget.id);
       notify.success(`${deleteTarget.label} removed`);
       setDeleteTarget(null);
       await load();
     } catch (cause) {
-      notify.error(getApiErrorMessage(cause, 'The academic year was not removed.'));
-      setDeleteTarget(null);
+      setYearDeleteError(getApiErrorMessage(cause, 'The academic year was not removed.'));
     } finally {
       setBusy(false);
     }
@@ -168,7 +169,6 @@ export default function AcademicYearsPage() {
       await load();
     } catch (cause) {
       setSemesterDeleteError({ message: getApiErrorMessage(cause, 'The semester was not removed.'), reasons: cause?.response?.data?.reasons || [] });
-      setSemesterDeleteTarget(null);
     } finally {
       setBusy(false);
     }
@@ -209,10 +209,10 @@ export default function AcademicYearsPage() {
           onRetry={load}
           actions={(year) => (
             <div className="flex justify-end gap-1.5">
-              {!year.is_current && !year.closed_at && <Button size="sm" variant="secondary" onClick={() => setCurrentTarget(year)}>Make current</Button>}
-              {year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && <Button size="sm" variant="secondary" onClick={() => setCloseYearTarget(year)}>Close year</Button>}
-              <Button size="sm" variant="secondary" onClick={() => openModal(year)}>Edit</Button>
-              {!year.is_current && <IconButton icon={Trash2} label={`Remove ${year.label}`} variant="danger" onClick={() => setDeleteTarget(year)} />}
+              {!year.is_current && !year.closed_at && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => setCurrentTarget(year)}>Make current</Button>}
+              {year.is_current && year.semesters?.length === 2 && year.semesters.every((semester) => semester.status === 'completed') && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => setCloseYearTarget(year)}>Close year</Button>}
+              <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => openModal(year)}>Edit</Button>
+              {!year.is_current && <IconButton icon={Trash2} label={`Remove ${year.label}`} variant="danger" onClick={() => { setYearDeleteError(''); setDeleteTarget(year); }} />}
             </div>
           )}
           emptyState={(
@@ -228,21 +228,15 @@ export default function AcademicYearsPage() {
       </Card>
 
       <Card title="Semesters" description="Activating a semester completes the previous active semester and sets its academic year as current.">
-        {semesterDeleteError && (
-          <div role="alert" className="mb-3 rounded-control bg-danger-tint p-3 text-sm font-semibold text-danger-strong">
-            <p>{semesterDeleteError.message}</p>
-            {semesterDeleteError.reasons.length > 0 && <ul className="mt-1 list-disc pl-5 font-medium">{semesterDeleteError.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
-          </div>
-        )}
         {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
-            {(year.semesters || []).length < 2 && <Button size="sm" variant="secondary" onClick={() => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); }}>Add semester</Button>}
+            {(year.semesters || []).length < 2 && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" onClick={() => { setSemesterYear(year); setSemesterErrors({}); setSemesterForm({ ...EMPTY_SEMESTER, number: year.semesters?.some((item) => item.number === 1) ? '2' : '1' }); }}>Add semester</Button>}
           </div>
           <div className="mt-2 space-y-2">{(year.semesters || []).map((semester) => <div key={semester.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-line-soft px-3 py-2">
             <div><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="ml-2 text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><span className="ml-2 text-xs font-semibold capitalize text-ink-muted">{semester.status}</span></div>
-            {semester.status === 'upcoming' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>Set as active</Button>}
-            {semester.status === 'active' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'close')}>Close semester</Button>}
+            {semester.status === 'upcoming' && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>Set as active</Button>}
+            {semester.status === 'active' && <Button size="sm" variant="secondary" className="max-sm:h-[42px]" disabled={busy} onClick={() => changeSemester(semester, 'close')}>Close semester</Button>}
             {semester.status !== 'active' && <IconButton icon={Trash2} label={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} variant="danger" disabled={busy} onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }} />}
           </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
         </div>)}
@@ -312,20 +306,27 @@ export default function AcademicYearsPage() {
       <ConfirmModal
         open={Boolean(semesterDeleteTarget)}
         title="Delete semester"
-        message="Semesters that already have events, tasks or requirements attached cannot be deleted."
+        message="The semester is removed from the calendar. This cannot be undone. A semester that already has events, tasks or requirements attached cannot be deleted."
         recordName={semesterDeleteTarget ? `${semesterDeleteTarget.number === 1 ? '1st' : '2nd'} Semester, AY ${semesterDeleteTarget.yearLabel}` : undefined}
         confirmText="Delete semester"
         busy={busy}
+        error={semesterDeleteError && (
+          <>
+            <p>{semesterDeleteError.message}</p>
+            {semesterDeleteError.reasons.length > 0 && <ul className="mt-1 list-disc pl-5 font-medium">{semesterDeleteError.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+          </>
+        )}
         onCancel={() => !busy && setSemesterDeleteTarget(null)}
         onConfirm={confirmSemesterDelete}
       />
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Remove academic year"
-        message="Years that already label requirements or clearance periods stay on the calendar."
+        message="The academic year is removed from the calendar. This cannot be undone. A year that already has semesters, requirements or clearance periods cannot be removed."
         recordName={deleteTarget?.label}
         confirmText="Remove year"
         busy={busy}
+        error={yearDeleteError}
         onCancel={() => !busy && setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />

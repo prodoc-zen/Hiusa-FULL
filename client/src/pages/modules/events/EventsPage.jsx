@@ -447,7 +447,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       load();
     } catch (requestError) {
       setDeleteError(getApiErrorMessage(requestError, 'This event could not be deleted.'));
-      setEventToDelete(null);
     } finally {
       setDeleteBusy(false);
     }
@@ -947,7 +946,6 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
             </select>
           </label>}
           {viewingHistory && <p className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
-          {deleteError && <p role="alert" className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{deleteError}</p>}
           <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">All Events</h2>
@@ -1892,11 +1890,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       <ConfirmModal
         open={Boolean(eventToDelete)}
         title="Delete this event?"
-        message="This cannot be undone. Its approval request and submitted requirement files are removed with it."
+        message="Its tasks, attendance records, registrations, approval request and requirement files are deleted too. Venue bookings are kept but unlinked. This cannot be undone."
         recordName={eventToDelete?.title}
         confirmText="Delete event"
         variant="danger"
         busy={deleteBusy}
+        error={deleteError}
         onCancel={() => setEventToDelete(null)}
         onConfirm={confirmDeleteEvent}
       />

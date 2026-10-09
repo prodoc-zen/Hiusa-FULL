@@ -433,7 +433,8 @@ describe('FinancePage deleting budgets and transactions', () => {
     financeMocks.deleteBudget.mockRejectedValue({ response: { status: 409, data: { message: 'Cannot delete a budget that has existing transactions. Remove all transactions first.' } } });
     await confirmBudgetDelete();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot delete a budget that has existing transactions. Remove all transactions first.');
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this budget?' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Cannot delete a budget that has existing transactions. Remove all transactions first.');
     expect(financeMocks.getBudgets).toHaveBeenCalledTimes(1);
   });
 
@@ -449,7 +450,8 @@ describe('FinancePage deleting budgets and transactions', () => {
     financeMocks.deleteTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
     await confirmTransactionDelete();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Change it from Collections.');
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Change it from Collections.');
   });
 
   it('hides delete controls from roles that cannot write finance', async () => {

@@ -39,12 +39,27 @@ describe('DepartmentHeadHomePage', () => {
 
     const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
     const section = heading.closest('section');
-    const count = (label) => within(section).getByText(label).closest('div').querySelector('dd').textContent;
-    expect(count('Active')).toBe('2');
-    expect(count('Pending review')).toBe('1');
-    expect(count('Returned')).toBe('1');
-    expect(count('Archived')).toBe('0');
+    const tiles = within(section).getAllByRole('link').filter((link) => link.getAttribute('href').includes('?status='));
+    expect(tiles.map((tile) => tile.textContent)).toEqual(['ReturnedAction needed1', 'Pending review1', 'Active2', 'Archived0']);
+    expect(tiles.map((tile) => tile.getAttribute('href'))).toEqual([
+      '/dashboard/department-head/organizations?status=returned',
+      '/dashboard/department-head/organizations?status=pending',
+      '/dashboard/department-head/organizations?status=active',
+      '/dashboard/department-head/organizations?status=archived',
+    ]);
+    expect(tiles[0]).toHaveClass('bg-danger-tint');
+    expect(tiles[1]).not.toHaveClass('bg-danger-tint');
     expect(within(section).getByRole('link', { name: 'Manage organizations' })).toHaveAttribute('href', '/dashboard/department-head/organizations');
+  });
+
+  it('does not highlight Returned when nothing is returned', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([org(1, 'active')]));
+    renderPage();
+
+    const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+    const returned = within(heading.closest('section')).getByRole('link', { name: /^Returned/ });
+    expect(returned).not.toHaveClass('bg-danger-tint');
+    expect(within(returned).queryByText('Action needed')).not.toBeInTheDocument();
   });
 
   it('keeps the existing oversight snapshot', async () => {
