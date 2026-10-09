@@ -363,4 +363,96 @@ class GrievanceTest extends TestCase
         $this->getJson('/api/grievances?category=Financial+Integrity')->assertOk()->assertJsonCount(1, 'data');
         $this->getJson('/api/grievances?per_page=1')->assertOk()->assertJsonPath('per_page', 1)->assertJsonCount(1, 'data');
     }
+
+    private function grievance(User $filer, array $overrides = []): Grievance
+    {
+        return Grievance::create($overrides + [
+            'organization_id' => $filer->organization_id,
+            'submitted_by' => $filer->school_id,
+            'is_anonymous' => false,
+            'title' => 'Leaking roof',
+            'description' => 'The roof leaks in the org room.',
+            'category' => 'Facilities & Maintenance',
+            'urgency' => 'Low',
+            'status' => 'submitted',
+        ]);
+    }
+
+    public function test_filer_can_delete_own_unreviewed_grievance_and_its_notifications_are_removed(): void
+    {
+        Http::fake(['*' => Http::response(['error' => 'unavailable'], 503)]);
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+        $grievanceId = $this->postJson('/api/grievances', [
+            'title' => 'Filed by mistake', 'description' => 'Wrong office entirely.', 'addressed_to' => 'organization',
+        ])->assertCreated()->json('id');
+        $this->assertDatabaseHas('notifications', ['user_id' => $superAdmin->school_id, 'reference_type' => 'grievance', 'reference_id' => $grievanceId]);
+        $this->assertDatabaseHas('notifications', ['user_id' => $admin->school_id, 'reference_type' => 'grievance', 'reference_id' => $grievanceId]);
+
+        $this->deleteJson("/api/grievances/{$grievanceId}")->assertOk()->assertExactJson(['message' => 'Grievance deleted.']);
+
+        $this->assertDatabaseMissing('grievances', ['id' => $grievanceId]);
+        $this->assertDatabaseMissing('notifications', ['reference_type' => 'grievance', 'reference_id' => $grievanceId]);
+        $this->assertDatabaseHas('audit_logs', ['module' => 'grievances', 'action' => 'grievance_deleted', 'record_type' => Grievance::class, 'record_id' => $grievanceId, 'actor_role' => 'STUDENT', 'user_id' => null, 'organization_id' => null]);
+    }
+
+    public function test_filer_can_delete_an_anonymous_grievance_without_the_response_naming_them(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        $grievance = $this->grievance($student, ['is_anonymous' => true]);
+        Sanctum::actingAs($student);
+
+        $response = $this->deleteJson("/api/grievances/{$grievance->id}")->assertOk();
+
+        $this->assertStringNotContainsString((string) $student->school_id, $response->getContent());
+        $this->assertDatabaseMissing('grievances', ['id' => $grievance->id]);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'grievance_deleted', 'record_id' => $grievance->id, 'user_id' => null]);
+    }
+
+    public function test_another_student_cannot_delete_a_grievance_they_did_not_file(): void
+    {
+        $organization = Organization::factory()->create();
+        $filer = $this->user('STUDENT', $organization->id);
+        $other = $this->user('STUDENT', $organization->id);
+        $grievance = $this->grievance($filer);
+        Sanctum::actingAs($other);
+
+        $this->deleteJson("/api/grievances/{$grievance->id}")->assertNotFound()->assertJsonPath('message', 'Grievance not found.');
+
+        $this->assertDatabaseHas('grievances', ['id' => $grievance->id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'grievance_deleted']);
+    }
+
+    public function test_a_grievance_that_is_no_longer_submitted_cannot_be_deleted(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($student);
+
+        foreach (['under_review', 'resolved', 'dismissed'] as $status) {
+            $grievance = $this->grievance($student, ['status' => $status]);
+            $this->deleteJson("/api/grievances/{$grievance->id}")
+                ->assertStatus(409)
+                ->assertJsonPath('message', 'Only grievances that have not been reviewed can be deleted.');
+            $this->assertDatabaseHas('grievances', ['id' => $grievance->id, 'status' => $status]);
+        }
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'grievance_deleted']);
+    }
+
+    public function test_sao_and_organization_admin_cannot_delete_a_grievance(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        $grievance = $this->grievance($student);
+
+        foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] as $role) {
+            Sanctum::actingAs($this->user($role, $organization->id));
+            $this->deleteJson("/api/grievances/{$grievance->id}")->assertForbidden();
+        }
+        $this->assertDatabaseHas('grievances', ['id' => $grievance->id]);
+    }
 }

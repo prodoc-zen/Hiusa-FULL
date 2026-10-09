@@ -139,6 +139,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::post('/system/announcements', [GlobalAnnouncementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/announcements/{announcement}', [GlobalAnnouncementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/announcements/{announcement}/archive', [GlobalAnnouncementController::class, 'archive'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/system/announcements/{announcement}', [GlobalAnnouncementController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
 
     // DigitalPersona capture is performed in the browser. Laravel sends the
     // transient PNG samples to the private SourceAFIS service and stores only
@@ -322,6 +323,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
+    Route::delete('/grievances/{grievance}', [GrievanceController::class, 'destroy'])->middleware(['throttle:api-write', 'role:STUDENT']);
 
     // Digital clearances: SUPER_ADMIN defines a period's required signatory
     // roles. The "sao" role is university-wide and signed only by
@@ -329,6 +331,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // ADMIN or SBO_OFFICER. See ClearanceController docblock.
     Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::post('/clearance-periods', [ClearanceController::class, 'periodsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/clearance-periods/{clearancePeriod}', [ClearanceController::class, 'periodsDestroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
     Route::get('/clearances/mine', [ClearanceController::class, 'mine'])->middleware(['throttle:api-read', 'role:STUDENT']);
     Route::get('/clearance-signatures', [ClearanceController::class, 'signaturesIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
