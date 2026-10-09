@@ -143,7 +143,7 @@ class ObjectivesEvidenceService
             'SO2.3',
             'Task management',
             'Determine the mechanisms or techniques for AI-integrated task management.',
-            'Rule-Based Weighted Scoring of role relevance, workload and past performance, with a decision-support ranking an officer can override.',
+            'Rule-Based Weighted Scoring of role relevance (0.35), workload (0.30), past performance (0.20, completed over completed plus overdue tasks) and assignment recency (0.15), with a decision-support ranking an officer can override.',
             [
                 $this->metric('Officer scores calculated for delegation', (clone $recommendations)->count(), 'count', '/dashboard/tasks/ai-delegation'),
                 $this->metric('Tasks delegated with a recorded ranking', $this->scoped(DB::table('tasks'), $orgIds)->whereNotNull('delegation_snapshot')->count(), 'count', '/dashboard/tasks/task-board'),

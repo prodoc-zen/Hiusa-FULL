@@ -69,12 +69,14 @@ class DashboardBriefingTest extends TestCase
         ]);
 
         // Budget at 85% utilization.
-        Budget::factory()->create([
+        $foundationBudget = Budget::factory()->create([
             'organization_id' => $organization->id,
             'title' => 'Foundation Week Budget',
             'allocated_amount' => 1000,
             'remaining_amount' => 150,
+            'submission_status' => 'approved',
         ]);
+        $this->linkedEntry($foundationBudget, 'expense', 850, $admin);
 
         // Overdue task.
         Task::factory()->create([
@@ -126,7 +128,8 @@ class DashboardBriefingTest extends TestCase
 
         $orgA = Organization::factory()->create(['name' => 'Org Alpha', 'acronym' => 'ALPHA']);
         $orgB = Organization::factory()->create(['name' => 'Org Beta', 'acronym' => 'BETA']);
-        Budget::factory()->create(['organization_id' => $orgA->id, 'allocated_amount' => 1000, 'remaining_amount' => 200]);
+        $alphaBudget = Budget::factory()->create(['organization_id' => $orgA->id, 'allocated_amount' => 1000, 'remaining_amount' => 200, 'submission_status' => 'approved']);
+        $this->linkedEntry($alphaBudget, 'expense', 800, $director);
         Election::factory()->create(['organization_id' => $orgB->id, 'status' => 'active', 'start_time' => now()->subDay(), 'end_time' => now()->addDay()]);
 
         Sanctum::actingAs($director);
@@ -770,6 +773,61 @@ class DashboardBriefingTest extends TestCase
         $this->assertStringContainsString('"Leadership Seminar" ended', $items[0]['detail']);
         $this->assertStringContainsString('still marked Ongoing', $items[0]['detail']);
         $this->assertSame('/dashboard/events/manage-events', $items[0]['href']);
+    }
+
+    public function test_budget_attention_and_the_overview_measure_approved_budgets_by_recorded_spending(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        $approved = Budget::factory()->create(['organization_id' => $organization->id, 'title' => 'Approved Budget', 'allocated_amount' => 10000, 'remaining_amount' => 2500, 'submission_status' => 'approved']);
+        $this->linkedEntry($approved, 'expense', 9500, $admin);
+        $this->linkedEntry($approved, 'income', 2000, $admin);
+        Budget::factory()->create(['organization_id' => $organization->id, 'title' => 'Draft Budget', 'allocated_amount' => 1000, 'remaining_amount' => 0, 'submission_status' => 'draft']);
+        Budget::factory()->create(['organization_id' => $organization->id, 'title' => 'Rejected Budget', 'allocated_amount' => 1000, 'remaining_amount' => 0, 'submission_status' => 'rejected']);
+
+        Sanctum::actingAs($admin);
+        $items = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->where('type', 'budget_utilization');
+        $this->assertCount(1, $items);
+        $this->assertStringContainsString('Approved Budget', $items->first()['detail']);
+        $this->assertStringContainsString('95%', $items->first()['detail']);
+        $this->assertSame('high', $items->first()['severity']);
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($director);
+        $row = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('organizations'))->firstWhere('id', $organization->id);
+        $this->assertEqualsWithDelta(95.0, $row['budget_utilization_percent'], 0.01);
+    }
+
+    public function test_a_notification_scheduled_for_later_is_not_counted_unread_in_the_briefing_or_the_bell(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        $base = ['user_id' => $admin->school_id, 'organization_id' => $organization->id, 'title' => 'Notice', 'message' => 'Body', 'is_read' => false, 'notification_type' => 'task'];
+        $stamps = ['created_at' => now(), 'updated_at' => now()];
+        DB::table('notifications')->insert([...$base, ...$stamps, 'scheduled_at' => now()->addWeek()]);
+        DB::table('notifications')->insert([...$base, ...$stamps, 'reference_type' => 'App\\Models\\EvaluationWindow', 'reference_id' => 1]);
+        DB::table('notifications')->insert([...$base, ...$stamps, 'scheduled_at' => now()->subMinute()]);
+        Sanctum::actingAs($admin);
+
+        $this->assertSame(1, $this->getJson('/api/notifications')->assertOk()->json('unread_count'));
+        $this->assertStringContainsString('1 unread notification(s)', $this->getJson('/api/dashboard/briefing')->assertOk()->json('pillars.communication.context'));
+    }
+
+    public function test_the_headline_uses_the_real_count_when_more_items_exist_than_are_listed(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active']);
+        foreach (range(1, 20) as $i) {
+            Task::factory()->create(['organization_id' => $organization->id, 'status' => 'overdue', 'deadline' => now()->subDays($i)]);
+        }
+        Sanctum::actingAs($admin);
+
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+
+        $this->assertCount(8, $response->json('attention'));
+        $this->assertSame('20 overdue tasks need you today.', $response->json('summary.headline'));
     }
 
     public function test_headlines_read_as_plain_sentences_and_count_whole_queues(): void

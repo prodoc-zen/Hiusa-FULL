@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
+use App\Services\NotificationVisibility;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -293,6 +294,21 @@ class DashboardBriefingService
         return array_slice($items, 0, self::ATTENTION_LIMIT);
     }
 
+    /**
+     * Builders list at most ATTENTION_LIMIT rows, so when a list is full the
+     * real size of its queue is counted once and carried on every item as
+     * type_total for the headline.
+     */
+    private function overflowTotal(int $shown, $query): ?int
+    {
+        return $shown >= self::ATTENTION_LIMIT ? (clone $query)->count() : null;
+    }
+
+    private function withTotal(array $items, ?int $total): array
+    {
+        return $total === null ? $items : array_map(fn (array $item) => $item + ['type_total' => $total], $items);
+    }
+
     private function headline(array $attention): string
     {
         if ($attention === []) {
@@ -307,7 +323,10 @@ class DashboardBriefingService
                 default => 2,
             });
 
-        $weight = fn ($items) => $items->sum(fn (array $item) => $item['count'] ?? 1);
+        $weight = fn ($items) => max(
+            $items->sum(fn (array $item) => $item['count'] ?? 1),
+            $items->max(fn (array $item) => $item['type_total'] ?? 0),
+        );
         $clauses = [];
         $named = 0;
         foreach ($bySeverity as $type => $items) {
@@ -359,9 +378,9 @@ class DashboardBriefingService
             $query->whereIn('organization_id', $organizationIds);
         }
 
-        $approvals = $query->orderBy('requested_at')->limit(self::ATTENTION_LIMIT)->get();
+        $approvals = (clone $query)->orderBy('requested_at')->limit(self::ATTENTION_LIMIT)->get();
 
-        return $approvals->map(function (ApprovalRequest $approval) use ($href) {
+        return $this->withTotal($approvals->map(function (ApprovalRequest $approval) use ($href) {
             $ageHours = now()->diffInHours($approval->requested_at);
             $requesterName = trim(($approval->requester->first_name ?? '').' '.($approval->requester->last_name ?? ''));
 
@@ -374,17 +393,17 @@ class DashboardBriefingService
                 'due_at' => null,
                 'href' => $href,
             ];
-        })->all();
+        })->all(), $this->overflowTotal($approvals->count(), $query));
     }
 
     private function electionsClosingAttention(int $organizationId, ?string $href): array
     {
-        $rows = DB::table('elections')->where('organization_id', $organizationId)
+        $query = DB::table('elections')->where('organization_id', $organizationId)
             ->where('status', 'active')
-            ->whereBetween('end_time', [now(), now()->addHours(72)])
-            ->orderBy('end_time')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'end_time']);
+            ->whereBetween('end_time', [now(), now()->addHours(72)]);
+        $rows = (clone $query)->orderBy('end_time')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'end_time']);
 
-        return $rows->map(function ($row) use ($href) {
+        return $this->withTotal($rows->map(function ($row) use ($href) {
             $endTime = Carbon::parse($row->end_time);
             $hoursLeft = ($endTime->timestamp - now()->timestamp) / 3600;
 
@@ -397,24 +416,27 @@ class DashboardBriefingService
                 'due_at' => $endTime->toIso8601String(),
                 'href' => $href,
             ];
-        })->all();
+        })->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     private function budgetUtilizationAttention(int $organizationId, ?string $href): array
     {
         $rows = DB::table('budgets')->where('organization_id', $organizationId)
+            ->where('submission_status', 'approved')
             ->where('allocated_amount', '>', 0)
-            ->get(['id', 'title', 'allocated_amount', 'remaining_amount']);
+            ->get(['id', 'title', 'allocated_amount']);
+        $spending = $this->approvedBudgetSpending([$organizationId]);
 
-        $flagged = $rows->map(function ($row) {
+        $flagged = $rows->map(function ($row) use ($spending) {
             $allocated = (float) $row->allocated_amount;
-            $remaining = $row->remaining_amount !== null ? (float) $row->remaining_amount : $allocated;
-            $utilization = (($allocated - $remaining) / $allocated) * 100;
+            $utilization = ((float) ($spending[$row->id] ?? 0) / $allocated) * 100;
 
             return $utilization >= 80 ? ['row' => $row, 'utilization' => $utilization] : null;
-        })->filter()->sortByDesc('utilization')->take(self::ATTENTION_LIMIT);
+        })->filter()->sortByDesc('utilization');
+        $total = $flagged->count();
+        $flagged = $flagged->take(self::ATTENTION_LIMIT);
 
-        return $flagged->map(function (array $item) use ($href) {
+        return $this->withTotal($flagged->map(function (array $item) use ($href) {
             $row = $item['row'];
 
             return [
@@ -426,7 +448,7 @@ class DashboardBriefingService
                 'due_at' => null,
                 'href' => $href,
             ];
-        })->values()->all();
+        })->values()->all(), $total >= self::ATTENTION_LIMIT ? $total : null);
     }
 
     private function overdueTasksAttention(int $organizationId, ?string $href, ?int $assignedTo = null): array
@@ -435,9 +457,9 @@ class DashboardBriefingService
         if ($assignedTo !== null) {
             $query->where('assigned_to', $assignedTo);
         }
-        $rows = $query->orderBy('deadline')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'deadline']);
+        $rows = (clone $query)->orderBy('deadline')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'deadline']);
 
-        return $rows->map(function ($row) use ($href) {
+        return $this->withTotal($rows->map(function ($row) use ($href) {
             $deadline = Carbon::parse($row->deadline);
 
             return [
@@ -449,20 +471,18 @@ class DashboardBriefingService
                 'due_at' => $deadline->toIso8601String(),
                 'href' => $href,
             ];
-        })->all();
+        })->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     /** Events whose end has passed but that are still marked approved or ongoing, so attendance and reports never close. */
     private function staleEventsAttention(int $organizationId, ?string $href): array
     {
-        $rows = DB::table('events')->where('organization_id', $organizationId)
+        $query = DB::table('events')->where('organization_id', $organizationId)
             ->whereIn('status', ['approved', 'ongoing'])
-            ->where('end_time', '<', now())
-            ->orderBy('end_time')
-            ->limit(self::ATTENTION_LIMIT)
-            ->get(['id', 'title', 'status', 'end_time']);
+            ->where('end_time', '<', now());
+        $rows = (clone $query)->orderBy('end_time')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'status', 'end_time']);
 
-        return $rows->map(function ($row) use ($href) {
+        return $this->withTotal($rows->map(function ($row) use ($href) {
             $endedAt = Carbon::parse($row->end_time);
 
             return [
@@ -474,17 +494,17 @@ class DashboardBriefingService
                 'due_at' => $endedAt->toIso8601String(),
                 'href' => $href,
             ];
-        })->all();
+        })->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     private function dueSoonTasksAttention(int $organizationId, int $assignedTo, ?string $href): array
     {
-        $rows = DB::table('tasks')->where('organization_id', $organizationId)->where('assigned_to', $assignedTo)
+        $query = DB::table('tasks')->where('organization_id', $organizationId)->where('assigned_to', $assignedTo)
             ->whereIn('status', ['pending', 'in_progress'])
-            ->whereBetween('deadline', [now(), now()->addDays(3)])
-            ->orderBy('deadline')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'deadline']);
+            ->whereBetween('deadline', [now(), now()->addDays(3)]);
+        $rows = (clone $query)->orderBy('deadline')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'deadline']);
 
-        return $rows->map(function ($row) use ($href) {
+        return $this->withTotal($rows->map(function ($row) use ($href) {
             $deadline = Carbon::parse($row->deadline);
 
             return [
@@ -496,18 +516,19 @@ class DashboardBriefingService
                 'due_at' => $deadline->toIso8601String(),
                 'href' => $href,
             ];
-        })->all();
+        })->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     private function financialReportsAttention(int $organizationId, ?string $href): array
     {
         $items = [];
 
-        $rejected = DB::table('financial_reports')->where('organization_id', $organizationId)
-            ->where('submission_status', 'rejected')
-            ->orderByDesc('generated_at')->limit(self::ATTENTION_LIMIT)->get(['id', 'title']);
+        $rejectedQuery = DB::table('financial_reports')->where('organization_id', $organizationId)
+            ->where('submission_status', 'rejected');
+        $rejected = (clone $rejectedQuery)->orderByDesc('generated_at')->limit(self::ATTENTION_LIMIT)->get(['id', 'title']);
+        $rejectedTotal = $this->overflowTotal($rejected->count(), $rejectedQuery);
         foreach ($rejected as $row) {
-            $items[] = [
+            $items[] = $this->withTotal([[
                 'id' => 'financial_report-'.$row->id,
                 'type' => 'financial_report_returned',
                 'severity' => 'high',
@@ -515,7 +536,7 @@ class DashboardBriefingService
                 'detail' => "\"{$row->title}\" was returned and needs revision",
                 'due_at' => null,
                 'href' => $href,
-            ];
+            ]], $rejectedTotal)[0];
         }
 
         $deadline = DB::table('financial_report_deadlines')->orderByDesc('id')->first();
@@ -545,12 +566,12 @@ class DashboardBriefingService
 
     private function ordersToVerifyAttention(int $organizationId, ?string $href): array
     {
-        $rows = DB::table('orders')->where('organization_id', $organizationId)
+        $query = DB::table('orders')->where('organization_id', $organizationId)
             ->where('status', 'pending')->where('officer_review_status', 'pending')
-            ->whereNotNull('payment_proof_url')
-            ->orderBy('updated_at')->limit(self::ATTENTION_LIMIT)->get(['id', 'total_price']);
+            ->whereNotNull('payment_proof_url');
+        $rows = (clone $query)->orderBy('updated_at')->limit(self::ATTENTION_LIMIT)->get(['id', 'total_price']);
 
-        return $rows->map(fn ($row) => [
+        return $this->withTotal($rows->map(fn ($row) => [
             'id' => 'order-'.$row->id,
             'type' => 'order_verification',
             'severity' => 'medium',
@@ -558,17 +579,17 @@ class DashboardBriefingService
             'detail' => 'Order ORD-'.$row->id.' (₱'.number_format((float) $row->total_price, 2).') is awaiting review',
             'due_at' => null,
             'href' => $href,
-        ])->all();
+        ])->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     private function eventsTodayAttention(int $organizationId, ?string $href): array
     {
-        $rows = DB::table('events')->where('organization_id', $organizationId)
+        $query = DB::table('events')->where('organization_id', $organizationId)
             ->whereIn('status', ['approved', 'ongoing'])
-            ->whereBetween('start_time', [now()->startOfDay(), now()->endOfDay()])
-            ->orderBy('start_time')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'start_time']);
+            ->whereBetween('start_time', [now()->startOfDay(), now()->endOfDay()]);
+        $rows = (clone $query)->orderBy('start_time')->limit(self::ATTENTION_LIMIT)->get(['id', 'title', 'start_time']);
 
-        return $rows->map(function ($row) use ($href) {
+        return $this->withTotal($rows->map(function ($row) use ($href) {
             $startTime = Carbon::parse($row->start_time);
 
             return [
@@ -580,7 +601,7 @@ class DashboardBriefingService
                 'due_at' => $startTime->toIso8601String(),
                 'href' => $href,
             ];
-        })->all();
+        })->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     private function unvotedElectionAttention(int $organizationId, int $studentId, ?string $href): array
@@ -612,10 +633,11 @@ class DashboardBriefingService
 
     private function ordersReadyToClaimAttention(int $organizationId, int $studentId, ?string $href): array
     {
-        $rows = DB::table('orders')->where('organization_id', $organizationId)->where('student_id', $studentId)
-            ->where('status', 'paid')->orderBy('updated_at')->limit(self::ATTENTION_LIMIT)->get(['id']);
+        $query = DB::table('orders')->where('organization_id', $organizationId)->where('student_id', $studentId)
+            ->where('status', 'paid');
+        $rows = (clone $query)->orderBy('updated_at')->limit(self::ATTENTION_LIMIT)->get(['id']);
 
-        return $rows->map(fn ($row) => [
+        return $this->withTotal($rows->map(fn ($row) => [
             'id' => 'order-'.$row->id,
             'type' => 'order_ready_to_claim',
             'severity' => 'low',
@@ -623,7 +645,7 @@ class DashboardBriefingService
             'detail' => 'Order ORD-'.$row->id.' is ready. Bring your claim token.',
             'due_at' => null,
             'href' => $href,
-        ])->all();
+        ])->all(), $this->overflowTotal($rows->count(), $query));
     }
 
     private function orgsOverdueReportsAttention(Collection $organizationIds, ?string $href): array
@@ -643,10 +665,10 @@ class DashboardBriefingService
             ->whereIn('submission_status', ['pending_department_head', 'pending_sao', 'approved'])
             ->pluck('organization_id')->unique();
 
-        $orgs = DB::table('organizations')->whereIn('id', $organizationIds)->whereNotIn('id', $covered)
-            ->orderBy('name')->limit(self::ATTENTION_LIMIT)->get(['id', 'name']);
+        $query = DB::table('organizations')->whereIn('id', $organizationIds)->whereNotIn('id', $covered);
+        $orgs = (clone $query)->orderBy('name')->limit(self::ATTENTION_LIMIT)->get(['id', 'name']);
 
-        return $orgs->map(fn ($org) => [
+        return $this->withTotal($orgs->map(fn ($org) => [
             'id' => 'org_report-'.$org->id,
             'type' => 'financial_report_due',
             'severity' => $deadlineAt->isPast() ? 'high' : 'medium',
@@ -654,7 +676,7 @@ class DashboardBriefingService
             'detail' => "{$org->name} has not submitted its financial report".($deadlineAt->isPast() ? ' and the deadline has passed' : ''),
             'due_at' => $deadlineAt->toIso8601String(),
             'href' => $href,
-        ])->all();
+        ])->all(), $this->overflowTotal($orgs->count(), $query));
     }
 
     // ---------------------------------------------------------------
@@ -699,6 +721,15 @@ class DashboardBriefingService
             ->first();
 
         return ['allocated' => (float) $budgets->allocated, 'remaining' => (float) $budgets->remaining, 'spent' => (float) $linked->spent, 'income' => (float) $linked->income];
+    }
+
+    /** Expense entries recorded against approved budgets, summed per budget id. */
+    private function approvedBudgetSpending(iterable $organizationIds): Collection
+    {
+        $approved = DB::table('budgets')->whereIn('organization_id', collect($organizationIds)->all())->where('submission_status', 'approved')->select('id');
+
+        return DB::table('transactions')->whereIn('budget_id', $approved)->where('type', 'expense')
+            ->select('budget_id')->selectRaw('SUM(amount) as spent')->groupBy('budget_id')->pluck('spent', 'budget_id');
     }
 
     private function budgetContext(float $allocated, float $remaining, float $spent, float $income, string $scope): string
@@ -851,8 +882,7 @@ class DashboardBriefingService
             ->where('is_published', true)
             ->whereYear('published_at', now()->year)->whereMonth('published_at', now()->month)
             ->count();
-        $unread = DB::table('notifications')->where('organization_id', $organizationId)->where('user_id', $userId)
-            ->when($mutedTypes !== [], fn ($query) => $query->whereNotIn('notification_type', $mutedTypes))
+        $unread = NotificationVisibility::apply(DB::table('notifications'), $userId, $organizationId, $mutedTypes)
             ->where('is_read', false)->count();
         $last = DB::table('announcements')->whereIn('organization_id', $announcementOrganizationIds)->where('is_published', true)
             ->orderByDesc('published_at')->first(['title']);
@@ -1179,10 +1209,14 @@ class DashboardBriefingService
     {
         $orgs = DB::table('organizations')->whereIn('id', $organizationIds)->orderBy('name')->get(['id', 'name', 'acronym']);
 
-        $budgetTotals = DB::table('budgets')->whereIn('organization_id', $organizationIds)
+        $budgetTotals = DB::table('budgets')->whereIn('organization_id', $organizationIds)->where('submission_status', 'approved')
             ->select('organization_id')
-            ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated, COALESCE(SUM(remaining_amount),0) as remaining')
+            ->selectRaw('COALESCE(SUM(allocated_amount),0) as allocated')
             ->groupBy('organization_id')->get()->keyBy('organization_id');
+        $budgetSpending = DB::table('transactions')->join('budgets', 'budgets.id', '=', 'transactions.budget_id')
+            ->whereIn('budgets.organization_id', $organizationIds)->where('budgets.submission_status', 'approved')->where('transactions.type', 'expense')
+            ->select('budgets.organization_id')->selectRaw('SUM(transactions.amount) as spent')
+            ->groupBy('budgets.organization_id')->pluck('spent', 'organization_id');
 
         $reportsPending = DB::table('financial_reports')->whereIn('organization_id', $organizationIds)
             ->whereIn('submission_status', ['pending_department_head', 'pending_sao'])
@@ -1196,11 +1230,10 @@ class DashboardBriefingService
 
         $accreditationStatuses = $this->accreditation->forOrganizations($organizationIds);
 
-        return $orgs->map(function ($org) use ($budgetTotals, $reportsPending, $openElections, $lastActivity, $accreditationStatuses) {
+        return $orgs->map(function ($org) use ($budgetTotals, $budgetSpending, $reportsPending, $openElections, $lastActivity, $accreditationStatuses) {
             $budget = $budgetTotals->get($org->id);
             $allocated = $budget ? (float) $budget->allocated : 0.0;
-            $remaining = $budget ? (float) $budget->remaining : 0.0;
-            $utilization = $allocated > 0 ? round((($allocated - $remaining) / $allocated) * 100, 1) : 0.0;
+            $utilization = $allocated > 0 ? round(((float) ($budgetSpending[$org->id] ?? 0) / $allocated) * 100, 1) : 0.0;
 
             return [
                 'id' => $org->id,

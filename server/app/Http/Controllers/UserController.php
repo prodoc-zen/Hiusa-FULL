@@ -146,17 +146,7 @@ class UserController extends Controller
             return response()->json(['message' => 'Adviser accounts and Adviser assignments are managed only by the SAO Director.'], 403);
         }
 
-        if ($validatedData['role'] === 'STUDENT' && ! AcademicProgram::where('organization_id', $organizationId)->exists()) {
-            throw ValidationException::withMessages([
-                'program' => ['Configure a course/program before creating a student account.'],
-            ]);
-        }
-
-        if ($validatedData['role'] === 'STUDENT' && empty($validatedData['program'])) {
-            throw ValidationException::withMessages([
-                'program' => ['Choose a course/program for this student.'],
-            ]);
-        }
+        $this->assertStudentHasProgram($validatedData, AcademicProgram::where('organization_id', $organizationId)->exists());
 
         $validatedData = $this->normalizeAcademicPayload($validatedData, $actor);
         $validatedData = $this->normalizePositionPayload($validatedData, $actor);
@@ -213,6 +203,7 @@ class UserController extends Controller
         }
 
         $rules = $this->memberRules($organizationId, self::IMPORTABLE_ROLES);
+        $programsConfigured = AcademicProgram::where('organization_id', $organizationId)->exists();
         $seenIds = [];
         $seenEmails = [];
         $results = [];
@@ -221,20 +212,24 @@ class UserController extends Controller
             $errors = $validator->errors()->all();
             $data = null;
 
-            $schoolId = (string) ($row['school_id'] ?? '');
+            $schoolId = filter_var($row['school_id'] ?? null, FILTER_VALIDATE_INT);
             $email = strtolower((string) ($row['email'] ?? ''));
-            if ($schoolId !== '' && isset($seenIds[$schoolId])) {
+            if ($schoolId !== false && isset($seenIds[$schoolId])) {
                 $errors[] = "School ID {$schoolId} is also on row {$seenIds[$schoolId]}.";
             }
             if ($email !== '' && isset($seenEmails[$email])) {
                 $errors[] = "The email {$email} is also on row {$seenEmails[$email]}.";
             }
-            $seenIds[$schoolId] ??= $line;
+            if ($schoolId !== false) {
+                $seenIds[$schoolId] ??= $line;
+            }
             $seenEmails[$email] ??= $line;
 
             if ($errors === []) {
                 try {
-                    $data = $this->normalizePositionPayload($this->normalizeAcademicPayload($validator->validated(), $actor), $actor);
+                    $validated = $validator->validated();
+                    $this->assertStudentHasProgram($validated, $programsConfigured);
+                    $data = $this->normalizePositionPayload($this->normalizeAcademicPayload($validated, $actor), $actor);
                 } catch (ValidationException $exception) {
                     $errors = collect($exception->errors())->flatten()->all();
                 }
@@ -319,6 +314,9 @@ class UserController extends Controller
             foreach ($header as $index => $column) {
                 if (in_array($column, self::IMPORT_COLUMNS, true)) {
                     $value = trim((string) ($values[$index] ?? ''));
+                    if (! mb_check_encoding($value, 'UTF-8')) {
+                        $value = mb_convert_encoding($value, 'UTF-8', 'Windows-1252');
+                    }
                     $row[$column] = $value === '' ? null : $value;
                 }
             }
@@ -332,6 +330,25 @@ class UserController extends Controller
         return $rows;
     }
 
+    private function assertStudentHasProgram(array $data, bool $programsConfigured): void
+    {
+        if ($data['role'] !== 'STUDENT') {
+            return;
+        }
+
+        if (! $programsConfigured) {
+            throw ValidationException::withMessages([
+                'program' => ['Configure a course/program before creating a student account.'],
+            ]);
+        }
+
+        if (empty($data['program'])) {
+            throw ValidationException::withMessages([
+                'program' => ['Choose a course/program for this student.'],
+            ]);
+        }
+    }
+
     private function memberRules(int $organizationId, array $roles): array
     {
         return [
@@ -342,7 +359,7 @@ class UserController extends Controller
                 'required',
                 'string',
                 'email',
-                'max:255',
+                'max:100',
                 Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $organizationId)),
             ],
             'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
@@ -390,7 +407,7 @@ class UserController extends Controller
                 'required',
                 'string',
                 'email',
-                'max:255',
+                'max:100',
                 Rule::unique('users', 'email')
                     ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
                     ->ignore($user->school_id, 'school_id'),
@@ -641,7 +658,7 @@ class UserController extends Controller
                 'required',
                 'string',
                 'email',
-                'max:255',
+                'max:100',
                 Rule::unique('users', 'email')->where(fn ($query) => $query->where('organization_id', $request->organization_id)),
             ],
             'password' => 'required|string|min:8|confirmed',
@@ -828,7 +845,7 @@ class UserController extends Controller
                 'sometimes',
                 'required',
                 'email',
-                'max:255',
+                'max:100',
                 Rule::unique('users', 'email')
                     ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
                     ->ignore($user->school_id, 'school_id'),
