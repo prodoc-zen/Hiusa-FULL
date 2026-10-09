@@ -44,6 +44,22 @@ class SaoCredentialHardeningTest extends TestCase
         $this->postJson("/api/system/department-heads/{$other->school_id}/password-reset")->assertOk();
     }
 
+    public function test_callers_who_may_not_reset_a_head_cannot_use_up_the_directors_allowance(): void
+    {
+        Mail::fake();
+        config(['performance.rate_limits.password_per_minute' => 100]);
+        $head = $this->makeCollegeHead($this->makeCollege('CCS'));
+        $student = User::factory()->student()->create(['organization_id' => Organization::factory()->create()->id]);
+
+        Sanctum::actingAs($student);
+        for ($i = 0; $i < 5; $i++) {
+            $this->postJson("/api/system/department-heads/{$head->school_id}/password-reset")->assertForbidden();
+        }
+
+        Sanctum::actingAs($this->director);
+        $this->postJson("/api/system/department-heads/{$head->school_id}/password-reset")->assertOk();
+    }
+
     public function test_an_admin_password_reset_is_limited_per_target_too(): void
     {
         Mail::fake();

@@ -86,7 +86,9 @@ class AppServiceProvider extends ServiceProvider
                     ->response($tooManyRequests);
             }
 
-            if ($target = $request->route('user')) {
+            // Throttling runs before the role check, so only the SAO counts here; otherwise any
+            // signed-in user could use up a target's hourly allowance with refused requests.
+            if ($request->user()?->role === 'SUPER_ADMIN' && $target = $request->route('user')) {
                 $limits[] = Limit::perHour(3)
                     ->by('recovery-target:'.($target instanceof Model ? $target->getKey() : $target))
                     ->response($tooManyRequests);
