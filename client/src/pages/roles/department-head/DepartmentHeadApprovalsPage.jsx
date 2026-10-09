@@ -350,8 +350,8 @@ export default function DepartmentHeadApprovalsPage() {
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs font-semibold text-slate-500">{meta.total} matching request{meta.total === 1 ? '' : 's'} · {pendingTotal} awaiting action</p>
           <div className="flex gap-2">
-            <button type="button" onClick={() => { setSearch(''); setEntityFilter('all'); setOrganizationFilter('all'); setFrom(''); setTo(''); setSort('newest'); }} className="h-9 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Reset</button>
-            <button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-9 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button>
+            <button type="button" onClick={() => { setSearch(''); setEntityFilter('all'); setOrganizationFilter('all'); setFrom(''); setTo(''); setSort('newest'); }} className="h-11 sm:h-9 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600">Reset</button>
+            <button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex h-11 sm:h-9 items-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button>
           </div>
         </div>
       </section>
