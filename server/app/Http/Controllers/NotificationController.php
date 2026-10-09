@@ -49,6 +49,7 @@ class NotificationController extends Controller
     public function markRead(Request $request, $id)
     {
         $notification = Notification::where('organization_id', $request->user()->organization_id)
+            ->where('user_id', $request->user()->id)
             ->where(function ($query) {
                 $query->whereNull('scheduled_at')->orWhere('scheduled_at', '<=', now());
             })
@@ -56,10 +57,6 @@ class NotificationController extends Controller
 
         if (! $notification) {
             return response()->json(['message' => 'Notification not found.'], 404);
-        }
-
-        if ($notification->user_id !== $request->user()->id) {
-            return response()->json(['message' => 'Forbidden.'], 403);
         }
 
         $notification->update(['is_read' => true]);
