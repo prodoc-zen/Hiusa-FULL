@@ -35,13 +35,13 @@ describe('desktop sidebar rail', () => {
     expect(screen.getByRole('button', { name: 'Expand sidebar' })).toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Dashboard' })).toHaveAttribute('title', 'Dashboard');
 
-    const financial = screen.getByRole('button', { name: 'Financial' });
-    fireEvent.click(financial);
-    expect(financial).toHaveAttribute('aria-expanded', 'true');
-    expect(screen.getByRole('region', { name: 'Financial links' })).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Budget Allocation' }));
+    const finance = screen.getByRole('button', { name: 'Finance' });
+    fireEvent.click(finance);
+    expect(finance).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByRole('region', { name: 'Finance links' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Budgets' }));
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
-    expect(screen.queryByRole('region', { name: 'Financial links' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('region', { name: 'Finance links' })).not.toBeInTheDocument();
   });
 
   it('uses the visible sidebar edge for modal bounds', () => {
@@ -57,13 +57,13 @@ describe('desktop sidebar rail', () => {
   it('keeps direct links usable and closes the group panel with Escape', () => {
     render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
 
-    fireEvent.click(screen.getByRole('link', { name: 'General Audit Log' }));
-    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/audit-logs');
-    const financial = screen.getByRole('button', { name: 'Financial' });
-    fireEvent.click(financial);
+    fireEvent.click(screen.getByRole('link', { name: 'Approvals' }));
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/approvals');
+    const finance = screen.getByRole('button', { name: 'Finance' });
+    fireEvent.click(finance);
     fireEvent.keyDown(document, { key: 'Escape' });
-    expect(screen.queryByRole('region', { name: 'Financial links' })).not.toBeInTheDocument();
-    expect(financial).toHaveFocus();
+    expect(screen.queryByRole('region', { name: 'Finance links' })).not.toBeInTheDocument();
+    expect(finance).toHaveFocus();
   });
 
   it('keeps the organization badge out of the sidebar', () => {
@@ -77,7 +77,7 @@ describe('desktop sidebar rail', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', first_name: 'Sao', last_name: 'Director' }));
     render(<MemoryRouter initialEntries={['/dashboard/super-admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
 
-    fireEvent.click(screen.getByRole('button', { name: 'SAO Administration' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Organizations' }));
     expect(screen.getByRole('link', { name: 'Administrators' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('link', { name: 'Administrators' }));
@@ -85,11 +85,11 @@ describe('desktop sidebar rail', () => {
   });
 
   it.each([
-    ['ADMIN', '/dashboard/admin', 'Organization Setup', 'Manage Users'],
-    ['SBO_OFFICER', '/dashboard/officer', 'Participant Biometrics', 'Manage Users'],
-    ['DEPARTMENT_HEAD', '/dashboard/department-head', 'Announcements Feed', 'Organization Setup'],
-    ['STUDENT', '/dashboard/student', 'Announcements Feed', 'Organization Setup'],
-    ['SUPER_ADMIN', '/dashboard/super-admin', 'SAO Administration', 'Organization Setup'],
+    ['ADMIN', '/dashboard/admin', 'Members', 'Organization Setup'],
+    ['SBO_OFFICER', '/dashboard/officer', 'Members and fingerprints', 'Manage Users'],
+    ['DEPARTMENT_HEAD', '/dashboard/department-head', 'Election results', 'Organization Setup'],
+    ['STUDENT', '/dashboard/student', 'Support', 'Organization Setup'],
+    ['SUPER_ADMIN', '/dashboard/super-admin', 'Setup and records', 'SAO Administration'],
   ])('shows sensible navigation for %s without section captions', (role, path, expected, absent) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter initialEntries={[path]}><SidebarHarness /></MemoryRouter>);
@@ -113,15 +113,57 @@ describe('desktop sidebar rail', () => {
     expect(screen.queryByRole('link', { name: 'Clearances' })).not.toBeInTheDocument();
   });
 
+  it.each([
+    ['ADMIN', ['Manage', 'Community', 'Records', 'Me']],
+    ['SBO_OFFICER', ['Manage', 'Community', 'Records', 'Me']],
+    ['DEPARTMENT_HEAD', ['College view (read only)']],
+    ['STUDENT', []],
+    ['SUPER_ADMIN', []],
+  ])('prints the band headings of %s as plain text, in order, and no others', (role, bands) => {
+    localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
+    render(<MemoryRouter initialEntries={['/dashboard/student']}><SidebarHarness /></MemoryRouter>);
+    const headings = [...document.querySelectorAll('nav p.uppercase')];
+    expect(headings.map((node) => node.textContent)).toEqual(bands);
+    headings.forEach((heading) => expect(heading.closest('a, button')).toBeNull());
+  });
+
+  it.each(['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', 'SUPER_ADMIN'])('ends %s with Profile and Study objectives', (role) => {
+    localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
+    render(<MemoryRouter initialEntries={['/dashboard/profile']}><SidebarHarness /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/dashboard/profile');
+    expect(screen.getByRole('link', { name: 'Study objectives' })).toHaveAttribute('href', '/dashboard/objectives');
+    expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Study objectives' })).not.toHaveAttribute('aria-current');
+  });
+
+  it.each([
+    '/dashboard/super-admin/organizations?status=pending',
+    '/dashboard/super-admin/organizations?status=active',
+    '/dashboard/super-admin/organizations/7',
+  ])('keeps the SAO registrations link current and opened on %s', (url) => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SUPER_ADMIN', first_name: 'Sao', last_name: 'Director' }));
+    render(<MemoryRouter initialEntries={[url]}><SidebarHarness /></MemoryRouter>);
+    const link = screen.getByRole('link', { name: 'Registrations and organizations' });
+    expect(link).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending');
+    expect(link).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Dashboard' })).not.toHaveAttribute('aria-current');
+  });
+
+  it('keeps the Admin Approvals row current through the New request flow', () => {
+    render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/budget']}><SidebarHarness /></MemoryRouter>);
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('aria-current', 'page');
+    expect(screen.getByRole('link', { name: 'Approvals' })).toHaveAttribute('href', '/dashboard/approvals');
+  });
+
   it('keeps the existing mobile drawer and submenu behavior', () => {
     Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
     const onClose = vi.fn();
     render(<MemoryRouter initialEntries={['/dashboard/admin']}><SidebarHarness initialCollapsed mobileOpen onClose={onClose} /></MemoryRouter>);
     expect(document.documentElement.style.getPropertyValue('--dashboard-sidebar-width')).toBe('0px');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Financial' }));
-    expect(screen.queryByRole('region', { name: 'Financial links' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Budget Allocation' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Finance' }));
+    expect(screen.queryByRole('region', { name: 'Finance links' })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('link', { name: 'Budgets' }));
     expect(onClose).toHaveBeenCalledOnce();
     expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/finance/budget-allocation');
   });
