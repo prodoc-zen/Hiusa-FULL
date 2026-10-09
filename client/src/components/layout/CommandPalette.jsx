@@ -41,6 +41,16 @@ function fuzzyScore(term, text) {
   return needleIndex === needle.length ? 1 : -1;
 }
 
+// A page is found by its current label and group first, then by the labels it used to carry, so
+// someone who remembers "Manage Users" or "Validate Tokens" still lands on the right page.
+function pageScore(term, page) {
+  const direct = fuzzyScore(term, `${page.label} ${page.section}`);
+  if (direct >= 0) return direct;
+
+  const needle = term.toLowerCase();
+  return (page.aliases || []).some((alias) => alias.toLowerCase().includes(needle)) ? 0.5 : -1;
+}
+
 export default function CommandPalette({ open, onClose, role }) {
   const [query, setQuery] = useState('');
   const [activeIndex, setActiveIndex] = useState(0);
@@ -61,7 +71,7 @@ export default function CommandPalette({ open, onClose, role }) {
     }
 
     const scored = pages
-      .map((page) => ({ page, score: fuzzyScore(term, `${page.label} ${page.section}`) }))
+      .map((page) => ({ page, score: pageScore(term, page) }))
       .filter((entry) => entry.score >= 0)
       .sort((a, b) => a.score - b.score);
 

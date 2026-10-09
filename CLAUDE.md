@@ -220,7 +220,7 @@ This is the only design reference. Do not deviate from these values.
 
 ### Sidebar Sections (in order)
 
-Dashboard — Members — Payments — Events — Voting — Reports — Settings
+Dashboard, Members, Finance (Payments for students), Events, Voting, Reports, Settings. The groups for a role follow the process order in docs/UX_FLOW.md section 3.
 
 Settings and logout go at the bottom.
 
