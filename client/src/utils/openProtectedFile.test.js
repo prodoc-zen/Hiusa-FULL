@@ -8,6 +8,7 @@ describe('openProtectedFile', () => {
   let tab;
 
   beforeEach(() => {
+    vi.clearAllMocks();
     tab = { location: { href: '' }, close: vi.fn() };
     vi.spyOn(window, 'open').mockReturnValue(tab);
     URL.createObjectURL = vi.fn(() => 'blob:file');
