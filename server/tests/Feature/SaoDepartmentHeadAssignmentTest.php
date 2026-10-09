@@ -252,6 +252,8 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         $this->assertSame([
             'school_id' => $head->school_id,
             'name' => 'Ramon Castillo',
+            'first_name' => 'Ramon',
+            'last_name' => 'Castillo',
             'email' => $head->email,
             'account_status' => 'active',
         ], $byCode['CCS']['department_head']);

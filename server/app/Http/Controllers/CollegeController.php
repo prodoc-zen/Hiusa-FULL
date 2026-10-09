@@ -41,6 +41,8 @@ class CollegeController extends Controller
             ->mapWithKeys(fn ($head) => [$head->college_id => [
                 'school_id' => (int) $head->school_id,
                 'name' => trim("{$head->first_name} {$head->last_name}"),
+                'first_name' => $head->first_name,
+                'last_name' => $head->last_name,
                 'email' => $head->email,
                 'account_status' => $head->account_status,
             ]])
