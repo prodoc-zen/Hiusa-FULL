@@ -15,6 +15,7 @@ import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { accreditationBadge } from './agencyStatus';
 
 const AGENCY_PATH = '/dashboard/super-admin/agency';
+const LINK_CLASS = 'mt-2 inline-flex min-h-11 items-center text-sm font-bold text-brand-700 hover:underline';
 
 function Section({ id, title, children }) {
   return (
@@ -96,7 +97,7 @@ function LatestDocuments({ organizationId }) {
             </div>
             <div className="flex items-center gap-2">
               <StatusBadge status={document.status} />
-              <Button variant="secondary" size="sm" leftIcon={ExternalLink} loading={openingUrl === document.open_url} disabled={!document.open_url} onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
+              <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" leftIcon={ExternalLink} loading={openingUrl === document.open_url} disabled={!document.open_url} onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
             </div>
           </li>
         ))}
@@ -186,7 +187,7 @@ export default function SaoOrganizationOverviewPage() {
       )}
       {lifecycle.status === 'pending' && (
         <p role="note" className="rounded-lg border border-line bg-warning-tint p-3 text-sm font-semibold text-ink">
-          This registration is waiting for SAO review. <Link to="/dashboard/super-admin/organizations?status=pending" className="font-bold text-brand-700 underline">Open pending reviews</Link>
+          This registration is waiting for SAO review. <Link to={`/dashboard/super-admin/organizations?status=pending&review=${organization.id}`} className="font-bold text-brand-700 underline">Review this registration</Link>
         </p>
       )}
       {lifecycle.status === 'returned' && (
@@ -242,6 +243,7 @@ export default function SaoOrganizationOverviewPage() {
             <div><dt className="text-xs font-semibold text-ink-muted">Accreditation</dt><dd className="mt-1"><StatusBadge label={accreditation.label} tone={accreditation.tone} /></dd></div>
             <Figure label="Documents awaiting review" value={compliance.pending_documents_count ?? 0} />
           </dl>
+          <Link to="/dashboard/super-admin/compliance?tab=review" className={LINK_CLASS}>Open the review queue</Link>
         </Section>
 
         <Section id="pending-approvals" title="Pending approvals">
@@ -249,7 +251,10 @@ export default function SaoOrganizationOverviewPage() {
         </Section>
       </div>
 
-      <Section id="documents" title="Latest documents"><LatestDocuments organizationId={organization.id} /></Section>
+      <Section id="documents" title="Latest documents">
+        <LatestDocuments organizationId={organization.id} />
+        <Link to="/dashboard/super-admin/compliance?tab=documents" className={LINK_CLASS}>View all documents</Link>
+      </Section>
 
       <ConfirmModal open={restoreOpen} title="Restore organization" message={`Restore ${name} so it can be edited and used again?`} recordName={`Restore ${name}?`} confirmText="Restore organization" variant="primary" busy={restoring} onCancel={() => setRestoreOpen(false)} onConfirm={restore} />
     </div>

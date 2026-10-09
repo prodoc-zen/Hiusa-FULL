@@ -1,8 +1,8 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Building2, ImagePlus, Search } from 'lucide-react';
-import { Button, EmptyState, ErrorState, SkeletonCard } from '../../../components/ui';
+import { Building2, ImagePlus } from 'lucide-react';
+import { Button, EmptyState, ErrorState, Field, Input, SkeletonCard } from '../../../components/ui';
 import { getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -24,9 +24,9 @@ function CollegeCard({ college, uploading, onUpload }) {
         </div>
       </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-line pt-3">
-        <Button to={`/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}`} variant="ghost" size="sm" aria-label={`View organizations of ${name}`}>View organizations</Button>
+        <Button to={`/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}`} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`View organizations of ${name}`}>View organizations</Button>
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
-        <Button variant="secondary" size="sm" leftIcon={ImagePlus} loading={uploading} onClick={() => fileInput.current?.click()} aria-label={`Upload logo for ${name}`}>Upload logo</Button>
+        <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" leftIcon={ImagePlus} loading={uploading} onClick={() => fileInput.current?.click()} aria-label={`Upload logo for ${name}`}>Upload logo</Button>
       </div>
     </article>
   );
@@ -77,7 +77,7 @@ export default function SystemCollegesPage() {
       <p className="max-w-[75ch] text-sm font-medium text-ink-muted">Colleges are a fixed list managed in the system. You can update each college's logo and open its organizations.</p>
       {error && !loading ? <ErrorState description={error} onRetry={load} /> : (
         <>
-          <label className="flex min-h-11 items-center gap-2 rounded-lg border border-line bg-surface px-3 text-ink-muted"><Search size={17} aria-hidden="true" /><input aria-label="Search colleges" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search college name or code" className="w-full bg-transparent text-sm outline-none" /></label>
+          <Field label="Search colleges" className="max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
           {uploadError && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{uploadError}</p>}
           {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
           {loading ? (
