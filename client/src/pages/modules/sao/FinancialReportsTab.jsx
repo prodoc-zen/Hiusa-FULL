@@ -13,9 +13,10 @@ import {
   getFinancialReport,
   getFinancialReports,
 } from '../../../services/financeService';
+import { fetchAllPages } from '../../../services/pagination';
 import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { resolveAssetUrl } from '../../../utils/assetUrl';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 
 const date = (value) => value
   ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
@@ -34,7 +35,7 @@ function downloadBlob(response, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
-export default function SuperAdminFinancialReportsPage() {
+export default function FinancialReportsTab() {
   const [organizations, setOrganizations] = useState([]);
   const [organizationId, setOrganizationId] = useState('');
   const [reports, setReports] = useState([]);
@@ -75,8 +76,8 @@ export default function SuperAdminFinancialReportsPage() {
   }, [filters, organizationId]);
 
   useEffect(() => {
-    getSystemOrganizations({ per_page: 100 })
-      .then((data) => setOrganizations(data.data || []))
+    fetchAllPages(getSystemOrganizations)
+      .then(setOrganizations)
       .catch(() => setOrganizations([]));
   }, []);
   useEffect(() => { load(1); }, [load]);
@@ -100,6 +101,14 @@ export default function SuperAdminFinancialReportsPage() {
       setFeedback({ open: true, type: 'error', message: getApiErrorMessage(error, 'Unable to download the PDF.') });
     } finally {
       setDownloadingId(null);
+    }
+  }
+
+  async function openDocument(document) {
+    try {
+      await openProtectedFile(document.open_url);
+    } catch (error) {
+      setFeedback({ open: true, type: 'error', message: getApiErrorMessage(error, 'Unable to open the document.') });
     }
   }
 
@@ -236,7 +245,7 @@ export default function SuperAdminFinancialReportsPage() {
             </div>
             <div className="rounded-lg border border-[#DDE7EF] p-4">
               <h3 className="text-sm font-bold text-[#0F172A]">Supporting documents</h3>
-              {(detail.report.supporting_documents || []).map((document) => <a key={document.path} href={resolveAssetUrl(document.url)} target="_blank" rel="noreferrer" className="mt-2 flex items-center gap-2 text-sm font-bold text-[#0878B7]"><Download size={14} />{document.name}</a>)}
+              {(detail.report.supporting_documents || []).map((document) => <button key={document.index} type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-[#0878B7]"><Download size={14} />{document.name}</button>)}
               {!(detail.report.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents were attached.</p>}
             </div>
           </div>
