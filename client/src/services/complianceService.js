@@ -22,3 +22,7 @@ export const reviewSubmission = (id, data) => api.patch(`/compliance/submissions
 
 export const downloadSubmissionDocument = (id) =>
   api.get(`/compliance/submissions/${id}/document`, { responseType: 'blob' });
+
+export const deleteRequirementType = (id) => api.delete(`/compliance/requirement-types/${id}`);
+
+export const getComplianceDocuments = (params) => api.get('/compliance/documents', { params });

@@ -12,3 +12,5 @@ export const getMyClearances = () => api.get('/clearances/mine');
 export const getClearanceSignatures = (params) => api.get('/clearance-signatures', { params });
 
 export const updateClearanceSignature = (id, data) => api.patch(`/clearance-signatures/${id}`, data);
+
+export const deleteClearancePeriod = (id) => api.delete(`/clearance-periods/${id}`);

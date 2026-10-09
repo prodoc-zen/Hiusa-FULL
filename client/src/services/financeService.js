@@ -101,3 +101,6 @@ export const submitFinancialReport = (id, files = []) => {
   files.forEach((file) => formData.append('supporting_documents[]', file));
   return api.post(`/financial-reports/${id}/submit`, formData);
 };
+
+export const downloadFinancialReportDocument = (reportId, index) =>
+  api.get(`/financial-reports/${reportId}/documents/${index}`, { responseType: 'blob' });
