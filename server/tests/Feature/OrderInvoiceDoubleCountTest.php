@@ -218,6 +218,23 @@ class OrderInvoiceDoubleCountTest extends TestCase
         $this->assertSame(1, Transaction::where('category', 'Merchandise')->count());
     }
 
+    public function test_an_order_can_only_be_billed_for_its_full_total(): void
+    {
+        $orderId = $this->pendingOrder();
+
+        foreach (['1.00', '299.99', '300.01'] as $amount) {
+            $this->postJson('/api/invoices', [
+                'student_id' => $this->student->school_id, 'description' => 'Reserved shirt', 'amount_due' => $amount, 'order_id' => $orderId,
+            ])->assertStatus(422)
+                ->assertJsonValidationErrors('amount_due')
+                ->assertJsonPath('message', 'The amount due must equal the order total of 300.00.');
+        }
+        $this->assertSame(0, Invoice::count());
+
+        $this->billOrder($orderId, '300.00');
+        $this->assertSame(1, Invoice::count());
+    }
+
     public function test_only_a_pending_order_can_be_billed_on_an_invoice(): void
     {
         Sanctum::actingAs($this->admin);
