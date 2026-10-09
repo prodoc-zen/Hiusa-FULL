@@ -1,9 +1,15 @@
-import { Building2, ClipboardCheck, FilePlus2, History, Home, LayoutDashboard, ShieldCheck, Users } from 'lucide-react';
+import {
+  BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
+  FileText, Fingerprint, Flag, GraduationCap, History, Home, LayoutDashboard, ListChecks, MapPin, Megaphone,
+  MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
+  TicketCheck, User, Users, UsersRound, Vote, WalletCards,
+} from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
 
-// Single source of truth for role-to-sidebar-sections. Sidebar.jsx renders this;
-// CommandPalette.jsx flattens it for search. Keep every existing route/role pairing
-// exactly as client/src/App.jsx allows it: a role only ever sees a link it can open.
+// Single source of truth for the sidebar. Each role has its own ordered list of rows, written in the
+// order the work happens (docs/UX_FLOW.md section 3.2). Sidebar.jsx renders it, CommandPalette.jsx
+// flattens it for search and lib/pageMeta.js reads it to link a breadcrumb's group. A role only ever
+// gets a link it can open: keep every path here in step with the guards in client/src/App.jsx.
 
 export const ROLE_LABELS = {
   SUPER_ADMIN: 'SAO',
@@ -13,219 +19,260 @@ export const ROLE_LABELS = {
   STUDENT: 'Student',
 };
 
+export const ROLE_HOME_PATHS = {
+  SUPER_ADMIN: '/dashboard/super-admin',
+  ADMIN: '/dashboard/admin',
+  SBO_OFFICER: '/dashboard/officer',
+  DEPARTMENT_HEAD: '/dashboard/department-head',
+  STUDENT: '/dashboard/student',
+};
+
 const financePillar = PILLAR_BY_KEY.finance;
 const eventsPillar = PILLAR_BY_KEY.events;
-const tasksPillar = PILLAR_BY_KEY.tasks;
 const electionsPillar = PILLAR_BY_KEY.elections;
 const merchandisePillar = PILLAR_BY_KEY.merchandise;
 const communicationPillar = PILLAR_BY_KEY.communication;
 
-export const NAV_STRUCTURE = [
-  {
-    id: 'dashboard',
-    label: 'Dashboard',
-    icon: Home,
-    rolePaths: {
-      SUPER_ADMIN: '/dashboard/super-admin',
-      ADMIN: '/dashboard/admin',
-      SBO_OFFICER: '/dashboard/officer',
-      DEPARTMENT_HEAD: '/dashboard/department-head',
-      STUDENT: '/dashboard/student',
-    },
-    roles: ['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'],
-  },
-  {
-    id: 'financial',
-    label: 'Financial',
-    icon: financePillar.icon,
-    roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
-    children: [
-      { id: 'financial-ledger', label: 'Digital Ledger', path: '/dashboard/finance/financial-ledger', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
-      { id: 'collections', label: 'Collections & Advances', path: '/dashboard/finance/collections', roles: ['ADMIN'] },
-      { id: 'student-accounts', label: 'Student Financial Accounts', path: '/dashboard/finance/student-accounts', roles: ['ADMIN'] },
-      { id: 'budget-allocation', label: 'Budget Allocation', path: '/dashboard/finance/budget-allocation', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
-      { id: 'financial-insights', label: 'Financial Insights', path: '/dashboard/finance/financial-insights', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
-      { id: 'transaction-history', label: 'Transaction History', path: '/dashboard/finance/transaction-history', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] },
-      { id: 'personal-receipts', label: 'My Receipts', path: '/dashboard/finance/personal-receipts', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'] },
-      { id: 'statement-of-account', label: 'Statement of Account', path: '/dashboard/finance/statement-of-account', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'] },
-    ],
-  },
-  {
-    id: 'events',
-    label: 'Events',
-    icon: eventsPillar.icon,
-    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
-    children: [
-      { id: 'manage-events', label: 'Manage Events', path: '/dashboard/events/manage-events', roles: ['ADMIN'] },
-      { id: 'event-planner', label: 'Event Planner', path: '/dashboard/events/event-planner', roles: ['ADMIN'] },
-      { id: 'check-in', label: 'Check In', path: '/dashboard/events/check-in', roles: ['SBO_OFFICER', 'ADMIN'] },
-      { id: 'activity-calendar', label: 'Activity Calendar', path: '/dashboard/events/activity-calendar', roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'] },
-    ],
-  },
-  {
-    id: 'tasks',
-    label: 'Task Management',
-    icon: tasksPillar.icon,
-    roles: ['SBO_OFFICER', 'ADMIN'],
-    children: [
-      { id: 'task-board', label: 'Task Board', path: '/dashboard/tasks/task-board', roles: ['ADMIN'] },
-      { id: 'create-task', label: 'Create Task', path: '/dashboard/tasks/create-task', roles: ['ADMIN'] },
-      { id: 'assigned-tasks', label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', roles: ['SBO_OFFICER'] },
-      { id: 'task-progress', label: 'Monitor Progress', path: '/dashboard/tasks/task-progress', roles: ['ADMIN'] },
-      { id: 'ai-delegation', label: 'AI Delegation', path: '/dashboard/tasks/ai-delegation', roles: ['SBO_OFFICER', 'ADMIN'] },
-    ],
-  },
-  {
-    id: 'elections',
-    label: 'Elections',
-    icon: electionsPillar.icon,
-    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT', 'DEPARTMENT_HEAD'],
-    children: [
-      { id: 'manage-elections', label: 'Manage Elections', path: '/dashboard/elections/manage-elections', roles: ['ADMIN'] },
-      { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'manage-voters', label: 'Voters', path: '/dashboard/elections/manage-voters', roles: ['SBO_OFFICER'] },
-      { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['ADMIN'] },
-      { id: 'cast-vote', label: 'Cast Vote', path: '/dashboard/elections/cast-vote', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
-      { id: 'election-results', label: 'Results', path: '/dashboard/elections/election-results', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
-    ],
-  },
-  {
-    id: 'merchandise',
-    label: 'Merchandise',
-    icon: merchandisePillar.icon,
-    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
-    children: [
-      { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
-      { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'claim-tokens', label: 'Validate Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
-      { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
-    ],
-  },
-  {
-    id: 'announcements',
-    label: 'Announcements',
-    icon: communicationPillar.icon,
-    roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'],
-    children: [
-      { id: 'manage-announcements', label: 'Manage Announcements', path: '/dashboard/announcements/manage-announcements', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'create-announcement', label: 'Create Announcement', path: '/dashboard/announcements/create-announcement', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'view-announcements', label: 'Announcements Feed', path: '/dashboard/announcements/view-announcements', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] },
-    ],
-  },
-  {
-    id: 'users',
-    label: 'Organization Setup',
-    icon: Users,
-    roles: ['ADMIN', 'SBO_OFFICER'],
-    children: [
-      { id: 'manage-users', label: 'Manage Users', path: '/dashboard/admin/users', roles: ['ADMIN'] },
-      { id: 'participant-biometrics', label: 'Participant Biometrics', path: '/dashboard/admin/users', roles: ['SBO_OFFICER'] },
-      { id: 'manage-positions', label: 'Manage Positions', path: '/dashboard/admin/positions', roles: ['ADMIN'] },
-      { id: 'manage-programs-sections', label: 'Programs & Sections', path: '/dashboard/admin/programs-sections', roles: ['ADMIN'] },
-    ],
-  },
-  {
-    id: 'approvals',
-    label: 'Approvals',
-    icon: ClipboardCheck,
-    rolePaths: {
-      ADMIN: '/dashboard/approvals',
-      DEPARTMENT_HEAD: '/dashboard/department-head/approvals',
-    },
-    roles: ['ADMIN', 'DEPARTMENT_HEAD'],
-  },
-  { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations', roles: ['DEPARTMENT_HEAD'] },
-  { id: 'submit-request', label: 'Submit Request', icon: FilePlus2, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
-  { id: 'audit-logs', label: 'General Audit Log', icon: History, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
-  {
-    id: 'governance',
-    label: 'Governance',
-    icon: ShieldCheck,
-    roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'],
-    children: [
-      { id: 'gov-compliance', label: 'Compliance', path: '/dashboard/compliance', roles: ['ADMIN'] },
-      { id: 'gov-venues', label: 'Venues', path: '/dashboard/venues', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'gov-grievances', label: 'Grievances', path: '/dashboard/grievances', roles: ['ADMIN'] },
-      { id: 'gov-my-grievances', label: 'My Grievances', path: '/dashboard/my-grievances', roles: ['STUDENT'] },
-      { id: 'gov-clearances', label: 'Clearances', path: '/dashboard/clearances', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'gov-my-clearance', label: 'My Clearance', path: '/dashboard/my-clearance', roles: ['STUDENT'] },
-    ],
-  },
+// `aliases` are the labels a page used to carry; the command palette still finds the page by them.
+// `also` lists extra paths that keep the item highlighted (a step of the same hub, a demoted page).
+const leaf = (id, label, path, icon, extra = {}) => ({ id, label, path, icon, ...extra });
+const group = (id, label, icon, children, extra = {}) => ({ id, label, icon, children, ...extra });
+
+const L = {
+  people: leaf('manage-users', 'People', '/dashboard/admin/users', UsersRound, { aliases: ['Manage Users', 'User Management'] }),
+  positions: leaf('manage-positions', 'Officer positions', '/dashboard/admin/positions', BadgeCheck, { aliases: ['Manage Positions', 'SBO positions'], also: ['/dashboard/admin/sbo-positions'] }),
+  programs: leaf('manage-programs-sections', 'Programs and sections', '/dashboard/admin/programs-sections', GraduationCap, { aliases: ['Programs & Sections'] }),
+
+  budgets: leaf('budget-allocation', 'Budgets', '/dashboard/finance/budget-allocation', CreditCard, { aliases: ['Budget Allocation'] }),
+  ledger: leaf('financial-ledger', 'Ledger', '/dashboard/finance/financial-ledger', BookOpen, { aliases: ['Digital Ledger'] }),
+  collections: leaf('collections', 'Collections and advances', '/dashboard/finance/collections', WalletCards, { aliases: ['Collections & Advances'] }),
+  studentAccounts: leaf('student-accounts', 'Student accounts', '/dashboard/finance/student-accounts', UsersRound, { aliases: ['Student Financial Accounts'] }),
+  reports: leaf('transaction-history', 'Financial reports', '/dashboard/finance/transaction-history', History, { aliases: ['Transaction History'] }),
+  forecast: leaf('financial-insights', 'Forecast', '/dashboard/finance/financial-insights', ChartColumn, { aliases: ['Financial Insights'] }),
+
+  events: leaf('manage-events', 'Events', '/dashboard/events/manage-events', CalendarDays, { aliases: ['Manage Events'] }),
+  venues: leaf('gov-venues', 'Venue booking', '/dashboard/venues', MapPin, { aliases: ['Venues'] }),
+  planning: leaf('event-planner', 'Planning', '/dashboard/events/event-planner', ClipboardList, { aliases: ['Event Planner'] }),
+  tasks: leaf('task-board', 'Tasks', '/dashboard/tasks/task-board', ListChecks, { aliases: ['Task Board'], also: ['/dashboard/tasks/create-task', '/dashboard/tasks/task-progress'] }),
+  myTasks: leaf('assigned-tasks', 'My tasks', '/dashboard/tasks/assigned-tasks', ClipboardCheck, { aliases: ['Assigned Tasks'] }),
+  aiDelegation: leaf('ai-delegation', 'AI delegation', '/dashboard/tasks/ai-delegation', Bot, { aliases: ['AI Delegation'] }),
+  checkIn: leaf('check-in', 'Check-in', '/dashboard/events/check-in', Fingerprint, { aliases: ['Check In', 'Event Check-In'] }),
+  calendar: leaf('activity-calendar', 'Calendar', '/dashboard/events/activity-calendar', CalendarDays, { aliases: ['Activity Calendar'] }),
+
+  elections: leaf('manage-elections', 'Elections', '/dashboard/elections/manage-elections', Vote, {
+    aliases: ['Manage Elections'],
+    also: ['/dashboard/elections/manage-partylists', '/dashboard/elections/manage-candidates'],
+  }),
+  candidates: leaf('manage-candidates', 'Candidates', '/dashboard/elections/manage-candidates', UsersRound, { aliases: ['Manage Candidates'] }),
+  voters: leaf('manage-voters', 'Voters', '/dashboard/elections/manage-voters', BadgeCheck, { aliases: ['Manage Voters'] }),
+  results: leaf('election-results', 'Results', '/dashboard/elections/election-results', ChartColumn, { aliases: ['Election Results'] }),
+
+  inventory: leaf('manage-inventory', 'Inventory', '/dashboard/merchandise/manage-inventory', Package),
+  orders: leaf('manage-orders', 'Orders', '/dashboard/merchandise/manage-orders', ShoppingCart, { aliases: ['Manage Orders'] }),
+  claimDesk: leaf('claim-tokens', 'Claim desk', '/dashboard/merchandise/claim-tokens', TicketCheck, { aliases: ['Validate Tokens', 'Claim Tokens'] }),
+
+  announcements: leaf('manage-announcements', 'Announcements', '/dashboard/announcements/manage-announcements', Megaphone, {
+    aliases: ['Manage Announcements'],
+    also: ['/dashboard/announcements/create-announcement'],
+  }),
+  feed: leaf('view-announcements', 'Feed', '/dashboard/announcements/view-announcements', Newspaper, { aliases: ['Announcements Feed'] }),
+
+  compliance: leaf('gov-compliance', 'Compliance', '/dashboard/compliance', ClipboardCheck),
+  grievances: leaf('gov-grievances', 'Grievances', '/dashboard/grievances', MessageSquare),
+  clearanceSigning: leaf('gov-clearances', 'Clearance signing', '/dashboard/clearances', ShieldCheck, { aliases: ['Clearances'] }),
+  auditLog: leaf('audit-logs', 'Audit log', '/dashboard/audit-logs', History, { aliases: ['General Audit Log'] }),
+
+  vote: leaf('cast-vote', 'Vote', '/dashboard/elections/cast-vote', Vote, { aliases: ['Cast Vote'] }),
+  shop: leaf('order-merchandise', 'Shop', '/dashboard/merchandise/order-merchandise', Store, { aliases: ['Order Merchandise'] }),
+  myOrders: leaf('my-orders', 'My orders', '/dashboard/merchandise/my-orders', ReceiptText, { aliases: ['My Orders'] }),
+  myReceipts: leaf('personal-receipts', 'My receipts', '/dashboard/finance/personal-receipts', ReceiptText, { aliases: ['My Receipts', 'Receipts'] }),
+  statement: leaf('statement-of-account', 'Statement of account', '/dashboard/finance/statement-of-account', FileText, { aliases: ['Statement of Account'] }),
+};
+
+const myActivity = () => group('my-activity', 'My activity', User, [L.vote, L.shop, L.myOrders, L.myReceipts, L.statement], { band: 'Me' });
+
+const dashboard = (role) => ({ id: 'dashboard', label: 'Dashboard', icon: Home, path: ROLE_HOME_PATHS[role], exact: true });
+
+const NAV_BY_ROLE = {
+  ADMIN: [
+    dashboard('ADMIN'),
+    { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/approvals', also: ['/dashboard/approval-requests/new'] },
+    group('members', 'Members', Users, [L.people, L.positions, L.programs], { band: 'Manage' }),
+    group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.collections, L.studentAccounts, L.reports, L.forecast], { band: 'Manage' }),
+    group('events-tasks', 'Events and tasks', eventsPillar.icon, [L.events, L.venues, L.planning, L.tasks, L.aiDelegation, L.checkIn], { band: 'Manage' }),
+    group('voting', 'Voting', electionsPillar.icon, [L.elections, L.results], { band: 'Community' }),
+    group('store', 'Store', merchandisePillar.icon, [L.inventory, L.orders, L.claimDesk], { band: 'Community' }),
+    group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
+    group('records', 'Records', ShieldCheck, [L.compliance, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
+    myActivity(),
+  ],
+  SBO_OFFICER: [
+    dashboard('SBO_OFFICER'),
+    group('events-tasks', 'Events and tasks', eventsPillar.icon, [L.checkIn, L.calendar, L.venues, L.myTasks, L.aiDelegation], { band: 'Manage' }),
+    group('finance', 'Finance (view only)', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'Manage' }),
+    { id: 'members-fingerprints', label: 'Members and fingerprints', icon: Fingerprint, path: '/dashboard/admin/users', aliases: ['Participant Biometrics', 'Manage Users'], band: 'Manage' },
+    group('voting', 'Voting', electionsPillar.icon, [L.candidates, L.voters, L.results], { band: 'Community' }),
+    group('store', 'Store', merchandisePillar.icon, [L.orders, L.claimDesk], { band: 'Community' }),
+    group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
+    { id: 'clearance-signing', label: 'Clearance signing', icon: ShieldCheck, path: '/dashboard/clearances', aliases: ['Clearances'], band: 'Records' },
+    myActivity(),
+  ],
+  DEPARTMENT_HEAD: [
+    dashboard('DEPARTMENT_HEAD'),
+    { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
+    { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
+    group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'College view (read only)' }),
+    { id: 'activity-calendar', label: 'Calendar', icon: CalendarDays, path: '/dashboard/events/activity-calendar', aliases: ['Activity Calendar'], band: 'College view (read only)' },
+    { id: 'election-results', label: 'Election results', icon: ChartColumn, path: '/dashboard/elections/election-results', aliases: ['Results'], band: 'College view (read only)' },
+    { id: 'view-announcements', label: 'Announcements', icon: Newspaper, path: '/dashboard/announcements/view-announcements', aliases: ['Announcements Feed'], band: 'College view (read only)' },
+  ],
+  STUDENT: [
+    dashboard('STUDENT'),
+    group('my-payments', 'My payments', financePillar.icon, [L.statement, { ...L.myReceipts, label: 'Receipts', aliases: ['My Receipts'] }]),
+    group('events', 'Events', eventsPillar.icon, [leaf('activity-calendar', 'Events', '/dashboard/events/activity-calendar', CalendarDays, { aliases: ['Activity Calendar', 'Calendar'] })]),
+    group('voting', 'Voting', electionsPillar.icon, [L.vote, L.results]),
+    group('store', 'Store', merchandisePillar.icon, [L.shop, L.myOrders]),
+    group('updates', 'Updates', communicationPillar.icon, [leaf('view-announcements', 'Announcements', '/dashboard/announcements/view-announcements', Newspaper, { aliases: ['Announcements Feed'] })]),
+    group('support', 'Support', MessageSquare, [
+      leaf('gov-my-clearance', 'My clearance', '/dashboard/my-clearance', SearchCheck),
+      leaf('gov-my-grievances', 'My grievances', '/dashboard/my-grievances', MessageSquare, { aliases: ['My Grievances'] }),
+    ]),
+  ],
+  SUPER_ADMIN: [
+    dashboard('SUPER_ADMIN'),
+    group('sao-organizations-group', 'Organizations', Building2, [
+      leaf('sao-agency', 'Agency overview', '/dashboard/super-admin/agency', LayoutDashboard),
+      leaf('sao-organizations', 'Registrations and organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Organizations'] }),
+      leaf('sao-admins', 'Administrators', '/dashboard/super-admin/admins', UsersRound),
+      leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2),
+    ]),
+    group('sao-reviews', 'Reviews', ClipboardCheck, [
+      leaf('sao-compliance', 'Compliance', '/dashboard/super-admin/compliance', ClipboardCheck),
+      leaf('sao-venues', 'Venues', '/dashboard/super-admin/venues', MapPin),
+      leaf('sao-grievances', 'Grievances', '/dashboard/super-admin/grievances', MessageSquare),
+      leaf('sao-clearances', 'Clearances', '/dashboard/super-admin/clearances', ShieldCheck),
+    ]),
+    group('sao-updates', 'Updates', Megaphone, [
+      leaf('sao-announcements', 'University announcements', '/dashboard/super-admin/announcements', Megaphone),
+      leaf('sao-notifications', 'Notifications', '/dashboard/super-admin/notifications', Newspaper),
+    ]),
+    group('sao-setup', 'Setup and records', Settings, [
+      leaf('sao-academic-years', 'Academic years', '/dashboard/super-admin/academic-years', CalendarDays, { aliases: ['Academic Years'] }),
+      leaf('sao-audit-logs', 'Audit trail', '/dashboard/super-admin/audit-logs', History),
+    ]),
+  ],
+};
+
+// Every role shares the same footer: the account page and the page that ends the old orphan.
+export const footerNav = [
+  { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: User },
+  { id: 'objectives', label: 'Study objectives', path: '/dashboard/objectives', icon: BookOpen },
 ];
 
-export const profileNav = [
-  { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: Users },
-];
+// Pages that left the sidebar but stay reachable from the command palette. Paths that are now
+// redirects carry the query the surviving page will read.
+const DEMOTED_BY_ROLE = {
+  ADMIN: [
+    { id: 'activity-calendar', label: 'Activity calendar', path: '/dashboard/events/manage-events?view=calendar', section: 'Events and tasks', icon: CalendarDays, aliases: ['Calendar', 'Activity Calendar'] },
+    { id: 'create-task', label: 'New task', path: '/dashboard/tasks/task-board?new=1', section: 'Events and tasks', icon: ListChecks, aliases: ['Create Task'] },
+    { id: 'task-progress', label: 'Task progress', path: '/dashboard/tasks/task-board?view=progress', section: 'Events and tasks', icon: ChartColumn, aliases: ['Monitor Progress', 'Monitor Task Progress'] },
+    { id: 'create-announcement', label: 'New announcement', path: '/dashboard/announcements/create-announcement', section: 'Updates', icon: Megaphone, aliases: ['Create Announcement'] },
+    { id: 'submit-request', label: 'New request', path: '/dashboard/approval-requests/new', section: 'Approvals', icon: ClipboardCheck, aliases: ['Submit Request'] },
+    { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', section: 'Voting', icon: UsersRound, aliases: ['Manage Candidates'] },
+    { id: 'manage-partylists', label: 'Party lists', path: '/dashboard/elections/manage-partylists', section: 'Voting', icon: Flag, aliases: ['Party Lists', 'Manage Party Lists'] },
+  ],
+  SBO_OFFICER: [
+    { id: 'create-announcement', label: 'New announcement', path: '/dashboard/announcements/create-announcement', section: 'Updates', icon: Megaphone, aliases: ['Create Announcement'] },
+    { id: 'submit-request', label: 'New request', path: '/dashboard/approval-requests/new', section: 'Updates', icon: ClipboardCheck, aliases: ['Submit Request'] },
+  ],
+};
 
-export const SUPER_ADMIN_NAV = [
-  NAV_STRUCTURE[0],
-  {
-    id: 'sao-administration',
-    label: 'SAO Administration',
-    icon: ShieldCheck,
-    roles: ['SUPER_ADMIN'],
-    children: [
-      { id: 'sao-agency', label: 'Agency overview', path: '/dashboard/super-admin/agency', roles: ['SUPER_ADMIN'], icon: LayoutDashboard },
-      { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-colleges', label: 'Colleges', path: '/dashboard/super-admin/colleges', roles: ['SUPER_ADMIN'], icon: Building2 },
-      { id: 'sao-academic-years', label: 'Academic Years', path: '/dashboard/super-admin/academic-years', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-compliance', label: 'Compliance', path: '/dashboard/super-admin/compliance', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-venues', label: 'Venues', path: '/dashboard/super-admin/venues', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-grievances', label: 'Grievances', path: '/dashboard/super-admin/grievances', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-clearances', label: 'Clearances', path: '/dashboard/super-admin/clearances', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-audit-logs', label: 'Audit Trail', path: '/dashboard/super-admin/audit-logs', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-announcements', label: 'University Announcements', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },
-    ],
-  },
-];
-
-export function getVisibleChildren(item, role) {
-  return (item.children || []).filter((child) => child.roles.includes(role));
+export function getVisibleChildren(item) {
+  return item.children || [];
 }
 
-export function resolveItemPath(item, role) {
-  if (item.rolePaths) {
-    return item.rolePaths[role] || item.rolePaths.SBO_OFFICER;
-  }
-
+export function resolveItemPath(item) {
   if (item.path) {
     return item.path;
   }
 
-  const children = getVisibleChildren(item, role);
-  return children[0]?.path || '/dashboard';
+  return getVisibleChildren(item)[0]?.path || '/dashboard';
 }
 
 export function getNavForRole(role) {
-  const items = role === 'SUPER_ADMIN' ? SUPER_ADMIN_NAV : NAV_STRUCTURE.filter((item) => item.roles.includes(role));
-  return items.filter((item) => !item.children || getVisibleChildren(item, role).length > 0);
+  return NAV_BY_ROLE[role] || [];
 }
 
-// Flattens the role's nav into individual pages for the command palette: leaf pages
-// where a group has children, the group's own destination otherwise.
+// The clickable destinations of the sidebar: a group's children, or the row itself when it has none.
+export function getNavLeaves(role) {
+  return getNavForRole(role).flatMap((item) => (item.children ? item.children : [item]));
+}
+
+function splitTarget(target) {
+  const [pathname, query = ''] = target.split('?');
+  return { pathname, params: new URLSearchParams(query) };
+}
+
+function matchLength(item, pathname) {
+  const targets = [item.path, ...(item.also || [])];
+  let best = 0;
+  targets.forEach((target) => {
+    const base = splitTarget(target).pathname;
+    const hit = pathname === base || (!item.exact && pathname.startsWith(`${base}/`));
+    if (hit && base.length > best) best = base.length;
+  });
+  return best;
+}
+
+function queryMatches(item, params) {
+  const wanted = [...splitTarget(item.path).params.entries()];
+  return wanted.length > 0 && wanted.every(([key, value]) => params.get(key) === value);
+}
+
+// Which one item is current: the longest matching path wins, and several items on one path are told
+// apart by their query. An item with a query stays current on its own page even when the page has
+// since changed the query, as long as nothing else on that path claims the location.
+export function findActiveNavId(items, pathname, search = '') {
+  const matches = items
+    .map((item) => ({ item, length: matchLength(item, pathname) }))
+    .filter((entry) => entry.length > 0);
+  if (matches.length === 0) return null;
+
+  const longest = Math.max(...matches.map((entry) => entry.length));
+  const candidates = matches.filter((entry) => entry.length === longest).map((entry) => entry.item);
+  if (candidates.length === 1) return candidates[0].id;
+
+  const params = new URLSearchParams(search);
+  const byQuery = candidates.filter((item) => queryMatches(item, params));
+  if (byQuery.length > 0) return byQuery[0].id;
+
+  return (candidates.find((item) => !item.path.includes('?')) || candidates[0]).id;
+}
+
+// Flattens the role's nav into individual pages for the command palette: leaf pages where a group
+// has children, the row itself otherwise, then the footer and the demoted pages that left the menu.
 export function getFlatPages(role) {
-  const source = getNavForRole(role);
   const pages = [];
 
-  source.forEach((item) => {
-    const visibleChildren = getVisibleChildren(item, role);
-    if (visibleChildren.length > 0) {
-      visibleChildren.forEach((child) => {
-        pages.push({ id: child.id, label: child.label, path: child.path, section: item.label, icon: item.icon || Home });
+  getNavForRole(role).forEach((item) => {
+    const children = getVisibleChildren(item);
+    if (children.length > 0) {
+      children.forEach((child) => {
+        pages.push({ id: child.id, label: child.label, path: child.path, section: item.label, icon: child.icon || item.icon || Home, aliases: child.aliases || [] });
       });
       return;
     }
 
-    const path = resolveItemPath(item, role);
-    pages.push({ id: item.id, label: item.label, path, section: item.label, icon: item.icon || Home });
+    pages.push({ id: item.id, label: item.label, path: resolveItemPath(item), section: item.label, icon: item.icon || Home, aliases: item.aliases || [] });
   });
 
-  profileNav.forEach((item) => {
-    pages.push({ id: item.id, label: item.label, path: item.path, section: 'Account', icon: item.icon || Home });
-  });
+  (DEMOTED_BY_ROLE[role] || []).forEach((page) => pages.push({ ...page, aliases: page.aliases || [] }));
+
+  if (role in NAV_BY_ROLE) {
+    footerNav.forEach((item) => {
+      pages.push({ id: item.id, label: item.label, path: item.path, section: 'Account', icon: item.icon || Home, aliases: [] });
+    });
+  }
 
   return pages;
 }

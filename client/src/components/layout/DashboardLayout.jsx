@@ -1,102 +1,29 @@
-import { Suspense, useState } from 'react';
+import { Suspense, useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import RouteLoadingFallback from './RouteLoadingFallback';
+import { PageBreadcrumb, PageHeaderView } from '../ui/PageHeader';
+import { PageHeaderRegistryContext } from '../../lib/pageHeaderRegistry';
+import { getBreadcrumbs, getPageMeta, getStoredRole } from '../../lib/pageMeta';
 
-const pageTitles = {
-  '/dashboard': 'Officer Dashboard',
-  '/dashboard/admin': 'Admin Dashboard',
-  '/dashboard/super-admin': 'Super Admin Dashboard',
-  '/dashboard/super-admin/agency': 'Agency overview',
-  '/dashboard/super-admin/organizations': 'Organizations',
-  '/dashboard/super-admin/colleges': 'Colleges',
-  '/dashboard/super-admin/compliance': 'Compliance and Accreditation',
-  '/dashboard/super-admin/venues': 'Venues and Bookings',
-  '/dashboard/super-admin/grievances': 'Grievances',
-  '/dashboard/super-admin/clearances': 'Digital Clearances',
-  '/dashboard/super-admin/audit-logs': 'Audit Trail',
-  '/dashboard/super-admin/academic-years': 'Academic Years',
-  '/dashboard/compliance': 'Compliance',
-  '/dashboard/venues': 'Venue Booking',
-  '/dashboard/grievances': 'Grievances',
-  '/dashboard/my-grievances': 'My Grievances',
-  '/dashboard/clearances': 'Clearance Signing',
-  '/dashboard/my-clearance': 'My Clearance',
-  '/dashboard/objectives': 'Study Objectives in Action',
-  '/dashboard/super-admin/admins': 'Administrators',
-  '/dashboard/super-admin/announcements': 'Official SAO Announcements',
-  '/dashboard/super-admin/notifications': 'SAO Notifications',
-  '/dashboard/admin/users': 'User Management',
-  '/dashboard/admin/sbo-positions': 'Manage Positions',
-  '/dashboard/admin/positions': 'Manage Positions',
-  '/dashboard/admin/programs-sections': 'Programs & Sections',
-  '/dashboard/approvals': 'Approvals',
-  '/dashboard/approval-requests/new': 'Submit Request',
-  '/dashboard/approval-requests/new/announcement': 'Announcement Request',
-  '/dashboard/approval-requests/new/budget': 'Budget Request',
-  '/dashboard/approval-requests/new/event': 'Event Request',
-  '/dashboard/approval-requests/new/election': 'Election Request',
-  '/dashboard/officer': 'Officer Dashboard',
-  '/dashboard/department-head': 'Department Head Dashboard',
-  '/dashboard/department-head/approvals': 'Approvals',
-  '/dashboard/department-head/organizations': 'Organizations',
-  '/dashboard/adviser': 'Adviser Dashboard',
-  '/dashboard/student': 'Student Dashboard',
-  '/dashboard/finance': 'Financial Management',
-  '/dashboard/finance/financial-ledger': 'Digital Ledger',
-  '/dashboard/finance/collections': 'Collections, Remittances & Cash Advances',
-  '/dashboard/finance/student-accounts': 'Student Financial Accounts',
-  '/dashboard/finance/budget-allocation': 'Budget Allocation',
-  '/dashboard/finance/financial-insights': 'Financial Insights',
-  '/dashboard/finance/transaction-history': 'Transaction History',
-  '/dashboard/finance/personal-receipts': 'My Receipts',
-  '/dashboard/finance/statement-of-account': 'Statement of Account',
-  '/dashboard/audit-logs': 'General Audit Log',
-  '/dashboard/events': 'Events',
-  '/dashboard/events/manage-events': 'Manage Events',
-  '/dashboard/events/event-planner': 'Event Planner',
-  '/dashboard/events/activity-calendar': 'Activity Calendar',
-  '/dashboard/events/check-in': 'Event Check-In',
-  '/dashboard/tasks': 'Task Management',
-  '/dashboard/tasks/task-board': 'Task Board',
-  '/dashboard/tasks/create-task': 'Create Task',
-  '/dashboard/tasks/task-progress': 'Monitor Task Progress',
-  '/dashboard/tasks/assigned-tasks': 'Assigned Tasks',
-  '/dashboard/tasks/ai-delegation': 'AI Delegation',
-  '/dashboard/elections': 'Elections',
-  '/dashboard/elections/manage-elections': 'Manage Elections',
-  '/dashboard/elections/manage-candidates': 'Manage Candidates',
-  '/dashboard/elections/manage-voters': 'Manage Voters',
-  '/dashboard/elections/manage-partylists': 'Manage Party Lists',
-  '/dashboard/elections/cast-vote': 'Cast Vote',
-  '/dashboard/elections/election-results': 'Election Results',
-  '/dashboard/merchandise': 'Merchandise',
-  '/dashboard/merchandise/manage-inventory': 'Inventory',
-  '/dashboard/merchandise/gcash-payment': 'Manage Orders',
-  '/dashboard/merchandise/manage-orders': 'Manage Orders',
-  '/dashboard/merchandise/claim-tokens': 'Claim Tokens',
-  '/dashboard/merchandise/order-merchandise': 'Order Merchandise',
-  '/dashboard/merchandise/my-orders': 'My Orders',
-  '/dashboard/announcements': 'Announcements',
-  '/dashboard/announcements/manage-announcements': 'Manage Announcements',
-  '/dashboard/announcements/create-announcement': 'Create Announcement',
-  '/dashboard/announcements/view-announcements': 'Announcements Feed',
-  '/dashboard/profile': 'Manage Profile',
-  '/dashboard/organization': 'Manage Profile',
-  '/dashboard/settings': 'Manage Profile',
-};
+// A page that was not moved to PageHeader yet still writes its own h1. Watching the content for one
+// keeps the default header from adding a second title above it.
+function useContentHasHeading(contentRef, pathname) {
+  const [hasHeading, setHasHeading] = useState(false);
 
-function getTitle(pathname) {
-  if (pageTitles[pathname]) return pageTitles[pathname];
-  if (pathname.startsWith('/dashboard/super-admin/organizations/')) return 'Organization overview';
-  if (pathname.startsWith('/dashboard/announcements/')) return 'Announcements';
-  if (pathname.startsWith('/dashboard/elections/')) return 'Elections';
-  if (pathname.startsWith('/dashboard/events/')) return 'Events';
-  if (pathname.startsWith('/dashboard/finance/')) return 'Financial';
-  if (pathname.startsWith('/dashboard/tasks/')) return 'Tasks';
-  if (pathname.startsWith('/dashboard/merchandise/')) return 'Merchandise';
-  return 'Dashboard';
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+    if (!content) return undefined;
+
+    const check = () => setHasHeading(Boolean(content.querySelector('h1')));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(content, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [contentRef, pathname]);
+
+  return hasHeading;
 }
 
 export default function DashboardLayout() {
@@ -108,8 +35,20 @@ export default function DashboardLayout() {
       return false;
     }
   });
+  const [registeredHeaders, setRegisteredHeaders] = useState(0);
+  const contentRef = useRef(null);
   const location = useLocation();
-  const title = getTitle(location.pathname);
+  const contentHasHeading = useContentHasHeading(contentRef, location.pathname);
+
+  const register = useCallback(() => {
+    setRegisteredHeaders((count) => count + 1);
+    return () => setRegisteredHeaders((count) => count - 1);
+  }, []);
+  const registry = useMemo(() => ({ register }), [register]);
+
+  const role = getStoredRole();
+  const pageMeta = getPageMeta(location.pathname, role);
+  const breadcrumbs = getBreadcrumbs(location.pathname, role);
 
   function toggleDesktopSidebar() {
     setDesktopCollapsed((current) => {
@@ -123,20 +62,28 @@ export default function DashboardLayout() {
     });
   }
 
+  let defaultHeader = null;
+  if (pageMeta.matched && registeredHeaders === 0) {
+    defaultHeader = contentHasHeading
+      ? <div className="mb-4"><PageBreadcrumb crumbs={breadcrumbs} /></div>
+      : <PageHeaderView className="mb-6" breadcrumbs={breadcrumbs} title={pageMeta.title} lead={pageMeta.isHome ? undefined : pageMeta.purpose} />;
+  }
+
   return (
     <div className="flex h-[100dvh] max-w-full overflow-hidden bg-[#EEF6FB] font-sans text-[#0F172A]">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} desktopCollapsed={desktopCollapsed} onToggleDesktop={toggleDesktopSidebar} />
       <div className={`flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden transition-[padding] duration-300 motion-reduce:transition-none ${desktopCollapsed ? 'lg:pl-[72px]' : 'lg:pl-[260px]'}`}>
-        <TopBar
-          title={title}
-          pathname={location.pathname}
-          onMenuToggle={() => setSidebarOpen(!sidebarOpen)}
-        />
+        <TopBar onMenuToggle={() => setSidebarOpen(!sidebarOpen)} />
         <main className="min-h-0 min-w-0 flex-1 overflow-x-hidden overflow-y-auto p-3 sm:p-6">
           <div className="route-fade-in">
-            <Suspense fallback={<RouteLoadingFallback />}>
-              <Outlet />
-            </Suspense>
+            {defaultHeader}
+            <PageHeaderRegistryContext value={registry}>
+              <div ref={contentRef}>
+                <Suspense fallback={<RouteLoadingFallback />}>
+                  <Outlet />
+                </Suspense>
+              </div>
+            </PageHeaderRegistryContext>
           </div>
         </main>
       </div>

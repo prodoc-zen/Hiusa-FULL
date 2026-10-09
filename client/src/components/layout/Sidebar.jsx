@@ -1,66 +1,51 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { BadgeCheck, BookOpen, Bot, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard, FileText, Fingerprint, Flag, GraduationCap, History, ListChecks, MapPin, Megaphone, MessageSquare, Newspaper, Package, PanelLeftClose, PanelLeftOpen, Plus, ReceiptText, SearchCheck, ShieldCheck, ShoppingCart, Store, TicketCheck, UsersRound, Vote, WalletCards, X, ChevronDown, LogOut } from 'lucide-react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { PanelLeftClose, PanelLeftOpen, X, ChevronDown, LogOut } from 'lucide-react';
 import ConfirmModal from '../ConfirmModal';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import { logout } from '../../services/authService';
 import { dashboardPopupTop } from '../../utils/dashboardPopupPosition';
-import { ROLE_LABELS, getNavForRole, getVisibleChildren, profileNav, resolveItemPath } from './navigation';
+import { ROLE_LABELS, findActiveNavId, footerNav, getNavForRole, getNavLeaves, getVisibleChildren, resolveItemPath } from './navigation';
 
-const unitIcons = {
-  'financial-ledger': BookOpen, collections: WalletCards, 'student-accounts': UsersRound,
-  'budget-allocation': CreditCard, 'financial-insights': ChartColumn, 'transaction-history': History,
-  'personal-receipts': ReceiptText, 'statement-of-account': FileText,
-  'manage-events': CalendarDays, 'event-planner': ClipboardList, 'check-in': Fingerprint, 'activity-calendar': CalendarDays,
-  'task-board': ListChecks, 'create-task': Plus, 'assigned-tasks': ClipboardCheck, 'task-progress': ChartColumn, 'ai-delegation': Bot,
-  'manage-elections': Vote, 'manage-candidates': UsersRound, 'manage-voters': BadgeCheck,
-  'manage-partylists': Flag, 'cast-vote': Vote, 'election-results': ChartColumn,
-  'manage-inventory': Package, 'manage-orders': ShoppingCart, 'claim-tokens': TicketCheck,
-  'order-merchandise': Store, 'my-orders': ReceiptText,
-  'manage-announcements': Megaphone, 'create-announcement': Plus, 'view-announcements': Newspaper,
-  'manage-users': UsersRound, 'participant-biometrics': Fingerprint, 'manage-positions': BadgeCheck,
-  'manage-programs-sections': GraduationCap,
-  'gov-compliance': ClipboardCheck, 'gov-venues': MapPin, 'gov-grievances': MessageSquare,
-  'gov-my-grievances': MessageSquare, 'gov-clearances': ShieldCheck, 'gov-my-clearance': SearchCheck,
-  'sao-admins': UsersRound, 'sao-organizations': Store, 'sao-academic-years': CalendarDays,
-  'sao-compliance': ClipboardCheck, 'sao-venues': MapPin, 'sao-grievances': MessageSquare,
-  'sao-clearances': ShieldCheck, 'sao-audit-logs': History, 'sao-announcements': Megaphone,
-  'sao-notifications': Newspaper,
-};
-
-function NavItem({ label, path, icon: Icon, end, onClick, desktopCollapsed = false }) {
+function NavItem({ label, path, icon: Icon, active, onClick, desktopCollapsed = false }) {
   return (
-    <NavLink
+    <Link
       to={path}
-      end={end}
       onClick={onClick}
+      aria-current={active ? 'page' : undefined}
       aria-label={desktopCollapsed ? label : undefined}
       title={desktopCollapsed ? label : undefined}
-      className={({ isActive }) => `relative flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${isActive ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
+      className={`relative flex h-11 items-center gap-3 rounded-lg px-3 text-[13px] font-semibold transition-colors duration-200 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''} ${active ? 'bg-[#0F2F62] text-white' : 'text-slate-300 hover:bg-white/[0.07] hover:text-white'}`}
     >
-      {({ isActive }) => (
-        <>
-          {isActive && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
-          <Icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
-          <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{label}</span>
-        </>
-      )}
-    </NavLink>
+      {active && <span aria-hidden="true" className="absolute inset-y-1.5 left-0 w-[3px] rounded-full bg-brand-600" />}
+      <Icon size={18} strokeWidth={2} className="shrink-0" aria-hidden="true" />
+      <span className={desktopCollapsed ? 'lg:sr-only' : ''}>{label}</span>
+    </Link>
   );
 }
 
-function SubNavItem({ label, path, icon: Icon, onClick }) {
+function SubNavItem({ label, path, icon: Icon, active, onClick }) {
   return (
-    <NavLink
+    <Link
       to={path}
       onClick={onClick}
-      className={({ isActive }) => `flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${isActive ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
+      aria-current={active ? 'page' : undefined}
+      className={`flex min-h-10 items-center gap-2 rounded-lg px-3 py-2 text-[12px] font-semibold transition-all duration-200 ${active ? 'bg-[#0878B7] text-white shadow-sm' : 'text-slate-300 hover:bg-white/[0.08] hover:text-white'}`}
     >
       <Icon size={14} className="shrink-0" aria-hidden="true" />
       {label}
-    </NavLink>
+    </Link>
+  );
+}
+
+function BandHeading({ label, desktopCollapsed }) {
+  return (
+    <>
+      {desktopCollapsed && <div aria-hidden="true" className="mx-2 mb-2 mt-3 hidden border-t border-white/10 lg:block" />}
+      <p className={`px-3 pb-1 pt-4 text-[11px] font-bold uppercase tracking-widest text-slate-400 ${desktopCollapsed ? 'lg:hidden' : ''}`}>{label}</p>
+    </>
   );
 }
 
@@ -199,6 +184,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
   const role = user?.role || 'SBO_OFFICER';
   const roleLabel = ROLE_LABELS[role] || role;
   const nav = getNavForRole(role);
+  const activeId = useMemo(() => findActiveNavId([...getNavLeaves(role), ...footerNav], location.pathname, location.search), [role, location.pathname, location.search]);
   const flyoutGroup = desktopCollapsed && flyout ? nav.find((item) => item.id === flyout.id) : null;
 
   const handleLogout = async () => {
@@ -236,21 +222,29 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
 
       <nav onScroll={() => setFlyout(null)} className={`sidebar-scroll flex min-h-0 flex-1 flex-col overflow-y-auto px-3 py-4 ${desktopCollapsed ? 'lg:px-3' : ''}`}>
         <div className="flex-1 space-y-1">
-          {nav.map((item) => {
-            const visibleChildren = getVisibleChildren(item, role);
-            const itemPath = resolveItemPath(item, role);
+          {nav.map((item, index) => {
+            const visibleChildren = getVisibleChildren(item);
+            const itemPath = resolveItemPath(item);
+            const heading = item.band && item.band !== nav[index - 1]?.band
+              ? <BandHeading label={item.band} desktopCollapsed={desktopCollapsed} />
+              : null;
+
             if (visibleChildren.length <= 1) {
-              const child = visibleChildren[0];
+              const child = visibleChildren[0] || item;
               return (
-                <NavItem key={item.id} label={child?.label || item.label} path={child?.path || itemPath} icon={child?.icon || unitIcons[child?.id] || item.icon} end={!child} onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />
+                <div key={item.id}>
+                  {heading}
+                  <NavItem label={child.label} path={child.path} icon={child.icon || item.icon} active={activeId === child.id} onClick={handleNavItemClick} desktopCollapsed={desktopCollapsed} />
+                </div>
               );
             }
 
-            const onParentRoute = visibleChildren.some((child) => location.pathname.startsWith(child.path));
+            const onParentRoute = visibleChildren.some((child) => child.id === activeId);
             const isExpanded = expandedMenus[item.id] ?? onParentRoute;
 
             return (
               <div key={item.id}>
+                {heading}
                 <button
                   type="button"
                   onClick={(event) => {
@@ -285,7 +279,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
                   <div className={`ml-4 mt-1 space-y-0.5 border-l border-white/15 pl-3 ${desktopCollapsed ? 'lg:hidden' : ''}`}>
                     {visibleChildren.map((sub) => (
                       <div key={sub.id} onClick={handleNavItemClick}>
-                        <SubNavItem label={sub.label} path={sub.path} icon={sub.icon || unitIcons[sub.id] || item.icon} />
+                        <SubNavItem label={sub.label} path={sub.path} icon={sub.icon || item.icon} active={activeId === sub.id} />
                       </div>
                     ))}
                   </div>
@@ -298,9 +292,9 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.06] p-2">
           <OfficerProfile user={user} roleLabel={roleLabel} desktopCollapsed={desktopCollapsed} />
           <div className="mt-1 border-t border-white/10 pt-1">
-          {profileNav.map((item) => (
+          {footerNav.map((item) => (
             <div key={item.path} onClick={handleNavItemClick}>
-              <NavItem {...item} desktopCollapsed={desktopCollapsed} />
+              <NavItem {...item} active={activeId === item.id} desktopCollapsed={desktopCollapsed} />
             </div>
           ))}
           <button type="button" onClick={() => { handleNavItemClick(); setLogoutConfirmOpen(true); }} aria-label={desktopCollapsed ? 'Logout' : undefined} title={desktopCollapsed ? 'Logout' : undefined} className={`flex h-11 w-full items-center gap-3 rounded-lg px-3 text-[13px] font-semibold text-slate-300 transition-colors duration-200 hover:bg-red-500/10 hover:text-red-300 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#16C7F3] ${desktopCollapsed ? 'lg:justify-center lg:px-0' : ''}`}>
@@ -321,7 +315,7 @@ export default function Sidebar({ isOpen, onClose, desktopCollapsed = false, onT
         <div ref={flyoutRef} role="region" aria-label={`${flyoutGroup.label} links`} style={{ top: flyout.top }} className="fixed left-[72px] z-[70] max-h-[min(28rem,calc(100dvh-var(--dashboard-navbar-bottom,0px)-20px))] w-60 overflow-y-auto rounded-r-lg border border-[#DDE7EF] bg-white p-2 shadow-lg">
           <p className="px-3 py-2 text-xs font-bold text-[#0F2F62]">{flyoutGroup.label}</p>
           <nav aria-label={`${flyoutGroup.label} pages`} className="space-y-0.5">
-            {getVisibleChildren(flyoutGroup, role).map((child) => { const Icon = child.icon || unitIcons[child.id] || flyoutGroup.icon; return <NavLink key={child.id} to={child.path} onClick={() => setFlyout(null)} className={({ isActive }) => `flex min-h-11 items-center gap-2 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${isActive ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}><Icon size={16} aria-hidden="true" />{child.label}</NavLink>; })}
+            {getVisibleChildren(flyoutGroup).map((child) => { const Icon = child.icon || flyoutGroup.icon; const active = activeId === child.id; return <Link key={child.id} to={child.path} onClick={() => setFlyout(null)} aria-current={active ? 'page' : undefined} className={`flex min-h-11 items-center gap-2 rounded-lg px-3 py-3 text-sm font-medium focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${active ? 'bg-[#EEF6FB] text-[#0F2F62]' : 'text-[#0F172A] hover:bg-[#F8FBFD]'}`}><Icon size={16} aria-hidden="true" />{child.label}</Link>; })}
           </nav>
         </div>,
         document.body,

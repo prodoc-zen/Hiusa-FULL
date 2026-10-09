@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect } from 'react';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import PageHeader from '../ui/PageHeader';
 import DashboardLayout from './DashboardLayout';
 
 vi.mock('../../services/notificationService', () => ({
@@ -17,7 +18,7 @@ vi.mock('../../services/authService', () => ({
 vi.mock('./Sidebar', () => ({
   default: ({ desktopCollapsed, onToggleDesktop }) => <button type="button" onClick={onToggleDesktop}>{desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}</button>,
 }));
-vi.mock('./TopBar', () => ({ default: ({ title }) => <div>Top bar<span data-testid="page-title">{title}</span></div> }));
+vi.mock('./TopBar', () => ({ default: () => <div>Top bar</div> }));
 
 let mountCount = 0;
 
@@ -108,19 +109,121 @@ describe('DashboardLayout', () => {
   });
 });
 
-describe('DashboardLayout page titles', () => {
+function renderRouted(path, page, role = 'ADMIN') {
+  localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
+  return render(
+    <MemoryRouter initialEntries={[path]}>
+      <Routes>
+        <Route element={<DashboardLayout />}>
+          <Route path="*" element={page} />
+        </Route>
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function crumbLabels() {
+  return within(screen.getByRole('navigation', { name: 'Breadcrumb' })).getAllByRole('listitem').map((item) => item.textContent);
+}
+
+describe('DashboardLayout page header', () => {
+  beforeEach(() => localStorage.clear());
+
   it.each([
-    ['/dashboard/super-admin/agency', 'Agency overview'],
-    ['/dashboard/department-head/organizations', 'Organizations'],
-    ['/dashboard/super-admin/organizations/12', 'Organization overview'],
-    ['/dashboard/super-admin/organizations', 'Organizations'],
-    ['/dashboard/super-admin/compliance', 'Compliance and Accreditation'],
-    ['/dashboard/super-admin/financial-reports', 'Dashboard'],
-    ['/dashboard/super-admin/approvals', 'Dashboard'],
-    ['/dashboard/super-admin/event-requirements', 'Dashboard'],
-  ])('titles %s as %s', (path, title) => {
-    render(<MemoryRouter initialEntries={[path]}><Routes><Route path="*" element={<DashboardLayout />} /></Routes></MemoryRouter>);
-    expect(screen.getByTestId('page-title')).toHaveTextContent(title);
+    ['SUPER_ADMIN', '/dashboard/super-admin/agency', 'Agency overview', /across organizations, colleges, and compliance/, ['Home', 'Organizations', 'Agency overview']],
+    ['ADMIN', '/dashboard/finance/budget-allocation', 'Budgets', /Plan and review organization budgets/, ['Home', 'Finance', 'Budgets']],
+    ['DEPARTMENT_HEAD', '/dashboard/department-head/organizations', 'Organizations', /student organizations in your college/, ['Home', 'Organizations']],
+    ['STUDENT', '/dashboard/events/activity-calendar', 'Events', /Browse approved activities/, ['Home', 'Events']],
+    ['SBO_OFFICER', '/dashboard/events/activity-calendar', 'Calendar', /Browse approved activities/, ['Home', 'Events and tasks', 'Calendar']],
+  ])('gives a page without a header of its own one h1, a purpose and a breadcrumb for %s on %s', (role, path, title, purpose, crumbs) => {
+    renderRouted(path, <p>Plain page body</p>, role);
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: title })).toBeInTheDocument();
+    expect(screen.getByText(purpose)).toBeInTheDocument();
+    expect(screen.getAllByRole('navigation', { name: 'Breadcrumb' })).toHaveLength(1);
+    expect(crumbLabels()).toEqual(crumbs);
+    expect(screen.getByText('Plain page body')).toBeInTheDocument();
+  });
+
+  it('leaves the purpose off a role home, where the briefing already says it', () => {
+    renderRouted('/dashboard/admin', <p>Briefing</p>);
+    expect(screen.getByRole('heading', { level: 1, name: 'Dashboard' })).toBeInTheDocument();
+    expect(screen.queryByText(/what needs attention/i)).not.toBeInTheDocument();
+    expect(crumbLabels()).toEqual(['Home']);
+  });
+
+  it('shows the default header while a lazy page loads, so the person still sees where they are', () => {
+    const LoadingPage = lazy(() => new Promise(() => {}));
+    renderRouted('/dashboard/finance/budget-allocation', <LoadingPage />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Budgets' })).toBeInTheDocument();
+    expect(screen.getByRole('status', { name: 'Loading page' })).toBeInTheDocument();
+  });
+
+  it('adds no title of its own when the page renders a PageHeader, and its breadcrumb is the only one', () => {
+    renderRouted('/dashboard/finance/budget-allocation', <PageHeader title="Budget planning" description="Own description." />);
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Budget planning' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { level: 1, name: 'Budgets' })).not.toBeInTheDocument();
+    expect(screen.getAllByRole('navigation', { name: 'Breadcrumb' })).toHaveLength(1);
+    expect(crumbLabels()).toEqual(['Home', 'Finance', 'Budgets']);
+    expect(screen.getByText('Own description.')).toBeInTheDocument();
+    expect(screen.queryByText(/Plan and review organization budgets/)).not.toBeInTheDocument();
+  });
+
+  it('keeps one h1 and gains the breadcrumb for a page that still writes its own h1', async () => {
+    renderRouted('/dashboard/my-clearance', <h1>My clearance</h1>, 'STUDENT');
+
+    await waitFor(() => expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1));
+    expect(screen.getByRole('heading', { level: 1, name: 'My clearance' })).toBeInTheDocument();
+    expect(crumbLabels()).toEqual(['Home', 'Support', 'My clearance']);
+  });
+
+  it('swaps back to the default header when the page header goes away', async () => {
+    function Page() {
+      const [open, setOpen] = useState(true);
+      return <>{open && <PageHeader title="Budget planning" />}<button type="button" onClick={() => setOpen(false)}>Hide header</button></>;
+    }
+    renderRouted('/dashboard/finance/budget-allocation', <Page />);
+    expect(screen.getByRole('heading', { level: 1, name: 'Budget planning' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hide header' }));
+    expect(await screen.findByRole('heading', { level: 1, name: 'Budgets' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  });
+
+  it('prints no header for a path with no meta, such as a redirect that is about to leave', () => {
+    renderRouted('/dashboard/tasks/create-task', <p>Leaving</p>);
+    expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
+    expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
+  });
+
+  it('has one h1 after the person moves from a page with a header to a page without one', () => {
+    function Pages() {
+      const navigate = useNavigate();
+      return (
+        <>
+          <PageHeader title="Own title" />
+          <button type="button" onClick={() => navigate('/dashboard/events/check-in')}>Go on</button>
+        </>
+      );
+    }
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Test', last_name: 'User' }));
+    render(
+      <MemoryRouter initialEntries={['/dashboard/finance/budget-allocation']}>
+        <Routes>
+          <Route element={<DashboardLayout />}>
+            <Route path="/dashboard/finance/budget-allocation" element={<Pages />} />
+            <Route path="/dashboard/events/check-in" element={<p>Check-in page</p>} />
+          </Route>
+        </Routes>
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Go on' }));
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1, name: 'Check-in' })).toBeInTheDocument();
   });
 });
 
