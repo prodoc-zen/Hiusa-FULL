@@ -1,5 +1,5 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoVenuesPage from './SaoVenuesPage';
 
 const venueMocks = vi.hoisted(() => ({
@@ -33,5 +33,53 @@ describe('SaoVenuesPage', () => {
 
     fireEvent.click(switchControl);
     await waitFor(() => expect(venueMocks.updateVenue).toHaveBeenCalledWith(8, { is_active: false }));
+  });
+
+  describe('availability calendar', () => {
+    beforeEach(() => {
+      vi.useFakeTimers({ toFake: ['Date'] });
+      vi.setSystemTime(new Date('2026-10-07T04:00:00Z'));
+      venueMocks.getVenueBookings.mockImplementation((params) => Promise.resolve({
+        data: {
+          data: params.status === 'approved'
+            ? [{ id: 31, venue_id: 8, status: 'approved', start_time: '2026-10-07T01:00:00Z', end_time: '2026-10-07T03:00:00Z', organization: { name: 'Computer Society' }, event: { title: 'Hackathon' }, venue: { name: 'Main Hall' } }]
+            : [{ id: 32, venue_id: 8, status: 'pending', start_time: '2026-10-08T06:00:00Z', end_time: '2026-10-08T07:00:00Z', organization: { name: 'Arts Guild' }, event: null, venue: { name: 'Main Hall' } }],
+          total: 1, current_page: 1, last_page: 1,
+        },
+      }));
+    });
+
+    afterEach(() => vi.useRealTimers());
+
+    it('shows who holds each venue this week above the booking queue', async () => {
+      render(<SaoVenuesPage />);
+      fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
+
+      const agenda = within(await screen.findByTestId('week-agenda'));
+      expect(await agenda.findByText('Computer Society')).toBeInTheDocument();
+      expect(agenda.getByText('Hackathon')).toBeInTheDocument();
+      expect(agenda.getByText('Arts Guild')).toBeInTheDocument();
+      expect(venueMocks.getVenueBookings).toHaveBeenCalledWith(expect.objectContaining({ from: '2026-10-05T00:00:00+08:00', to: '2026-10-11T23:59:59+08:00', status: 'approved', per_page: 100 }));
+      expect(venueMocks.getVenueBookings).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending', venue_id: undefined }));
+    });
+
+    it('reloads for the next week and for a single venue', async () => {
+      render(<SaoVenuesPage />);
+      fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
+      await within(await screen.findByTestId('week-agenda')).findByText('Hackathon');
+
+      fireEvent.click(screen.getByRole('button', { name: 'Next week' }));
+      await waitFor(() => expect(venueMocks.getVenueBookings).toHaveBeenCalledWith(expect.objectContaining({ from: '2026-10-12T00:00:00+08:00', to: '2026-10-18T23:59:59+08:00' })));
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Venue to show' }), { target: { value: '8' } });
+      await waitFor(() => expect(venueMocks.getVenueBookings).toHaveBeenCalledWith(expect.objectContaining({ venue_id: '8', from: '2026-10-12T00:00:00+08:00' })));
+    });
+
+    it('shows a retryable error when the calendar cannot load', async () => {
+      venueMocks.getVenueBookings.mockRejectedValue({ response: { data: { message: 'Calendar is down.' } } });
+      render(<SaoVenuesPage />);
+      fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
+      expect((await screen.findAllByText('Calendar is down.')).length).toBeGreaterThan(0);
+    });
   });
 });
