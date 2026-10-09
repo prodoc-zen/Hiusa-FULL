@@ -91,6 +91,53 @@ class FinancialReport extends Model
             ->get();
     }
 
+    /**
+     * A report that has gone to review or been approved freezes the entries it lists,
+     * so the live ledger keeps matching what was reviewed. A draft or returned report
+     * does not.
+     */
+    public const LOCKING_STATUSES = ['pending_department_head', 'pending_sao', 'approved'];
+
+    /**
+     * The title of the locking report for each of these ledger entries, in one query
+     * however many entries are passed. Entries no locking report lists are left out.
+     *
+     * @param  iterable<Transaction>  $transactions
+     * @return array<int, string> ledger entry id => report title
+     */
+    public static function lockingTitles(iterable $transactions): array
+    {
+        $entries = collect($transactions)->keyBy('id');
+
+        if ($entries->isEmpty()) {
+            return [];
+        }
+
+        $reports = static::query()
+            ->whereIn('submission_status', self::LOCKING_STATUSES)
+            ->whereIn('organization_id', $entries->pluck('organization_id')->unique()->all())
+            ->where(function ($listing) use ($entries) {
+                foreach ($entries->keys() as $id) {
+                    $listing->orWhereJsonContains('source_transaction_ids', $id);
+                }
+            })
+            ->orderBy('id')
+            ->get(['id', 'organization_id', 'title', 'source_transaction_ids']);
+
+        $titles = [];
+        foreach ($reports as $report) {
+            foreach ($report->source_transaction_ids ?? [] as $id) {
+                $entry = $entries->get((int) $id);
+
+                if ($entry && $entry->organization_id === $report->organization_id) {
+                    $titles[$entry->id] ??= $report->title;
+                }
+            }
+        }
+
+        return $titles;
+    }
+
     public function aiOutput(): BelongsTo
     {
         return $this->belongsTo(AiOutput::class);
