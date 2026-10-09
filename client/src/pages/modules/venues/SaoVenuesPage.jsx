@@ -19,6 +19,7 @@ import {
 import VenueWeekCalendar, { addDays, todayInManila, weekStartOf } from './VenueWeekCalendar';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
+const ROW_ACTION = 'h-11! sm:h-9!';
 
 function getCurrentRole() {
   try {
@@ -31,6 +32,7 @@ function getCurrentRole() {
 function toCalendarSlot(booking) {
   return {
     id: booking.id,
+    venue_id: booking.venue_id,
     start_time: booking.start_time,
     end_time: booking.end_time,
     status: booking.status,
@@ -62,14 +64,14 @@ export default function SaoVenuesPage() {
   const [bookingsPage, setBookingsPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState('pending');
   const [venueFilter, setVenueFilter] = useState('');
+  const queueRef = useRef(null);
   const [reviewState, setReviewState] = useState(null);
   const [conflicts, setConflicts] = useState({ loading: false, items: [] });
   const [rejectRemarks, setRejectRemarks] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
 
   const [weekStart, setWeekStart] = useState(() => weekStartOf(todayInManila()));
-  const [calendarVenue, setCalendarVenue] = useState('');
-  const [calendar, setCalendar] = useState({ loading: true, error: null, slots: [] });
+  const [calendar, setCalendar] = useState({ loading: true, error: null, slots: [], weekStart: null, truncated: null });
   const calendarRequest = useRef(0);
 
   const loadVenues = useCallback(() => {
@@ -89,18 +91,20 @@ export default function SaoVenuesPage() {
   const loadCalendar = useCallback(() => {
     const request = ++calendarRequest.current;
     setCalendar((current) => ({ ...current, loading: true, error: null }));
-    const params = { from: `${weekStart}T00:00:00+08:00`, to: `${addDays(weekStart, 6)}T23:59:59+08:00`, venue_id: calendarVenue || undefined, per_page: 100 };
+    const params = { from: `${weekStart}T00:00:00+08:00`, to: `${addDays(weekStart, 6)}T23:59:59+08:00`, venue_id: venueFilter || undefined, per_page: 100 };
     Promise.all(['pending', 'approved'].map((status) => getVenueBookings({ ...params, status })))
       .then((responses) => {
         if (request !== calendarRequest.current) return;
-        const slots = responses.flatMap((response) => unwrapList(response.data)).filter((booking) => booking.venue_id).map(toCalendarSlot);
-        setCalendar({ loading: false, error: null, slots });
+        const fetched = responses.flatMap((response) => unwrapList(response.data));
+        const total = responses.reduce((sum, response) => sum + listMeta(response.data).total, 0);
+        const slots = fetched.filter((booking) => booking.venue_id).map(toCalendarSlot);
+        setCalendar({ loading: false, error: null, slots, weekStart, truncated: total > fetched.length ? { shown: fetched.length, total } : null });
       })
       .catch((err) => {
         if (request !== calendarRequest.current) return;
-        setCalendar({ loading: false, error: getApiErrorMessage(err, 'Could not load the venue calendar.'), slots: [] });
+        setCalendar({ loading: false, error: getApiErrorMessage(err, 'Could not load the venue calendar.'), slots: [], weekStart: null, truncated: null });
       });
-  }, [weekStart, calendarVenue]);
+  }, [weekStart, venueFilter]);
 
   useEffect(() => { if (role === 'SUPER_ADMIN') loadVenues(); }, [loadVenues, role]);
   useEffect(() => { if (role === 'SUPER_ADMIN') loadBookings(bookingsPage); }, [loadBookings, bookingsPage, role]);
@@ -178,6 +182,12 @@ export default function SaoVenuesPage() {
     }
   }
 
+  function showInQueue(slot) {
+    setStatusFilter(slot.status);
+    setVenueFilter(String(slot.venue_id));
+    queueRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+  }
+
   function openReview(booking, action) {
     setReviewState({ booking, action });
     setRejectRemarks('');
@@ -236,7 +246,7 @@ export default function SaoVenuesPage() {
     { key: 'name', header: 'Venue', render: (venue) => <span className="font-bold text-ink">{formatDisplayText(venue.name)}</span> },
     { key: 'location', header: 'Location' },
     { key: 'capacity', header: 'Capacity', align: 'right' },
-    { key: 'is_active', header: 'Status', render: (venue) => <button type="button" role="switch" aria-checked={venue.is_active} aria-label={`${formatDisplayText(venue.name)} active status`} disabled={togglingVenueId === venue.id} onClick={() => toggleVenueActive(venue)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:opacity-50"><span aria-hidden="true" className={`relative h-6 w-11 rounded-full transition-colors ${venue.is_active ? 'bg-[#0B8ED0]' : 'bg-slate-300'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${venue.is_active ? 'left-6' : 'left-1'}`} /></span><StatusBadge status={venue.is_active ? 'active' : 'inactive'} /></button> },
+    { key: 'is_active', header: 'Status', render: (venue) => <button type="button" role="switch" aria-checked={venue.is_active} aria-label={`${formatDisplayText(venue.name)} active status`} disabled={togglingVenueId === venue.id} onClick={() => toggleVenueActive(venue)} className="inline-flex min-h-11 items-center gap-2 rounded-lg px-2 text-xs font-bold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:opacity-50"><span aria-hidden="true" className={`relative h-6 w-11 rounded-full transition-colors ${venue.is_active ? 'bg-success' : 'bg-ink-soft'}`}><span className={`absolute top-1 h-4 w-4 rounded-full bg-white transition-transform ${venue.is_active ? 'left-6' : 'left-1'}`} /></span><StatusBadge status={venue.is_active ? 'active' : 'inactive'} /></button> },
   ];
 
   const bookingColumns = [
@@ -272,8 +282,8 @@ export default function SaoVenuesPage() {
             onRetry={loadVenues}
             actions={(venue) => (
               <div className="flex justify-end gap-1.5">
-                <Button size="sm" variant="secondary" onClick={() => openVenueModal(venue)}>Edit</Button>
-                <IconButton icon={Trash2} label="Delete venue" variant="danger" onClick={() => setDeleteTarget(venue)} />
+                <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => openVenueModal(venue)}>Edit</Button>
+                <IconButton icon={Trash2} label={`Delete ${formatDisplayText(venue.name)}`} variant="danger" onClick={() => setDeleteTarget(venue)} />
               </div>
             )}
             emptyState={(
@@ -290,23 +300,7 @@ export default function SaoVenuesPage() {
       )}
 
       {activeTab === 'bookings' && (
-        <Card title="Availability calendar" description="Who holds each venue and when. Pending requests are marked so you can spot clashes before deciding.">
-          <VenueWeekCalendar
-            weekStart={weekStart}
-            slots={calendar.slots}
-            venues={venues.items}
-            venueId={calendarVenue}
-            onVenueChange={setCalendarVenue}
-            onWeekChange={setWeekStart}
-            loading={calendar.loading}
-            error={calendar.error}
-            onRetry={loadCalendar}
-          />
-        </Card>
-      )}
-
-      {activeTab === 'bookings' && (
-        <Card title="Booking requests" description="Approve or reject requests, with overlapping approved bookings shown before you decide.">
+        <div ref={queueRef}><Card title="Booking requests" description="Approve or reject requests, with overlapping approved bookings shown before you decide.">
           <DataTable
             columns={bookingColumns}
             rows={bookings.items}
@@ -327,15 +321,15 @@ export default function SaoVenuesPage() {
                   <option value="">All venues</option>
                   {venues.items.map((venue) => <option key={venue.id} value={venue.id}>{formatDisplayText(venue.name)}</option>)}
                 </Select>
-                {bookingFiltersActive && <Button variant="ghost" size="sm" onClick={() => { setStatusFilter('pending'); setVenueFilter(''); }}>Clear filters</Button>}
+                {bookingFiltersActive && <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => { setStatusFilter('pending'); setVenueFilter(''); }}>Clear filters</Button>}
                 <p className="text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto">{bookings.meta.total} {bookings.meta.total === 1 ? 'request' : 'requests'}</p>
               </div>
             )}
             actions={(booking) => (
               booking.status === 'pending' ? (
                 <div className="flex justify-end gap-1.5">
-                  <Button size="sm" variant="secondary" onClick={() => openReview(booking, 'reject')}>Reject</Button>
-                  <Button size="sm" onClick={() => openReview(booking, 'approve')}>Approve</Button>
+                  <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => openReview(booking, 'reject')}>Reject</Button>
+                  <Button size="sm" className={ROW_ACTION} onClick={() => openReview(booking, 'approve')}>Approve</Button>
                 </div>
               ) : null
             )}
@@ -356,6 +350,25 @@ export default function SaoVenuesPage() {
                 description="Requests from organizations will appear here for your decision."
               />
             )}
+          />
+        </Card></div>
+      )}
+
+      {activeTab === 'bookings' && (
+        <Card title="Availability calendar" description="Who holds each venue and when. Pending requests are marked so you can spot clashes before deciding.">
+          <VenueWeekCalendar
+            weekStart={weekStart}
+            slots={calendar.slots}
+            venues={venues.items}
+            loadedWeekStart={calendar.weekStart}
+            venueId={venueFilter}
+            onVenueChange={setVenueFilter}
+            onWeekChange={setWeekStart}
+            loading={calendar.loading}
+            error={calendar.error}
+            onRetry={loadCalendar}
+            truncated={calendar.truncated}
+            onShowInQueue={showInQueue}
           />
         </Card>
       )}

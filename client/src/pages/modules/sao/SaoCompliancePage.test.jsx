@@ -93,12 +93,40 @@ describe('SaoCompliancePage', () => {
     await screen.findAllByText('Computing Society');
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Accreditation', 'Requirements', 'Review queue', 'Event requirements', 'Financial reports', 'Track documents',
+      'Accreditation', 'Requirements', 'Review queue (1)', 'Event requirements', 'Financial reports', 'Track documents',
     ]);
 
     fireEvent.click(screen.getByRole('tab', { name: 'Track documents' }));
     expect((await screen.findAllByText('Track documents content')).length).toBeGreaterThan(0);
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=documents');
+  });
+
+  it('shows the accreditation status tones from the shared map', async () => {
+    renderPage();
+    const pending = (await screen.findAllByText('Pending review'))[0];
+    expect(pending).toHaveClass('bg-brand-50');
+    expect(screen.getAllByText('Accredited')[0]).toHaveClass('bg-success-tint');
+  });
+
+  it('puts overdue and pending-review organizations ahead of accredited ones', async () => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [
+      { organization_id: 1, organization_name: 'Alpha Club', accreditation_status: 'accredited', requirements: [{ status: 'approved', deadline_at: null }] },
+      { organization_id: 2, organization_name: 'Beta Club', accreditation_status: 'incomplete', requirements: [{ status: 'draft', deadline_at: null }] },
+      { organization_id: 3, organization_name: 'Gamma Club', accreditation_status: 'returned', requirements: [{ status: 'returned', deadline_at: null }] },
+      { organization_id: 4, organization_name: 'Delta Club', accreditation_status: 'pending_review', requirements: [{ status: 'submitted', deadline_at: null }] },
+      { organization_id: 5, organization_name: 'Epsilon Club', accreditation_status: 'incomplete', requirements: [{ status: 'draft', deadline_at: '2020-01-01' }] },
+    ] } });
+    renderPage();
+    await screen.findAllByText('Alpha Club');
+    const order = Array.from(document.querySelectorAll('[data-view="table"] tbody tr')).map((row) => row.querySelector('td').textContent);
+    expect(order).toEqual(['Epsilon Club', 'Delta Club', 'Gamma Club', 'Beta Club', 'Alpha Club']);
+  });
+
+  it('leaves the review queue count off when nothing is waiting', async () => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [status.organizations[1]] } });
+    renderPage();
+    await screen.findAllByText('Arts Guild');
+    expect(screen.getByRole('tab', { name: 'Review queue' })).toBeInTheDocument();
   });
 
   it('moves between tabs with the arrow keys', async () => {
@@ -165,11 +193,40 @@ describe('SaoCompliancePage', () => {
       })));
     });
 
-    it('toggles a requirement inactive', async () => {
+    it('asks before marking a requirement inactive and says what it changes', async () => {
       mocks.updateRequirementType.mockResolvedValue({ data: {} });
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
       fireEvent.click((await screen.findAllByRole('switch', { name: 'Officer Roster active' }))[0]);
+      expect(mocks.updateRequirementType).not.toHaveBeenCalled();
+      expect(await screen.findByText(/accreditation status is recalculated/)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Mark inactive' }));
       await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(4, { is_active: false }));
+    });
+
+    it('marks an inactive requirement active without a confirmation', async () => {
+      mocks.updateRequirementType.mockResolvedValue({ data: {} });
+      mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ ...requirementType, is_active: false }] } });
+      renderPage('/dashboard/super-admin/compliance?tab=requirements');
+      fireEvent.click((await screen.findAllByRole('switch', { name: 'Officer Roster active' }))[0]);
+      await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(4, { is_active: true }));
+    });
+
+    it('flags each missing field and focuses the first one', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=requirements');
+      await screen.findAllByText('Officer Roster');
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'New requirement' })[0]);
+      fireEvent.change(screen.getByLabelText(/Academic year/), { target: { value: '' } });
+      fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
+
+      expect(screen.getByText('Choose the academic year this requirement applies to.')).toBeInTheDocument();
+      expect(screen.getByText('Set the deadline for organizations.')).toBeInTheDocument();
+      expect(screen.getByText('Enter a name for this requirement.')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Academic year/)).toHaveFocus();
+      expect(mocks.createRequirementType).not.toHaveBeenCalled();
+
+      fireEvent.change(screen.getByPlaceholderText('e.g. Accomplishment report'), { target: { value: 'Officer list' } });
+      expect(screen.queryByText('Enter a name for this requirement.')).not.toBeInTheDocument();
     });
 
     it('shows a load error and retries', async () => {
@@ -199,12 +256,22 @@ describe('SaoCompliancePage', () => {
       expect((await screen.findAllByText('Renewal document')).length).toBeGreaterThan(0);
     });
 
-    it('requires remarks to return a submission', async () => {
+    it('names the organization on the open-document button', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+      expect((await screen.findAllByRole('button', { name: 'Open Semestral Accomplishment Report for Computing Society' })).length).toBeGreaterThan(0);
+    });
+
+    it('requires remarks to return a submission, with a field error instead of a disabled button', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
       fireEvent.click((await screen.findAllByRole('button', { name: 'Return' }))[0]);
 
       const confirm = await screen.findByRole('button', { name: 'Return to organization' });
-      expect(confirm).toBeDisabled();
+      expect(confirm).toBeEnabled();
+      expect(confirm).not.toHaveClass('bg-danger');
+      fireEvent.click(confirm);
+      expect(await screen.findByText(/Write what the organization needs to correct/)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Remarks/)).toHaveFocus();
+      expect(mocks.reviewSubmission).not.toHaveBeenCalled();
       fireEvent.change(screen.getByLabelText(/Remarks/), { target: { value: 'Unsigned' } });
       fireEvent.click(confirm);
 

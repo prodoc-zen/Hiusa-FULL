@@ -30,17 +30,89 @@ describe('VenueWeekCalendar', () => {
     expect(addDays('2026-10-26', 7)).toBe('2026-11-02');
   });
 
-  it('places each booking in its day column with organization, event, venue, status and time', () => {
+  it('places each booking in its day column as a focusable button with organization, event, venue, status and time', () => {
     renderCalendar();
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
-    expect(monday.getAllByRole('img')).toHaveLength(2);
-    expect(monday.getByRole('img', { name: /Approved booking, Computer Society, Hackathon, Main Hall, 9:00 AM to 11:00 AM/ })).toBeInTheDocument();
-    expect(monday.getByRole('img', { name: /Pending booking, Arts Guild, Gym, 10:00 AM to 12:00 PM/ })).toBeInTheDocument();
+    expect(monday.getAllByRole('button')).toHaveLength(2);
+    expect(monday.getByRole('button', { name: /Approved booking, Computer Society, Hackathon, Main Hall, 9:00 AM to 11:00 AM/ })).toBeInTheDocument();
+    expect(monday.getByRole('button', { name: /Pending booking, Arts Guild, Gym, 10:00 AM to 12:00 PM/ })).toBeInTheDocument();
 
     const wednesday = within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ }));
-    expect(wednesday.getAllByRole('img')).toHaveLength(1);
+    expect(wednesday.getAllByRole('button')).toHaveLength(1);
     expect(wednesday.getByText('Nursing Council')).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: /Bookings on Tuesday, October 6/ })).queryAllByRole('img')).toHaveLength(0);
+    expect(within(screen.getByRole('group', { name: /Bookings on Tuesday, October 6/ })).queryAllByRole('button')).toHaveLength(0);
+  });
+
+  it('leads each block with the status and time in words so status is never colour only', () => {
+    renderCalendar();
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    expect(monday.getByText('Approved, 9-11 AM')).toBeInTheDocument();
+    expect(monday.getByText('Pending, 10 AM-12 PM')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ })).getByText('Pending, 2-3:30 PM')).toBeInTheDocument();
+  });
+
+  it('opens the full booking in a details dialog and offers the booking requests queue', () => {
+    const onShowInQueue = vi.fn();
+    renderCalendar({ onShowInQueue });
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    fireEvent.click(monday.getByRole('button', { name: /Approved booking, Computer Society/ }));
+
+    const dialog = within(screen.getByRole('dialog', { name: 'Booking details' }));
+    expect(dialog.getByText('Computer Society')).toBeInTheDocument();
+    expect(dialog.getByText('Hackathon')).toBeInTheDocument();
+    expect(dialog.getByText('Main Hall')).toBeInTheDocument();
+    expect(dialog.getByText('Approved')).toBeInTheDocument();
+    expect(dialog.getByText('Monday, October 5, 2026')).toBeInTheDocument();
+    expect(dialog.getByText('9:00 AM to 11:00 AM')).toBeInTheDocument();
+
+    fireEvent.click(dialog.getByRole('button', { name: 'Show in booking requests' }));
+    expect(onShowInQueue).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+
+  it('shares lanes only inside a cluster of overlapping bookings', () => {
+    renderCalendar({ slots: [
+      slots[0],
+      { ...slots[1], id: 9, start_time: '2026-10-05T01:30:00Z', end_time: '2026-10-05T02:30:00Z' },
+      { id: 10, start_time: '2026-10-05T07:00:00Z', end_time: '2026-10-05T08:00:00Z', status: 'approved', reserved_by: 'Late Club', event_title: null, venue_name: 'Gym' },
+    ] });
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    expect(monday.getByRole('button', { name: /Computer Society/ }).style.width).toBe('calc(50% - 4px)');
+    expect(monday.getByRole('button', { name: /Late Club/ }).style.width).toBe('calc(100% - 4px)');
+  });
+
+  it('extends the grid instead of dropping bookings outside the usual hours', () => {
+    renderCalendar({ slots: [
+      { id: 20, start_time: '2026-10-05T14:00:00Z', end_time: '2026-10-05T15:30:00Z', status: 'pending', reserved_by: 'Night Owls', event_title: null, venue_name: 'Gym' },
+      { id: 21, start_time: '2026-10-04T20:00:00Z', end_time: '2026-10-04T21:00:00Z', status: 'approved', reserved_by: 'Early Birds', event_title: null, venue_name: 'Gym' },
+    ] });
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    expect(monday.getByRole('button', { name: /Night Owls/ })).toBeInTheDocument();
+    expect(monday.getByRole('button', { name: /Early Birds/ })).toBeInTheDocument();
+    expect(parseFloat(monday.getByRole('button', { name: /Night Owls/ }).style.top)).toBeGreaterThan(0);
+    expect(monday.getByRole('button', { name: /Early Birds/ }).style.top).toBe('0px');
+    expect(within(screen.getByTestId('week-grid')).getByText(/^4 AM$/i)).toBeInTheDocument();
+  });
+
+  it('marks today with the word Today as well as colour', () => {
+    vi.setSystemTime(new Date('2026-10-07T04:00:00Z'));
+    renderCalendar();
+    expect(within(screen.getByTestId('week-grid')).getByText('Today')).toBeInTheDocument();
+  });
+
+  it('keeps the loaded grid visible while the next week loads', () => {
+    const { rerender } = render(<VenueWeekCalendar weekStart="2026-10-12" loadedWeekStart="2026-10-05" slots={slots} venues={venues} venueId="" loading error={null} onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={vi.fn()} />);
+    expect(screen.queryByRole('status', { name: 'Loading venue calendar' })).not.toBeInTheDocument();
+    expect(screen.getByText('Updating...')).toBeInTheDocument();
+    expect(screen.getByText('Oct 12 - Oct 18, 2026')).toBeInTheDocument();
+    expect(within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ })).getAllByRole('button')).toHaveLength(2);
+    rerender(<VenueWeekCalendar weekStart="2026-10-12" loadedWeekStart="2026-10-12" slots={[]} venues={venues} venueId="" loading={false} error={null} onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={vi.fn()} />);
+    expect(screen.queryByText('Updating...')).not.toBeInTheDocument();
+  });
+
+  it('says when the calendar fetch was capped', () => {
+    renderCalendar({ truncated: { shown: 200, total: 340 } });
+    expect(screen.getByText(/Showing the first 200 bookings of 340/)).toBeInTheDocument();
   });
 
   it('lists the same bookings day by day for small screens', () => {
@@ -51,6 +123,13 @@ describe('VenueWeekCalendar', () => {
     expect(agenda.getAllByText('Pending')).toHaveLength(2);
     expect(agenda.getByText('Approved')).toBeInTheDocument();
     expect(agenda.getAllByText('Nothing booked.')).toHaveLength(5);
+  });
+
+  it('makes each agenda entry a button that opens the booking details', () => {
+    renderCalendar();
+    const agenda = within(screen.getByTestId('week-agenda'));
+    fireEvent.click(agenda.getAllByRole('button').find((button) => button.textContent.includes('Nursing Council')));
+    expect(within(screen.getByRole('dialog', { name: 'Booking details' })).getByText('Orientation')).toBeInTheDocument();
   });
 
   it('hides the venue name once a single venue is chosen', () => {

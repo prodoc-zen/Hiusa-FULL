@@ -51,7 +51,7 @@ describe('SaoVenuesPage', () => {
 
     afterEach(() => vi.useRealTimers());
 
-    it('shows who holds each venue this week above the booking queue', async () => {
+    it('shows who holds each venue this week below the booking queue', async () => {
       render(<SaoVenuesPage />);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
 
@@ -61,6 +61,35 @@ describe('SaoVenuesPage', () => {
       expect(agenda.getByText('Arts Guild')).toBeInTheDocument();
       expect(venueMocks.getVenueBookings).toHaveBeenCalledWith(expect.objectContaining({ from: '2026-10-05T00:00:00+08:00', to: '2026-10-11T23:59:59+08:00', status: 'approved', per_page: 100 }));
       expect(venueMocks.getVenueBookings).toHaveBeenCalledWith(expect.objectContaining({ status: 'pending', venue_id: undefined }));
+    });
+
+    it('puts the decision queue before the availability calendar', async () => {
+      render(<SaoVenuesPage />);
+      fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
+      const queue = await screen.findByRole('heading', { name: 'Booking requests' });
+      const calendar = await screen.findByRole('heading', { name: 'Availability calendar' });
+      expect(queue.compareDocumentPosition(calendar) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('keeps the calendar venue and the queue venue filter in sync', async () => {
+      render(<SaoVenuesPage />);
+      fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
+      await within(await screen.findByTestId('week-agenda')).findByText('Hackathon');
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Venue to show' }), { target: { value: '8' } });
+      expect(screen.getByRole('combobox', { name: 'Filter by venue' })).toHaveValue('8');
+
+      fireEvent.change(screen.getByRole('combobox', { name: 'Filter by venue' }), { target: { value: '' } });
+      expect(screen.getByRole('combobox', { name: 'Venue to show' })).toHaveValue('');
+    });
+
+    it('notes when the calendar fetch hit the 100 per status cap', async () => {
+      venueMocks.getVenueBookings.mockImplementation((params) => Promise.resolve({
+        data: { data: [{ id: params.status === 'pending' ? 1 : 2, venue_id: 8, status: params.status, start_time: '2026-10-07T01:00:00Z', end_time: '2026-10-07T02:00:00Z', organization: { name: 'Arts Guild' }, venue: { name: 'Main Hall' } }], total: params.from ? 130 : 1, current_page: 1, last_page: 1 },
+      }));
+      render(<SaoVenuesPage />);
+      fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
+      expect(await screen.findByText(/Showing the first 2 bookings of 260/)).toBeInTheDocument();
     });
 
     it('reloads for the next week and for a single venue', async () => {
