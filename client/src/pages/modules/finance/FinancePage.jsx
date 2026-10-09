@@ -44,6 +44,7 @@ import {
 import { getEvents } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { fetchAllPages } from '../../../services/pagination';
+import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import FeedbackToast from '../../../components/FeedbackToast';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
@@ -300,6 +301,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
+  const isDepartmentHead = currentUserRole === 'DEPARTMENT_HEAD';
+  const [collegeOrganizations, setCollegeOrganizations] = useState([]);
+  const [organizationFilter, setOrganizationFilter] = useState('');
   // Officers and department heads review the organization's finances; only the ADMIN changes them.
   const canReadFinance = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
   const canViewTransactions = canReadFinance;
@@ -324,10 +328,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   }, []);
 
 
-  function load(page = 1, filters = txFilters, searchTerm = search) {
+  function load(page = 1, filters = txFilters, searchTerm = search, organizationId = organizationFilter) {
     setLoading(true);
     setError(null);
-    const activeFilters = Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== ''));
+    // Only a Department Head oversees several organizations; the server validates the id against their college.
+    const organizationScope = isDepartmentHead && organizationId ? { organization_id: organizationId } : {};
+    const activeFilters = { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), ...organizationScope };
     // Budgets, forecasts, reports, and the event dropdown source have no server-side
     // filter that narrows them down, and every one of them doubles as either a full
     // catalog view or a <select> option list elsewhere on this page - so they are
@@ -335,13 +341,13 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? getTransactionSummary(activeFilters) : Promise.resolve({ data: { total_income: 0, total_expense: 0, net_balance: 0 } }),
-      canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data)) : Promise.resolve([]),
-      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data)) : Promise.resolve([]),
+      canViewForecasts ? fetchAllPages((p) => getForecasts(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
+      canViewBudgets ? fetchAllPages((p) => getBudgets(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
       currentUserRole === 'ADMIN' ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
-      canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data)) : Promise.resolve([]),
+      canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       currentUserRole === 'ADMIN' ? getFinancialSemesters() : Promise.resolve({ data: [] }),
     ])
       .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports, semesterRes]) => {
@@ -411,6 +417,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   // The initial financial snapshot is refreshed explicitly after every mutation.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!isDepartmentHead) return;
+    fetchAllPages((p) => getCollegeOrganizations(p).then((r) => r.data)).then(setCollegeOrganizations).catch(() => {});
+  }, [isDepartmentHead]);
   useEffect(() => { setActiveTab(initialTab); }, [initialTab]);
   useEffect(() => {
     if (startBudgetProposal && canProposeBudget) {
@@ -747,7 +757,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       // export walks every page at that size instead of asking for a bigger
       // page in one shot. maxPages is raised well past the 50-page default so a
       // semester (or the full log) isn't silently capped at 500 rows.
-      const all = await fetchAllPages((p) => getTransactions(p).then((r) => r.data), {}, { perPage: 10, maxPages: 500 });
+      const all = await fetchAllPages((p) => getTransactions(p).then((r) => r.data), isDepartmentHead && organizationFilter ? { organization_id: organizationFilter } : {}, { perPage: 10, maxPages: 500 });
 
       const toRow = (tx) => ({
         Date: tx.transaction_date,
@@ -844,6 +854,21 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           <Eye size={16} className="shrink-0 text-[#0878B7]" aria-hidden="true" />
           View only. You can review and export these records; the organization admin records and changes them.
         </p>
+      )}
+
+      {isDepartmentHead && OVERSIGHT_TABS.includes(activeTab) && (
+        <div className="max-w-sm">
+          <label htmlFor="finance-organization" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Organization" />Organization</label>
+          <select
+            id="finance-organization"
+            value={organizationFilter}
+            onChange={(event) => { setOrganizationFilter(event.target.value); load(1, txFilters, search, event.target.value); }}
+            className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-medium text-[#0F172A] outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
+          >
+            <option value="">All organizations</option>
+            {collegeOrganizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
+          </select>
+        </div>
       )}
 
       {canViewTransactions && !error && OVERSIGHT_TABS.includes(activeTab) && activeTab !== 'transactions' && (

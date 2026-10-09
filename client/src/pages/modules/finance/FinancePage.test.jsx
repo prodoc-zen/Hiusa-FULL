@@ -32,6 +32,9 @@ vi.mock('../../../services/financeService', () => ({
   submitFinancialReport: financeMocks.submitFinancialReport,
 }));
 
+const collegeMocks = vi.hoisted(() => ({ getCollegeOrganizations: vi.fn() }));
+vi.mock('../../../services/collegeOrganizationService', () => collegeMocks);
+
 vi.mock('../../../services/eventService', () => ({
   getEvents: vi.fn(() => Promise.resolve({ data: [] })),
 }));
@@ -451,5 +454,46 @@ describe('FinancePage forecast explainability', () => {
 
     expect((await screen.findAllByText(/Not enough history/i)).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();
+  });
+});
+
+describe('FinancePage organization scope', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 0, net_balance: 0 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    collegeMocks.getCollegeOrganizations.mockResolvedValue({ data: { data: [{ id: 7, name: 'Chess Club' }, { id: 8, name: 'Drama Guild' }], current_page: 1, last_page: 1, per_page: 100, total: 2 } });
+  });
+
+  it('lets a Department Head narrow every finance read to one organization', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD' }));
+    render(<FinancePage initialTab="transactions" />);
+
+    const select = await screen.findByLabelText('Organization');
+    await screen.findByRole('option', { name: 'Chess Club' });
+    expect(select).toHaveValue('');
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledWith({ page: 1 }));
+
+    fireEvent.change(select, { target: { value: '7' } });
+
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenLastCalledWith({ page: 1, organization_id: '7' }));
+    expect(financeMocks.getTransactionSummary).toHaveBeenLastCalledWith({ organization_id: '7' });
+    expect(financeMocks.getBudgets).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7' }));
+    expect(financeMocks.getForecasts).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7' }));
+    expect(financeMocks.getFinancialReports).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7' }));
+  });
+
+  it('does not offer the organization select or load the college for other roles', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    render(<FinancePage initialTab="transactions" />);
+
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalled());
+    expect(screen.queryByLabelText('Organization')).not.toBeInTheDocument();
+    expect(collegeMocks.getCollegeOrganizations).not.toHaveBeenCalled();
   });
 });

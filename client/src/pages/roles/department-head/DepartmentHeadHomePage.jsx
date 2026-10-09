@@ -1,11 +1,12 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Vote, BarChart3, CalendarDays, ClipboardCheck, Megaphone } from 'lucide-react';
+import { Vote, BarChart3, Building2, CalendarDays, ClipboardCheck, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
 import { getApprovalRequests } from '../../../services/approvalService';
+import { getCollegeOrganizations } from '../../../services/collegeOrganizationService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
 
@@ -14,11 +15,12 @@ function formatDate(d) {
   return new Date(d).toLocaleDateString('en-PH', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
-const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', payment: 'Merchandise Orders', financial_report: 'Financial Reports' };
-const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'payment', 'financial_report'];
+const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', financial_report: 'Financial Reports' };
+const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'financial_report'];
+const ORGANIZATION_STATUS_ORDER = [['active', 'Active'], ['pending', 'Pending review'], ['returned', 'Returned'], ['archived', 'Archived']];
 
 export default function DepartmentHeadHomePage() {
-  const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [] });
+  const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [], organizations: [] });
   const [pendingApprovalsTotal, setPendingApprovalsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -37,11 +39,12 @@ export default function DepartmentHeadHomePage() {
         // pending-approval queue has no per-type filter either, but it is a
         // working queue (bounded in practice), so a single generous per_page
         // captures it in one call while `total` still backs the headline count.
-        const [electionsRes, events, announcementsRes, approvalsRes] = await Promise.all([
+        const [electionsRes, events, announcementsRes, approvalsRes, organizations] = await Promise.all([
           getElections(),
           fetchAllPages((p) => getEvents(p).then((r) => r.data)),
           getAnnouncements({ published_only: 1 }),
           getApprovalRequests({ status: 'pending', per_page: 100 }),
+          fetchAllPages((p) => getCollegeOrganizations(p).then((r) => r.data)),
         ]);
 
         if (cancelled) return;
@@ -51,6 +54,7 @@ export default function DepartmentHeadHomePage() {
           events,
           announcements: unwrapList(announcementsRes?.data),
           pendingApprovals: unwrapList(approvalsRes?.data),
+          organizations,
         });
         setPendingApprovalsTotal(listMeta(approvalsRes?.data).total);
       } catch {
@@ -72,6 +76,9 @@ export default function DepartmentHeadHomePage() {
   const recentAnnouncements = data.announcements.filter((a) => a.is_published).sort((a, b) => new Date(b.published_at || b.created_at) - new Date(a.published_at || a.created_at)).slice(0, 3);
 
   const stat = (val) => loading ? '-' : val;
+
+  const college = data.organizations[0]?.college;
+  const organizationCount = (status) => data.organizations.filter((o) => o.lifecycle_status === status).length;
 
   const totalPendingApprovals = pendingApprovalsTotal;
   const approvalsByType = APPROVAL_TYPE_ORDER
@@ -123,6 +130,24 @@ export default function DepartmentHeadHomePage() {
             <div key={item.label} className="flex min-h-20 items-center justify-between gap-3 bg-white px-4 py-3">
               <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600"><item.icon size={17} className="text-[#0878B7]" />{item.label}</dt>
               <dd className="text-xl font-black tabular-nums text-[#0F172A]">{item.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </section>
+
+      <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] px-5 py-4">
+          <div>
+            <h3 className="text-base font-bold text-[#0F172A]">{college ? `${college} organizations` : 'College organizations'}</h3>
+            <p className="mt-1 text-xs font-medium text-slate-500">Every student organization you oversee, by registration status.</p>
+          </div>
+          <NavLink to="/dashboard/department-head/organizations" className="inline-flex min-h-11 items-center text-xs font-bold text-[#0878B7] hover:underline">Manage organizations</NavLink>
+        </div>
+        <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
+          {ORGANIZATION_STATUS_ORDER.map(([status, label]) => (
+            <div key={status} className="flex min-h-20 items-center justify-between gap-3 bg-white px-4 py-3">
+              <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Building2 size={17} className="text-[#0878B7]" />{label}</dt>
+              <dd className="text-xl font-black tabular-nums text-[#0F172A]">{stat(organizationCount(status))}</dd>
             </div>
           ))}
         </dl>
