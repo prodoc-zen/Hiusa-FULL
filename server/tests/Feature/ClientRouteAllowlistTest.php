@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Services\Dashboard\ClientRouteAccess;
 use Tests\TestCase;
 
 /**
@@ -98,6 +99,54 @@ class ClientRouteAllowlistTest extends TestCase
                 );
             }
         }
+    }
+
+    public function test_href_for_keeps_the_query_of_an_allowed_path(): void
+    {
+        $access = new ClientRouteAccess;
+
+        $this->assertSame('/dashboard/super-admin/compliance?tab=review', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance?tab=review'));
+        $this->assertSame('/dashboard/super-admin/organizations?status=pending&review=12', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations?status=pending&review=12'));
+        $this->assertSame('/dashboard/department-head/organizations?status=returned', $access->hrefFor('DEPARTMENT_HEAD', '/dashboard/department-head/organizations?status=returned'));
+        $this->assertSame('/dashboard/super-admin/admins?organization=7&create=1', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/admins?organization=7&create=1'));
+    }
+
+    public function test_href_for_rejects_a_forbidden_path_even_with_a_valid_query(): void
+    {
+        $access = new ClientRouteAccess;
+
+        $this->assertNull($access->hrefFor('STUDENT', '/dashboard/super-admin/compliance?tab=review'));
+        $this->assertNull($access->hrefFor('DEPARTMENT_HEAD', '/dashboard/super-admin/organizations?status=pending'));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', '/dashboard/not-a-route?tab=review'));
+    }
+
+    public function test_href_for_rejects_unknown_parameters_and_unsafe_values(): void
+    {
+        $access = new ClientRouteAccess;
+        $path = '/dashboard/super-admin/compliance';
+
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?redirect=review"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab=review&next=review"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab=a/b"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab=https://evil.example"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab=two words"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab="));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab=".str_repeat('a', 65)));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab=review#top"));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', "{$path}?tab[]=review"));
+        $this->assertSame("{$path}?tab=".str_repeat('a', 64), $access->hrefFor('SUPER_ADMIN', "{$path}?tab=".str_repeat('a', 64)));
+    }
+
+    public function test_href_for_keeps_the_exact_path_behavior_without_a_query(): void
+    {
+        $access = new ClientRouteAccess;
+
+        $this->assertSame('/dashboard/super-admin/compliance', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance'));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance/'));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', '/dashboard/events/manage-events'));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', null));
+        $this->assertNull($access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance?'));
     }
 
     public function test_parser_treats_a_conditional_one_line_route_as_self_closing(): void
