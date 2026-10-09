@@ -19,9 +19,11 @@ import {
   EmptyState,
   ErrorState,
   Field,
+  FlowStepper,
   IconButton,
   Input,
   Kbd,
+  NextStep,
   OrgMark,
   PageHeader,
   ProgressMeter,
@@ -44,6 +46,7 @@ import TableFilterBar from '../../components/TableFilterBar';
 import PaginationControls from '../../components/PaginationControls';
 import { BarList, Donut, Meter } from '../../components/charts';
 import { peso } from '../../lib/format';
+import { eventLifecycle, toNextStepProps } from '../../lib/lifecycle';
 import notify from '../../lib/notify';
 
 const STATUSES = [
@@ -69,6 +72,30 @@ const TABLE_ROWS = [
   { id: 6, name: 'Carlos Diaz', organization: 'CCS Student Council', status: 'active' },
   { id: 7, name: 'Rosa Lim', organization: 'CTHM Student Council', status: 'disabled' },
   { id: 8, name: 'Miguel Torres', organization: 'CEA Student Council', status: 'pending' },
+];
+
+const STEPPER_STATES = [
+  { key: 'proposal', label: 'Proposal', state: 'done', actor: 'Admin' },
+  { key: 'requirements', label: 'Requirements', state: 'skipped', actor: 'Admin' },
+  { key: 'approval', label: 'Approval', state: 'current', actor: 'Department Head', note: 'Waiting' },
+  { key: 'funding', label: 'Funding', state: 'blocked', actor: 'Admin', note: 'Returned' },
+  { key: 'prepare', label: 'Prepare', state: 'upcoming', actor: 'Admin, Officers' },
+];
+
+const DEMO_EVENT = {
+  id: 12,
+  status: 'planning',
+  approval_status: 'pending',
+  approval_required_role: 'DEPARTMENT_HEAD',
+  requirements_required: false,
+  requires_budget: true,
+};
+
+const NEXT_STEP_DEMOS = [
+  { tone: 'action', title: 'Propose the event budget', body: 'This event needs funding. The Department Head approves the budget.', actorRole: 'Admin', primary: { label: 'Propose budget', to: '/dev/ui-kit' } },
+  { tone: 'waiting', title: 'Waiting for Department Head approval', body: 'No action needed from you.', actorRole: 'Department Head' },
+  { tone: 'blocked', title: 'The ballot cannot be finalized yet', body: 'Two positions have no candidates.', primary: { label: 'Finalize ballot', onClick: () => {}, disabledReason: 'Add a candidate to every position first.' } },
+  { tone: 'done', title: 'Results released', body: 'Voting is closed and the results are public.', primary: { label: 'View results', to: '/dev/ui-kit' } },
 ];
 
 function Section({ title, description, children }) {
@@ -236,6 +263,54 @@ export default function UiKitPage() {
               <ProgressMeter label="Warning threshold" value={51} max={60} valueLabel="51 of 60" />
               <ProgressMeter label="Over limit" value={62} max={60} valueLabel="62 of 60" />
             </div>
+          </Card>
+        </Section>
+
+        <Section title="Flow stepper" description="One lifecycle record, with state shown as icon, text and color. Horizontal from md, vertical below.">
+          <Card title="Full, all five states">
+            <FlowStepper steps={STEPPER_STATES} ariaLabel="Event progress, every state" />
+          </Card>
+          <Card title="Full, fed by lifecycle.js (event, waiting on the Department Head)">
+            <FlowStepper steps={eventLifecycle(DEMO_EVENT, 'ADMIN').steps} ariaLabel="Event progress" />
+          </Card>
+          <Card title="Compact, for table rows">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <FlowStepper variant="compact" steps={STEPPER_STATES} ariaLabel="Compact, current step" />
+              <FlowStepper variant="compact" steps={STEPPER_STATES.slice(0, 2).concat({ key: 'x', label: 'Review', state: 'blocked' })} ariaLabel="Compact, blocked" />
+              <FlowStepper variant="compact" steps={STEPPER_STATES.map((step) => ({ ...step, state: 'done' }))} ariaLabel="Compact, complete" />
+              <FlowStepper variant="compact" steps={STEPPER_STATES} summary="Waiting for Department Head approval" ariaLabel="Compact with narrow-screen summary" />
+            </div>
+          </Card>
+        </Section>
+
+        <Section title="Next step" description="The one callout that says what happens next and who owns it. Waiting never shows a button.">
+          <div className="grid gap-3 lg:grid-cols-2">
+            {NEXT_STEP_DEMOS.map((demo) => <NextStep key={demo.tone} {...demo} />)}
+          </div>
+          <NextStep {...toNextStepProps(eventLifecycle(DEMO_EVENT, 'DEPARTMENT_HEAD'))} />
+        </Section>
+
+        <Section title="Page header" description="Breadcrumb, one h1, purpose line, meta chips, stepper, next step and one primary action. These previews add h1s to the dev page only. A header that carries a next step with a button keeps its own actions secondary, so only one filled button shows.">
+          <Card title="List page: purpose, meta and the one primary button">
+            <PageHeader
+              breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Events and tasks', to: '/dashboard/events/manage-events' }, { label: 'Events' }]}
+              title="Events"
+              purpose="Plan, approve and run your organization's events."
+              meta={<StatusBadge status="active" label="Needs approval" />}
+              actions={<Button variant="secondary" leftIcon={Download}>Export</Button>}
+              primary={<Button leftIcon={Plus}>New event</Button>}
+            />
+          </Card>
+          <Card title="Record page: stepper and next step under the title">
+            <PageHeader
+              breadcrumbs={[{ label: 'Home', to: '/dashboard' }, { label: 'Events and tasks', to: '/dashboard/events/manage-events' }, { label: 'Events', to: '/dashboard/events/manage-events' }, { label: 'Founders Day' }]}
+              title="Founders Day"
+              purpose="Plan, approve and run this event from one place."
+              meta={<StatusBadge status="planning" />}
+              actions={<Button variant="secondary" leftIcon={Download}>Export</Button>}
+              stepper={<FlowStepper steps={eventLifecycle(DEMO_EVENT, 'ADMIN').steps} ariaLabel="Event progress" />}
+              nextStep={<NextStep {...toNextStepProps(eventLifecycle(DEMO_EVENT, 'ADMIN'))} />}
+            />
           </Card>
         </Section>
 
