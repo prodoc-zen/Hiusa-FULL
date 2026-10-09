@@ -322,6 +322,11 @@ class FinancialAccountabilityController extends Controller
             if (Invoice::where('order_id', $order->id)->exists()) {
                 return response()->json(['message' => 'This order already has a student charge.'], 422);
             }
+            if (abs((float) $data['amount_due'] - (float) $order->total_price) >= 0.005) {
+                $message = 'The amount due must equal the order total of '.number_format((float) $order->total_price, 2, '.', '').'.';
+
+                return response()->json(['message' => $message, 'errors' => ['amount_due' => [$message]]], 422);
+            }
         }
         try {
             $row = Invoice::create([...$data, 'organization_id' => $organizationId, 'reference' => 'INV-'.strtoupper(Str::random(10))]);
