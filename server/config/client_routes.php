@@ -33,13 +33,13 @@ $pendingClient = [];
 return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
+        '/dashboard/super-admin/agency',
         '/dashboard/super-admin/organizations',
+        '/dashboard/super-admin/organizations/:organizationId',
         '/dashboard/super-admin/colleges',
-        '/dashboard/super-admin/event-requirements',
         '/dashboard/super-admin/admins',
         '/dashboard/super-admin/announcements',
         '/dashboard/super-admin/notifications',
-        '/dashboard/super-admin/financial-reports',
         '/dashboard/super-admin/compliance',
         '/dashboard/super-admin/venues',
         '/dashboard/super-admin/grievances',
@@ -138,6 +138,7 @@ return [
     'DEPARTMENT_HEAD' => [
         '/dashboard/department-head',
         '/dashboard/department-head/approvals',
+        '/dashboard/department-head/organizations',
         '/dashboard/approvals',
         '/dashboard/announcements/view-announcements',
         '/dashboard/events/activity-calendar',
@@ -145,13 +146,9 @@ return [
         '/dashboard/finance/budget-allocation',
         '/dashboard/finance/financial-insights',
         '/dashboard/finance/transaction-history',
-        '/dashboard/merchandise/claim-tokens',
-        '/dashboard/merchandise/order-merchandise',
-        '/dashboard/merchandise/my-orders',
         '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
-        '/dashboard/elections/cast-vote',
         '/dashboard/elections/election-results',
     ],
 

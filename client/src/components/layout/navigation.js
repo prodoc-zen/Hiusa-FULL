@@ -1,4 +1,4 @@
-import { Building2, ClipboardCheck, FilePlus2, FileText, History, Home, ShieldCheck, Users } from 'lucide-react';
+import { Building2, ClipboardCheck, FilePlus2, History, Home, LayoutDashboard, ShieldCheck, Users } from 'lucide-react';
 import { PILLAR_BY_KEY } from '../../lib/pillars';
 
 // Single source of truth for role-to-sidebar-sections. Sidebar.jsx renders this;
@@ -85,7 +85,7 @@ export const NAV_STRUCTURE = [
       { id: 'manage-candidates', label: 'Candidates', path: '/dashboard/elections/manage-candidates', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'manage-voters', label: 'Voters', path: '/dashboard/elections/manage-voters', roles: ['SBO_OFFICER'] },
       { id: 'manage-partylists', label: 'Party Lists', path: '/dashboard/elections/manage-partylists', roles: ['ADMIN'] },
-      { id: 'cast-vote', label: 'Cast Vote', path: '/dashboard/elections/cast-vote', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'cast-vote', label: 'Cast Vote', path: '/dashboard/elections/cast-vote', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
       { id: 'election-results', label: 'Results', path: '/dashboard/elections/election-results', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
     ],
   },
@@ -93,13 +93,13 @@ export const NAV_STRUCTURE = [
     id: 'merchandise',
     label: 'Merchandise',
     icon: merchandisePillar.icon,
-    roles: ['SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD', 'STUDENT'],
+    roles: ['SBO_OFFICER', 'ADMIN', 'STUDENT'],
     children: [
       { id: 'manage-inventory', label: 'Inventory', path: '/dashboard/merchandise/manage-inventory', roles: ['ADMIN'] },
       { id: 'manage-orders', label: 'Manage Orders', path: '/dashboard/merchandise/manage-orders', roles: ['ADMIN', 'SBO_OFFICER'] },
       { id: 'claim-tokens', label: 'Validate Tokens', path: '/dashboard/merchandise/claim-tokens', roles: ['ADMIN', 'SBO_OFFICER'] },
-      { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
-      { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] },
+      { id: 'order-merchandise', label: 'Order Merchandise', path: '/dashboard/merchandise/order-merchandise', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
+      { id: 'my-orders', label: 'My Orders', path: '/dashboard/merchandise/my-orders', roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'] },
     ],
   },
   {
@@ -135,6 +135,7 @@ export const NAV_STRUCTURE = [
     },
     roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
+  { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations', roles: ['DEPARTMENT_HEAD'] },
   { id: 'submit-request', label: 'Submit Request', icon: FilePlus2, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
   { id: 'audit-logs', label: 'General Audit Log', icon: History, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
   {
@@ -165,18 +166,17 @@ export const SUPER_ADMIN_NAV = [
     icon: ShieldCheck,
     roles: ['SUPER_ADMIN'],
     children: [
+      { id: 'sao-agency', label: 'Agency overview', path: '/dashboard/super-admin/agency', roles: ['SUPER_ADMIN'], icon: LayoutDashboard },
       { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
       { id: 'sao-colleges', label: 'Colleges', path: '/dashboard/super-admin/colleges', roles: ['SUPER_ADMIN'], icon: Building2 },
       { id: 'sao-academic-years', label: 'Academic Years', path: '/dashboard/super-admin/academic-years', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-event-requirements', label: 'Event Requirements', path: '/dashboard/super-admin/event-requirements', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-compliance', label: 'Compliance', path: '/dashboard/super-admin/compliance', roles: ['SUPER_ADMIN'] },
       { id: 'sao-venues', label: 'Venues', path: '/dashboard/super-admin/venues', roles: ['SUPER_ADMIN'] },
       { id: 'sao-grievances', label: 'Grievances', path: '/dashboard/super-admin/grievances', roles: ['SUPER_ADMIN'] },
       { id: 'sao-clearances', label: 'Clearances', path: '/dashboard/super-admin/clearances', roles: ['SUPER_ADMIN'] },
       { id: 'sao-audit-logs', label: 'Audit Trail', path: '/dashboard/super-admin/audit-logs', roles: ['SUPER_ADMIN'] },
       { id: 'sao-announcements', label: 'University Announcements', path: '/dashboard/super-admin/announcements', roles: ['SUPER_ADMIN'] },
-      { id: 'sao-financial-reports', label: 'Received Reports', path: '/dashboard/super-admin/financial-reports', roles: ['SUPER_ADMIN'], icon: FileText },
       { id: 'sao-notifications', label: 'Notifications', path: '/dashboard/super-admin/notifications', roles: ['SUPER_ADMIN'] },
     ],
   },
