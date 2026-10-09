@@ -143,6 +143,12 @@ function ledgerSource(transaction) {
   return [transaction.event?.title, transaction.budget?.title].filter(Boolean);
 }
 
+function ledgerLockNote(transaction) {
+  if (transaction.is_system_generated) return `Recorded by ${transaction.system_source_label}. Change it there.`;
+  if (transaction.is_locked_by_report) return `In submitted report '${transaction.locking_report_title}'. Return the report to change it.`;
+  return null;
+}
+
 function receiptLabel(transaction) {
   if (transaction.receipt_reference) return transaction.receipt_reference;
   if (transaction.receipt_number) return `Receipt #${transaction.receipt_number}`;
@@ -1009,6 +1015,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 {filtered.map((tx) => {
                   const sources = ledgerSource(tx);
                   const receipt = receiptLabel(tx);
+                  const lockNote = ledgerLockNote(tx);
                   return <li key={tx.id} className="p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0"><p className="text-sm font-semibold text-[#0F172A]">{tx.description}</p><p className="mt-1 text-xs text-slate-600">{formatLedgerDate(tx.transaction_date)} · {tx.category}</p></div>
@@ -1020,8 +1027,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <p>Payer: {personName(tx.payer, 'No payer linked')}</p>
                       <p>Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                     </div>
-                    {canManageLedger && <button type="button" onClick={() => openTransactionForm(tx)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Pencil size={14} />Edit transaction</button>}
-                    {canManageLedger && <button type="button" onClick={() => askDelete('transaction', tx)} className="ml-2 mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete transaction</button>}
+                    {canManageLedger && lockNote && <p className="mt-3 text-xs font-medium text-slate-500">{lockNote}</p>}
+                    {canManageLedger && !lockNote && <button type="button" onClick={() => openTransactionForm(tx)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Pencil size={14} />Edit transaction</button>}
+                    {canManageLedger && !lockNote && <button type="button" onClick={() => askDelete('transaction', tx)} className="ml-2 mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete transaction</button>}
                   </li>;
                 })}
               </ul>
@@ -1043,6 +1051,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   {filtered.map((tx) => {
                     const sources = ledgerSource(tx);
                     const receipt = receiptLabel(tx);
+                    const lockNote = ledgerLockNote(tx);
                     return (
                     <tr key={tx.id} className="transition hover:bg-[#F8FBFD]">
                       <td className="whitespace-nowrap px-5 py-4 font-medium text-slate-600">{formatLedgerDate(tx.transaction_date)}</td>
@@ -1074,10 +1083,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </td>
                       {canManageLedger && (
                         <td className="px-5 py-4">
-                          <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
-                            { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
-                            { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
-                          ]} />
+                          {lockNote ? <p className="max-w-56 text-xs font-medium text-slate-500">{lockNote}</p> : (
+                            <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
+                              { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+                              { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
+                            ]} />
+                          )}
                         </td>
                       )}
                     </tr>

@@ -8,6 +8,7 @@ use App\Models\CashAdvance;
 use App\Models\CashAdvanceRepayment;
 use App\Models\Collection;
 use App\Models\Event;
+use App\Models\FinancialReport;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\Notification;
@@ -40,7 +41,7 @@ class TransactionController extends Controller
             'recorder:school_id,first_name,last_name',
             'payer:school_id,first_name,last_name,department,program,year_level',
             'organization:id,name,acronym',
-        ])->orderBy('transaction_date', 'desc');
+        ])->withSystemSource()->orderBy('transaction_date', 'desc');
 
         $query->whereIn('organization_id', $this->readableOrganizationIds($request));
 
@@ -86,7 +87,10 @@ class TransactionController extends Controller
             });
         }
 
-        return response()->json($query->paginate(10));
+        $page = $query->paginate(10);
+        $this->exposeLedgerFlags($page->getCollection());
+
+        return response()->json($page);
     }
 
     public function summary(Request $request)
@@ -175,12 +179,15 @@ class TransactionController extends Controller
             $this->recordFinancialAudit($request, 'created', $transaction, null, $this->auditableValues($transaction->fresh()));
             $this->notifyReceiptOwner($transaction);
 
-            return response()->json($transaction->load([
+            $transaction->load([
                 'budget:id,title',
                 'event:id,title',
                 'recorder:school_id,first_name,last_name',
                 'payer:school_id,first_name,last_name',
-            ]), 201);
+            ])->loadSystemSource();
+            $this->exposeLedgerFlags([$transaction]);
+
+            return response()->json($transaction, 201);
         });
     }
 
@@ -192,7 +199,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
-        if ($message = $this->systemSourceMessage($transaction)) {
+        if ($message = $this->systemSourceMessage($transaction) ?? $this->reportLockMessage($transaction)) {
             return response()->json(['message' => $message], 409);
         }
 
@@ -209,12 +216,15 @@ class TransactionController extends Controller
             $this->applyBudgetMovement($transaction->fresh(), 1);
             $this->recordFinancialAudit($request, 'updated', $transaction, $oldValues, $this->auditableValues($transaction->fresh()));
 
-            return response()->json($transaction->fresh()->load([
+            $updated = $transaction->fresh()->load([
                 'budget:id,title',
                 'event:id,title',
                 'recorder:school_id,first_name,last_name',
                 'payer:school_id,first_name,last_name',
-            ]));
+            ])->loadSystemSource();
+            $this->exposeLedgerFlags([$updated]);
+
+            return response()->json($updated);
         });
     }
 
@@ -257,7 +267,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
-        if ($message = $this->systemSourceMessage($transaction)) {
+        if ($message = $this->systemSourceMessage($transaction) ?? $this->reportLockMessage($transaction)) {
             return response()->json(['message' => $message], 409);
         }
 
@@ -277,31 +287,40 @@ class TransactionController extends Controller
 
     private function systemSourceMessage(Transaction $transaction): ?string
     {
-        if ($collection = Collection::where('ledger_transaction_id', $transaction->id)->first(['reference'])) {
-            return "This entry was recorded when collection {$collection->reference} was verified. Change it from Collections.";
+        return match ($transaction->loadSystemSource()->systemSource()) {
+            'collection' => 'This entry was recorded when collection '.Collection::where('ledger_transaction_id', $transaction->id)->value('reference').' was verified. Change it from Collections.',
+            'cash_advance' => 'This entry was recorded when cash advance '.CashAdvance::where('release_transaction_id', $transaction->id)->value('reference').' was released. Change it from Cash Advances.',
+            'repayment' => 'This entry was recorded when a repayment for cash advance '.CashAdvance::whereKey(CashAdvanceRepayment::where('ledger_transaction_id', $transaction->id)->value('cash_advance_id'))->value('reference').' was received. Change it from Cash Advances.',
+            'invoice_payment' => 'This entry was recorded when a payment for invoice '.Invoice::whereKey(InvoicePayment::where('ledger_transaction_id', $transaction->id)->value('invoice_id'))->value('reference').' was approved. Change it from Student Financial Accounts.',
+            'order' => 'This entry was recorded when merchandise order ORD-'.Order::where('transaction_id', $transaction->id)->value('id').' was paid. Change it from Manage Orders.',
+            default => null,
+        };
+    }
+
+    private function reportLockMessage(Transaction $transaction): ?string
+    {
+        $title = FinancialReport::lockingTitles([$transaction])[$transaction->id] ?? null;
+
+        return $title === null
+            ? null
+            : "This entry is part of the financial report '{$title}' that has been submitted. Ask the Department Head to return the report before changing it.";
+    }
+
+    /**
+     * Tells the client which entries it must not offer to change: the system-generated
+     * ones and the ones inside a submitted report. One report query covers the whole page.
+     *
+     * @param  iterable<Transaction>  $transactions
+     */
+    private function exposeLedgerFlags(iterable $transactions): void
+    {
+        $titles = FinancialReport::lockingTitles($transactions);
+
+        foreach ($transactions as $transaction) {
+            $transaction->exposeSystemSource()
+                ->setAttribute('is_locked_by_report', isset($titles[$transaction->id]))
+                ->setAttribute('locking_report_title', $titles[$transaction->id] ?? null);
         }
-
-        if ($advance = CashAdvance::where('release_transaction_id', $transaction->id)->first(['reference'])) {
-            return "This entry was recorded when cash advance {$advance->reference} was released. Change it from Cash Advances.";
-        }
-
-        if ($repayment = CashAdvanceRepayment::where('ledger_transaction_id', $transaction->id)->first(['cash_advance_id'])) {
-            $reference = CashAdvance::whereKey($repayment->cash_advance_id)->value('reference');
-
-            return "This entry was recorded when a repayment for cash advance {$reference} was received. Change it from Cash Advances.";
-        }
-
-        if ($payment = InvoicePayment::where('ledger_transaction_id', $transaction->id)->first(['invoice_id'])) {
-            $reference = Invoice::whereKey($payment->invoice_id)->value('reference');
-
-            return "This entry was recorded when a payment for invoice {$reference} was approved. Change it from Student Financial Accounts.";
-        }
-
-        if ($order = Order::where('transaction_id', $transaction->id)->first(['id'])) {
-            return "This entry was recorded when merchandise order ORD-{$order->id} was paid. Change it from Manage Orders.";
-        }
-
-        return null;
     }
 
     private function validateAndNormalizeLinks(Request $request, array &$data, ?Transaction $transaction = null): ?string

@@ -69,6 +69,70 @@ class Transaction extends Model
         return $this->hasOne(CashAdvanceRepayment::class, 'ledger_transaction_id');
     }
 
+    /** The collection whose verification recorded this entry, when it is one. */
+    public function collectionSource(): HasOne
+    {
+        return $this->hasOne(Collection::class, 'ledger_transaction_id');
+    }
+
+    /** The invoice payment whose approval recorded this entry, when it is one. */
+    public function invoicePaymentSource(): HasOne
+    {
+        return $this->hasOne(InvoicePayment::class, 'ledger_transaction_id');
+    }
+
+    /**
+     * The records that write a ledger entry on their own, in the order they are checked:
+     * source key => [reverse relation, short label shown in the ledger].
+     */
+    private const SYSTEM_SOURCES = [
+        'collection' => ['collectionSource', 'Collection verification'],
+        'cash_advance' => ['releasedCashAdvance', 'Cash advance release'],
+        'repayment' => ['cashAdvanceRepayment', 'Cash advance repayment'],
+        'invoice_payment' => ['invoicePaymentSource', 'Invoice payment'],
+        'order' => ['merchandiseOrder', 'Merchandise order'],
+    ];
+
+    private static function systemSourceRelations(): array
+    {
+        return collect(self::SYSTEM_SOURCES)->map(fn (array $source, string $key) => "{$source[0]} as source_{$key}")->values()->all();
+    }
+
+    /** Adds one exists subselect per system source to the page query, so no row costs a query of its own. */
+    public function scopeWithSystemSource(Builder $query): void
+    {
+        $query->withExists(self::systemSourceRelations());
+    }
+
+    public function loadSystemSource(): static
+    {
+        return $this->loadExists(self::systemSourceRelations());
+    }
+
+    /** The source key found by scopeWithSystemSource or loadSystemSource, or null for a manual entry. */
+    public function systemSource(): ?string
+    {
+        foreach (array_keys(self::SYSTEM_SOURCES) as $key) {
+            if ($this->getAttribute("source_{$key}")) {
+                return $key;
+            }
+        }
+
+        return null;
+    }
+
+    /** Replaces the raw exists columns with the three keys the ledger screens read. */
+    public function exposeSystemSource(): static
+    {
+        $source = $this->systemSource();
+
+        $this->makeHidden(array_map(fn (string $key) => "source_{$key}", array_keys(self::SYSTEM_SOURCES)));
+
+        return $this->setAttribute('is_system_generated', $source !== null)
+            ->setAttribute('system_source', $source)
+            ->setAttribute('system_source_label', $source ? self::SYSTEM_SOURCES[$source][1] : null);
+    }
+
     /** Cash advances move cash but are money lent out and returned, so neither a statement nor a forecast counts them as expense or income. */
     public function scopeExcludingCashAdvances(Builder $query): void
     {
