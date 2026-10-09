@@ -297,7 +297,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
 
     // Approval requests: Department Head handles operational sign-off;
     // Super Admin is the final approver for budget and financial records.
-    Route::get('/approval-requests', [ApprovalRequestController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/approval-requests', [ApprovalRequestController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD,SBO_OFFICER']);
     Route::patch('/approval-requests/{id}', [ApprovalRequestController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
 
     // Notification Routes

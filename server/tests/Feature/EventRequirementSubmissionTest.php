@@ -78,21 +78,26 @@ class EventRequirementSubmissionTest extends TestCase
             'end_time' => now()->addDays(5)->addHours(2)->toISOString(),
         ])->assertCreated();
         $eventId = $event->json('id');
-        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId]);
+        $this->assertDatabaseHas('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId, 'required_role' => 'DEPARTMENT_HEAD', 'status' => 'pending']);
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId, 'required_role' => 'SUPER_ADMIN']);
 
         $this->post('/api/events/'.$eventId.'/submission', [
             'documents' => [$requirement->json('id') => UploadedFile::fake()->create('proposal.pdf', 20, 'application/pdf')],
         ])->assertOk()->assertJsonPath('approval_status', 'pending')->assertJsonCount(1, 'files');
         $fileId = $this->getJson('/api/events/'.$eventId.'/submission')->json('files.0.id');
+        $this->assertDatabaseMissing('approval_requests', ['entity_type' => 'event', 'entity_id' => $eventId, 'required_role' => 'SUPER_ADMIN']);
 
         Sanctum::actingAs($head);
         $this->getJson('/api/events/'.$eventId.'/submission')->assertOk()->assertJsonCount(1, 'files');
         $this->get('/api/events/'.$eventId.'/submission/files/'.$fileId)->assertOk();
-        $this->getJson('/api/approval-requests')->assertJsonCount(0, 'data');
+        $this->getJson('/api/approval-requests')->assertJsonCount(1, 'data');
+        $headApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
+        $this->patchJson('/api/approval-requests/'.$headApproval->id, ['status' => 'approved'])->assertOk();
+        $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'planning']);
 
         Sanctum::actingAs($director);
         $this->getJson('/api/approval-requests')->assertOk()->assertJsonPath('data.0.entity_type', 'event');
-        $approval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->firstOrFail();
+        $approval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
         $this->patchJson('/api/approval-requests/'.$approval->id, ['status' => 'approved'])->assertOk();
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
     }
