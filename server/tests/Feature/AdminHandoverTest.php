@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\SystemAdministrationController;
 use App\Models\AuditLog;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -101,6 +103,40 @@ class AdminHandoverTest extends TestCase
         $this->postJson("/api/system/admins/{$student->school_id}/handover", ['mode' => 'existing', 'successor_school_id' => $student->school_id])->assertStatus(422);
         $this->outgoing->update(['account_status' => 'inactive']);
         $this->postJson("/api/system/admins/{$this->outgoing->school_id}/handover", ['mode' => 'existing', 'successor_school_id' => $student->school_id])->assertStatus(422);
+    }
+
+    public function test_a_second_handover_with_a_stale_read_of_the_outgoing_admin_is_refused_with_409(): void
+    {
+        $first = User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $second = User::factory()->create(['organization_id' => $this->organization->id, 'role' => 'STUDENT', 'account_status' => 'active']);
+        $stale = User::find($this->outgoing->school_id);
+        Sanctum::actingAs($this->director);
+
+        $this->postJson("/api/system/admins/{$this->outgoing->school_id}/handover", ['mode' => 'existing', 'successor_school_id' => $first->school_id])->assertOk();
+
+        $request = Request::create('/handover', 'POST', ['mode' => 'existing', 'successor_school_id' => $second->school_id]);
+        $request->setUserResolver(fn () => $this->director);
+        $response = app(SystemAdministrationController::class)->handoverAdmin($request, $stale);
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertSame('STUDENT', $second->fresh()->role);
+        $this->assertSame(1, AuditLog::where('action', 'administrator_handover')->count());
+    }
+
+    public function test_a_repeated_new_account_handover_is_refused_instead_of_failing_on_the_unique_key(): void
+    {
+        $stale = User::find($this->outgoing->school_id);
+        Sanctum::actingAs($this->director);
+        $payload = fn (int $schoolId) => ['mode' => 'new', 'school_id' => $schoolId, 'first_name' => 'Ana', 'last_name' => 'Reyes', 'email' => "ana{$schoolId}@example.com", 'password' => 'password123', 'password_confirmation' => 'password123'];
+
+        $this->postJson("/api/system/admins/{$this->outgoing->school_id}/handover", $payload(71000001))->assertOk();
+
+        $request = Request::create('/handover', 'POST', $payload(71000002));
+        $request->setUserResolver(fn () => $this->director);
+        $response = app(SystemAdministrationController::class)->handoverAdmin($request, $stale);
+
+        $this->assertSame(409, $response->getStatusCode());
+        $this->assertDatabaseMissing('users', ['school_id' => 71000002]);
     }
 
     public function test_member_search_lists_only_active_eligible_members_of_that_organization(): void
