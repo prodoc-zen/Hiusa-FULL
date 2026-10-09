@@ -24,6 +24,9 @@ class ComplianceDocumentService
 {
     public const SOURCES = ['compliance', 'event_requirement', 'financial_report', 'financial_supporting_document'];
 
+    /** Newest rows read per source, so an unfiltered union cannot load a whole table. */
+    private const SOURCE_ROW_LIMIT = 500;
+
     private const APPROVAL_STATUS = ['approved' => 'approved', 'rejected' => 'returned'];
 
     private const REPORT_STATUS = [
@@ -36,7 +39,7 @@ class ComplianceDocumentService
      * @param  array<int, int>  $organizationIds
      * @return Collection<int, array<string, mixed>> newest submission first
      */
-    public function rows(array $organizationIds, ?int $semesterId, ?string $source): Collection
+    public function rows(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole = null): Collection
     {
         $semesters = AcademicSemester::all()->keyBy('id');
         $rows = collect();
@@ -48,7 +51,7 @@ class ComplianceDocumentService
             $rows = $rows->concat($this->eventRows($organizationIds, $semesterId));
         }
         if ($source === null || in_array($source, ['financial_report', 'financial_supporting_document'], true)) {
-            $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $source));
+            $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $source, $viewerRole));
         }
 
         $organizations = Organization::whereIn('id', $rows->pluck('organization_id')->unique())->get(['id', 'name', 'acronym'])->keyBy('id');
@@ -75,6 +78,7 @@ class ComplianceDocumentService
         return OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)
             ->when($semesterId, fn ($query) => $query->whereIn('requirement_type_id', fn ($types) => $types->from('compliance_requirement_types')->select('id')->where('academic_semester_id', $semesterId)))
             ->with('requirementType:id,academic_year,academic_semester_id,name')
+            ->orderByDesc('submitted_at')->orderByDesc('id')->limit(self::SOURCE_ROW_LIMIT)
             ->get(['id', 'organization_id', 'requirement_type_id', 'status', 'file_original_name', 'submitted_by', 'submitted_at', 'reviewed_at'])
             ->map(function (OrganizationComplianceSubmission $submission) use ($semesters) {
                 $type = $submission->requirementType;
@@ -101,6 +105,7 @@ class ComplianceDocumentService
         $files = EventRequirementFile::whereIn('organization_id', $organizationIds)
             ->when($semesterId, fn ($query) => $query->whereIn('event_id', fn ($events) => $events->from('events')->select('id')->where('academic_semester_id', $semesterId)))
             ->with('requirement:id,name')
+            ->orderByDesc('created_at')->orderByDesc('id')->limit(self::SOURCE_ROW_LIMIT)
             ->get(['id', 'event_id', 'requirement_id', 'organization_id', 'original_name', 'uploaded_by', 'created_at']);
         $eventIds = $files->pluck('event_id')->unique();
         $events = Event::whereIn('id', $eventIds)->get(['id', 'title', 'academic_semester_id'])->keyBy('id');
@@ -113,22 +118,24 @@ class ComplianceDocumentService
             return [
                 'source' => 'event_requirement',
                 'organization_id' => $file->organization_id,
-                'item' => $file->requirement->name,
-                'parent_title' => $event->title,
+                'item' => $file->requirement?->name,
+                'parent_title' => $event?->title,
                 'status' => self::APPROVAL_STATUS[$approval?->status] ?? 'submitted',
                 'submitted_at' => $file->created_at,
                 'submitted_by' => $file->uploaded_by,
                 'reviewed_at' => $approval?->reviewed_at,
                 'file_name' => $file->original_name,
                 'open_url' => '/events/'.$file->event_id.'/submission/files/'.$file->id,
-                'academic_semester_id' => $event->academic_semester_id,
+                'academic_semester_id' => $event?->academic_semester_id,
             ];
         });
     }
 
-    private function financialRows(array $organizationIds, ?int $semesterId, Collection $semesters, ?string $source): Collection
+    private function financialRows(array $organizationIds, ?int $semesterId, Collection $semesters, ?string $source, ?string $viewerRole): Collection
     {
         $reports = FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
+            ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->whereNotNull('department_head_approved_at'))
+            ->orderByDesc('submitted_at')->orderByDesc('id')->limit(self::SOURCE_ROW_LIMIT)
             ->get(['id', 'organization_id', 'event_id', 'report_type', 'title', 'period_start', 'period_end', 'supporting_documents', 'submission_status', 'submitted_at', 'generated_by', 'department_head_approved_at', 'sao_approved_at']);
         $eventSemesters = Event::whereIn('id', $reports->pluck('event_id')->filter()->unique())->pluck('academic_semester_id', 'id');
         $approvals = $this->latestApprovals('financial_report', $reports->pluck('id'));

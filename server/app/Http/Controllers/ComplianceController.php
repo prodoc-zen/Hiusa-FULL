@@ -532,7 +532,7 @@ class ComplianceController extends Controller
             return response()->json(['message' => 'That organization is outside your scope.'], 403);
         }
 
-        $rows = $documents->rows($organizationId ? [(int) $organizationId] : $scope, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null);
+        $rows = $documents->rows($organizationId ? [(int) $organizationId] : $scope, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role);
         $perPage = $filters['per_page'] ?? 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
 

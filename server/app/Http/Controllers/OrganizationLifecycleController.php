@@ -25,7 +25,7 @@ class OrganizationLifecycleController extends Controller
         // The lifecycle check and the write share one locked read, and the
         // submitted_at the reviewer saw must still be current, so a head's
         // resubmission cannot slip in between and be approved unseen.
-        $result = DB::transaction(function () use ($organization, $data, $reviewer) {
+        $result = DB::transaction(function () use ($request, $organization, $data, $reviewer) {
             $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
             if ($locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'pending') {
                 return 'not_pending';
@@ -46,6 +46,7 @@ class OrganizationLifecycleController extends Controller
                 OrganizationComplianceSubmission::where('organization_id', $locked->id)->where('status', 'submitted')
                     ->update(['status' => 'approved', 'reviewed_by' => $reviewer->school_id, 'reviewed_at' => now()]);
             }
+            $this->audit($request, $approved ? 'organization_approved' : 'organization_returned', $locked, ['remarks' => $data['remarks'] ?? null], $approved ? 'SAO approved an organization registration.' : 'SAO returned an organization registration.');
 
             return $locked;
         });
@@ -57,7 +58,6 @@ class OrganizationLifecycleController extends Controller
         }
 
         $approved = $data['decision'] === 'approve';
-        $this->audit($request, $approved ? 'organization_approved' : 'organization_returned', $result, ['remarks' => $data['remarks'] ?? null], $approved ? 'SAO approved an organization registration.' : 'SAO returned an organization registration.');
         $this->notifySubmitter($result, $approved ? 'Organization registration approved' : 'Organization registration returned', $approved
             ? "{$result->name} was approved and is now active."
             : "{$result->name} was returned: ".$data['remarks']);
@@ -69,12 +69,13 @@ class OrganizationLifecycleController extends Controller
     {
         $data = $request->validate(['reason' => ['nullable', 'string', 'max:1000']]);
 
-        $archived = DB::transaction(function () use ($organization, $request) {
+        $archived = DB::transaction(function () use ($organization, $request, $data) {
             $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
             if ($locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'active') {
                 return null;
             }
             $locked->update(['lifecycle_status' => 'archived', 'is_active' => false, 'archived_at' => now(), 'archived_by' => $request->user()->school_id]);
+            $this->audit($request, 'organization_archived', $locked, ['reason' => $data['reason'] ?? null], 'SAO archived a student organization.');
 
             return $locked;
         });
@@ -82,27 +83,24 @@ class OrganizationLifecycleController extends Controller
             return response()->json(['message' => 'Only an active student organization can be archived.'], 409);
         }
 
-        $this->audit($request, 'organization_archived', $archived, ['reason' => $data['reason'] ?? null], 'SAO archived a student organization.');
-
         return response()->json($archived->fresh());
     }
 
     public function restore(Request $request, Organization $organization)
     {
-        $restored = DB::transaction(function () use ($organization) {
+        $restored = DB::transaction(function () use ($request, $organization) {
             $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
             if ($locked->lifecycle_status !== 'archived') {
                 return null;
             }
             $locked->update(['lifecycle_status' => 'active', 'is_active' => true, 'archived_at' => null, 'archived_by' => null]);
+            $this->audit($request, 'organization_restored', $locked, [], 'SAO restored an archived student organization.');
 
             return $locked;
         });
         if (! $restored) {
             return response()->json(['message' => 'Only an archived organization can be restored.'], 409);
         }
-
-        $this->audit($request, 'organization_restored', $restored, [], 'SAO restored an archived student organization.');
 
         return response()->json($restored->fresh());
     }

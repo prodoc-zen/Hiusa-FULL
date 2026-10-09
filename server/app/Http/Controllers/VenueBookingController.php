@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 use App\Models\Venue;
 use App\Models\VenueBooking;
@@ -143,6 +144,10 @@ class VenueBookingController extends Controller
             $booking = VenueBooking::whereKey($venueBooking->id)->lockForUpdate()->first();
             if ($booking->status !== 'pending') {
                 return ['conflict' => 'Only a pending booking can be reviewed.'];
+            }
+
+            if (Organization::whereKey($booking->organization_id)->lockForUpdate()->value('lifecycle_status') !== 'active') {
+                return ['conflict' => 'This organization is archived and read only.'];
             }
 
             if ($data['status'] === 'approved' && $booking->venue_id) {
