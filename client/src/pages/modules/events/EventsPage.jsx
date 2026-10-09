@@ -20,12 +20,13 @@ import {
   Plus,
   Search,
   UserCheck,
+  Trash2,
   UserRoundCheck,
   Users,
   Wallet,
   X,
 } from 'lucide-react';
-import { getEvents, getEvent, createEvent, updateEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
+import { getEvents, getEvent, createEvent, updateEvent, deleteEvent, updateEventStatus, generateEventPlan, getEventWorkflowHistory, confirmEventWorkflow, discardEventWorkflow, getAttendance, recordAttendance } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { getVenues } from '../../../services/venueService';
 import { getTasks, previewTaskRecommendation } from '../../../services/taskService';
@@ -33,6 +34,7 @@ import { getAcademicStructure, getUsers } from '../../../services/userService';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
 import Modal from '../../../components/Modal';
+import ConfirmModal from '../../../components/ConfirmModal';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import { fetchAllPages } from '../../../services/pagination';
 import ActivityCalendar from '../../../components/calendar/ActivityCalendar';
@@ -396,6 +398,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [attendanceMeta, setAttendanceMeta] = useState({ currentPage: 1, lastPage: 1, perPage: 10, total: 0 });
   const [attendanceReload, setAttendanceReload] = useState(0);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+  const [eventToDelete, setEventToDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   let currentUser = {};
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
@@ -431,6 +436,22 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   }
 
   useEffect(load, [currentUserRole, selectedPeriodId]);
+
+  async function confirmDeleteEvent() {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteEvent(eventToDelete.id);
+      notify.success(`"${eventToDelete.title}" deleted.`);
+      setEventToDelete(null);
+      load();
+    } catch (requestError) {
+      setDeleteError(getApiErrorMessage(requestError, 'This event could not be deleted.'));
+      setEventToDelete(null);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
 
   useEffect(() => {
     let active = true;
@@ -926,6 +947,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
             </select>
           </label>}
           {viewingHistory && <p className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
+          {deleteError && <p role="alert" className="rounded-lg border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">{deleteError}</p>}
           <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-lg font-bold text-[#0F172A]">All Events</h2>
@@ -1015,6 +1037,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <div className="mt-4 flex gap-2 border-t border-[#DDE7EF] pt-3">
                           <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-xs font-bold text-[#0878B7]"><Eye size={15} /> View details</button>
                           {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
+                          {canCreateEvents && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setEventToDelete(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Trash2 size={15} /> Delete event</button>}
                         </div>
                       </article>
                     );
@@ -1080,6 +1103,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             <TableRowActions subject={evt.title} label="Event actions" actions={[
                               { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
                               canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
+                              canCreateEvents && !viewingHistory && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
                             ]} />
                           </td>
                         </tr>
@@ -1864,6 +1888,18 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
           </div>
         </AccessibleOverlay>
       )}
+
+      <ConfirmModal
+        open={Boolean(eventToDelete)}
+        title="Delete this event?"
+        message="This cannot be undone. Its approval request and submitted requirement files are removed with it."
+        recordName={eventToDelete?.title}
+        confirmText="Delete event"
+        variant="danger"
+        busy={deleteBusy}
+        onCancel={() => setEventToDelete(null)}
+        onConfirm={confirmDeleteEvent}
+      />
     </div>
   );
 }
