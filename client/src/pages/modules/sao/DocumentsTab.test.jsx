@@ -50,8 +50,8 @@ describe('DocumentsTab', () => {
     const organizationSelect = screen.getByLabelText('Organization');
     expect(within(organizationSelect).getByRole('option', { name: 'All organizations' })).toBeInTheDocument();
     expect(within(organizationSelect).getByRole('option', { name: 'CCS - Computing Society' })).toBeInTheDocument();
-    expect(within(organizationSelect).getByRole('option', { name: 'OC - Old Club (archived)' })).toBeInTheDocument();
-    expect(within(screen.getByLabelText('Semester')).getByRole('option', { name: 'AY 2026-2027 · 1st Semester · active' })).toBeInTheDocument();
+    expect(within(organizationSelect).getByRole('option', { name: 'OC - Old Club (Archived)' })).toBeInTheDocument();
+    expect(within(screen.getByLabelText('Semester')).getByRole('option', { name: 'AY 2026-2027 · 1st Semester · Active' })).toBeInTheDocument();
   });
 
   it('sends the chosen filters and returns to the first page', async () => {
@@ -102,6 +102,18 @@ describe('DocumentsTab', () => {
     complianceMocks.getComplianceDocuments.mockResolvedValue(page([]));
     render(<DocumentsTab />);
     expect(await screen.findByText('No documents submitted yet.')).toBeInTheDocument();
+  });
+
+  it('uses the filtered empty state when a filter hides every document', async () => {
+    render(<DocumentsTab />);
+    await screen.findByText('Event Proposal');
+
+    complianceMocks.getComplianceDocuments.mockResolvedValue(page([]));
+    fireEvent.change(screen.getByLabelText('Document type'), { target: { value: 'compliance' } });
+
+    expect(await screen.findByText('No documents match these filters')).toBeInTheDocument();
+    expect(screen.queryByText('No documents submitted yet.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]);
   });
 
   it('shows a load error and retries', async () => {

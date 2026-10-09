@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ExternalLink } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, Field, IconButton, Select, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -11,6 +11,7 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { downloadSubmissionDocument, getSubmissions, reviewSubmission } from '../../../services/complianceService';
 
 const DEFAULT_STATUS = 'submitted';
+const ROW_ACTION = 'h-11! sm:h-9!';
 
 function documentKind(name) {
   return /semestral/i.test(name || '') ? 'Semestral report' : 'Renewal document';
@@ -23,6 +24,8 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
   const [openingDocumentId, setOpeningDocumentId] = useState(null);
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewRemarks, setReviewRemarks] = useState('');
+  const [remarksError, setRemarksError] = useState(null);
+  const remarksRef = useRef(null);
   const [reviewBusy, setReviewBusy] = useState(false);
   const [reviewError, setReviewError] = useState(null);
 
@@ -63,6 +66,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
   function closeReview() {
     setReviewTarget(null);
     setReviewRemarks('');
+    setRemarksError(null);
   }
 
   async function runReview(payload, successMessage, failureMessage) {
@@ -98,7 +102,11 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
   }
 
   function confirmReturn() {
-    if (!reviewRemarks.trim()) return Promise.resolve();
+    if (!reviewRemarks.trim()) {
+      setRemarksError('Write what the organization needs to correct before returning this submission.');
+      remarksRef.current?.focus();
+      return Promise.resolve();
+    }
     return runReview(
       { status: 'returned', remarks: reviewRemarks.trim() },
       'Submission returned to the organization with your remarks.',
@@ -151,7 +159,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
               {organizations.map((org) => <option key={org.organization_id} value={org.organization_id}>{org.organization_name}</option>)}
             </Select>
             {filtersActive && (
-              <Button variant="ghost" size="sm" onClick={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}>Clear filters</Button>
+              <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}>Clear filters</Button>
             )}
             <p className="text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto">
               {queue.meta.total} {queue.meta.total === 1 ? 'submission' : 'submissions'}
@@ -162,14 +170,14 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
           <div className="flex justify-end gap-1.5">
             <IconButton
               icon={ExternalLink}
-              label="Open document"
+              label={`Open ${submission.requirement_type?.name || 'document'} for ${submission.organization?.name || 'organization'}`}
               onClick={() => openDocument(submission)}
               disabled={openingDocumentId === submission.id}
             />
             {submission.status === 'submitted' && (
               <>
-                <Button size="sm" variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); }}>Return</Button>
-                <Button size="sm" onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); }}>Approve</Button>
+                <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); }}>Return</Button>
+                <Button size="sm" className={ROW_ACTION} onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); }}>Approve</Button>
               </>
             )}
           </div>
@@ -183,7 +191,14 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
             label="submissions"
           />
         )}
-        emptyState={(
+        emptyState={filtersActive ? (
+          <EmptyState
+            kind="filtered"
+            title="No submissions match these filters"
+            description="Try a different status or organization, or clear the filters."
+            onClearFilters={() => onFiltersChange({ organizationId: '', status: DEFAULT_STATUS })}
+          />
+        ) : (
           <EmptyState
             kind="first-run"
             icon={Check}
@@ -214,12 +229,12 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
         footer={(
           <>
             <Button variant="secondary" onClick={closeReview} disabled={reviewBusy}>Cancel</Button>
-            <Button variant="danger" onClick={confirmReturn} loading={reviewBusy} disabled={!reviewRemarks.trim()}>Return to organization</Button>
+            <Button variant="secondary" onClick={confirmReturn} loading={reviewBusy}>Return to organization</Button>
           </>
         )}
       >
-        <Field label="Remarks" required hint="Explain what needs to be corrected before resubmission.">
-          <Textarea data-autofocus value={reviewRemarks} onChange={(event) => setReviewRemarks(event.target.value)} />
+        <Field label="Remarks" required error={remarksError} hint="Explain what needs to be corrected before resubmission.">
+          <Textarea ref={remarksRef} data-autofocus value={reviewRemarks} onChange={(event) => { setReviewRemarks(event.target.value); setRemarksError(null); }} />
         </Field>
       </Modal>
     </Card>

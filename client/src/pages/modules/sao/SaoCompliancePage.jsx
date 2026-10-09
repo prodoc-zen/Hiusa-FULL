@@ -73,6 +73,11 @@ export default function SaoCompliancePage() {
     );
   }
 
+  const awaitingReview = overview.organizations.reduce((total, org) => total
+    + org.requirements.filter((requirement) => requirement.status === 'submitted').length, 0);
+  const tabs = TABS.map((tab) => (tab.key === 'review' && awaitingReview > 0
+    ? { ...tab, label: `${tab.label} (${awaitingReview})` }
+    : tab));
   const activeLabel = TABS.find((tab) => tab.key === activeTab).label;
 
   return (
@@ -82,7 +87,7 @@ export default function SaoCompliancePage() {
         description="See who is behind on their requirements, manage what every organization must submit, and review everything that has come in."
       />
 
-      <Tabs value={activeTab} onChange={changeTab} tabs={TABS} />
+      <Tabs value={activeTab} onChange={changeTab} tabs={tabs} />
 
       <div role="tabpanel" id={PANEL_ID} aria-label={activeLabel} className="space-y-5">
         {activeTab === 'accreditation' && (

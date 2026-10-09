@@ -26,14 +26,14 @@ describe('EventRequirementsTab', () => {
 
   it('shows instructions without reorder controls', async () => {
     render(<EventRequirementsTab />);
-    expect(await screen.findByText('Signed')).toBeInTheDocument();
+    expect((await screen.findAllByText('Signed')).length).toBeGreaterThan(0);
     expect(screen.queryByRole('button', { name: 'Move Proposal down' })).not.toBeInTheDocument();
   });
 
   it('sends the description when adding a requirement', async () => {
     mocks.createEventRequirement.mockResolvedValue({ data: { id: 3 } });
     render(<EventRequirementsTab />);
-    await screen.findByText('Proposal');
+    await screen.findAllByText('Proposal');
     fireEvent.change(screen.getByPlaceholderText('Event proposal'), { target: { value: 'Permit' } });
     fireEvent.change(screen.getByLabelText('Instructions for organizations'), { target: { value: 'Signed by adviser' } });
     fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
@@ -42,7 +42,7 @@ describe('EventRequirementsTab', () => {
     })));
   });
 
-  it('lists events waiting for SAO and approves one', async () => {
+  it('lists events waiting for SAO and approves one after confirming', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: { first_name: 'Ana', last_name: 'Cruz' } }] } });
     mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
     render(<EventRequirementsTab />);
@@ -53,21 +53,36 @@ describe('EventRequirementsTab', () => {
     fireEvent.click(screen.getByRole('button', { name: 'View files' }));
     expect(screen.getByText('Submission files')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /Approve/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
+    expect(mocks.reviewApprovalRequest).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve event' }));
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'approved', remarks: undefined }));
   });
 
-  it('keeps Reject disabled until remarks are written, then rejects', async () => {
+  it('keeps Approve as the only primary action per event and Reject secondary', async () => {
+    mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
+    render(<EventRequirementsTab />);
+    await screen.findByText('Foundation Day');
+
+    expect(screen.getByRole('button', { name: 'Approve' })).toHaveClass('bg-brand-700');
+    expect(screen.getByRole('button', { name: 'Reject' })).not.toHaveClass('bg-brand-700');
+    expect(screen.getByRole('button', { name: 'Reject' })).not.toHaveClass('bg-danger');
+  });
+
+  it('asks for remarks in a confirmation before rejecting', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
     mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
     render(<EventRequirementsTab />);
     await screen.findByText('Foundation Day');
 
-    const reject = screen.getByRole('button', { name: /Reject/ });
-    expect(reject).toBeDisabled();
-    fireEvent.change(screen.getByLabelText('Remarks for rejection'), { target: { value: 'Missing budget' } });
-    expect(reject).toBeEnabled();
-    fireEvent.click(reject);
+    fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Reject event' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Write why this event is rejected');
+    expect(screen.getByLabelText(/Remarks for rejection/)).toHaveFocus();
+    expect(mocks.reviewApprovalRequest).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText(/Remarks for rejection/), { target: { value: 'Missing budget' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Reject event' }));
 
     await waitFor(() => expect(mocks.reviewApprovalRequest).toHaveBeenCalledWith(41, { status: 'rejected', remarks: 'Missing budget' }));
   });
@@ -83,16 +98,17 @@ describe('EventRequirementsTab', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load event requirements.');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('Proposal')).toBeInTheDocument();
+    expect((await screen.findAllByText('Proposal')).length).toBeGreaterThan(0);
   });
 
   it('surfaces the server message when a requirement with files cannot be removed', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     mocks.deleteEventRequirement.mockRejectedValue({ response: { status: 409, data: { message: 'Submitted files prevent removal.' } } });
     render(<EventRequirementsTab />);
-    await screen.findByText('Proposal');
+    await screen.findAllByText('Proposal');
 
-    fireEvent.click(screen.getByRole('button', { name: 'Remove Proposal' }));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Proposal' })[0]);
+    expect(mocks.deleteEventRequirement).not.toHaveBeenCalled();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove requirement' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Submitted files prevent removal.');
   });
 });
