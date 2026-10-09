@@ -26,9 +26,17 @@ return new class extends Migration
 
     public function down(): void
     {
-        foreach (array_keys(self::INDEXES) as $name) {
+        foreach (self::INDEXES as $name => $columns) {
             if (! Schema::hasIndex('audit_logs', $name)) {
                 continue;
+            }
+
+            $leading = $columns[0];
+
+            if (! Schema::hasIndex('audit_logs', [$leading])) {
+                Schema::table('audit_logs', function (Blueprint $table) use ($leading) {
+                    $table->index($leading);
+                });
             }
 
             Schema::table('audit_logs', function (Blueprint $table) use ($name) {
