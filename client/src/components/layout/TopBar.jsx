@@ -1,11 +1,12 @@
 import { formatDisplayText } from '../../utils/displayText.js';
 import { useState, useRef, useEffect, useCallback } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { Bell, ChevronDown, LogOut, Menu, Search, ShoppingCart, User } from 'lucide-react';
 import hiusaLogo from '../../assets/Hiusa Logo.png';
 import ConfirmModal from '../ConfirmModal';
 import { Kbd } from '../ui';
 import CommandPalette from './CommandPalette';
+import { ROLE_LABELS } from './navigation';
 import { getAccountProfiles, logout, switchAccountProfile } from '../../services/authService';
 import { getNotifications, markRead, markAllRead } from '../../services/notificationService';
 import { getActiveAcademicPeriod } from '../../services/systemAdministrationService';
@@ -15,22 +16,6 @@ import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
-
-const ROLE_LABELS = {
-  SUPER_ADMIN: 'SAO',
-  ADMIN: 'Organization Admin',
-  SBO_OFFICER: 'SBO Officer',
-  DEPARTMENT_HEAD: 'Department Head',
-  STUDENT: 'Student',
-};
-
-const ROLE_HOME_PATHS = {
-  SUPER_ADMIN: '/dashboard/super-admin',
-  ADMIN: '/dashboard/admin',
-  SBO_OFFICER: '/dashboard/officer',
-  DEPARTMENT_HEAD: '/dashboard/department-head',
-  STUDENT: '/dashboard/student',
-};
 
 function readStudentCart() {
   try {
@@ -54,7 +39,7 @@ function timeAgo(dateStr) {
   return `${Math.floor(diff / 86400)}d ago`;
 }
 
-export default function TopBar({ title, pathname, onMenuToggle }) {
+export default function TopBar({ onMenuToggle }) {
   const [profileOpen, setProfileOpen] = useState(false);
   const [accountProfiles, setAccountProfiles] = useState([]);
   const [activeProfileId, setActiveProfileId] = useState(null);
@@ -112,91 +97,10 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
   const fullName = user ? `${user.first_name || ''} ${user.last_name || ''}`.trim() : 'Guest User';
   const role = user?.role ?? '';
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
-  const homePath = ROLE_HOME_PATHS[role] || '/dashboard';
   const [paletteOpen, setPaletteOpen] = useState(false);
   const organizationName = user?.organization?.name || 'Organization';
-  const isRoleHome = Object.values(ROLE_HOME_PATHS).includes(pathname);
-  const headerSubtitle = {
-    '/dashboard': 'Start with deadlines, then check events, funds, and merchandise queues.',
-    '/dashboard/admin/users': 'Search the organization directory and manage account access.',
-    '/dashboard/admin/sbo-positions': 'Maintain titles available to administrators and officers.',
-    '/dashboard/admin/positions': 'Maintain titles available to administrators and officers.',
-    '/dashboard/admin/programs-sections': 'Configure programs and update academic records.',
-    '/dashboard/approvals': 'Review approval requests awaiting your sign-off.',
-    '/dashboard/department-head/approvals': 'Review approval requests awaiting your sign-off.',
-    '/dashboard/approval-requests/new': 'Choose a request type to begin the approval process.',
-    '/dashboard/approval-requests/new/announcement': 'Submit an announcement for approval.',
-    '/dashboard/approval-requests/new/budget': 'Submit a budget request for approval.',
-    '/dashboard/approval-requests/new/event': 'Submit an event request for approval.',
-    '/dashboard/approval-requests/new/election': 'Submit an election request for approval.',
-    '/dashboard/officer': 'Start with deadlines, then check events, funds, and merchandise queues.',
-    '/dashboard/department-head': 'Review approvals, elections, events, and announcements.',
-    '/dashboard/student': 'Official updates, events, and elections from your organization.',
-    '/dashboard/super-admin': 'Review reports, administer organizations, and publish university notices.',
-    '/dashboard/department-head/organizations': 'Review the student organizations in your college.',
-    '/dashboard/adviser': 'Review organization activity and requests.',
-    '/dashboard/super-admin/agency': 'Review the agency across organizations, colleges, and compliance.',
-    '/dashboard/super-admin/organizations':'Review registrations and manage student organizations.',
-    '/dashboard/super-admin/colleges': 'Maintain the colleges assigned to student organizations.',
-    '/dashboard/super-admin/admins': 'Manage authorized administrators for each organization.',
-    '/dashboard/super-admin/announcements': 'Publish official notices across HIUSA.',
-    '/dashboard/super-admin/notifications': 'SAO approval activity and system notices.',
-    '/dashboard/finance': 'Track organization funds and financial activity.',
-    '/dashboard/audit-logs': 'Trace who changed a record, what changed, and when.',
-    '/dashboard/announcements/manage-announcements': 'Review, edit, and publish organization announcements.',
-    '/dashboard/announcements/create-announcement': 'Write an announcement and choose its audience.',
-    '/dashboard/announcements/view-announcements': 'Updates from your organization.',
-    '/dashboard/finance/financial-ledger': 'Review income and expenses in the organization ledger.',
-    '/dashboard/finance/collections': 'Track money received, its verification and remittance, and cash advances to officers.',
-    '/dashboard/finance/student-accounts': 'Review charges, payments, and student clearance.',
-    '/dashboard/finance/budget-allocation': 'Plan and review organization budgets.',
-    '/dashboard/finance/financial-insights': 'Review financial forecasts and trends.',
-    '/dashboard/finance/transaction-history': 'Review saved financial reports and transaction history.',
-    '/dashboard/finance/personal-receipts': 'View and print your payment receipts.',
-    '/dashboard/finance/statement-of-account': 'Review your account and financial clearance.',
-    '/dashboard/events/activity-calendar': 'Browse approved activities and upcoming events.',
-    '/dashboard/events': 'Plan activities and review event records.',
-    '/dashboard/events/manage-events': 'Review and update organization events.',
-    '/dashboard/events/event-planner': 'Plan tasks and resources for upcoming events.',
-    '/dashboard/events/check-in': 'Verify participants and manage event attendance.',
-    '/dashboard/tasks': 'Track assignments and officer progress.',
-    '/dashboard/tasks/task-board': 'Review work by status and deadline.',
-    '/dashboard/tasks/create-task': 'Assign a task to an officer or event.',
-    '/dashboard/tasks/task-progress': 'Review progress across organization tasks.',
-    '/dashboard/tasks/assigned-tasks': 'Review work assigned to you.',
-    '/dashboard/tasks/ai-delegation': 'Review suggested officers for each task.',
-    '/dashboard/elections': 'Review elections in your organization.',
-    '/dashboard/elections/manage-elections': 'Configure ballots and election schedules.',
-    '/dashboard/elections/manage-candidates': 'Review the candidates on the selected ballot.',
-    '/dashboard/elections/manage-partylists': 'Maintain party identities for the selected election.',
-    '/dashboard/elections/manage-voters': 'Review eligibility and turnout without exposing ballots.',
-    '/dashboard/elections/cast-vote': 'Review the ballot and cast your vote.',
-    '/dashboard/elections/election-results': 'Review available vote totals and winners.',
-    '/dashboard/merchandise': 'Browse organization products and orders.',
-    '/dashboard/merchandise/manage-inventory': 'Track products, stock, and sales.',
-    '/dashboard/merchandise/gcash-payment': 'Review merchandise payments and fulfillment.',
-    '/dashboard/merchandise/manage-orders': 'Review merchandise payments and fulfillment.',
-    '/dashboard/merchandise/claim-tokens': 'Verify orders and release purchases.',
-    '/dashboard/merchandise/order-merchandise': 'Browse products and place an order.',
-    '/dashboard/merchandise/my-orders': 'Review your purchases and claim details.',
-    '/dashboard/announcements': 'Updates from your organization.',
-    '/dashboard/profile': 'Keep your personal details and account access current.',
-    '/dashboard/organization': 'Keep your organization details current.',
-    '/dashboard/settings': 'Keep your personal details and account access current.',
-  }[pathname] ?? (pathname?.startsWith('/dashboard/super-admin/organizations/') ? 'Review one organization, its members, and its records.' : undefined);
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
-
-  const parentByPrefix = [
-    ['/dashboard/announcements/', 'Announcements'],
-    ['/dashboard/elections/', 'Elections'],
-    ['/dashboard/events/', 'Events'],
-    ['/dashboard/finance/', 'Financial'],
-    ['/dashboard/tasks/', 'Tasks'],
-    ['/dashboard/merchandise/', 'Merchandise'],
-    ['/dashboard/super-admin/', 'Student Affairs'],
-  ];
-  const parentLabel = parentByPrefix.find(([prefix]) => pathname?.startsWith(prefix))?.[1] || null;
 
   const loadNotifications = useCallback(async () => {
     try {
@@ -361,18 +265,8 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
         </button>
         <img src={hiusaLogo} alt="" className="h-8 w-8 shrink-0 object-contain lg:hidden" />
 
-        {/* Page title */}
-        <div className="order-last min-w-0 w-full flex-none border-t border-[#DDE7EF] pt-2 sm:order-none sm:w-auto sm:flex-1 sm:border-0 sm:pt-0">
-          <nav aria-label="Breadcrumb" className="truncate text-xs font-medium text-ink-muted">
-            <Link to={homePath} className="rounded-control hover:text-brand-700 hover:underline focus-visible:text-brand-700">Home</Link>
-            {parentLabel && <span aria-hidden="true" className="px-1.5 text-ink-soft">/</span>}
-            {parentLabel && <span>{parentLabel}</span>}
-          </nav>
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-            <h1 className="break-words text-lg font-extrabold text-[#0F172A] sm:text-xl">{title}</h1>
-            {activeAcademicPeriod?.academic_year?.label && <span className="rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
-          </div>
-          {!isRoleHome && headerSubtitle && <p className="mt-0.5 text-xs font-medium text-slate-500 sm:text-sm">{headerSubtitle}</p>}
+        <div className="min-w-0 flex-1">
+          {activeAcademicPeriod?.academic_year?.label && <span className="inline-block max-w-full truncate rounded-full border border-[#DDE7EF] bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-semibold text-[#0F2F62]">AY {activeAcademicPeriod.academic_year.label} · {activeAcademicPeriod.number === 1 ? '1st' : '2nd'} Semester</span>}
         </div>
 
         <button
