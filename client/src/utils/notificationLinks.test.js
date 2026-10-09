@@ -15,16 +15,25 @@ describe('getNotificationDestination', () => {
 
   it('keeps approval queues role-specific', () => {
     const notification = { reference_type: 'approval_request' };
-    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
+    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
     expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals');
   });
 
   it('routes financial reports to recipient inboxes without exposing finance workspaces', () => {
     const notification = { reference_type: 'financial_report' };
-    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
+    expect(getNotificationDestination(notification, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
     expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals');
     expect(getNotificationDestination({ reference_type: 'budget' }, 'SUPER_ADMIN')).toBeNull();
-    expect(getNotificationDestination({ reference_type: 'financial_report_deadline' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/financial-reports');
+    expect(getNotificationDestination({ reference_type: 'financial_report_deadline' }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
+  });
+
+  it('never sends a Department Head to voting, merchandise, task or receipt pages', () => {
+    expect(getNotificationDestination({ reference_type: 'election' }, 'DEPARTMENT_HEAD')).toBe('/dashboard/elections/election-results');
+    expect(getNotificationDestination({ reference_type: 'election' }, 'STUDENT')).toBe('/dashboard/elections/cast-vote');
+    expect(getNotificationDestination({ reference_type: 'order', title: 'Order ready' }, 'DEPARTMENT_HEAD')).toBeNull();
+    expect(getNotificationDestination({ reference_type: 'payment', title: 'Payment awaiting review' }, 'DEPARTMENT_HEAD')).toBeNull();
+    expect(getNotificationDestination({ reference_type: 'task' }, 'DEPARTMENT_HEAD')).toBeNull();
+    expect(getNotificationDestination({ reference_type: 'transaction' }, 'DEPARTMENT_HEAD')).toBeNull();
   });
 
   it('routes SAO review notices to their workspaces', () => {

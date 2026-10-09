@@ -17,7 +17,7 @@ vi.mock('../../services/authService', () => ({
 vi.mock('./Sidebar', () => ({
   default: ({ desktopCollapsed, onToggleDesktop }) => <button type="button" onClick={onToggleDesktop}>{desktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}</button>,
 }));
-vi.mock('./TopBar', () => ({ default: () => <div>Top bar</div> }));
+vi.mock('./TopBar', () => ({ default: ({ title }) => <div>Top bar<span data-testid="page-title">{title}</span></div> }));
 
 let mountCount = 0;
 
@@ -105,6 +105,22 @@ describe('DashboardLayout', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Go to /dashboard/elections/results' }));
     expect(screen.getByText('Results')).toBeInTheDocument();
     expect(mountCount).toBe(1);
+  });
+});
+
+describe('DashboardLayout page titles', () => {
+  it.each([
+    ['/dashboard/super-admin/agency', 'Agency overview'],
+    ['/dashboard/department-head/organizations', 'Organizations'],
+    ['/dashboard/super-admin/organizations/12', 'Organization overview'],
+    ['/dashboard/super-admin/organizations', 'Organizations'],
+    ['/dashboard/super-admin/compliance', 'Compliance and Accreditation'],
+    ['/dashboard/super-admin/financial-reports', 'Dashboard'],
+    ['/dashboard/super-admin/approvals', 'Dashboard'],
+    ['/dashboard/super-admin/event-requirements', 'Dashboard'],
+  ])('titles %s as %s', (path, title) => {
+    render(<MemoryRouter initialEntries={[path]}><Routes><Route path="*" element={<DashboardLayout />} /></Routes></MemoryRouter>);
+    expect(screen.getByTestId('page-title')).toHaveTextContent(title);
   });
 });
 

@@ -24,7 +24,7 @@ function storedSchoolId() {
 }
 
 const ACTIONS = {
-  SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/financial-reports', icon: FileText }],
+  SUPER_ADMIN: [{ label: 'Review financial reports', to: '/dashboard/super-admin/compliance?tab=financial', icon: FileText }],
   ADMIN: [{ label: 'Create announcement', to: '/dashboard/announcements/create-announcement', icon: Megaphone }],
   DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
 };
