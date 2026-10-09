@@ -18,6 +18,8 @@ const financeMocks = vi.hoisted(() => ({
   generateFinancialReport: vi.fn(),
   downloadFinancialReportPdf: vi.fn(),
   submitFinancialReport: vi.fn(),
+  deleteBudget: vi.fn(),
+  deleteTransaction: vi.fn(),
 }));
 
 vi.mock('../../../services/financeService', () => ({
@@ -382,6 +384,77 @@ describe('FinancePage transaction search', () => {
     })));
   // Loading exceljs and building the workbook can outlast the default 5s under a full parallel run.
   }, 20000);
+});
+
+describe('FinancePage deleting budgets and transactions', () => {
+  const budget = { id: 4, title: 'Sports Fest Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, approval_status: 'approved' };
+  const transaction = { id: 7, transaction_date: '2026-09-08T10:30:00.000000Z', description: 'Venue reservation', category: 'Events', type: 'expense', amount: 2500 };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [transaction], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 2500, net_balance: -2500 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [budget] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+  });
+
+  async function confirmBudgetDelete() {
+    render(<FinancePage initialTab="budgets" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete budget' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this budget?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete budget' }));
+  }
+
+  async function confirmTransactionDelete() {
+    render(<FinancePage initialTab="transactions" />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Delete transaction' }))[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this transaction?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete transaction' }));
+  }
+
+  it('deletes a budget after confirmation and reloads the budgets', async () => {
+    financeMocks.deleteBudget.mockResolvedValue({ data: { message: 'Budget deleted successfully.' } });
+    await confirmBudgetDelete();
+
+    await waitFor(() => expect(financeMocks.deleteBudget).toHaveBeenCalledWith(4));
+    await waitFor(() => expect(financeMocks.getBudgets).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the server message when a budget already has transactions', async () => {
+    financeMocks.deleteBudget.mockRejectedValue({ response: { status: 409, data: { message: 'Cannot delete a budget that has existing transactions. Remove all transactions first.' } } });
+    await confirmBudgetDelete();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Cannot delete a budget that has existing transactions. Remove all transactions first.');
+    expect(financeMocks.getBudgets).toHaveBeenCalledTimes(1);
+  });
+
+  it('deletes a transaction after confirmation and reloads the ledger', async () => {
+    financeMocks.deleteTransaction.mockResolvedValue({ data: { message: 'Transaction deleted successfully.' } });
+    await confirmTransactionDelete();
+
+    await waitFor(() => expect(financeMocks.deleteTransaction).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(financeMocks.getTransactions).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the server message for a ledger entry owned by another module', async () => {
+    financeMocks.deleteTransaction.mockRejectedValue({ response: { status: 409, data: { message: 'This entry was recorded when collection COL-1 was verified. Change it from Collections.' } } });
+    await confirmTransactionDelete();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Change it from Collections.');
+  });
+
+  it('hides delete controls from roles that cannot write finance', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    render(<FinancePage initialTab="budgets" />);
+    await screen.findByText('Sports Fest Budget');
+    expect(screen.queryByRole('button', { name: 'Delete budget' })).not.toBeInTheDocument();
+  });
 });
 
 describe('FinancePage forecast explainability', () => {
