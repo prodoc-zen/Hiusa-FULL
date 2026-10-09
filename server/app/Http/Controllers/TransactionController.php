@@ -199,7 +199,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
-        if ($message = $this->systemSourceMessage($transaction) ?? $this->reportLockMessage($transaction)) {
+        if ($message = $this->systemSourceMessage($transaction)) {
             return response()->json(['message' => $message], 409);
         }
 
@@ -210,6 +210,16 @@ class TransactionController extends Controller
         }
 
         return DB::transaction(function () use ($transaction, $data, $request) {
+            $transaction = Transaction::where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
+
+            if (! $transaction) {
+                return response()->json(['message' => 'Transaction not found.'], 404);
+            }
+
+            if ($message = $this->reportLockMessage($transaction)) {
+                return response()->json(['message' => $message], 409);
+            }
+
             $oldValues = $this->auditableValues($transaction);
             $this->applyBudgetMovement($transaction, -1);
             $transaction->update($data);
@@ -267,7 +277,7 @@ class TransactionController extends Controller
             return response()->json(['message' => 'Transaction not found.'], 404);
         }
 
-        if ($message = $this->systemSourceMessage($transaction) ?? $this->reportLockMessage($transaction)) {
+        if ($message = $this->systemSourceMessage($transaction)) {
             return response()->json(['message' => $message], 409);
         }
 
@@ -275,14 +285,24 @@ class TransactionController extends Controller
             return response()->json(['message' => 'You can only delete transactions you recorded.'], 403);
         }
 
-        DB::transaction(function () use ($transaction, $request) {
+        return DB::transaction(function () use ($transaction, $request) {
+            $transaction = Transaction::where('organization_id', $transaction->organization_id)->lockForUpdate()->find($transaction->id);
+
+            if (! $transaction) {
+                return response()->json(['message' => 'Transaction not found.'], 404);
+            }
+
+            if ($message = $this->reportLockMessage($transaction)) {
+                return response()->json(['message' => $message], 409);
+            }
+
             $oldValues = $this->auditableValues($transaction);
             $this->applyBudgetMovement($transaction, -1);
             $transaction->delete();
             $this->recordFinancialAudit($request, 'deleted', $transaction, $oldValues, null);
-        });
 
-        return response()->json(['message' => 'Transaction deleted successfully.']);
+            return response()->json(['message' => 'Transaction deleted successfully.']);
+        });
     }
 
     private function systemSourceMessage(Transaction $transaction): ?string
