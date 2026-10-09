@@ -51,6 +51,12 @@ describe('RoleBriefing', () => {
     expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
   });
 
+  it('sends the SAO to the financial tab of the compliance home', async () => {
+    vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { organizations: [] }));
+    renderBriefing();
+    expect(await screen.findByRole('link', { name: /Review financial reports/ })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=financial');
+  });
+
   it('explains a failure and retries on request', async () => {
     vi.mocked(getBriefing).mockRejectedValueOnce(new Error('offline')).mockResolvedValue(briefing('STUDENT'));
     renderBriefing();

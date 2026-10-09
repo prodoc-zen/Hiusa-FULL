@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter, Route, Routes } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useSearchParams } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoNotificationsPage from './SaoNotificationsPage';
 
@@ -11,12 +11,17 @@ const notificationMocks = vi.hoisted(() => ({
 
 vi.mock('../../../services/notificationService', () => notificationMocks);
 
+function ComplianceDestination() {
+  const [params] = useSearchParams();
+  return <p>Compliance tab {params.get('tab')}</p>;
+}
+
 function renderPage() {
   return render(
     <MemoryRouter initialEntries={['/dashboard/super-admin/notifications']}>
       <Routes>
         <Route path="/dashboard/super-admin/notifications" element={<SaoNotificationsPage />} />
-        <Route path="/dashboard/super-admin/financial-reports" element={<p>Received reports destination</p>} />
+        <Route path="/dashboard/super-admin/compliance" element={<ComplianceDestination />} />
       </Routes>
     </MemoryRouter>,
   );
@@ -38,12 +43,12 @@ describe('SaoNotificationsPage', () => {
     notificationMocks.markAllRead.mockResolvedValue({});
   });
 
-  it('marks a report notification read and opens the received-reports inbox', async () => {
+  it('marks a report notification read and opens the financial tab of the compliance home', async () => {
     renderPage();
     fireEvent.click(await screen.findByRole('button', { name: /Financial Report Ready for Review/i }));
 
     await waitFor(() => expect(notificationMocks.markRead).toHaveBeenCalledWith(44));
-    expect(await screen.findByText('Received reports destination')).toBeInTheDocument();
+    expect(await screen.findByText('Compliance tab financial')).toBeInTheDocument();
   });
 
   it('marks every SAO notification as read', async () => {

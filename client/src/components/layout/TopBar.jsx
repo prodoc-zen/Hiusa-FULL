@@ -133,15 +133,14 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     '/dashboard/department-head': 'Review approvals, elections, events, and announcements.',
     '/dashboard/student': 'Official updates, events, and elections from your organization.',
     '/dashboard/super-admin': 'Review reports, administer organizations, and publish university notices.',
-    '/dashboard/super-admin/approvals': 'Review reports and requests awaiting SAO action.',
+    '/dashboard/department-head/organizations': 'Review the student organizations in your college.',
     '/dashboard/adviser': 'Review organization activity and requests.',
-    '/dashboard/super-admin/organizations': 'Register and manage student organizations.',
+    '/dashboard/super-admin/agency': 'Review the agency across organizations, colleges, and compliance.',
+    '/dashboard/super-admin/organizations':'Register and manage student organizations.',
     '/dashboard/super-admin/colleges': 'Maintain the colleges assigned to student organizations.',
     '/dashboard/super-admin/admins': 'Manage authorized administrators for each organization.',
     '/dashboard/super-admin/announcements': 'Publish official notices across HIUSA.',
     '/dashboard/super-admin/notifications': 'SAO approval activity and system notices.',
-    '/dashboard/super-admin/event-requirements': 'Set the files organizations must submit for events.',
-    '/dashboard/super-admin/financial-reports': 'Review reports forwarded by Department Heads.',
     '/dashboard/finance': 'Track organization funds and financial activity.',
     '/dashboard/audit-logs': 'Trace who changed a record, what changed, and when.',
     '/dashboard/announcements/manage-announcements': 'Review, edit, and publish organization announcements.',
@@ -184,9 +183,9 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     '/dashboard/profile': 'Keep your personal details and account access current.',
     '/dashboard/organization': 'Keep your organization details current.',
     '/dashboard/settings': 'Keep your personal details and account access current.',
-  }[pathname];
+  }[pathname] ?? (pathname?.startsWith('/dashboard/super-admin/organizations/') ? 'Review one organization, its members, and its records.' : undefined);
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
-  const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'].includes(role);
+  const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
 
   const parentByPrefix = [
     ['/dashboard/announcements/', 'Announcements'],

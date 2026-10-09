@@ -98,7 +98,7 @@ class ObjectivesEvidenceService
         ];
 
         if ($isSao) {
-            $evidence[] = $this->metric('Financial reports approved', DB::table('financial_reports')->where('submission_status', 'approved')->count(), 'count', '/dashboard/super-admin/financial-reports');
+            $evidence[] = $this->metric('Financial reports approved', DB::table('financial_reports')->where('submission_status', 'approved')->count(), 'count', '/dashboard/super-admin/compliance');
         } else {
             $transactions = $this->scoped(DB::table('transactions'), $orgIds);
             $evidence[] = $this->metric('Transactions recorded in the ledger', (clone $transactions)->count(), 'count', '/dashboard/finance/transaction-history');
