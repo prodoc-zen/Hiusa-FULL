@@ -194,7 +194,7 @@ describe('DashboardLayout page header', () => {
   });
 
   it('prints no header for a path with no meta, such as a redirect that is about to leave', () => {
-    renderRouted('/dashboard/tasks/create-task', <p>Leaving</p>);
+    renderRouted('/dashboard/admin/sbo-positions', <p>Leaving</p>);
     expect(screen.queryByRole('heading', { level: 1 })).not.toBeInTheDocument();
     expect(screen.queryByRole('navigation', { name: 'Breadcrumb' })).not.toBeInTheDocument();
   });
