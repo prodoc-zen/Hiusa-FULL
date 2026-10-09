@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 import TasksPage from './TasksPage';
 
-const mocks = vi.hoisted(() => ({ getTasks: vi.fn(), createTask: vi.fn(), previewTaskRecommendation: vi.fn(), updateTaskStatus: vi.fn(), getUsers: vi.fn(), getEvents: vi.fn(), getAcademicPeriods: vi.fn() }));
-vi.mock('../../../services/taskService', () => ({ getTasks: mocks.getTasks, createTask: mocks.createTask, previewTaskRecommendation: mocks.previewTaskRecommendation, updateTaskStatus: mocks.updateTaskStatus }));
+const mocks = vi.hoisted(() => ({ getTasks: vi.fn(), createTask: vi.fn(), previewTaskRecommendation: vi.fn(), updateTaskStatus: vi.fn(), updateTask: vi.fn(), deleteTask: vi.fn(), getUsers: vi.fn(), getEvents: vi.fn(), getAcademicPeriods: vi.fn() }));
+vi.mock('../../../services/taskService', () => ({ getTasks: mocks.getTasks, createTask: mocks.createTask, previewTaskRecommendation: mocks.previewTaskRecommendation, updateTaskStatus: mocks.updateTaskStatus, updateTask: mocks.updateTask, deleteTask: mocks.deleteTask }));
 vi.mock('../../../services/userService', () => ({ getUsers: mocks.getUsers }));
 vi.mock('../../../services/eventService', () => ({ getEvents: mocks.getEvents }));
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicPeriods: mocks.getAcademicPeriods }));
@@ -96,6 +96,65 @@ describe('TasksPage', () => {
     fireEvent.click(choice);
     fireEvent.click(screen.getByRole('button', { name: 'Create Task' }));
     await waitFor(() => expect(mocks.createTask).toHaveBeenCalledWith(expect.objectContaining({ title: 'mIXED cASE tASK', assigned_to: 'OFF-1', task_kind: 'standalone', event_id: null, deadline: '2026-10-10' })));
+  });
+
+  describe('editing and deleting', () => {
+    const renderBoard = async () => {
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      await screen.findAllByText('Monthly Records');
+    };
+
+    it('edits a task through the edit modal and reloads the board', async () => {
+      mocks.updateTask.mockResolvedValue({ data: { id: 1 } });
+      await renderBoard();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
+      fireEvent.change(within(dialog).getByLabelText(/Task title/), { target: { value: 'Quarterly records' } });
+      fireEvent.change(within(dialog).getByLabelText(/Priority/), { target: { value: 'critical' } });
+      fireEvent.change(within(dialog).getByLabelText(/Deadline/), { target: { value: '2026-11-01' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+      await waitFor(() => expect(mocks.updateTask).toHaveBeenCalledWith(1, expect.objectContaining({ title: 'Quarterly records', priority: 'critical', deadline: '2026-11-01', task_kind: 'standalone', event_id: null })));
+      expect(mocks.updateTask.mock.calls[0][1]).not.toHaveProperty('assigned_to');
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit task' })).not.toBeInTheDocument());
+    });
+
+    it('shows the server message when the edit is rejected', async () => {
+      mocks.updateTask.mockRejectedValue({ response: { status: 422, data: { message: 'Tasks can only be assigned to active SBO Officers with an assigned position.' } } });
+      await renderBoard();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Tasks can only be assigned to active SBO Officers with an assigned position.');
+    });
+
+    it('deletes a task after confirmation and reloads the board', async () => {
+      mocks.deleteTask.mockResolvedValue({ data: { message: 'Task deleted successfully.' } });
+      await renderBoard();
+      const loads = mocks.getTasks.mock.calls.length;
+      fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this task?' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete task' }));
+
+      await waitFor(() => expect(mocks.deleteTask).toHaveBeenCalledWith(1));
+      await waitFor(() => expect(mocks.getTasks.mock.calls.length).toBeGreaterThan(loads));
+    });
+
+    it('shows the server message when the delete is refused', async () => {
+      mocks.deleteTask.mockRejectedValue({ response: { status: 403, data: { message: 'You are not authorized to delete this task.' } } });
+      await renderBoard();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this task?' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete task' }));
+      expect(await screen.findByRole('alert')).toHaveTextContent('You are not authorized to delete this task.');
+    });
+
+    it('hides edit and delete from officers', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      await renderBoard();
+      expect(screen.queryByRole('button', { name: 'Edit' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Delete' })).not.toBeInTheDocument();
+    });
   });
 
   it('reports summary failures', async () => {
