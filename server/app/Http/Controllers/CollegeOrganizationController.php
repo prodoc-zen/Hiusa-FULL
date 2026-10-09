@@ -244,7 +244,7 @@ class CollegeOrganizationController extends Controller
     {
         $semester = AcademicSemester::active();
         $types = $semester
-            ? ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('is_active', true)->orderBy('id')->get()
+            ? ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('is_active', true)->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->orderBy('id')->get()
             : collect();
 
         return [$semester, $types];

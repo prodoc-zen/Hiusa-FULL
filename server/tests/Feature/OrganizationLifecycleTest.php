@@ -63,7 +63,7 @@ class OrganizationLifecycleTest extends TestCase
         $semesterId = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])->assertCreated()->json('id');
         $this->patchJson("/api/system/academic-semesters/{$semesterId}/active")->assertOk();
 
-        return ComplianceRequirementType::where('academic_semester_id', $semesterId)->pluck('id')->all();
+        return ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->pluck('id')->all();
     }
 
     private function pdfs(array $typeIds): array
@@ -124,6 +124,18 @@ class OrganizationLifecycleTest extends TestCase
         }
         $this->assertDatabaseHas('audit_logs', ['action' => 'organization_registration_submitted', 'organization_id' => $organization->id, 'user_id' => $this->head->school_id]);
         $this->assertDatabaseHas('notifications', ['user_id' => $this->director->school_id, 'reference_type' => 'organization', 'reference_id' => $organization->id]);
+    }
+
+    public function test_registration_set_is_the_ten_renewal_items_and_leaves_out_the_semestral_report(): void
+    {
+        $typeIds = $this->openSemester();
+        Sanctum::actingAs($this->head);
+
+        $names = collect($this->getJson('/api/college/organizations/requirements')->assertOk()->json('requirements'));
+
+        $this->assertCount(10, $typeIds);
+        $this->assertCount(10, $names);
+        $this->assertNotContains(ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $names->pluck('name')->all());
     }
 
     public function test_registration_responses_never_expose_a_file_path_or_url(): void
