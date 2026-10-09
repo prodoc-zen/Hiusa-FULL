@@ -560,7 +560,8 @@ class OrderController extends Controller
                 $this->notifyFulfillmentTeam(
                     $order,
                     'Merchandise Order Cancelled',
-                    'Order ORD-'.$order->id.' was cancelled by the buyer before payment approval.'
+                    'Order ORD-'.$order->id.' was cancelled by the buyer before payment approval.',
+                    'merchandise'
                 );
                 $this->audit($request, 'cancelled_by_buyer', $order->fresh(), ['status' => 'pending']);
 
@@ -901,7 +902,8 @@ class OrderController extends Controller
     private function notifyFulfillmentTeam(
         Order $order,
         string $title = 'New Merchandise Order',
-        ?string $message = null
+        ?string $message = null,
+        string $type = 'financial'
     ): void {
         $reviewers = User::whereHas('accountProfiles', fn ($profiles) => $profiles->where('organization_id', $order->organization_id)->whereIn('role', ['ADMIN', 'SBO_OFFICER'])->where('account_status', 'active'))
             ->get(['school_id']);
@@ -912,7 +914,7 @@ class OrderController extends Controller
                 'user_id' => $reviewer->school_id,
                 'title' => $title,
                 'message' => $message ?? 'Order ORD-'.$order->id.' is awaiting payment verification.',
-                'notification_type' => 'merchandise',
+                'notification_type' => $type,
                 'reference_type' => Order::class,
                 'reference_id' => $order->id,
                 'is_read' => false,
