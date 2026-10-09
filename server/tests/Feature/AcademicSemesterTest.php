@@ -125,19 +125,19 @@ class AcademicSemesterTest extends TestCase
         Sanctum::actingAs($director);
         $first = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 1, 'starts_on' => '2026-08-01', 'ends_on' => '2026-12-31'])->assertCreated()->json('id');
         $second = $this->postJson("/api/system/academic-years/{$year->id}/semesters", ['number' => 2, 'starts_on' => '2027-01-01', 'ends_on' => '2027-05-31'])->assertCreated()->json('id');
-        $this->assertSame(10, ComplianceRequirementType::where('academic_semester_id', $first)->count());
-        $this->assertSame(10, ComplianceRequirementType::where('academic_semester_id', $second)->count());
+        $this->assertSame(11, ComplianceRequirementType::where('academic_semester_id', $first)->count());
+        $this->assertSame(11, ComplianceRequirementType::where('academic_semester_id', $second)->count());
         $this->patchJson("/api/system/academic-semesters/{$first}/active")->assertOk();
         $requirement = ComplianceRequirementType::where('academic_semester_id', $first)->where('name', 'List of Members')->firstOrFail();
         $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['deadline_at' => '2026-12-20'])->assertOk();
 
         Sanctum::actingAs($admin);
-        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 10);
+        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 11);
         Sanctum::actingAs($director);
         $this->patchJson("/api/system/academic-semesters/{$second}/active")->assertOk();
         $this->putJson("/api/compliance/requirement-types/{$requirement->id}", ['is_active' => false])->assertStatus(409);
         Sanctum::actingAs($admin);
-        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 10);
+        $this->getJson('/api/compliance/requirement-types?per_page=100')->assertOk()->assertJsonPath('total', 11);
         $this->post('/api/compliance/submissions', [
             'requirement_type_id' => $requirement->id,
             'document' => UploadedFile::fake()->create('members.pdf', 20, 'application/pdf'),
