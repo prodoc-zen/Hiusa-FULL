@@ -74,7 +74,7 @@ class SystemAdministrationController extends Controller
 
     public function organizations(Request $request)
     {
-        $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
+        $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'lifecycle_status' => ['nullable', 'in:pending,returned,active,archived,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = Organization::withCount('accountProfiles as users_count')->with(['administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
             ->withCount(['accountProfiles as administrators_count' => fn ($query) => $query->where('role', 'ADMIN')])
             ->student();
@@ -83,6 +83,10 @@ class SystemAdministrationController extends Controller
         }
         if (($filters['status'] ?? 'all') !== 'all') {
             $query->where('is_active', $filters['status'] === 'active');
+        }
+
+        if (($filters['lifecycle_status'] ?? 'all') !== 'all') {
+            $query->where('lifecycle_status', $filters['lifecycle_status']);
         }
 
         return response()->json($query->orderBy('name')->paginate($filters['per_page'] ?? 20));
