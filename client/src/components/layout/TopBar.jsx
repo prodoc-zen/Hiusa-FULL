@@ -136,7 +136,7 @@ export default function TopBar({ title, pathname, onMenuToggle }) {
     '/dashboard/department-head/organizations': 'Review the student organizations in your college.',
     '/dashboard/adviser': 'Review organization activity and requests.',
     '/dashboard/super-admin/agency': 'Review the agency across organizations, colleges, and compliance.',
-    '/dashboard/super-admin/organizations':'Register and manage student organizations.',
+    '/dashboard/super-admin/organizations':'Review registrations and manage student organizations.',
     '/dashboard/super-admin/colleges': 'Maintain the colleges assigned to student organizations.',
     '/dashboard/super-admin/admins': 'Manage authorized administrators for each organization.',
     '/dashboard/super-admin/announcements': 'Publish official notices across HIUSA.',
