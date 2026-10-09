@@ -117,6 +117,24 @@ describe('SaoOrganizationOverviewPage', () => {
     mocks.getSystemOrganizationOverview.mockResolvedValue(overview('pending'));
     renderPage();
     expect(await screen.findByText(/waiting for SAO review/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review this registration' })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=5');
+  });
+
+  it('links to the compliance queues instead of dead ending', async () => {
+    renderPage();
+    await screen.findByRole('heading', { level: 1 });
+    const compliance = screen.getByRole('region', { name: 'Compliance' });
+    expect(within(compliance).getByRole('link', { name: 'Open the review queue' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=review');
+    const documents = screen.getByRole('region', { name: 'Latest documents' });
+    expect(within(documents).getByRole('link', { name: 'View all documents' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=documents');
+    expect(within(screen.getByRole('region', { name: 'Pending approvals' })).queryByRole('link')).not.toBeInTheDocument();
+  });
+
+  it('keeps the admin count and accreditation status on the overview', async () => {
+    renderPage();
+    await screen.findByRole('heading', { level: 1 });
+    expect(within(screen.getByRole('region', { name: 'Members by role' })).getByText('Admins').nextSibling).toHaveTextContent('1');
+    expect(within(screen.getByRole('region', { name: 'Compliance' })).getByText('Pending review')).toBeInTheDocument();
   });
 
   it('shows an error with retry and a way back', async () => {
