@@ -572,3 +572,53 @@ describe('FinancePage organization scope', () => {
     expect(collegeMocks.getCollegeOrganizations).not.toHaveBeenCalled();
   });
 });
+
+describe('FinancePage rows the server will not let the ledger change', () => {
+  const base = { transaction_date: '2026-09-08T10:30:00.000000Z', category: 'Fees', type: 'income', amount: 100, is_system_generated: false, system_source: null, system_source_label: null, is_locked_by_report: false, locking_report_title: null };
+  const rows = [
+    { ...base, id: 1, description: 'Manual supplies' },
+    { ...base, id: 2, description: 'Verified dues', is_system_generated: true, system_source: 'collection', system_source_label: 'Collection verification' },
+    { ...base, id: 3, description: 'Reported venue', is_locked_by_report: true, locking_report_title: 'August report' },
+  ];
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: rows, current_page: 1, last_page: 1, total: 3, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 300, total_expense: 0, net_balance: 300 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+  });
+
+  it('keeps Edit and Delete only on the manual row of the mobile list', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    const mobileLedger = await screen.findByRole('list', { name: 'Transactions' });
+    const [manual, system, locked] = within(mobileLedger).getAllByRole('listitem');
+    expect(within(manual).getByRole('button', { name: 'Edit transaction' })).toBeInTheDocument();
+    expect(within(manual).getByRole('button', { name: 'Delete transaction' })).toBeInTheDocument();
+    expect(within(system).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
+    expect(within(system).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
+    expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: 'Edit transaction' })).not.toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: 'Delete transaction' })).not.toBeInTheDocument();
+    expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
+  });
+
+  it('shows the muted note instead of the row menu in the table for system and locked rows', async () => {
+    render(<FinancePage initialTab="transactions" />);
+
+    const table = await screen.findByRole('table');
+    const [, manual, system, locked] = within(table).getAllByRole('row');
+    expect(within(manual).getByRole('button', { name: 'Actions for Manual supplies' })).toBeInTheDocument();
+    expect(within(system).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
+    expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
+    expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
+    expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
+  });
+});
