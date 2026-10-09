@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoClearancesPage from './SaoClearancesPage';
 
@@ -6,12 +6,14 @@ const mocks = vi.hoisted(() => ({
   getClearancePeriods: vi.fn(),
   getClearancePeriodStudents: vi.fn(),
   createClearancePeriod: vi.fn(),
+  deleteClearancePeriod: vi.fn(),
 }));
 
 vi.mock('../../../services/clearanceService', () => ({
   getClearancePeriods: mocks.getClearancePeriods,
   getClearancePeriodStudents: mocks.getClearancePeriodStudents,
   createClearancePeriod: mocks.createClearancePeriod,
+  deleteClearancePeriod: mocks.deleteClearancePeriod,
 }));
 
 function envelope(data) {
@@ -52,6 +54,33 @@ describe('SaoClearancesPage', () => {
     expect(await screen.findByText('Second Semester Clearance')).toBeInTheDocument();
     expect(screen.getByText('Organization adviser')).toBeInTheDocument();
     expect(await screen.findByText('1 of 2')).toBeInTheDocument();
+  });
+
+  describe('deleting a period', () => {
+    async function openDeleteDialog() {
+      mocks.getClearancePeriods.mockResolvedValue(envelope([PERIOD]));
+      mocks.getClearancePeriodStudents.mockResolvedValue(envelope([]));
+      render(<SaoClearancesPage />);
+      fireEvent.click(await screen.findByRole('button', { name: /Delete Second Semester Clearance/ }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this clearance period?' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete period' }));
+    }
+
+    it('deletes after confirmation and reloads the list', async () => {
+      mocks.deleteClearancePeriod.mockResolvedValue({ data: { message: 'Deleted.' } });
+      await openDeleteDialog();
+
+      await waitFor(() => expect(mocks.deleteClearancePeriod).toHaveBeenCalledWith(1));
+      await waitFor(() => expect(mocks.getClearancePeriods).toHaveBeenCalledTimes(2));
+    });
+
+    it('shows the server message when signed entries block the delete', async () => {
+      mocks.deleteClearancePeriod.mockRejectedValue({ response: { status: 409, data: { message: 'This clearance period already has signed entries and cannot be deleted.' } } });
+      await openDeleteDialog();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('This clearance period already has signed entries and cannot be deleted.');
+      expect(mocks.getClearancePeriods).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('opens a new clearance period with the selected required roles', async () => {
