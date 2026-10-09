@@ -240,8 +240,9 @@ class SystemAdministrationController extends Controller
         $old = $user->toArray();
         DB::transaction(function () use ($data, $old, $request, $user) {
             $this->ensureAdminPosition((int) ($data['organization_id'] ?? $user->organization_id), $data['position_title'] ?? $user->position_title);
+            $emailChanges = isset($data['email']) && $data['email'] !== $user->email;
             $user->update($data);
-            if (($data['account_status'] ?? $user->account_status) !== 'active') {
+            if ($emailChanges || ($data['account_status'] ?? $user->account_status) !== 'active') {
                 $user->tokens()->delete();
             }
             $fresh = $user->fresh();
@@ -459,8 +460,9 @@ class SystemAdministrationController extends Controller
             }
 
             $old = $user->toArray();
+            $emailChanges = isset($data['email']) && $data['email'] !== $user->email;
             $user->update($data);
-            if (($data['account_status'] ?? $user->account_status) !== 'active') {
+            if ($emailChanges || ($data['account_status'] ?? $user->account_status) !== 'active') {
                 $user->tokens()->delete();
             }
             $fresh = $user->fresh();

@@ -6,6 +6,7 @@ use App\Contracts\FingerprintMatcher;
 use App\Services\HttpFingerprintMatcher;
 use App\Services\UnavailableFingerprintMatcher;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -82,6 +83,12 @@ class AppServiceProvider extends ServiceProvider
             if ($request->filled(['organization_id', 'email'])) {
                 $limits[] = Limit::perMinute(config('performance.rate_limits.password_per_minute'))
                     ->by('recovery:'.$request->input('organization_id').':'.strtolower((string) $request->input('email')))
+                    ->response($tooManyRequests);
+            }
+
+            if ($target = $request->route('user')) {
+                $limits[] = Limit::perHour(3)
+                    ->by('recovery-target:'.($target instanceof Model ? $target->getKey() : $target))
                     ->response($tooManyRequests);
             }
 
