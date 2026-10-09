@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { Vote, BarChart3, Building2, CalendarDays, ClipboardCheck, Megaphone } from 'lucide-react';
+import { Vote, BarChart3, AlertTriangle, Archive, CalendarDays, CheckCircle2, ClipboardCheck, Clock, Megaphone } from 'lucide-react';
 import { getElections } from '../../../services/electionService';
 import { getEvents } from '../../../services/eventService';
 import { getAnnouncements } from '../../../services/announcementService';
@@ -17,7 +17,13 @@ function formatDate(d) {
 
 const APPROVAL_TYPE_LABEL = { event: 'Events', budget: 'Budgets', election: 'Elections', announcement: 'Announcements', financial_report: 'Financial Reports' };
 const APPROVAL_TYPE_ORDER = ['event', 'budget', 'election', 'announcement', 'financial_report'];
-const ORGANIZATION_STATUS_ORDER = [['active', 'Active'], ['pending', 'Pending review'], ['returned', 'Returned'], ['archived', 'Archived']];
+const ORGANIZATIONS_PATH = '/dashboard/department-head/organizations';
+const ORGANIZATION_STATUS_ORDER = [
+  { status: 'returned', label: 'Returned', icon: AlertTriangle },
+  { status: 'pending', label: 'Pending review', icon: Clock },
+  { status: 'active', label: 'Active', icon: CheckCircle2 },
+  { status: 'archived', label: 'Archived', icon: Archive },
+];
 
 export default function DepartmentHeadHomePage() {
   const [data, setData] = useState({ elections: [], events: [], announcements: [], pendingApprovals: [], organizations: [] });
@@ -141,16 +147,28 @@ export default function DepartmentHeadHomePage() {
             <h3 className="text-base font-bold text-[#0F172A]">{college ? `${college} organizations` : 'College organizations'}</h3>
             <p className="mt-1 text-xs font-medium text-slate-500">Every student organization you oversee, by registration status.</p>
           </div>
-          <NavLink to="/dashboard/department-head/organizations" className="inline-flex min-h-11 items-center text-xs font-bold text-[#0878B7] hover:underline">Manage organizations</NavLink>
+          <NavLink to={ORGANIZATIONS_PATH} className="inline-flex min-h-11 items-center text-xs font-bold text-[#0878B7] hover:underline">Manage organizations</NavLink>
         </div>
-        <dl className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
-          {ORGANIZATION_STATUS_ORDER.map(([status, label]) => (
-            <div key={status} className="flex min-h-20 items-center justify-between gap-3 bg-white px-4 py-3">
-              <dt className="flex items-center gap-2 text-sm font-semibold text-slate-600"><Building2 size={17} className="text-[#0878B7]" />{label}</dt>
-              <dd className="text-xl font-black tabular-nums text-[#0F172A]">{stat(organizationCount(status))}</dd>
-            </div>
-          ))}
-        </dl>
+        <ul className="grid gap-px bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
+          {ORGANIZATION_STATUS_ORDER.map(({ status, label, icon: Icon }) => {
+            const count = organizationCount(status);
+            const needsAction = !loading && status === 'returned' && count > 0;
+            return (
+              <li key={status} className="bg-white">
+                <NavLink
+                  to={`${ORGANIZATIONS_PATH}?status=${status}`}
+                  className={`flex min-h-20 items-center justify-between gap-3 px-4 py-3 transition hover:brightness-95 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-[#0B8ED0] ${needsAction ? 'bg-danger-tint' : 'bg-white'}`}
+                >
+                  <span className="min-w-0">
+                    <span className={`flex items-center gap-2 text-sm font-semibold ${needsAction ? 'text-danger-strong' : 'text-slate-600'}`}><Icon size={17} className={needsAction ? 'text-danger-strong' : 'text-[#0878B7]'} aria-hidden="true" />{label}</span>
+                    {needsAction && <span className="mt-0.5 block text-xs font-semibold text-danger-strong">Action needed</span>}
+                  </span>
+                  <span className={`text-xl font-black tabular-nums ${needsAction ? 'text-danger-strong' : 'text-[#0F172A]'}`}>{stat(count)}</span>
+                </NavLink>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">

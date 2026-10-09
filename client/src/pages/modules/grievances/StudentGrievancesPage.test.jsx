@@ -117,7 +117,8 @@ describe('StudentGrievancesPage', () => {
       mocks.deleteGrievance.mockRejectedValue({ response: { status: 409, data: { message: 'Only grievances that have not been reviewed can be deleted.' } } });
       await openDeleteDialog();
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('Only grievances that have not been reviewed can be deleted.');
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this grievance?' });
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('Only grievances that have not been reviewed can be deleted.');
     });
   });
 });

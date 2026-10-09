@@ -99,7 +99,7 @@ describe('AcademicYearsPage', () => {
       const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
 
-      const alert = await screen.findByRole('alert');
+      const alert = await within(dialog).findByRole('alert');
       expect(within(alert).getByText('This semester cannot be deleted because of: events, tasks.')).toBeInTheDocument();
       expect(within(alert).getByText('events')).toBeInTheDocument();
       expect(within(alert).getByText('tasks')).toBeInTheDocument();

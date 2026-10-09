@@ -72,7 +72,6 @@ export default function SaoClearancesPage() {
       else load();
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, 'This clearance period could not be deleted.'));
-      setDeleteTarget(null);
     } finally {
       setDeleteBusy(false);
     }
@@ -86,7 +85,6 @@ export default function SaoClearancesPage() {
         actions={<Button leftIcon={Plus} onClick={() => setCreateOpen(true)}>New clearance period</Button>}
       />
 
-      {deleteError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{deleteError}</p>}
 
       {loading && (
         <div className="flex flex-col gap-3">
@@ -142,11 +140,12 @@ export default function SaoClearancesPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Delete this clearance period?"
-        message="This cannot be undone. Periods that already have signed entries cannot be deleted."
+        message="The period and its unsigned clearance rows are removed. This cannot be undone. A period that already has signed entries cannot be deleted."
         recordName={deleteTarget?.title}
         confirmText="Delete period"
         variant="danger"
         busy={deleteBusy}
+        error={deleteError}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />
