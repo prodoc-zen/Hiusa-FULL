@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InvoiceSettlementRequired;
 use App\Models\Announcement;
 use App\Models\AcademicSemester;
 use App\Models\ApprovalRequest;
@@ -190,7 +191,7 @@ class ApprovalRequestController extends Controller
                 return $fresh;
             });
         } catch (DomainException $exception) {
-            $status = in_array($exception->getMessage(), ['This request has already been reviewed.', self::ARCHIVED_MESSAGE], true) ? 409 : 422;
+            $status = $exception instanceof InvoiceSettlementRequired || in_array($exception->getMessage(), ['This request has already been reviewed.', self::ARCHIVED_MESSAGE], true) ? 409 : 422;
 
             return response()->json(['message' => $exception->getMessage()], $status);
         }

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Exceptions\InvoiceSettlementRequired;
 use App\Models\AcademicProgram;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
@@ -680,7 +681,7 @@ class OrderController extends Controller
                 });
             }
         } catch (DomainException $exception) {
-            $status = str_contains($exception->getMessage(), 'already been submitted') ? 409 : 422;
+            $status = $exception instanceof InvoiceSettlementRequired || str_contains($exception->getMessage(), 'already been submitted') ? 409 : 422;
 
             return response()->json(['message' => $exception->getMessage()], $status);
         }
