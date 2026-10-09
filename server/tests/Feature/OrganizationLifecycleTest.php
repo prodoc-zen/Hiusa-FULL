@@ -236,7 +236,7 @@ class OrganizationLifecycleTest extends TestCase
         $id = $this->register($typeIds);
         $waiting = User::factory()->admin()->create(['organization_id' => $id]);
 
-        $this->postJson('/api/login', ['school_id' => $waiting->school_id, 'password' => 'password'])->assertUnprocessable();
+        $this->postJson('/api/login', ['school_id' => $waiting->school_id, 'password' => 'password'])->assertForbidden()->assertJsonPath('organization_status', 'pending');
 
         Sanctum::actingAs($this->director);
         $this->postJson('/api/system/admins', ['organization_id' => $id, 'school_id' => 20260001, 'first_name' => 'Ada', 'last_name' => 'Lovelace', 'email' => 'ada@example.test', 'password' => 'Secret@12345', 'password_confirmation' => 'Secret@12345'])
@@ -411,8 +411,8 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertSame('STUDENT', $student->fresh()->role);
         $this->assertSame($admin->first_name, $admin->fresh()->first_name);
 
-        $this->postJson('/api/login', ['school_id' => $admin->school_id, 'password' => 'password'])->assertUnprocessable();
-        $this->postJson('/api/login', ['school_id' => $student->school_id, 'password' => 'password'])->assertUnprocessable();
+        $this->postJson('/api/login', ['school_id' => $admin->school_id, 'password' => 'password'])->assertForbidden()->assertJsonPath('organization_status', 'archived');
+        $this->postJson('/api/login', ['school_id' => $student->school_id, 'password' => 'password'])->assertForbidden()->assertJsonPath('organization_status', 'archived');
 
         $this->postJson("/api/system/organizations/{$organization->id}/restore")->assertOk()
             ->assertJsonPath('lifecycle_status', 'active')->assertJsonPath('is_active', true)->assertJsonPath('archived_at', null)->assertJsonPath('archived_by', null);

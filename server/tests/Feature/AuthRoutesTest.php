@@ -156,7 +156,30 @@ class AuthRoutesTest extends TestCase
             'organization_id' => $organization->id,
             'school_id' => $user->school_id,
             'password' => 'password123',
-        ])->assertUnprocessable()->assertJsonValidationErrors(['school_id']);
+        ])->assertForbidden()->assertJsonPath('message', 'This organization is not active. Contact the Student Affairs Office.');
+    }
+
+    public function test_a_member_of_an_unavailable_organization_is_told_why_only_after_the_password_is_correct(): void
+    {
+        $messages = [
+            'archived' => 'Your organization has been archived by the Student Affairs Office and is read only. Contact the Student Affairs Office to restore it.',
+            'pending' => 'Your organization is still waiting for approval by the Student Affairs Office.',
+            'returned' => 'Your organization registration was returned by the Student Affairs Office. Contact your Department Head.',
+        ];
+
+        foreach ($messages as $status => $message) {
+            $organization = Organization::factory()->create(['is_active' => false, 'lifecycle_status' => $status]);
+            $user = User::factory()->create(['organization_id' => $organization->id, 'password_hash' => 'password123']);
+
+            $this->postJson('/api/login', ['school_id' => $user->school_id, 'password' => 'password123'])
+                ->assertForbidden()
+                ->assertJsonPath('message', $message)
+                ->assertJsonPath('organization_status', $status);
+
+            $this->postJson('/api/login', ['school_id' => $user->school_id, 'password' => 'wrong-password'])
+                ->assertUnprocessable()
+                ->assertJsonValidationErrors(['school_id']);
+        }
     }
 
     public function test_login_does_not_require_an_organization(): void
