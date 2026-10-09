@@ -1,7 +1,7 @@
 const ACCREDITATION = {
   accredited: { label: 'Accredited', tone: 'success' },
-  pending_review: { label: 'Pending review', tone: 'warning' },
-  incomplete: { label: 'Incomplete', tone: 'danger' },
+  pending_review: { label: 'Pending review', tone: 'info' },
+  incomplete: { label: 'Incomplete', tone: 'warning' },
   returned: { label: 'Returned', tone: 'danger' },
   not_applicable: { label: 'Not applicable', tone: 'neutral' },
 };

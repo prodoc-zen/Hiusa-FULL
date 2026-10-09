@@ -21,12 +21,17 @@ const SOURCES = [
 const EMPTY_FILTERS = { organizationId: '', semesterId: '', source: '' };
 const EMPTY_META = { total: 0, currentPage: 1, lastPage: 1, perPage: 20 };
 
+function statusText(value) {
+  const text = String(value ?? '').replace(/[_-]+/g, ' ').trim().toLowerCase();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
 function periodLabel(period) {
-  return `AY ${period.academic_year?.label} · ${period.number === 1 ? '1st' : '2nd'} Semester · ${period.status}`;
+  return `AY ${period.academic_year?.label} · ${period.number === 1 ? '1st' : '2nd'} Semester · ${statusText(period.status)}`;
 }
 
 function organizationLabel(organization) {
-  const lifecycle = organization.lifecycle_status && organization.lifecycle_status !== 'active' ? ` (${organization.lifecycle_status})` : '';
+  const lifecycle = organization.lifecycle_status && organization.lifecycle_status !== 'active' ? ` (${statusText(organization.lifecycle_status)})` : '';
   return `${organization.acronym} - ${formatDisplayText(organization.name)}${lifecycle}`;
 }
 
@@ -107,7 +112,7 @@ export default function DocumentsTab() {
 
       {filtersActive && (
         <div className="mt-3">
-          <Button variant="ghost" size="sm" onClick={() => { setFilters(EMPTY_FILTERS); setPage(1); }}>Clear filters</Button>
+          <Button variant="ghost" size="sm" className="h-11! sm:h-9!" onClick={() => { setFilters(EMPTY_FILTERS); setPage(1); }}>Clear filters</Button>
         </div>
       )}
 
@@ -121,12 +126,21 @@ export default function DocumentsTab() {
         ) : documents.error ? (
           <ErrorState description={documents.error} onRetry={load} />
         ) : groups.length === 0 ? (
-          <EmptyState
-            kind="first-run"
-            icon={FolderSearch}
-            title="No documents submitted yet."
-            description={filtersActive ? 'Try a different organization, semester or document type.' : 'Files that organizations submit will be listed here.'}
-          />
+          filtersActive ? (
+            <EmptyState
+              kind="filtered"
+              title="No documents match these filters"
+              description="Try a different organization, semester or document type."
+              onClearFilters={() => { setFilters(EMPTY_FILTERS); setPage(1); }}
+            />
+          ) : (
+            <EmptyState
+              kind="first-run"
+              icon={FolderSearch}
+              title="No documents submitted yet."
+              description="Files that organizations submit will be listed here."
+            />
+          )
         ) : (
           <div className="space-y-6">
             {groups.map((group) => (
@@ -151,6 +165,7 @@ export default function DocumentsTab() {
                         <Button
                           size="sm"
                           variant="secondary"
+                          className="h-11! sm:h-9!"
                           leftIcon={ExternalLink}
                           onClick={() => openDocument(row)}
                           disabled={openingKey === key}

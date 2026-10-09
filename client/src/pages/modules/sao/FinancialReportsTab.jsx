@@ -206,8 +206,8 @@ export default function FinancialReportsTab() {
                   </div>
                   <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${approval ? 'bg-amber-100 text-amber-800' : report.submission_status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}`}>{statusLabel(report.submission_status)}</span>
                   <div className="flex gap-2">
-                    <button type="button" onClick={() => downloadReport(report)} disabled={downloadingId === report.id} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={14} />{downloadingId === report.id ? 'Downloading' : 'PDF'}</button>
-                    <button type="button" onClick={() => openReport(report)} className="inline-flex min-h-10 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"><Eye size={14} />View</button>
+                    <button type="button" onClick={() => downloadReport(report)} disabled={downloadingId === report.id} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={14} />{downloadingId === report.id ? 'Downloading' : 'PDF'}</button>
+                    <button type="button" onClick={() => openReport(report)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"><Eye size={14} />View</button>
                   </div>
                 </article>
               );
@@ -229,10 +229,10 @@ export default function FinancialReportsTab() {
         onClose={() => setDetail(null)}
         maxWidth="max-w-4xl"
         footer={detail?.report && <>
-          <button type="button" onClick={() => downloadReport(detail.report)} disabled={downloadingId === detail.report.id} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-700"><Download size={15} />Download PDF</button>
+          <button type="button" onClick={() => downloadReport(detail.report)} disabled={downloadingId === detail.report.id} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-700"><Download size={15} />Download PDF</button>
           {detailApproval && <>
-            <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'rejected', report: detail.report })} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700"><X size={15} />Reject</button>
-            <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'approved', report: detail.report })} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Check size={15} />Approve</button>
+            <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'rejected', report: detail.report })} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-4 text-sm font-bold text-red-700"><X size={15} />Reject</button>
+            <button type="button" onClick={() => setReviewAction({ approval: detailApproval, status: 'approved', report: detail.report })} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Check size={15} />Approve</button>
           </>}
         </>}
       >
@@ -273,8 +273,8 @@ export default function FinancialReportsTab() {
         closeOnEscape={!reviewing}
         maxWidth="max-w-md"
         footer={<>
-          <button type="button" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); }} className="min-h-10 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-700">Cancel</button>
-          <button type="button" disabled={reviewing || !rejectionRemarks.trim()} onClick={submitReview} className="min-h-10 rounded-lg bg-red-600 px-4 text-sm font-bold text-white disabled:opacity-50">{reviewing ? 'Rejecting...' : 'Reject report'}</button>
+          <button type="button" disabled={reviewing} onClick={() => { setReviewAction(null); setRejectionRemarks(''); }} className="min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-slate-700">Cancel</button>
+          <button type="button" disabled={reviewing || !rejectionRemarks.trim()} onClick={submitReview} className="min-h-11 rounded-lg bg-red-600 px-4 text-sm font-bold text-white disabled:opacity-50">{reviewing ? 'Rejecting...' : 'Reject report'}</button>
         </>}
       >
         <label className="block text-sm font-semibold text-[#0F172A]"><FieldIcon label="Rejection reason" />Rejection reason

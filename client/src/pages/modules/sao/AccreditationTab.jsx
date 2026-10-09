@@ -1,21 +1,7 @@
+import { useMemo } from 'react';
 import { Check, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, ProgressMeter, StatusBadge } from '../../../components/ui';
-
-const ACCREDITATION_TONE = {
-  accredited: 'success',
-  pending_review: 'info',
-  incomplete: 'warning',
-  returned: 'danger',
-  not_applicable: 'neutral',
-};
-
-const ACCREDITATION_LABEL = {
-  accredited: 'Accredited',
-  pending_review: 'Pending review',
-  incomplete: 'Incomplete',
-  returned: 'Returned',
-  not_applicable: 'Not applicable',
-};
+import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
 
 function orgApprovedCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'approved').length;
@@ -31,13 +17,30 @@ function orgPendingCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'submitted').length;
 }
 
+const ACCREDITATION_RANK = { pending_review: 1, returned: 2, incomplete: 3, accredited: 4 };
+
+function attentionRank(org) {
+  if (orgOverdueCount(org) > 0) return 0;
+  return ACCREDITATION_RANK[org.accreditation_status] ?? 5;
+}
+
+function sortByAttention(organizations) {
+  return [...organizations].sort((a, b) => attentionRank(a) - attentionRank(b)
+    || String(a.organization_name).localeCompare(String(b.organization_name)));
+}
+
 export default function AccreditationTab({ overview, onRetry, onReviewOrganization }) {
+  const rows = useMemo(() => sortByAttention(overview.organizations), [overview.organizations]);
+
   const columns = [
     { key: 'organization_name', header: 'Organization', render: (org) => <span className="font-bold text-ink">{org.organization_name}</span> },
     {
       key: 'accreditation_status',
       header: 'Accreditation',
-      render: (org) => <StatusBadge tone={ACCREDITATION_TONE[org.accreditation_status] || 'neutral'} label={ACCREDITATION_LABEL[org.accreditation_status] || org.accreditation_status} />,
+      render: (org) => {
+        const badge = accreditationBadge(org.accreditation_status);
+        return <StatusBadge tone={badge.tone} label={badge.label} />;
+      },
     },
     {
       key: 'progress',
@@ -66,7 +69,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         const pending = orgPendingCount(org);
         if (pending > 0) {
           return (
-            <Button size="sm" variant="secondary" onClick={() => onReviewOrganization(org.organization_id)}>
+            <Button size="sm" variant="secondary" className="h-11! sm:h-9!" onClick={() => onReviewOrganization(org.organization_id)}>
               Review {pending} submission{pending === 1 ? '' : 's'}
             </Button>
           );
@@ -87,7 +90,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         stickyHeader={false}
         columns={columns}
         rowKey={(row) => row.organization_id}
-        rows={overview.organizations}
+        rows={rows}
         loading={overview.loading}
         error={overview.error}
         onRetry={onRetry}
