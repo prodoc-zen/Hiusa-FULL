@@ -43,3 +43,6 @@ graphify-out/
 
 # Agent worktrees are ephemeral build sandboxes.
 /.claude/worktrees/
+
+# written by scripts/serve-lan.ps1
+.lan-pids
