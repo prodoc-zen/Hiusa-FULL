@@ -22,6 +22,8 @@ class OrganizationComplianceSubmission extends Model
         'reviewed_at',
     ];
 
+    protected $hidden = ['file_path'];
+
     protected function casts(): array
     {
         return [

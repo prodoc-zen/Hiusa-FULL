@@ -22,7 +22,7 @@ class UserController extends Controller
     private const IMPORT_LIMIT = 500;
 
     // Admin accounts and advisers are provisioned one at a time, never in bulk.
-    private const IMPORTABLE_ROLES = ['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'];
+    private const IMPORTABLE_ROLES = ['STUDENT', 'SBO_OFFICER'];
 
     private const IMPORT_COLUMNS = ['school_id', 'first_name', 'last_name', 'email', 'role', 'contact_number', 'position_title', 'program', 'year_level', 'major', 'section'];
 
@@ -132,7 +132,7 @@ class UserController extends Controller
         $organizationId = $actor->organization_id;
 
         $validatedData = $request->validate([
-            ...$this->memberRules($organizationId, ['STUDENT', 'SBO_OFFICER', 'ADMIN', 'DEPARTMENT_HEAD']),
+            ...$this->memberRules($organizationId, ['STUDENT', 'SBO_OFFICER', 'ADMIN']),
             'password' => 'required|string|min:8|confirmed',
             'account_status' => ['sometimes', 'in:active,inactive,disabled'],
             'notification_preferences' => ['nullable', 'array'],
@@ -376,6 +376,10 @@ class UserController extends Controller
             return response()->json(['message' => 'The super admin account cannot be changed from user management.'], 403);
         }
 
+        if ($user->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
+        }
+
         $oldValues = $this->auditableUserValues($user);
 
         $validatedData = $request->validate([
@@ -391,7 +395,7 @@ class UserController extends Controller
                     ->where(fn ($query) => $query->where('organization_id', $user->organization_id))
                     ->ignore($user->school_id, 'school_id'),
             ],
-            'role' => 'sometimes|required|in:STUDENT,SBO_OFFICER,ADMIN,DEPARTMENT_HEAD',
+            'role' => 'sometimes|required|in:STUDENT,SBO_OFFICER,ADMIN',
             'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'],
             'account_status' => ['sometimes', 'required', 'in:active,inactive,disabled'],
             'position_title' => ['nullable', 'string', 'max:100'],

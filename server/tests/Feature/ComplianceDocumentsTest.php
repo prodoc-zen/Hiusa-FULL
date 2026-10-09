@@ -147,6 +147,7 @@ class ComplianceDocumentsTest extends TestCase
             'period_end' => '2026-09-30',
             'submission_status' => 'pending_sao',
             'submitted_at' => '2026-09-20 08:00:00',
+            'department_head_approved_at' => '2026-09-21 08:00:00',
             'generated_by' => $submitter->school_id,
             'supporting_documents' => [
                 ['name' => 'receipts.pdf', 'path' => 'financial-reports/'.$organization->id.'/receipts.pdf', 'url' => 'x', 'mime_type' => 'application/pdf', 'size' => 10],
@@ -251,18 +252,63 @@ class ComplianceDocumentsTest extends TestCase
         $this->getJson('/api/compliance/documents?source=bogus')->assertUnprocessable();
     }
 
-    public function test_draft_reports_are_not_listed_and_pending_department_head_reports_are(): void
+    public function test_draft_reports_are_not_listed_and_sao_only_sees_reports_the_department_head_approved(): void
+    {
+        $this->periods();
+        $college = $this->college('College of Computing');
+        $organization = $this->studentOrganization('Coding Club', $college);
+        FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Draft', 'submission_status' => 'draft']);
+        FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'With head', 'submission_status' => 'pending_department_head', 'submitted_at' => '2026-09-20 08:00:00']);
+        FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Done', 'submission_status' => 'approved', 'submitted_at' => '2026-09-21 08:00:00', 'department_head_approved_at' => '2026-09-22 08:00:00']);
+
+        Sanctum::actingAs($this->director());
+        $sao = collect($this->getJson('/api/compliance/documents?source=financial_report')->assertOk()->assertJsonPath('total', 1)->json('data'));
+        $this->assertSame(['Done' => 'approved'], $sao->pluck('status', 'item')->all());
+
+        Sanctum::actingAs($this->collegeHead($college));
+        $head = collect($this->getJson('/api/compliance/documents?source=financial_report')->assertOk()->assertJsonPath('total', 2)->json('data'));
+        $this->assertSame(['Done' => 'approved', 'With head' => 'submitted'], $head->pluck('status', 'item')->all());
+    }
+
+    public function test_an_orphaned_event_requirement_file_does_not_break_the_list(): void
     {
         $this->periods();
         $organization = $this->studentOrganization('Coding Club');
-        FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Draft', 'submission_status' => 'draft']);
-        FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'With head', 'submission_status' => 'pending_department_head', 'submitted_at' => '2026-09-20 08:00:00']);
-        FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Done', 'submission_status' => 'approved', 'submitted_at' => '2026-09-21 08:00:00']);
+        $made = $this->documentsFor($organization, $this->submitter($organization));
         Sanctum::actingAs($this->director());
 
-        $rows = collect($this->getJson('/api/compliance/documents?source=financial_report')->assertOk()->assertJsonPath('total', 2)->json('data'));
+        DB::statement('PRAGMA defer_foreign_keys = ON');
+        DB::table('event_requirement_files')->where('id', $made['file']->id)->update(['event_id' => 999999, 'requirement_id' => 999999]);
 
-        $this->assertSame(['Done' => 'approved', 'With head' => 'submitted'], $rows->pluck('status', 'item')->all());
+        $rows = collect($this->getJson('/api/compliance/documents?organization_id='.$organization->id.'&source=event_requirement')->assertOk()->json('data'));
+
+        $this->assertCount(1, $rows);
+        $this->assertNull($rows[0]['item']);
+        $this->assertNull($rows[0]['parent_title']);
+    }
+
+    public function test_each_source_is_capped_at_its_newest_rows(): void
+    {
+        $this->periods();
+        $organization = $this->studentOrganization('Coding Club');
+        $submitter = $this->submitter($organization);
+        $now = now()->toDateTimeString();
+        DB::table('compliance_requirement_types')->insert(collect(range(1, 520))->map(fn (int $number) => [
+            'academic_year' => '2026-2027', 'academic_semester_id' => $this->first->id, 'name' => "Requirement {$number}",
+            'deadline_at' => '2026-12-31 23:59:59', 'is_active' => true, 'created_by' => $submitter->school_id, 'created_at' => $now, 'updated_at' => $now,
+        ])->all());
+        $typeIds = ComplianceRequirementType::orderBy('id')->pluck('id')->values();
+        DB::table('organization_compliance_submissions')->insert($typeIds->map(fn (int $typeId, int $index) => [
+            'organization_id' => $organization->id, 'requirement_type_id' => $typeId, 'status' => 'submitted', 'file_path' => 'p/'.($index + 1).'.pdf',
+            'file_original_name' => ($index + 1).'.pdf', 'mime_type' => 'application/pdf', 'file_size' => 1, 'submitted_by' => $submitter->school_id,
+            'submitted_at' => now()->subMinutes(1000 - $index)->toDateTimeString(), 'created_at' => $now, 'updated_at' => $now,
+        ])->all());
+        Sanctum::actingAs($this->director());
+
+        $response = $this->getJson('/api/compliance/documents?source=compliance&per_page=100')->assertOk();
+
+        $this->assertSame(500, $response->json('total'));
+        $this->assertSame('520.pdf', $response->json('data.0.file_name'));
     }
 
     public function test_admin_sees_only_its_own_organization_and_gets_403_for_another(): void

@@ -64,7 +64,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/account-profiles/organizations', [AccountProfileController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
     Route::get('/account-profiles/candidates', [AccountProfileController::class, 'candidates'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
     Route::get('/account-profiles', [AccountProfileController::class, 'members'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
-    Route::delete('/account-profiles/{profile}', [AccountProfileController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
+    Route::delete('/account-profiles/{profile}', [AccountProfileController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN', 'org.writable']);
     Route::post('/account-profiles/invite', [AccountProfileController::class, 'invite'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
     Route::post('/logout', [UserController::class, 'logout'])->middleware('throttle:api-write');
 
@@ -131,8 +131,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/system/admins', [SystemAdministrationController::class, 'admins'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/admins', [SystemAdministrationController::class, 'storeAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
     Route::put('/system/admins/{user}', [SystemAdministrationController::class, 'updateAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
-    Route::delete('/system/admins/{user}', [SystemAdministrationController::class, 'destroyAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
-    Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
+    Route::delete('/system/admins/{user}', [SystemAdministrationController::class, 'destroyAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
+    Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN', 'org.writable']);
     Route::post('/system/admins/{user}/handover', [SystemAdministrationController::class, 'handoverAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
     Route::get('/system/organizations/{organization}/members', [SystemAdministrationController::class, 'organizationMembers'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/college/organizations', [\App\Http\Controllers\CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
@@ -238,7 +238,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/financial-reports/{financialReport}', [FinancialReportController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/financial-reports/{financialReport}/pdf', [FinancialReportController::class, 'downloadPdf'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
-    Route::get('/financial-reports/{financialReport}/documents/{index}', [FinancialReportController::class, 'document'])->whereNumber('index')->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/financial-reports/{financialReport}/documents/{index}', [FinancialReportController::class, 'document'])->where('index', '[0-9]{1,6}')->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/financial-reports/{financialReport}/submit', [FinancialReportController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Merchandise Routes

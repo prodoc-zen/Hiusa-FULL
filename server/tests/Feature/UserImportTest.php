@@ -67,7 +67,7 @@ class UserImportTest extends TestCase
     {
         $content = "school_id,first_name,last_name,email,role,year_level\n"
             ."20260010,Ana,Reyes,ana@example.com,student,1st Year\n"
-            ."20260011,Ben,Cruz,ben@example.com,Department Head,\n";
+            ."20260011,Ben,Cruz,ben@example.com,SBO Officer,\n";
 
         $response = $this->upload($content, false)->assertCreated();
 
@@ -77,7 +77,7 @@ class UserImportTest extends TestCase
         $this->assertSame($this->organization->id, $ana->organization_id);
         $this->assertSame('active', $ana->account_status);
         $this->assertFalse(Hash::check('', $ana->password_hash));
-        $this->assertSame('DEPARTMENT_HEAD', User::find(20260011)->role);
+        $this->assertSame('SBO_OFFICER', User::find(20260011)->role);
         $this->assertSame(2, AuditLog::where('module', 'users')->where('action', 'imported')->count());
     }
 
