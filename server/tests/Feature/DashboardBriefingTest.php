@@ -9,6 +9,7 @@ use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\FinancialForecast;
+use App\Models\FinancialReport;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
@@ -22,10 +23,12 @@ use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
 class DashboardBriefingTest extends TestCase
 {
+    use CreatesCollegeFixtures;
     use RefreshDatabase;
 
     protected function setUp(): void
@@ -559,7 +562,7 @@ class DashboardBriefingTest extends TestCase
             $pending = config('client_routes.pending_client.'.$user->role, []);
             $allowed = array_values(array_diff(config('client_routes.'.$user->role, []), $pending));
             foreach ($this->collectHrefs($response->json()) as $href) {
-                $this->assertContains($href, $allowed, "{$user->role} received an href outside its live allowlist: {$href}");
+                $this->assertHrefWithinAllowlist($href, $allowed, $user->role);
             }
         }
     }
@@ -592,8 +595,20 @@ class DashboardBriefingTest extends TestCase
         $this->assertNotNull($approval);
         $this->assertNotNull($report);
         $this->assertSame('/dashboard/super-admin/compliance', $approval['href']);
-        $this->assertSame('/dashboard/super-admin/compliance', $report['href']);
+        $this->assertSame('/dashboard/super-admin/compliance?tab=financial', $report['href']);
         $this->assertContains($approval['href'], config('client_routes.SUPER_ADMIN'));
+    }
+
+    private function assertHrefWithinAllowlist(string $href, array $allowed, string $role): void
+    {
+        [$path, $query] = array_pad(explode('?', $href, 2), 2, null);
+
+        $this->assertContains($path, $allowed, "{$role} received an href outside its live allowlist: {$href}");
+        if ($query !== null) {
+            foreach (explode('&', $query) as $pair) {
+                $this->assertMatchesRegularExpression('/^(tab|status|view|record|review|event|organization|create|new)=[A-Za-z0-9_-]{1,64}$/D', $pair, "{$role} received an href with a query that is not allowed: {$href}");
+            }
+        }
     }
 
     private function collectHrefs($value): array
@@ -856,5 +871,120 @@ class DashboardBriefingTest extends TestCase
         Sanctum::actingAs($director);
 
         $this->assertSame('One urgent grievance and three venue bookings to review need you today.', $this->getJson('/api/dashboard/briefing')->json('summary.headline'));
+    }
+
+    public function test_super_admin_attention_lists_pending_registrations_and_links_queues_to_their_tab(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $college = $this->makeCollege('CCS');
+        $this->makeCollegeStudentOrganization($college, ['lifecycle_status' => 'pending']);
+        $this->makeCollegeStudentOrganization($college, ['lifecycle_status' => 'pending']);
+        $this->makeCollegeStudentOrganization($college, ['lifecycle_status' => 'returned']);
+        $this->makeCollegeStudentOrganization($college);
+        $organization = Organization::factory()->create();
+        $orgAdmin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+
+        $requirementType = ComplianceRequirementType::create(['academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth(), 'created_by' => $director->school_id]);
+        DB::table('organization_compliance_submissions')->insert([
+            'organization_id' => $organization->id, 'requirement_type_id' => $requirementType->id, 'status' => 'submitted',
+            'file_path' => 'compliance-submissions/1/statement.pdf', 'file_original_name' => 'statement.pdf', 'mime_type' => 'application/pdf', 'file_size' => 100,
+            'submitted_by' => $orgAdmin->school_id, 'submitted_at' => now(), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $report = FinancialReport::create([
+            'organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'October report', 'source_transaction_ids' => [],
+            'submission_status' => 'pending_sao', 'generated_by' => $orgAdmin->school_id, 'generated_at' => now(), 'submitted_at' => now(),
+        ]);
+        ApprovalRequest::create([
+            'organization_id' => $organization->id, 'entity_type' => 'financial_report', 'entity_id' => $report->id, 'requested_by' => $orgAdmin->school_id,
+            'required_role' => 'SUPER_ADMIN', 'status' => 'pending', 'requested_at' => now()->subHour(),
+        ]);
+
+        Sanctum::actingAs($director);
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $attention = collect($response->json('attention'));
+
+        $registrations = $attention->firstWhere('type', 'registrations_pending');
+        $this->assertNotNull($registrations);
+        $this->assertSame(2, $registrations['count']);
+        $this->assertSame('/dashboard/super-admin/organizations?status=pending', $registrations['href']);
+        $this->assertStringContainsString('2 registration(s)', $registrations['detail']);
+        $this->assertSame('/dashboard/super-admin/compliance?tab=review', $attention->firstWhere('type', 'compliance_submissions_pending')['href']);
+        $this->assertSame('/dashboard/super-admin/compliance?tab=financial', $attention->firstWhere('type', 'approval')['href']);
+        $this->assertStringContainsString('two registrations awaiting review', strtolower($response->json('summary.headline')));
+
+        foreach ($this->collectHrefs($response->json()) as $href) {
+            $this->assertHrefWithinAllowlist($href, config('client_routes.SUPER_ADMIN'), 'SUPER_ADMIN');
+        }
+    }
+
+    public function test_super_admin_attention_has_no_registration_item_when_nothing_is_pending(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $this->makeCollegeStudentOrganization($this->makeCollege('CCS'));
+
+        Sanctum::actingAs($director);
+
+        $this->assertNotContains('registrations_pending', collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->pluck('type')->all());
+    }
+
+    public function test_department_head_sees_returned_registrations_of_their_own_college_only(): void
+    {
+        $ccs = $this->makeCollege('CCS');
+        $cbe = $this->makeCollege('CBE');
+        $head = $this->makeCollegeHead($ccs);
+        $otherHead = $this->makeCollegeHead($cbe);
+        $returned = $this->makeCollegeStudentOrganization($ccs, ['name' => 'Robotics Guild', 'lifecycle_status' => 'returned', 'review_remarks' => 'Attach the constitution.']);
+        $this->makeCollegeStudentOrganization($cbe, ['name' => 'Marketing Circle', 'lifecycle_status' => 'returned']);
+        $this->makeCollegeStudentOrganization($ccs, ['name' => 'Chess Club', 'lifecycle_status' => 'pending']);
+
+        Sanctum::actingAs($head);
+        $items = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->where('type', 'registration_returned');
+
+        $this->assertCount(1, $items);
+        $item = $items->first();
+        $this->assertSame('Registration returned: Robotics Guild', $item['title']);
+        $this->assertStringContainsString('Attach the constitution.', $item['detail']);
+        $this->assertSame('/dashboard/department-head/organizations?status=returned', $item['href']);
+        $this->assertSame('org_returned-'.$returned->id, $item['id']);
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($otherHead);
+        $other = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'))->where('type', 'registration_returned');
+
+        $this->assertCount(1, $other);
+        $this->assertSame('Registration returned: Marketing Circle', $other->first()['title']);
+    }
+
+    public function test_department_head_is_told_when_an_approved_organization_has_no_administrator_yet(): void
+    {
+        $ccs = $this->makeCollege('CCS');
+        $cbe = $this->makeCollege('CBE');
+        $head = $this->makeCollegeHead($ccs);
+        $waiting = $this->makeCollegeStudentOrganization($ccs, ['name' => 'Debate Society']);
+        $staffed = $this->makeCollegeStudentOrganization($ccs, ['name' => 'Drama Club']);
+        User::factory()->admin()->create(['organization_id' => $staffed->id]);
+        $suspended = $this->makeCollegeStudentOrganization($ccs, ['name' => 'Brass Band']);
+        User::factory()->admin()->create(['organization_id' => $suspended->id, 'account_status' => 'inactive']);
+        $this->makeCollegeStudentOrganization($ccs, ['name' => 'Pending Society', 'lifecycle_status' => 'pending']);
+        $this->makeCollegeStudentOrganization($cbe, ['name' => 'Other College Org']);
+
+        Sanctum::actingAs($head);
+        $response = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $items = collect($response->json('attention'))->where('type', 'organization_awaiting_admin');
+
+        $this->assertCount(2, $items);
+        $this->assertSame('Organization approved: waiting for an administrator', $items->first()['title']);
+        $this->assertSame('/dashboard/department-head/organizations?status=active', $items->first()['href']);
+        $this->assertContains('org_no_admin-'.$waiting->id, $items->pluck('id')->all());
+        $this->assertStringContainsString('Brass Band', $items->pluck('detail')->implode(' '));
+        $this->assertStringNotContainsString('Drama Club', $items->pluck('detail')->implode(' '));
+        $this->assertStringNotContainsString('Pending Society', $items->pluck('detail')->implode(' '));
+        $this->assertStringNotContainsString('Other College Org', $items->pluck('detail')->implode(' '));
+
+        foreach ($this->collectHrefs($response->json()) as $href) {
+            $this->assertHrefWithinAllowlist($href, config('client_routes.DEPARTMENT_HEAD'), 'DEPARTMENT_HEAD');
+        }
     }
 }

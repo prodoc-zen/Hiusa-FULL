@@ -28,6 +28,14 @@ those paths are never resolvable through `hrefFor` - they come back `null`
 for every role until the matching route lands in App.jsx and moves out of
 `pending_client` into that role's live list.
 
+An `href` may carry a query so it lands on a tab or a record, for example
+`/dashboard/super-admin/compliance?tab=review`. `hrefFor` checks the path
+before the first `?` against the role's allowlist and returns the whole string
+with the query intact. The query is only kept when every parameter is one of
+`tab`, `status`, `view`, `record`, `review`, `event`, `organization`, `create`,
+`new` and every value matches `[A-Za-z0-9_-]{1,64}`; anything else, including a
+forbidden path, makes the whole `href` `null`.
+
 ## Response shape
 
 ```jsonc
@@ -105,9 +113,36 @@ for every role until the matching route lands in App.jsx and moves out of
 
 - **ADMIN**: pending approvals requiring ADMIN action (announcement, payment), elections closing within 72h, budgets at/above 80% utilization, overdue tasks, financial reports returned or due against the SAO-wide submission deadline.
 - **SBO_OFFICER**: orders with a submitted payment proof still awaiting officer review, my tasks overdue or due within 3 days, today's events (attendance still to record).
-- **DEPARTMENT_HEAD**: approval requests awaiting my decision (event, election, financial_report - first-stage requests), ordered oldest first so age is implicit in position/severity.
+- **DEPARTMENT_HEAD**: approval requests awaiting my decision (event, election, financial_report - first-stage requests), ordered oldest first so age is implicit in position/severity. Also, scoped to the head's college only: one item per organization whose registration the SAO returned (`type: registration_returned`, title `Registration returned: <organization name>`, detail is the SAO's remarks, link `/dashboard/department-head/organizations?status=returned`), and one per active organization that has no active administrator yet (`type: organization_awaiting_admin`, title `Organization approved: waiting for an administrator`, link `/dashboard/department-head/organizations?status=active`).
 - **STUDENT**: the active election I have not voted in yet, my orders ready to claim, my tasks overdue or due within 3 days, today's events.
-- **SUPER_ADMIN**: approval requests requiring SUPER_ADMIN action (budget, financial_report - second-stage requests), organizations that have not submitted a financial report against the current SAO-wide deadline, plus SAO queue counts: pending venue bookings (`type: venue_bookings_pending`), compliance submissions awaiting review (`compliance_submissions_pending`), unresolved high/critical urgency grievances by count only, never identity (`grievances_urgent`), and pending SAO clearance signature lines (`clearance_sao_pending`).
+- **SUPER_ADMIN**: approval requests requiring SUPER_ADMIN action (budget, financial_report - second-stage requests; a `financial_report` request links `/dashboard/super-admin/compliance?tab=financial` and an `event` request `?tab=events`, others the compliance home), organizations that have not submitted a financial report against the current SAO-wide deadline (`/dashboard/super-admin/compliance?tab=financial`), plus SAO queue counts: student organization registrations awaiting review (`type: registrations_pending`, `lifecycle_status = pending`, link `/dashboard/super-admin/organizations?status=pending`), pending venue bookings (`type: venue_bookings_pending`), compliance submissions awaiting review (`compliance_submissions_pending`, link `/dashboard/super-admin/compliance?tab=review`), unresolved high/critical urgency grievances by count only, never identity (`grievances_urgent`), and pending SAO clearance signature lines (`clearance_sao_pending`).
+
+## Setup checklist
+
+`setup` is `null` or `{ "completed": 1, "total": 3, "steps": [...] }`. Each step
+is checked from real records, never from clicks:
+
+```jsonc
+{
+  "key": "register",
+  "label": "Register your first student organization",
+  "detail": "Each organization you register goes to the Student Affairs Office for review.",
+  "done": false,
+  "href": null, // gated like every other href; always null once done
+  "blocked": true, // optional, present only while the step cannot be acted on
+  "note": "Waiting for the SAO to open the semester" // present with blocked; who the step waits for
+}
+```
+
+A blocked step never has an `href`. `blocked` and `note` are absent on every
+step that is not blocked.
+
+| Role | Step keys |
+|---|---|
+| SUPER_ADMIN | `academic-year`, `college-heads` (every active college has an active Department Head; links `/dashboard/super-admin/colleges`), `admins`, `requirements`, `venues`, `announcement` |
+| ADMIN | `positions`, `members`, `academic`, `compliance` (only once the SAO has published requirements), `budget`, `event` |
+| DEPARTMENT_HEAD | `register` (done when the college has any student organization; blocked while no semester is active), `follow` (done when none is pending or returned and at least one is active; links `?status=returned` or `?status=pending` on the head's organizations page while one is), `review` (done once the head has reviewed any approval request) |
+| STUDENT, SBO_OFFICER | `contact`, `fingerprint`, and for students `event` |
 
 ## Pillars per role
 
