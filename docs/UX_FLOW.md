@@ -328,14 +328,19 @@ Demoted and kept as routes only: `/dashboard/events/activity-calendar` (Admin), 
 
 Each lifecycle becomes a `FlowStepper` (section 8) fed by a pure function in `client/src/lib/lifecycle.js` that takes the record and returns `{ steps, current, nextAction, actorRole, href }`. Status values below are the ones in the code today.
 
-### 4.1 Event (Admin runs it; Department Head or SAO approves)
+### 4.1 Event (Admin runs it; the Department Head approves, then the SAO when SAO files apply)
 
-| Stage | Status values | Who acts | Next-action text |
+The Department Head approves every event proposal. If active SAO requirements apply to the event (venue type and semester), the event also needs the Admin's files and the SAO's clearance after the Department Head. The server computes `approval_stage` (PAPER_SCOPE_ADDENDUM section 3 (j), S2 and S3 in section 8.3).
+
+| Stage | `approval_stage` and status values | Who acts | Next-action text |
 |---|---|---|---|
-| 1 Proposal | `status=planning`, no approval row | Admin | "Finish the proposal and submit it" |
-| 2 Requirements (only if SAO has active requirements) | no approval row, `requirements_required` and no files | Admin | "Submit the SAO event files (N PDFs)" |
-| 3 Approval | approval `pending`; `required_role` DEPARTMENT_HEAD or SUPER_ADMIN | Department Head or SAO | "Waiting for Department Head approval" or "Waiting for SAO approval" |
-| 3b Returned | approval `rejected` | Admin | "Returned: read the remarks, edit, resubmit" |
+| 1 Proposal | `not_submitted`: `status=planning`, no approval row (events made before the chain only) | Admin | "Finish the proposal and submit it" |
+| 2 Department Head | `awaiting_department_head`: head approval `pending`, `approval_required_role=DEPARTMENT_HEAD` | Department Head | "Waiting for Department Head approval" |
+| 2b Returned by the head | `rejected`: head approval `rejected`; an edit reopens it | Admin | "Returned: read the remarks, edit, resubmit" |
+| 3 Requirements (only if `requirements_required`) | `awaiting_requirements`: head approved, SAO files not yet complete (files may also be uploaded earlier, while stage 2 is open; the head's approval then opens stage 4 at once) | Admin | "Submit the SAO event files (N PDFs)" |
+| 4 SAO | `awaiting_sao`: SAO approval `pending`, `approval_required_role=SUPER_ADMIN` | SAO | "Waiting for SAO approval" |
+| 4b Returned by the SAO | `requirements_returned`: SAO approval `rejected`; a new upload reopens it | Admin | "Returned: read the remarks, replace the files" |
+| 5 Approved | `approved`: `status=approved` (set by the head when no requirements apply, by the SAO otherwise) | n/a | n/a |
 | 4 Funding (if `requires_budget`) | linked budget `approval_status` | Admin, Department Head | "Propose the event budget" or "Budget waiting for Department Head approval" |
 | 5 Prepare | `approved`; venue booking `pending/approved`; tasks | Admin, Officers | "Book a venue", "Plan the tasks", "N of M tasks done" |
 | 6 Run | `ongoing`; attendance | Admin, Officer | "Check people in" |
@@ -570,8 +575,8 @@ Rules for the builders: each slice owns the files listed and touches no other fi
 | ID | Files | Change | Acceptance |
 |---|---|---|---|
 | S1 | `server/app/Services/Dashboard/ClientRouteAccess.php`, `DashboardBriefingService.php`, `SetupChecklistService.php`, `server/config/client_routes.php` only if a query form is added, tests under `server/tests/Feature` | `hrefFor` matches on the path before `?` and returns the query intact; SAO attention gains "N registrations awaiting review" (`lifecycle_status=pending`) linking `?status=pending`, and compliance and financial items link `?tab=review` and `?tab=financial`; DH attention gains "Registration returned: <org>" and "Organization approved: waiting for administrator"; DH checklist becomes register, follow, review; SAO checklist drops "Register the student organizations" and adds "Every college has a Department Head" | Extend `ClientRouteAllowlistTest` and a briefing test: each href either null or an allowed path with query; a pending registration shows in the SAO briefing |
-| S2 | `server/app/Http/Controllers/EventController.php` (`attachApprovalInfo`), `ApprovalRequestController.php` (`index`), tests | Event payloads add `approval_id`, `approval_required_role`, `requirements_required` (active requirements exist for the event) and `requirements_submitted`; approvals index accepts `scope=submitted` returning requests the caller filed (own organization) across entity types | Feature tests: an Admin sees own pending event and budget requests; an event with SAO requirements and no upload reports `requirements_required=true`, `approval_id=null` |
-| S3 (decision, not a build) | `ApprovalRequest` routing | Choose one approver for events (section 10). Until then the stepper reads `approval_required_role` and says "Department Head" or "SAO" truthfully | n/a |
+| S2 | `server/app/Http/Controllers/EventController.php` (`attachApprovalInfo`), `ApprovalRequestController.php` (`index`), tests | Event payloads add `approval_id`, `approval_required_role`, `requirements_required` (active requirements exist for the event), `requirements_submitted` and `approval_stage`; approvals index accepts `scope=submitted` returning requests the caller filed (own organization) across entity types | Feature tests: an Admin sees own pending event and budget requests; an event with SAO requirements and no upload reports `requirements_required=true`, `approval_id=null` |
+| S3 | `server/app/Services/EventApprovalChain.php`, `EventController.php`, `EventRequirementController.php`, `ApprovalRequestController.php` | Decided (section 10, decision 1): creating an event always opens the Department Head's approval. When requirements apply, the head's approval keeps the event `planning`; the SAO request opens once the head approved and the files are complete, and the SAO's approval approves the event. A legacy event with only an SAO request is still decided by the SAO; an SAO approval while the head's request is pending is refused (409). `approval_stage` is one of `not_submitted`, `awaiting_department_head`, `awaiting_requirements`, `awaiting_sao`, `requirements_returned`, `approved`, `rejected` | `EventApprovalChainTest` |
 
 ## 9. Journey acceptance tests (Playwright)
 
@@ -613,7 +618,7 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 ## 10. Risks, decisions needed, and what was left alone
 
 Decisions needed (product, not design):
-1. Who approves an event: Department Head always, SAO always, or SAO only when requirements exist (today). The stepper is built to show the truth whichever is chosen. The paper says Department Head (PAPER_SCOPE_ADDENDUM section 3 (b), M5.3, M5.4); the code forks.
+1. Who approves an event. DECIDED: the Department Head always approves first; the SAO additionally clears events that need SAO requirements (PAPER_SCOPE_ADDENDUM section 3 (j), M5.3, M5.4). Built as S2 and S3.
 2. How a Department Head is created in a real deployment (HANDOFF open decision 1). The SAO first-use flow cannot be completed without it.
 3. The finance group label: CLAUDE.md says "Payments", the spec uses "Finance" for officers and Admins (it also holds budgets, ledger, reports) and "My payments" for students. If the client wants "Payments" everywhere, only the label changes.
 4. Group label "Records" and "Events and tasks" should be tested with 5 student leaders (card sort) before the labels are frozen.

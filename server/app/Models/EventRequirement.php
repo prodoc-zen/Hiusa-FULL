@@ -28,4 +28,9 @@ class EventRequirement extends Model
             ->when($venueType, fn (Builder $requirements) => $requirements
                 ->whereIn('venue_type', ['all', $venueType]), fn (Builder $requirements) => $requirements->where('venue_type', 'all'));
     }
+
+    public function scopeActiveForEvent(Builder $query, Event $event): Builder
+    {
+        return $query->forEvent($event)->where('is_active', true);
+    }
 }

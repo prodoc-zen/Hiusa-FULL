@@ -31,8 +31,8 @@
 
 - **Role Access:** Admin-only route, sidebar, and API middleware protect event scheduling changes.
 - **Create Event:** `EventsPage` captures event type, expected participants, schedule, planning requirements, resources, vendor/logistics details, and optional proposed budget data. When an amount is supplied, the backend creates a separate event-linked budget proposal; no financial values are represented only as UI text.
-- **Save Record:** `EventController@store` atomically saves the organization-scoped planning event, event approval request, optional linked budget, and budget approval request.
-- **Submit Event for Approval:** when SAO has configured file requirements, the Admin uploads each required file and submits the event for SAO review. The Department Head can view submitted files but cannot decide the event approval. Existing organizations without configured requirements retain their Department Head approval workflow.
+- **Save Record:** `EventController@store` atomically saves the organization-scoped planning event, the Department Head's event approval request (always), optional linked budget, and budget approval request.
+- **Submit Event for Approval:** the Department Head approves every event proposal. When SAO has configured file requirements that apply to the event, the event stays in planning after the Department Head approves, the Admin uploads each required file, and the SAO then approves the event or returns the files. The Department Head can view the submitted files but only the SAO decides the SAO request. Without applicable requirements the Department Head's approval approves the event.
 - **Review Approval Request:** approval decisions are handled by the approval workflow.
 - **Edit Event:** `EventController@update` supports updating event information and resubmitting rejected events.
 - **Monitor Event:** the event list and detail view show event/approval state, attendance totals, allocated budget, event income, actual spending, remaining funds, advisory risk, and the latest organization OLS forecast. Budget approval state comes from the linked approval request.

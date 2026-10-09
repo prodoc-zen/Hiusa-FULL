@@ -17,6 +17,7 @@ use App\Models\Order;
 use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
+use App\Services\EventApprovalChain;
 use App\Services\FinancialReportStatement;
 use App\Services\OrderFulfillmentService;
 use DomainException;
@@ -28,9 +29,12 @@ class ApprovalRequestController extends Controller
 {
     private const ARCHIVED_MESSAGE = 'This organization is archived and read only.';
 
+    private const HEAD_FIRST_MESSAGE = 'The Department Head must approve this event before the SAO can decide it.';
+
     public function __construct(
         private readonly OrderFulfillmentService $fulfillmentService,
         private readonly ApprovalEntityLabel $entityLabels,
+        private readonly EventApprovalChain $eventChain,
     ) {}
 
     public function index(Request $request)
@@ -47,22 +51,32 @@ class ApprovalRequestController extends Controller
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'sort' => ['nullable', 'in:newest,oldest'],
+            'scope' => ['nullable', 'in:awaiting,submitted'],
         ]);
-        $requiredRole = $request->user()->role;
+        $submitted = ($filters['scope'] ?? null) === 'submitted';
+        $user = $request->user();
+        if ($user->role === 'SBO_OFFICER' && ! $submitted) {
+            return response()->json(['message' => 'Forbidden.'], 403);
+        }
+
         $query = ApprovalRequest::with([
             'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
             'reviewer:school_id,first_name,last_name,email,role,position_title',
             'assignedApprover:school_id,first_name,last_name,email,role,position_title',
-        ])
-            ->where('required_role', $requiredRole)
-            ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id));
-        if ($request->user()->role !== 'SUPER_ADMIN') {
-            $query->whereIn('organization_id', $this->readableOrganizationIds($request));
+        ]);
+        if ($submitted) {
+            $query->whereIn('organization_id', array_intersect($this->readableOrganizationIds($request), [$user->organization_id]));
         } else {
-            $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
+            $query->where('required_role', $user->role)
+                ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
+            if ($user->role !== 'SUPER_ADMIN') {
+                $query->whereIn('organization_id', $this->readableOrganizationIds($request));
+            } else {
+                $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
+            }
         }
 
-        $status = $filters['status'] ?? 'pending';
+        $status = $filters['status'] ?? ($submitted ? 'all' : 'pending');
 
         if ($status !== 'all') {
             $query->where('status', $status);
@@ -192,7 +206,7 @@ class ApprovalRequestController extends Controller
                 return $fresh;
             });
         } catch (DomainException $exception) {
-            $status = $exception instanceof InvoiceSettlementRequired || in_array($exception->getMessage(), ['This request has already been reviewed.', self::ARCHIVED_MESSAGE], true) ? 409 : 422;
+            $status = $exception instanceof InvoiceSettlementRequired || in_array($exception->getMessage(), ['This request has already been reviewed.', self::ARCHIVED_MESSAGE, self::HEAD_FIRST_MESSAGE], true) ? 409 : 422;
 
             return response()->json(['message' => $exception->getMessage()], $status);
         }
@@ -337,6 +351,18 @@ class ApprovalRequestController extends Controller
             ->first();
 
         if (! $event) {
+            return;
+        }
+
+        if ($approval->required_role === 'SUPER_ADMIN') {
+            if ($this->eventChain->headRow($event)?->status === 'pending') {
+                throw new DomainException(self::HEAD_FIRST_MESSAGE);
+            }
+        } elseif ($this->eventChain->requiresRequirements($event)) {
+            if ($this->eventChain->requirementsSubmitted($event)) {
+                $this->eventChain->openSaoReview($event, $approval->requested_by);
+            }
+
             return;
         }
 
@@ -556,11 +582,18 @@ class ApprovalRequestController extends Controller
     private function notifyRequester(ApprovalRequest $approval, string $status): void
     {
         $label = $this->entityLabels->for($approval);
+        $message = Str::headline($approval->entity_type).' "'.$label.'" was '.$status.'.';
+        $event = $approval->entity_type === 'event' && $status === 'approved' ? Event::find($approval->entity_id) : null;
+        if ($event && ! $event->approved_at) {
+            $message = 'Event "'.$label.'" was approved by the Department Head. '.($this->eventChain->saoRow($event)
+                ? 'It is now with the Student Affairs Office.'
+                : 'Upload the SAO event files to continue.');
+        }
         Notification::create([
             'organization_id' => $approval->organization_id,
             'user_id' => $approval->requested_by,
             'title' => 'Approval Request '.Str::headline($status),
-            'message' => Str::headline($approval->entity_type).' "'.$label.'" was '.$status.'.',
+            'message' => $message,
             'notification_type' => 'general',
             'reference_type' => $approval->entity_type,
             'reference_id' => $approval->entity_id,
