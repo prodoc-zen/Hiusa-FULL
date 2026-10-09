@@ -58,6 +58,9 @@ class DashboardBriefingService
         'compliance_submissions_pending' => ['compliance submission to review', 'compliance submissions to review'],
         'grievances_urgent' => ['urgent grievance', 'urgent grievances'],
         'clearance_sao_pending' => ['clearance to sign', 'clearances to sign'],
+        'registrations_pending' => ['registration awaiting review', 'registrations awaiting review'],
+        'registration_returned' => ['returned registration', 'returned registrations'],
+        'organization_awaiting_admin' => ['organization waiting for an administrator', 'organizations waiting for an administrator'],
     ];
 
     public function __construct(
@@ -154,9 +157,11 @@ class DashboardBriefingService
         $collegeIds = $user->scopedOrganizationIds();
         $organizationIds = collect($collegeIds);
 
-        $attention = $this->prioritize(
-            $this->approvalsAttention('DEPARTMENT_HEAD', $collegeIds, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals'))
-        );
+        $attention = $this->prioritize(array_merge(
+            $this->approvalsAttention('DEPARTMENT_HEAD', $collegeIds, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals')),
+            $this->returnedRegistrationsAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations?status=returned')),
+            $this->organizationsAwaitingAdminAttention($collegeIds, $this->routeAccess->hrefFor($role, '/dashboard/department-head/organizations?status=active')),
+        ));
 
         return [
             'user' => $this->userBlock($user),
@@ -215,8 +220,11 @@ class DashboardBriefingService
         $organizationsHref = $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organizations');
 
         $attention = $this->prioritize(array_merge(
-            $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance')),
-            $this->orgsOverdueReportsAttention($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance')),
+            $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance'), [
+                'financial_report' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=financial'),
+                'event' => $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=events'),
+            ]),
+            $this->orgsOverdueReportsAttention($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance?tab=financial')),
             $this->saoQueuesAttention(),
         ));
 
@@ -367,7 +375,10 @@ class DashboardBriefingService
     // per-row work, so the query count never grows with total history)
     // ---------------------------------------------------------------
 
-    private function approvalsAttention(string $requiredRole, ?array $organizationIds, int $assignedApproverUserId, ?string $href): array
+    /**
+     * @param  array<string, ?string>  $hrefByEntityType  Overrides $href for requests of that entity type, so a request opens the tab that holds it.
+     */
+    private function approvalsAttention(string $requiredRole, ?array $organizationIds, int $assignedApproverUserId, ?string $href, array $hrefByEntityType = []): array
     {
         $query = ApprovalRequest::with('requester:school_id,first_name,last_name')
             ->where('required_role', $requiredRole)
@@ -380,7 +391,7 @@ class DashboardBriefingService
 
         $approvals = (clone $query)->orderBy('requested_at')->limit(self::ATTENTION_LIMIT)->get();
 
-        return $this->withTotal($approvals->map(function (ApprovalRequest $approval) use ($href) {
+        return $this->withTotal($approvals->map(function (ApprovalRequest $approval) use ($href, $hrefByEntityType) {
             $ageHours = now()->diffInHours($approval->requested_at);
             $requesterName = trim(($approval->requester->first_name ?? '').' '.($approval->requester->last_name ?? ''));
 
@@ -391,7 +402,7 @@ class DashboardBriefingService
                 'title' => $this->entityLabels->for($approval),
                 'detail' => Str::headline($approval->entity_type).' requested by '.($requesterName ?: 'a member').' '.$approval->requested_at->diffForHumans(),
                 'due_at' => null,
-                'href' => $href,
+                'href' => array_key_exists($approval->entity_type, $hrefByEntityType) ? $hrefByEntityType[$approval->entity_type] : $href,
             ];
         })->all(), $this->overflowTotal($approvals->count(), $query));
     }
@@ -643,6 +654,42 @@ class DashboardBriefingService
             'severity' => 'low',
             'title' => 'Order ready to claim',
             'detail' => 'Order ORD-'.$row->id.' is ready. Bring your claim token.',
+            'due_at' => null,
+            'href' => $href,
+        ])->all(), $this->overflowTotal($rows->count(), $query));
+    }
+
+    private function returnedRegistrationsAttention(array $organizationIds, ?string $href): array
+    {
+        $query = DB::table('organizations')->whereIn('id', $organizationIds)->where('lifecycle_status', 'returned');
+        $rows = (clone $query)->orderBy('name')->limit(self::ATTENTION_LIMIT)->get(['id', 'name', 'review_remarks']);
+
+        return $this->withTotal($rows->map(fn ($row) => [
+            'id' => 'org_returned-'.$row->id,
+            'type' => 'registration_returned',
+            'severity' => 'medium',
+            'title' => 'Registration returned: '.$row->name,
+            'detail' => filled($row->review_remarks) ? Str::limit($row->review_remarks, 160) : 'The SAO returned this registration. Edit it and submit it again.',
+            'due_at' => null,
+            'href' => $href,
+        ])->all(), $this->overflowTotal($rows->count(), $query));
+    }
+
+    private function organizationsAwaitingAdminAttention(array $organizationIds, ?string $href): array
+    {
+        $query = DB::table('organizations')->whereIn('id', $organizationIds)->where('lifecycle_status', 'active')
+            ->whereNotExists(fn ($admins) => $admins->selectRaw('1')->from('account_profiles')
+                ->whereColumn('account_profiles.organization_id', 'organizations.id')
+                ->where('account_profiles.role', 'ADMIN')
+                ->where('account_profiles.account_status', 'active'));
+        $rows = (clone $query)->orderBy('name')->limit(self::ATTENTION_LIMIT)->get(['id', 'name']);
+
+        return $this->withTotal($rows->map(fn ($row) => [
+            'id' => 'org_no_admin-'.$row->id,
+            'type' => 'organization_awaiting_admin',
+            'severity' => 'low',
+            'title' => 'Organization approved: waiting for an administrator',
+            'detail' => "{$row->name} is active, but the SAO has not set up its administrator yet.",
             'due_at' => null,
             'href' => $href,
         ])->all(), $this->overflowTotal($rows->count(), $query));
@@ -1132,7 +1179,8 @@ class DashboardBriefingService
     }
 
     /**
-     * SUPER_ADMIN's own queues that never surface for anyone else: pending
+     * SUPER_ADMIN's own queues that never surface for anyone else: student
+     * organization registrations awaiting review, pending
      * venue bookings, compliance submissions awaiting review, unresolved
      * high/critical urgency grievances (count only, no identities - the
      * grievance identity leak this briefing must never repeat), and pending
@@ -1142,6 +1190,20 @@ class DashboardBriefingService
     private function saoQueuesAttention(): array
     {
         $items = [];
+
+        $pendingRegistrations = DB::table('organizations')->where('organization_type', 'STUDENT_ORGANIZATION')->where('lifecycle_status', 'pending')->count();
+        if ($pendingRegistrations > 0) {
+            $items[] = [
+                'id' => 'sao_queue-registrations',
+                'type' => 'registrations_pending',
+                'count' => $pendingRegistrations,
+                'severity' => 'medium',
+                'title' => 'Registrations awaiting review',
+                'detail' => "{$pendingRegistrations} registration(s) are awaiting review",
+                'due_at' => null,
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations?status=pending'),
+            ];
+        }
 
         $pendingVenueBookings = DB::table('venue_bookings')->where('status', 'pending')->count();
         if ($pendingVenueBookings > 0) {
@@ -1167,7 +1229,7 @@ class DashboardBriefingService
                 'title' => 'Compliance submissions awaiting review',
                 'detail' => "{$pendingCompliance} compliance submission(s) are awaiting review",
                 'due_at' => null,
-                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance'),
+                'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance?tab=review'),
             ];
         }
 

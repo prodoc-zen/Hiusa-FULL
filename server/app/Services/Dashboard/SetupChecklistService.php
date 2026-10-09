@@ -19,6 +19,7 @@ class SetupChecklistService
         $steps = array_values(array_filter(match ($user->role) {
             'SUPER_ADMIN' => $this->saoSteps(),
             'ADMIN' => $this->adminSteps($user),
+            'DEPARTMENT_HEAD' => $this->departmentHeadSteps($user),
             default => $this->memberSteps($user),
         }));
         if ($steps === []) {
@@ -40,10 +41,24 @@ class SetupChecklistService
         $organizationIds = DB::table('organizations')->where('organization_type', 'STUDENT_ORGANIZATION')->where('is_active', true)->pluck('id');
         $withAdmin = DB::table('users')->whereIn('organization_id', $organizationIds)->where('role', 'ADMIN')->where('account_status', 'active')->distinct()->count('organization_id');
         $saoId = DB::table('organizations')->where('organization_type', 'SYSTEM_ADMINISTRATION')->value('id');
+        $colleges = DB::table('colleges')->where('is_active', true);
+        $collegesWithHead = (clone $colleges)->whereExists(fn ($query) => $query->selectRaw('1')->from('organizations')
+            ->join('account_profiles', 'account_profiles.organization_id', '=', 'organizations.id')
+            ->whereColumn('organizations.college_id', 'colleges.id')
+            ->where('organizations.organization_type', 'COLLEGE')
+            ->where('account_profiles.role', 'DEPARTMENT_HEAD')
+            ->where('account_profiles.account_status', 'active'))->count();
+        $collegeCount = $colleges->count();
 
         return [
             $this->step('academic-year', 'Set the current academic year', 'Accreditation, requirements and clearances all follow it.', DB::table('academic_years')->where('is_current', true)->exists(), '/dashboard/super-admin/academic-years'),
-            $this->step('organizations', 'Register the student organizations', 'Each organization gets its own members, records and dashboard.', $organizationIds->isNotEmpty(), '/dashboard/super-admin/organizations'),
+            $this->step(
+                'college-heads',
+                'Every college has a Department Head',
+                $collegeCount === 0 ? 'Add the colleges first.' : "{$collegesWithHead} of {$collegeCount} colleges have an active Department Head.",
+                $collegeCount > 0 && $collegesWithHead >= $collegeCount,
+                '/dashboard/super-admin/colleges',
+            ),
             $this->step(
                 'admins',
                 'Give every organization an administrator',
@@ -80,6 +95,53 @@ class SetupChecklistService
         ];
     }
 
+    private function departmentHeadSteps(User $user): array
+    {
+        $byStatus = DB::table('organizations')->whereIn('id', $user->scopedOrganizationIds())
+            ->selectRaw('lifecycle_status, COUNT(*) as total')->groupBy('lifecycle_status')->pluck('total', 'lifecycle_status');
+        $total = (int) $byStatus->sum();
+        $returned = (int) ($byStatus['returned'] ?? 0);
+        $pending = (int) ($byStatus['pending'] ?? 0);
+        $active = (int) ($byStatus['active'] ?? 0);
+        $semesterOpen = DB::table('academic_semesters')->where('status', 'active')->exists();
+
+        $followHref = match (true) {
+            $returned > 0 => '/dashboard/department-head/organizations?status=returned',
+            $pending > 0 => '/dashboard/department-head/organizations?status=pending',
+            default => null,
+        };
+
+        return [
+            $this->step(
+                'register',
+                'Register your first student organization',
+                'Each organization you register goes to the Student Affairs Office for review.',
+                $total > 0,
+                '/dashboard/department-head/organizations',
+                $semesterOpen ? null : 'Waiting for the SAO to open the semester',
+            ),
+            $this->step(
+                'follow',
+                'Follow your registration',
+                match (true) {
+                    $total === 0 => 'Register an organization first.',
+                    $returned > 0 => "{$returned} returned by the SAO: edit and resubmit.",
+                    $pending > 0 => 'Waiting for SAO review.',
+                    default => 'Your organizations are active.',
+                },
+                $returned === 0 && $pending === 0 && $active > 0,
+                $followHref,
+            ),
+            $this->step(
+                'review',
+                'Review approvals',
+                'Events, budgets and reports from your organizations wait for your decision.',
+                DB::table('approval_requests')->where('reviewed_by', $user->school_id)->exists(),
+                '/dashboard/department-head/approvals',
+            ),
+        ];
+    }
+
     private function memberSteps(User $user): array
     {
         $fingerprintEnrolled = DB::table('fingerprints')->where('organization_id', $user->organization_id)->where('user_id', $user->school_id)->exists();
@@ -95,8 +157,15 @@ class SetupChecklistService
         ];
     }
 
-    private function step(string $key, string $label, string $detail, bool $done, ?string $href): array
+    /**
+     * A step that cannot be acted on yet carries `blocked` and a `note`
+     * saying who it is waiting for, and never a link. Once done it is never
+     * shown as blocked.
+     */
+    private function step(string $key, string $label, string $detail, bool $done, ?string $href, ?string $blockedNote = null): array
     {
-        return ['key' => $key, 'label' => $label, 'detail' => $detail, 'done' => $done, 'href' => $href];
+        $step = ['key' => $key, 'label' => $label, 'detail' => $detail, 'done' => $done, 'href' => $href];
+
+        return $blockedNote !== null && ! $done ? [...$step, 'href' => null, 'blocked' => true, 'note' => $blockedNote] : $step;
     }
 }
