@@ -16,6 +16,7 @@ import {
   Printer,
   ReceiptText,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -25,6 +26,8 @@ import {
   getTransactionSummary,
   createTransaction,
   updateTransaction,
+  deleteTransaction,
+  deleteBudget,
   getPersonalReceipts,
   getInvoices,
   getAuditLogs,
@@ -49,6 +52,7 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
 import Modal from '../../../components/Modal';
+import ConfirmModal from '../../../components/ConfirmModal';
 import TableFilterBar from '../../../components/TableFilterBar';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -298,6 +302,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [budgetAdviceDetails, setBudgetAdviceDetails] = useState({});
   const [budgetAdviceErrors, setBudgetAdviceErrors] = useState({});
   const [forecastGenError, setForecastGenError] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   let currentUserRole = '';
   try { currentUserRole = JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; } catch {}
   const canManageLedger = currentUserRole === 'ADMIN';
@@ -373,6 +380,29 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       })
       .catch(() => setError('Failed to load financial data.'))
       .finally(() => setLoading(false));
+  }
+
+  function askDelete(kind, record) {
+    setDeleteError(null);
+    setDeleteTarget({ kind, record });
+  }
+
+  async function confirmDelete() {
+    const { kind, record } = deleteTarget;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      if (kind === 'budget') await deleteBudget(record.id);
+      else await deleteTransaction(record.id);
+      showFeedback('success', kind === 'budget' ? 'Budget deleted.' : 'Transaction deleted.');
+      setDeleteTarget(null);
+      load(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
+    } catch (err) {
+      setDeleteError(getApiErrorMessage(err, kind === 'budget' ? 'This budget could not be deleted.' : 'This transaction could not be deleted.'));
+      setDeleteTarget(null);
+    } finally {
+      setDeleteBusy(false);
+    }
   }
 
   async function handleCreateBudget(e) {
@@ -848,6 +878,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   return (
     <div className="space-y-5 pb-8">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
+      {deleteError && <p role="alert" className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">{deleteError}</p>}
 
       {canReadFinance && !canManageLedger && OVERSIGHT_TABS.includes(activeTab) && (
         <p className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm font-medium text-slate-600">
@@ -992,6 +1023,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       <p>Recorded by {personName(tx.recorder, 'Unknown recorder')}</p>
                     </div>
                     {canManageLedger && <button type="button" onClick={() => openTransactionForm(tx)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Pencil size={14} />Edit transaction</button>}
+                    {canManageLedger && <button type="button" onClick={() => askDelete('transaction', tx)} className="ml-2 mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete transaction</button>}
                   </li>;
                 })}
               </ul>
@@ -1046,6 +1078,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <td className="px-5 py-4">
                           <TableRowActions subject={tx.description || `Transaction ${tx.id}`} label="Transaction actions" actions={[
                             { label: 'Edit transaction', icon: Pencil, onClick: () => openTransactionForm(tx) },
+                            { label: 'Delete transaction', icon: Trash2, danger: true, onClick: () => askDelete('transaction', tx) },
                           ]} />
                         </td>
                       )}
@@ -1193,6 +1226,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <Sparkles size={14} />
                         {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
                       </button>}
+                    {canProposeBudget && <button type="button" onClick={() => askDelete('budget', b)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete budget</button>}
                   </div>
                 </div>
               ))}
@@ -1801,6 +1835,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           </div>
         </AccessibleOverlay>
       )}
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title={deleteTarget?.kind === 'budget' ? 'Delete this budget?' : 'Delete this transaction?'}
+        message={deleteTarget?.kind === 'budget' ? 'This cannot be undone. A budget that already has transactions cannot be deleted.' : 'This cannot be undone. It is removed from the ledger and its budget is adjusted. Entries created by collections, cash advances, invoices or orders must be changed from where they came from.'}
+        recordName={deleteTarget?.kind === 'budget' ? deleteTarget.record.title : (deleteTarget?.record.description || `Transaction ${deleteTarget?.record.id}`)}
+        confirmText={deleteTarget?.kind === 'budget' ? 'Delete budget' : 'Delete transaction'}
+        variant="danger"
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
   Button, Card, DataTable, EmptyState, Field, IconButton, Input, PageHeader,
@@ -16,6 +16,7 @@ import {
   createVenue, deleteVenue, getVenueAvailability, getVenueBookings, getVenues,
   reviewVenueBooking, updateVenue,
 } from '../../../services/venueService';
+import VenueWeekCalendar, { addDays, todayInManila, weekStartOf } from './VenueWeekCalendar';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
 
@@ -25,6 +26,18 @@ function getCurrentRole() {
   } catch {
     return '';
   }
+}
+
+function toCalendarSlot(booking) {
+  return {
+    id: booking.id,
+    start_time: booking.start_time,
+    end_time: booking.end_time,
+    status: booking.status,
+    reserved_by: booking.organization?.name || 'Unknown organization',
+    event_title: booking.event?.title,
+    venue_name: booking.venue?.name,
+  };
 }
 
 function formatRange(start, end) {
@@ -54,6 +67,11 @@ export default function SaoVenuesPage() {
   const [rejectRemarks, setRejectRemarks] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
 
+  const [weekStart, setWeekStart] = useState(() => weekStartOf(todayInManila()));
+  const [calendarVenue, setCalendarVenue] = useState('');
+  const [calendar, setCalendar] = useState({ loading: true, error: null, slots: [] });
+  const calendarRequest = useRef(0);
+
   const loadVenues = useCallback(() => {
     setVenues((current) => ({ ...current, loading: true, error: null }));
     getVenues({ per_page: 100 })
@@ -68,8 +86,25 @@ export default function SaoVenuesPage() {
       .catch((err) => setBookings((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load booking requests.') })));
   }, [statusFilter, venueFilter]);
 
+  const loadCalendar = useCallback(() => {
+    const request = ++calendarRequest.current;
+    setCalendar((current) => ({ ...current, loading: true, error: null }));
+    const params = { from: `${weekStart}T00:00:00+08:00`, to: `${addDays(weekStart, 6)}T23:59:59+08:00`, venue_id: calendarVenue || undefined, per_page: 100 };
+    Promise.all(['pending', 'approved'].map((status) => getVenueBookings({ ...params, status })))
+      .then((responses) => {
+        if (request !== calendarRequest.current) return;
+        const slots = responses.flatMap((response) => unwrapList(response.data)).filter((booking) => booking.venue_id).map(toCalendarSlot);
+        setCalendar({ loading: false, error: null, slots });
+      })
+      .catch((err) => {
+        if (request !== calendarRequest.current) return;
+        setCalendar({ loading: false, error: getApiErrorMessage(err, 'Could not load the venue calendar.'), slots: [] });
+      });
+  }, [weekStart, calendarVenue]);
+
   useEffect(() => { if (role === 'SUPER_ADMIN') loadVenues(); }, [loadVenues, role]);
   useEffect(() => { if (role === 'SUPER_ADMIN') loadBookings(bookingsPage); }, [loadBookings, bookingsPage, role]);
+  useEffect(() => { if (role === 'SUPER_ADMIN' && activeTab === 'bookings') loadCalendar(); }, [loadCalendar, activeTab, role]);
   useEffect(() => { setBookingsPage(1); }, [statusFilter, venueFilter]);
 
   function openVenueModal(venue = null) {
@@ -163,6 +198,7 @@ export default function SaoVenuesPage() {
       notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" approved.`);
       setReviewState(null);
       loadBookings(bookingsPage);
+      loadCalendar();
     } catch (err) {
       notify.error(getApiErrorMessage(err, 'Could not approve this booking.'));
     } finally {
@@ -179,6 +215,7 @@ export default function SaoVenuesPage() {
       setReviewState(null);
       setRejectRemarks('');
       loadBookings(bookingsPage);
+      loadCalendar();
     } catch (err) {
       notify.error(getApiErrorMessage(err, 'Could not reject this booking.'));
     } finally {
@@ -248,6 +285,22 @@ export default function SaoVenuesPage() {
                 action={<Button leftIcon={Plus} onClick={() => openVenueModal()}>New venue</Button>}
               />
             )}
+          />
+        </Card>
+      )}
+
+      {activeTab === 'bookings' && (
+        <Card title="Availability calendar" description="Who holds each venue and when. Pending requests are marked so you can spot clashes before deciding.">
+          <VenueWeekCalendar
+            weekStart={weekStart}
+            slots={calendar.slots}
+            venues={venues.items}
+            venueId={calendarVenue}
+            onVenueChange={setCalendarVenue}
+            onWeekChange={setWeekStart}
+            loading={calendar.loading}
+            error={calendar.error}
+            onRetry={loadCalendar}
           />
         </Card>
       )}
