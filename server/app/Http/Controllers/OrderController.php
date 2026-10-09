@@ -13,6 +13,7 @@ use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\OrderFulfillmentService;
+use App\Support\Csv;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
@@ -131,7 +132,7 @@ class OrderController extends Controller
             fputcsv($handle, ['Order ID', 'Student ID', 'Full Name', 'Email', 'Department', 'Program', 'Major', 'Year Level', 'Section', 'Role', 'SBO Position', 'Item', 'Category', 'Quantity', 'Unit Price', 'Total Amount', 'Payment Method', 'Payment Reference', 'Payment Status', 'Order Status', 'Officer Review', 'Admin Review', 'Order Date', 'Payment Date', 'Claimed Date', 'Processed By', 'Approved By', 'Released By', 'Receipt Reference', 'Remarks']);
             $query->chunk(250, function ($orders) use ($handle) {
                 foreach ($orders as $order) {
-                    fputcsv($handle, [
+                    fputcsv($handle, Csv::row([
                         'ORD-'.$order->id, $order->student_id, trim(($order->student?->first_name ?? '').' '.($order->student?->last_name ?? '')), $order->student?->email,
                         $order->student?->department, $order->student?->program, $order->student?->major, $order->student?->year_level, $order->student?->section,
                         $order->student?->role, $order->student?->position_title, $order->merchandise?->name, $order->merchandise?->category, $order->quantity,
@@ -143,7 +144,7 @@ class OrderController extends Controller
                         $order->approver ? trim($order->approver->first_name.' '.$order->approver->last_name) : null,
                         $order->claimVerifier ? trim($order->claimVerifier->first_name.' '.$order->claimVerifier->last_name) : null,
                         $order->transaction?->receipt_reference, $order->review_remarks,
-                    ]);
+                    ]));
                 }
             });
             fclose($handle);

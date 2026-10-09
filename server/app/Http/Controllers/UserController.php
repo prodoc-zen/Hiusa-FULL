@@ -13,6 +13,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -21,6 +22,13 @@ use Illuminate\Validation\ValidationException;
 class UserController extends Controller
 {
     private const IMPORT_LIMIT = 500;
+
+    private const LOGIN_FAILURE_LIMIT = 5;
+
+    private const LOGIN_FAILURE_WINDOW_SECONDS = 900;
+
+    // Verified against when no real hash exists so every credential check costs one bcrypt comparison.
+    private const DUMMY_PASSWORD_HASH = '$2y$12$cGJC6K8U4dNA3Rl2TMWQiOhoUMx0jYi9looYyezKTFEHr2imRatym';
 
     // Admin accounts and advisers are provisioned one at a time, never in bulk.
     private const IMPORTABLE_ROLES = ['STUDENT', 'SBO_OFFICER'];
@@ -540,6 +548,10 @@ class UserController extends Controller
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
+        if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
+        }
+
         if ($user->school_id === $request->user()->school_id) {
             return response()->json(['message' => 'You cannot deactivate your own account.'], 422);
         }
@@ -591,6 +603,10 @@ class UserController extends Controller
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
+        if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
+        }
+
         if ($user->account_status === 'active') {
             return response()->json(['message' => 'User account is already active.'], 422);
         }
@@ -634,6 +650,10 @@ class UserController extends Controller
 
         if ($profile->role === 'ADMIN') {
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+        }
+
+        if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
         }
 
         $oldValues = $this->auditableUserValues($user);
@@ -702,13 +722,27 @@ class UserController extends Controller
             'password' => 'required|string',
         ]);
 
+        $failureKey = 'login-failures:'.$request->school_id;
+
+        if (RateLimiter::tooManyAttempts($failureKey, self::LOGIN_FAILURE_LIMIT)) {
+            return response()->json([
+                'message' => 'Too many failed sign in attempts for this account. Please wait before trying again.',
+            ], 429, ['Retry-After' => RateLimiter::availableIn($failureKey)]);
+        }
+
         $user = User::where('school_id', $request->school_id)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password_hash)) {
+        $passwordMatches = Hash::check($request->password, $user?->password_hash ?? self::DUMMY_PASSWORD_HASH);
+
+        if (! $user || ! $passwordMatches) {
+            RateLimiter::hit($failureKey, self::LOGIN_FAILURE_WINDOW_SECONDS);
+
             throw ValidationException::withMessages([
                 'school_id' => ['The provided credentials are incorrect.'],
             ]);
         }
+
+        RateLimiter::clear($failureKey);
 
         $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status']);
 
@@ -751,7 +785,7 @@ class UserController extends Controller
     {
         $validated = $request->validate([
             'school_id' => ['nullable', 'required_without:organization_id', 'integer', 'min:1', 'max:99999999'],
-            'organization_id' => ['nullable', 'required_without:school_id', Rule::exists('organizations', 'id')->where('is_active', true)],
+            'organization_id' => ['nullable', 'required_without:school_id', 'integer', 'min:1'],
             'email' => ['required', 'email'],
         ]);
 
@@ -764,8 +798,13 @@ class UserController extends Controller
         // Non-enumerating: an unknown email, a disabled account, and an active
         // account all return the identical body, so an unauthenticated caller
         // cannot use this endpoint to discover which emails have accounts or an
-        // account's status. Mail is only actually sent for an active account.
+        // account's status. Mail is only actually sent for an active account, and
+        // the branches that send nothing still pay for one hash so response time
+        // does not tell the two apart. An inactive or nonexistent organization is
+        // treated exactly like an unknown user.
         if (! $user || $user->account_status !== 'active' || ! $user->organization()->where('is_active', true)->exists()) {
+            Hash::make(Str::random(64));
+
             return response()->json(['message' => 'If an active account matches those details, password reset instructions will be sent.']);
         }
 
@@ -777,16 +816,15 @@ class UserController extends Controller
     public function validatePasswordResetToken(Request $request)
     {
         $validated = $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
+            'organization_id' => ['required', 'integer', 'min:1'],
             'email' => ['required', 'email'],
             'token' => ['required', 'string'],
         ]);
 
-        $user = User::where('organization_id', $validated['organization_id'])
-            ->where('email', $validated['email'])
-            ->first();
+        $user = $this->activeOrganizationUser((int) $validated['organization_id'], $validated['email']);
+        $tokenValid = $this->validPasswordResetToken((int) $validated['organization_id'], $validated['email'], $validated['token']);
 
-        if (! $user || ! $this->validPasswordResetToken((int) $validated['organization_id'], $validated['email'], $validated['token'])) {
+        if (! $user || ! $tokenValid) {
             return response()->json(['message' => 'Password reset token is invalid or expired.'], 422);
         }
 
@@ -796,17 +834,16 @@ class UserController extends Controller
     public function resetPassword(Request $request)
     {
         $validated = $request->validate([
-            'organization_id' => ['required', Rule::exists('organizations', 'id')->where('is_active', true)],
+            'organization_id' => ['required', 'integer', 'min:1'],
             'email' => ['required', 'email'],
             'token' => ['required', 'string'],
             'password' => ['required', 'string', 'min:8', 'confirmed'],
         ]);
 
-        $user = User::where('organization_id', $validated['organization_id'])
-            ->where('email', $validated['email'])
-            ->first();
+        $user = $this->activeOrganizationUser((int) $validated['organization_id'], $validated['email']);
+        $tokenValid = $this->validPasswordResetToken((int) $validated['organization_id'], $validated['email'], $validated['token']);
 
-        if (! $user || ! $this->validPasswordResetToken((int) $validated['organization_id'], $validated['email'], $validated['token'])) {
+        if (! $user || ! $tokenValid) {
             return response()->json(['message' => 'Password reset token is invalid or expired.'], 422);
         }
 
@@ -881,6 +918,14 @@ class UserController extends Controller
         return response()->json(['message' => 'Password updated successfully. Please log in again.']);
     }
 
+    private function activeOrganizationUser(int $organizationId, string $email): ?User
+    {
+        return User::where('organization_id', $organizationId)
+            ->where('email', $email)
+            ->whereHas('organization', fn ($query) => $query->where('is_active', true))
+            ->first();
+    }
+
     private function validPasswordResetToken(int $organizationId, string $email, string $token): bool
     {
         $record = DB::table('password_reset_tokens')
@@ -888,7 +933,9 @@ class UserController extends Controller
             ->where('email', $email)
             ->first();
 
-        if (! $record || ! Hash::check($token, $record->token)) {
+        $tokenMatches = Hash::check($token, $record->token ?? self::DUMMY_PASSWORD_HASH);
+
+        if (! $record || ! $tokenMatches) {
             return false;
         }
 

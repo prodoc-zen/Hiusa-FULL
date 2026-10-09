@@ -385,8 +385,10 @@ class FinancialReportController extends Controller
         unset($data);
 
         $documents = collect($financialReport->supporting_documents ?? []);
+        $uploadedPaths = [];
         foreach ($request->file('supporting_documents', []) as $file) {
             $path = $file->store('financial-reports/'.$financialReport->organization_id, 'local');
+            $uploadedPaths[] = $path;
             $documents->push([
                 'name' => $file->getClientOriginalName(),
                 'path' => $path,
@@ -395,7 +397,11 @@ class FinancialReportController extends Controller
             ]);
         }
 
-        DB::transaction(function () use ($request, $financialReport, $documents) {
+        $stale = DB::transaction(function () use ($request, $financialReport, $documents) {
+            if ($this->ledgerChangedSinceGenerated($financialReport)) {
+                return true;
+            }
+
             ApprovalRequest::where('organization_id', $financialReport->organization_id)
                 ->where('entity_type', 'financial_report')
                 ->where('entity_id', $financialReport->id)
@@ -436,9 +442,56 @@ class FinancialReportController extends Controller
                 'ip_address' => $request->ip(),
                 'created_at' => now(),
             ]);
+
+            return false;
         });
 
+        if ($stale) {
+            Storage::disk('local')->delete($uploadedPaths);
+
+            return response()->json(['message' => 'The ledger changed after this report was generated. Regenerate the report before submitting.'], 409);
+        }
+
         return response()->json($financialReport->fresh());
+    }
+
+    /**
+     * A draft or rejected report does not lock its entries, so what it lists can be edited
+     * or deleted before it is submitted. Reviewers approve the snapshot, so it must still
+     * match the live rows. Entries added to the period afterwards are not a change.
+     */
+    private function ledgerChangedSinceGenerated(FinancialReport $report): bool
+    {
+        $snapshot = collect($report->transactions_snapshot ?? [])->keyBy('id');
+
+        if ($snapshot->isEmpty()) {
+            return false;
+        }
+
+        $live = Transaction::where('organization_id', $report->organization_id)
+            ->whereIn('id', $snapshot->keys()->all())
+            ->lockForUpdate()
+            ->get()
+            ->keyBy('id');
+
+        $nullableId = fn ($id) => $id === null ? null : (int) $id;
+        $money = fn ($amount) => number_format((float) $amount, 2, '.', '');
+
+        foreach ($snapshot as $id => $saved) {
+            $entry = $live->get($id);
+
+            if (! $entry
+                || $money($saved['amount'] ?? 0) !== $money($entry->amount)
+                || ($saved['type'] ?? null) !== $entry->type
+                || ($saved['category'] ?? null) !== $entry->category
+                || $nullableId($saved['budget_id'] ?? null) !== $nullableId($entry->budget_id)
+                || $nullableId($saved['event_id'] ?? null) !== $nullableId($entry->event_id)
+                || Carbon::parse($saved['transaction_date'])->getTimestamp() !== $entry->transaction_date->getTimestamp()) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private function canAccessReport(Request $request, FinancialReport $report): bool
