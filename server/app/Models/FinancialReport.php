@@ -44,6 +44,35 @@ class FinancialReport extends Model
     }
 
     /**
+     * The stored entries keep their private disk path for the server. Responses
+     * carry only the authorized route, never the path or a storage URL.
+     */
+    public function attributesToArray(): array
+    {
+        $attributes = parent::attributesToArray();
+
+        if (array_key_exists('supporting_documents', $attributes)) {
+            $attributes['supporting_documents'] = $this->supportingDocumentLinks();
+        }
+
+        return $attributes;
+    }
+
+    public function supportingDocumentLinks(): array
+    {
+        return collect($this->supporting_documents ?? [])
+            ->values()
+            ->map(fn (array $document, int $index) => [
+                'index' => $index,
+                'name' => $document['name'] ?? null,
+                'mime_type' => $document['mime_type'] ?? null,
+                'size' => $document['size'] ?? null,
+                'open_url' => '/financial-reports/'.$this->id.'/documents/'.$index,
+            ])
+            ->all();
+    }
+
+    /**
      * The ledger entries as they were when the report was generated. Every total the
      * report shows (card, PDF, Excel) must come from these rows. A report saved before
      * snapshots existed has none, so it reads the live ledger entries it listed.

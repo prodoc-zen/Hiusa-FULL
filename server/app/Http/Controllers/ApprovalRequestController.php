@@ -52,7 +52,7 @@ class ApprovalRequestController extends Controller
             ->where('required_role', $requiredRole)
             ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id));
         if ($request->user()->role !== 'SUPER_ADMIN') {
-            $query->where('organization_id', $request->user()->organization_id);
+            $query->whereIn('organization_id', $request->user()->scopedOrganizationIds());
         } else {
             $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
         }
@@ -100,7 +100,7 @@ class ApprovalRequestController extends Controller
     {
         $approvalQuery = ApprovalRequest::query();
         if ($request->user()->role !== 'SUPER_ADMIN') {
-            $approvalQuery->where('organization_id', $request->user()->organization_id);
+            $approvalQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
         }
         $approval = $approvalQuery->find($id);
 
@@ -149,7 +149,7 @@ class ApprovalRequestController extends Controller
             $freshApproval = DB::transaction(function () use ($approval, $data, $request) {
                 $lockedQuery = ApprovalRequest::query();
                 if ($request->user()->role !== 'SUPER_ADMIN') {
-                    $lockedQuery->where('organization_id', $request->user()->organization_id);
+                    $lockedQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
                 }
                 $approval = $lockedQuery->lockForUpdate()->findOrFail($approval->id);
 
@@ -467,7 +467,7 @@ class ApprovalRequestController extends Controller
             'summary_text' => $report->summary_text,
             'submission_status' => $report->submission_status,
             'signatories' => $report->signatories,
-            'supporting_documents' => $report->supporting_documents ?? [],
+            'supporting_documents' => $report->supportingDocumentLinks(),
             'total_income' => $statement['totals']['income'],
             'total_expense' => $statement['totals']['expense'],
             'net_balance' => $statement['totals']['balance'],

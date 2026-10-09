@@ -658,7 +658,7 @@ class UseCaseComplianceTest extends TestCase
         $this->postJson("/api/elections/{$election->id}/vote", $ballot)->assertUnprocessable();
     }
 
-    public function test_all_documented_organization_roles_can_cast_one_ballot(): void
+    public function test_organization_members_can_cast_one_ballot_and_department_heads_cannot(): void
     {
         $organization = Organization::factory()->create();
         $candidateUser = $this->user('STUDENT', $organization->id);
@@ -678,7 +678,7 @@ class UseCaseComplianceTest extends TestCase
             'user_id' => $candidateUser->school_id,
         ]);
 
-        foreach (['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'] as $role) {
+        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT'] as $role) {
             $voter = $this->user($role, $organization->id);
             $this->authenticate($voter);
             $this->postJson("/api/elections/{$election->id}/vote", [
@@ -686,7 +686,12 @@ class UseCaseComplianceTest extends TestCase
             ])->assertOk();
         }
 
-        $this->assertSame(4, Vote::where('election_id', $election->id)->distinct('voter_id')->count('voter_id'));
+        $this->authenticate($this->user('DEPARTMENT_HEAD', $organization->id));
+        $this->postJson("/api/elections/{$election->id}/vote", [
+            'votes' => [['position_id' => $position->id, 'candidate_id' => $candidate->id]],
+        ])->assertForbidden();
+
+        $this->assertSame(3, Vote::where('election_id', $election->id)->distinct('voter_id')->count('voter_id'));
     }
 
     public function test_approved_elections_wait_for_admin_opening_and_close_at_the_scheduled_end(): void
@@ -1364,55 +1369,23 @@ class UseCaseComplianceTest extends TestCase
         $this->deleteJson("/api/announcements/{$announcement->id}/reaction")->assertOk()->assertJsonPath('reactions_count', 0);
     }
 
-    public function test_department_head_order_history_is_personal_and_catalog_hides_inactive_items(): void
+    public function test_department_head_cannot_order_or_browse_merchandise(): void
     {
         $departmentHead = $this->user('DEPARTMENT_HEAD');
-        $otherBuyer = $this->user('STUDENT', $departmentHead->organization_id);
-        $activeItem = Merchandise::create([
+        $item = Merchandise::create([
             'organization_id' => $departmentHead->organization_id,
             'name' => 'Active Item',
             'price' => 100,
             'stock_quantity' => 5,
             'is_active' => true,
         ]);
-        $inactiveItem = Merchandise::create([
-            'organization_id' => $departmentHead->organization_id,
-            'name' => 'Inactive Item',
-            'price' => 100,
-            'stock_quantity' => 5,
-            'is_active' => false,
-        ]);
-        $ownOrder = Order::create([
-            'organization_id' => $departmentHead->organization_id,
-            'student_id' => $departmentHead->school_id,
-            'merchandise_id' => $activeItem->id,
-            'quantity' => 1,
-            'total_price' => 100,
-            'status' => 'pending',
-            'claim_token' => 'OWNORDER',
-        ]);
-        Order::create([
-            'organization_id' => $departmentHead->organization_id,
-            'student_id' => $otherBuyer->school_id,
-            'merchandise_id' => $activeItem->id,
-            'quantity' => 1,
-            'total_price' => 100,
-            'status' => 'pending',
-            'claim_token' => 'OTHERORD',
-        ]);
 
         $this->authenticate($departmentHead);
-        $this->getJson('/api/orders')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $ownOrder->id)
-            ->assertJsonPath('data.0.claim_token', null);
-        $this->getJson('/api/merchandise')
-            ->assertOk()
-            ->assertJsonCount(1, 'data')
-            ->assertJsonPath('data.0.id', $activeItem->id);
-
-        $this->assertDatabaseHas('merchandise', ['id' => $inactiveItem->id, 'is_active' => false]);
+        $this->getJson('/api/merchandise')->assertForbidden();
+        $this->getJson('/api/merchandise/gcash-settings')->assertForbidden();
+        $this->getJson('/api/orders')->assertForbidden();
+        $this->postJson('/api/orders', ['merchandise_id' => $item->id, 'quantity' => 1])->assertForbidden();
+        $this->assertDatabaseCount('orders', 0);
     }
 
     public function test_students_and_department_heads_cannot_record_attendance(): void

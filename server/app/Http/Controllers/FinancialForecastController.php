@@ -35,7 +35,7 @@ class FinancialForecastController extends Controller
 
         return response()->json(
             FinancialForecast::with('generator:school_id,first_name,last_name')
-                ->where('organization_id', $request->user()->organization_id)
+                ->whereIn('organization_id', $this->readableOrganizationIds($request))
                 ->orderBy('forecast_period', 'asc')
                 ->orderBy('id')
                 ->paginate($paging['per_page'] ?? 20)

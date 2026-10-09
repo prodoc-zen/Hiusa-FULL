@@ -157,7 +157,7 @@ class AnnouncementController extends Controller
         ])->withCount('reactions')
             ->withExists(['reactions as is_liked' => fn ($reactions) => $reactions->where('user_id', $user->school_id)])
             ->where(function ($scope) use ($user) {
-            $scope->where('organization_id', $user->organization_id)
+            $scope->whereIn('organization_id', $user->scopedOrganizationIds())
                 ->orWhere(function ($global) use ($user) {
                     $global->where('announcement_source', 'SAO')
                         ->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id));
@@ -299,7 +299,7 @@ class AnnouncementController extends Controller
     private function visibleAnnouncement(User $user, $id): ?Announcement
     {
         return Announcement::where(function ($scope) use ($user) {
-            $scope->where('organization_id', $user->organization_id)
+            $scope->whereIn('organization_id', $user->scopedOrganizationIds())
                 ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
         })
             ->where('is_published', true)
