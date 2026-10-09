@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ComplianceRequirementType extends Model
 {
+    public const SEMESTRAL_ACCOMPLISHMENT_REPORT = 'Semestral Accomplishment Report';
+
     protected $fillable = [
         'academic_year',
         'academic_semester_id',

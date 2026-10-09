@@ -11,7 +11,9 @@ use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
+use App\Services\Compliance\ComplianceDocumentService;
 use Illuminate\Http\Request;
+use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
@@ -144,6 +146,38 @@ class ComplianceController extends Controller
         return response()->json($requirementType);
     }
 
+    public function destroyRequirementType(Request $request, ComplianceRequirementType $requirementType)
+    {
+        $deleted = DB::transaction(function () use ($request, $requirementType) {
+            $locked = ComplianceRequirementType::whereKey($requirementType->id)->lockForUpdate()->firstOrFail();
+            if ($locked->submissions()->exists()) {
+                return false;
+            }
+
+            $locked->delete();
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'compliance',
+                'action' => 'requirement_type_deleted',
+                'record_type' => ComplianceRequirementType::class,
+                'record_id' => $locked->id,
+                'old_values' => $locked->toArray(),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json(['message' => 'This requirement already has submissions. Deactivate it to preserve those records.'], 409);
+        }
+
+        return response()->noContent();
+    }
+
     private function notifyAdminsOfDeadlineChange(ComplianceRequirementType $requirementType): void
     {
         $admins = User::where('role', 'ADMIN')
@@ -173,10 +207,16 @@ class ComplianceController extends Controller
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
         ]);
 
-        if ($request->user()->role === 'ADMIN') {
-            $organizations = Organization::whereKey($request->user()->organization_id)->get();
+        $user = $request->user();
+        if ($user->role === 'ADMIN') {
+            $organizations = Organization::whereKey($user->organization_id)->where('lifecycle_status', 'active')->get();
         } else {
-            $organizations = Organization::student()
+            $scope = $this->scopedOrganizationIds($user);
+            if ($scope !== null && ($filters['organization_id'] ?? null) && ! in_array((int) $filters['organization_id'], $scope, true)) {
+                return response()->json(['message' => 'That organization is outside your college.'], 403);
+            }
+            $organizations = Organization::student()->where('lifecycle_status', 'active')
+                ->when($scope !== null, fn ($q) => $q->whereIn('id', $scope))
                 ->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->whereKey($id))
                 ->orderBy('name')
                 ->get();
@@ -235,10 +275,16 @@ class ComplianceController extends Controller
             'reviewer:school_id,first_name,last_name',
         ]);
 
-        if ($request->user()->role === 'SUPER_ADMIN') {
-            $query->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->where('organization_id', $id));
+        $user = $request->user();
+        if ($user->role === 'ADMIN') {
+            $query->where('organization_id', $user->organization_id);
         } else {
-            $query->where('organization_id', $request->user()->organization_id);
+            $scope = $this->scopedOrganizationIds($user);
+            if ($scope !== null && ($filters['organization_id'] ?? null) && ! in_array((int) $filters['organization_id'], $scope, true)) {
+                return response()->json(['message' => 'That organization is outside your college.'], 403);
+            }
+            $query->when($scope !== null, fn ($q) => $q->whereIn('organization_id', $scope))
+                ->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->where('organization_id', $id));
         }
         $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
 
@@ -257,6 +303,9 @@ class ComplianceController extends Controller
         }
 
         $organizationId = $request->user()->organization_id;
+        if (Organization::whereKey($organizationId)->value('lifecycle_status') === 'archived') {
+            return response()->json(['message' => 'This organization is archived and its documents are read only.'], 409);
+        }
 
         // The already-approved check and the create-or-update must happen
         // against the same locked read: otherwise a resubmission racing a
@@ -367,6 +416,13 @@ class ComplianceController extends Controller
         $result = DB::transaction(function () use ($submission, $data, $reviewerId) {
             $locked = OrganizationComplianceSubmission::whereKey($submission->id)->lockForUpdate()->first();
 
+            $lifecycle = Organization::whereKey($submission->organization_id)->value('lifecycle_status');
+            if ($lifecycle === 'archived') {
+                return ['error' => 'archived'];
+            }
+            if ($lifecycle !== 'active') {
+                return ['error' => 'registration'];
+            }
             if (! $locked || $locked->status !== 'submitted') {
                 return ['error' => 'not_pending'];
             }
@@ -390,9 +446,13 @@ class ComplianceController extends Controller
 
         if (isset($result['error'])) {
             return response()->json([
-                'message' => $result['error'] === 'stale'
-                    ? 'This submission was resubmitted after you loaded it. Refresh and review the latest version.'
-                    : ($result['error'] === 'historical' ? 'Completed semester submissions are read only.' : 'Only a pending submission can be reviewed.'),
+                'message' => match ($result['error']) {
+                    'stale' => 'This submission was resubmitted after you loaded it. Refresh and review the latest version.',
+                    'historical' => 'Completed semester submissions are read only.',
+                    'archived' => 'This organization is archived and its documents are read only.',
+                    'registration' => 'Registration documents are reviewed through the organization review.',
+                    default => 'Only a pending submission can be reviewed.',
+                },
             ], 409);
         }
 
@@ -435,7 +495,8 @@ class ComplianceController extends Controller
 
     public function downloadSubmission(Request $request, OrganizationComplianceSubmission $submission)
     {
-        if ($request->user()->role !== 'SUPER_ADMIN' && $submission->organization_id !== $request->user()->organization_id) {
+        $scope = $this->scopedOrganizationIds($request->user());
+        if ($scope !== null && ! in_array($submission->organization_id, $scope, true)) {
             return response()->json(['message' => 'Compliance submission not found.'], 404);
         }
 
@@ -454,5 +515,33 @@ class ComplianceController extends Controller
         $response->headers->addCacheControlDirective('no-store');
 
         return $response;
+    }
+
+    public function documents(Request $request, ComplianceDocumentService $documents)
+    {
+        $filters = $request->validate([
+            'organization_id' => ['nullable', 'integer'],
+            'academic_semester_id' => ['nullable', 'integer', Rule::exists('academic_semesters', 'id')],
+            'source' => ['nullable', Rule::in(ComplianceDocumentService::SOURCES)],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $scope = $this->scopedOrganizationIds($request->user()) ?? Organization::student()->pluck('id')->all();
+        $organizationId = $filters['organization_id'] ?? null;
+        if ($organizationId && ! in_array((int) $organizationId, $scope, true)) {
+            return response()->json(['message' => 'That organization is outside your scope.'], 403);
+        }
+
+        $rows = $documents->rows($organizationId ? [(int) $organizationId] : $scope, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null);
+        $perPage = $filters['per_page'] ?? 20;
+        $page = LengthAwarePaginator::resolveCurrentPage();
+
+        return response()->json(new LengthAwarePaginator($rows->forPage($page, $perPage)->values(), $rows->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]));
+    }
+
+    /** Organizations the caller may read compliance for, or null when it may read every organization. */
+    private function scopedOrganizationIds(User $user): ?array
+    {
+        return $user->role === 'SUPER_ADMIN' ? null : $user->scopedOrganizationIds();
     }
 }
