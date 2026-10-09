@@ -197,6 +197,17 @@ class FinancialReportDocumentsTest extends TestCase
         $this->getJson('/api/financial-reports/'.$absent->id.'/documents/0')->assertNotFound();
     }
 
+    public function test_an_oversized_document_index_returns_not_found_instead_of_failing(): void
+    {
+        $world = $this->world();
+        $report = $this->submittedReportWithDocument($world);
+        $this->actingAsFresh($world['admin']);
+
+        $this->getJson('/api/financial-reports/'.$report->id.'/documents/99999999999999999999')->assertNotFound();
+        $this->getJson('/api/financial-reports/'.$report->id.'/documents/9999999')->assertNotFound();
+        $this->get('/api/financial-reports/'.$report->id.'/documents/0')->assertOk();
+    }
+
     public function test_secure_documents_command_moves_public_files_to_the_private_disk_and_is_idempotent(): void
     {
         $world = $this->world();

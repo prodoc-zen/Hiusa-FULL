@@ -157,7 +157,7 @@ class AccountProfileController extends Controller
     public function invite(Request $request)
     {
         $actor = $request->user();
-        $roles = ['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD'];
+        $roles = ['STUDENT', 'SBO_OFFICER'];
         if ($actor->role === 'SUPER_ADMIN') {
             $roles[] = 'ADMIN';
         }
