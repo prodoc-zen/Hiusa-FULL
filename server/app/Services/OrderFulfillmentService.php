@@ -271,7 +271,7 @@ class OrderFulfillmentService
             'user_id' => $order->student_id,
             'title' => $title,
             'message' => $message,
-            'notification_type' => 'merchandise',
+            'notification_type' => 'financial',
             'reference_type' => Order::class,
             'reference_id' => $order->id,
             'is_read' => false,
