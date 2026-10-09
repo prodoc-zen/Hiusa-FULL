@@ -27,13 +27,13 @@ class CacheApiResponse
                 // university-wide and college-wide views never hand back a
                 // stale cached response after any organization's write.
                 $this->invalidateSao();
-                if ($user->role === 'SUPER_ADMIN') {
-                    // A SUPER_ADMIN write can affect any organization (e.g.
-                    // approving an org's budget or booking), not just their
-                    // own - bumping only their own org's version left every
-                    // other org on a stale cache hit for up to the TTL. The
-                    // global version is part of every cache key, so this
-                    // invalidates everyone at once.
+                if (in_array($user->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
+                    // A SUPER_ADMIN or Department Head write can affect any
+                    // organization they oversee (e.g. approving an org's budget
+                    // or event), not just their own - bumping only their own
+                    // org's version left every other org on a stale cache hit
+                    // for up to the TTL. The global version is part of every
+                    // cache key, so this invalidates everyone at once.
                     $this->invalidateGlobal();
                 }
             }
