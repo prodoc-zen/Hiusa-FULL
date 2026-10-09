@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CalendarClock, File, Plus } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -14,8 +15,8 @@ const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const FORM_FIELDS = ['name', 'acronym', 'description', 'color'];
 
 const LIFECYCLE = {
-  pending: { tone: 'warning', label: 'Pending review' },
   returned: { tone: 'danger', label: 'Returned' },
+  pending: { tone: 'warning', label: 'Pending review' },
   active: { tone: 'success', label: 'Active' },
   archived: { tone: 'neutral', label: 'Archived' },
 };
@@ -27,6 +28,7 @@ const REQUIREMENT_STATUS = {
   not_submitted: { tone: 'neutral', label: 'Not submitted' },
 };
 
+const STATUS_PANEL_ID = 'organization-status-panel';
 const NO_SEMESTER_NOTICE = 'No registration requirements are open. The SAO must activate a semester first.';
 
 function formatSize(bytes) {
@@ -57,6 +59,8 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
   const [errors, setErrors] = useState({});
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [focusRequest, setFocusRequest] = useState(0);
+  const formRef = useRef(null);
   const [requirementsState, setRequirementsState] = useState({ loading: !isResubmit, error: null, semester: null, requirements: [] });
 
   const loadRequirements = useCallback(() => {
@@ -69,6 +73,10 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
   useEffect(() => {
     if (open && !isResubmit) loadRequirements();
   }, [open, isResubmit, loadRequirements]);
+
+  useEffect(() => {
+    if (focusRequest > 0) formRef.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [focusRequest]);
 
   const requirements = useMemo(() => (isResubmit
     ? (organization.registration_requirements || []).map((item) => ({ id: item.requirement_type_id, name: item.requirement_name, current: item }))
@@ -112,7 +120,10 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     const found = validate();
     setErrors(found);
     setFormError(null);
-    if (Object.keys(found).length > 0) return;
+    if (Object.keys(found).length > 0) {
+      setFocusRequest((count) => count + 1);
+      return;
+    }
 
     setSubmitting(true);
     const payload = { name: fields.name.trim(), acronym: fields.acronym.trim(), description: fields.description, color: fields.color };
@@ -127,6 +138,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
       setErrors(mapped);
       const knownKeys = [...FORM_FIELDS, ...requirements.map((requirement) => `files.${requirement.id}`)];
       if (!Object.keys(mapped).some((key) => knownKeys.includes(key))) setFormError(getApiErrorMessage(err, 'Could not submit this registration.'));
+      else setFocusRequest((count) => count + 1);
       if (err?.response?.status === 409) onSaved({ stayOpen: true });
     } finally {
       setSubmitting(false);
@@ -144,7 +156,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
       description={isResubmit ? 'Change the details and replace only the documents the SAO returned. Resubmitting sends it back to the SAO for review.' : 'The SAO reviews every registration. Attach all required documents as PDF files.'}
       onClose={() => !submitting && onClose()}
       closeOnBackdrop={false}
-      maxWidth="max-w-2xl"
+      maxWidth="max-w-[640px]"
       footer={showForm ? (
         <>
           <Button variant="secondary" onClick={onClose} disabled={submitting}>Cancel</Button>
@@ -161,7 +173,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
         </div>
       )}
       {showForm && (
-        <form onSubmit={handleSubmit} noValidate className="space-y-4">
+        <form ref={formRef} onSubmit={handleSubmit} noValidate className="space-y-4">
           {formError && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{formError}</p>}
           {isResubmit && organization.review_remarks && (
             <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
@@ -279,9 +291,18 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
 
 export default function CollegeOrganizationsPage() {
   const [state, setState] = useState({ loading: true, error: null, organizations: [] });
-  const [tab, setTab] = useState('all');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStatus = searchParams.get('status');
+  const tab = Object.hasOwn(LIFECYCLE, requestedStatus) ? requestedStatus : 'all';
   const [formTarget, setFormTarget] = useState(null);
   const [detailsTarget, setDetailsTarget] = useState(null);
+  const [lastDetails, setLastDetails] = useState(null);
+  if (detailsTarget && detailsTarget !== lastDetails) setLastDetails(detailsTarget);
+  const shownDetails = detailsTarget ?? lastDetails;
+
+  function changeTab(key) {
+    setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
+  }
 
   const load = useCallback(() => {
     setState((current) => ({ ...current, loading: true, error: null }));
@@ -297,9 +318,11 @@ export default function CollegeOrganizationsPage() {
   const college = state.organizations[0]?.college;
 
   const tabs = [
-    { key: 'all', label: `All (${state.organizations.length})` },
-    ...Object.entries(LIFECYCLE).map(([key, value]) => ({ key, label: `${value.label} (${counts[key] || 0})` })),
+    { key: 'all', label: `All (${state.organizations.length})`, panelId: STATUS_PANEL_ID },
+    ...Object.entries(LIFECYCLE).map(([key, value]) => ({ key, label: `${value.label} (${counts[key] || 0})`, panelId: STATUS_PANEL_ID })),
   ];
+
+  const mutedIfArchived = (organization) => (organization.lifecycle_status === 'archived' ? 'text-ink-muted' : '');
 
   const columns = [
     {
@@ -307,9 +330,9 @@ export default function CollegeOrganizationsPage() {
       header: 'Organization',
       render: (organization) => (
         <div className="flex min-w-0 items-start gap-2.5">
-          <OrgMark name={organization.name} acronym={organization.acronym} size="sm" />
+          <span className={organization.lifecycle_status === 'archived' ? 'grayscale' : ''}><OrgMark name={organization.name} acronym={organization.acronym} size="sm" /></span>
           <div className="min-w-0 text-left">
-            <p className="break-words font-semibold text-ink">{formatDisplayText(organization.name)}</p>
+            <p className={`break-words font-semibold ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
             <p className="text-xs font-medium text-ink-muted">{organization.acronym}</p>
             {organization.lifecycle_status === 'pending' && <p className="mt-1 text-xs font-semibold text-warning-strong">Waiting for SAO review</p>}
             {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-1 max-w-sm text-xs font-semibold text-danger-strong">SAO remarks: {organization.review_remarks}</p>}
@@ -318,10 +341,10 @@ export default function CollegeOrganizationsPage() {
         </div>
       ),
     },
-    { key: 'status', header: 'Status', render: (organization) => { const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active; return <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />; } },
-    { key: 'members', header: 'Members', align: 'right', render: (organization) => organization.members_count ?? 0 },
-    { key: 'admins', header: 'Admins', align: 'right', render: (organization) => organization.administrators_count ?? 0 },
-    { key: 'submitted', header: 'Submitted', render: (organization) => (organization.submitted_at ? manilaDate(organization.submitted_at) : '-') },
+    { key: 'status', header: 'Status', render: (organization) => { const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active; const badge = <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />; return organization.lifecycle_status === 'archived' ? <span role="group" aria-label="Archived, read only">{badge}</span> : badge; } },
+    { key: 'members', header: 'Members', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.members_count ?? 0}</span> },
+    { key: 'admins', header: 'Admins', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.administrators_count ?? 0}</span> },
+    { key: 'submitted', header: 'Submitted', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.submitted_at ? manilaDate(organization.submitted_at) : '-'}</span> },
   ];
 
   function closeForm() {
@@ -343,32 +366,34 @@ export default function CollegeOrganizationsPage() {
       />
 
       <Card bodyClassName="p-0">
-        <DataTable
-          stickyHeader={false}
-          caption="Organizations of your college"
-          rows={rows}
-          columns={columns}
-          loading={state.loading}
-          error={state.error}
-          onRetry={load}
-          filtersActive={tab !== 'all'}
-          filters={<div className="px-4 pt-2"><Tabs tabs={tabs} value={tab} onChange={setTab} /></div>}
-          emptyState={tab === 'all'
-            ? <EmptyState title="No organizations yet" description="Organizations you register for your college appear here with their review status." />
-            : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
-          actions={(organization) => (
-            <div className="flex flex-wrap items-center justify-end gap-2">
-              {organization.lifecycle_status === 'pending' && <Button variant="secondary" size="sm" onClick={() => setDetailsTarget(organization)}>View checklist</Button>}
-              {organization.lifecycle_status === 'returned' && (
-                <>
-                  <Button variant="secondary" size="sm" onClick={() => setDetailsTarget(organization)}>View checklist</Button>
-                  <Button size="sm" onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>
-                </>
-              )}
-              {(organization.lifecycle_status === 'active' || organization.lifecycle_status === 'archived') && <span className="text-xs font-medium text-ink-muted">Read only</span>}
-            </div>
-          )}
-        />
+        <div className="px-4 pt-2"><Tabs tabs={tabs} value={tab} onChange={changeTab} /></div>
+        <div role="tabpanel" id={STATUS_PANEL_ID} aria-label={`${tab === 'all' ? 'All' : LIFECYCLE[tab].label} organizations`}>
+          <DataTable
+            stickyHeader={false}
+            caption="Organizations of your college"
+            rows={rows}
+            columns={columns}
+            loading={state.loading}
+            error={state.error}
+            onRetry={load}
+            filtersActive={tab !== 'all'}
+            emptyState={tab === 'all'
+              ? <EmptyState title="No organizations yet" description="Organizations you register for your college appear here with their review status." />
+              : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
+            actions={(organization) => (
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                {organization.lifecycle_status === 'pending' && <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => setDetailsTarget(organization)}>View checklist</Button>}
+                {organization.lifecycle_status === 'returned' && (
+                  <>
+                    <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => setDetailsTarget(organization)}>View checklist</Button>
+                    <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>
+                  </>
+                )}
+                {(organization.lifecycle_status === 'active' || organization.lifecycle_status === 'archived') && <span className="text-xs font-medium text-ink-muted">Read only</span>}
+              </div>
+            )}
+          />
+        </div>
       </Card>
 
       {formTarget && (
@@ -381,9 +406,9 @@ export default function CollegeOrganizationsPage() {
         />
       )}
 
-      <Drawer open={Boolean(detailsTarget)} title={detailsTarget?.name} description={detailsTarget?.acronym} onClose={() => setDetailsTarget(null)} width="max-w-lg">
+      <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setDetailsTarget(null)} width="max-w-lg">
         <OrganizationDetails
-          organization={detailsTarget}
+          organization={shownDetails}
           onClose={() => setDetailsTarget(null)}
           onEdit={(organization) => { setDetailsTarget(null); setFormTarget({ mode: 'resubmit', organization }); }}
         />

@@ -416,22 +416,22 @@ export default function DepartmentHeadApprovalsPage() {
 
                   {request.status === 'pending' && (
                     <div className="flex shrink-0 gap-2">
-                      <button onClick={() => setDetails(request)} className="inline-flex h-9 items-center gap-1.5 rounded-md border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Eye size={13} /> Details</button>
+                      <button onClick={() => setDetails(request)} className="inline-flex h-[42px] sm:h-9 items-center gap-1.5 rounded-md border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Eye size={13} /> Details</button>
                       <button
                         onClick={() => setModalState({ open: true, request, action: 'approved' })}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
+                        className="inline-flex h-[42px] sm:h-9 items-center gap-1.5 rounded-md border border-emerald-200 bg-emerald-50 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-100"
                       >
                         <Check size={13} /> Approve
                       </button>
                       <button
                         onClick={() => setModalState({ open: true, request, action: 'rejected' })}
-                        className="inline-flex h-9 items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100"
+                        className="inline-flex h-[42px] sm:h-9 items-center gap-1.5 rounded-md border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700 hover:bg-red-100"
                       >
                         <X size={13} /> Reject
                       </button>
                     </div>
                   )}
-                  {request.status !== 'pending' && <button onClick={() => setDetails(request)} className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-md border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Eye size={13} /> Details</button>}
+                  {request.status !== 'pending' && <button onClick={() => setDetails(request)} className="inline-flex h-[42px] sm:h-9 shrink-0 items-center gap-1.5 rounded-md border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-slate-600 hover:bg-slate-50"><Eye size={13} /> Details</button>}
                 </div>
               );
             })}

@@ -399,7 +399,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       load(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, kind === 'budget' ? 'This budget could not be deleted.' : 'This transaction could not be deleted.'));
-      setDeleteTarget(null);
     } finally {
       setDeleteBusy(false);
     }
@@ -878,7 +877,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   return (
     <div className="space-y-5 pb-8">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
-      {deleteError && <p role="alert" className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">{deleteError}</p>}
 
       {canReadFinance && !canManageLedger && OVERSIGHT_TABS.includes(activeTab) && (
         <p className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm font-medium text-slate-600">
@@ -1839,11 +1837,12 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title={deleteTarget?.kind === 'budget' ? 'Delete this budget?' : 'Delete this transaction?'}
-        message={deleteTarget?.kind === 'budget' ? 'This cannot be undone. A budget that already has transactions cannot be deleted.' : 'This cannot be undone. It is removed from the ledger and its budget is adjusted. Entries created by collections, cash advances, invoices or orders must be changed from where they came from.'}
+        message={deleteTarget?.kind === 'budget' ? 'The budget is removed for good. This cannot be undone. A budget that already has transactions cannot be deleted.' : 'The entry is removed from the ledger and its budget balance is adjusted. This cannot be undone. Entries created by collections, cash advances, invoices or orders must be changed where they came from.'}
         recordName={deleteTarget?.kind === 'budget' ? deleteTarget.record.title : (deleteTarget?.record.description || `Transaction ${deleteTarget?.record.id}`)}
         confirmText={deleteTarget?.kind === 'budget' ? 'Delete budget' : 'Delete transaction'}
         variant="danger"
         busy={deleteBusy}
+        error={deleteError}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />

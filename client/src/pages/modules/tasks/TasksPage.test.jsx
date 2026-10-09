@@ -146,7 +146,21 @@ describe('TasksPage', () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'Delete' })[0]);
       const dialog = await screen.findByRole('dialog', { name: 'Delete this task?' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete task' }));
-      expect(await screen.findByRole('alert')).toHaveTextContent('You are not authorized to delete this task.');
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('You are not authorized to delete this task.');
+    });
+
+    it('flags the empty title next to its field and focuses it', async () => {
+      await renderBoard();
+      fireEvent.click(screen.getAllByRole('button', { name: 'Edit' })[0]);
+      const dialog = await screen.findByRole('dialog', { name: 'Edit task' });
+      const title = within(dialog).getByLabelText(/Task title/);
+      fireEvent.change(title, { target: { value: '' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
+
+      expect(await within(dialog).findByText('Enter a task title.')).toBeInTheDocument();
+      expect(title).toHaveAttribute('aria-invalid', 'true');
+      await waitFor(() => expect(title).toHaveFocus());
+      expect(mocks.updateTask).not.toHaveBeenCalled();
     });
 
     it('hides edit and delete from officers', async () => {

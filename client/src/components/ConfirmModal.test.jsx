@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import ConfirmModal from './ConfirmModal';
 
@@ -79,5 +79,22 @@ describe('ConfirmModal', () => {
     expect(confirm).toBeEnabled();
     confirm.click();
     expect(onConfirm).toHaveBeenCalledOnce();
+  });
+
+  it('keeps the dialog open and announces a server error inside it', () => {
+    render(
+      <ConfirmModal
+        open
+        title="Delete this budget?"
+        message="This cannot be undone."
+        recordName="Q1 Budget"
+        confirmText="Delete budget"
+        error="This budget has transactions."
+        onCancel={() => {}}
+        onConfirm={() => {}}
+      />,
+    );
+    const dialog = screen.getByRole('dialog', { name: 'Delete this budget?' });
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('This budget has transactions.');
   });
 });

@@ -288,7 +288,17 @@ describe('EventsPage delete', () => {
     renderEvents();
     await confirmDelete();
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('You are not authorized to delete this event.');
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this event?' });
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('You are not authorized to delete this event.');
+  });
+
+  it('states everything an event delete removes', async () => {
+    renderEvents();
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete event' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this event?' });
+    expect(dialog).toHaveTextContent(/tasks, attendance records, registrations, approval request and requirement files are deleted too/i);
+    expect(dialog).toHaveTextContent(/Venue bookings are kept but unlinked/i);
   });
 
   it('does not offer delete to officers', async () => {
