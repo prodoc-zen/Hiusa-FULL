@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Confidential grievances. A STUDENT files one addressed either to their own
@@ -218,6 +219,42 @@ class GrievanceController extends Controller
         }
 
         return response()->json($this->redact($grievance->fresh(), $request->user()->role));
+    }
+
+    public function destroy(Request $request, Grievance $grievance)
+    {
+        if (! $this->visibleTo($grievance, $request->user())) {
+            return response()->json(['message' => 'Grievance not found.'], 404);
+        }
+
+        $deleted = DB::transaction(function () use ($request, $grievance) {
+            if (! Grievance::whereKey($grievance->id)->where('status', 'submitted')->delete()) {
+                return false;
+            }
+
+            Notification::where('reference_type', 'grievance')->where('reference_id', $grievance->id)->delete();
+            // organization_id and user_id are intentionally null - see store().
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => null,
+                'actor_role' => $request->user()->role,
+                'module' => 'grievances',
+                'action' => 'grievance_deleted',
+                'record_type' => Grievance::class,
+                'record_id' => $grievance->id,
+                'new_values' => ['urgency' => $grievance->urgency, 'category' => $grievance->category],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json(['message' => 'Only grievances that have not been reviewed can be deleted.'], 409);
+        }
+
+        return response()->json(['message' => 'Grievance deleted.']);
     }
 
     private function visibleTo(Grievance $grievance, $user): bool

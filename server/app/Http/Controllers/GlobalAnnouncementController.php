@@ -11,6 +11,7 @@ use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /** Official SAO announcements; deliberately contains no AI generation endpoint. */
@@ -113,6 +114,26 @@ class GlobalAnnouncementController extends Controller
         return response()->json(['message' => 'Official announcement archived.']);
     }
 
+    public function destroy(Request $request, Announcement $announcement)
+    {
+        if ($announcement->announcement_source !== 'SAO') {
+            return response()->json(['message' => 'Announcement not found.'], 404);
+        }
+        if ($announcement->published_at) {
+            return response()->json(['message' => 'Published announcements cannot be deleted. Archive them instead.'], 409);
+        }
+        $imageUrl = $announcement->image_url;
+        DB::transaction(function () use ($request, $announcement) {
+            $this->audit($request, 'global_announcement_deleted', $announcement, ['title' => $announcement->title, 'target_scope' => $announcement->target_scope, 'recipient_count' => $announcement->recipients()->count()]);
+            $announcement->delete();
+        });
+        if ($imageUrl) {
+            Storage::disk('public')->delete(Str::after(parse_url($imageUrl, PHP_URL_PATH) ?: $imageUrl, '/storage/'));
+        }
+
+        return response()->json(['message' => 'Official announcement deleted.']);
+    }
+
     public function publishScheduled(): int
     {
         $announcements = Announcement::where('announcement_source', 'SAO')->where('is_published', true)->whereNull('published_at')->whereNotNull('scheduled_at')->where('scheduled_at', '<=', now())->get();
@@ -189,7 +210,7 @@ class GlobalAnnouncementController extends Controller
     private function audit(Request $request, string $action, Announcement $announcement, array $values): void
     {
         AuditLog::create(['organization_id' => $request->user()->organization_id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'global_announcements', 'action' => $action, 'description' => match ($action) {
-            'global_announcement_created' => 'SAO created an official announcement.', 'global_announcement_published' => 'SAO published an official announcement.', 'global_announcement_archived' => 'SAO archived an official announcement.', default => 'SAO updated an official announcement.'
+            'global_announcement_created' => 'SAO created an official announcement.', 'global_announcement_published' => 'SAO published an official announcement.', 'global_announcement_archived' => 'SAO archived an official announcement.', 'global_announcement_deleted' => 'SAO deleted an unpublished official announcement.', default => 'SAO updated an official announcement.'
         }, 'record_type' => Announcement::class, 'record_id' => $announcement->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
     }
 }
