@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\CacheApiResponse;
+use App\Http\Middleware\EnsureOrganizationWritable;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use App\Http\Middleware\SecurityHeadersMiddleware;
@@ -45,6 +46,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'cache.api' => CacheApiResponse::class,
             'role' => EnsureRole::class,
+            'org.writable' => EnsureOrganizationWritable::class,
             'account.profile' => UseAccountProfile::class,
         ]);
     })
