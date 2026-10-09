@@ -129,7 +129,7 @@ class FinancialReport extends Model
             foreach ($report->source_transaction_ids ?? [] as $id) {
                 $entry = $entries->get((int) $id);
 
-                if ($entry && $entry->organization_id === $report->organization_id) {
+                if ($entry && (int) $entry->organization_id === (int) $report->organization_id) {
                     $titles[$entry->id] ??= $report->title;
                 }
             }

@@ -6,6 +6,7 @@ use App\Contracts\FingerprintMatcher;
 use App\Services\HttpFingerprintMatcher;
 use App\Services\UnavailableFingerprintMatcher;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
@@ -66,9 +67,9 @@ class AppServiceProvider extends ServiceProvider
             $limits = [Limit::perMinute(config('performance.rate_limits.login_per_minute'))
                 ->by($request->ip())->response($tooManyRequests)];
 
-            if ($request->filled(['organization_id', 'school_id'])) {
+            if ($request->filled('school_id')) {
                 $limits[] = Limit::perMinute(max(3, (int) ceil(config('performance.rate_limits.login_per_minute') / 2)))
-                    ->by('account:'.$request->input('organization_id').':'.$request->input('school_id'))
+                    ->by('account:'.$request->input('school_id'))
                     ->response($tooManyRequests);
             }
 
@@ -82,6 +83,14 @@ class AppServiceProvider extends ServiceProvider
             if ($request->filled(['organization_id', 'email'])) {
                 $limits[] = Limit::perMinute(config('performance.rate_limits.password_per_minute'))
                     ->by('recovery:'.$request->input('organization_id').':'.strtolower((string) $request->input('email')))
+                    ->response($tooManyRequests);
+            }
+
+            // Throttling runs before the role check, so only the SAO counts here; otherwise any
+            // signed-in user could use up a target's hourly allowance with refused requests.
+            if ($request->user()?->role === 'SUPER_ADMIN' && $target = $request->route('user')) {
+                $limits[] = Limit::perHour(3)
+                    ->by('recovery-target:'.($target instanceof Model ? $target->getKey() : $target))
                     ->response($tooManyRequests);
             }
 

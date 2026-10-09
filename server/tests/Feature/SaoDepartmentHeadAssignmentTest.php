@@ -134,7 +134,7 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         $this->postJson("/api/system/colleges/{$this->computing->id}/department-head", $this->payload())->assertCreated();
     }
 
-    public function test_the_sao_updates_a_head_and_the_old_token_dies_on_deactivation(): void
+    public function test_the_sao_updates_a_head_and_the_old_token_dies_on_email_change_and_deactivation(): void
     {
         $head = $this->makeCollegeHead($this->computing, ['first_name' => 'Old', 'last_name' => 'Name']);
         $token = $head->createToken('session')->plainTextToken;
@@ -144,7 +144,8 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
             ->assertOk()
             ->assertJsonPath('first_name', 'Ramon')
             ->assertJsonPath('email', 'new.email@example.edu');
-        $this->assertSame(1, $head->tokens()->count());
+        $this->assertSame(0, $head->tokens()->count());
+        $token = $head->createToken('session')->plainTextToken;
         $this->assertSame(1, AuditLog::where('action', 'department_head_updated')->count());
 
         $this->putJson("/api/system/department-heads/{$head->school_id}", ['account_status' => 'inactive'])
