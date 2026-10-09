@@ -8,10 +8,12 @@ use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
 class CacheApiResponseTest extends TestCase
 {
+    use CreatesCollegeFixtures;
     use RefreshDatabase;
 
     public function test_admin_briefing_is_fresh_after_super_admin_approves_a_different_orgs_request(): void
@@ -67,6 +69,52 @@ class CacheApiResponseTest extends TestCase
         Sanctum::actingAs($admin);
         $after = $this->getJson('/api/dashboard/briefing')->assertOk();
         $this->assertSame('MISS', $after->headers->get('X-Cache'), 'Admin briefing must be fresh, not a stale cache hit, after a SUPER_ADMIN write to another org.');
+        $this->assertEquals(1000.0, $after->json('pillars.finance.value'));
+    }
+
+    public function test_admin_briefing_is_fresh_after_a_department_head_approves_a_student_organization_budget(): void
+    {
+        config(['performance.api_cache.enabled' => true, 'performance.api_cache.ttl_seconds' => 20]);
+
+        $college = $this->makeCollege('CCS');
+        $this->makeCollegeHome($college);
+        $head = $this->makeCollegeHead($college);
+        $organization = $this->makeCollegeStudentOrganization($college);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+
+        $budget = Budget::factory()->create([
+            'organization_id' => $organization->id,
+            'allocated_amount' => 1000,
+            'remaining_amount' => 1000,
+            'submission_status' => 'pending_department_head',
+        ]);
+        $approval = ApprovalRequest::create([
+            'organization_id' => $organization->id,
+            'entity_type' => 'budget',
+            'entity_id' => $budget->id,
+            'requested_by' => $admin->school_id,
+            'required_role' => 'DEPARTMENT_HEAD',
+            'status' => 'pending',
+            'requested_at' => now(),
+        ]);
+
+        Sanctum::actingAs($admin);
+        $first = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $this->assertSame('MISS', $first->headers->get('X-Cache'));
+        $this->assertEquals(0.0, $first->json('pillars.finance.value'));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($admin);
+        $this->assertSame('HIT', $this->getJson('/api/dashboard/briefing')->assertOk()->headers->get('X-Cache'));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($head);
+        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'approved'])->assertOk();
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($admin);
+        $after = $this->getJson('/api/dashboard/briefing')->assertOk();
+        $this->assertSame('MISS', $after->headers->get('X-Cache'), 'The Admin must not see a stale cache hit after the Department Head decides.');
         $this->assertEquals(1000.0, $after->json('pillars.finance.value'));
     }
 
