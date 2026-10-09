@@ -26,7 +26,7 @@ class VenueBookingController extends Controller
         $filters = $request->validate([
             'status' => ['nullable', 'in:pending,approved,rejected,withdrawn'],
             'venue_id' => ['nullable', 'integer', 'exists:venues,id'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
             'from' => ['nullable', 'date'],
             'to' => ['nullable', 'date', 'after_or_equal:from'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],

@@ -95,24 +95,18 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->postJson('/api/users', ['school_id' => 889900, 'first_name' => 'New', 'last_name' => 'Admin', 'email' => 'new-admin@example.test', 'password' => 'Password123!', 'password_confirmation' => 'Password123!', 'role' => 'ADMIN'])->assertCreated();
     }
 
-    public function test_sao_registers_and_deactivates_an_organization_with_target_scoped_audits(): void
+    public function test_sao_deactivates_an_organization_with_target_scoped_audits(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create(['is_active' => true]);
         Sanctum::actingAs($director);
 
-        $created = $this->postJson('/api/system/organizations', [
-            'name' => 'Computing Student Council',
-            'acronym' => 'CSC',
-            'college' => 'College of Computing',
-        ])->assertCreated()->json();
-
-        $this->putJson('/api/system/organizations/'.$created['id'], ['is_active' => false])
+        $this->putJson('/api/system/organizations/'.$organization->id, ['is_active' => false])
             ->assertOk()
             ->assertJsonPath('is_active', false);
 
-        $this->assertDatabaseHas('audit_logs', ['organization_id' => $created['id'], 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_created']);
-        $this->assertDatabaseHas('audit_logs', ['organization_id' => $created['id'], 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_deactivated']);
+        $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_deactivated']);
     }
 
     public function test_sao_sets_initial_admin_password_and_can_later_initiate_secure_reset(): void

@@ -16,7 +16,7 @@ class UserSeeder extends Seeder
 
         $defaultOrganizationId = Organization::where('acronym', 'PSITS-CCS')->value('id');
         $otherOrganizationIds = Organization::where('acronym', '!=', 'PSITS-CCS')
-            ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
+            ->student()
             ->pluck('id')
             ->values();
 

@@ -4,6 +4,7 @@ namespace Database\Seeders;
 
 use App\Models\ApprovalRequest;
 use App\Models\Event;
+use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Database\Seeder;
 
@@ -12,7 +13,7 @@ class EventSeeder extends Seeder
     public function run(): void
     {
         $officer1 = User::where('school_id', 900001)->first();
-        $deptHead = User::where('organization_id', $officer1->organization_id)
+        $deptHead = User::where('organization_id', Organization::find($officer1->organization_id)->collegeHomeOrganization?->id)
             ->where('role', 'DEPARTMENT_HEAD')
             ->first();
 

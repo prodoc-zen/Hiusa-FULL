@@ -37,7 +37,7 @@ class SetupChecklistService
 
     private function saoSteps(): array
     {
-        $organizationIds = DB::table('organizations')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->where('is_active', true)->pluck('id');
+        $organizationIds = DB::table('organizations')->where('organization_type', 'STUDENT_ORGANIZATION')->where('is_active', true)->pluck('id');
         $withAdmin = DB::table('users')->whereIn('organization_id', $organizationIds)->where('role', 'ADMIN')->where('account_status', 'active')->distinct()->count('organization_id');
         $saoId = DB::table('organizations')->where('organization_type', 'SYSTEM_ADMINISTRATION')->value('id');
 

@@ -165,6 +165,24 @@ class User extends Authenticatable
         return $this->belongsTo(Organization::class);
     }
 
+    /** @return array<int, int> */
+    public function scopedOrganizationIds(): array
+    {
+        $organizationId = $this->organization_id;
+
+        if ($this->role !== 'DEPARTMENT_HEAD') {
+            return [$organizationId];
+        }
+
+        $collegeId = Organization::whereKey($organizationId)->value('college_id');
+
+        if (! $collegeId) {
+            return [$organizationId];
+        }
+
+        return Organization::student()->where('college_id', $collegeId)->pluck('id')->all();
+    }
+
     public function events(): HasMany
     {
         return $this->hasMany(Event::class, 'created_by', 'school_id');

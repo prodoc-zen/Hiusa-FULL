@@ -207,7 +207,7 @@ class DashboardBriefingService
     {
         $role = $user->role;
         $organizationIds = DB::table('organizations')
-            ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
+            ->where('organization_type', 'STUDENT_ORGANIZATION')
             ->pluck('id');
 
         $attention = $this->prioritize(array_merge(

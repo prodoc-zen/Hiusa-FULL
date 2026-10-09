@@ -29,7 +29,7 @@ class OrganizationLeadershipLoginTest extends TestCase
             ->assertOk()
             ->assertJsonPath('user.role', 'SUPER_ADMIN');
 
-        foreach (Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->get() as $organization) {
+        foreach (Organization::student()->get() as $organization) {
             $advisers = User::where('organization_id', $organization->id)
                 ->where('role', 'ADMIN')
                 ->where('position_title', 'Adviser')

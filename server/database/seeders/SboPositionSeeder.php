@@ -23,7 +23,7 @@ class SboPositionSeeder extends Seeder
             'Business Manager',
         ];
 
-        Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->get(['id'])->each(function (Organization $organization) use ($positions) {
+        Organization::student()->get(['id'])->each(function (Organization $organization) use ($positions) {
             foreach (['ADMIN', 'SBO_OFFICER'] as $role) {
                 foreach ($positions as $title) {
                     SboPosition::updateOrCreate(

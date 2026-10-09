@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
+use App\Models\College;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\Notification;
@@ -28,7 +29,7 @@ class SystemAdministrationController extends Controller
     public function overview(Request $request)
     {
         $organizationId = $request->integer('organization_id') ?: null;
-        $organizationIds = Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->pluck('id');
+        $organizationIds = Organization::student()->pluck('id');
         if ($organizationId && ! $organizationIds->contains($organizationId)) {
             return response()->json(['message' => 'Organization is not available for SAO oversight.'], 422);
         }
@@ -76,7 +77,7 @@ class SystemAdministrationController extends Controller
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = Organization::withCount('accountProfiles as users_count')->with(['administrators:school_id,organization_id,first_name,last_name,email,account_status', 'parentOrganization:id,name,acronym'])
             ->withCount(['accountProfiles as administrators_count' => fn ($query) => $query->where('role', 'ADMIN')])
-            ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION');
+            ->student();
         if (! empty($filters['search'])) {
             $query->where(fn ($q) => $q->where('name', 'like', '%'.$filters['search'].'%')->orWhere('acronym', 'like', '%'.$filters['search'].'%')->orWhere('college', 'like', '%'.$filters['search'].'%'));
         }
@@ -87,27 +88,27 @@ class SystemAdministrationController extends Controller
         return response()->json($query->orderBy('name')->paginate($filters['per_page'] ?? 20));
     }
 
-    public function storeOrganization(Request $request)
-    {
-        $data = $request->validate(['name' => ['required', 'string', 'max:255', 'unique:organizations,name'], 'acronym' => ['required', 'string', 'max:50', 'unique:organizations,acronym'], 'college' => ['nullable', 'string', 'max:255', Rule::requiredIf($request->filled('parent_organization_id'))], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'], 'is_active' => ['sometimes', 'boolean']]);
-        $organization = Organization::create([...$data, 'slug' => Str::slug($data['name']), 'organization_type' => 'STUDENT_ORGANIZATION', 'is_active' => $data['is_active'] ?? true]);
-        $this->audit($request, 'organization_created', $organization, $organization->toArray(), 'SAO registered a student organization.');
-
-        return response()->json($organization, 201);
-    }
-
     public function updateOrganization(Request $request, Organization $organization)
     {
         if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') {
             return response()->json(['message' => 'The SAO system organization is not managed as an SBO.'], 403);
         }
-        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college' => ['sometimes', 'required', 'string', 'max:255'], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'], 'is_active' => ['sometimes', 'boolean']]);
+        if ($organization->organization_type === 'COLLEGE') {
+            return response()->json(['message' => 'College home organizations are managed through their college.'], 403);
+        }
+        if (! $organization->isWritable()) {
+            return response()->json(['message' => $organization->isArchived() ? 'Archived organizations cannot be edited.' : 'Only active organizations can be edited.'], 409);
+        }
+        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college_id' => ['sometimes', 'required', 'integer', Rule::exists('colleges', 'id')], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'], 'is_active' => ['sometimes', 'boolean']]);
         if ($organization->suborganizations()->exists() && array_key_exists('parent_organization_id', $data) && $data['parent_organization_id']) {
             return response()->json(['message' => 'An organization with suborganizations cannot become a suborganization.'], 422);
         }
         $old = $organization->toArray();
         if (isset($data['name'])) {
             $data['slug'] = Str::slug($data['name']);
+        }
+        if (isset($data['college_id'])) {
+            $data['college'] = College::whereKey($data['college_id'])->value('name');
         }
         $organization->update($data);
         $fresh = $organization->fresh();
@@ -123,7 +124,7 @@ class SystemAdministrationController extends Controller
 
     public function uploadOrganizationLogo(Request $request, Organization $organization)
     {
-        abort_if($organization->organization_type === 'SYSTEM_ADMINISTRATION', 403);
+        abort_if($organization->organization_type !== 'STUDENT_ORGANIZATION', 403);
         $request->validate(['logo' => ['required', 'image', 'mimes:jpeg,png,webp', 'max:2048']]);
         $path = $request->file('logo')->store('organization-logos', 'public');
         $oldUrl = $organization->logo_url;
@@ -147,7 +148,7 @@ class SystemAdministrationController extends Controller
         $filters = $request->validate(['organization_id' => ['nullable', 'integer', 'exists:organizations,id'], 'search' => ['nullable', 'string', 'max:120'], 'status' => ['nullable', 'in:active,inactive,disabled,all'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
         $query = User::with('organization:id,name,acronym,college,parent_organization_id')
             ->where('role', 'ADMIN')
-            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION'));
+            ->whereHas('organization', fn ($organization) => $organization->student());
         if (! empty($filters['organization_id'])) {
             $query->where('organization_id', $filters['organization_id']);
         }
@@ -165,7 +166,7 @@ class SystemAdministrationController extends Controller
     {
         $this->normalizeAdminInput($request);
         $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
-        $organization = Organization::whereKey($data['organization_id'])->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->first();
+        $organization = Organization::whereKey($data['organization_id'])->student()->first();
         if (! $organization) {
             return response()->json(['message' => 'Choose an active student organization.'], 422);
         }
@@ -197,7 +198,7 @@ class SystemAdministrationController extends Controller
 
     public function updateAdmin(Request $request, User $user)
     {
-        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->exists()) {
+        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
             return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
         }
         if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
@@ -207,7 +208,7 @@ class SystemAdministrationController extends Controller
         $this->normalizeAdminInput($request);
         $data = $request->validate(['organization_id' => ['sometimes', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'first_name' => ['sometimes', 'required', 'string', 'max:60'], 'last_name' => ['sometimes', 'required', 'string', 'max:60'], 'email' => ['sometimes', 'required', 'email', 'max:255', Rule::unique('users', 'email')->ignore($user->school_id, 'school_id')], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'account_status' => ['sometimes', 'in:active,inactive,disabled']]);
         if (isset($data['organization_id'])) {
-            $organization = Organization::whereKey($data['organization_id'])->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->first();
+            $organization = Organization::whereKey($data['organization_id'])->student()->first();
             if (! $organization) {
                 return response()->json(['message' => 'Choose an active student organization.'], 422);
             }
@@ -269,7 +270,7 @@ class SystemAdministrationController extends Controller
     public function organizationMembers(Request $request, Organization $organization)
     {
         $filters = $request->validate(['search' => ['nullable', 'string', 'max:120']]);
-        if ($organization->organization_type === 'SYSTEM_ADMINISTRATION') {
+        if ($organization->organization_type !== 'STUDENT_ORGANIZATION') {
             return response()->json(['message' => 'Choose a student organization.'], 422);
         }
 
@@ -297,7 +298,7 @@ class SystemAdministrationController extends Controller
      */
     public function handoverAdmin(Request $request, User $user)
     {
-        $organization = Organization::whereKey($user->organization_id)->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->first();
+        $organization = Organization::whereKey($user->organization_id)->student()->first();
         if ($user->role !== 'ADMIN' || ! $organization) {
             return response()->json(['message' => 'Only organization administrator accounts can be handed over.'], 422);
         }
@@ -368,7 +369,7 @@ class SystemAdministrationController extends Controller
 
     public function initiateAdminPasswordReset(Request $request, User $user)
     {
-        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->exists()) {
+        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
             return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
         }
         if ($user->account_status !== 'active') {

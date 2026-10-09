@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\FinancialForecast;
+use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Database\Seeder;
@@ -50,11 +51,12 @@ class BudgetSeeder extends Seeder
         // event approval demo.
         $firstRole = config('approvals.routes.budget');
         $finalRole = config('approvals.budget_final');
-        $firstApprover = User::where('organization_id', $officer1->organization_id)
+        $approverOrganizationIds = [$officer1->organization_id, Organization::find($officer1->organization_id)->collegeHomeOrganization?->id];
+        $firstApprover = User::whereIn('organization_id', $approverOrganizationIds)
             ->where('role', $firstRole)
             ->first() ?? $officer1;
         $finalApprover = $finalRole
-            ? User::where('organization_id', $officer1->organization_id)->where('role', $finalRole)->first()
+            ? User::whereIn('organization_id', $approverOrganizationIds)->where('role', $finalRole)->first()
             : null;
 
         foreach ([

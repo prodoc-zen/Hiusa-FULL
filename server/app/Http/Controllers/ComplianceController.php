@@ -88,7 +88,7 @@ class ComplianceController extends Controller
 
         $admins = User::where('role', 'ADMIN')
             ->where('account_status', 'active')
-            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION'))
+            ->whereHas('organization', fn ($organization) => $organization->student())
             ->get(['school_id', 'organization_id']);
         Notification::insert($admins->map(fn (User $admin) => [
             'organization_id' => $admin->organization_id,
@@ -148,7 +148,7 @@ class ComplianceController extends Controller
     {
         $admins = User::where('role', 'ADMIN')
             ->where('account_status', 'active')
-            ->whereHas('organization', fn ($organization) => $organization->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION'))
+            ->whereHas('organization', fn ($organization) => $organization->student())
             ->get(['school_id', 'organization_id']);
 
         Notification::insert($admins->map(fn (User $admin) => [
@@ -170,13 +170,13 @@ class ComplianceController extends Controller
     {
         $filters = $request->validate([
             'academic_year' => ['nullable', 'string', 'max:20'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
         ]);
 
         if ($request->user()->role === 'ADMIN') {
             $organizations = Organization::whereKey($request->user()->organization_id)->get();
         } else {
-            $organizations = Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
+            $organizations = Organization::student()
                 ->when($filters['organization_id'] ?? null, fn ($q, $id) => $q->whereKey($id))
                 ->orderBy('name')
                 ->get();
@@ -223,7 +223,7 @@ class ComplianceController extends Controller
     public function submissions(Request $request)
     {
         $filters = $request->validate([
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
             'status' => ['nullable', 'in:submitted,approved,returned'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
