@@ -12,6 +12,7 @@ use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -169,7 +170,7 @@ class SystemAdministrationController extends Controller
     public function storeAdmin(Request $request)
     {
         $this->normalizeAdminInput($request);
-        $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
+        $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:100', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
         $organization = Organization::whereKey($data['organization_id'])->student()->first();
         if (! $organization) {
             return response()->json(['message' => 'Choose an active student organization.'], 422);
@@ -329,11 +330,16 @@ class SystemAdministrationController extends Controller
                 return response()->json(['message' => $problem], 422);
             }
         } else {
-            $newAccount = $request->validate(['school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:255', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
+            $newAccount = $request->validate(['school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:100', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
         }
 
-        $position = $user->position_title;
-        $successor = DB::transaction(function () use ($request, $user, $organization, $mode, $successor, $position, $newAccount) {
+        $successor = DB::transaction(function () use ($request, $user, $organization, $mode, $successor, $newAccount) {
+            $outgoing = User::whereKey($user->school_id)->lockForUpdate()->first();
+            if (! $outgoing || $outgoing->role !== 'ADMIN' || $outgoing->account_status !== 'active') {
+                return response()->json(['message' => 'This administrator was already handed over. Refresh and check the current administrator.'], 409);
+            }
+            $user = $outgoing;
+            $position = $user->position_title;
             $this->ensureAdminPosition($organization->id, $position);
             if ($mode === 'new') {
                 $successor = User::create([
@@ -364,6 +370,9 @@ class SystemAdministrationController extends Controller
 
             return $successor;
         });
+        if ($successor instanceof JsonResponse) {
+            return $successor;
+        }
 
         return response()->json([
             'outgoing' => $user->fresh()->load('organization:id,name,acronym'),
