@@ -1,15 +1,17 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentGrievancesPage from './StudentGrievancesPage';
 
 const mocks = vi.hoisted(() => ({
   getGrievances: vi.fn(),
   createGrievance: vi.fn(),
+  deleteGrievance: vi.fn(),
 }));
 
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
   createGrievance: mocks.createGrievance,
+  deleteGrievance: mocks.deleteGrievance,
 }));
 
 describe('StudentGrievancesPage', () => {
@@ -78,5 +80,44 @@ describe('StudentGrievancesPage', () => {
     expect(await screen.findByText('Harassment Near the Guard Post')).toBeInTheDocument();
     expect(screen.getByText('Critical urgency')).toBeInTheDocument();
     expect(screen.getByText('ai-service')).toBeInTheDocument();
+  });
+
+  describe('deleting a grievance', () => {
+    const base = { description: 'Detail.', organization_id: 4, urgency: 'Low', category: 'Other', classification_engine: 'ai-service', created_at: new Date().toISOString() };
+    const submitted = { ...base, id: 1, title: 'Broken lock', status: 'submitted' };
+    const reviewed = { ...base, id: 2, title: 'Noisy lab', status: 'under_review' };
+
+    async function openDeleteDialog() {
+      mocks.getGrievances.mockResolvedValue({ data: { data: [submitted, reviewed] } });
+      render(<StudentGrievancesPage />);
+      fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete grievance Broken Lock' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this grievance?' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete grievance' }));
+    }
+
+    it('offers delete only while the grievance is still submitted', async () => {
+      mocks.getGrievances.mockResolvedValue({ data: { data: [submitted, reviewed] } });
+      render(<StudentGrievancesPage />);
+      fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
+      await screen.findByText('Broken Lock');
+      expect(screen.getAllByRole('button', { name: /Delete grievance/ })).toHaveLength(1);
+      expect(screen.queryByRole('button', { name: 'Delete grievance Noisy Lab' })).not.toBeInTheDocument();
+    });
+
+    it('deletes after confirmation and reloads the list', async () => {
+      mocks.deleteGrievance.mockResolvedValue({ data: { message: 'Deleted.' } });
+      await openDeleteDialog();
+
+      await waitFor(() => expect(mocks.deleteGrievance).toHaveBeenCalledWith(1));
+      await waitFor(() => expect(mocks.getGrievances).toHaveBeenCalledTimes(2));
+    });
+
+    it('shows the server message when the grievance was already reviewed', async () => {
+      mocks.deleteGrievance.mockRejectedValue({ response: { status: 409, data: { message: 'Only grievances that have not been reviewed can be deleted.' } } });
+      await openDeleteDialog();
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('Only grievances that have not been reviewed can be deleted.');
+    });
   });
 });
