@@ -4,9 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Merchandise;
-use App\Models\MerchandiseVariant;
-use Illuminate\Http\Request;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -17,6 +16,7 @@ class MerchandiseController extends Controller
     private function storeMerchandiseImage(Request $request): string
     {
         $file = $request->file('image');
+
         return $this->storeImageFile($file);
     }
 

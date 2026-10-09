@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AcademicYear;
 use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\AuditLog;
 use App\Models\ClearancePeriod;
 use App\Models\ComplianceRequirementType;

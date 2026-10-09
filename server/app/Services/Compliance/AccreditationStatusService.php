@@ -2,8 +2,8 @@
 
 namespace App\Services\Compliance;
 
-use App\Models\AcademicYear;
 use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
 use App\Models\ComplianceRequirementType;
 use App\Models\OrganizationComplianceSubmission;
 use Illuminate\Support\Collection;
@@ -68,7 +68,7 @@ class AccreditationStatusService
 
     /**
      * @param  Collection<int, string>  $requirementStatuses  one entry per
-     *                                                         requirement type: not_submitted|submitted|approved|returned
+     *                                                        requirement type: not_submitted|submitted|approved|returned
      */
     public function resolve(Collection $requirementStatuses): string
     {

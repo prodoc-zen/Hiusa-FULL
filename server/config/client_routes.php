@@ -27,7 +27,6 @@
  * one role's pending pages can never leak into a live href for a role
  * that has no client route for them at all.
  */
-
 $pendingClient = [];
 
 return [

@@ -12,10 +12,10 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 
 class Transaction extends Model
 {
-    use SerializesLocalDates;
-
     /** @use HasFactory<TransactionFactory> */
     use HasFactory;
+
+    use SerializesLocalDates;
 
     protected $guarded = [];
 

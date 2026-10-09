@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Exceptions\InvoiceSettlementRequired;
-use App\Models\Announcement;
 use App\Models\AcademicSemester;
+use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Election;
 use App\Models\Event;
+use App\Models\EventRequirementFile;
 use App\Models\FinancialReport;
 use App\Models\Notification;
 use App\Models\Order;
@@ -435,7 +436,7 @@ class ApprovalRequestController extends Controller
                 'end_time' => $entity->end_time,
                 'location' => $entity->location,
                 'status' => $entity->status,
-                'requirement_files' => \App\Models\EventRequirementFile::with('requirement:id,name')
+                'requirement_files' => EventRequirementFile::with('requirement:id,name')
                     ->where('event_id', $entity->id)->get()->map(fn ($file) => [
                         'id' => $file->id,
                         'requirement' => $file->requirement?->name,

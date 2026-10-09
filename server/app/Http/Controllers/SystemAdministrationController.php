@@ -11,12 +11,13 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
+use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 /** SAO-only administration and read-only university oversight. */
@@ -261,7 +262,7 @@ class SystemAdministrationController extends Controller
 
         $organizationId = $user->getRawOriginal('organization_id');
         $profile = $user->accountProfiles()->where('organization_id', $organizationId)->firstOrFail();
-        $result = app(\App\Services\AccountProfileDeletionService::class)->remove($request->user(), $profile);
+        $result = app(AccountProfileDeletionService::class)->remove($request->user(), $profile);
 
         $this->audit($request, 'administrator_deleted', $user, [
             'administrator_id' => $user->school_id,
