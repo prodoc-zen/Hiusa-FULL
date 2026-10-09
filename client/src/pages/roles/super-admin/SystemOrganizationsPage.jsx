@@ -1,8 +1,8 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
-import { Fragment, useCallback, useEffect, useState } from 'react';
-import { Archive, Building2, ExternalLink, FileText, PencilLine, Search, UserPlus, Users } from 'lucide-react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
+import { Archive, Building2, ExternalLink, FileText, PencilLine, UserPlus, Users } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { getSystemAgency, getSystemColleges, getSystemOrganizationOverview, getSystemOrganizations, archiveSystemOrganization, restoreSystemOrganization, reviewSystemOrganization, updateSystemOrganization, uploadSystemOrganizationLogo } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
@@ -12,7 +12,7 @@ import Modal from '../../../components/Modal';
 import TableRowActions from '../../../components/TableRowActions';
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
-import { Button, Drawer, EmptyState, ErrorState, Field, SkeletonCard, StatusBadge, Tabs, Textarea } from '../../../components/ui';
+import { Button, Drawer, EmptyState, ErrorState, Field, Input, SkeletonCard, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -20,11 +20,13 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { organizationOverviewPath } from './agencyStatus';
 
+const PANEL_ID = 'sao-organizations-panel';
+const SEARCH_DEBOUNCE_MS = 250;
 const STATUS_TABS = [
-  { key: 'pending', label: 'Pending review' },
-  { key: 'active', label: 'Active' },
-  { key: 'returned', label: 'Returned' },
-  { key: 'archived', label: 'Archived' },
+  { key: 'pending', label: 'Pending review', panelId: PANEL_ID },
+  { key: 'active', label: 'Active', panelId: PANEL_ID },
+  { key: 'returned', label: 'Returned', panelId: PANEL_ID },
+  { key: 'archived', label: 'Archived', panelId: PANEL_ID },
 ];
 const STATUS_KEYS = STATUS_TABS.map((tab) => tab.key);
 const EMPTY_COPY = {
@@ -34,6 +36,11 @@ const EMPTY_COPY = {
   archived: 'No archived organizations.',
 };
 const inputClass = 'mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 font-normal outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20';
+
+function LifecycleBadge({ status }) {
+  if (status !== 'archived') return <StatusBadge status={status} className="h-fit" />;
+  return <span role="img" aria-label="Archived, read only" className="h-fit"><StatusBadge status={status} /></span>;
+}
 
 function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
   const [details, setDetails] = useState(null);
@@ -45,6 +52,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
   const [submitError, setSubmitError] = useState('');
   const [openingId, setOpeningId] = useState(null);
   const [fileError, setFileError] = useState('');
+  const remarksRef = useRef(null);
 
   const loadDetails = useCallback(async () => {
     setLoading(true);
@@ -79,6 +87,8 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
     const trimmed = remarks.trim();
     if (decision === 'return' && !trimmed) {
       setRemarksError('Add remarks explaining what the Department Head needs to fix.');
+      remarksRef.current?.focus();
+      remarksRef.current?.scrollIntoView?.({ block: 'center' });
       return;
     }
     setRemarksError('');
@@ -112,8 +122,9 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
       width="max-w-lg"
       footer={(
         <>
+          {loadError && !loading && <p role="note" className="mr-auto text-xs font-semibold text-danger-strong">Approve is unavailable until the registration details load.</p>}
           <Button variant="secondary" onClick={() => decide('return')} loading={submitting === 'return'} disabled={Boolean(submitting) || loading}>Return</Button>
-          <Button onClick={() => decide('approve')} loading={submitting === 'approve'} disabled={Boolean(submitting) || loading}>Approve</Button>
+          <Button onClick={() => decide('approve')} loading={submitting === 'approve'} disabled={Boolean(submitting) || loading || Boolean(loadError)}>Approve</Button>
         </>
       )}
     >
@@ -139,7 +150,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
                   <p className="flex items-center gap-2 break-words text-sm font-bold text-ink"><FileText size={15} className="shrink-0 text-brand-700" aria-hidden="true" />{document.item}</p>
                   <p className="mt-0.5 break-words text-xs font-medium text-ink-muted">{document.file_name || 'No file name'}{document.submitted_at ? ` · ${manilaDate(document.submitted_at)}` : ''}</p>
                 </div>
-                <Button variant="secondary" size="sm" leftIcon={ExternalLink} loading={openingId === document.open_url} disabled={!document.open_url} onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
+                <Button variant="secondary" size="sm" leftIcon={ExternalLink} loading={openingId === document.open_url} disabled={!document.open_url} className="max-md:min-h-[42px]" onClick={() => openFile(document)} aria-label={`Open ${document.file_name || document.item}`}>Open</Button>
               </li>
             ))}
           </ul>
@@ -148,7 +159,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
 
       <div className="mt-5 border-t border-line pt-4">
         <Field label="Remarks (required to return)" error={remarksError} hint="Shown to the Department Head when you return the registration.">
-          <Textarea rows={4} maxLength={3000} value={remarks} onChange={(event) => { setRemarks(event.target.value); setRemarksError(''); }} disabled={Boolean(submitting)} />
+          <Textarea ref={remarksRef} rows={4} maxLength={3000} value={remarks} onChange={(event) => { setRemarks(event.target.value); setRemarksError(''); }} disabled={Boolean(submitting)} />
         </Field>
         {submitError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{submitError}</p>}
       </div>
@@ -196,6 +207,10 @@ export default function SystemOrganizationsPage() {
   const [notice, setNotice] = useState('');
   const [actionError, setActionError] = useState('');
   const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [debouncedSearch, setDebouncedSearch] = useState(search);
+  const requestToken = useRef(0);
+  const handledReview = useRef(null);
+  const reviewParam = searchParams.get('review');
   const [form, setForm] = useState(null);
   const [logoFile, setLogoFile] = useState(null);
   const [membershipOrganization, setMembershipOrganization] = useState(null);
@@ -232,9 +247,11 @@ export default function SystemOrganizationsPage() {
 
   const load = useCallback(async (requestedPage = page) => {
     if (!status) return;
+    const token = ++requestToken.current;
     setLoading(true);
     try {
-      const data = await getSystemOrganizations({ search, lifecycle_status: status, per_page: 100, page: requestedPage });
+      const data = await getSystemOrganizations({ search: debouncedSearch, lifecycle_status: status, per_page: 100, page: requestedPage });
+      if (token !== requestToken.current) return;
       setItems([...(data.data || [])].sort((left, right) =>
         (left.college || '').localeCompare(right.college || '')
         || Number(Boolean(left.parent_organization_id)) - Number(Boolean(right.parent_organization_id))
@@ -243,12 +260,44 @@ export default function SystemOrganizationsPage() {
       setLastPage(data.last_page || 1);
       setError('');
     } catch (cause) {
+      if (token !== requestToken.current) return;
       setError(getApiErrorMessage(cause, 'Unable to load organizations.'));
     } finally {
-      setLoading(false);
+      if (token === requestToken.current) setLoading(false);
     }
-  }, [page, search, status]);
+  }, [page, debouncedSearch, status]);
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    if (search === debouncedSearch) return undefined;
+    const timer = window.setTimeout(() => { setDebouncedSearch(search); setPage(1); }, SEARCH_DEBOUNCE_MS);
+    return () => window.clearTimeout(timer);
+  }, [search, debouncedSearch]);
+
+  useEffect(() => {
+    if (!reviewParam) {
+      handledReview.current = null;
+      return;
+    }
+    if (!status || loading || handledReview.current === reviewParam) return;
+    handledReview.current = reviewParam;
+    setSearchParams((current) => { const next = new URLSearchParams(current); next.delete('review'); return next; }, { replace: true });
+    const match = items.find((item) => String(item.id) === reviewParam);
+    if (match) {
+      setReviewTarget(match);
+      setReviewOpen(true);
+      return;
+    }
+    getSystemOrganizationOverview(reviewParam).then((overview) => {
+      const { organization, lifecycle } = overview;
+      if (lifecycle?.status === 'pending') {
+        setReviewTarget({ id: organization.id, name: organization.name, acronym: organization.acronym, college: organization.college, description: organization.description, submitted_at: lifecycle.submitted_at });
+        setReviewOpen(true);
+      } else {
+        setActionError(`${formatDisplayText(organization.name)} is no longer waiting for review.`);
+      }
+    }).catch((cause) => setActionError(getApiErrorMessage(cause, 'Could not open that registration for review.')));
+  }, [reviewParam, status, loading, items, setSearchParams]);
   useEffect(() => {
     Promise.all([getSystemColleges(), fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: 'active' }))])
       .then(([collegeList, organizations]) => { setColleges(collegeList); setParentItems(organizations); })
@@ -279,7 +328,6 @@ export default function SystemOrganizationsPage() {
         parent_organization_id: form.parent_organization_id || null,
         description: form.description,
         color: form.color,
-        is_active: Boolean(form.is_active),
       };
       saved = await updateSystemOrganization(form.id, payload);
       if (logoFile) await uploadSystemOrganizationLogo(saved.id, logoFile);
@@ -350,7 +398,8 @@ export default function SystemOrganizationsPage() {
   return (
     <div className="space-y-6">
       {status && <Tabs tabs={tabs} value={status} onChange={selectStatus} />}
-      <div className="rounded-lg border border-[#DDE7EF] bg-white p-4"><div className="flex gap-2"><label className="flex min-h-11 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3"><Search size={16} className="text-slate-500" aria-hidden="true" /><input aria-label="Search organizations" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} onKeyDown={(event) => event.key === 'Enter' && load()} placeholder="Search name, code, or department" className="w-full outline-none" /></label><button type="button" onClick={() => load()} className="min-h-11 rounded-lg bg-[#0F2F62] px-4 text-sm font-bold text-white">Search</button></div></div>
+      <div {...(status ? { role: 'tabpanel', id: PANEL_ID, 'aria-label': STATUS_TABS.find((tab) => tab.key === status).label } : {})} className="space-y-6">
+      <Field label="Search organizations" className="max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Name, code, or college" /></Field>
       {status === 'archived' && <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm font-semibold text-ink">Archived organizations are read-only. Restore to make changes.</p>}
       {error && !form && <ErrorState description={error} onRetry={() => load()} />}
       {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
@@ -360,30 +409,29 @@ export default function SystemOrganizationsPage() {
         {items.map((org, index) => {
           const lifecycle = org.lifecycle_status || status;
           const name = formatDisplayText(org.name);
-          return <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] lg:col-span-2"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className="rounded-lg border border-[#DDE7EF] bg-white p-5"><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}</span><div><h3 className="font-bold text-slate-900">{name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No department assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}</div></div><StatusBadge status={lifecycle} className="h-fit" /></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" />
+          return <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] lg:col-span-2"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className={`rounded-lg border border-[#DDE7EF] p-5 ${lifecycle === 'archived' ? 'bg-subtle' : 'bg-white'}`}><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}</span><div><h3 className="font-bold text-slate-900">{name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No college assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}</div></div><LifecycleBadge status={lifecycle} /></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" />
             {lifecycle === 'pending' && org.submitted_at && <p className="mt-3 text-xs font-semibold text-slate-500">Submitted {manilaDate(org.submitted_at)}</p>}
             {lifecycle === 'returned' && <p className="mt-3 rounded-lg bg-subtle p-3 text-sm text-ink"><span className="block text-xs font-bold text-ink-muted">Returned with remarks</span>{org.review_remarks || 'No remarks were recorded.'}</p>}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} aria-hidden="true" /> {org.users_count} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</span>
               <span className="flex items-center gap-1">
-                <Button to={organizationOverviewPath(org.id)} variant="ghost" size="sm" aria-label={`Open ${name}`}>Open</Button>
-                {lifecycle === 'pending' && <Button variant="secondary" size="sm" onClick={() => { setReviewTarget(org); setReviewOpen(true); }} aria-label={`Review ${name}`}>Review</Button>}
-                {lifecycle === 'archived' && <Button variant="secondary" size="sm" onClick={() => { setLifecycleError(''); setRestoreTarget(org); }} aria-label={`Restore ${name}`}>Restore</Button>}
+                <Button to={organizationOverviewPath(org.id)} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`Open ${name}`}>Open</Button>
+                {lifecycle === 'pending' && <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" onClick={() => { setReviewTarget(org); setReviewOpen(true); }} aria-label={`Review ${name}`}>Review</Button>}
+                {lifecycle === 'archived' && <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" onClick={() => { setLifecycleError(''); setRestoreTarget(org); }} aria-label={`Restore ${name}`}>Restore</Button>}
                 {lifecycle === 'active' && <TableRowActions subject={name} label="Organization actions" actions={[{ label: 'Edit organization', icon: PencilLine, onClick: () => { setLogoFile(null); setForm(org); } }, { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college, onClick: () => setMembershipOrganization(org) }, { label: 'Manage user profiles', icon: Users, onClick: () => setProfileOrganization(org) }, { label: 'Archive organization', icon: Archive, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } }]} />}
               </span></div></article></Fragment>;
         })}
       </section>}
-      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={search.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={search.trim() ? 'Try a different search term.' : undefined} />}
+      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ?'Try a different search term.' : undefined} />}
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs font-semibold text-slate-600"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Previous</button><span>Page {page} of {lastPage}</span><button type="button" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Next</button></nav>}
-      {form && !membershipOrganization && !profileOrganization && <AccessibleOverlay label="Edit organization" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"><h3 className="text-lg font-black text-slate-900">Edit organization</h3>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<div className="mt-5 grid gap-3">
+      </div>
+      {form &&!membershipOrganization && !profileOrganization && <AccessibleOverlay label="Edit organization" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"><h3 className="text-lg font-black text-slate-900">Edit organization</h3>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<div className="mt-5 grid gap-3">
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Organization name" />Organization name<input required value={form.name || ''} onChange={(event) => setForm({ ...form, name: event.target.value })} className={inputClass} /></label>
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Organization code" />Organization code<input required value={form.acronym || ''} onChange={(event) => setForm({ ...form, acronym: event.target.value })} className={inputClass} /></label>
         <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Main organization" />Main organization<select value={form.parent_organization_id || ''} onChange={(event) => setForm({ ...form, parent_organization_id: event.target.value })} className={inputClass}><option value="">This is a main organization</option>{parents.filter((parent) => parent.id !== form.id).map((parent) => <option key={parent.id} value={parent.id}>{formatDisplayText(parent.name)}</option>)}</select></label>
-        <label className="text-sm font-semibold text-slate-700"><FieldIcon label="Department / college" />Department / college<select required value={form.college_id || ''} onChange={(event) => setForm({ ...form, college_id: event.target.value ? Number(event.target.value) : null })} className={inputClass}><option value="">Select a college</option>{colleges.filter((college) => college.is_active || college.id === form.college_id).map((college) => <option key={college.id} value={college.id}>{formatDisplayText(college.name)}</option>)}</select></label>
+        <label className="text-sm font-semibold text-slate-700"><FieldIcon label="College" />College<select required value={form.college_id || ''} onChange={(event) => setForm({ ...form, college_id: event.target.value ? Number(event.target.value) : null })} className={inputClass}><option value="">Select a college</option>{colleges.filter((college) => college.is_active || college.id === form.college_id).map((college) => <option key={college.id} value={college.id}>{formatDisplayText(college.name)}</option>)}</select></label>
         <label className="text-sm font-semibold text-slate-700">Organization color<input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="mt-1 h-11 w-20 rounded-lg border border-[#DDE7EF] bg-white p-1" /></label>
         <label className="text-sm font-semibold text-slate-700">Organization logo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm" />{logoFile && <span className="mt-1 block text-xs text-slate-500">{logoFile.name}</span>}</label>
-        <div className="text-sm font-semibold text-slate-700"><label htmlFor="organization-description"><FieldIcon label="Description" />Description</label><RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} /></div>
-        <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={Boolean(form.is_active)} onChange={(event) => setForm({ ...form, is_active: event.target.checked })} /> <FieldIcon label="Active organization" />Active organization</label>
-      </div><div className="mt-5 border-t border-[#DDE7EF] pt-4"><h4 className="text-sm font-bold text-[#0F2F62]">Organization members</h4><p className="mt-1 text-xs text-[#64748B]">Add an existing user from this organization's college with a separate profile. Save changes to the college before adding members.</p><button type="button" disabled={busy || !form.is_active || !form.college_id || form.college_id !== editingBase?.college_id} onClick={() => setMembershipOrganization(editingBase)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50"><UserPlus size={16} aria-hidden="true" /> Add existing user</button><button type="button" disabled={busy} onClick={() => setProfileOrganization(editingBase)} className="ml-2 mt-3 min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7]">Manage user profiles</button></div><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setForm(null)} className="min-h-11 rounded-lg px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save organization'}</button></div></form></AccessibleOverlay>}
+        <div className="text-sm font-semibold text-slate-700"><label htmlFor="organization-description"><FieldIcon label="Description" />Description</label><RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} /></div>      </div><div className="mt-5 border-t border-[#DDE7EF] pt-4"><h4 className="text-sm font-bold text-[#0F2F62]">Organization members</h4><p className="mt-1 text-xs text-[#64748B]">Add an existing user from this organization's college with a separate profile. Save changes to the college before adding members.</p><button type="button" disabled={busy || !form.is_active || !form.college_id || form.college_id !== editingBase?.college_id} onClick={() => setMembershipOrganization(editingBase)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50"><UserPlus size={16} aria-hidden="true" /> Add existing user</button><button type="button" disabled={busy} onClick={() => setProfileOrganization(editingBase)} className="ml-2 mt-3 min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7]">Manage user profiles</button></div><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setForm(null)} className="min-h-11 rounded-lg px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save organization'}</button></div></form></AccessibleOverlay>}
       {reviewTarget && <ReviewDrawer key={reviewTarget.id} organization={reviewTarget} open={reviewOpen} onClose={closeReview} onReviewed={finishReview} onStale={staleReview} />}
       {archiveTarget && <ArchiveModal organization={archiveTarget} busy={lifecycleBusy} error={lifecycleError} onCancel={() => setArchiveTarget(null)} onConfirm={(reason) => runLifecycle(() => archiveSystemOrganization(archiveTarget.id, reason ? { reason } : {}), archiveTarget, `${formatDisplayText(archiveTarget.name)} archived.`)} />}
       <ConfirmModal open={Boolean(restoreTarget)} title="Restore organization" message={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)} so it can be edited and used again?` : ''} recordName={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)}?` : ''} confirmText="Restore organization" variant="primary" busy={lifecycleBusy} onCancel={() => setRestoreTarget(null)} onConfirm={() => runLifecycle(() => restoreSystemOrganization(restoreTarget.id), restoreTarget, `${formatDisplayText(restoreTarget.name)} restored.`)} />

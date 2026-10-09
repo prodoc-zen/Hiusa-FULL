@@ -48,6 +48,41 @@ describe('SystemOrganizationsPage', () => {
       expect(lastStatusParam()).toBe('active');
       await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-selected', 'true');
+      expect(screen.getByRole('tabpanel', { name: 'Active' })).toContainElement(screen.getByText('Main SBO'));
+      expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-controls', screen.getByRole('tabpanel').id);
+    });
+
+    it('labels the search field visibly', async () => {
+      renderPage();
+      await screen.findByText('Main SBO');
+      const input = screen.getByLabelText('Search organizations');
+      expect(input.labels[0]).toHaveTextContent('Search organizations');
+      expect(screen.queryByRole('button', { name: 'Search' })).not.toBeInTheDocument();
+    });
+
+    it('debounces search and ignores responses that arrive out of order', async () => {
+      let releaseSlow;
+      mocks.getSystemOrganizations.mockImplementation((params) => {
+        if (params.search === 'slow') return new Promise((resolve) => { releaseSlow = () => resolve(pageOf([org({ id: 11, name: 'Slow Club' })])); });
+        if (params.search === 'fast') return Promise.resolve(pageOf([org({ id: 12, name: 'Fast Club' })]));
+        return Promise.resolve(pageOf([org()]));
+      });
+      renderPage();
+      await screen.findByText('Main SBO');
+      const searchCalls = () => mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined).map(([params]) => params.search);
+      const input = screen.getByLabelText('Search organizations');
+      fireEvent.change(input, { target: { value: 's' } });
+      fireEvent.change(input, { target: { value: 'sl' } });
+      fireEvent.change(input, { target: { value: 'slow' } });
+      expect(searchCalls()).toEqual(['']);
+      await waitFor(() => expect(searchCalls()).toEqual(['', 'slow']));
+      fireEvent.change(input, { target: { value: 'fast' } });
+      expect(await screen.findByText('Fast Club')).toBeInTheDocument();
+      releaseSlow();
+      await new Promise((resolve) => { setTimeout(resolve, 20); });
+      expect(screen.getByText('Fast Club')).toBeInTheDocument();
+      expect(screen.queryByText('Slow Club')).not.toBeInTheDocument();
+      expect(searchCalls()).toEqual(['', 'slow', 'fast']);
     });
 
     it('defaults to Pending review when organizations are waiting', async () => {
@@ -117,9 +152,22 @@ describe('SystemOrganizationsPage', () => {
       fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
       const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
-      fireEvent.change(within(dialog).getByLabelText('Department / college'), { target: { value: '2' } });
+      fireEvent.change(within(dialog).getByLabelText('College'), { target: { value: '2' } });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Save organization' }));
       await waitFor(() => expect(mocks.updateSystemOrganization).toHaveBeenCalledWith(3, expect.objectContaining({ college_id: 2, name: 'Main SBO' })));
+    });
+
+    it('has no Active organization checkbox and never sends is_active', async () => {
+      mocks.updateSystemOrganization.mockResolvedValue(org());
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
+      fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
+      const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
+      expect(within(dialog).queryByRole('checkbox')).not.toBeInTheDocument();
+      expect(within(dialog).queryByText('Active organization')).not.toBeInTheDocument();
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Save organization' }));
+      await waitFor(() => expect(mocks.updateSystemOrganization).toHaveBeenCalled());
+      expect(mocks.updateSystemOrganization.mock.calls[0][1]).not.toHaveProperty('is_active');
     });
 
     it('archives with an optional reason', async () => {
@@ -177,8 +225,10 @@ describe('SystemOrganizationsPage', () => {
       mocks.reviewSystemOrganization.mockResolvedValue({});
       const drawer = await openReview();
       await within(drawer).findByText('Dean Reyes');
+      await new Promise((resolve) => { window.requestAnimationFrame(() => resolve()); });
       fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
       expect(await within(drawer).findByText(/Add remarks explaining/)).toBeInTheDocument();
+      expect(within(drawer).getByLabelText(/Remarks/)).toHaveFocus();
       expect(mocks.reviewSystemOrganization).not.toHaveBeenCalled();
       fireEvent.change(within(drawer).getByLabelText(/Remarks/), { target: { value: 'Attach the signed constitution.' } });
       fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
@@ -221,6 +271,46 @@ describe('SystemOrganizationsPage', () => {
       fireEvent.click(await within(drawer).findByRole('button', { name: 'Try again' }));
       expect(await within(drawer).findByText('Dean Reyes')).toBeInTheDocument();
     });
+
+    it('disables Approve with a reason while the registration details failed to load', async () => {
+      mocks.getSystemOrganizationOverview.mockRejectedValueOnce({ response: { status: 500, data: {} } });
+      const drawer = await openReview();
+      const retry = await within(drawer).findByRole('button', { name: 'Try again' });
+      expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeDisabled();
+      expect(within(drawer).getByText('Approve is unavailable until the registration details load.')).toBeInTheDocument();
+      fireEvent.click(retry);
+      await within(drawer).findByText('Dean Reyes');
+      expect(within(drawer).getByRole('button', { name: 'Approve' })).toBeEnabled();
+      expect(within(drawer).queryByText('Approve is unavailable until the registration details load.')).not.toBeInTheDocument();
+    });
+
+    it('opens the review drawer for ?review once and drops the param', async () => {
+      renderPage('/dashboard/super-admin/organizations?status=pending&review=8');
+      const drawer = await screen.findByRole('dialog', { name: 'Review registration' });
+      expect(within(drawer).getByText('Robotics Club (RC)')).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId('search')).not.toHaveTextContent('review='));
+      expect(screen.getByTestId('search')).toHaveTextContent('status=pending');
+      expect(screen.getAllByRole('dialog')).toHaveLength(1);
+    });
+
+    it('opens the review drawer for an organization that is not on the loaded page', async () => {
+      mocks.getSystemOrganizations.mockImplementation(async () => pageOf([]));
+      mocks.getSystemOrganizationOverview.mockResolvedValue({
+        organization: { id: 9, name: 'Far Club', acronym: 'FC', college: 'College of Arts', description: 'Far away.' },
+        lifecycle: { status: 'pending', submitted_at: SUBMITTED_AT, submitted_by: { name: 'Dean Reyes' } },
+      });
+      renderPage('/dashboard/super-admin/organizations?status=pending&review=9');
+      const drawer = await screen.findByRole('dialog', { name: 'Review registration' });
+      expect(within(drawer).getByText('Far Club (FC)')).toBeInTheDocument();
+    });
+
+    it('says so when the organization in ?review is no longer pending', async () => {
+      mocks.getSystemOrganizations.mockImplementation(async () => pageOf([]));
+      mocks.getSystemOrganizationOverview.mockResolvedValue({ organization: { id: 9, name: 'Old Club' }, lifecycle: { status: 'active' } });
+      renderPage('/dashboard/super-admin/organizations?status=pending&review=9');
+      expect(await screen.findByRole('alert')).toHaveTextContent('Old Club is no longer waiting for review.');
+      expect(screen.queryByRole('dialog', { name: 'Review registration' })).not.toBeInTheDocument();
+    });
   });
 
   it('shows returned remarks read-only with no actions menu', async () => {
@@ -242,6 +332,13 @@ describe('SystemOrganizationsPage', () => {
       expect(screen.queryByRole('button', { name: /Actions for|Edit|Archive organization|Review/ })).not.toBeInTheDocument();
       expect(screen.getByRole('link', { name: 'Open Main SBO' })).toHaveAttribute('href', '/dashboard/super-admin/organizations/3');
       expect(screen.getByRole('button', { name: 'Restore Main SBO' })).toBeInTheDocument();
+    });
+
+    it('is visibly muted and announced as read only', async () => {
+      renderPage('/dashboard/super-admin/organizations?status=archived');
+      const badge = await screen.findByLabelText('Archived, read only');
+      expect(badge).toHaveTextContent('Archived');
+      expect(badge.closest('article')).toHaveClass('bg-subtle');
     });
 
     it('restores after confirmation', async () => {

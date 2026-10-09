@@ -68,4 +68,10 @@ describe('SystemCollegesPage', () => {
     fireEvent.change(screen.getByLabelText('Search colleges'), { target: { value: 'zzz' } });
     expect(screen.getByText('No colleges match your search.')).toBeInTheDocument();
   });
+
+  it('labels the search field with visible text', async () => {
+    renderPage();
+    await screen.findByText('College of Arts');
+    expect(screen.getByLabelText('Search colleges').labels[0]).toHaveTextContent('Search colleges');
+  });
 });
