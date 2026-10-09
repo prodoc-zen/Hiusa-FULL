@@ -51,8 +51,10 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
 
   afterEach(() => localStorage.clear());
 
-  it('names the organization of each request and filters by organization', async () => {
-    mocks.getApprovalRequests.mockResolvedValue(page([row(1, 7, 'Chess report'), row(2, 8, 'Drama report')]));
+  it('names the organization of each request and has the server filter by organization', async () => {
+    mocks.getApprovalRequests.mockImplementation(async (params) => page(params.organization_id === '8'
+      ? [row(2, 8, 'Drama report')]
+      : [row(1, 7, 'Chess report'), row(2, 8, 'Drama report')]));
     render(<DepartmentHeadApprovalsPage />);
 
     expect(await screen.findByText(/chess report/i)).toBeInTheDocument();
@@ -63,6 +65,46 @@ describe('DepartmentHeadApprovalsPage college scope', () => {
     await waitFor(() => expect(screen.queryByText(/chess report/i)).not.toBeInTheDocument());
     expect(screen.getByText(/drama report/i)).toBeInTheDocument();
     expect(screen.getByText(/1 matching request ·/)).toBeInTheDocument();
+    expect(mocks.getApprovalRequests).toHaveBeenCalledWith(expect.objectContaining({ organization_id: '8', status: 'pending', page: 1 }));
+  });
+
+  it('takes the counts, the pending total and the paging from the server for one organization', async () => {
+    mocks.getApprovalRequests.mockImplementation(async (params) => {
+      if (params.per_page === 1) return { data: { data: [], current_page: 1, last_page: 1, per_page: 1, total: params.organization_id === '8' ? 3 : 9 } };
+      if (params.organization_id !== '8') return page([row(1, 7, 'Chess report')]);
+      return { data: { data: [row(20 + params.page, 8, `Drama report ${params.page}`)], current_page: params.page, last_page: 3, per_page: 20, total: 45 } };
+    });
+    render(<DepartmentHeadApprovalsPage />);
+    expect(await screen.findByRole('button', { name: 'Pending (9)' })).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Organization'), { target: { value: '8' } });
+
+    expect(await screen.findByText(/drama report 1/i)).toBeInTheDocument();
+    expect(screen.getByText('45 matching requests · 3 awaiting action')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Pending (3)' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Next page of requests' }));
+
+    expect(await screen.findByText(/drama report 2/i)).toBeInTheDocument();
+    expect(mocks.getApprovalRequests).toHaveBeenCalledWith(expect.objectContaining({ organization_id: '8', page: 2 }));
+    expect(mocks.getApprovalRequests.mock.calls.every(([params]) => params.per_page !== 100)).toBe(true);
+  });
+
+  it('exports with the selected organization', async () => {
+    const createObjectURL = vi.fn(() => 'blob:csv');
+    vi.stubGlobal('URL', Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    mocks.getApprovalRequests.mockImplementation(async (params) => page(params.organization_id === '8' ? [row(2, 8, 'Drama report')] : [row(1, 7, 'Chess report'), row(2, 8, 'Drama report')]));
+    render(<DepartmentHeadApprovalsPage />);
+    await screen.findByText(/chess report/i);
+    fireEvent.change(screen.getByLabelText('Organization'), { target: { value: '8' } });
+    await waitFor(() => expect(screen.queryByText(/chess report/i)).not.toBeInTheDocument());
+    mocks.getApprovalRequests.mockClear();
+
+    fireEvent.click(screen.getByRole('button', { name: /Export CSV/ }));
+
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalled());
+    expect(mocks.getApprovalRequests).toHaveBeenCalledWith(expect.objectContaining({ organization_id: '8' }));
+    vi.unstubAllGlobals();
   });
 
   it('opens a supporting document through the authenticated helper', async () => {
