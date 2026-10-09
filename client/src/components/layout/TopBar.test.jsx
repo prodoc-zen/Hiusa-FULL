@@ -76,6 +76,14 @@ describe('TopBar notifications', () => {
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
+  it('gives a Department Head no merchandise cart', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Dana', last_name: 'Cruz' }));
+    render(<MemoryRouter><TopBar title="Department Head Dashboard" pathname="/dashboard/department-head" onMenuToggle={() => {}} /></MemoryRouter>);
+    const header = screen.getByRole('banner');
+    expect(within(header).queryByRole('button', { name: 'Cart' })).not.toBeInTheDocument();
+    expect(within(header).getByRole('button', { name: 'Notifications' })).toBeInTheDocument();
+  });
+
   it('keeps the dashboard visible when the active period has no academic year', async () => {
     periodMocks.getActiveAcademicPeriod.mockResolvedValue({ number: 2 });
     render(<MemoryRouter><TopBar title="Admin Dashboard" pathname="/dashboard/admin" onMenuToggle={() => {}} /></MemoryRouter>);
@@ -107,7 +115,9 @@ describe('TopBar notifications', () => {
     ['ADMIN', '/dashboard/admin/users', 'User Management', /Search the organization directory/],
     ['ADMIN', '/dashboard/approvals', 'Approvals', /Review approval requests/],
     ['DEPARTMENT_HEAD', '/dashboard/department-head/approvals', 'Approvals', /Review approval requests/],
-    ['SUPER_ADMIN', '/dashboard/super-admin/financial-reports', 'Received Financial Reports', /Review reports forwarded/],
+    ['DEPARTMENT_HEAD', '/dashboard/department-head/organizations', 'Organizations', /student organizations in your college/],
+    ['SUPER_ADMIN', '/dashboard/super-admin/agency', 'Agency overview', /Review the agency/],
+    ['SUPER_ADMIN', '/dashboard/super-admin/organizations/7', 'Organization overview', /Review one organization/],
   ])('uses one white header with context for %s on %s', (role, pathname, title, subtitle) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter><TopBar title={title} pathname={pathname} onMenuToggle={() => {}} /></MemoryRouter>);

@@ -32,6 +32,14 @@ describe('ElectionsHub', () => {
     expect(await screen.findByText('No active election')).toBeInTheDocument();
   });
 
+  it('sends a Department Head asking for the voting route to the results page instead of the ballot list', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', school_id: 102, organization_id: 1 }));
+    render(<MemoryRouter initialEntries={['/dashboard/elections/cast-vote']}><Routes><Route path="/dashboard/elections" element={<ElectionsHub />}><Route path="cast-vote" element={<div>Selected election content</div>} /></Route><Route path="/dashboard/elections/election-results" element={<div>Results destination</div>} /></Routes></MemoryRouter>);
+    expect(await screen.findByText('Results destination')).toBeInTheDocument();
+    expect(screen.queryByText('No active election')).not.toBeInTheDocument();
+    expect(getElections).not.toHaveBeenCalled();
+  });
+
   it('lists concurrent ballots and displays a receipt for an already submitted one', async () => {
     const active = { status: 'active', finalized_at: '2026-09-01T08:00:00Z', start_time: new Date(Date.now() - 60_000).toISOString(), end_time: new Date(Date.now() + 60_000).toISOString() };
     getElections.mockResolvedValue([{ ...active, id: 1 }, { ...active, id: 2 }]);

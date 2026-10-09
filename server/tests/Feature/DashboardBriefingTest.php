@@ -557,6 +557,38 @@ class DashboardBriefingTest extends TestCase
         }
     }
 
+    public function test_super_admin_pending_approval_and_overdue_report_items_link_into_the_compliance_home(): void
+    {
+        $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION']);
+        $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $organization = Organization::factory()->create();
+        $requester = User::factory()->officer()->create(['organization_id' => $organization->id]);
+
+        ApprovalRequest::create([
+            'organization_id' => $organization->id,
+            'entity_type' => 'announcement',
+            'entity_id' => Announcement::factory()->create(['organization_id' => $organization->id, 'created_by' => $requester->id])->id,
+            'requested_by' => $requester->id,
+            'required_role' => 'SUPER_ADMIN',
+            'status' => 'pending',
+            'requested_at' => now()->subHours(5),
+        ]);
+        DB::table('financial_report_deadlines')->insert([
+            'deadline_at' => now()->addDays(2), 'created_at' => now(), 'updated_at' => now(),
+        ]);
+
+        Sanctum::actingAs($superAdmin);
+        $attention = collect($this->getJson('/api/dashboard/briefing')->assertOk()->json('attention'));
+
+        $approval = $attention->firstWhere('type', 'approval');
+        $report = $attention->firstWhere('type', 'financial_report_due');
+        $this->assertNotNull($approval);
+        $this->assertNotNull($report);
+        $this->assertSame('/dashboard/super-admin/compliance', $approval['href']);
+        $this->assertSame('/dashboard/super-admin/compliance', $report['href']);
+        $this->assertContains($approval['href'], config('client_routes.SUPER_ADMIN'));
+    }
+
     private function collectHrefs($value): array
     {
         $hrefs = [];
