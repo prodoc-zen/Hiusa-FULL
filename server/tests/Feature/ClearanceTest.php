@@ -312,4 +312,66 @@ class ClearanceTest extends TestCase
         $mineB = $this->getJson('/api/clearances/mine')->assertOk()->json();
         $this->assertNotSame($mine, $mineB);
     }
+
+    public function test_untouched_period_can_be_deleted_with_its_signature_rows_and_notifications(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $student = $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Mistaken Clearance', 'required_roles' => ['organization_treasurer', 'sao'],
+        ])->assertCreated()->json('id');
+        $this->assertDatabaseCount('clearance_signatures', 2);
+
+        $this->deleteJson("/api/clearance-periods/{$periodId}")->assertOk()->assertJsonPath('message', 'Clearance period deleted.');
+
+        $this->assertDatabaseMissing('clearance_periods', ['id' => $periodId]);
+        $this->assertDatabaseCount('clearance_signatures', 0);
+        $this->assertDatabaseMissing('notifications', ['user_id' => $student->school_id, 'reference_type' => 'clearance_period', 'reference_id' => $periodId]);
+        $this->assertDatabaseHas('audit_logs', ['module' => 'clearances', 'action' => 'clearance_period_deleted', 'record_id' => $periodId, 'user_id' => $superAdmin->school_id]);
+    }
+
+    public function test_period_with_a_signed_entry_cannot_be_deleted(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+        $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Live Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated()->json('id');
+        $signature = ClearanceSignature::where('clearance_period_id', $periodId)->firstOrFail();
+
+        Sanctum::actingAs($admin);
+        $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'held', 'remarks' => 'Unpaid dues.'])->assertOk();
+
+        Sanctum::actingAs($superAdmin);
+        $this->deleteJson("/api/clearance-periods/{$periodId}")
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'This clearance period already has signed entries and cannot be deleted.');
+
+        $this->assertDatabaseHas('clearance_periods', ['id' => $periodId]);
+        $this->assertDatabaseHas('clearance_signatures', ['id' => $signature->id, 'status' => 'held']);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'clearance_period_deleted']);
+    }
+
+    public function test_only_super_admin_can_delete_a_clearance_period(): void
+    {
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $this->user('STUDENT', $organization->id);
+        Sanctum::actingAs($superAdmin);
+        $periodId = $this->postJson('/api/clearance-periods', [
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+        ])->assertCreated()->json('id');
+
+        foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {
+            Sanctum::actingAs($this->user($role, $organization->id));
+            $this->deleteJson("/api/clearance-periods/{$periodId}")->assertForbidden();
+        }
+        $this->assertDatabaseHas('clearance_periods', ['id' => $periodId]);
+        $this->assertDatabaseCount('clearance_signatures', 1);
+    }
 }

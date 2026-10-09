@@ -119,6 +119,40 @@ class ClearanceController extends Controller
         return response()->json($period, 201);
     }
 
+    public function periodsDestroy(Request $request, ClearancePeriod $clearancePeriod)
+    {
+        $deleted = DB::transaction(function () use ($request, $clearancePeriod) {
+            $statuses = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)->lockForUpdate()->pluck('status');
+            if ($statuses->contains(fn (string $status) => $status !== 'pending')) {
+                return false;
+            }
+
+            ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)->delete();
+            Notification::where('reference_type', 'clearance_period')->where('reference_id', $clearancePeriod->id)->delete();
+            $clearancePeriod->delete();
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'clearances',
+                'action' => 'clearance_period_deleted',
+                'record_type' => ClearancePeriod::class,
+                'record_id' => $clearancePeriod->id,
+                'new_values' => ['academic_year' => $clearancePeriod->academic_year, 'title' => $clearancePeriod->title, 'signature_rows_removed' => $statuses->count()],
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+
+            return true;
+        });
+
+        if (! $deleted) {
+            return response()->json(['message' => 'This clearance period already has signed entries and cannot be deleted.'], 409);
+        }
+
+        return response()->json(['message' => 'Clearance period deleted.']);
+    }
+
     public function studentsIndex(Request $request, ClearancePeriod $clearancePeriod)
     {
         $filters = $request->validate([

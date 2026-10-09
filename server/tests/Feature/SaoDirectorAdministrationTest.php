@@ -241,4 +241,67 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertDatabaseHas('notifications', ['organization_id' => $organization->id, 'user_id' => $requester->school_id, 'reference_type' => 'financial_report', 'reference_id' => $report->id]);
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $organization->id, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'reviewed_rejected', 'record_id' => $approval->id]);
     }
+
+    public function test_sao_can_delete_a_draft_or_scheduled_official_notice_with_its_recipients(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $organization = Organization::factory()->create();
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        User::factory()->student()->create(['organization_id' => $organization->id]);
+        Sanctum::actingAs($director);
+        $payload = ['title' => 'Draft notice', 'body' => 'Draft details.', 'target_scope' => 'all_organizations', 'target_roles' => ['STUDENT']];
+
+        $draftId = $this->postJson('/api/system/announcements', $payload + ['publish' => false])->assertCreated()->assertJsonPath('recipients_count', 1)->json('id');
+        $scheduledId = $this->postJson('/api/system/announcements', $payload + ['publish' => true, 'scheduled_at' => now()->addDay()->toDateTimeString()])->assertCreated()->json('id');
+
+        $this->deleteJson('/api/system/announcements/'.$draftId)->assertOk()->assertJsonPath('message', 'Official announcement deleted.');
+        $this->deleteJson('/api/system/announcements/'.$scheduledId)->assertOk();
+
+        $this->assertDatabaseMissing('announcements', ['id' => $draftId]);
+        $this->assertDatabaseMissing('announcements', ['id' => $scheduledId]);
+        $this->assertDatabaseCount('announcement_recipients', 0);
+        $this->assertDatabaseHas('audit_logs', ['module' => 'global_announcements', 'action' => 'global_announcement_deleted', 'record_id' => $draftId, 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN']);
+        $this->assertDatabaseHas('audit_logs', ['module' => 'global_announcements', 'action' => 'global_announcement_deleted', 'record_id' => $scheduledId]);
+    }
+
+    public function test_sao_cannot_delete_a_published_or_archived_official_notice(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $student = User::factory()->student()->create(['organization_id' => Organization::factory()]);
+        Sanctum::actingAs($director);
+        $payload = ['title' => 'Live notice', 'body' => 'Live details.', 'target_scope' => 'all_organizations', 'target_roles' => ['STUDENT'], 'publish' => true];
+
+        $publishedId = $this->postJson('/api/system/announcements', $payload)->assertCreated()->json('id');
+        $archivedId = $this->postJson('/api/system/announcements', $payload)->assertCreated()->json('id');
+        $this->patchJson('/api/system/announcements/'.$archivedId.'/archive')->assertOk();
+
+        foreach ([$publishedId, $archivedId] as $id) {
+            $this->deleteJson('/api/system/announcements/'.$id)
+                ->assertStatus(409)
+                ->assertJsonPath('message', 'Published announcements cannot be deleted. Archive them instead.');
+            $this->assertDatabaseHas('announcements', ['id' => $id]);
+        }
+        $this->assertDatabaseHas('announcement_recipients', ['announcement_id' => $publishedId, 'user_id' => $student->school_id]);
+        $this->assertDatabaseMissing('audit_logs', ['action' => 'global_announcement_deleted']);
+    }
+
+    public function test_only_sao_can_delete_an_official_notice_and_org_announcements_are_not_reachable(): void
+    {
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $organization = Organization::factory()->create();
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $orgAnnouncement = Announcement::factory()->create(['organization_id' => $organization->id, 'created_by' => $admin->school_id, 'announcement_source' => 'ORGANIZATION', 'is_published' => false]);
+        Sanctum::actingAs($director);
+        $draftId = $this->postJson('/api/system/announcements', ['title' => 'Draft notice', 'body' => 'Draft details.', 'target_scope' => 'all_organizations'])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $this->deleteJson('/api/system/announcements/'.$draftId)->assertForbidden();
+        $this->assertDatabaseHas('announcements', ['id' => $draftId]);
+
+        Sanctum::actingAs($director);
+        $this->deleteJson('/api/system/announcements/'.$orgAnnouncement->id)->assertNotFound();
+        $this->assertDatabaseHas('announcements', ['id' => $orgAnnouncement->id]);
+    }
 }
