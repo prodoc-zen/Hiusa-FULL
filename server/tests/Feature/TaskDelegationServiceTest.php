@@ -31,6 +31,26 @@ class TaskDelegationServiceTest extends TestCase
         $this->assertSame([1, 2], array_column($result['rankings'], 'rank'));
     }
 
+    public function test_a_preferred_role_steers_the_recommendation_without_changing_any_score(): void
+    {
+        $organization = Organization::factory()->create();
+        foreach (['Treasurer', 'Secretary'] as $title) {
+            SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => $title, 'is_active' => true]);
+        }
+        $treasurer = User::factory()->create(['school_id' => 900201, 'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Treasurer', 'account_status' => 'active']);
+        $secretary = User::factory()->create(['school_id' => 900202, 'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Secretary', 'account_status' => 'active']);
+        $service = app(TaskDelegationService::class);
+
+        $plain = $service->recommend($organization->id, 'Prepare the event budget');
+        $preferred = $service->recommend($organization->id, 'Prepare the event budget', 'workflow', 'Secretary');
+
+        $this->assertSame($treasurer->school_id, $plain['recommended_officer_id']);
+        $this->assertSame($secretary->school_id, $preferred['recommended_officer_id']);
+        $this->assertSame(40.0, collect($preferred['rankings'])->firstWhere('officer_id', $secretary->school_id)['role_score']);
+        $this->assertSame($plain['rankings'], $preferred['rankings']);
+        $this->assertSame($treasurer->school_id, $preferred['rankings'][0]['officer_id']);
+    }
+
     public function test_every_officer_is_audited_and_ineligible_officers_are_not_ranked(): void
     {
         config(['services.hiusa_ai.task_max_active_tasks' => 2]);

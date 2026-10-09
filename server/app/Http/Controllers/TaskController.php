@@ -24,58 +24,6 @@ class TaskController extends Controller
 
     private array $aiAssignmentExplanations = [];
 
-    // Mirrors ai-service/app/engines/task_delegation.py POSITION_RELEVANCE_MAP.
-    // Position names must match the seeded sbo_positions.title values.
-    private const POSITION_RELEVANCE_MAP = [
-        'finance' => [
-            'keywords' => ['budget', 'financ', 'liquidat', 'receipt', 'audit', 'funds', 'funding', 'fundraising', 'expense', 'payment', 'treasury', 'reimburse', 'collection'],
-            'primary' => ['Treasurer', 'Auditor'],
-            'secondary' => ['President', 'Business Manager'],
-        ],
-        'publicity' => [
-            'keywords' => ['publicity', 'announce', 'social media', 'poster', 'promot', 'marketing', 'campaign', 'press release', 'media'],
-            'primary' => ['Public Information Officer', 'Public Relations Officer'],
-            'secondary' => ['Secretary', 'Vice President – External', 'Vice President'],
-        ],
-        'documentation' => [
-            'keywords' => ['document', 'minutes', 'attendance record', 'report', 'record', 'memo', 'correspondence', 'certificate', 'letter'],
-            'primary' => ['Secretary', 'Assistant Secretary'],
-            'secondary' => ['Auditor', 'Vice President – Internal', 'Vice President'],
-        ],
-        'logistics' => [
-            'keywords' => ['logistic', 'venue', 'equipment', 'setup', 'supplies', 'materials', 'booth', 'layout', 'transport', 'inventory'],
-            'primary' => ['Business Manager', 'Vice President – Internal'],
-            'secondary' => ['Vice President', 'President', 'Representative'],
-        ],
-        'coordination' => [
-            'keywords' => ['coordinat', 'overall', 'program', 'hosting', 'host', 'emcee', 'planning', 'organize', 'oversee', 'lead'],
-            'primary' => ['President', 'Vice President – Internal', 'Vice President – External', 'Vice President'],
-            'secondary' => ['Business Manager', 'Secretary', 'Representative'],
-        ],
-    ];
-
-    private const DEFAULT_TASK_AREA = 'coordination';
-
-    private const PRIMARY_POSITION_MATCH_SCORE = 100.0;
-
-    private const RELATED_POSITION_MATCH_SCORE = 70.0;
-
-    private const UNRELATED_POSITION_SCORE = 40.0;
-
-    private const UNKNOWN_POSITION_SCORE = 55.0;
-
-    // Neutral prior for officers with no completed/overdue task history - neither
-    // punishes new officers nor lets them outscore officers with a proven record.
-    private const NEUTRAL_PERFORMANCE_SCORE = 70.0;
-
-    // Mirrors ai-service/app/engines/task_delegation.py _TIER_PHRASE.
-    private const TIER_PHRASE = [
-        'primary' => 'a primary match',
-        'secondary' => 'a related match',
-        'unrelated' => 'not closely related',
-        'unknown' => 'unspecified, so a neutral score was applied',
-    ];
-
     private ?array $lastDelegation = null;
 
     private ?string $lastExplanationModel = null;
@@ -564,60 +512,13 @@ class TaskController extends Controller
         return [
             'algorithm' => $result['algorithm'] ?? 'rule_based_weighted_scoring',
             'weights' => $result['weights'] ?? $this->delegation->weights(),
-            'task_area' => $result['task_area'] ?? self::DEFAULT_TASK_AREA,
+            'task_area' => $result['task_area'] ?? TaskDelegationService::DEFAULT_TASK_AREA,
             'eligibility_rules' => $result['eligibility_rules'] ?? $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $result['recommended_officer_id'] ?? $fallbackRecommendedId,
             'rankings' => $result['rankings'] ?? [],
             'evaluations' => $result['evaluations'] ?? ($result['rankings'] ?? []),
             'engine' => 'python-fastapi',
         ];
-    }
-
-    private function inferTaskArea(string $taskTitle, ?string $taskType): string
-    {
-        $haystack = strtolower($taskTitle.' '.($taskType ?? ''));
-
-        foreach (self::POSITION_RELEVANCE_MAP as $area => $spec) {
-            foreach ($spec['keywords'] as $keyword) {
-                // Anchored at the START of a word only (never the end): the
-                // keyword list deliberately uses stem prefixes ("financ",
-                // "promot", "coordinat", "logistic", "document", "publicity")
-                // that must still match inflected forms ("financial",
-                // "coordinating"). Collision-prone keywords ("fund" as a
-                // prefix of "fundamental") are spelled out to their
-                // least-ambiguous form instead of relying on the boundary
-                // alone - see ai-service/app/engines/task_delegation.py.
-                if (preg_match('/\b'.preg_quote($keyword, '/').'/', $haystack) === 1) {
-                    return $area;
-                }
-            }
-        }
-
-        return self::DEFAULT_TASK_AREA;
-    }
-
-    /**
-     * @return array{0: float, 1: string} [score, tier]
-     */
-    private function positionRelevance(?string $positionTitle, string $area): array
-    {
-        $normalized = $positionTitle !== null ? trim($positionTitle) : '';
-
-        if ($normalized === '') {
-            return [self::UNKNOWN_POSITION_SCORE, 'unknown'];
-        }
-
-        $spec = self::POSITION_RELEVANCE_MAP[$area];
-
-        if (in_array($normalized, $spec['primary'], true)) {
-            return [self::PRIMARY_POSITION_MATCH_SCORE, 'primary'];
-        }
-
-        if (in_array($normalized, $spec['secondary'], true)) {
-            return [self::RELATED_POSITION_MATCH_SCORE, 'secondary'];
-        }
-
-        return [self::UNRELATED_POSITION_SCORE, 'unrelated'];
     }
 
     private function workloadScore(int $activeTasks, int $maxActiveTasks): float
@@ -649,22 +550,19 @@ class TaskController extends Controller
             ->count();
 
         $maxActiveTasks = (int) config('services.hiusa_ai.task_max_active_tasks', 5);
-        $area = $this->inferTaskArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type'));
-        [$roleScore, $tier] = $this->positionRelevance($assignee->position_title, $area);
+        $area = $this->delegation->inferArea((string) $request->input('title', 'Untitled task'), $request->input('category') ?: $request->input('task_type'));
+        [$roleScore, $tier] = $this->delegation->roleScore($assignee->position_title, $area);
         $workloadScore = $this->workloadScore($activeTasks, $maxActiveTasks);
         $hasHistory = $historicalTasks > 0;
-        $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
+        $performanceScore = $hasHistory ? round(($completedTasks / $historicalTasks) * 100, 2) : TaskDelegationService::NEUTRAL_PERFORMANCE_SCORE;
         $daysSinceAssignment = $this->delegation->daysSinceLastAssignment($request->user()->organization_id, $assignee->school_id);
         $recencyScore = $this->delegation->recencyScore($daysSinceAssignment);
         $weights = $this->delegation->weights();
         $finalScore = round(($roleScore * $weights['position']) + ($workloadScore * $weights['workload']) + ($performanceScore * $weights['performance']) + ($recencyScore * $weights['recency']), 2);
-        $name = trim("{$assignee->first_name} {$assignee->last_name}");
-        $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
-        $performanceNote = $hasHistory ? '' : sprintf(' (no task history yet, so the neutral baseline of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE);
 
-        return [
+        $scores = [
             'officer_id' => $assignee->school_id,
-            'name' => $name,
+            'name' => trim("{$assignee->first_name} {$assignee->last_name}"),
             'position_title' => $assignee->position_title,
             'position_tier' => $tier,
             'task_area' => $area,
@@ -676,23 +574,10 @@ class TaskController extends Controller
             'active_tasks' => $activeTasks,
             'max_active_tasks' => $maxActiveTasks,
             'days_since_last_assignment' => $daysSinceAssignment,
-            'explanation' => sprintf(
-                "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%d/%d active tasks), past performance %.2f%s, and assignment recency %.2f (%s).",
-                $name,
-                $finalScore,
-                $area,
-                $positionLabel,
-                self::TIER_PHRASE[$tier],
-                $roleScore,
-                $workloadScore,
-                $activeTasks,
-                $maxActiveTasks,
-                $performanceScore,
-                $performanceNote,
-                $recencyScore,
-                $daysSinceAssignment === null ? 'never assigned a task here' : sprintf('last assigned %d day(s) ago', $daysSinceAssignment)
-            ),
         ];
+        $scores['explanation'] = $this->delegation->explanation($scores, $area, $hasHistory);
+
+        return $scores;
     }
 
     // Local-fallback delegation payload across a full officer pool - mirrors
@@ -707,7 +592,7 @@ class TaskController extends Controller
         return [
             'algorithm' => 'rule_based_weighted_scoring',
             'weights' => $this->delegation->weights(),
-            'task_area' => $rankings[0]['task_area'] ?? self::DEFAULT_TASK_AREA,
+            'task_area' => $rankings[0]['task_area'] ?? TaskDelegationService::DEFAULT_TASK_AREA,
             'eligibility_rules' => $this->eligibilityRules($maxActiveTasks),
             'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
             'rankings' => $rankings,
@@ -854,9 +739,9 @@ class TaskController extends Controller
     // produced the numeric scores).
     private function assignmentExplanation(array $taskData, User $assignee, array $scores): string
     {
-        $area = $scores['task_area'] ?? $this->inferTaskArea((string) ($taskData['title'] ?? 'Untitled task'), $taskData['category'] ?? $taskData['task_type'] ?? null);
-        $tier = $scores['position_tier'] ?? $this->positionRelevance($assignee->position_title, $area)[1];
-        $tierPhrase = self::TIER_PHRASE[$tier] ?? $tier;
+        $area = $scores['task_area'] ?? $this->delegation->inferArea((string) ($taskData['title'] ?? 'Untitled task'), $taskData['category'] ?? $taskData['task_type'] ?? null);
+        $tier = $scores['position_tier'] ?? $this->delegation->roleScore($assignee->position_title, $area)[1];
+        $tierPhrase = $this->delegation->tierPhrase($tier);
         $positionLabel = $assignee->position_title !== null && trim($assignee->position_title) !== '' ? trim($assignee->position_title) : 'no position on file';
 
         $fallback = $this->aiAssignmentExplanations[$assignee->school_id] ?? $scores['explanation'] ?? sprintf(
