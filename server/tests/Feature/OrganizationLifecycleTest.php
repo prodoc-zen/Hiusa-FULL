@@ -348,6 +348,45 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertSame('active', Organization::find($id)->lifecycle_status);
     }
 
+    public function test_a_college_cannot_have_more_than_ten_registrations_waiting_for_review(): void
+    {
+        $typeIds = $this->openSemester();
+        Organization::factory()->count(10)->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'lifecycle_status' => 'pending', 'is_active' => false]);
+        Organization::factory()->count(3)->create(['college' => $this->cbe->name, 'college_id' => $this->cbe->id, 'lifecycle_status' => 'pending', 'is_active' => false]);
+        Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'lifecycle_status' => 'returned', 'is_active' => false]);
+        Sanctum::actingAs($this->head);
+
+        $this->post('/api/college/organizations', $this->registrationPayload($typeIds), ['Accept' => 'application/json'])
+            ->assertUnprocessable()
+            ->assertJsonPath('message', 'Too many registrations are waiting for SAO review. Wait for a decision before registering more.');
+        $this->assertDatabaseMissing('organizations', ['name' => 'Robotics Guild']);
+
+        Organization::where('college_id', $this->ccs->id)->where('lifecycle_status', 'pending')->first()->update(['lifecycle_status' => 'active']);
+        $this->post('/api/college/organizations', $this->registrationPayload($typeIds), ['Accept' => 'application/json'])->assertCreated();
+
+        Sanctum::actingAs($this->otherHead);
+        $this->post('/api/college/organizations', $this->registrationPayload($typeIds, ['name' => 'Other Guild', 'acronym' => 'OTH']), ['Accept' => 'application/json'])->assertCreated();
+    }
+
+    public function test_a_failing_audit_write_rolls_back_review_archive_and_restore(): void
+    {
+        $typeIds = $this->openSemester();
+        $pendingId = $this->register($typeIds);
+        $active = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id]);
+        $archived = Organization::factory()->create(['college' => $this->ccs->name, 'college_id' => $this->ccs->id, 'lifecycle_status' => 'archived', 'is_active' => false]);
+        $payload = $this->review($pendingId, ['decision' => 'approve']);
+        Sanctum::actingAs($this->director);
+        AuditLog::creating(fn () => throw new \RuntimeException('audit store unavailable'));
+
+        $this->patchJson("/api/system/organizations/{$pendingId}/review", $payload)->assertStatus(500);
+        $this->postJson("/api/system/organizations/{$active->id}/archive")->assertStatus(500);
+        $this->postJson("/api/system/organizations/{$archived->id}/restore")->assertStatus(500);
+
+        $this->assertSame('pending', Organization::find($pendingId)->lifecycle_status);
+        $this->assertSame('active', $active->fresh()->lifecycle_status);
+        $this->assertSame('archived', $archived->fresh()->lifecycle_status);
+    }
+
     public function test_archiving_blocks_organization_writes_and_member_sign_in_and_restoring_reverses_it(): void
     {
         $organization = Organization::factory()->create(['name' => 'Chess Club', 'acronym' => 'CHESS', 'college' => $this->ccs->name, 'college_id' => $this->ccs->id]);

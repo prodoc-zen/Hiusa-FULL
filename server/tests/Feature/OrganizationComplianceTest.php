@@ -101,6 +101,37 @@ class OrganizationComplianceTest extends TestCase
         $this->getJson('/api/compliance/status')->assertOk()->assertJsonPath('organizations.accreditation_status', 'accredited');
     }
 
+    public function test_submission_listings_never_expose_the_stored_file_path(): void
+    {
+        Storage::fake('local');
+        $superAdmin = $this->user('SUPER_ADMIN');
+        $organization = Organization::factory()->create();
+        $admin = $this->user('ADMIN', $organization->id);
+
+        Sanctum::actingAs($superAdmin);
+        $requirementTypeId = $this->postJson('/api/compliance/requirement-types', [
+            'academic_year' => '2026-2027',
+            'name' => 'Financial Statement',
+            'deadline_at' => now()->addMonth()->toISOString(),
+        ])->assertCreated()->json('id');
+
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/compliance/submissions', [
+            'requirement_type_id' => $requirementTypeId,
+            'document' => UploadedFile::fake()->create('statement.pdf', 200, 'application/pdf'),
+        ])->assertCreated();
+        $this->assertArrayNotHasKey('file_path', $created->json());
+        $submissionId = $created->json('id');
+
+        $this->assertNotEmpty(OrganizationComplianceSubmission::findOrFail($submissionId)->file_path);
+        foreach ([$admin, $superAdmin] as $viewer) {
+            Sanctum::actingAs($viewer);
+            $row = $this->getJson('/api/compliance/submissions')->assertOk()->assertJsonPath('data.0.id', $submissionId)->json('data.0');
+            $this->assertArrayNotHasKey('file_path', $row);
+        }
+        $this->get("/api/compliance/submissions/{$submissionId}/document")->assertOk();
+    }
+
     public function test_returned_submission_can_be_resubmitted_and_reuses_the_same_row(): void
     {
         Storage::fake('local');

@@ -28,6 +28,8 @@ use Illuminate\Validation\ValidationException;
  */
 class CollegeOrganizationController extends Controller
 {
+    private const PENDING_LIMIT = 10;
+
     private const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
 
     public function index(Request $request)
@@ -82,6 +84,11 @@ class CollegeOrganizationController extends Controller
         $stored = [];
         try {
             $organization = DB::transaction(function () use ($request, $user, $college, $types, $data, $slug, &$stored) {
+                College::whereKey($college->id)->lockForUpdate()->first();
+                if (Organization::student()->where('college_id', $college->id)->where('lifecycle_status', 'pending')->count() >= self::PENDING_LIMIT) {
+                    throw ValidationException::withMessages(['name' => ['Too many registrations are waiting for SAO review. Wait for a decision before registering more.']]);
+                }
+
                 $organization = Organization::create([
                     'name' => $data['name'],
                     'slug' => $slug,
@@ -184,8 +191,8 @@ class CollegeOrganizationController extends Controller
 
     private function college(User $user): College
     {
-        $collegeId = Organization::whereKey($user->organization_id)->value('college_id');
-        $college = $collegeId ? College::find($collegeId) : null;
+        $home = Organization::whereKey($user->organization_id)->first(['id', 'organization_type', 'college_id']);
+        $college = $home && $home->organization_type === 'COLLEGE' && $home->college_id ? College::find($home->college_id) : null;
         abort_if(! $college, 403, 'Your account is not assigned to a college.');
 
         return $college;

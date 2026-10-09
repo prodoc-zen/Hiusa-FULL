@@ -12,6 +12,7 @@ use App\Models\Event;
 use App\Models\FinancialReport;
 use App\Models\Notification;
 use App\Models\Order;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\FinancialReportStatement;
@@ -23,6 +24,8 @@ use Illuminate\Support\Str;
 
 class ApprovalRequestController extends Controller
 {
+    private const ARCHIVED_MESSAGE = 'This organization is archived and read only.';
+
     public function __construct(
         private readonly OrderFulfillmentService $fulfillmentService,
         private readonly ApprovalEntityLabel $entityLabels,
@@ -116,6 +119,10 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'This request has already been reviewed.'], 409);
         }
 
+        if (! $this->organizationIsActive($approval->organization_id)) {
+            return response()->json(['message' => self::ARCHIVED_MESSAGE], 409);
+        }
+
         if (! $this->canReview($request->user()->role, $approval->required_role) || ($approval->assigned_approver && $approval->assigned_approver !== $request->user()->school_id)) {
             return response()->json(['message' => 'You are not authorized to review this request.'], 403);
         }
@@ -157,6 +164,10 @@ class ApprovalRequestController extends Controller
                     throw new DomainException('This request has already been reviewed.');
                 }
 
+                if (Organization::whereKey($approval->organization_id)->lockForUpdate()->value('lifecycle_status') !== 'active') {
+                    throw new DomainException(self::ARCHIVED_MESSAGE);
+                }
+
                 $approval->update([
                     'status' => $data['status'],
                     'decision' => $data['status'],
@@ -179,7 +190,7 @@ class ApprovalRequestController extends Controller
                 return $fresh;
             });
         } catch (DomainException $exception) {
-            $status = $exception->getMessage() === 'This request has already been reviewed.' ? 409 : 422;
+            $status = in_array($exception->getMessage(), ['This request has already been reviewed.', self::ARCHIVED_MESSAGE], true) ? 409 : 422;
 
             return response()->json(['message' => $exception->getMessage()], $status);
         }
@@ -191,6 +202,11 @@ class ApprovalRequestController extends Controller
         $this->attachEntityDetails(collect([$freshApproval]));
 
         return response()->json($freshApproval);
+    }
+
+    private function organizationIsActive(int $organizationId): bool
+    {
+        return Organization::whereKey($organizationId)->value('lifecycle_status') === 'active';
     }
 
     private function canReview(string $userRole, ?string $requiredRole): bool

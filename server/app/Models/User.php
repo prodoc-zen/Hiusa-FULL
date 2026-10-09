@@ -174,13 +174,13 @@ class User extends Authenticatable
             return [$organizationId];
         }
 
-        $collegeId = Organization::whereKey($organizationId)->value('college_id');
+        $home = Organization::whereKey($organizationId)->first(['id', 'organization_type', 'college_id']);
 
-        if (! $collegeId) {
+        if (! $home || $home->organization_type !== 'COLLEGE' || ! $home->college_id) {
             return [$organizationId];
         }
 
-        return Organization::student()->where('college_id', $collegeId)->pluck('id')->all();
+        return Organization::student()->where('college_id', $home->college_id)->pluck('id')->all();
     }
 
     public function events(): HasMany
