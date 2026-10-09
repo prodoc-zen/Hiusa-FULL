@@ -47,6 +47,6 @@ describe('GlobalAnnouncementsPage delete', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Delete this draft?' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Published announcements cannot be deleted. Archive them instead.');
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Published announcements cannot be deleted. Archive them instead.');
   });
 });

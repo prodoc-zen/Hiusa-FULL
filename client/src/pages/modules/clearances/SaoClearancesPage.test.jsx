@@ -78,7 +78,8 @@ describe('SaoClearancesPage', () => {
       mocks.deleteClearancePeriod.mockRejectedValue({ response: { status: 409, data: { message: 'This clearance period already has signed entries and cannot be deleted.' } } });
       await openDeleteDialog();
 
-      expect(await screen.findByRole('alert')).toHaveTextContent('This clearance period already has signed entries and cannot be deleted.');
+      const dialog = await screen.findByRole('dialog', { name: 'Delete this clearance period?' });
+      expect(await within(dialog).findByRole('alert')).toHaveTextContent('This clearance period already has signed entries and cannot be deleted.');
       expect(mocks.getClearancePeriods).toHaveBeenCalledTimes(1);
     });
   });

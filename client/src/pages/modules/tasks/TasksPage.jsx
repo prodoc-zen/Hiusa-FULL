@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
@@ -109,6 +109,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [editingTask, setEditingTask] = useState(null);
   const [editForm, setEditForm] = useState(null);
   const [editError, setEditError] = useState(null);
+  const [editFieldErrors, setEditFieldErrors] = useState({});
+  const editFormRef = useRef(null);
   const [editSaving, setEditSaving] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -194,6 +196,10 @@ export default function TasksPage({ initialTab = 'board' }) {
     setActiveTab(initialTab);
   }, [initialTab]);
 
+  useEffect(() => {
+    if (Object.keys(editFieldErrors).length) editFormRef.current?.querySelector('[aria-invalid="true"]')?.focus();
+  }, [editFieldErrors]);
+
   async function handleCreate(e) {
     e.preventDefault();
     if (!form.title || !form.deadline || !form.assigned_to || (form.task_kind === 'event_related' && !form.event_id)) return;
@@ -229,6 +235,7 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   function openEditTask(task) {
     setEditError(null);
+    setEditFieldErrors({});
     setEditingTask(task);
     setEditForm({
       title: task.title || '',
@@ -244,10 +251,13 @@ export default function TasksPage({ initialTab = 'board' }) {
 
   async function handleEditSubmit(event) {
     event.preventDefault();
-    if (!editForm.title.trim() || !editForm.deadline || !editForm.assigned_to || (editForm.task_kind === 'event_related' && !editForm.event_id)) {
-      setEditError('Complete the title, assignee and deadline, and pick an event for an event-related task.');
-      return;
-    }
+    const missing = {};
+    if (!editForm.title.trim()) missing.title = 'Enter a task title.';
+    if (editForm.task_kind === 'event_related' && !editForm.event_id) missing.event_id = 'Pick the event this task belongs to.';
+    if (!editForm.assigned_to) missing.assigned_to = 'Choose who is assigned.';
+    if (!editForm.deadline) missing.deadline = 'Pick a deadline.';
+    setEditFieldErrors(missing);
+    if (Object.keys(missing).length) return;
     setEditSaving(true);
     setEditError(null);
     try {
@@ -267,7 +277,12 @@ export default function TasksPage({ initialTab = 'board' }) {
       load();
       loadTotals();
     } catch (err) {
-      setEditError(getApiErrorMessage(err, 'Could not save this task.'));
+      const serverErrors = err?.response?.data?.errors || {};
+      const mapped = Object.fromEntries(['title', 'event_id', 'assigned_to', 'deadline']
+        .filter((key) => serverErrors[key]?.[0])
+        .map((key) => [key, serverErrors[key][0]]));
+      if (Object.keys(mapped).length) setEditFieldErrors(mapped);
+      else setEditError(getApiErrorMessage(err, 'Could not save this task.'));
     } finally {
       setEditSaving(false);
     }
@@ -285,7 +300,6 @@ export default function TasksPage({ initialTab = 'board' }) {
       loadTotals();
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, 'Could not delete this task.'));
-      setTaskToDelete(null);
     } finally {
       setDeleteBusy(false);
     }
@@ -426,8 +440,6 @@ export default function TasksPage({ initialTab = 'board' }) {
           <button onClick={load} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
         </div>
       )}
-
-      {deleteError && <p role="alert" className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">{deleteError}</p>}
 
       {activeTab === 'create' && canManageTasks && (
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
@@ -839,8 +851,9 @@ export default function TasksPage({ initialTab = 'board' }) {
         )}
       >
         {editForm && (
-          <form onSubmit={handleEditSubmit} className="grid gap-4 sm:grid-cols-2">
-            <Field label="Task title" required className="sm:col-span-2">
+          <form ref={editFormRef} onSubmit={handleEditSubmit} className="grid gap-4 sm:grid-cols-2" noValidate>
+            {editError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{editError}</p>}
+            <Field label="Task title" required error={editFieldErrors.title} className="sm:col-span-2">
               <Input data-autofocus value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} />
             </Field>
             <Field label="Description" className="sm:col-span-2">
@@ -853,7 +866,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               </Select>
             </Field>
             {editForm.task_kind === 'event_related' && (
-              <Field label="Related event" required>
+              <Field label="Related event" required error={editFieldErrors.event_id}>
                 <Select value={editForm.event_id} onChange={(event) => setEditForm({ ...editForm, event_id: event.target.value })}>
                   <option value="">Select an event</option>
                   {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
@@ -870,16 +883,15 @@ export default function TasksPage({ initialTab = 'board' }) {
                 {['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}
               </Select>
             </Field>
-            <Field label="Assigned officer" required>
+            <Field label="Assigned officer" required error={editFieldErrors.assigned_to}>
               <Select value={editForm.assigned_to} onChange={(event) => setEditForm({ ...editForm, assigned_to: event.target.value })}>
                 {!officers.some((officer) => String(officer.school_id) === editForm.assigned_to) && editForm.assigned_to && <option value={editForm.assigned_to}>{editingTask?.assignee ? `${formatDisplayText(editingTask.assignee.first_name)} ${formatDisplayText(editingTask.assignee.last_name)}` : editForm.assigned_to}</option>}
                 {officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{formatDisplayText(officer.first_name)} {formatDisplayText(officer.last_name)} · {formatDisplayText(officer.position_title)}</option>)}
               </Select>
             </Field>
-            <Field label="Deadline" required>
+            <Field label="Deadline" required error={editFieldErrors.deadline}>
               <DateTimeInput type="date" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
             </Field>
-            {editError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{editError}</p>}
           </form>
         )}
       </Modal>
@@ -887,11 +899,12 @@ export default function TasksPage({ initialTab = 'board' }) {
       <ConfirmModal
         open={Boolean(taskToDelete)}
         title="Delete this task?"
-        message="This cannot be undone. The task and its progress history are removed."
+        message="The task and its progress history are deleted. This cannot be undone."
         recordName={taskToDelete?.title}
         confirmText="Delete task"
         variant="danger"
         busy={deleteBusy}
+        error={deleteError}
         onCancel={() => setTaskToDelete(null)}
         onConfirm={confirmDeleteTask}
       />

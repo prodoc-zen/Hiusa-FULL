@@ -142,7 +142,6 @@ export default function StudentGrievancesPage() {
       load();
     } catch (err) {
       setDeleteError(getApiErrorMessage(err, 'Could not delete this grievance. Please try again.'));
-      setDeleteTarget(null);
       if ([404, 409].includes(err.response?.status)) load();
     } finally {
       setDeleteBusy(false);
@@ -210,8 +209,6 @@ export default function StudentGrievancesPage() {
 
       {tab === 'mine' && (
         <div className="flex flex-col gap-3">
-          {deleteError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{deleteError}</p>}
-
           {loading && (
             <>
               <SkeletonCard />
@@ -264,11 +261,12 @@ export default function StudentGrievancesPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Delete this grievance?"
-        message="This cannot be undone. Only grievances that have not been reviewed can be deleted."
+        message="The grievance is removed for good and its notifications are cleared. This cannot be undone. A grievance that has already been reviewed cannot be deleted."
         recordName={deleteTarget?.title}
         confirmText="Delete grievance"
         variant="danger"
         busy={deleteBusy}
+        error={deleteError}
         onCancel={() => setDeleteTarget(null)}
         onConfirm={confirmDelete}
       />
