@@ -19,6 +19,9 @@ class Organization extends Model
     {
         return [
             'is_active' => 'boolean',
+            'submitted_at' => 'datetime',
+            'reviewed_at' => 'datetime',
+            'archived_at' => 'datetime',
         ];
     }
 
