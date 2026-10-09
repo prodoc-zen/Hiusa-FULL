@@ -26,6 +26,8 @@ class SystemAdministrationController extends Controller
     // Department heads keep their oversight role; they never take over an organization.
     private const SUCCESSOR_ROLES = ['STUDENT', 'SBO_OFFICER', 'ADMIN'];
 
+    private const ACTIVE_HEAD_EXISTS = 'This college already has an active Department Head. Deactivate the current one first.';
+
     public function __construct(private readonly PasswordResetService $passwordResetService) {}
 
     public function overview(Request $request)
@@ -394,6 +396,121 @@ class SystemAdministrationController extends Controller
         $this->audit($request, 'administrator_password_reset_initiated', $user, ['email' => $user->email], 'SAO initiated a secure password reset for an organization Admin.');
 
         return response()->json(['message' => 'Password reset instructions were sent to the administrator email address.']);
+    }
+
+    public function storeDepartmentHead(Request $request, College $college)
+    {
+        $home = $college->homeOrganization;
+        if (! $home) {
+            return response()->json(['message' => 'This college has no home organization yet.'], 422);
+        }
+
+        $this->normalizeAdminInput($request);
+        $data = $request->validate(['school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:100', 'unique:users,email'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
+
+        $head = DB::transaction(function () use ($data, $college, $home, $request) {
+            College::whereKey($college->id)->lockForUpdate()->first();
+            if ($this->collegeHasActiveHead($home->id)) {
+                return response()->json(['message' => self::ACTIVE_HEAD_EXISTS], 409);
+            }
+            $head = User::create([
+                'organization_id' => $home->id,
+                'school_id' => $data['school_id'],
+                'first_name' => $data['first_name'],
+                'last_name' => $data['last_name'],
+                'email' => $data['email'],
+                'password_hash' => $data['password'],
+                'role' => 'DEPARTMENT_HEAD',
+                'account_status' => 'active',
+                'is_member' => true,
+                'department' => $college->name,
+            ]);
+            Notification::create(['organization_id' => $home->id, 'user_id' => $head->school_id, 'notification_type' => 'general', 'title' => 'Department Head account created', 'message' => "Your HIUSA Department Head account for {$college->name} has been created by the Student Affairs Office. Sign in using the credentials provided by SAO and change your password from your profile if needed.", 'is_read' => false, 'sent_at' => now()]);
+            $this->audit($request, 'department_head_created', $head, ['department_head_id' => $head->school_id, 'college_id' => $college->id, 'organization_id' => $home->id], 'SAO created a college Department Head account.');
+
+            return $head;
+        });
+        if ($head instanceof JsonResponse) {
+            return $head;
+        }
+
+        return response()->json($head->load('organization:id,name,acronym'), 201);
+    }
+
+    public function updateDepartmentHead(Request $request, User $user)
+    {
+        $home = $this->collegeHomeOfHead($user);
+        if (! $home) {
+            return response()->json(['message' => 'Department Head not found.'], 404);
+        }
+        if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
+            return response()->json(['message' => 'SAO cannot set Department Head passwords. Initiate a secure password reset instead.'], 422);
+        }
+
+        $this->normalizeAdminInput($request);
+        $data = $request->validate(['first_name' => ['sometimes', 'required', 'string', 'max:60'], 'last_name' => ['sometimes', 'required', 'string', 'max:60'], 'email' => ['sometimes', 'required', 'email', 'max:100', Rule::unique('users', 'email')->ignore($user->school_id, 'school_id')], 'account_status' => ['sometimes', 'in:active,inactive,disabled']]);
+
+        $conflict = DB::transaction(function () use ($data, $home, $request, $user) {
+            College::whereKey($home->college_id)->lockForUpdate()->first();
+            $user = User::whereKey($user->school_id)->lockForUpdate()->firstOrFail();
+            $reactivates = ($data['account_status'] ?? null) === 'active' && $user->account_status !== 'active';
+            if ($reactivates && $this->collegeHasActiveHead($home->id, $user->school_id)) {
+                return response()->json(['message' => self::ACTIVE_HEAD_EXISTS], 409);
+            }
+
+            $old = $user->toArray();
+            $user->update($data);
+            if (($data['account_status'] ?? $user->account_status) !== 'active') {
+                $user->tokens()->delete();
+            }
+            $fresh = $user->fresh();
+            $action = match (true) {
+                ($old['account_status'] ?? null) !== $fresh->account_status && $fresh->account_status === 'active' => 'department_head_activated',
+                ($old['account_status'] ?? null) !== $fresh->account_status => 'department_head_deactivated',
+                default => 'department_head_updated',
+            };
+            $this->audit($request, $action, $fresh, ['before' => $old, 'after' => $fresh->toArray()], 'SAO updated a college Department Head account.');
+
+            return null;
+        });
+        if ($conflict) {
+            return $conflict;
+        }
+
+        return response()->json($user->fresh()->load('organization:id,name,acronym'));
+    }
+
+    public function initiateDepartmentHeadPasswordReset(Request $request, User $user)
+    {
+        if (! $this->collegeHomeOfHead($user)) {
+            return response()->json(['message' => 'Department Head not found.'], 404);
+        }
+        if ($user->account_status !== 'active') {
+            return response()->json(['message' => 'Activate this Department Head before initiating a password reset.'], 422);
+        }
+
+        $this->passwordResetService->issue($user);
+        $this->audit($request, 'department_head_password_reset_initiated', $user, ['email' => $user->email], 'SAO initiated a secure password reset for a college Department Head.');
+
+        return response()->json(['message' => 'Password reset instructions were sent to the Department Head email address.']);
+    }
+
+    private function collegeHomeOfHead(User $user): ?Organization
+    {
+        if ($user->role !== 'DEPARTMENT_HEAD') {
+            return null;
+        }
+
+        return Organization::whereKey($user->organization_id)->where('organization_type', 'COLLEGE')->whereNotNull('college_id')->first();
+    }
+
+    private function collegeHasActiveHead(int $homeOrganizationId, ?int $exceptSchoolId = null): bool
+    {
+        return User::where('organization_id', $homeOrganizationId)
+            ->where('role', 'DEPARTMENT_HEAD')
+            ->where('account_status', 'active')
+            ->when($exceptSchoolId, fn ($query) => $query->whereKeyNot($exceptSchoolId))
+            ->exists();
     }
 
     private function normalizeAdminInput(Request $request): void

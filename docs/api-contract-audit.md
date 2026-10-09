@@ -128,7 +128,6 @@ Generated from `php artisan route:list --path=api --json` and frontend `api.*` c
 | `services/taskService.js:16` `/tasks/${id}/status` | PATCH | `/api/tasks/{id}/status` | `TaskController::updateStatus` |
 | `services/systemAdministrationService.js:5` `/system/overview` | GET | `/api/system/overview` | `SystemAdministrationController::overview` |
 | `services/systemAdministrationService.js:6` `/system/organizations` | GET | `/api/system/organizations` | `SystemAdministrationController::organizations` |
-| `services/systemAdministrationService.js:7` `/system/organizations` | POST | `/api/system/organizations` | `SystemAdministrationController::storeOrganization` |
 | `services/systemAdministrationService.js:8` `/system/organizations/${id}` | PUT | `/api/system/organizations/{organization}` | `SystemAdministrationController::updateOrganization` |
 | `services/systemAdministrationService.js:9` `/system/admins` | GET | `/api/system/admins` | `SystemAdministrationController::admins` |
 | `services/systemAdministrationService.js:10` `/system/admins` | POST | `/api/system/admins` | `SystemAdministrationController::storeAdmin` |

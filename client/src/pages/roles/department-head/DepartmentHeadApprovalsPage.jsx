@@ -13,8 +13,6 @@ import { getCollegeOrganizations } from '../../../services/collegeOrganizationSe
 import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { getApiErrorMessage } from '../../../utils/apiError';
 
-const PAGE_SIZE = 20;
-
 function getCurrentRole() {
   try {
     return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
@@ -242,7 +240,8 @@ export default function DepartmentHeadApprovalsPage() {
     from: from || undefined,
     to: to || undefined,
     sort,
-  }), [statusFilter, entityFilter, search, from, to, sort]);
+    organization_id: organizationFilter === 'all' ? undefined : organizationFilter,
+  }), [statusFilter, entityFilter, search, from, to, sort, organizationFilter]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -250,35 +249,24 @@ export default function DepartmentHeadApprovalsPage() {
     // The "Pending (n)" tab label always names the pending queue, even while
     // viewing "All History", so it is read from its own totals-only request
     // rather than from whichever status is currently loaded into `requests`.
-    // The approvals API has no organization filter, so one organization is
-    // narrowed client-side over every page and paged locally.
-    const requestPage = organizationFilter === 'all'
-      ? getApprovalRequests({ ...queryParams, page }).then((res) => ({ rows: unwrapList(res.data), meta: listMeta(res.data) }))
-      : fetchAllPages((params) => getApprovalRequests(params).then((res) => res.data), queryParams).then((all) => {
-        const matching = all.filter((request) => String(request.organization_id) === organizationFilter);
-        return {
-          rows: matching.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE),
-          meta: { total: matching.length, currentPage: page, lastPage: Math.max(1, Math.ceil(matching.length / PAGE_SIZE)), perPage: PAGE_SIZE },
-        };
-      });
     Promise.all([
-      requestPage,
-      getApprovalRequests({ status: 'pending', per_page: 1 }),
+      getApprovalRequests({ ...queryParams, page }),
+      getApprovalRequests({ status: 'pending', per_page: 1, organization_id: queryParams.organization_id }),
     ])
-      .then(([result, pendingRes]) => {
-        setRequests(result.rows);
-        setMeta(result.meta);
+      .then(([listRes, pendingRes]) => {
+        setRequests(unwrapList(listRes.data));
+        setMeta(listMeta(listRes.data));
         setPendingTotal(listMeta(pendingRes.data).total);
       })
       .catch(() => setError('Failed to load approval requests.'))
       .finally(() => setLoading(false));
-  }, [queryParams, page, organizationFilter]);
+  }, [queryParams, page]);
 
   async function handleExport() {
     setExporting(true);
     try {
       const all = await fetchAllPages((params) => getApprovalRequests(params).then((res) => res.data), queryParams);
-      downloadCsv(organizationFilter === 'all' ? all : all.filter((request) => String(request.organization_id) === organizationFilter), organizationNames);
+      downloadCsv(all, organizationNames);
     } catch {
       setError('Failed to export approval requests.');
     } finally {
