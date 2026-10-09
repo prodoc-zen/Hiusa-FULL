@@ -1,13 +1,14 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import RichTextEditor from '../../../components/RichText';
-import { CheckCircle2, Circle, MessageSquareWarning, ShieldCheck } from 'lucide-react';
+import { CheckCircle2, Circle, MessageSquareWarning, ShieldCheck, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
   EmptyState,
   ErrorState,
   Field,
+  IconButton,
   Input,
   SegmentedControl,
   SkeletonCard,
@@ -16,9 +17,11 @@ import {
 } from '../../../components/ui';
 import EngineBadge from '../../../components/ai/EngineBadge';
 import RulesDisclosure from '../../../components/ai/RulesDisclosure';
-import { getGrievances, createGrievance } from '../../../services/grievanceService';
+import ConfirmModal from '../../../components/ConfirmModal';
+import { getGrievances, createGrievance, deleteGrievance } from '../../../services/grievanceService';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import { addressedToLabel, grievanceStatusTone, urgencyTone } from './grievanceLabels';
 
 const ADDRESSED_TO_OPTIONS = [
@@ -82,6 +85,9 @@ export default function StudentGrievancesPage() {
   const [isAnonymous, setIsAnonymous] = useState(false);
   const [fieldErrors, setFieldErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -123,6 +129,23 @@ export default function StudentGrievancesPage() {
       }
     } finally {
       setSubmitting(false);
+    }
+  }
+
+  async function confirmDelete() {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteGrievance(deleteTarget.id);
+      notify.success('Your grievance was deleted.');
+      setDeleteTarget(null);
+      load();
+    } catch (err) {
+      setDeleteError(getApiErrorMessage(err, 'Could not delete this grievance. Please try again.'));
+      setDeleteTarget(null);
+      if ([404, 409].includes(err.response?.status)) load();
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -187,6 +210,8 @@ export default function StudentGrievancesPage() {
 
       {tab === 'mine' && (
         <div className="flex flex-col gap-3">
+          {deleteError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{deleteError}</p>}
+
           {loading && (
             <>
               <SkeletonCard />
@@ -214,7 +239,10 @@ export default function StudentGrievancesPage() {
                     <p className="text-base font-bold text-ink">{formatDisplayText(grievance.title)}</p>
                     <p className="text-xs font-medium text-ink-muted">Addressed to {addressedToLabel(grievance)} · Filed {relativeTime(grievance.created_at)}</p>
                   </div>
-                  <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status={grievance.status} tone={grievanceStatusTone(grievance.status)} />
+                    {grievance.status === 'submitted' && <IconButton icon={Trash2} label={`Delete grievance ${formatDisplayText(grievance.title)}`} variant="danger" onClick={() => { setDeleteError(null); setDeleteTarget(grievance); }} />}
+                  </div>
                 </div>
 
                 <GrievanceTimeline status={grievance.status} />
@@ -232,6 +260,18 @@ export default function StudentGrievancesPage() {
           ))}
         </div>
       )}
+
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete this grievance?"
+        message="This cannot be undone. Only grievances that have not been reviewed can be deleted."
+        recordName={deleteTarget?.title}
+        confirmText="Delete grievance"
+        variant="danger"
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }
