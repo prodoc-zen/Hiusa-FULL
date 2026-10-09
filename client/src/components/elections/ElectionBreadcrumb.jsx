@@ -34,7 +34,7 @@ export default function ElectionBreadcrumb({ election, onClear }) {
     { label: 'Candidates', path: '/dashboard/elections/manage-candidates', icon: UserRoundCheck, roles: ['ADMIN', 'SBO_OFFICER'] },
     { label: 'Party Lists', path: '/dashboard/elections/manage-partylists', icon: UsersRound, roles: ['ADMIN'] },
     { label: 'Voters', path: '/dashboard/elections/manage-voters', icon: ListChecks, roles: ['SBO_OFFICER'] },
-    { label: 'Cast Vote', path: '/dashboard/elections/cast-vote', icon: Vote, roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'], available: isVotingOpen(election), reason: 'Voting opens during the approved election period.' },
+    { label: 'Cast Vote', path: '/dashboard/elections/cast-vote', icon: Vote, roles: ['ADMIN', 'SBO_OFFICER', 'STUDENT'], available: isVotingOpen(election), reason: 'Voting opens during the approved election period.' },
     { label: 'Results', path: '/dashboard/elections/election-results', icon: Trophy, roles: ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'], available: canViewElectionResults(election, role), reason: 'Results appear after the election closes and is released.' },
   ].filter((tab) => tab.roles.includes(role));
 
