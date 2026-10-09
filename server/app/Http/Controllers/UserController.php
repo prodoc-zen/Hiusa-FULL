@@ -683,10 +683,24 @@ class UserController extends Controller
 
         $user = User::where('school_id', $request->school_id)->first();
 
-        if (! $user || ! Hash::check($request->password, $user->password_hash) || ! $user->organization()->where('is_active', true)->exists()) {
+        if (! $user || ! Hash::check($request->password, $user->password_hash)) {
             throw ValidationException::withMessages([
                 'school_id' => ['The provided credentials are incorrect.'],
             ]);
+        }
+
+        $organization = $user->organization()->first(['id', 'is_active', 'lifecycle_status']);
+
+        if (! $organization?->is_active) {
+            return response()->json([
+                'message' => match ($organization?->lifecycle_status) {
+                    'archived' => 'Your organization has been archived by the Student Affairs Office and is read only. Contact the Student Affairs Office to restore it.',
+                    'pending' => 'Your organization is still waiting for approval by the Student Affairs Office.',
+                    'returned' => 'Your organization registration was returned by the Student Affairs Office. Contact your Department Head.',
+                    default => 'This organization is not active. Contact the Student Affairs Office.',
+                },
+                'organization_status' => $organization?->lifecycle_status,
+            ], 403);
         }
 
         if ($user->account_status !== 'active') {
