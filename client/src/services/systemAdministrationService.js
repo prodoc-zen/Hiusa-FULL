@@ -16,6 +16,9 @@ export const uploadSystemCollegeLogo = (id, file) => {
   data.append('logo', file);
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
+export const createDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/department-head`, payload));
+export const updateDepartmentHead = (id, payload) => unwrap(api.put(`/system/department-heads/${id}`, payload));
+export const resetDepartmentHeadPassword = (id) => unwrap(api.post(`/system/department-heads/${id}/password-reset`));
 export const getAcademicYears = () => unwrap(api.get('/system/academic-years'));
 export const getAcademicPeriods = () => unwrap(api.get('/academic-periods'));
 export const getActiveAcademicPeriod = () => unwrap(api.get('/academic-periods/active'));
