@@ -46,8 +46,8 @@ function Dialog({ label, onClose, onSubmit, children, submitLabel, busy, error }
 
 /**
  * Cash advances end to end: an admin requests one, a different admin approves
- * it, releasing it posts an expense to the ledger, and each repayment posts
- * income until the balance is cleared.
+ * it, releasing it moves cash out of the ledger, and each repayment moves it
+ * back in until the balance is cleared. None of it is income or expense.
  */
 export default function CashAdvancesSection({ onLedgerChange }) {
   const [status, setStatus] = useState('');
@@ -112,7 +112,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
 
   async function confirmRelease() {
     const target = releaseTarget;
-    const done = await run(`release-${target.id}`, () => releaseCashAdvance(target.id), 'Funds released and recorded as an expense', { ledger: true });
+    const done = await run(`release-${target.id}`, () => releaseCashAdvance(target.id), 'Funds released from the ledger. Not counted as income or expense.', { ledger: true });
     if (done) setReleaseTarget(null);
   }
 
@@ -136,7 +136,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
       <div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#DDE7EF] p-4 sm:p-5">
         <div>
           <h2 id="cash-advances-title" className="text-base font-bold text-[#0F172A]">Cash advances</h2>
-          <p className="mt-1 text-xs text-slate-600">Releasing an advance posts an expense; each repayment posts income. A different admin approves every request.</p>
+          <p className="mt-1 text-xs text-slate-600">An advance moves cash in the ledger (released out, repaid back in) but is not counted as income or expense in reports and forecasts. A different admin approves every request.</p>
         </div>
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs font-semibold text-slate-600">
@@ -214,7 +214,7 @@ export default function CashAdvancesSection({ onLedgerChange }) {
       <ConfirmModal
         open={Boolean(releaseTarget)}
         title="Release funds"
-        message={releaseTarget ? `${peso(releaseTarget.amount)} leaves the ledger as a cash advance expense for ${borrowerName(releaseTarget)}. Repayments come back as income.` : ''}
+        message={releaseTarget ? `${peso(releaseTarget.amount)} leaves the ledger as a cash advance for ${borrowerName(releaseTarget)}. Repayments come back in, and neither is counted as income or expense.` : ''}
         recordName={releaseTarget?.reference}
         confirmText="Release funds"
         variant="primary"
