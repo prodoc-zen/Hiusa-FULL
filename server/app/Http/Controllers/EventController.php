@@ -9,7 +9,6 @@ use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
-use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
 use App\Models\FinancialForecast;
 use App\Models\Notification;
@@ -18,6 +17,7 @@ use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Venue;
+use App\Services\EventApprovalChain;
 use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
 use Carbon\Carbon;
@@ -33,6 +33,7 @@ class EventController extends Controller
     public function __construct(
         private readonly GroqResponsesService $groq,
         private readonly TaskDelegationService $delegation,
+        private readonly EventApprovalChain $approvalChain,
     ) {}
 
     public function index(Request $request)
@@ -104,19 +105,7 @@ class EventController extends Controller
 
     private function attachApprovalInfo($events): void
     {
-        $ids = $events instanceof Event ? [$events->id] : $events->pluck('id');
-
-        $approvals = ApprovalRequest::where('entity_type', 'event')
-            ->whereIn('entity_id', $ids)
-            ->orderBy('id')
-            ->get()
-            ->keyBy('entity_id');
-
-        foreach (($events instanceof Event ? [$events] : $events) as $event) {
-            $approval = $approvals->get($event->id);
-            $event->approval_status = $approval?->status;
-            $event->approval_remarks = $approval?->remarks;
-        }
+        $this->approvalChain->attach($events instanceof Event ? [$events] : $events->items());
     }
 
     public function show(Request $request, $id)
@@ -298,15 +287,7 @@ class EventController extends Controller
                 'academic_semester_id' => $activeSemester?->id,
             ]);
 
-            if (! EventRequirement::forEvent($event)->where('is_active', true)->exists()) {
-                ApprovalRequest::create([
-                    'organization_id' => $request->user()->organization_id,
-                    'entity_type' => 'event',
-                    'entity_id' => $event->id,
-                    'requested_by' => $request->user()->id,
-                    'required_role' => config('approvals.routes.event'),
-                ]);
-            }
+            $this->approvalChain->submitToHead($event, $request->user()->id);
 
             if ($proposedBudget > 0) {
                 $budget = Budget::create([
@@ -471,15 +452,10 @@ class EventController extends Controller
 
     private function resubmitIfRejected(Event $event): void
     {
-        if (EventRequirement::forEvent($event)->where('is_active', true)->exists()) {
-            return;
+        $head = $this->approvalChain->headRow($event);
+        if ($head?->status === 'rejected') {
+            $head->resubmit();
         }
-        ApprovalRequest::where('entity_type', 'event')
-            ->where('entity_id', $event->id)
-            ->where('status', 'rejected')
-            ->where('organization_id', $event->organization_id)
-            ->get()
-            ->each(fn (ApprovalRequest $approval) => $approval->resubmit());
     }
 
     private function hasMaterialEventChange(array $data): bool
@@ -512,15 +488,7 @@ class EventController extends Controller
 
     private function reopenApproval(Event $event, Request $request): void
     {
-        if (EventRequirement::forEvent($event)->where('is_active', true)->exists()) {
-            return;
-        }
-        ApprovalRequest::where('entity_type', 'event')
-            ->where('entity_id', $event->id)
-            ->where('organization_id', $event->organization_id)
-            ->latest('id')
-            ->first()
-            ?->reopen($request->user()->id, config('approvals.routes.event'));
+        $this->approvalChain->submitToHead($event, $request->user()->id);
     }
 
     public function destroy(Request $request, $id)
