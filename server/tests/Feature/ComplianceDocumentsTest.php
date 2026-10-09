@@ -277,8 +277,15 @@ class ComplianceDocumentsTest extends TestCase
         $made = $this->documentsFor($organization, $this->submitter($organization));
         Sanctum::actingAs($this->director());
 
-        DB::statement('PRAGMA defer_foreign_keys = ON');
+        if (DB::getDriverName() === 'sqlite') {
+            DB::statement('PRAGMA defer_foreign_keys = ON');
+        } else {
+            DB::statement('SET FOREIGN_KEY_CHECKS=0');
+        }
         DB::table('event_requirement_files')->where('id', $made['file']->id)->update(['event_id' => 999999, 'requirement_id' => 999999]);
+        if (DB::getDriverName() !== 'sqlite') {
+            DB::statement('SET FOREIGN_KEY_CHECKS=1');
+        }
 
         $rows = collect($this->getJson('/api/compliance/documents?organization_id='.$organization->id.'&source=event_requirement')->assertOk()->json('data'));
 

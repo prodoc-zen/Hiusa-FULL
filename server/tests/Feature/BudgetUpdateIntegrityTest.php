@@ -94,7 +94,8 @@ class BudgetUpdateIntegrityTest extends TestCase
         $levels = [];
         $baseline = DB::transactionLevel();
         DB::listen(function ($query) use (&$levels) {
-            if (str_contains($query->sql, 'sum("amount")') && str_contains($query->sql, '"transactions"')) {
+            $sql = str_replace(['"', '`'], '', $query->sql);
+            if (str_contains($sql, 'sum(amount)') && str_contains($sql, 'from transactions')) {
                 $levels[] = DB::transactionLevel();
             }
         });
