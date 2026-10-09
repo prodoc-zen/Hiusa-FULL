@@ -293,14 +293,17 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // SAO organization compliance and accreditation: requirement types are
     // SAO's per-academic-year catalog; submissions are each org's own
     // evidence against that catalog, always scoped to the acting org.
-    Route::get('/compliance/requirement-types', [ComplianceController::class, 'requirementTypes'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/compliance/requirement-types', [ComplianceController::class, 'requirementTypes'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/compliance/requirement-types', [ComplianceController::class, 'storeRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/compliance/requirement-types/{requirementType}', [ComplianceController::class, 'updateRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
-    Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
-    Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::delete('/compliance/requirement-types/{requirementType}', [ComplianceController::class, 'destroyRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/compliance/submissions/{submission}/review', [ComplianceController::class, 'reviewSubmission'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
-    Route::get('/compliance/submissions/{submission}/document', [ComplianceController::class, 'downloadSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN']);
+    Route::get('/compliance/submissions/{submission}/document', [ComplianceController::class, 'downloadSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/compliance/documents', [ComplianceController::class, 'documents'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::delete('/system/academic-semesters/{academicSemester}', [AcademicSemesterController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
 
     // SAO venues and bookings: SUPER_ADMIN owns the venue catalog; ADMIN and
     // SBO_OFFICER request bookings for their own organization only. Overlap
