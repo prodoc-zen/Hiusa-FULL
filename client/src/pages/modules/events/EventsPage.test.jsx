@@ -100,6 +100,19 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.queryByRole('button', { name: 'Close event details' })).not.toBeInTheDocument();
   });
 
+  it('says on the event money panel that cash advances are not counted', async () => {
+    const event = { id: 7, title: 'Sports Fest 2024', status: 'approved', start_time: '2026-10-01T08:00:00Z', end_time: '2026-10-01T10:00:00Z', location: 'Gym' };
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getEvent.mockResolvedValue({ data: { ...event, budgets: [], financial_summary: { allocated_budget: 5000, spent: 1200, income: 300, remaining_budget: 4100, risk: 'low', latest_forecast: null } } });
+
+    render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'View event' }));
+
+    expect(await screen.findByText('Cash advances are not counted here.')).toBeInTheDocument();
+  });
+
   it('shows a readable AI-created to-do list without raw API dates or technical labels', async () => {
     const event = { id: 9, title: 'Leadership Summit', status: 'approved', start_time: '2026-10-10T08:00:00.000000Z', end_time: '2026-10-10T12:00:00.000000Z', location: 'Main Hall' };
     eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
