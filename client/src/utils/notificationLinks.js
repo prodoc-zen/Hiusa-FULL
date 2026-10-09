@@ -4,7 +4,7 @@ export function getNotificationDestination(notification, role) {
   const title = String(notification?.title || '').toLowerCase();
 
   if (referenceType === 'approval_request') {
-    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/compliance?tab=financial';
     if (role === 'DEPARTMENT_HEAD') return '/dashboard/department-head/approvals';
     if (role === 'ADMIN') return '/dashboard/approvals';
   }
@@ -16,7 +16,7 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'financial_report_deadline') {
-    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/compliance?tab=financial';
     if (role === 'ADMIN') return '/dashboard/finance/transaction-history';
     return null;
   }
@@ -56,18 +56,21 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'election') {
+    if (role === 'DEPARTMENT_HEAD') return '/dashboard/elections/election-results';
     return role === 'ADMIN' && title.includes('approval request')
       ? '/dashboard/elections/manage-elections'
       : '/dashboard/elections/cast-vote';
   }
 
   if (referenceType === 'task') {
+    if (role === 'DEPARTMENT_HEAD') return null;
     return role === 'ADMIN'
       ? '/dashboard/tasks/task-progress'
       : '/dashboard/tasks/assigned-tasks';
   }
 
   if (referenceType === 'order' || referenceType === 'payment') {
+    if (role === 'DEPARTMENT_HEAD') return null;
     const needsReview = title.includes('review') || title.includes('awaiting') || title.includes('submitted');
     return needsReview && ['ADMIN', 'SBO_OFFICER'].includes(role)
       ? '/dashboard/merchandise/manage-orders'
@@ -75,11 +78,12 @@ export function getNotificationDestination(notification, role) {
   }
 
   if (referenceType === 'transaction') {
+    if (role === 'DEPARTMENT_HEAD') return null;
     return '/dashboard/finance/personal-receipts';
   }
 
   if (referenceType === 'financialreport' || referenceType === 'financial_report') {
-    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/financial-reports';
+    if (role === 'SUPER_ADMIN') return '/dashboard/super-admin/compliance?tab=financial';
     if (role === 'DEPARTMENT_HEAD') return '/dashboard/department-head/approvals';
     if (role === 'ADMIN') return '/dashboard/finance/transaction-history';
     return null;

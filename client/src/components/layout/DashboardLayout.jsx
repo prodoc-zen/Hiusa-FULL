@@ -8,8 +8,7 @@ const pageTitles = {
   '/dashboard': 'Officer Dashboard',
   '/dashboard/admin': 'Admin Dashboard',
   '/dashboard/super-admin': 'Super Admin Dashboard',
-  '/dashboard/super-admin/approvals': 'Received Reports',
-  '/dashboard/super-admin/financial-reports': 'Received Financial Reports',
+  '/dashboard/super-admin/agency': 'Agency overview',
   '/dashboard/super-admin/organizations': 'Organizations',
   '/dashboard/super-admin/colleges': 'Colleges',
   '/dashboard/super-admin/compliance': 'Compliance and Accreditation',
@@ -25,7 +24,6 @@ const pageTitles = {
   '/dashboard/clearances': 'Clearance Signing',
   '/dashboard/my-clearance': 'My Clearance',
   '/dashboard/objectives': 'Study Objectives in Action',
-  '/dashboard/super-admin/event-requirements': 'Event Requirements',
   '/dashboard/super-admin/admins': 'Administrators',
   '/dashboard/super-admin/announcements': 'Official SAO Announcements',
   '/dashboard/super-admin/notifications': 'SAO Notifications',
@@ -42,6 +40,7 @@ const pageTitles = {
   '/dashboard/officer': 'Officer Dashboard',
   '/dashboard/department-head': 'Department Head Dashboard',
   '/dashboard/department-head/approvals': 'Approvals',
+  '/dashboard/department-head/organizations': 'Organizations',
   '/dashboard/adviser': 'Adviser Dashboard',
   '/dashboard/student': 'Student Dashboard',
   '/dashboard/finance': 'Financial Management',
@@ -90,6 +89,7 @@ const pageTitles = {
 
 function getTitle(pathname) {
   if (pageTitles[pathname]) return pageTitles[pathname];
+  if (pathname.startsWith('/dashboard/super-admin/organizations/')) return 'Organization overview';
   if (pathname.startsWith('/dashboard/announcements/')) return 'Announcements';
   if (pathname.startsWith('/dashboard/elections/')) return 'Elections';
   if (pathname.startsWith('/dashboard/events/')) return 'Events';

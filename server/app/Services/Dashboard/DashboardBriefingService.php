@@ -214,8 +214,8 @@ class DashboardBriefingService
         $organizationsHref = $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organizations');
 
         $attention = $this->prioritize(array_merge(
-            $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/approvals')),
-            $this->orgsOverdueReportsAttention($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/financial-reports')),
+            $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance')),
+            $this->orgsOverdueReportsAttention($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/compliance')),
             $this->saoQueuesAttention(),
         ));
 
