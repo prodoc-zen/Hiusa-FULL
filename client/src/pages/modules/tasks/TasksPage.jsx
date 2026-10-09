@@ -13,10 +13,17 @@ import {
   Download,
   Eye,
   ListChecks,
+  Pencil,
   Plus,
+  Trash2,
   X,
 } from 'lucide-react';
-import { getTasks, createTask, previewTaskRecommendation, updateTaskStatus } from '../../../services/taskService';
+import { getTasks, createTask, deleteTask, previewTaskRecommendation, updateTask, updateTaskStatus } from '../../../services/taskService';
+import { Button, Field, Input, Select } from '../../../components/ui';
+import Modal from '../../../components/Modal';
+import ConfirmModal from '../../../components/ConfirmModal';
+import notify from '../../../lib/notify';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import { getUsers } from '../../../services/userService';
 import { getEvents } from '../../../services/eventService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
@@ -99,6 +106,13 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [formError, setFormError] = useState(null);
   const [createSuccess, setCreateSuccess] = useState('');
   const [formSubmitting, setFormSubmitting] = useState(false);
+  const [editingTask, setEditingTask] = useState(null);
+  const [editForm, setEditForm] = useState(null);
+  const [editError, setEditError] = useState(null);
+  const [editSaving, setEditSaving] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   const currentUserRole = (() => {
     try { return JSON.parse(localStorage.getItem('user') ?? '{}')?.role ?? ''; }
     catch { return ''; }
@@ -210,6 +224,70 @@ export default function TasksPage({ initialTab = 'board' }) {
       setFormError(err.response?.data?.message ?? 'Failed to create task.');
     } finally {
       setFormSubmitting(false);
+    }
+  }
+
+  function openEditTask(task) {
+    setEditError(null);
+    setEditingTask(task);
+    setEditForm({
+      title: task.title || '',
+      description: task.description || '',
+      task_kind: task.event_id ? 'event_related' : 'standalone',
+      category: task.category || 'coordination',
+      priority: task.priority || 'medium',
+      assigned_to: task.assigned_to ? String(task.assigned_to) : '',
+      event_id: task.event_id ? String(task.event_id) : '',
+      deadline: String(task.deadline || '').slice(0, 10),
+    });
+  }
+
+  async function handleEditSubmit(event) {
+    event.preventDefault();
+    if (!editForm.title.trim() || !editForm.deadline || !editForm.assigned_to || (editForm.task_kind === 'event_related' && !editForm.event_id)) {
+      setEditError('Complete the title, assignee and deadline, and pick an event for an event-related task.');
+      return;
+    }
+    setEditSaving(true);
+    setEditError(null);
+    try {
+      await updateTask(editingTask.id, {
+        title: editForm.title.trim(),
+        description: editForm.description,
+        task_kind: editForm.task_kind,
+        category: editForm.category,
+        priority: editForm.priority,
+        event_id: editForm.task_kind === 'event_related' ? editForm.event_id : null,
+        deadline: editForm.deadline,
+        ...(editForm.assigned_to !== String(editingTask.assigned_to ?? '') ? { assigned_to: editForm.assigned_to } : {}),
+      });
+      notify.success(`"${editForm.title.trim()}" updated.`);
+      setEditingTask(null);
+      setSelectedTask(null);
+      load();
+      loadTotals();
+    } catch (err) {
+      setEditError(getApiErrorMessage(err, 'Could not save this task.'));
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
+  async function confirmDeleteTask() {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteTask(taskToDelete.id);
+      notify.success(`"${taskToDelete.title}" deleted.`);
+      setSelectedTask((current) => (current?.id === taskToDelete.id ? null : current));
+      setTaskToDelete(null);
+      load();
+      loadTotals();
+    } catch (err) {
+      setDeleteError(getApiErrorMessage(err, 'Could not delete this task.'));
+      setTaskToDelete(null);
+    } finally {
+      setDeleteBusy(false);
     }
   }
 
@@ -349,6 +427,8 @@ export default function TasksPage({ initialTab = 'board' }) {
         </div>
       )}
 
+      {deleteError && <p role="alert" className="rounded-lg border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">{deleteError}</p>}
+
       {activeTab === 'create' && canManageTasks && (
         <section className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.55fr)]">
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:p-6">
@@ -434,7 +514,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(t.title)}</h3><p className="mt-1 text-xs font-semibold text-[#0878B7]">{t.event_id ? 'Event task' : 'Standalone task'}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{formatDisplayText(t.event?.title) || 'General organization task'}</dd></div></dl>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
-                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}</div>
+                <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => openEditTask(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">Edit</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setTaskToDelete(t); }} className="min-h-11 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700">Delete</button>}</div>
               </article>)}
             </div>
             <div className="hidden overflow-x-auto lg:block">
@@ -473,6 +553,8 @@ export default function TasksPage({ initialTab = 'board' }) {
                           canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start task', icon: CheckCircle2, onClick: () => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)) },
                           canEditTasks && ['in_progress', 'overdue'].includes(t.status) && { label: 'Complete task', icon: CheckCircle2, onClick: () => setCompletionTask(t) },
                           canManageTasks && !viewingHistory && t.status === 'completed' && { label: 'Reopen task', icon: Clock, onClick: () => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0) },
+                          canManageTasks && !viewingHistory && { label: 'Edit task', icon: Pencil, onClick: () => openEditTask(t) },
+                          canManageTasks && !viewingHistory && { label: 'Delete task', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setTaskToDelete(t); } },
                         ]} />
                       </td>
                     </tr>
@@ -743,6 +825,76 @@ export default function TasksPage({ initialTab = 'board' }) {
           </div>
         </AccessibleOverlay>
       )}
+
+      <Modal
+        open={Boolean(editingTask)}
+        title="Edit task"
+        onClose={editSaving ? undefined : () => setEditingTask(null)}
+        closeOnEscape={!editSaving}
+        footer={(
+          <>
+            <Button variant="secondary" onClick={() => setEditingTask(null)} disabled={editSaving}>Cancel</Button>
+            <Button onClick={handleEditSubmit} loading={editSaving}>Save changes</Button>
+          </>
+        )}
+      >
+        {editForm && (
+          <form onSubmit={handleEditSubmit} className="grid gap-4 sm:grid-cols-2">
+            <Field label="Task title" required className="sm:col-span-2">
+              <Input data-autofocus value={editForm.title} onChange={(event) => setEditForm({ ...editForm, title: event.target.value })} />
+            </Field>
+            <Field label="Description" className="sm:col-span-2">
+              <RichTextEditor rows={4} value={editForm.description} onChange={(description) => setEditForm({ ...editForm, description })} />
+            </Field>
+            <Field label="Task type">
+              <Select value={editForm.task_kind} onChange={(event) => setEditForm({ ...editForm, task_kind: event.target.value, event_id: '' })}>
+                <option value="standalone">Standalone task</option>
+                <option value="event_related">Event-related task</option>
+              </Select>
+            </Field>
+            {editForm.task_kind === 'event_related' && (
+              <Field label="Related event" required>
+                <Select value={editForm.event_id} onChange={(event) => setEditForm({ ...editForm, event_id: event.target.value })}>
+                  <option value="">Select an event</option>
+                  {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
+                </Select>
+              </Field>
+            )}
+            <Field label="Assigned category">
+              <Select value={editForm.category} onChange={(event) => setEditForm({ ...editForm, category: event.target.value })}>
+                {['coordination', 'finance', 'publicity', 'documentation', 'logistics'].map((category) => <option key={category} value={category}>{capitalize(category)}</option>)}
+              </Select>
+            </Field>
+            <Field label="Priority">
+              <Select value={editForm.priority} onChange={(event) => setEditForm({ ...editForm, priority: event.target.value })}>
+                {['low', 'medium', 'high', 'critical'].map((priority) => <option key={priority} value={priority}>{capitalize(priority)}</option>)}
+              </Select>
+            </Field>
+            <Field label="Assigned officer" required>
+              <Select value={editForm.assigned_to} onChange={(event) => setEditForm({ ...editForm, assigned_to: event.target.value })}>
+                {!officers.some((officer) => String(officer.school_id) === editForm.assigned_to) && editForm.assigned_to && <option value={editForm.assigned_to}>{editingTask?.assignee ? `${formatDisplayText(editingTask.assignee.first_name)} ${formatDisplayText(editingTask.assignee.last_name)}` : editForm.assigned_to}</option>}
+                {officers.map((officer) => <option key={officer.school_id} value={officer.school_id}>{formatDisplayText(officer.first_name)} {formatDisplayText(officer.last_name)} · {formatDisplayText(officer.position_title)}</option>)}
+              </Select>
+            </Field>
+            <Field label="Deadline" required>
+              <DateTimeInput type="date" value={editForm.deadline} onChange={(event) => setEditForm({ ...editForm, deadline: event.target.value })} className="h-11 w-full rounded-control border border-line bg-surface px-3 text-sm font-medium text-ink outline-none focus:border-brand-600 focus:ring-4 focus:ring-accent/15" />
+            </Field>
+            {editError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{editError}</p>}
+          </form>
+        )}
+      </Modal>
+
+      <ConfirmModal
+        open={Boolean(taskToDelete)}
+        title="Delete this task?"
+        message="This cannot be undone. The task and its progress history are removed."
+        recordName={taskToDelete?.title}
+        confirmText="Delete task"
+        variant="danger"
+        busy={deleteBusy}
+        onCancel={() => setTaskToDelete(null)}
+        onConfirm={confirmDeleteTask}
+      />
 
       {completionTask && (
         <AccessibleOverlay label="Confirm task completion" onClose={() => setCompletionTask(null)} className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">

@@ -1,10 +1,13 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { ClipboardCheck, Plus } from 'lucide-react';
-import { Button, Card, EmptyState, ErrorState, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { Button, Card, EmptyState, ErrorState, IconButton, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
+import ConfirmModal from '../../../components/ConfirmModal';
+import notify from '../../../lib/notify';
+import { getApiErrorMessage } from '../../../utils/apiError';
 import { Meter } from '../../../components/charts';
 import PaginationControls from '../../../components/PaginationControls';
-import { getClearancePeriods, getClearancePeriodStudents } from '../../../services/clearanceService';
+import { deleteClearancePeriod, getClearancePeriods, getClearancePeriodStudents } from '../../../services/clearanceService';
 import { listMeta, unwrapList, fetchAllPages } from '../../../services/pagination';
 import { manilaDate } from '../../../lib/format';
 import CreateClearancePeriodModal from './CreateClearancePeriodModal';
@@ -20,6 +23,9 @@ export default function SaoClearancesPage() {
   const [progress, setProgress] = useState({});
   const [createOpen, setCreateOpen] = useState(false);
   const [selectedPeriod, setSelectedPeriod] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -54,6 +60,24 @@ export default function SaoClearancesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periods]);
 
+  async function confirmDelete() {
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await deleteClearancePeriod(deleteTarget.id);
+      notify.success(`"${deleteTarget.title}" deleted.`);
+      setDeleteTarget(null);
+      setProgress({});
+      if (page > 1 && periods.length === 1) setPage(page - 1);
+      else load();
+    } catch (err) {
+      setDeleteError(getApiErrorMessage(err, 'This clearance period could not be deleted.'));
+      setDeleteTarget(null);
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   return (
     <div className="flex flex-col gap-5">
       <PageHeader
@@ -61,6 +85,8 @@ export default function SaoClearancesPage() {
         description="Open a clearance period and track how many students have completed every required signature."
         actions={<Button leftIcon={Plus} onClick={() => setCreateOpen(true)}>New clearance period</Button>}
       />
+
+      {deleteError && <p role="alert" className="rounded-control bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{deleteError}</p>}
 
       {loading && (
         <div className="flex flex-col gap-3">
@@ -101,7 +127,10 @@ export default function SaoClearancesPage() {
                       <p className="text-xs font-medium text-ink-muted">Calculating progress...</p>
                     )}
                   </div>
-                  <Button variant="secondary" onClick={() => setSelectedPeriod(period)}>View students</Button>
+                  <div className="flex items-center gap-2">
+                    <Button variant="secondary" onClick={() => setSelectedPeriod(period)}>View students</Button>
+                    <IconButton icon={Trash2} label={`Delete ${formatDisplayText(period.title)}`} variant="danger" onClick={() => { setDeleteError(null); setDeleteTarget(period); }} />
+                  </div>
                 </div>
               </Card>
             );
@@ -110,6 +139,17 @@ export default function SaoClearancesPage() {
         </div>
       )}
 
+      <ConfirmModal
+        open={Boolean(deleteTarget)}
+        title="Delete this clearance period?"
+        message="This cannot be undone. Periods that already have signed entries cannot be deleted."
+        recordName={deleteTarget?.title}
+        confirmText="Delete period"
+        variant="danger"
+        busy={deleteBusy}
+        onCancel={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
       <CreateClearancePeriodModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setProgress({}); if (page === 1) load(); else setPage(1); }} />
       <ClearancePeriodStudentsDrawer period={selectedPeriod} onClose={() => setSelectedPeriod(null)} onSignatureChanged={() => setProgress((current) => { const next = { ...current }; if (selectedPeriod) delete next[selectedPeriod.id]; return next; })} />
     </div>

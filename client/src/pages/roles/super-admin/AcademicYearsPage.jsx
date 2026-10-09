@@ -7,7 +7,7 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, updateAcademicYear } from '../../../services/systemAdministrationService';
+import { activateAcademicSemester, closeAcademicSemester, closeAcademicYear, createAcademicSemester, createAcademicYear, deleteAcademicSemester, deleteAcademicYear, getAcademicYears, makeAcademicYearCurrent, updateAcademicYear } from '../../../services/systemAdministrationService';
 
 const EMPTY_FORM = { label: '', starts_on: '', ends_on: '' };
 const EMPTY_SEMESTER = { number: '1', starts_on: '', ends_on: '' };
@@ -40,6 +40,8 @@ export default function AcademicYearsPage() {
   const [semesterYear, setSemesterYear] = useState(null);
   const [semesterForm, setSemesterForm] = useState(EMPTY_SEMESTER);
   const [semesterErrors, setSemesterErrors] = useState({});
+  const [semesterDeleteTarget, setSemesterDeleteTarget] = useState(null);
+  const [semesterDeleteError, setSemesterDeleteError] = useState(null);
 
   const load = useCallback(async () => {
     setYears((current) => ({ ...current, loading: true, error: '' }));
@@ -156,6 +158,22 @@ export default function AcademicYearsPage() {
     }
   }
 
+  async function confirmSemesterDelete() {
+    setBusy(true);
+    setSemesterDeleteError(null);
+    try {
+      await deleteAcademicSemester(semesterDeleteTarget.id);
+      notify.success('Semester removed');
+      setSemesterDeleteTarget(null);
+      await load();
+    } catch (cause) {
+      setSemesterDeleteError({ message: getApiErrorMessage(cause, 'The semester was not removed.'), reasons: cause?.response?.data?.reasons || [] });
+      setSemesterDeleteTarget(null);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   const columns = [
     { key: 'label', header: 'Academic year', render: (year) => <span className="font-bold text-ink">{year.label}</span> },
     { key: 'dates', header: 'Dates', render: (year) => `${manilaDate(year.starts_on, 'long')} to ${manilaDate(year.ends_on, 'long')}` },
@@ -210,6 +228,12 @@ export default function AcademicYearsPage() {
       </Card>
 
       <Card title="Semesters" description="Activating a semester completes the previous active semester and sets its academic year as current.">
+        {semesterDeleteError && (
+          <div role="alert" className="mb-3 rounded-control bg-danger-tint p-3 text-sm font-semibold text-danger-strong">
+            <p>{semesterDeleteError.message}</p>
+            {semesterDeleteError.reasons.length > 0 && <ul className="mt-1 list-disc pl-5 font-medium">{semesterDeleteError.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+          </div>
+        )}
         {years.items.map((year) => <div key={year.id} className="border-b border-line-soft py-4 last:border-0">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-bold text-ink">AY {year.label}</h3>
@@ -219,6 +243,7 @@ export default function AcademicYearsPage() {
             <div><span className="text-sm font-semibold text-ink">{semester.number === 1 ? '1st' : '2nd'} Semester</span><span className="ml-2 text-xs text-ink-muted">{manilaDate(semester.starts_on, 'long')} to {manilaDate(semester.ends_on, 'long')}</span><span className="ml-2 text-xs font-semibold capitalize text-ink-muted">{semester.status}</span></div>
             {semester.status === 'upcoming' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'activate')}>Set as active</Button>}
             {semester.status === 'active' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => changeSemester(semester, 'close')}>Close semester</Button>}
+            {semester.status !== 'active' && <IconButton icon={Trash2} label={`Delete ${semester.number === 1 ? '1st' : '2nd'} semester of AY ${year.label}`} variant="danger" disabled={busy} onClick={() => { setSemesterDeleteError(null); setSemesterDeleteTarget({ ...semester, yearLabel: year.label }); }} />}
           </div>)}{!year.semesters?.length && <p className="text-xs text-ink-muted">No semesters added.</p>}</div>
         </div>)}
       </Card>
@@ -283,6 +308,16 @@ export default function AcademicYearsPage() {
         busy={busy}
         onCancel={() => !busy && setCloseYearTarget(null)}
         onConfirm={confirmCloseYear}
+      />
+      <ConfirmModal
+        open={Boolean(semesterDeleteTarget)}
+        title="Delete semester"
+        message="Semesters that already have events, tasks or requirements attached cannot be deleted."
+        recordName={semesterDeleteTarget ? `${semesterDeleteTarget.number === 1 ? '1st' : '2nd'} Semester, AY ${semesterDeleteTarget.yearLabel}` : undefined}
+        confirmText="Delete semester"
+        busy={busy}
+        onCancel={() => !busy && setSemesterDeleteTarget(null)}
+        onConfirm={confirmSemesterDelete}
       />
       <ConfirmModal
         open={Boolean(deleteTarget)}

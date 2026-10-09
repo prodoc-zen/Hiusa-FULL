@@ -1,19 +1,19 @@
 import { useState } from 'react';
 import { Clock3 } from 'lucide-react';
 
-const OPEN_HOUR = 5;
-const CLOSE_HOUR = 22;
+export const OPEN_HOUR = 5;
+export const CLOSE_HOUR = 22;
 
-function manilaDay(value) {
+export function manilaDay(value) {
   return new Date(value).toLocaleDateString('en-CA', { timeZone: 'Asia/Manila' });
 }
 
-function manilaHour(value) {
+export function manilaHour(value) {
   const [hour, minute] = new Date(value).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Manila' }).split(':').map(Number);
   return hour + minute / 60;
 }
 
-function timeLabel(value) {
+export function timeLabel(value) {
   return new Date(value).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' });
 }
 

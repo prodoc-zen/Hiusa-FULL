@@ -13,6 +13,7 @@ const eventMocks = vi.hoisted(() => ({
   getEventWorkflowHistory: vi.fn(),
   confirmEventWorkflow: vi.fn(),
   discardEventWorkflow: vi.fn(),
+  deleteEvent: vi.fn(),
 }));
 
 vi.mock('../../../services/eventService', () => ({
@@ -248,5 +249,54 @@ describe('EventsPage approval-request launch', () => {
     expect(screen.queryByText('Door controls')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Export CSV' })).not.toBeInTheDocument();
     expect(eventMocks.recordAttendance).not.toHaveBeenCalled();
+  });
+});
+
+describe('EventsPage delete', () => {
+  const event = { id: 7, title: 'Sports Fest 2024', status: 'approved', start_time: '2026-10-01T08:00:00Z', end_time: '2026-10-01T10:00:00Z', location: 'Gym' };
+  const renderEvents = () => render(<MemoryRouter initialEntries={['/dashboard/events/manage-events']}><EventsPage initialTab="events" /></MemoryRouter>);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [event], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.getEventWorkflowHistory.mockResolvedValue({ data: [] });
+    userMocks.getUsers.mockResolvedValue({ data: [], current_page: 1, last_page: 1, total: 0, per_page: 100 });
+    userMocks.getAcademicStructure.mockResolvedValue({ department: 'College of Computer Studies', programs: [] });
+  });
+
+  async function confirmDelete() {
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Delete event' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this event?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete event' }));
+  }
+
+  it('deletes an event after confirmation and reloads the list', async () => {
+    eventMocks.deleteEvent.mockResolvedValue({ data: { message: 'Event deleted successfully.' } });
+    renderEvents();
+    await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' });
+    const loads = eventMocks.getEvents.mock.calls.length;
+    await confirmDelete();
+
+    await waitFor(() => expect(eventMocks.deleteEvent).toHaveBeenCalledWith(7));
+    await waitFor(() => expect(eventMocks.getEvents.mock.calls.length).toBeGreaterThan(loads));
+  });
+
+  it('shows the server message when the event cannot be deleted', async () => {
+    eventMocks.deleteEvent.mockRejectedValue({ response: { status: 403, data: { message: 'You are not authorized to delete this event.' } } });
+    renderEvents();
+    await confirmDelete();
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('You are not authorized to delete this event.');
+  });
+
+  it('does not offer delete to officers', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    renderEvents();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    expect(screen.getByRole('menuitem', { name: 'View event' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete event' })).not.toBeInTheDocument();
   });
 });
