@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Models\ApprovalRequest;
 use App\Models\Notification;
+use App\Models\Organization;
 use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use Illuminate\Bus\Queueable;
@@ -30,11 +31,16 @@ class NotifyApproversJob implements ShouldQueue
     public function handle(ApprovalEntityLabel $labels): void
     {
         $entityLabel = $labels->for($this->approval);
+        $collegeId = $this->approval->required_role === 'DEPARTMENT_HEAD'
+            ? Organization::whereKey($this->approval->organization_id)->value('college_id')
+            : null;
         $approvers = User::query()
-            ->whereHas('accountProfiles', function ($profiles) {
+            ->whereHas('accountProfiles', function ($profiles) use ($collegeId) {
                 $profiles->where('role', $this->approval->required_role)->where('account_status', 'active');
                 if ($this->approval->required_role === 'SUPER_ADMIN') {
                     $profiles->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'SYSTEM_ADMINISTRATION'));
+                } elseif ($this->approval->required_role === 'DEPARTMENT_HEAD') {
+                    $profiles->whereHas('organization', fn ($organization) => $organization->where('organization_type', 'COLLEGE')->where('college_id', $collegeId));
                 } else {
                     $profiles->where('organization_id', $this->approval->organization_id);
                 }
@@ -50,7 +56,7 @@ class NotifyApproversJob implements ShouldQueue
             // $tries = 3) must not re-notify an approver it already wrote to on a
             // prior, partially-completed run.
             Notification::firstOrCreate([
-                'organization_id' => $this->approval->required_role === 'SUPER_ADMIN' ? $approver->organization_id : $this->approval->organization_id,
+                'organization_id' => in_array($this->approval->required_role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true) ? $approver->organization_id : $this->approval->organization_id,
                 'user_id' => $approver->school_id,
                 'reference_type' => 'approval_request',
                 'reference_id' => $this->approval->id,

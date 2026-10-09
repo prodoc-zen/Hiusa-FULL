@@ -29,7 +29,7 @@ class BudgetController extends Controller
         ]);
 
         $budgets = Budget::with(['event:id,title', 'financialSemester:id,name,starts_on,ends_on'])
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('organization_id', $request->user()->scopedOrganizationIds())
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
             ->orderBy('created_at', 'desc')

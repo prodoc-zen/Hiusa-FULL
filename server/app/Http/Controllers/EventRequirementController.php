@@ -198,7 +198,7 @@ class EventRequirementController extends Controller
             return ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->exists();
         }
 
-        if ($event->organization_id !== $request->user()->organization_id) {
+        if (! in_array($event->organization_id, $request->user()->scopedOrganizationIds(), true)) {
             return false;
         }
 

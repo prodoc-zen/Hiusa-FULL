@@ -12,6 +12,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Bus;
 use Illuminate\Support\Facades\Mail;
+use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
 /**
@@ -22,6 +23,7 @@ use Tests\TestCase;
  */
 class QueuedWorkTest extends TestCase
 {
+    use CreatesCollegeFixtures;
     use RefreshDatabase;
 
     public function test_password_reset_mail_is_queued_rather_than_sent_inline(): void
@@ -68,17 +70,18 @@ class QueuedWorkTest extends TestCase
         ]);
     }
 
-    public function test_running_the_dispatched_job_notifies_every_active_approver_in_the_organization_and_nobody_else(): void
+    public function test_running_the_dispatched_job_notifies_every_active_approver_in_the_college_and_nobody_else(): void
     {
-        $organization = Organization::factory()->create();
-        $otherOrganization = Organization::factory()->create();
+        $college = $this->makeCollege('CCS');
+        $organization = $this->makeCollegeStudentOrganization($college);
+        $otherCollege = $this->makeCollege('CBE');
 
         $requester = User::factory()->officer()->create(['organization_id' => $organization->id]);
-        $deptHeadOne = User::factory()->departmentHead()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
-        $deptHeadTwo = User::factory()->departmentHead()->create(['organization_id' => $organization->id, 'account_status' => 'active']);
-        $disabledDeptHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id, 'account_status' => 'disabled']);
+        $deptHeadOne = $this->makeCollegeHead($college, ['account_status' => 'active']);
+        $deptHeadTwo = $this->makeCollegeHead($college, ['account_status' => 'active']);
+        $disabledDeptHead = $this->makeCollegeHead($college, ['account_status' => 'disabled']);
         $wrongRole = User::factory()->officer()->create(['organization_id' => $organization->id]);
-        $otherOrgDeptHead = User::factory()->departmentHead()->create(['organization_id' => $otherOrganization->id, 'account_status' => 'active']);
+        $otherOrgDeptHead = $this->makeCollegeHead($otherCollege, ['account_status' => 'active']);
 
         $approval = ApprovalRequest::create([
             'organization_id' => $organization->id,
@@ -93,6 +96,7 @@ class QueuedWorkTest extends TestCase
         // already ran the job inline. Assert on its output directly.
         $this->assertSame(2, Notification::count());
         $this->assertDatabaseHas('notifications', [
+            'organization_id' => $deptHeadOne->organization_id,
             'user_id' => $deptHeadOne->school_id,
             'title' => 'Approval Request Submitted',
             'reference_type' => 'approval_request',

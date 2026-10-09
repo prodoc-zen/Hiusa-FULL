@@ -54,7 +54,7 @@ class DashboardInsightEngine
      * @param  Collection<int, int>  $organizationIds
      * @return array<int, array<string, mixed>>
      */
-    public function forUniversity(Collection $organizationIds): array
+    public function forUniversity(Collection $organizationIds, string $role = 'SUPER_ADMIN'): array
     {
         $highRiskOrgs = DB::table('budgets')
             ->whereIn('organization_id', $organizationIds)
@@ -76,7 +76,7 @@ class DashboardInsightEngine
                 'formula' => 'Counts distinct organizations with at least one budget where overspending_risk = high.',
             ],
             'generated_at' => now()->toIso8601String(),
-            'href' => $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations'),
+            'href' => $this->routeAccess->hrefFor($role, $role === 'SUPER_ADMIN' ? '/dashboard/super-admin/organizations' : '/dashboard/finance/budget-allocation'),
         ]];
     }
 
@@ -288,7 +288,7 @@ class DashboardInsightEngine
         $eligibleTotal = DB::table('users')
             ->where('organization_id', $organizationId)
             ->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'])
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
             ->count();
         $votedCount = DB::table('votes')->where('election_id', $election->id)->distinct()->count('voter_id');
         $turnoutPercent = $eligibleTotal > 0 ? ($votedCount / $eligibleTotal) * 100 : 0;

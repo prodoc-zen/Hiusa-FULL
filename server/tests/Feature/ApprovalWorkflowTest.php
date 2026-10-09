@@ -7,10 +7,12 @@ use App\Models\Election;
 use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
 class ApprovalWorkflowTest extends TestCase
 {
+    use CreatesCollegeFixtures;
     use RefreshDatabase;
 
     /**
@@ -35,8 +37,10 @@ class ApprovalWorkflowTest extends TestCase
 
     public function test_event_creation_starts_in_planning_and_creates_a_pending_approval_request(): void
     {
-        $admin = User::factory()->create(['role' => 'ADMIN', 'password_hash' => 'password123']);
-        $departmentHead = User::factory()->create(['role' => 'DEPARTMENT_HEAD', 'organization_id' => $admin->organization_id]);
+        $college = $this->makeCollege('CCS');
+        $organization = $this->makeCollegeStudentOrganization($college);
+        $admin = User::factory()->create(['role' => 'ADMIN', 'password_hash' => 'password123', 'organization_id' => $organization->id]);
+        $departmentHead = $this->makeCollegeHead($college);
         $token = $this->loginAs($admin);
 
         $response = $this->withToken($token)->postJson('/api/events', [

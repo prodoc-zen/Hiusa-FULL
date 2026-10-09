@@ -228,30 +228,31 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::post('/financial-reports/generate', [FinancialReportController::class, 'generate'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/financial-reports/{financialReport}', [FinancialReportController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/financial-reports/{financialReport}/pdf', [FinancialReportController::class, 'downloadPdf'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::get('/financial-reports/{financialReport}/documents/{index}', [FinancialReportController::class, 'document'])->whereNumber('index')->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/financial-reports/{financialReport}/submit', [FinancialReportController::class, 'submit'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Merchandise Routes
-    Route::get('/merchandise', [MerchandiseController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/merchandise', [MerchandiseController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
     Route::post('/merchandise', [MerchandiseController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/merchandise/{id}', [MerchandiseController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::delete('/merchandise/{id}', [MerchandiseController::class, 'destroy'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::patch('/merchandise/{id}/stock', [MerchandiseController::class, 'adjustStock'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::get('/merchandise/{id}/audit-logs', [MerchandiseController::class, 'auditHistory'])->middleware(['throttle:api-read', 'role:ADMIN']);
-    Route::get('/merchandise/gcash-settings', [GcashSettingsController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/merchandise/gcash-settings', [GcashSettingsController::class, 'show'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
     Route::post('/merchandise/gcash-settings', [GcashSettingsController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN']);
 
     // Order Routes
-    Route::get('/orders', [OrderController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::post('/orders', [OrderController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::patch('/orders/{id}/cancel', [OrderController::class, 'cancel'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
-    Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/orders', [OrderController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
+    Route::post('/orders', [OrderController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT']);
+    Route::patch('/orders/{id}/cancel', [OrderController::class, 'cancel'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT']);
+    Route::post('/orders/{id}/payment', [OrderController::class, 'submitPayment'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER,STUDENT']);
     Route::patch('/orders/{id}/status', [OrderController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/{id}/audit-logs', [OrderController::class, 'auditHistory'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/orders/claim', [OrderController::class, 'claimByToken'])->middleware(['throttle:api-write', 'role:ADMIN,SBO_OFFICER']);
     Route::post('/orders/claim/verify', [OrderController::class, 'verifyClaimToken'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/analytics/users', [OrderController::class, 'analyticsUsers'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
     Route::get('/orders/export', [OrderController::class, 'export'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::get('/orders/{id}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
+    Route::get('/orders/{id}/payment-proof', [OrderController::class, 'paymentProof'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT']);
 
     // Election Module Routes
     Route::get('/elections', [ElectionController::class, 'index'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
@@ -260,7 +261,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::get('/elections/{id}/candidates', [ElectionController::class, 'candidatesIndex'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/results', [ElectionController::class, 'results'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,STUDENT,DEPARTMENT_HEAD']);
     Route::get('/elections/{id}/voters', [ElectionController::class, 'voters'])->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER']);
-    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT', EnsureCurrentElectionSemester::class]);
+    Route::post('/elections/{id}/vote', [ElectionController::class, 'vote'])->middleware(['throttle:voting', 'role:ADMIN,SBO_OFFICER,STUDENT', EnsureCurrentElectionSemester::class]);
 
     Route::post('/elections', [ElectionController::class, 'store'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::put('/elections/{id}', [ElectionController::class, 'update'])->middleware(['throttle:api-write', 'role:ADMIN', EnsureCurrentElectionSemester::class]);

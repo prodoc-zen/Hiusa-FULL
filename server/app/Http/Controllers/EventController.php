@@ -48,7 +48,7 @@ class EventController extends Controller
         ]);
 
         $query = Event::with('creator:school_id,first_name,last_name,role,position_title')
-            ->where('organization_id', $user->organization_id)
+            ->whereIn('organization_id', $user->scopedOrganizationIds())
             ->withCount([
                 'attendanceRecords',
                 'tasks',
@@ -61,7 +61,7 @@ class EventController extends Controller
         }
 
         if ($user->role === 'DEPARTMENT_HEAD') {
-            $submittedEventIds = ApprovalRequest::where('organization_id', $user->organization_id)
+            $submittedEventIds = ApprovalRequest::whereIn('organization_id', $user->scopedOrganizationIds())
                 ->where('entity_type', 'event')->pluck('entity_id');
             $query->where(fn ($events) => $events->whereIn('status', ['approved', 'ongoing', 'completed'])->orWhereIn('id', $submittedEventIds));
         } elseif ($user->role !== 'ADMIN') {
@@ -131,7 +131,7 @@ class EventController extends Controller
         }
 
         $event = Event::with($relations)
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('organization_id', $request->user()->scopedOrganizationIds())
             ->withCount(['attendanceRecords', 'tasks', 'tasks as completed_tasks_count' => fn ($tasks) => $tasks->where('status', 'completed')])
             ->find($id);
 
@@ -1054,7 +1054,7 @@ class EventController extends Controller
 
     public function getAttendance(Request $request, $id)
     {
-        $event = Event::where('organization_id', $request->user()->organization_id)->find($id);
+        $event = Event::whereIn('organization_id', $request->user()->scopedOrganizationIds())->find($id);
 
         if (! $event) {
             return response()->json(['message' => 'Event not found.'], 404);

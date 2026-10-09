@@ -23,9 +23,9 @@ class CacheApiResponse
                 $user = $request->user();
                 $this->invalidateOrganization($user->organization_id);
                 // Every successful write bumps the "sao" version, which only
-                // SUPER_ADMIN cache keys include, so a SUPER_ADMIN's
-                // university-wide views never hand back a stale cached
-                // response after any organization's write.
+                // SUPER_ADMIN and DEPARTMENT_HEAD cache keys include, so their
+                // university-wide and college-wide views never hand back a
+                // stale cached response after any organization's write.
                 $this->invalidateSao();
                 if ($user->role === 'SUPER_ADMIN') {
                     // A SUPER_ADMIN write can affect any organization (e.g.
@@ -113,7 +113,7 @@ class CacheApiResponse
             $globalVersion,
         ]);
 
-        if ($user->role === 'SUPER_ADMIN') {
+        if (in_array($user->role, ['SUPER_ADMIN', 'DEPARTMENT_HEAD'], true)) {
             try {
                 $saoVersion = (int) Cache::get($this->saoVersionKey(), 1);
             } catch (Throwable) {

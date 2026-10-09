@@ -89,7 +89,7 @@ class DashboardBriefingService
         $role = $user->role;
 
         $attention = $this->prioritize(array_merge(
-            $this->approvalsAttention('ADMIN', $orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals')),
+            $this->approvalsAttention('ADMIN', [$orgId], $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals')),
             $this->electionsClosingAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/elections/manage-elections')),
             $this->budgetUtilizationAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/finance/budget-allocation')),
             $this->overdueTasksAttention($orgId, $this->routeAccess->hrefFor($role, '/dashboard/tasks/task-board')),
@@ -150,9 +150,11 @@ class DashboardBriefingService
     {
         $orgId = (int) $user->organization_id;
         $role = $user->role;
+        $collegeIds = $user->scopedOrganizationIds();
+        $organizationIds = collect($collegeIds);
 
         $attention = $this->prioritize(
-            $this->approvalsAttention('DEPARTMENT_HEAD', $orgId, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals'))
+            $this->approvalsAttention('DEPARTMENT_HEAD', $collegeIds, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/approvals'))
         );
 
         return [
@@ -161,14 +163,14 @@ class DashboardBriefingService
             'summary' => $this->summary($attention),
             'attention' => $attention,
             'pillars' => [
-                'finance' => $this->financePillar($orgId),
-                'events' => $this->eventsPillar($orgId),
-                'elections' => $this->electionsPillar($orgId),
-                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes()),
+                'finance' => $this->universityFinancePillar($organizationIds, 'college'),
+                'events' => $this->universityEventsPillar($organizationIds, 'college'),
+                'elections' => $this->universityElectionsPillar($organizationIds),
+                'communication' => $this->communicationPillar($orgId, $user->id, $user->mutedNotificationTypes(), $collegeIds),
             ],
-            'insights' => array_slice($this->insightEngine->forOrganization($orgId, $role, includeTaskWorkload: false), 0, 3),
-            'agenda' => $this->agenda($orgId, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results')),
-            'activity' => $this->activityFeed($role, $orgId, $user->id),
+            'insights' => array_slice($this->insightEngine->forUniversity($organizationIds, $role), 0, 3),
+            'agenda' => $this->universityAgenda($organizationIds, $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar'), $this->routeAccess->hrefFor($role, '/dashboard/elections/election-results')),
+            'activity' => $this->activityFeed($role, $orgId, $user->id, publicOrganizationIds: $collegeIds),
         ];
     }
 
@@ -209,6 +211,7 @@ class DashboardBriefingService
         $organizationIds = DB::table('organizations')
             ->where('organization_type', 'STUDENT_ORGANIZATION')
             ->pluck('id');
+        $organizationsHref = $this->routeAccess->hrefFor($role, '/dashboard/super-admin/organizations');
 
         $attention = $this->prioritize(array_merge(
             $this->approvalsAttention('SUPER_ADMIN', null, $user->id, $this->routeAccess->hrefFor($role, '/dashboard/super-admin/approvals')),
@@ -228,7 +231,7 @@ class DashboardBriefingService
                 'communication' => $this->universityCommunicationPillar(),
             ],
             'insights' => array_slice($this->insightEngine->forUniversity($organizationIds), 0, 3),
-            'agenda' => $this->universityAgenda($organizationIds),
+            'agenda' => $this->universityAgenda($organizationIds, $organizationsHref, $organizationsHref),
             'activity' => $this->activityFeed($role, null),
             'organizations' => $this->organizationsOverview($organizationIds),
         ];
@@ -345,15 +348,15 @@ class DashboardBriefingService
     // per-row work, so the query count never grows with total history)
     // ---------------------------------------------------------------
 
-    private function approvalsAttention(string $requiredRole, ?int $organizationId, int $assignedApproverUserId, ?string $href): array
+    private function approvalsAttention(string $requiredRole, ?array $organizationIds, int $assignedApproverUserId, ?string $href): array
     {
         $query = ApprovalRequest::with('requester:school_id,first_name,last_name')
             ->where('required_role', $requiredRole)
             ->where('status', 'pending')
             ->where(fn ($q) => $q->whereNull('assigned_approver')->orWhere('assigned_approver', $assignedApproverUserId));
 
-        if ($organizationId !== null) {
-            $query->where('organization_id', $organizationId);
+        if ($organizationIds !== null) {
+            $query->whereIn('organization_id', $organizationIds);
         }
 
         $approvals = $query->orderBy('requested_at')->limit(self::ATTENTION_LIMIT)->get();
@@ -796,7 +799,7 @@ class DashboardBriefingService
         }
 
         $eligibleTotal = DB::table('users')->where('organization_id', $organizationId)->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT'])->count();
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])->count();
         $votedCount = DB::table('votes')->where('election_id', $election->id)->distinct()->count('voter_id');
         $turnout = $eligibleTotal > 0 ? round(($votedCount / $eligibleTotal) * 100, 1) : 0.0;
 
@@ -841,16 +844,17 @@ class DashboardBriefingService
         ];
     }
 
-    private function communicationPillar(int $organizationId, int $userId, array $mutedTypes): array
+    private function communicationPillar(int $organizationId, int $userId, array $mutedTypes, ?array $announcementOrganizationIds = null): array
     {
-        $publishedThisMonth = DB::table('announcements')->where('organization_id', $organizationId)
+        $announcementOrganizationIds ??= [$organizationId];
+        $publishedThisMonth = DB::table('announcements')->whereIn('organization_id', $announcementOrganizationIds)
             ->where('is_published', true)
             ->whereYear('published_at', now()->year)->whereMonth('published_at', now()->month)
             ->count();
         $unread = DB::table('notifications')->where('organization_id', $organizationId)->where('user_id', $userId)
             ->when($mutedTypes !== [], fn ($query) => $query->whereNotIn('notification_type', $mutedTypes))
             ->where('is_read', false)->count();
-        $last = DB::table('announcements')->where('organization_id', $organizationId)->where('is_published', true)
+        $last = DB::table('announcements')->whereIn('organization_id', $announcementOrganizationIds)->where('is_published', true)
             ->orderByDesc('published_at')->first(['title']);
 
         return [
@@ -863,7 +867,7 @@ class DashboardBriefingService
         ];
     }
 
-    private function universityFinancePillar(Collection $organizationIds): array
+    private function universityFinancePillar(Collection $organizationIds, string $reach = 'university'): array
     {
         ['allocated' => $allocated, 'remaining' => $remaining, 'spent' => $spent, 'income' => $income] = $this->approvedBudgetTotals($organizationIds);
         $pendingReports = DB::table('financial_reports')->whereIn('organization_id', $organizationIds)
@@ -873,7 +877,7 @@ class DashboardBriefingService
         return [
             'value' => round($remaining, 2),
             'unit' => 'currency',
-            'label' => 'University-wide available budget',
+            'label' => ucfirst($reach).'-wide available budget',
             'context' => sprintf('%s %d financial report(s) pending final approval.', $this->budgetContext($allocated, $remaining, $spent, $income, $scope), $pendingReports),
             'meter' => ['value' => round($spent, 2), 'limit' => round($allocated, 2)],
         ];
@@ -893,7 +897,7 @@ class DashboardBriefingService
         ];
     }
 
-    private function universityEventsPillar(Collection $organizationIds): array
+    private function universityEventsPillar(Collection $organizationIds, string $reach = 'university'): array
     {
         $upcoming = DB::table('events')->whereIn('organization_id', $organizationIds)
             ->whereIn('status', ['approved', 'ongoing'])->where('start_time', '>=', now())->count();
@@ -901,8 +905,10 @@ class DashboardBriefingService
         return [
             'value' => $upcoming,
             'unit' => 'count',
-            'label' => 'Upcoming events university-wide',
-            'context' => "{$upcoming} event(s) scheduled across all organizations",
+            'label' => "Upcoming events {$reach}-wide",
+            'context' => $reach === 'university'
+                ? "{$upcoming} event(s) scheduled across all organizations"
+                : "{$upcoming} event(s) scheduled across the organizations in your {$reach}",
         ];
     }
 
@@ -956,10 +962,9 @@ class DashboardBriefingService
         return $items->sortBy('starts_at')->take(self::AGENDA_LIMIT)->values()->all();
     }
 
-    private function universityAgenda(Collection $organizationIds): array
+    private function universityAgenda(Collection $organizationIds, ?string $eventsHref, ?string $electionsHref): array
     {
         $items = collect();
-        $href = $this->routeAccess->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations');
 
         DB::table('events')->whereIn('organization_id', $organizationIds)
             ->whereIn('status', ['approved', 'ongoing'])->where('start_time', '>=', now())
@@ -969,7 +974,7 @@ class DashboardBriefingService
                 'title' => $row->title,
                 'starts_at' => Carbon::parse($row->start_time)->toIso8601String(),
                 'location' => $row->location,
-                'href' => $href,
+                'href' => $eventsHref,
             ]));
 
         DB::table('elections')->whereIn('organization_id', $organizationIds)->where('status', 'active')
@@ -979,7 +984,7 @@ class DashboardBriefingService
                 'title' => 'Voting closes: '.$row->title,
                 'starts_at' => Carbon::parse($row->end_time)->toIso8601String(),
                 'location' => null,
-                'href' => $href,
+                'href' => $electionsHref,
             ]));
 
         return $items->sortBy('starts_at')->take(self::AGENDA_LIMIT)->values()->all();
@@ -994,10 +999,10 @@ class DashboardBriefingService
      * safe public items (published announcements, approved events), never
      * another member's activity.
      */
-    private function activityFeed(string $role, ?int $organizationId, ?int $userId = null, int $limit = self::ACTIVITY_LIMIT): array
+    private function activityFeed(string $role, ?int $organizationId, ?int $userId = null, int $limit = self::ACTIVITY_LIMIT, ?array $publicOrganizationIds = null): array
     {
         if ($userId !== null && $role !== 'ADMIN') {
-            return $this->personalAndPublicActivityFeed($role, (int) $organizationId, $userId, $limit);
+            return $this->personalAndPublicActivityFeed($role, (int) $organizationId, $userId, $limit, $publicOrganizationIds ?? [(int) $organizationId]);
         }
 
         $query = DB::table('audit_logs')
@@ -1016,7 +1021,7 @@ class DashboardBriefingService
         return $rows->map(fn ($row) => $this->activityItem($row, $role))->all();
     }
 
-    private function personalAndPublicActivityFeed(string $role, int $organizationId, int $userId, int $limit): array
+    private function personalAndPublicActivityFeed(string $role, int $organizationId, int $userId, int $limit, array $publicOrganizationIds): array
     {
         $own = DB::table('audit_logs')
             ->leftJoin('users', 'audit_logs.user_id', '=', 'users.school_id')
@@ -1031,7 +1036,7 @@ class DashboardBriefingService
 
         $announcementsHref = $this->routeAccess->hrefFor($role, '/dashboard/announcements/view-announcements');
         $announcements = DB::table('announcements')
-            ->where('organization_id', $organizationId)
+            ->whereIn('organization_id', $publicOrganizationIds)
             ->where('is_published', true)
             ->orderByDesc('published_at')
             ->limit($limit)
@@ -1047,7 +1052,7 @@ class DashboardBriefingService
 
         $eventsHref = $this->routeAccess->hrefFor($role, '/dashboard/events/activity-calendar');
         $events = DB::table('events')
-            ->where('organization_id', $organizationId)
+            ->whereIn('organization_id', $publicOrganizationIds)
             ->where('status', 'approved')
             ->whereNotNull('approved_at')
             ->orderByDesc('approved_at')
