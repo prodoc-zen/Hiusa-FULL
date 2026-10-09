@@ -15,6 +15,7 @@ use App\Models\Remittance;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\OrderFulfillmentService;
+use App\Support\Csv;
 use DomainException;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\QueryException;
@@ -414,18 +415,10 @@ class FinancialAccountabilityController extends Controller
                     $log->description,
                     $log->record_id,
                 ];
-                fputcsv($handle, array_map(fn ($value) => $this->csvCell($value), $row));
+                fputcsv($handle, Csv::row($row));
             }
             fclose($handle);
         }, 'audit-log-'.now()->format('Y-m-d-His').'.csv', ['Content-Type' => 'text/csv']);
-    }
-
-    // Names and descriptions are user-entered; a leading = + - @ would run as a spreadsheet formula.
-    private function csvCell(mixed $value): string
-    {
-        $text = (string) $value;
-
-        return preg_match('/^[=+\-@\t\r]/', $text) === 1 ? "'".$text : $text;
     }
 
     private function filteredAuditLogs(Request $request): Builder
