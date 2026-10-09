@@ -13,8 +13,12 @@ class OrganizationController extends Controller
         // The SAO is a static system department, not a student-body
         // organization. It is exposed only to the organization-picker used
         // before login so the SAO Director can select it and authenticate.
-        if (! request()->boolean('for_login')) {
-            $query->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION');
+        // College home organizations are never listed: they only hold a
+        // college's department head.
+        if (request()->boolean('for_login')) {
+            $query->whereIn('organization_type', ['STUDENT_ORGANIZATION', 'SYSTEM_ADMINISTRATION']);
+        } else {
+            $query->student();
         }
 
         return response()->json($query->orderBy('name')->get([

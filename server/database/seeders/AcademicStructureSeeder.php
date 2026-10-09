@@ -38,7 +38,7 @@ class AcademicStructureSeeder extends Seeder
 
     public function run(): void
     {
-        Organization::query()->orderBy('id')->each(function (Organization $organization) {
+        Organization::where('organization_type', '!=', 'COLLEGE')->orderBy('id')->each(function (Organization $organization) {
             $programs = self::PROGRAMS_BY_COLLEGE[$organization->college] ?? self::FALLBACK_PROGRAMS;
 
             foreach ($programs as $name => $letteredPerYear) {

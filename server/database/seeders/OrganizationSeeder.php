@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\College;
 use App\Models\Organization;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Str;
@@ -58,10 +59,19 @@ class OrganizationSeeder extends Seeder
             ],
         ];
 
+        $collegeIds = College::pluck('id', 'name');
+
         foreach ($organizations as $organization) {
             Organization::updateOrCreate(
                 ['slug' => Str::slug($organization['name'])],
-                [...$organization, 'organization_type' => $organization['organization_type'] ?? 'STUDENT_ORGANIZATION', 'is_active' => true]
+                [...$organization, 'college_id' => $collegeIds[$organization['college']] ?? null, 'organization_type' => $organization['organization_type'] ?? 'STUDENT_ORGANIZATION', 'is_active' => true]
+            );
+        }
+
+        foreach (College::orderBy('id')->get() as $college) {
+            Organization::updateOrCreate(
+                ['organization_type' => 'COLLEGE', 'college_id' => $college->id],
+                ['name' => $college->name, 'slug' => Str::slug($college->name), 'college' => $college->name, 'acronym' => $college->code, 'is_active' => true]
             );
         }
     }

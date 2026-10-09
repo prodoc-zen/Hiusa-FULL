@@ -63,7 +63,7 @@ class SaoGovernanceDemoSeeder extends Seeder
         }
 
         $this->sao = User::where('role', 'SUPER_ADMIN')->orderBy('school_id')->firstOrFail();
-        $this->organizations = Organization::where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->get()->keyBy('acronym');
+        $this->organizations = Organization::student()->get()->keyBy('acronym');
 
         $this->seedAcademicYear();
         $this->seedCompliance();

@@ -249,7 +249,7 @@ class DemoDataIntegrityTest extends TestCase
 
     private function assertAcademicStructureIsSeededAndStudentsArePlaced(): void
     {
-        foreach (Organization::all() as $organization) {
+        foreach (Organization::student()->get() as $organization) {
             $programs = AcademicProgram::with('sections')->where('organization_id', $organization->id)->get();
             $this->assertNotEmpty(
                 $programs,

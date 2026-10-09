@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Candidate;
 use App\Models\Election;
 use App\Models\ElectionPosition;
+use App\Models\Organization;
 use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
@@ -100,7 +101,7 @@ class ElectionSeeder extends Seeder
         // withoutEvents() suppresses ApprovalRequest::booted()'s notifyApprovers()
         // and recordSubmissionAudit(), which would otherwise fan out bogus
         // notifications/audit rows during seeding.
-        $deptHead = User::where('organization_id', $officer1->organization_id)
+        $deptHead = User::where('organization_id', Organization::find($officer1->organization_id)->collegeHomeOrganization?->id)
             ->where('role', 'DEPARTMENT_HEAD')
             ->first();
 

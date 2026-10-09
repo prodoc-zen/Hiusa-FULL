@@ -61,7 +61,7 @@ class ObjectivesEvidenceService
         $evidence = [];
         if ($isSao) {
             $evidence[] = $this->metric('Organizations onboarded', DB::table('organizations')
-                ->where(fn (Builder $q) => $q->whereNull('organization_type')->orWhere('organization_type', '!=', 'SYSTEM_ADMINISTRATION'))
+                ->where('organization_type', 'STUDENT_ORGANIZATION')
                 ->count(), 'count', '/dashboard/super-admin/organizations');
         }
         $evidence[] = $this->metric('Active member accounts', $this->scoped(DB::table('users'), $orgId)

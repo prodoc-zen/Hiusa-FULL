@@ -35,7 +35,7 @@ class FinancialReportController extends Controller
         $filters = $request->validate([
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
             'page' => ['nullable', 'integer', 'min:1'],
-            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')],
+            'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
             'status' => ['nullable', 'in:draft,pending_department_head,pending_sao,approved,rejected'],
             'document_type' => ['nullable', 'in:financial_report,income_statement'],
             'search' => ['nullable', 'string', 'max:120'],

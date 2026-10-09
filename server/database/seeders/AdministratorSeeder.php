@@ -33,7 +33,7 @@ class AdministratorSeeder extends Seeder
         // Other demo organization leaders belong in UserSeeder; creating them
         // here too would duplicate the same ADMIN accounts and positions.
         Organization::query()
-            ->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')
+            ->student()
             ->orderBy('id')
             ->get()
             ->values()
