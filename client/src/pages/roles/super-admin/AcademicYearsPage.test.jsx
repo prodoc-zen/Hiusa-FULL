@@ -3,7 +3,7 @@ import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AcademicYearsPage from './AcademicYearsPage';
 import CreateClearancePeriodModal from '../../modules/clearances/CreateClearancePeriodModal';
-import { closeAcademicYear, createAcademicYear, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
+import { closeAcademicYear, createAcademicYear, deleteAcademicSemester, getAcademicYears, makeAcademicYearCurrent } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicYears: vi.fn(),
@@ -15,6 +15,7 @@ vi.mock('../../../services/systemAdministrationService', () => ({
   activateAcademicSemester: vi.fn(),
   closeAcademicSemester: vi.fn(),
   deleteAcademicYear: vi.fn(),
+  deleteAcademicSemester: vi.fn(),
 }));
 vi.mock('../../../services/clearanceService', () => ({ createClearancePeriod: vi.fn() }));
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
@@ -63,6 +64,46 @@ describe('AcademicYearsPage', () => {
     const dialog = await screen.findByRole('dialog', { name: 'Complete academic year' });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Close year' }));
     await waitFor(() => expect(closeAcademicYear).toHaveBeenCalledWith(1));
+  });
+
+  describe('deleting a semester', () => {
+    const withSemesters = [{ ...years[1], semesters: [
+      { id: 11, number: 1, status: 'active', starts_on: '2026-08-01', ends_on: '2026-12-15' },
+      { id: 12, number: 2, status: 'upcoming', starts_on: '2027-01-05', ends_on: '2027-05-31' },
+    ] }];
+
+    it('offers delete only for semesters that are not active', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      renderPage();
+      expect(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' })).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Delete 1st semester of AY 2026-2027' })).not.toBeInTheDocument();
+    });
+
+    it('deletes after confirmation and reloads the calendar', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      vi.mocked(deleteAcademicSemester).mockResolvedValue('');
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
+
+      await waitFor(() => expect(deleteAcademicSemester).toHaveBeenCalledWith(12));
+      await waitFor(() => expect(getAcademicYears).toHaveBeenCalledTimes(2));
+    });
+
+    it('shows the server message and the blocking reasons on a 409', async () => {
+      vi.mocked(getAcademicYears).mockResolvedValue(withSemesters);
+      vi.mocked(deleteAcademicSemester).mockRejectedValue({ response: { status: 409, data: { message: 'This semester cannot be deleted because of: events, tasks.', reasons: ['events', 'tasks'] } } });
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Delete 2nd semester of AY 2026-2027' }));
+      const dialog = await screen.findByRole('dialog', { name: 'Delete semester' });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Delete semester' }));
+
+      const alert = await screen.findByRole('alert');
+      expect(within(alert).getByText('This semester cannot be deleted because of: events, tasks.')).toBeInTheDocument();
+      expect(within(alert).getByText('events')).toBeInTheDocument();
+      expect(within(alert).getByText('tasks')).toBeInTheDocument();
+    });
   });
 
   it('suggests the label from the start date and shows field errors from the server', async () => {
