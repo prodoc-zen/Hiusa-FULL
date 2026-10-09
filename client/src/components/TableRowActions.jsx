@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { MoreVertical } from 'lucide-react';
 import { dashboardPopupLeft, dashboardPopupTop } from '../utils/dashboardPopupPosition';
@@ -10,6 +10,23 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
   const triggerRef = useRef(null);
   const menuRef = useRef(null);
   const available = actions.filter(Boolean);
+  const itemCount = available.length;
+
+  const measure = useCallback(() => {
+    const rect = triggerRef.current.getBoundingClientRect();
+    const minLeft = dashboardPopupLeft();
+    const width = Math.min(224, window.innerWidth - 24);
+    const minTop = dashboardPopupTop();
+    const height = Math.min(62 + itemCount * 44, Math.max(44, window.innerHeight - minTop - 12));
+    const above = window.innerHeight - rect.bottom < height + 16 && rect.top - height - 8 >= minTop;
+    return {
+      visible: rect.bottom > minTop && rect.top < window.innerHeight,
+      position: {
+        left: Math.max(minLeft, Math.min(rect.right - width, window.innerWidth - width - 12)),
+        top: Math.max(minTop, Math.min(above ? rect.top - height - 8 : rect.bottom + 8, window.innerHeight - height - 12)),
+      },
+    };
+  }, [itemCount]);
 
   useEffect(() => {
     if (!open) return undefined;
@@ -34,22 +51,28 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
     const closeOnFocusLeave = (event) => {
       if (!triggerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setOpen(false);
     };
-    const closeOnMove = (event) => {
-      if (!menuRef.current?.contains(event.target)) setOpen(false);
+    const closeOnResize = () => setOpen(false);
+    // The menu is portaled and fixed, so it follows its trigger as the page scrolls
+    // and only closes once the trigger itself has left the visible area.
+    const followTrigger = (event) => {
+      if (event.target instanceof Node && menuRef.current?.contains(event.target)) return;
+      const { visible, position: next } = measure();
+      if (visible) setPosition(next);
+      else setOpen(false);
     };
     document.addEventListener('pointerdown', closeOutside);
     document.addEventListener('keydown', onKeyDown);
     document.addEventListener('focusin', closeOnFocusLeave);
-    window.addEventListener('resize', closeOnMove);
-    window.addEventListener('scroll', closeOnMove, true);
+    window.addEventListener('resize', closeOnResize);
+    window.addEventListener('scroll', followTrigger, true);
     return () => {
       document.removeEventListener('pointerdown', closeOutside);
       document.removeEventListener('keydown', onKeyDown);
       document.removeEventListener('focusin', closeOnFocusLeave);
-      window.removeEventListener('resize', closeOnMove);
-      window.removeEventListener('scroll', closeOnMove, true);
+      window.removeEventListener('resize', closeOnResize);
+      window.removeEventListener('scroll', followTrigger, true);
     };
-  }, [open]);
+  }, [open, measure]);
 
   if (available.length === 0) return null;
 
@@ -58,16 +81,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
       setOpen(false);
       return;
     }
-    const rect = triggerRef.current.getBoundingClientRect();
-    const minLeft = dashboardPopupLeft();
-    const width = Math.min(224, window.innerWidth - 24);
-    const minTop = dashboardPopupTop();
-    const height = Math.min(62 + available.length * 44, Math.max(44, window.innerHeight - minTop - 12));
-    const above = window.innerHeight - rect.bottom < height + 16 && rect.top - height - 8 >= minTop;
-    setPosition({
-      left: Math.max(minLeft, Math.min(rect.right - width, window.innerWidth - width - 12)),
-      top: Math.max(minTop, Math.min(above ? rect.top - height - 8 : rect.bottom + 8, window.innerHeight - height - 12)),
-    });
+    setPosition(measure().position);
     setOpen(true);
   };
 
@@ -81,7 +95,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
         aria-haspopup="menu"
         aria-controls={menuId}
         onClick={toggle}
-        className={`grid h-10 w-10 place-items-center rounded-lg border bg-white text-[#0F2F62] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${open ? 'border-[#0B8ED0] bg-[#EEF6FB]' : 'border-[#DDE7EF] hover:border-[#0B8ED0] hover:bg-[#F8FBFD]'}`}
+        className={`grid h-11 w-11 place-items-center md:h-10 md:w-10 rounded-lg border bg-white text-[#0F2F62] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] ${open ? 'border-[#0B8ED0] bg-[#EEF6FB]' : 'border-[#DDE7EF] hover:border-[#0B8ED0] hover:bg-[#F8FBFD]'}`}
       >
         <MoreVertical size={18} aria-hidden="true" />
       </button>

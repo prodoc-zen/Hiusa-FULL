@@ -57,7 +57,7 @@ class ApprovalRequestController extends Controller
             ->where('required_role', $requiredRole)
             ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $request->user()->school_id));
         if ($request->user()->role !== 'SUPER_ADMIN') {
-            $query->whereIn('organization_id', $request->user()->scopedOrganizationIds());
+            $query->whereIn('organization_id', $this->readableOrganizationIds($request));
         } else {
             $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
         }

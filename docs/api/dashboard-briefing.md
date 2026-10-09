@@ -49,7 +49,8 @@ for every role until the matching route lands in App.jsx and moves out of
       "title": "Foundation Week 2026",
       "detail": "Event requested by Juan Dela Cruz 2 days ago",
       "due_at": null,
-      "href": "/dashboard/approvals"
+      "href": "/dashboard/approvals",
+      "type_total": 23 // optional, see below
     }
     // ... max 8, sorted by severity then due_at
   ],
@@ -100,6 +101,21 @@ for every role until the matching route lands in App.jsx and moves out of
   ]
 }
 ```
+
+## Attention item `type_total`
+
+Each attention builder lists at most 8 rows, so a long queue would otherwise be
+under-reported. When a builder fills its 8 rows, the real size of that queue is
+counted once with a separate query and carried on every item of that `type` as
+`type_total` (an integer, at least 8). The key is absent on the items of a
+queue that is not full, because then the number of items already is the total.
+Items that stand for several records at once carry a `count` instead, and
+`summary.headline` weighs each type as the larger of the sum of its `count`
+values (1 for an item without one) and its `type_total`. A client that shows a
+queue size should read `type_total` when present, else the number of items of
+that `type` in `attention`. After the final sort and cut to 8 items, `attention`
+may hold fewer items of a type than `type_total`; the headline uses the full
+figure, while `summary.attention_count` is only the number of items returned.
 
 ## Attention items per role
 
@@ -153,4 +169,4 @@ stream, including grievance filings; this scoping replaced that.
 ## Known schema gaps (not implemented, no table exists)
 
 - No event RSVP/registration table exists, so "today's events I registered for" (STUDENT) is implemented as "today's events in my organization" instead.
-- No "pending organization/admin request" queue exists - `SUPER_ADMIN` creates organizations and admin accounts directly (`SystemAdministrationController::storeOrganization` / `storeAdmin`), so that sub-item from the brief has no backing data and is omitted.
+- No "pending admin request" queue exists - `SUPER_ADMIN` creates organization Admin accounts directly (`SystemAdministrationController::storeAdmin`), so that sub-item from the brief has no backing data and is omitted. Organizations are no longer created by the SAO: a Department Head registers one (`POST /api/college/organizations`) and the SAO reviews it (`PATCH /api/system/organizations/{organization}/review`).

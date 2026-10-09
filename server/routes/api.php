@@ -122,6 +122,9 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     Route::post('/system/organizations/{organization}/logo', [SystemAdministrationController::class, 'uploadOrganizationLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
     Route::get('/system/colleges', [CollegeController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/logo', [CollegeController::class, 'uploadLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/colleges/{college}/department-head', [SystemAdministrationController::class, 'storeDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/system/department-heads/{user}', [SystemAdministrationController::class, 'updateDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::post('/system/department-heads/{user}/password-reset', [SystemAdministrationController::class, 'initiateDepartmentHeadPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN']);
     Route::get('/system/academic-years', [AcademicYearController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/academic-years/{academicYear}/semesters', [AcademicSemesterController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::patch('/system/academic-semesters/{academicSemester}/active', [AcademicSemesterController::class, 'activate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
