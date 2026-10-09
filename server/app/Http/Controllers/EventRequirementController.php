@@ -7,6 +7,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;
+use App\Services\EventApprovalChain;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -16,6 +17,8 @@ use Illuminate\Validation\Rule;
 class EventRequirementController extends Controller
 {
     private const SUPPORTED_EXTENSIONS = ['pdf'];
+
+    public function __construct(private readonly EventApprovalChain $approvalChain) {}
 
     public function index(Request $request)
     {
@@ -102,10 +105,10 @@ class EventRequirementController extends Controller
 
         return response()->json([
             'event' => $event->only(['id', 'title', 'organization_id', 'status']),
-            'requirements' => EventRequirement::forEvent($event)->where('is_active', true)->orderBy('sort_order')->orderBy('id')->get(),
+            'requirements' => EventRequirement::activeForEvent($event)->orderBy('sort_order')->orderBy('id')->get(),
             'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions')
                 ->where('event_id', $event->id)->orderBy('requirement_id')->get(),
-            'approval_status' => ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->latest('id')->value('status'),
+            'approval_status' => $this->approvalChain->describe([$event])[$event->id]['approval_status'],
         ]);
     }
 
@@ -114,13 +117,14 @@ class EventRequirementController extends Controller
         if ($event->organization_id !== $request->user()->organization_id) {
             return response()->json(['message' => 'Event not found.'], 404);
         }
-        $previousApproval = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->latest('id')->first();
-        if ($event->approved_at || ($previousApproval && $previousApproval->status !== 'rejected')) {
+        $head = $this->approvalChain->headRow($event);
+        $sao = $this->approvalChain->saoRow($event);
+        if ($event->approved_at || $sao?->status === 'pending') {
             return response()->json(['message' => 'This event has already been submitted.'], 409);
         }
 
         $request->validate(['documents' => ['required', 'array'], 'documents.*' => ['required', 'file', 'max:10240']]);
-        $requirements = EventRequirement::forEvent($event)->where('is_active', true)->get();
+        $requirements = EventRequirement::activeForEvent($event)->get();
         if ($requirements->isEmpty()) {
             return response()->json(['message' => 'SAO has not configured any event requirements.'], 422);
         }
@@ -143,7 +147,7 @@ class EventRequirementController extends Controller
         $storedPaths = [];
         $oldPaths = EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
         try {
-            DB::transaction(function () use ($request, $event, $requirements, $documents, $previousApproval, &$storedPaths) {
+            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, &$storedPaths) {
                 EventRequirementFile::where('event_id', $event->id)->delete();
                 foreach ($requirements as $requirement) {
                     if (! isset($documents[$requirement->id])) {
@@ -162,16 +166,10 @@ class EventRequirementController extends Controller
                     ]);
                 }
 
-                if ($previousApproval) {
-                    $previousApproval->reopen($request->user()->school_id, 'SUPER_ADMIN');
-                } else {
-                    ApprovalRequest::create([
-                        'organization_id' => $event->organization_id,
-                        'entity_type' => 'event',
-                        'entity_id' => $event->id,
-                        'requested_by' => $request->user()->school_id,
-                        'required_role' => 'SUPER_ADMIN',
-                    ]);
+                if (! $head && ! $sao) {
+                    $this->approvalChain->submitToHead($event, $request->user()->school_id);
+                } elseif (! $head || $head->status === 'approved') {
+                    $this->approvalChain->openSaoReview($event, $request->user()->school_id);
                 }
             });
         } catch (\Throwable $exception) {
@@ -195,7 +193,7 @@ class EventRequirementController extends Controller
     private function canSeeSubmission(Request $request, Event $event): bool
     {
         if ($request->user()->role === 'SUPER_ADMIN') {
-            return ApprovalRequest::where('entity_type', 'event')->where('entity_id', $event->id)->exists();
+            return $this->approvalChain->saoRow($event) !== null;
         }
 
         if (! in_array($event->organization_id, $request->user()->scopedOrganizationIds(), true)) {
