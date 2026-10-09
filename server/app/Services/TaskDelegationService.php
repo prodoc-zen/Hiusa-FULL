@@ -9,9 +9,12 @@ use Illuminate\Support\Carbon;
 
 class TaskDelegationService
 {
+    // The one PHP copy of ai-service/app/engines/task_delegation.py POSITION_RELEVANCE_MAP;
+    // TaskController's fallback and the event planner both score through this class.
+    // Position names must match the seeded sbo_positions.title values.
     private const POSITION_RELEVANCE_MAP = [
         'finance' => [
-            'keywords' => ['budget', 'financ', 'liquidat', 'receipt', 'audit', 'funds', 'funding', 'expense', 'payment', 'treasury', 'collection'],
+            'keywords' => ['budget', 'financ', 'liquidat', 'receipt', 'audit', 'funds', 'funding', 'fundraising', 'expense', 'payment', 'treasury', 'reimburse', 'collection'],
             'primary' => ['Treasurer', 'Auditor'],
             'secondary' => ['President', 'Business Manager'],
         ],
@@ -26,17 +29,43 @@ class TaskDelegationService
             'secondary' => ['Auditor', 'Vice President – Internal', 'Vice President'],
         ],
         'logistics' => [
-            'keywords' => ['logistic', 'venue', 'equipment', 'setup', 'supplies', 'materials', 'booth', 'layout', 'transport', 'inventory', 'vendor'],
+            'keywords' => ['logistic', 'venue', 'equipment', 'setup', 'supplies', 'materials', 'booth', 'layout', 'transport', 'inventory'],
             'primary' => ['Business Manager', 'Vice President – Internal'],
             'secondary' => ['Vice President', 'President', 'Representative'],
         ],
         'coordination' => [
-            'keywords' => ['coordinat', 'overall', 'program', 'hosting', 'host', 'planning', 'organize', 'oversee', 'lead'],
+            'keywords' => ['coordinat', 'overall', 'program', 'hosting', 'host', 'emcee', 'planning', 'organize', 'oversee', 'lead'],
             'primary' => ['President', 'Vice President – Internal', 'Vice President – External', 'Vice President'],
             'secondary' => ['Business Manager', 'Secretary', 'Representative'],
         ],
     ];
 
+    public const DEFAULT_TASK_AREA = 'coordination';
+
+    private const PRIMARY_POSITION_MATCH_SCORE = 100.0;
+
+    private const RELATED_POSITION_MATCH_SCORE = 70.0;
+
+    private const UNRELATED_POSITION_SCORE = 40.0;
+
+    private const UNKNOWN_POSITION_SCORE = 55.0;
+
+    // Neutral prior for officers with no completed/overdue task history: neither
+    // punishes new officers nor lets them outscore officers with a proven record.
+    public const NEUTRAL_PERFORMANCE_SCORE = 70.0;
+
+    private const TIER_PHRASE = [
+        'primary' => 'a primary match',
+        'secondary' => 'a related match',
+        'unrelated' => 'not closely related',
+        'unknown' => 'unspecified, so a neutral score was applied',
+    ];
+
+    /**
+     * $preferredRole only steers which officer is recommended (the best-ranked
+     * holder of that position, when one is eligible). It never changes a score,
+     * so every officer's numbers match the Python engine and TaskController.
+     */
     public function recommend(int $organizationId, string $taskTitle, ?string $taskType = null, ?string $preferredRole = null): array
     {
         $maxActive = max(1, (int) config('services.hiusa_ai.task_max_active_tasks', 5));
@@ -87,9 +116,10 @@ class TaskDelegationService
 
             $completed = (clone $base)->where('status', 'completed')->count();
             $overdue = (clone $base)->where('status', 'overdue')->count();
-            [$roleScore, $tier] = $this->roleScore($officer->position_title, $area, $preferredRole);
+            [$roleScore, $tier] = $this->roleScore($officer->position_title, $area);
             $workloadScore = round(100 * (1 - ($active / $maxActive)), 2);
-            $performanceScore = ($completed + $overdue) > 0 ? round($completed / ($completed + $overdue) * 100, 2) : 70.0;
+            $hasHistory = ($completed + $overdue) > 0;
+            $performanceScore = $hasHistory ? round($completed / ($completed + $overdue) * 100, 2) : self::NEUTRAL_PERFORMANCE_SCORE;
             $daysSinceAssignment = $this->daysSinceLastAssignment($organizationId, $officer->school_id);
             $recencyScore = $this->recencyScore($daysSinceAssignment);
             $total = round(
@@ -100,7 +130,7 @@ class TaskDelegationService
                 2
             );
 
-            $rankings[] = [
+            $ranking = [
                 'officer_id' => $officer->school_id,
                 'name' => trim("{$officer->first_name} {$officer->last_name}"),
                 'position_title' => $officer->position_title,
@@ -115,6 +145,8 @@ class TaskDelegationService
                 'max_active_tasks' => $maxActive,
                 'eligibility_result' => 'eligible',
             ];
+            $ranking['explanation'] = $this->explanation($ranking, $area, $hasHistory);
+            $rankings[] = $ranking;
         }
 
         usort($rankings, fn (array $a, array $b) => $a['final_score'] === $b['final_score']
@@ -122,6 +154,17 @@ class TaskDelegationService
             : $b['final_score'] <=> $a['final_score']);
         foreach ($rankings as $index => &$ranking) {
             $ranking['rank'] = $index + 1;
+        }
+        unset($ranking);
+
+        $recommended = $rankings[0]['officer_id'] ?? null;
+        if ($preferredRole !== null && trim($preferredRole) !== '') {
+            foreach ($rankings as $ranking) {
+                if (strcasecmp(trim((string) $ranking['position_title']), trim($preferredRole)) === 0) {
+                    $recommended = $ranking['officer_id'];
+                    break;
+                }
+            }
         }
 
         return [
@@ -134,7 +177,7 @@ class TaskDelegationService
                 'requires_active_position' => true,
                 'max_active_tasks' => $maxActive,
             ],
-            'recommended_officer_id' => $rankings[0]['officer_id'] ?? null,
+            'recommended_officer_id' => $recommended,
             'rankings' => $rankings,
             'evaluations' => [...$rankings, ...$ineligible],
         ];
@@ -180,33 +223,67 @@ class TaskDelegationService
         return max(1, (int) config('services.hiusa_ai.task_recency_window_days', 14));
     }
 
-    private function inferArea(string $title, ?string $type): string
+    public function inferArea(string $title, ?string $type): string
     {
         $haystack = strtolower($title.' '.($type ?? ''));
         foreach (self::POSITION_RELEVANCE_MAP as $area => $spec) {
             foreach ($spec['keywords'] as $keyword) {
+                // Anchored at the START of a word only: the keywords are stem
+                // prefixes ("financ", "promot") that must still match inflected
+                // forms, and collision-prone ones are spelled out ("funds",
+                // "funding", "fundraising" rather than a bare "fund").
                 if (preg_match('/\b'.preg_quote($keyword, '/').'/', $haystack) === 1) {
                     return $area;
                 }
             }
         }
 
-        return 'coordination';
+        return self::DEFAULT_TASK_AREA;
     }
 
-    private function roleScore(?string $position, string $area, ?string $preferredRole): array
+    /** @return array{0: float, 1: string} [score, tier] */
+    public function roleScore(?string $position, string $area): array
     {
         $position = trim((string) $position);
-        if ($preferredRole && strcasecmp($position, trim($preferredRole)) === 0) {
-            return [100.0, 'primary'];
+        if ($position === '') {
+            return [self::UNKNOWN_POSITION_SCORE, 'unknown'];
         }
         if (in_array($position, self::POSITION_RELEVANCE_MAP[$area]['primary'], true)) {
-            return [100.0, 'primary'];
+            return [self::PRIMARY_POSITION_MATCH_SCORE, 'primary'];
         }
         if (in_array($position, self::POSITION_RELEVANCE_MAP[$area]['secondary'], true)) {
-            return [70.0, 'secondary'];
+            return [self::RELATED_POSITION_MATCH_SCORE, 'secondary'];
         }
 
-        return [40.0, 'unrelated'];
+        return [self::UNRELATED_POSITION_SCORE, 'unrelated'];
+    }
+
+    public function tierPhrase(string $tier): string
+    {
+        return self::TIER_PHRASE[$tier] ?? $tier;
+    }
+
+    /** The sentence ai-service/app/engines/task_delegation.py builds for a ranking row. */
+    public function explanation(array $ranking, string $area, bool $hasHistory): string
+    {
+        $position = trim((string) $ranking['position_title']);
+        $days = $ranking['days_since_last_assignment'] ?? null;
+
+        return sprintf(
+            "%s scored %.2f for a task inferred as '%s': position '%s' is %s for this area (%.2f pts), workload %.2f (%d/%d active tasks), past performance %.2f%s, and assignment recency %.2f (%s).",
+            $ranking['name'],
+            $ranking['final_score'],
+            $area,
+            $position !== '' ? $position : 'no position on file',
+            $this->tierPhrase($ranking['position_tier']),
+            $ranking['role_score'],
+            $ranking['workload_score'],
+            $ranking['active_tasks'],
+            $ranking['max_active_tasks'],
+            $ranking['performance_score'],
+            $hasHistory ? '' : sprintf(' (no task history yet, so the neutral baseline of %d was used)', self::NEUTRAL_PERFORMANCE_SCORE),
+            $ranking['recency_score'],
+            $days === null ? 'never assigned a task here' : sprintf('last assigned %d day(s) ago', $days)
+        );
     }
 }
