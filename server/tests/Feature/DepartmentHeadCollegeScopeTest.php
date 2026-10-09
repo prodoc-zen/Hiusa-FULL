@@ -206,6 +206,9 @@ class DepartmentHeadCollegeScopeTest extends TestCase
         $secondReport = $this->reportFor($second, $secondAdmin);
         $this->reportFor($first, $firstAdmin);
         $this->reportFor($other, $otherAdmin);
+        $secondBudget = $this->budgetFor($second);
+        $this->budgetFor($first);
+        $this->budgetFor($other);
         $secondEntry = $this->ledgerEntry($second, $secondAdmin, 'expense', 50);
         $this->ledgerEntry($first, $firstAdmin, 'expense', 70);
         $secondForecast = FinancialForecast::factory()->create(['organization_id' => $second->id]);
@@ -223,6 +226,8 @@ class DepartmentHeadCollegeScopeTest extends TestCase
         Sanctum::actingAs($head);
         $this->assertCount(2, $this->getJson('/api/forecasts')->assertOk()->json('data') ?: []);
         $this->assertSame([$secondForecast->id], collect($this->getJson('/api/forecasts?organization_id='.$second->id)->assertOk()->json('data'))->pluck('id')->all());
+        $this->assertCount(2, $this->getJson('/api/budgets')->assertOk()->json('data'));
+        $this->assertSame([$secondBudget->id], collect($this->getJson('/api/budgets?organization_id='.$second->id)->assertOk()->json('data'))->pluck('id')->all());
         $this->assertSame([$secondReport->id], collect($this->getJson('/api/financial-reports?organization_id='.$second->id)->assertOk()->json('data'))->pluck('id')->all());
         $this->assertSame([$secondEntry->id], collect($this->getJson('/api/transactions?organization_id='.$second->id)->assertOk()->json('data'))->pluck('id')->all());
         $this->getJson('/api/transactions/summary?organization_id='.$second->id)->assertOk()->assertJsonPath('total_expense', 50);
@@ -230,7 +235,7 @@ class DepartmentHeadCollegeScopeTest extends TestCase
         $this->assertSame([$secondCollection->id], collect($this->getJson('/api/collections?organization_id='.$second->id)->assertOk()->json())->pluck('id')->all());
         $this->assertCount(2, $this->getJson('/api/collections')->assertOk()->json());
 
-        foreach (['/api/forecasts', '/api/financial-reports', '/api/transactions', '/api/transactions/summary', '/api/financial-dashboard', '/api/collections', '/api/cash-advances'] as $uri) {
+        foreach (['/api/budgets', '/api/forecasts', '/api/financial-reports', '/api/transactions', '/api/transactions/summary', '/api/financial-dashboard', '/api/collections', '/api/cash-advances'] as $uri) {
             $this->getJson($uri.'?organization_id='.$other->id)->assertUnprocessable()->assertJsonValidationErrors('organization_id');
         }
     }

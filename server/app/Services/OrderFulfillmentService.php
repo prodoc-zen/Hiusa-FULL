@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Exceptions\InvoiceSettlementRequired;
 use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Invoice;
@@ -85,7 +86,11 @@ class OrderFulfillmentService
         });
     }
 
-    /** An order that will never be paid no longer bills the student, so its invoice is cancelled with it unless a payment was already approved on it. */
+    /**
+     * An order that will never be paid no longer bills the student, so its invoice is cancelled with it.
+     *
+     * @throws InvoiceSettlementRequired when a payment was already approved on the invoice: cancelling the order would strand the money and the balance
+     */
     public function cancelInvoiceOfClosedOrder(Order $order, User $actor, string $reason): void
     {
         $invoice = Invoice::where('organization_id', $order->organization_id)->where('order_id', $order->id)->first();
@@ -94,10 +99,14 @@ class OrderFulfillmentService
             return;
         }
 
+        if (! $invoice->isVoided() && $invoice->payments()->where('status', 'approved')->exists()) {
+            throw new InvoiceSettlementRequired("Invoice {$invoice->reference} already has approved payments. Settle or waive the invoice from Student Financial Accounts before cancelling this order.");
+        }
+
         try {
             $this->closeInvoice($invoice, 'cancelled', $reason, $actor);
         } catch (DomainException) {
-            // Closed already, or money was received on it: staff settle what is left.
+            // Closed already: nothing left to cancel.
         }
     }
 
@@ -262,7 +271,7 @@ class OrderFulfillmentService
             'user_id' => $order->student_id,
             'title' => $title,
             'message' => $message,
-            'notification_type' => 'merchandise',
+            'notification_type' => 'financial',
             'reference_type' => Order::class,
             'reference_id' => $order->id,
             'is_read' => false,
