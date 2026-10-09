@@ -157,12 +157,12 @@ class AnnouncementController extends Controller
         ])->withCount('reactions')
             ->withExists(['reactions as is_liked' => fn ($reactions) => $reactions->where('user_id', $user->school_id)])
             ->where(function ($scope) use ($user) {
-            $scope->whereIn('organization_id', $user->scopedOrganizationIds())
-                ->orWhere(function ($global) use ($user) {
-                    $global->where('announcement_source', 'SAO')
-                        ->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id));
-                });
-        });
+                $scope->whereIn('organization_id', $user->scopedOrganizationIds())
+                    ->orWhere(function ($global) use ($user) {
+                        $global->where('announcement_source', 'SAO')
+                            ->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id));
+                    });
+            });
 
         if ($category !== '' && in_array($category, $allowedCategories, true)) {
             $query->where('category', $category);

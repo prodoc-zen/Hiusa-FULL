@@ -2,9 +2,9 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AuditLog;
-use App\Models\AcademicYear;
 use App\Models\AcademicSemester;
+use App\Models\AcademicYear;
+use App\Models\AuditLog;
 use App\Models\ComplianceRequirementType;
 use App\Models\Notification;
 use App\Models\Organization;

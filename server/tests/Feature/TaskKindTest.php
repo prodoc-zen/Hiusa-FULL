@@ -4,8 +4,8 @@ namespace Tests\Feature;
 
 use App\Models\Event;
 use App\Models\Organization;
-use App\Models\Task;
 use App\Models\SboPosition;
+use App\Models\Task;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;

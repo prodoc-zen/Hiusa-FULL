@@ -2,6 +2,7 @@
 
 namespace App\Services\Dashboard;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -109,7 +110,7 @@ class DashboardInsightEngine
                 ],
                 'formula' => 'available = current_available_budget + predicted_income - predicted_expense - committed_expenses; safe_spending_limit = max(0, available) * 0.8; risk escalates when predicted expense exceeds predicted income or available funds fall at/under the warning threshold.',
             ],
-            'generated_at' => $budget->advice_generated_at ? \Illuminate\Support\Carbon::parse($budget->advice_generated_at)->toIso8601String() : now()->toIso8601String(),
+            'generated_at' => $budget->advice_generated_at ? Carbon::parse($budget->advice_generated_at)->toIso8601String() : now()->toIso8601String(),
             'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/budget-allocation'),
         ];
     }
@@ -122,7 +123,7 @@ class DashboardInsightEngine
     private function periodLabel(string $period): string
     {
         return preg_match('/^\d{4}-\d{2}$/', $period) === 1
-            ? \Illuminate\Support\Carbon::createFromFormat('!Y-m', $period)->format('F Y')
+            ? Carbon::createFromFormat('!Y-m', $period)->format('F Y')
             : $period;
     }
 
@@ -156,7 +157,7 @@ class DashboardInsightEngine
                 ],
                 'formula' => 'Each series is fit as y = intercept + slope * month_index by ordinary least squares; the next month is projected from that line and clamped at zero.',
             ],
-            'generated_at' => \Illuminate\Support\Carbon::parse($forecast->updated_at)->toIso8601String(),
+            'generated_at' => Carbon::parse($forecast->updated_at)->toIso8601String(),
             'href' => $this->routeAccess->hrefFor($role, '/dashboard/finance/financial-insights'),
         ];
     }
@@ -271,8 +272,8 @@ class DashboardInsightEngine
             return null;
         }
 
-        $start = \Illuminate\Support\Carbon::parse($election->start_time);
-        $end = \Illuminate\Support\Carbon::parse($election->end_time);
+        $start = Carbon::parse($election->start_time);
+        $end = Carbon::parse($election->end_time);
         $totalWindow = $end->timestamp - $start->timestamp;
 
         if ($totalWindow <= 0) {

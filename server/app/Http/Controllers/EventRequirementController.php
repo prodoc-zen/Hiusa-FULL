@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ApprovalRequest;
 use App\Models\AcademicSemester;
+use App\Models\ApprovalRequest;
 use App\Models\Event;
 use App\Models\EventRequirement;
 use App\Models\EventRequirementFile;

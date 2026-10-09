@@ -7,6 +7,7 @@ use App\Models\AcademicSection;
 use App\Models\AuditLog;
 use App\Models\SboPosition;
 use App\Models\User;
+use App\Services\AccountProfileDeletionService;
 use App\Services\PasswordResetService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -47,8 +48,7 @@ class UserController extends Controller
             ->where('membership.organization_id', $request->user()->organization_id)
             ->select('users.*')
             ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization')])
-            ->withExists(['fingerprints as fingerprint_enrolled'])
-            ;
+            ->withExists(['fingerprints as fingerprint_enrolled']);
 
         // SBO Officers use this directory only to select Students for attendance
         // and biometric enrollment. Account administration remains Admin-only.
@@ -481,8 +481,12 @@ class UserController extends Controller
             $membershipData = array_intersect_key($validatedData, array_flip(['role', 'account_status', 'position_title']));
             $identityData = array_diff_key($validatedData, $membershipData);
             DB::transaction(function () use ($user, $profile, $identityData, $membershipData) {
-                if ($identityData) $user->update($identityData);
-                if ($membershipData) $profile->update($membershipData);
+                if ($identityData) {
+                    $user->update($identityData);
+                }
+                if ($membershipData) {
+                    $profile->update($membershipData);
+                }
                 if (($membershipData['account_status'] ?? 'active') !== 'active') {
                     $user->tokens()->where('account_profile_id', $profile->id)->delete();
                 }
@@ -634,7 +638,7 @@ class UserController extends Controller
 
         $oldValues = $this->auditableUserValues($user);
 
-        $result = app(\App\Services\AccountProfileDeletionService::class)->remove($request->user(), $profile);
+        $result = app(AccountProfileDeletionService::class)->remove($request->user(), $profile);
 
         $this->recordUserAudit($request, 'deleted', $user, $oldValues, []);
 

@@ -202,6 +202,7 @@ class ClientRouteAllowlistTest extends TestCase
             if ($trimmed === '</Route>') {
                 array_pop($stack);
                 array_pop($roleStack);
+
                 continue;
             }
 

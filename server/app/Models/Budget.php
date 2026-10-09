@@ -11,10 +11,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Budget extends Model
 {
-    use SerializesLocalDates;
-
     /** @use HasFactory<BudgetFactory> */
     use HasFactory;
+
+    use SerializesLocalDates;
 
     protected $guarded = [];
 

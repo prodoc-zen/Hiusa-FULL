@@ -2,14 +2,15 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AiOutput;
 use App\Models\ApprovalRequest;
-use App\Models\EventRequirement;
-use App\Models\AcademicSemester;
 use App\Models\Attendance;
 use App\Models\AuditLog;
 use App\Models\Budget;
 use App\Models\Event;
+use App\Models\EventRequirement;
+use App\Models\EventRequirementFile;
 use App\Models\FinancialForecast;
 use App\Models\Notification;
 use App\Models\SboPosition;
@@ -535,7 +536,7 @@ class EventController extends Controller
         }
 
         $imageUrl = $event->image_url;
-        $requirementPaths = \App\Models\EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
+        $requirementPaths = EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
         DB::transaction(function () use ($event) {
             ApprovalRequest::where('organization_id', $event->organization_id)
                 ->where('entity_type', 'event')

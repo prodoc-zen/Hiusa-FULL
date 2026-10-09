@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\ApprovalRequest;
 use App\Models\AcademicSemester;
+use App\Models\ApprovalRequest;
 use App\Models\AuditLog;
 use App\Models\Candidate;
 use App\Models\Election;

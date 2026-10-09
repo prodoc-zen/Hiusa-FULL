@@ -2,8 +2,8 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\AiOutput;
 use App\Models\AcademicSemester;
+use App\Models\AiOutput;
 use App\Models\AuditLog;
 use App\Models\Event;
 use App\Models\Notification;
@@ -138,6 +138,7 @@ class TaskController extends Controller
             if (! empty($data['assigned_to'])) {
                 return response()->json(['message' => 'The selected officer is not an active SBO Officer with an active position.'], 422);
             }
+
             return response()->json(['message' => 'The selected officer is not eligible for this task.', 'errors' => ['assigned_to' => ['Choose an eligible officer from the recommendation.']]], 422);
         }
 

@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Grievance;
+use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -100,7 +101,7 @@ class GrievanceTest extends TestCase
         ])->assertCreated()->json('id');
 
         $this->assertNull(Grievance::find($grievanceId)->organization_id);
-        $this->assertSame(1, \App\Models\Notification::where('reference_type', 'grievance')->where('reference_id', $grievanceId)->count());
+        $this->assertSame(1, Notification::where('reference_type', 'grievance')->where('reference_id', $grievanceId)->count());
         $this->assertDatabaseHas('notifications', ['user_id' => $superAdmin->school_id, 'reference_type' => 'grievance', 'reference_id' => $grievanceId]);
     }
 

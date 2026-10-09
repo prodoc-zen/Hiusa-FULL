@@ -5,18 +5,22 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
+use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
+use App\Models\SboPosition;
 use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -407,7 +411,7 @@ class DashboardBriefingTest extends TestCase
         config(['services.hiusa_ai.task_max_active_tasks' => 5]);
         $organization = Organization::factory()->create();
         $officer = User::factory()->officer()->create(['organization_id' => $organization->id]);
-        \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
+        SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
         $busy = User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active']);
         User::factory()->create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active']);
         foreach (range(1, 4) as $n) {
@@ -451,13 +455,13 @@ class DashboardBriefingTest extends TestCase
      * officer collection, so the caller can compare query counts across
      * different officer counts from otherwise-identical setups.
      *
-     * @return array{0: int, 1: \Illuminate\Testing\TestResponse, 2: \Illuminate\Support\Collection<int, User>}
+     * @return array{0: int, 1: TestResponse, 2: Collection<int, User>}
      */
     private function runTaskWorkloadBriefing(int $officerCount): array
     {
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
+        SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
 
         $officers = collect();
         for ($i = 0; $i < $officerCount; $i++) {
@@ -494,7 +498,7 @@ class DashboardBriefingTest extends TestCase
         config(['services.hiusa_ai.task_max_active_tasks' => 5]);
         $organization = Organization::factory()->create();
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        \App\Models\SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
+        SboPosition::create(['organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'title' => 'Officer', 'is_active' => true]);
 
         $nativeOfficer = User::factory()->create([
             'organization_id' => $organization->id, 'role' => 'SBO_OFFICER', 'position_title' => 'Officer', 'account_status' => 'active',
@@ -623,7 +627,7 @@ class DashboardBriefingTest extends TestCase
             'status' => 'pending', 'requested_by' => $orgAdmin->school_id, 'created_at' => now(), 'updated_at' => now(),
         ]);
 
-        $requirementType = \App\Models\ComplianceRequirementType::create([
+        $requirementType = ComplianceRequirementType::create([
             'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth(), 'created_by' => $superAdmin->school_id,
         ]);
         DB::table('organization_compliance_submissions')->insert([

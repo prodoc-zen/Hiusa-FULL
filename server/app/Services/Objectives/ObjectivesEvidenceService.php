@@ -27,9 +27,7 @@ class ObjectivesEvidenceService
     /** @var callable(string): ?string */
     private $href;
 
-    public function __construct(private readonly ClientRouteAccess $routes)
-    {
-    }
+    public function __construct(private readonly ClientRouteAccess $routes) {}
 
     public function overview(User $viewer): array
     {

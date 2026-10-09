@@ -2,11 +2,13 @@
 
 namespace Tests\Feature;
 
+use App\Http\Controllers\ComplianceController;
 use App\Models\ComplianceRequirementType;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
@@ -318,10 +320,10 @@ class OrganizationComplianceTest extends TestCase
             'is_active' => false, 'created_by' => $superAdmin->school_id,
         ]);
 
-        $request = \Illuminate\Http\Request::create('/api/compliance/requirement-types', 'GET');
+        $request = Request::create('/api/compliance/requirement-types', 'GET');
         $request->setUserResolver(fn () => $admin);
 
-        $response = app(\App\Http\Controllers\ComplianceController::class)->requirementTypes($request);
+        $response = app(ComplianceController::class)->requirementTypes($request);
         $payload = json_decode($response->getContent(), true);
 
         $this->assertSame([$current->id], collect($payload['data'])->pluck('id')->all());

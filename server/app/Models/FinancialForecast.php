@@ -10,10 +10,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FinancialForecast extends Model
 {
-    use SerializesLocalDates;
-
     /** @use HasFactory<FinancialForecastFactory> */
     use HasFactory;
+
+    use SerializesLocalDates;
 
     protected $guarded = [];
 
