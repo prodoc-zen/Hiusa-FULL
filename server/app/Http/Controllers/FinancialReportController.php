@@ -53,7 +53,7 @@ class FinancialReportController extends Controller
             $query->when($filters['organization_id'] ?? null, fn ($builder, $organizationId) => $builder->where('organization_id', $organizationId));
             $query->whereNotNull('department_head_approved_at');
         } elseif ($request->user()->role === 'DEPARTMENT_HEAD') {
-            $query->where('organization_id', $request->user()->organization_id)
+            $query->whereIn('organization_id', $this->readableOrganizationIds($request))
                 ->whereNotNull('submitted_at');
         } else {
             $query->where('organization_id', $request->user()->organization_id);
@@ -345,6 +345,30 @@ class FinancialReportController extends Controller
         ]);
     }
 
+    public function document(Request $request, FinancialReport $financialReport, int $index)
+    {
+        if (! $this->canAccessReport($request, $financialReport)) {
+            return response()->json(['message' => 'Financial report not found.'], 404);
+        }
+
+        $path = $financialReport->supporting_documents[$index]['path'] ?? null;
+        $disk = Storage::disk('local');
+        if (! is_string($path) || ! preg_match('#^financial-reports/\d+/[0-9a-zA-Z._-]+$#', $path) || ! $disk->exists($path)) {
+            return response()->json(['message' => 'Supporting document not found.'], 404);
+        }
+
+        $file = $disk->path($path);
+        $response = response()->file($file, [
+            'Content-Disposition' => 'inline; filename="financial-report-'.$financialReport->id.'-document-'.($index + 1).'.'.pathinfo($file, PATHINFO_EXTENSION).'"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->setPrivate();
+        $response->setMaxAge(0);
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
+    }
+
     public function submit(Request $request, FinancialReport $financialReport)
     {
         if ($financialReport->organization_id !== $request->user()->organization_id) {
@@ -362,11 +386,10 @@ class FinancialReportController extends Controller
 
         $documents = collect($financialReport->supporting_documents ?? []);
         foreach ($request->file('supporting_documents', []) as $file) {
-            $path = $file->store('financial-reports/'.$financialReport->organization_id, 'public');
+            $path = $file->store('financial-reports/'.$financialReport->organization_id, 'local');
             $documents->push([
                 'name' => $file->getClientOriginalName(),
                 'path' => $path,
-                'url' => Storage::disk('public')->url($path),
                 'mime_type' => $file->getClientMimeType(),
                 'size' => $file->getSize(),
             ]);
@@ -422,7 +445,7 @@ class FinancialReportController extends Controller
     {
         return match ($request->user()->role) {
             'ADMIN', 'SBO_OFFICER' => $report->organization_id === $request->user()->organization_id,
-            'DEPARTMENT_HEAD' => $report->organization_id === $request->user()->organization_id
+            'DEPARTMENT_HEAD' => in_array($report->organization_id, $request->user()->scopedOrganizationIds(), true)
                 && $report->submitted_at !== null,
             'SUPER_ADMIN' => $report->department_head_approved_at !== null,
             default => false,
