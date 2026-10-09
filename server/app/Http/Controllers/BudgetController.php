@@ -29,7 +29,7 @@ class BudgetController extends Controller
         ]);
 
         $budgets = Budget::with(['event:id,title', 'financialSemester:id,name,starts_on,ends_on'])
-            ->whereIn('organization_id', $request->user()->scopedOrganizationIds())
+            ->whereIn('organization_id', $this->readableOrganizationIds($request))
             ->withCount('transactions')
             ->withSum('transactions', 'amount')
             ->orderBy('created_at', 'desc')
@@ -88,7 +88,6 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
-        $oldValues = $this->auditableValues($budget);
         $data = $request->validate([
             'title' => ['sometimes', 'required', 'string', 'max:255'],
             'allocated_amount' => ['sometimes', 'required', 'numeric', 'min:0.01'],
@@ -103,37 +102,50 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
         }
 
-        $allocatedAmount = (float) ($data['allocated_amount'] ?? $budget->allocated_amount);
-        $warningThreshold = (float) ($data['warning_threshold'] ?? $budget->warning_threshold);
+        return DB::transaction(function () use ($request, $budget, $data) {
+            $budget = Budget::whereKey($budget->id)->lockForUpdate()->firstOrFail();
+            $oldValues = $this->auditableValues($budget);
 
-        if ($warningThreshold > $allocatedAmount) {
-            return response()->json([
-                'message' => 'The warning threshold cannot exceed the allocated amount.',
-            ], 422);
-        }
+            if (array_key_exists('event_id', $data)
+                && (int) ($data['event_id'] ?? 0) !== (int) ($budget->event_id ?? 0)
+                && $budget->transactions()->exists()) {
+                return response()->json([
+                    'message' => 'This budget already has ledger entries, so it can no longer be moved to a different event.',
+                ], 409);
+            }
 
-        if (array_key_exists('allocated_amount', $data)) {
-            $spent = $budget->transactions()->where('type', 'expense')->sum('amount');
-            $income = $budget->transactions()->where('type', 'income')->sum('amount');
-            $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
-        }
+            $allocatedAmount = (float) ($data['allocated_amount'] ?? $budget->allocated_amount);
+            $warningThreshold = (float) ($data['warning_threshold'] ?? $budget->warning_threshold);
 
-        if (array_key_exists('allocated_amount', $data) || array_key_exists('warning_threshold', $data)) {
-            $data['overspending_risk'] = Budget::overspendingRiskFor((float) ($data['remaining_amount'] ?? $budget->remaining_amount), $warningThreshold);
-        }
+            if ($warningThreshold > $allocatedAmount) {
+                return response()->json([
+                    'message' => 'The warning threshold cannot exceed the allocated amount.',
+                ], 422);
+            }
 
-        if ($this->isAwaitingSaoOrApproved($budget) && $this->hasMaterialBudgetChange($data)) {
-            $this->restartApprovalAtDepartmentHead($budget, $request);
-        }
+            if (array_key_exists('allocated_amount', $data)) {
+                $spent = $budget->transactions()->where('type', 'expense')->sum('amount');
+                $income = $budget->transactions()->where('type', 'income')->sum('amount');
+                $data['remaining_amount'] = (float) $data['allocated_amount'] + (float) $income - (float) $spent;
+            }
 
-        $budget->update($data);
-        $this->recordBudgetAudit($request, 'updated', $budget, $oldValues, $this->auditableValues($budget->fresh()));
+            if (array_key_exists('allocated_amount', $data) || array_key_exists('warning_threshold', $data)) {
+                $data['overspending_risk'] = Budget::overspendingRiskFor((float) ($data['remaining_amount'] ?? $budget->remaining_amount), $warningThreshold);
+            }
 
-        if ($this->hasRejectedApproval($budget)) {
-            $this->restartApprovalAtDepartmentHead($budget, $request);
-        }
+            if ($this->isAwaitingSaoOrApproved($budget) && $this->hasMaterialBudgetChange($data)) {
+                $this->restartApprovalAtDepartmentHead($budget, $request);
+            }
 
-        return response()->json($budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']));
+            $budget->update($data);
+            $this->recordBudgetAudit($request, 'updated', $budget, $oldValues, $this->auditableValues($budget->fresh()));
+
+            if ($this->hasRejectedApproval($budget)) {
+                $this->restartApprovalAtDepartmentHead($budget, $request);
+            }
+
+            return response()->json($budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']));
+        });
     }
 
     public function destroy(Request $request, $id)

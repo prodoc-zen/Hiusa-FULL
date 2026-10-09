@@ -7,6 +7,8 @@ use App\Models\AuditLog;
 use App\Models\Invoice;
 use App\Models\InvoicePayment;
 use App\Models\Merchandise;
+use App\Models\Notification;
+use App\Models\Order;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
@@ -236,17 +238,51 @@ class InvoiceCancellationTest extends TestCase
         $this->assertSame("Order ORD-{$orderId} was rejected.", Invoice::findOrFail($invoice['id'])->status_reason);
     }
 
-    public function test_an_invoice_that_already_took_a_payment_stays_open_when_its_order_is_cancelled(): void
+    public function test_an_order_whose_invoice_already_took_a_payment_cannot_be_rejected_until_the_invoice_is_settled(): void
     {
         $orderId = $this->pendingOrder();
         $invoice = $this->invoice('300.00', $orderId);
         Sanctum::actingAs($this->admin);
         $this->postJson("/api/invoices/{$invoice['id']}/payments", ['amount' => '100.00'])->assertOk()->assertJsonPath('status', 'partially_paid');
 
-        $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'cancelled', 'review_remarks' => 'Out of stock.'])->assertOk();
+        $message = $this->patchJson("/api/orders/{$orderId}/status", ['status' => 'cancelled', 'review_remarks' => 'Out of stock.'])->assertConflict()->json('message');
 
+        $this->assertStringContainsString($invoice['reference'], $message);
+        $this->assertStringContainsString('Settle or waive the invoice', $message);
+        $this->assertSame('pending', Order::findOrFail($orderId)->status);
+        $this->assertNull(Order::findOrFail($orderId)->review_remarks);
         $this->assertSame('partially_paid', Invoice::findOrFail($invoice['id'])->status);
-        $this->assertNull(Invoice::findOrFail($invoice['id'])->status_reason);
+        $this->assertSame(0, Notification::where('user_id', $this->student->school_id)->where('title', 'Payment Rejected')->count());
         $this->assertEquals(200, $this->debt()['total_debt']);
+    }
+
+    public function test_the_approvals_queue_cannot_reject_a_payment_whose_invoice_already_took_a_payment(): void
+    {
+        $orderId = $this->pendingOrder();
+        $invoice = $this->invoice('300.00', $orderId);
+        $approval = ApprovalRequest::create([
+            'organization_id' => $this->organization->id, 'entity_type' => 'payment', 'entity_id' => $orderId, 'requested_by' => $this->student->school_id,
+            'required_role' => 'ADMIN', 'status' => 'pending', 'active_key' => 'payment:'.$this->organization->id.':'.$orderId, 'requested_at' => now(),
+        ]);
+        Sanctum::actingAs($this->admin);
+        $this->postJson("/api/invoices/{$invoice['id']}/payments", ['amount' => '100.00'])->assertOk();
+
+        $this->patchJson("/api/approval-requests/{$approval->id}", ['status' => 'rejected', 'remarks' => 'Proof does not match.'])->assertConflict();
+
+        $this->assertSame('pending', Order::findOrFail($orderId)->status);
+        $this->assertSame('pending', $approval->fresh()->status);
+    }
+
+    public function test_a_buyer_cannot_cancel_an_order_whose_invoice_already_took_a_payment(): void
+    {
+        $orderId = $this->pendingOrder();
+        $invoice = $this->invoice('300.00', $orderId);
+        $this->postJson("/api/invoices/{$invoice['id']}/payments", ['amount' => '100.00'])->assertOk();
+
+        Sanctum::actingAs($this->student);
+        $this->patchJson("/api/orders/{$orderId}/cancel")->assertConflict();
+
+        $this->assertSame('pending', Order::findOrFail($orderId)->status);
+        $this->assertSame('partially_paid', Invoice::findOrFail($invoice['id'])->status);
     }
 }

@@ -14,6 +14,7 @@ use App\Models\FinancialForecast;
 use App\Models\Notification;
 use App\Models\SboPosition;
 use App\Models\Task;
+use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Venue;
 use App\Services\GroqResponsesService;
@@ -194,7 +195,15 @@ class EventController extends Controller
 
         $latestForecast = FinancialForecast::latestFor($events->first()->organization_id);
 
+        $eventTotals = Transaction::whereIn('event_id', $events->pluck('id'))
+            ->excludingCashAdvances()
+            ->selectRaw('event_id, type, SUM(amount) as total')
+            ->groupBy('event_id', 'type')
+            ->get()
+            ->groupBy('event_id');
+
         foreach ($events as $event) {
+            $totals = ($eventTotals->get($event->id) ?? collect())->pluck('total', 'type');
             $eventBudgets = $event->budgets;
             $risk = $eventBudgets->sortByDesc(fn (Budget $budget) => match ($budget->overspending_risk) {
                 'high' => 3,
@@ -206,8 +215,8 @@ class EventController extends Controller
 
             $event->financial_summary = [
                 'allocated_budget' => round((float) $approvedBudgets->sum('allocated_amount'), 2),
-                'spent' => round((float) $eventBudgets->sum('spent_amount'), 2),
-                'income' => round((float) $eventBudgets->sum('income_amount'), 2),
+                'spent' => round((float) ($totals['expense'] ?? 0), 2),
+                'income' => round((float) ($totals['income'] ?? 0), 2),
                 'remaining_budget' => round((float) $approvedBudgets->sum('remaining_amount'), 2),
                 'risk' => $risk ?? 'not_analyzed',
                 'latest_forecast' => $latestForecast?->only([

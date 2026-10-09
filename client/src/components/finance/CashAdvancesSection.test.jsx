@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import CashAdvancesSection from './CashAdvancesSection';
+import notify from '../../lib/notify';
 import { approveCashAdvance, createCashAdvance, getCashAdvances, releaseCashAdvance, repayCashAdvance } from '../../services/financeService';
 
 vi.mock('../../services/financeService', () => ({
@@ -74,6 +75,24 @@ describe('CashAdvancesSection', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record repayment' }));
     await waitFor(() => expect(repayCashAdvance).toHaveBeenCalledWith(4, { amount: '150', notes: null }));
     expect(onLedgerChange).toHaveBeenCalledTimes(2);
+  });
+
+  it('says an advance moves cash but is never income or expense in reports and forecasts', async () => {
+    vi.mocked(getCashAdvances).mockResolvedValue({ data: [advance(3, 'approved')] });
+    vi.mocked(releaseCashAdvance).mockResolvedValue({ data: {} });
+    render(<CashAdvancesSection />);
+
+    expect(await screen.findByText(/not counted as income or expense in reports and forecasts/)).toBeInTheDocument();
+    expect(screen.queryByText(/posts an expense/)).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Release funds' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Release funds' });
+    expect(confirm).toHaveTextContent(/neither is counted as income or expense/);
+    expect(confirm).not.toHaveTextContent(/as a cash advance expense|come back as income/);
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Release funds' }));
+
+    await waitFor(() => expect(releaseCashAdvance).toHaveBeenCalledWith(3));
+    expect(notify.success).toHaveBeenCalledWith('Funds released from the ledger. Not counted as income or expense.');
   });
 
   it('submits a request and keeps the dialog open with the reason when it is refused', async () => {

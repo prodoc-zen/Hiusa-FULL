@@ -33,9 +33,9 @@ class FinancialForecast extends Model
         return $this->belongsTo(User::class, 'generated_by', 'school_id');
     }
 
-    /** The forecast generated most recently. forecast_period is free text on older rows ("Q4 2024 (Oct-Dec)"), so it cannot say which is newest. */
+    /** The forecast written most recently. forecast_period is free text on older rows ("Q4 2024 (Oct-Dec)"), so it cannot say which is newest, and a regenerated period is rewritten in place so only updated_at moves. */
     public static function latestFor(int $organizationId): ?self
     {
-        return static::where('organization_id', $organizationId)->orderByDesc('created_at')->orderByDesc('id')->first();
+        return static::where('organization_id', $organizationId)->orderByDesc('updated_at')->orderByDesc('id')->first();
     }
 }
