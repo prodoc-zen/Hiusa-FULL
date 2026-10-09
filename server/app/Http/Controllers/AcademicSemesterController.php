@@ -6,7 +6,12 @@ use App\Models\AcademicSemester;
 use App\Models\AcademicYear;
 use App\Models\AuditLog;
 use App\Models\ComplianceRequirementType;
+use App\Models\Election;
+use App\Models\Event;
 use App\Models\EventRequirement;
+use App\Models\EventRequirementFile;
+use App\Models\OrganizationComplianceSubmission;
+use App\Models\Task;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -81,7 +86,7 @@ class AcademicSemesterController extends Controller
                 'status' => 'upcoming',
                 'created_by' => $request->user()->school_id,
             ]);
-            foreach (self::RENEWAL_REQUIREMENTS as $name) {
+            foreach ([...self::RENEWAL_REQUIREMENTS, ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT] as $name) {
                 ComplianceRequirementType::create([
                     'academic_year' => $academicYear->label,
                     'academic_semester_id' => $semester->id,
@@ -159,6 +164,45 @@ class AcademicSemesterController extends Controller
         });
 
         return response()->json($academicSemester->load('academicYear:id,label'));
+    }
+
+    public function destroy(Request $request, AcademicSemester $academicSemester)
+    {
+        $reasons = DB::transaction(function () use ($request, $academicSemester) {
+            $semester = AcademicSemester::whereKey($academicSemester->id)->lockForUpdate()->firstOrFail();
+            $reasons = $this->deletionBlockers($semester);
+
+            if ($reasons === []) {
+                $this->audit($request, 'academic_semester_deleted', $semester);
+                ComplianceRequirementType::where('academic_semester_id', $semester->id)->delete();
+                EventRequirement::where('academic_semester_id', $semester->id)->delete();
+                $semester->delete();
+            }
+
+            return $reasons;
+        });
+
+        if ($reasons !== []) {
+            return response()->json(['message' => 'This semester cannot be deleted because of: '.implode(', ', $reasons).'.', 'reasons' => $reasons], 409);
+        }
+
+        return response()->noContent();
+    }
+
+    /** @return array<int, string> */
+    private function deletionBlockers(AcademicSemester $semester): array
+    {
+        $requirementTypes = ComplianceRequirementType::where('academic_semester_id', $semester->id)->select('id');
+        $eventRequirements = EventRequirement::where('academic_semester_id', $semester->id)->select('id');
+
+        return array_keys(array_filter([
+            'the active semester' => $semester->status === 'active',
+            'events' => Event::where('academic_semester_id', $semester->id)->exists(),
+            'elections' => Election::where('academic_semester_id', $semester->id)->exists(),
+            'tasks' => Task::where('academic_semester_id', $semester->id)->exists(),
+            'event requirement files' => EventRequirementFile::whereIn('requirement_id', $eventRequirements)->exists(),
+            'compliance submissions' => OrganizationComplianceSubmission::whereIn('requirement_type_id', $requirementTypes)->exists(),
+        ]));
     }
 
     private function validateDates(AcademicYear $year, array $data): void
