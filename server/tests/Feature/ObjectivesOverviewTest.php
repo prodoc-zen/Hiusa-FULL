@@ -101,6 +101,17 @@ class ObjectivesOverviewTest extends TestCase
         }
     }
 
+    public function test_task_management_mechanism_names_all_four_delegation_factors(): void
+    {
+        $org = Organization::factory()->create();
+        Sanctum::actingAs($this->user('ADMIN', $org->id));
+        $mechanism = $this->objective($this->getJson('/api/objectives/overview')->assertOk()->json(), 'SO2.3')['mechanism'];
+
+        foreach (['role relevance (0.35)', 'workload (0.30)', 'past performance (0.20', 'assignment recency (0.15)'] as $factor) {
+            $this->assertStringContainsString($factor, $mechanism);
+        }
+    }
+
     public function test_hrefs_follow_the_viewers_route_allowlist(): void
     {
         $org = Organization::factory()->create();
