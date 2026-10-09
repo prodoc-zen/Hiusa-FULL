@@ -4,7 +4,6 @@ namespace Tests\Feature;
 
 use App\Http\Controllers\BudgetController;
 use App\Http\Controllers\FinancialForecastController;
-use App\Http\Controllers\TaskController;
 use App\Models\Budget;
 use App\Models\FinancialForecast;
 use App\Models\Organization;
@@ -13,10 +12,12 @@ use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Services\HiusaAiService;
+use App\Services\TaskDelegationService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Support\Facades\Http;
 use Laravel\Sanctum\Sanctum;
+use ReflectionClassConstant;
 use ReflectionMethod;
 use Tests\TestCase;
 
@@ -634,13 +635,71 @@ class AiFallbackParityTest extends TestCase
      */
     public function test_php_infer_task_area_uses_word_boundaries_not_bare_substrings(): void
     {
-        $method = new ReflectionMethod(TaskController::class, 'inferTaskArea');
-        $method->setAccessible(true);
-        $controller = app(TaskController::class);
+        $delegation = app(TaskDelegationService::class);
 
-        $this->assertNotSame('publicity', $method->invoke($controller, 'Send immediate reminders to officers', null));
-        $this->assertNotSame('finance', $method->invoke($controller, 'Draft the fundamental bylaws revision', null));
-        $this->assertSame('finance', $method->invoke($controller, 'Prepare the financial liquidation report', null));
+        $this->assertNotSame('publicity', $delegation->inferArea('Send immediate reminders to officers', null));
+        $this->assertNotSame('finance', $delegation->inferArea('Draft the fundamental bylaws revision', null));
+        $this->assertSame('finance', $delegation->inferArea('Prepare the financial liquidation report', null));
+    }
+
+    public function test_the_service_and_the_task_controller_fallback_score_every_officer_identically(): void
+    {
+        config(['services.hiusa_ai.enabled' => false]);
+        $admin = $this->user('ADMIN');
+        $organizationId = $admin->organization_id;
+        $officers = collect(['Treasurer', 'Secretary', 'President', 'Business Manager', 'Public Information Officer'])
+            ->map(fn (string $title) => $this->user('SBO_OFFICER', $organizationId, $title));
+        $this->seedTaskHistory($officers[0], $organizationId, $admin);
+        Sanctum::actingAs($admin);
+
+        $titles = [
+            'Plan the fundraising drive',
+            'Process the reimbursement requests',
+            'Emcee for the induction program',
+            'Contact the vendor for the booth',
+            'Prepare the budget liquidation report',
+            'Design the poster for the campaign',
+            'File the minutes of the general assembly',
+            'Draft the fundamental bylaws revision',
+            'Untitled errand',
+        ];
+        foreach ($titles as $title) {
+            $service = app(TaskDelegationService::class)->recommend($organizationId, $title);
+            $fallback = $this->postJson('/api/tasks/recommendation', ['title' => $title])
+                ->assertOk()
+                ->assertJsonPath('delegation.engine', 'php-fallback')
+                ->json('delegation');
+
+            $this->assertSame($service['task_area'], $fallback['task_area'], "Area differs for '{$title}'.");
+            $this->assertCount(5, $service['rankings']);
+            $this->assertCount(5, $fallback['rankings']);
+            $fallbackByOfficer = collect($fallback['rankings'])->keyBy('officer_id');
+            foreach ($service['rankings'] as $ranking) {
+                $other = $fallbackByOfficer[$ranking['officer_id']];
+                foreach (['position_tier', 'role_score', 'workload_score', 'performance_score', 'recency_score', 'final_score', 'explanation'] as $field) {
+                    $this->assertEquals($ranking[$field], $other[$field], "{$field} differs for '{$title}' and officer {$ranking['officer_id']}.");
+                }
+            }
+        }
+    }
+
+    public function test_the_php_keyword_map_and_position_tiers_equal_the_python_engine_map(): void
+    {
+        $python = str_replace("\r\n", "\n", file_get_contents(base_path('../ai-service/app/engines/task_delegation.py')));
+        $this->assertSame(1, preg_match('/POSITION_RELEVANCE_MAP[^=]*=\s*\{(.*?)\n\}\n/s', $python, $block), 'The Python POSITION_RELEVANCE_MAP block was not found.');
+
+        preg_match_all('/"(\w+)":\s*\{(.*?)\n    \},/s', $block[1], $areas, PREG_SET_ORDER);
+        $this->assertCount(5, $areas);
+        $phpMap = (new ReflectionClassConstant(TaskDelegationService::class, 'POSITION_RELEVANCE_MAP'))->getValue();
+        $this->assertSame(array_keys($phpMap), array_column($areas, 1));
+        foreach ($areas as [, $area, $body]) {
+            preg_match_all('/"(keywords|primary|secondary)":\s*\(([^)]*)\)/', $body, $fields, PREG_SET_ORDER);
+            $this->assertCount(3, $fields, "Could not read the Python '{$area}' block.");
+            foreach ($fields as [, $field, $tuple]) {
+                preg_match_all('/"([^"]+)"/u', $tuple, $values);
+                $this->assertSame($values[1], $phpMap[$area][$field], "PHP '{$area}.{$field}' drifted from the Python engine.");
+            }
+        }
     }
 
     private function user(string $role, ?int $organizationId = null, ?string $positionTitle = null): User
