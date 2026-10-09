@@ -548,6 +548,10 @@ class UserController extends Controller
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
+        if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
+        }
+
         if ($user->school_id === $request->user()->school_id) {
             return response()->json(['message' => 'You cannot deactivate your own account.'], 422);
         }
@@ -599,6 +603,10 @@ class UserController extends Controller
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
         }
 
+        if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
+        }
+
         if ($user->account_status === 'active') {
             return response()->json(['message' => 'User account is already active.'], 422);
         }
@@ -642,6 +650,10 @@ class UserController extends Controller
 
         if ($profile->role === 'ADMIN') {
             return response()->json(['message' => 'Administrator accounts are managed only from SAO Administration.'], 403);
+        }
+
+        if ($user->role === 'DEPARTMENT_HEAD' || $profile->role === 'DEPARTMENT_HEAD') {
+            return response()->json(['message' => 'Department Head accounts are managed only by the SAO Director.'], 403);
         }
 
         $oldValues = $this->auditableUserValues($user);
