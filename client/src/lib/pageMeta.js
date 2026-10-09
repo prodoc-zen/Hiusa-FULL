@@ -103,6 +103,8 @@ const PAGE_META = {
 
   '/dashboard/tasks': { title: 'Tasks', purpose: 'Track assignments and officer progress.', group: 'Events and tasks' },
   '/dashboard/tasks/task-board': { title: 'Tasks', purpose: 'Review work by status and deadline.', group: 'Events and tasks' },
+  '/dashboard/tasks/create-task': { title: 'New task', purpose: 'Assign a task to an officer or event.', group: 'Events and tasks' },
+  '/dashboard/tasks/task-progress': { title: 'Task progress', purpose: 'Review progress across organization tasks.', group: 'Events and tasks' },
   '/dashboard/tasks/assigned-tasks': { title: 'My tasks', purpose: 'Review work assigned to you.', group: 'Events and tasks' },
   '/dashboard/tasks/ai-delegation': { title: 'AI delegation', purpose: 'Review suggested officers for each task.', group: 'Events and tasks' },
 
