@@ -159,6 +159,22 @@ function MerchandiseClaimTokensRoute() {
   return <Navigate to="/dashboard/merchandise/my-orders" replace />;
 }
 
+function ApprovalsRoute() {
+  if (getStoredRole() === 'DEPARTMENT_HEAD') {
+    return <Navigate to="/dashboard/department-head/approvals" replace />;
+  }
+
+  return <DepartmentHeadApprovalsPage />;
+}
+
+function ActivityCalendarRoute() {
+  if (getStoredRole() === 'ADMIN') {
+    return <Navigate to="/dashboard/events/manage-events?view=calendar" replace />;
+  }
+
+  return <EventsPage initialTab="events" />;
+}
+
 function AnnouncementsIndexRedirect() {
   const role = getStoredRole();
 
@@ -212,7 +228,7 @@ function App() {
           <Route path="department-head" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadHomePage /></ProtectedRoute>} />
           <Route path="department-head/approvals" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
           <Route path="department-head/organizations" element={<ProtectedRoute allowedRoles={["DEPARTMENT_HEAD"]}><CollegeOrganizationsPage /></ProtectedRoute>} />
-          <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><DepartmentHeadApprovalsPage /></ProtectedRoute>} />
+          <Route path="approvals" element={<ProtectedRoute allowedRoles={["ADMIN", "DEPARTMENT_HEAD"]}><ApprovalsRoute /></ProtectedRoute>} />
           <Route path="super-admin/approvals" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />
           <Route path="super-admin/financial-reports" element={<Navigate to="/dashboard/super-admin/compliance?tab=financial" replace />} />
           <Route path="approval-requests/new" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SubmitApprovalRequestPage /></ProtectedRoute>} />
@@ -222,7 +238,7 @@ function App() {
           <Route path="approval-requests/new/election" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ElectionsHub startCreateElection /></ProtectedRoute>} />
           <Route path="student" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentHomePage /></ProtectedRoute>} />
           <Route path="admin/users" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><AdminUsersPage /></ProtectedRoute>} />
-          <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
+          <Route path="admin/sbo-positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/admin/positions" replace /></ProtectedRoute>} />
           <Route path="admin/positions" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageSboPositionsPage /></ProtectedRoute>} />
           <Route path="admin/programs-sections" element={<ProtectedRoute allowedRoles={["ADMIN"]}><ManageAcademicStructurePage /></ProtectedRoute>} />
           <Route path="audit-logs" element={<ProtectedRoute allowedRoles={["ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
@@ -241,7 +257,7 @@ function App() {
             <Route path="event-planner" element={<ProtectedRoute allowedRoles={["ADMIN"]}><EventsPage initialTab="tasks" /></ProtectedRoute>} />
             <Route path="event-operations" element={<Navigate to="../check-in" replace />} />
             <Route path="check-in" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><EventsPage initialTab="attendance" /></ProtectedRoute>} />
-            <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><EventsPage initialTab="events" /></ProtectedRoute>} />
+            <Route path="activity-calendar" element={<ProtectedRoute allowedRoles={["SBO_OFFICER", "ADMIN", "STUDENT", "DEPARTMENT_HEAD"]}><ActivityCalendarRoute /></ProtectedRoute>} />
           </Route>
 
           <Route path="finance" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]} />}>
@@ -269,9 +285,9 @@ function App() {
           <Route path="tasks">
             <Route index element={<TasksIndexRedirect />} />
             <Route path="task-board" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
-            <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="create" /></ProtectedRoute>} />
+            <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/tasks/task-board?new=1" replace /></ProtectedRoute>} />
             <Route path="assigned-tasks" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
-            <Route path="task-progress" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="progress" /></ProtectedRoute>} />
+            <Route path="task-progress" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/tasks/task-board?view=progress" replace /></ProtectedRoute>} />
             <Route path="ai-delegation" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><TasksPage initialTab="ai" /></ProtectedRoute>} />
           </Route>
 
