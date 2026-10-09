@@ -1649,6 +1649,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             <p className="mt-1 text-xs font-black text-[#0F172A]">{formatCurrency(value)}</p>
                           </div>
                         ))}
+                        <p className="col-span-2 text-xs text-slate-500 sm:col-span-4">Cash advances are not counted here.</p>
                         <div className="col-span-2 rounded-lg bg-[#F8FBFD] p-2.5 sm:col-span-4">
                           <p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">Financial Risk / Latest Organization Forecast</p>
                           <p className="mt-1 text-xs font-bold text-[#0F172A]">Risk: {capitalize(selectedEvent.financial_summary.risk)}</p>
