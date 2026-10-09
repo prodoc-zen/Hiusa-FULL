@@ -42,7 +42,7 @@ class TransactionController extends Controller
             'organization:id,name,acronym',
         ])->orderBy('transaction_date', 'desc');
 
-        $query->where('organization_id', $request->user()->organization_id);
+        $query->whereIn('organization_id', $this->readableOrganizationIds($request));
 
         if (! empty($filters['budget_id'])) {
             $query->where('budget_id', $filters['budget_id']);
@@ -99,7 +99,7 @@ class TransactionController extends Controller
             'type' => ['nullable', 'in:income,expense'],
         ]);
 
-        $query = Transaction::where('organization_id', $request->user()->organization_id);
+        $query = Transaction::whereIn('organization_id', $this->readableOrganizationIds($request));
 
         if ($request->filled('event_id')) {
             $query->where('event_id', $request->event_id);

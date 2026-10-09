@@ -15,10 +15,12 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
+use Tests\Concerns\CreatesCollegeFixtures;
 use Tests\TestCase;
 
 class FinancialReportSubmissionWorkflowTest extends TestCase
 {
+    use CreatesCollegeFixtures;
     use RefreshDatabase;
 
     public function test_semester_report_includes_only_budgets_assigned_to_that_semester(): void
@@ -42,11 +44,12 @@ class FinancialReportSubmissionWorkflowTest extends TestCase
 
     public function test_financial_report_moves_from_admin_to_department_head_then_sao(): void
     {
-        Storage::fake('public');
-        $organization = Organization::factory()->create();
+        Storage::fake('local');
+        $college = $this->makeCollege('CCS');
+        $organization = $this->makeCollegeStudentOrganization($college);
         $sao = Organization::factory()->create(['organization_type' => 'SYSTEM_ADMINISTRATION', 'acronym' => 'SAO']);
         $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
-        $departmentHead = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+        $departmentHead = $this->makeCollegeHead($college);
         $superAdmin = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         $report = FinancialReport::create([
             'organization_id' => $organization->id,

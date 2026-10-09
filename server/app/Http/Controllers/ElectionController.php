@@ -73,10 +73,10 @@ class ElectionController extends Controller
     public function index(Request $request)
     {
         $filters = $request->validate(['academic_semester_id' => ['nullable', 'integer', 'exists:academic_semesters,id']]);
-        $this->synchronizeScheduledStatuses($request->user()->organization_id);
+        $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds());
 
         $query = Election::withCount(['votes', 'positions', 'candidates'])
-            ->where('organization_id', $request->user()->organization_id);
+            ->whereIn('organization_id', $request->user()->scopedOrganizationIds());
         $selectedSemesterId = $filters['academic_semester_id'] ?? AcademicSemester::active()?->id;
         if ($selectedSemesterId) {
             $query->where('academic_semester_id', $selectedSemesterId);
@@ -107,7 +107,7 @@ class ElectionController extends Controller
     public function show(Request $request, $id)
     {
         $user = $request->user();
-        $this->synchronizeScheduledStatuses($user->organization_id, $id);
+        $this->synchronizeScheduledStatuses($user->scopedOrganizationIds(), $id);
         $with = [
             'positions.candidates.user',
             'positions.candidates.partylist',
@@ -118,7 +118,7 @@ class ElectionController extends Controller
         ];
 
         $election = Election::with($with)
-            ->where('organization_id', $user->organization_id)
+            ->whereIn('organization_id', $user->scopedOrganizationIds())
             ->find($id);
 
         if (! $election) {
@@ -235,7 +235,7 @@ class ElectionController extends Controller
 
     public function informativeLetter(Request $request, $id)
     {
-        $election = Election::where('organization_id', $request->user()->organization_id)->findOrFail($id);
+        $election = Election::whereIn('organization_id', $request->user()->scopedOrganizationIds())->findOrFail($id);
         if (! in_array($request->user()->role, ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'], true)) {
             abort(403);
         }
@@ -434,11 +434,11 @@ class ElectionController extends Controller
         return null;
     }
 
-    private function synchronizeScheduledStatuses(int $organizationId, ?int $electionId = null): void
+    private function synchronizeScheduledStatuses(array $organizationIds, ?int $electionId = null): void
     {
         $now = now();
         $baseQuery = fn () => Election::query()
-            ->where('organization_id', $organizationId)
+            ->whereIn('organization_id', $organizationIds)
             ->whereNotNull('approved_at')
             ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))
             ->when($electionId, fn ($query) => $query->whereKey($electionId));
@@ -632,7 +632,7 @@ class ElectionController extends Controller
 
     public function candidatesIndex(Request $request, $id)
     {
-        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+        $election = Election::whereIn('organization_id', $request->user()->scopedOrganizationIds())->find($id);
 
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -854,7 +854,7 @@ class ElectionController extends Controller
     {
         return response()->json(
             Partylist::withCount('candidates')
-                ->where('organization_id', $request->user()->organization_id)
+                ->whereIn('organization_id', $request->user()->scopedOrganizationIds())
                 ->orderBy('name')
                 ->get()
         );
@@ -992,7 +992,7 @@ class ElectionController extends Controller
 
     public function vote(Request $request, $id)
     {
-        $this->synchronizeScheduledStatuses($request->user()->organization_id, (int) $id);
+        $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds(), (int) $id);
         $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
@@ -1109,7 +1109,7 @@ class ElectionController extends Controller
 
         $votersQuery = User::where('organization_id', $organizationId)
             ->where('account_status', 'active')
-            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT']);
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT']);
 
         $eligibleTotal = (clone $votersQuery)->count();
         $votedCount = (clone $votersQuery)->whereIn('school_id', $voterIds)->count();
@@ -1134,8 +1134,8 @@ class ElectionController extends Controller
 
     public function results(Request $request, $id)
     {
-        $this->synchronizeScheduledStatuses($request->user()->organization_id, (int) $id);
-        $election = Election::where('organization_id', $request->user()->organization_id)->find($id);
+        $this->synchronizeScheduledStatuses($request->user()->scopedOrganizationIds(), (int) $id);
+        $election = Election::whereIn('organization_id', $request->user()->scopedOrganizationIds())->find($id);
         if (! $election) {
             return response()->json(['message' => 'Election not found'], 404);
         }

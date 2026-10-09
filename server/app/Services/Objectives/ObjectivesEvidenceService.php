@@ -34,29 +34,29 @@ class ObjectivesEvidenceService
     public function overview(User $viewer): array
     {
         $isSao = $viewer->role === 'SUPER_ADMIN';
-        $orgId = $isSao ? null : $viewer->organization_id;
+        $orgIds = $isSao ? null : $viewer->scopedOrganizationIds();
         $this->href = fn (string $path): ?string => $this->routes->hrefFor($viewer->role, $path);
 
         return [
             'scope' => $isSao
                 ? ['type' => 'university', 'organization' => null]
-                : ['type' => 'organization', 'organization' => $this->organization($orgId)],
+                : ['type' => 'organization', 'organization' => $this->organization($viewer->organization_id)],
             'objectives' => [
-                $this->generalObjective($orgId, $isSao),
+                $this->generalObjective($orgIds, $isSao),
                 $this->so1(),
-                $this->financial($orgId, $isSao),
-                $this->events($orgId),
-                $this->tasks($orgId),
-                $this->elections($orgId),
-                $this->merchandise($orgId),
-                $this->communication($orgId, $isSao),
-                $this->so3($orgId),
+                $this->financial($orgIds, $isSao),
+                $this->events($orgIds),
+                $this->tasks($orgIds),
+                $this->elections($orgIds),
+                $this->merchandise($orgIds),
+                $this->communication($orgIds, $isSao),
+                $this->so3($orgIds),
                 $this->so4(),
             ],
         ];
     }
 
-    private function generalObjective(?int $orgId, bool $isSao): array
+    private function generalObjective(?array $orgIds, bool $isSao): array
     {
         $evidence = [];
         if ($isSao) {
@@ -64,7 +64,7 @@ class ObjectivesEvidenceService
                 ->where('organization_type', 'STUDENT_ORGANIZATION')
                 ->count(), 'count', '/dashboard/super-admin/organizations');
         }
-        $evidence[] = $this->metric('Active member accounts', $this->scoped(DB::table('users'), $orgId)
+        $evidence[] = $this->metric('Active member accounts', $this->scoped(DB::table('users'), $orgIds)
             ->where('account_status', 'active')->count(), 'count', null);
 
         return $this->objective(
@@ -73,7 +73,7 @@ class ObjectivesEvidenceService
             'Analyze, design, develop, test and evaluate a student body organization management system that uses AI-integrated functionalities to improve financial management, event and task coordination, elections, merchandise management and organizational communication through one centralized platform.',
             'One platform for every organization, with role-based access and organization-scoped data.',
             $evidence,
-            $this->latest($this->scoped(DB::table('audit_logs'), $orgId), 'created_at'),
+            $this->latest($this->scoped(DB::table('audit_logs'), $orgIds), 'created_at'),
         );
     }
 
@@ -89,18 +89,18 @@ class ObjectivesEvidenceService
         );
     }
 
-    private function financial(?int $orgId, bool $isSao): array
+    private function financial(?array $orgIds, bool $isSao): array
     {
         $evidence = [
-            $this->metric('Expense forecasts generated (OLS regression)', $this->scoped(DB::table('financial_forecasts'), $orgId)->count(), 'count', '/dashboard/finance/financial-insights'),
-            $this->metric('Budget advisories issued', $this->scoped(DB::table('budgets'), $orgId)->whereNotNull('overspending_risk')->count(), 'count', '/dashboard/finance/budget-allocation'),
-            $this->metric('AI financial summaries', $this->aiOutputs($orgId, 'FINANCIAL_SUMMARY')->count(), 'count', null),
+            $this->metric('Expense forecasts generated (OLS regression)', $this->scoped(DB::table('financial_forecasts'), $orgIds)->count(), 'count', '/dashboard/finance/financial-insights'),
+            $this->metric('Budget advisories issued', $this->scoped(DB::table('budgets'), $orgIds)->whereNotNull('overspending_risk')->count(), 'count', '/dashboard/finance/budget-allocation'),
+            $this->metric('AI financial summaries', $this->aiOutputs($orgIds, 'FINANCIAL_SUMMARY')->count(), 'count', null),
         ];
 
         if ($isSao) {
             $evidence[] = $this->metric('Financial reports approved', DB::table('financial_reports')->where('submission_status', 'approved')->count(), 'count', '/dashboard/super-admin/financial-reports');
         } else {
-            $transactions = $this->scoped(DB::table('transactions'), $orgId);
+            $transactions = $this->scoped(DB::table('transactions'), $orgIds);
             $evidence[] = $this->metric('Transactions recorded in the ledger', (clone $transactions)->count(), 'count', '/dashboard/finance/transaction-history');
             $evidence[] = $this->metric('Digital receipts issued', (clone $transactions)->whereNotNull('receipt_reference')->count(), 'count', '/dashboard/finance/personal-receipts');
         }
@@ -111,13 +111,13 @@ class ObjectivesEvidenceService
             'Determine the mechanisms or techniques for AI-integrated financial management.',
             'Ordinary Least Squares regression forecasting and the Budget Advisory System, explained in plain language.',
             $evidence,
-            $this->latest($this->scoped(DB::table('financial_forecasts'), $orgId), 'created_at'),
+            $this->latest($this->scoped(DB::table('financial_forecasts'), $orgIds), 'created_at'),
         );
     }
 
-    private function events(?int $orgId): array
+    private function events(?array $orgIds): array
     {
-        $scopedEventIds = $this->scoped(DB::table('events'), $orgId)->select('id');
+        $scopedEventIds = $this->scoped(DB::table('events'), $orgIds)->select('id');
         $attendance = DB::table('attendance')->whereIn('event_id', $scopedEventIds);
 
         return $this->objective(
@@ -126,18 +126,18 @@ class ObjectivesEvidenceService
             'Determine the mechanisms or techniques for AI-integrated event management.',
             'Event Planning Assistant (LLM) and biometric attendance through the DigitalPersona fingerprint reader.',
             [
-                $this->metric('AI event plans generated', $this->aiOutputs($orgId, 'EVENT_WORKFLOW')->count(), 'count', '/dashboard/events/event-planner'),
-                $this->metric('Events completed', $this->scoped(DB::table('events'), $orgId)->where('status', 'completed')->count(), 'count', '/dashboard/events/activity-calendar'),
+                $this->metric('AI event plans generated', $this->aiOutputs($orgIds, 'EVENT_WORKFLOW')->count(), 'count', '/dashboard/events/event-planner'),
+                $this->metric('Events completed', $this->scoped(DB::table('events'), $orgIds)->where('status', 'completed')->count(), 'count', '/dashboard/events/activity-calendar'),
                 $this->metric('Check-ins by fingerprint', (clone $attendance)->where('method', 'biometric')->count(), 'count', '/dashboard/events/check-in'),
                 $this->metric('Check-ins recorded manually', (clone $attendance)->where('method', '!=', 'biometric')->count(), 'count', '/dashboard/events/check-in'),
             ],
-            $this->latest(DB::table('attendance')->whereIn('event_id', $this->scoped(DB::table('events'), $orgId)->select('id')), 'check_in_time'),
+            $this->latest(DB::table('attendance')->whereIn('event_id', $this->scoped(DB::table('events'), $orgIds)->select('id')), 'check_in_time'),
         );
     }
 
-    private function tasks(?int $orgId): array
+    private function tasks(?array $orgIds): array
     {
-        $recommendations = $this->scoped(DB::table('task_recommendations'), $orgId);
+        $recommendations = $this->scoped(DB::table('task_recommendations'), $orgIds);
 
         return $this->objective(
             'SO2.3',
@@ -146,17 +146,17 @@ class ObjectivesEvidenceService
             'Rule-Based Weighted Scoring of role relevance, workload and past performance, with a decision-support ranking an officer can override.',
             [
                 $this->metric('Officer scores calculated for delegation', (clone $recommendations)->count(), 'count', '/dashboard/tasks/ai-delegation'),
-                $this->metric('Tasks delegated with a recorded ranking', $this->scoped(DB::table('tasks'), $orgId)->whereNotNull('delegation_snapshot')->count(), 'count', '/dashboard/tasks/task-board'),
-                $this->metric('AI delegation explanations', $this->aiOutputs($orgId, 'TASK_EXPLANATION')->count(), 'count', null),
+                $this->metric('Tasks delegated with a recorded ranking', $this->scoped(DB::table('tasks'), $orgIds)->whereNotNull('delegation_snapshot')->count(), 'count', '/dashboard/tasks/task-board'),
+                $this->metric('AI delegation explanations', $this->aiOutputs($orgIds, 'TASK_EXPLANATION')->count(), 'count', null),
             ],
             $this->latest($recommendations, 'calculated_at'),
         );
     }
 
-    private function elections(?int $orgId): array
+    private function elections(?array $orgIds): array
     {
-        $electionIds = $this->scoped(DB::table('elections'), $orgId)->select('id');
-        $latestClosedId = $this->scoped(DB::table('elections'), $orgId)->where('status', 'closed')->orderByDesc('end_time')->value('id');
+        $electionIds = $this->scoped(DB::table('elections'), $orgIds)->select('id');
+        $latestClosedId = $this->scoped(DB::table('elections'), $orgIds)->where('status', 'closed')->orderByDesc('end_time')->value('id');
 
         return $this->objective(
             'SO2.4',
@@ -164,17 +164,17 @@ class ObjectivesEvidenceService
             'Determine the mechanisms or techniques for AI-integrated elections.',
             'One-vote enforcement per position, automated tallying and real-time results.',
             [
-                $this->metric('Elections completed with automated tallies', $this->scoped(DB::table('elections'), $orgId)->where('status', 'closed')->count(), 'count', '/dashboard/elections/election-results'),
+                $this->metric('Elections completed with automated tallies', $this->scoped(DB::table('elections'), $orgIds)->where('status', 'closed')->count(), 'count', '/dashboard/elections/election-results'),
                 $this->metric('Votes cast', DB::table('votes')->whereIn('election_id', $electionIds)->count(), 'count', '/dashboard/elections'),
                 $this->metric('Voters in the latest completed election', $latestClosedId ? DB::table('votes')->where('election_id', $latestClosedId)->distinct()->count('voter_id') : 0, 'count', '/dashboard/elections/election-results'),
             ],
-            $this->latest(DB::table('votes')->whereIn('election_id', $this->scoped(DB::table('elections'), $orgId)->select('id')), 'cast_at'),
+            $this->latest(DB::table('votes')->whereIn('election_id', $this->scoped(DB::table('elections'), $orgIds)->select('id')), 'cast_at'),
         );
     }
 
-    private function merchandise(?int $orgId): array
+    private function merchandise(?array $orgIds): array
     {
-        $orders = $this->scoped(DB::table('orders'), $orgId);
+        $orders = $this->scoped(DB::table('orders'), $orgIds);
 
         return $this->objective(
             'SO2.5',
@@ -191,7 +191,7 @@ class ObjectivesEvidenceService
         );
     }
 
-    private function communication(?int $orgId, bool $isSao): array
+    private function communication(?array $orgIds, bool $isSao): array
     {
         return $this->objective(
             'SO2.6',
@@ -199,18 +199,18 @@ class ObjectivesEvidenceService
             'Determine the mechanisms or techniques for AI-integrated organizational communication.',
             'AI announcement drafting (LLM) with human review, and automated notifications.',
             [
-                $this->metric('Announcements published', $this->scoped(DB::table('announcements'), $orgId)->where('is_published', true)->count(), 'count', $isSao ? '/dashboard/super-admin/announcements' : '/dashboard/announcements/view-announcements'),
-                $this->metric('AI-drafted announcements', $this->aiOutputs($orgId, 'ANNOUNCEMENT_DRAFT')->count(), 'count', '/dashboard/announcements/manage-announcements'),
-                $this->metric('Notifications delivered', $this->scoped(DB::table('notifications'), $orgId)->count(), 'count', null),
+                $this->metric('Announcements published', $this->scoped(DB::table('announcements'), $orgIds)->where('is_published', true)->count(), 'count', $isSao ? '/dashboard/super-admin/announcements' : '/dashboard/announcements/view-announcements'),
+                $this->metric('AI-drafted announcements', $this->aiOutputs($orgIds, 'ANNOUNCEMENT_DRAFT')->count(), 'count', '/dashboard/announcements/manage-announcements'),
+                $this->metric('Notifications delivered', $this->scoped(DB::table('notifications'), $orgIds)->count(), 'count', null),
             ],
-            $this->latest($this->scoped(DB::table('announcements'), $orgId)->where('is_published', true), 'created_at'),
+            $this->latest($this->scoped(DB::table('announcements'), $orgIds)->where('is_published', true), 'created_at'),
         );
     }
 
-    private function so3(?int $orgId): array
+    private function so3(?array $orgIds): array
     {
         $since = Carbon::now()->subDays(self::LIVE_WINDOW_DAYS);
-        $modules = $this->scoped(DB::table('audit_logs'), $orgId)->where('module', '!=', 'evaluation')->where('created_at', '>=', $since)->distinct()->count('module');
+        $modules = $this->scoped(DB::table('audit_logs'), $orgIds)->where('module', '!=', 'evaluation')->where('created_at', '>=', $since)->distinct()->count('module');
 
         return $this->objective(
             'SO3',
@@ -218,7 +218,7 @@ class ObjectivesEvidenceService
             'Define and develop the best features of the proposed AI-integrated student governance and financial management system.',
             'Every feature records an accountable audit trail; this counts the modules with real activity in the last 90 days.',
             [$this->metric('Modules with activity in the last 90 days', $modules, 'count', null)],
-            $this->latest($this->scoped(DB::table('audit_logs'), $orgId), 'created_at'),
+            $this->latest($this->scoped(DB::table('audit_logs'), $orgIds), 'created_at'),
         );
     }
 
@@ -260,14 +260,14 @@ class ObjectivesEvidenceService
         ];
     }
 
-    private function scoped(Builder $query, ?int $orgId): Builder
+    private function scoped(Builder $query, ?array $orgIds): Builder
     {
-        return $orgId === null ? $query : $query->where('organization_id', $orgId);
+        return $orgIds === null ? $query : $query->whereIn('organization_id', $orgIds);
     }
 
-    private function aiOutputs(?int $orgId, string $featureType): Builder
+    private function aiOutputs(?array $orgIds, string $featureType): Builder
     {
-        return $this->scoped(DB::table('ai_outputs'), $orgId)->where('feature_type', $featureType);
+        return $this->scoped(DB::table('ai_outputs'), $orgIds)->where('feature_type', $featureType);
     }
 
     private function latest(Builder $query, string $column): ?CarbonInterface
@@ -277,9 +277,9 @@ class ObjectivesEvidenceService
         return $value ? Carbon::parse($value) : null;
     }
 
-    private function organization(?int $orgId): ?array
+    private function organization(int $organizationId): ?array
     {
-        $organization = DB::table('organizations')->where('id', $orgId)->first(['id', 'name']);
+        $organization = DB::table('organizations')->where('id', $organizationId)->first(['id', 'name']);
 
         return $organization ? ['id' => $organization->id, 'name' => $organization->name] : null;
     }

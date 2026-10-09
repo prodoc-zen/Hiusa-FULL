@@ -70,24 +70,24 @@ class FinancialAccountabilityController extends Controller
 
     public function dashboard(Request $request)
     {
-        $organizationId = $request->user()->organization_id;
-        $collections = Collection::where('organization_id', $organizationId)->where('status', 'verified');
+        $organizationIds = $this->readableOrganizationIds($request);
+        $collections = Collection::whereIn('organization_id', $organizationIds)->where('status', 'verified');
         $collected = (float) (clone $collections)->sum('amount_collected');
         $remitted = (float) Remittance::whereIn('collection_id', (clone $collections)->select('id'))->where('status', 'recorded')->sum('amount');
-        $advances = CashAdvance::where('organization_id', $organizationId)->whereIn('status', ['released', 'partially_repaid', 'fully_repaid']);
+        $advances = CashAdvance::whereIn('organization_id', $organizationIds)->whereIn('status', ['released', 'partially_repaid', 'fully_repaid']);
         $borrowed = (float) (clone $advances)->sum('amount');
         $repaid = (float) CashAdvanceRepayment::whereIn('cash_advance_id', (clone $advances)->select('id'))->sum('amount');
-        $income = (float) Transaction::where('organization_id', $organizationId)->where('type', 'income')->sum('amount');
-        $expense = (float) Transaction::where('organization_id', $organizationId)->where('type', 'expense')->sum('amount');
+        $income = (float) Transaction::whereIn('organization_id', $organizationIds)->where('type', 'income')->sum('amount');
+        $expense = (float) Transaction::whereIn('organization_id', $organizationIds)->where('type', 'expense')->sum('amount');
 
-        return response()->json(['total_collections' => $collected, 'total_remitted' => $remitted, 'unremitted_collections' => round($collected - $remitted, 2), 'total_borrowed' => $borrowed, 'total_repaid' => $repaid, 'outstanding_borrowed' => round($borrowed - $repaid, 2), 'total_expenses' => $expense, 'available_funds' => round($income - $expense, 2), 'pending_financial_approvals' => Collection::where('organization_id', $organizationId)->where('status', 'pending')->count() + CashAdvance::where('organization_id', $organizationId)->where('status', 'pending')->count(), 'recent_transactions' => Transaction::where('organization_id', $organizationId)->latest('transaction_date')->limit(10)->get()]);
+        return response()->json(['total_collections' => $collected, 'total_remitted' => $remitted, 'unremitted_collections' => round($collected - $remitted, 2), 'total_borrowed' => $borrowed, 'total_repaid' => $repaid, 'outstanding_borrowed' => round($borrowed - $repaid, 2), 'total_expenses' => $expense, 'available_funds' => round($income - $expense, 2), 'pending_financial_approvals' => Collection::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count() + CashAdvance::whereIn('organization_id', $organizationIds)->where('status', 'pending')->count(), 'recent_transactions' => Transaction::whereIn('organization_id', $organizationIds)->latest('transaction_date')->limit(10)->get()]);
     }
 
     public function collections(Request $request)
     {
         $filters = $request->validate(['status' => ['nullable', 'in:pending,verified']]);
         $query = Collection::with(['remittances', 'organization:id,name,acronym'])
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('organization_id', $this->readableOrganizationIds($request))
             ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->latest('collected_at');
         if ($request->filled('search')) {
@@ -154,7 +154,7 @@ class FinancialAccountabilityController extends Controller
     {
         $filters = $request->validate(['status' => ['nullable', 'in:pending,approved,released,partially_repaid,fully_repaid']]);
         $query = CashAdvance::with(['repayments', 'organization:id,name,acronym', 'borrower:school_id,first_name,last_name'])
-            ->where('organization_id', $request->user()->organization_id)
+            ->whereIn('organization_id', $this->readableOrganizationIds($request))
             ->when(! empty($filters['status']), fn ($query) => $query->where('status', $filters['status']))
             ->latest();
 
