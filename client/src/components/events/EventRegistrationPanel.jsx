@@ -5,7 +5,7 @@ import { cancelEventRegistration, getEventRegistrations, getMyEventRegistrations
 import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
 import notify from '../../lib/notify';
-import { Button, ProgressMeter, StatusBadge } from '../ui';
+import { Button, FlowStepper, ProgressMeter, StatusBadge } from '../ui';
 
 // A cancelled registration is a neutral outcome here, not the danger tone the
 // shared status map gives cancelled requests.
@@ -17,6 +17,19 @@ const REGISTRATION_STATUS = {
 };
 
 const isUpcoming = (event) => new Date(event.start_time).getTime() > Date.now();
+
+// Register, then be checked in at the door, then the attendance is on record.
+function registrationSteps(status, event, open) {
+  const closedForGood = !open && !['registered', 'attended', 'no_show'].includes(status);
+  const registerState = ['registered', 'attended', 'no_show'].includes(status) ? 'done' : closedForGood ? 'blocked' : 'current';
+  const registerNote = closedForGood ? (event.status === 'approved' ? 'Closed' : 'Opens once approved') : undefined;
+  const checkInState = status === 'registered' ? 'current' : status === 'attended' ? 'done' : status === 'no_show' ? 'blocked' : 'upcoming';
+  return [
+    { key: 'register', label: 'Register', state: registerState, note: registerNote },
+    { key: 'check-in', label: 'Check in at the event', state: checkInState, note: status === 'no_show' ? 'No check-in recorded' : undefined },
+    { key: 'attended', label: 'Attendance on record', state: status === 'attended' ? 'done' : 'upcoming' },
+  ];
+}
 
 function RegistrationBadge({ status }) {
   const meta = REGISTRATION_STATUS[status] || { tone: 'neutral', label: status };
@@ -88,13 +101,14 @@ function ParticipantRegistration({ event }) {
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <CalendarCheck size={16} className="text-brand-700" aria-hidden="true" />
-            <p className="text-sm font-bold text-ink">Your registration</p>
+            <p className="text-sm font-bold text-ink">{status === 'registered' ? 'You are registered' : 'Your registration'}</p>
             {status && <RegistrationBadge status={status} />}
           </div>
           <p className="mt-1 text-xs font-medium leading-5 text-ink-muted">{message}</p>
         </div>
         {action}
       </div>
+      <FlowStepper steps={registrationSteps(status, event, open)} ariaLabel="Your registration progress" />
       {error && <p className="text-xs font-semibold text-danger-strong" role="alert">{error}</p>}
     </div>
   );
