@@ -1,3 +1,5 @@
+import { grievanceLifecycle } from '../../../lib/lifecycle';
+
 // Shared vocabulary for the confidential grievances screens. Kept out of the
 // shared components/ui/statusTones.js map on purpose: urgency is a severity
 // scale, not a lifecycle status, and "resolved"/"dismissed" need a tone this
@@ -56,6 +58,20 @@ export const TRANSITION_ACTION_LABEL = {
 
 export function addressedToLabel(grievance) {
   return grievance.organization_id ? (grievance.organization?.name || 'Organization') : 'Student Affairs Office';
+}
+
+// The server stores no addressed_to column on a grievance: a null organization_id means it went to the SAO.
+export function addressedToKey(grievance) {
+  return grievance.organization_id ? 'organization' : 'sao';
+}
+
+export function grievanceStage(grievance, viewerRole) {
+  return grievanceLifecycle({ ...grievance, addressed_to: addressedToKey(grievance) }, viewerRole);
+}
+
+// Read as the filer, so the student's row and the reviewer's row for one grievance print the same sentence.
+export function grievanceStageText(grievance) {
+  return grievanceStage(grievance, 'STUDENT').nextAction.title;
 }
 
 export function filerDisplayName(grievance) {

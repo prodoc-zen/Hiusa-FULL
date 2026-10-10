@@ -1,13 +1,15 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DataTable, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
+import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
-import { CATEGORIES, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
+import { CATEGORIES, grievanceStageText, grievanceStatusTone, urgencyRank, urgencyTone } from './grievanceLabels';
+import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUSES = ['submitted', 'under_review', 'resolved', 'dismissed'];
 const URGENCIES = ['Critical', 'High', 'Medium', 'Low'];
@@ -33,7 +35,7 @@ export default function SaoGrievancesPage() {
   const [sort, setSort] = useState({ key: 'urgency', direction: 'asc' });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const { selected, open, close, replace } = useGrievanceRecord();
   const [counts, setCounts] = useState(EMPTY_COUNTS);
 
   const filters = useMemo(() => ({
@@ -78,9 +80,16 @@ export default function SaoGrievancesPage() {
     return () => { cancelled = true; };
   }, [category, addressedTo]);
 
+  function clearFilters() {
+    setStatus('');
+    setUrgency('');
+    setCategory('');
+    setAddressedTo('');
+  }
+
   async function handleTransition(id, data) {
     const res = await updateGrievanceStatus(id, data);
-    setSelected(res.data);
+    replace(res.data);
     notify.success('Grievance updated. The student has been notified.');
     load();
   }
@@ -103,14 +112,23 @@ export default function SaoGrievancesPage() {
       key: 'title',
       header: 'Grievance',
       render: (row) => (
-        <button type="button" onClick={() => setSelected(row)} className="text-left font-bold text-ink hover:text-brand-700">
+        <button type="button" onClick={() => open(row)} className="text-left font-bold text-ink hover:text-brand-700">
           {formatDisplayText(row.title)}
           <span className="block text-xs font-medium text-ink-muted">{row.category} · {row.organization_id ? (formatDisplayText(row.organization?.name) || 'Organization') : 'Student Affairs Office'}</span>
         </button>
       ),
     },
     { key: 'urgency', header: 'Urgency', sortable: true, render: (row) => <StatusBadge tone={urgencyTone(row.urgency)} label={row.urgency} /> },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} />
+          <span className="text-xs font-semibold text-ink-muted-strong">{grievanceStageText(row)}</span>
+        </div>
+      ),
+    },
     {
       key: 'filer',
       header: 'Filed by',
@@ -126,7 +144,7 @@ export default function SaoGrievancesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Grievances" description="Every confidential grievance university-wide, sorted by urgency first so what needs attention now is on top." />
+      <PageHeader />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {STATUSES.map((value) => (
@@ -177,22 +195,26 @@ export default function SaoGrievancesPage() {
                 </Select>
               </div>
               {filtersActive && (
-                <button type="button" onClick={() => { setStatus(''); setUrgency(''); setCategory(''); setAddressedTo(''); }} className="ml-auto text-xs font-bold text-brand-700 hover:text-navy-800">Clear filters</button>
+                <button type="button" onClick={clearFilters} className="ml-auto text-xs font-bold text-brand-700 hover:text-navy-800">Clear filters</button>
               )}
               <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
             </div>
           )}
-          emptyState={filtersActive ? undefined : (
-            <div className="px-6 py-14 text-center">
-              <p className="text-lg font-bold text-ink">No grievances yet</p>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm font-medium text-ink-muted">Grievances filed anywhere in the university, whether anonymous or not, will appear here.</p>
-            </div>
+          emptyState={filtersActive ? (
+            <EmptyState kind="filtered" title="No grievances match these filters" description="Try a different status, urgency, category, or recipient." onClearFilters={clearFilters} />
+          ) : (
+            <EmptyState
+              kind="first-run"
+              icon={MessageSquareWarning}
+              title="Nothing to review"
+              description="Students file grievances from My grievances, addressed to their organization or to the SAO. Each one appears here, sorted by urgency."
+            />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="grievances" />}
         />
       </Card>
 
-      <GrievanceDetailDrawer grievance={selected} viewerRole="SUPER_ADMIN" onClose={() => setSelected(null)} onTransition={handleTransition} />
+      <GrievanceDetailDrawer grievance={selected} viewerRole="SUPER_ADMIN" onClose={close} onTransition={handleTransition} />
     </div>
   );
 }

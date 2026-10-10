@@ -1,4 +1,5 @@
 import { render, screen, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoGrievancesPage from './SaoGrievancesPage';
 
@@ -28,15 +29,15 @@ describe('SaoGrievancesPage', () => {
   });
 
   it('shows an empty state with no filters applied', async () => {
-    render(<SaoGrievancesPage />);
-    expect(await screen.findByText('No grievances yet')).toBeInTheDocument();
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
+    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
   });
 
   it('shows a retryable error state for the main table', async () => {
     mocks.getGrievances.mockImplementation((params) => (params?.per_page === 50
       ? Promise.reject(new Error('down'))
       : Promise.resolve(envelope([]))));
-    render(<SaoGrievancesPage />);
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     expect(await screen.findByText('Failed to load grievances.')).toBeInTheDocument();
   });
 
@@ -45,7 +46,7 @@ describe('SaoGrievancesPage', () => {
       ? Promise.resolve(envelope([LOW, CRITICAL], 2))
       : Promise.resolve(envelope([]))));
 
-    render(<SaoGrievancesPage />);
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     const rows = await screen.findAllByRole('row');
     // rows[0] is the header row; the table body should lead with Critical.
     expect(within(rows[1]).getByText('Critical Concern')).toBeTruthy();
@@ -58,7 +59,7 @@ describe('SaoGrievancesPage', () => {
       return Promise.resolve(envelope([]));
     });
 
-    render(<SaoGrievancesPage />);
+    render(<MemoryRouter><SaoGrievancesPage /></MemoryRouter>);
     expect(await screen.findByRole('button', { name: /submitted.*5/is })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /critical.*2/is })).toBeInTheDocument();
   });

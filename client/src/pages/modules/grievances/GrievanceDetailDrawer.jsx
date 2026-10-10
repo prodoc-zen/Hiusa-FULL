@@ -1,18 +1,41 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useState } from 'react';
 import { ShieldCheck, UserRound } from 'lucide-react';
-import { Button, Drawer, Field, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, Drawer, Field, FlowStepper, NextStep, StatusBadge, Textarea } from '../../../components/ui';
+import { toNextStepProps } from '../../../lib/lifecycle';
 import Modal from '../../../components/Modal';
 import { RichTextBody } from '../../../components/RichText';
 import { manilaDate, relativeTime } from '../../../lib/format';
 import {
   ALLOWED_TRANSITIONS,
   TRANSITION_ACTION_LABEL,
+  addressedToKey,
   addressedToLabel,
   filerDisplayName,
+  grievanceStage,
   grievanceStatusTone,
   urgencyTone,
 } from './grievanceLabels';
+
+// The SAO can decide any grievance, so it is shown the turn of whoever the grievance went to.
+function actingRoleFor(grievance, viewerRole) {
+  if (viewerRole !== 'SUPER_ADMIN') return viewerRole;
+  return addressedToKey(grievance) === 'organization' ? 'ADMIN' : 'SUPER_ADMIN';
+}
+
+// The buttons that do the work sit below, so the callout carries no button of its own.
+function GrievanceStage({ grievance, viewerRole }) {
+  const stage = grievanceStage(grievance, actingRoleFor(grievance, viewerRole));
+  const next = toNextStepProps(stage);
+  const body = stage.nextAction.tone === 'done' ? undefined : next.body;
+
+  return (
+    <div className="flex flex-col gap-3">
+      <FlowStepper steps={stage.steps} ariaLabel="Grievance progress" />
+      <NextStep {...next} body={body} primary={undefined} />
+    </div>
+  );
+}
 
 function IdentitySection({ grievance, viewerRole }) {
   const redacted = !('submitted_by' in grievance);
@@ -123,6 +146,8 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
               <StatusBadge tone={urgencyTone(grievance.urgency)} label={`${grievance.urgency} urgency`} />
               <StatusBadge tone="neutral" label={grievance.category} />
             </div>
+
+            <GrievanceStage grievance={grievance} viewerRole={viewerRole} />
 
             <IdentitySection grievance={grievance} viewerRole={viewerRole} />
 
