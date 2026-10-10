@@ -75,12 +75,22 @@ class FinancialReport extends Model
     /**
      * The ledger entries as they were when the report was generated. Every total the
      * report shows (card, PDF, Excel) must come from these rows. A report saved before
-     * snapshots existed has none, so it reads the live ledger entries it listed.
+     * snapshots existed has none, so it reads the live ledger entries it listed. A caller
+     * listing many reports passes the entries from legacyLedgerFor() so those reports
+     * share one query; the entries carry no event or budget titles then, which totals do not need.
      */
-    public function savedTransactions(): Collection
+    public function savedTransactions(?Collection $legacyLedger = null): Collection
     {
         if ($this->transactions_snapshot !== null) {
             return collect($this->transactions_snapshot);
+        }
+
+        if ($legacyLedger !== null) {
+            return collect($this->source_transaction_ids ?? [])
+                ->map(fn ($id) => $legacyLedger->get($id))
+                ->filter(fn (?Transaction $entry) => $entry !== null && $entry->organization_id === $this->organization_id)
+                ->sortBy([['transaction_date', 'asc'], ['id', 'asc']])
+                ->values();
         }
 
         return Transaction::with(['event:id,title', 'budget:id,title'])
@@ -89,6 +99,27 @@ class FinancialReport extends Model
             ->orderBy('transaction_date')
             ->orderBy('id')
             ->get();
+    }
+
+    /**
+     * The live ledger entries listed by the reports that have no snapshot, in one query,
+     * keyed by entry id.
+     *
+     * @param  iterable<FinancialReport>  $reports
+     */
+    public static function legacyLedgerFor(iterable $reports): Collection
+    {
+        $ids = collect($reports)
+            ->filter(fn (FinancialReport $report) => $report->transactions_snapshot === null)
+            ->flatMap(fn (FinancialReport $report) => $report->source_transaction_ids ?? [])
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return collect();
+        }
+
+        return Transaction::whereIn('id', $ids)->get(['id', 'organization_id', 'type', 'amount', 'transaction_date'])->keyBy('id');
     }
 
     /**
