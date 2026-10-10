@@ -51,6 +51,32 @@ class Budget extends Model
         return round((float) $this->allocated_amount + (float) $totals->income - (float) $totals->expense, 2);
     }
 
+    /**
+     * Spent per budget id as a two decimal string, in one query. Expenses only and cash advance
+     * movements left out, because income recorded against a budget raises its remaining amount
+     * and must not net off what was spent.
+     *
+     * @param  iterable<int>  $ids
+     * @return array<int, string>
+     */
+    public static function spentAmounts(iterable $ids): array
+    {
+        $ids = collect($ids)->unique()->values();
+
+        if ($ids->isEmpty()) {
+            return [];
+        }
+
+        $totals = Transaction::whereIn('budget_id', $ids)
+            ->where('type', 'expense')
+            ->excludingCashAdvances()
+            ->selectRaw('budget_id, SUM(amount) as total')
+            ->groupBy('budget_id')
+            ->pluck('total', 'budget_id');
+
+        return $ids->mapWithKeys(fn ($id) => [$id => number_format((float) ($totals[$id] ?? 0), 2, '.', '')])->all();
+    }
+
     public static function overspendingRiskFor(float $remaining, float $warningThreshold): string
     {
         if ($remaining < 0) {

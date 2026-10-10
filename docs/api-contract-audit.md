@@ -27,6 +27,7 @@ Generated from `php artisan route:list --path=api --json` and frontend `api.*` c
 | `services/authService.js:41` `/user/profiles/${profileId}/switch` | POST | `/api/user/profiles/{profile}/switch` | `AccountProfileController::switch` |
 | `services/authService.js:43` `/account-profiles/invite` | POST | `/api/account-profiles/invite` | `AccountProfileController::invite` |
 | `services/approvalService.js:4` `/approval-requests` | GET | `/api/approval-requests` | `ApprovalRequestController::index` |
+| `services/approvalService.js` (not yet called) `/approval-requests/${id}` | GET | `/api/approval-requests/{approvalRequest}` | `ApprovalRequestController::show` |
 | `services/approvalService.js:7` `/approval-requests/${id}` | PATCH | `/api/approval-requests/{id}` | `ApprovalRequestController::review` |
 | `services/fingerprintService.js:5` `/users/${userId}/fingerprint` | POST | `/api/users/{id}/fingerprint` | `FingerprintController::store` |
 | `services/fingerprintService.js:11` `/users/${userId}/fingerprint` | DELETE | `/api/users/{id}/fingerprint` | `FingerprintController::destroy` |
