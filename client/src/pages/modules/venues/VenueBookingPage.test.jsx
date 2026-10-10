@@ -1,4 +1,5 @@
 import { render, screen, waitFor } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import VenueBookingPage from './VenueBookingPage';
 
@@ -34,7 +35,7 @@ describe('VenueBookingPage', () => {
   afterEach(() => vi.useRealTimers());
 
   it('still renders the availability timeline for the chosen venue', async () => {
-    render(<VenueBookingPage />);
+    render(<MemoryRouter><VenueBookingPage /></MemoryRouter>);
     expect(await screen.findByText(/Reserved by Your organization/)).toBeInTheDocument();
     await waitFor(() => expect(venueMocks.getVenueAvailability).toHaveBeenCalledWith('8', { from: '2026-10-07', to: '2026-10-14' }));
     expect(screen.getByLabelText('Booking hours, 5 AM to 10 PM')).toBeInTheDocument();
