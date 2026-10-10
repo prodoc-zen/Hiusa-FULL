@@ -53,4 +53,33 @@ describe('CastVotePage', () => {
     await waitFor(() => expect(castVotes).toHaveBeenCalledTimes(1));
     expect(await screen.findByText('Ballot submitted')).toBeInTheDocument();
   });
+
+  it('tells the voter what happens after the receipt', async () => {
+    castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
+    render(<CastVotePage />);
+    fireEvent.click(screen.getByRole('button', { name: /Start my ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana Reyes/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Review ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
+
+    expect(await screen.findByText('SAFE-RECEIPT')).toBeInTheDocument();
+    expect(screen.getByText('What happens next')).toBeInTheDocument();
+    expect(screen.getByText(/Results appear there once voting closes/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Back to Vote' })).toBeInTheDocument();
+  });
+
+  it('keeps the already-voted message when the server refuses a second ballot', async () => {
+    castVotes.mockRejectedValue({ response: { status: 409, data: { message: 'You have already voted in this election.' } } });
+    render(<CastVotePage />);
+    fireEvent.click(screen.getByRole('button', { name: /Start my ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana Reyes/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Review ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
+
+    expect(await screen.findByText('Vote already recorded')).toBeInTheDocument();
+    expect(screen.getByText('Each voter can submit one ballot for this election.')).toBeInTheDocument();
+    expect(screen.queryByText('What happens next')).not.toBeInTheDocument();
+  });
 });

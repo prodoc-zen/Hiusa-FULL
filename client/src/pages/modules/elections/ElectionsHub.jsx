@@ -1,13 +1,16 @@
-import { useEffect, useState } from 'react';
-import { Navigate, Outlet, useLocation, useNavigate } from 'react-router-dom';
-import ElectionBreadcrumb from '../../../components/elections/ElectionBreadcrumb';
+import { useCallback, useEffect, useState } from 'react';
+import { Navigate, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import ElectionWorkspaceHeader from '../../../components/elections/ElectionWorkspaceHeader';
 import ElectionPickerPage from './ElectionPickerPage';
 import CastVoteRedirectPage from './CastVoteRedirectPage';
 import { getElectionDetails } from '../../../services/electionService';
+import useRecordParam from '../../../lib/useRecordParam';
 
 export default function ElectionsHub({ startCreateElection = false }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [recordId, setRecordId] = useRecordParam();
   const [activeElection, setActiveElection] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -15,14 +18,33 @@ export default function ElectionsHub({ startCreateElection = false }) {
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const role = currentUser?.role || 'SBO_OFFICER';
   const selectionKey = `hiusa-election-${currentUser?.organization_id ?? 'organization'}-${currentUser?.school_id ?? 'user'}`;
+  const askingToVote = location.pathname.endsWith('/cast-vote');
 
-  const [activeElectionId, setActiveElectionId] = useState(() => sessionStorage.getItem(selectionKey));
+  // Links made before the election moved into the URL carry no record, so the last selection in this
+  // browser tab stands in for it once, and is then written to the URL.
+  const [fallbackId, setFallbackId] = useState(() => sessionStorage.getItem(selectionKey));
+  const [failedId, setFailedId] = useState(null);
+  const editElectionId = searchParams.get('edit');
+  const showingPicker = Boolean(editElectionId) || startCreateElection;
+  const activeElectionId = recordId ?? (showingPicker ? null : fallbackId);
+
+  useEffect(() => {
+    if (recordId || !fallbackId || askingToVote || showingPicker) return;
+    const next = new URLSearchParams(searchParams);
+    next.set('record', fallbackId);
+    setSearchParams(next, { replace: true });
+  }, [askingToVote, fallbackId, recordId, searchParams, setSearchParams, showingPicker]);
+
+  const forgetSelection = useCallback(() => {
+    sessionStorage.removeItem(selectionKey);
+    setFallbackId(null);
+  }, [selectionKey]);
 
   useEffect(() => {
     let cancelled = false;
 
     async function loadElection() {
-      if (!activeElectionId) {
+      if (!activeElectionId || askingToVote) {
         setActiveElection(null);
         setLoading(false);
         return;
@@ -37,8 +59,8 @@ export default function ElectionsHub({ startCreateElection = false }) {
       } catch {
         if (!cancelled) {
           setActiveElection(null);
-          sessionStorage.removeItem(selectionKey);
-          setActiveElectionId(null);
+          forgetSelection();
+          setFailedId(activeElectionId);
         }
       } finally {
         if (!cancelled) {
@@ -52,7 +74,14 @@ export default function ElectionsHub({ startCreateElection = false }) {
     return () => {
       cancelled = true;
     };
-  }, [activeElectionId, selectionKey]);
+  }, [activeElectionId, askingToVote, forgetSelection]);
+
+  useEffect(() => {
+    if (failedId && recordId === failedId) {
+      setFailedId(null);
+      setRecordId(null);
+    }
+  }, [failedId, recordId, setRecordId]);
 
   const refreshElection = async () => {
     if (!activeElectionId) return;
@@ -67,14 +96,30 @@ export default function ElectionsHub({ startCreateElection = false }) {
 
   const handleSelect = (id) => {
     sessionStorage.setItem(selectionKey, String(id));
-    setActiveElectionId(id);
+    setFallbackId(String(id));
+    setRecordId(id);
   };
 
   const handleClear = () => {
-    sessionStorage.removeItem(selectionKey);
-    setActiveElectionId(null);
+    forgetSelection();
     navigate('/dashboard/elections');
   };
+
+  const handleEditClosed = (updated) => {
+    const next = new URLSearchParams(searchParams);
+    next.delete('edit');
+    if (updated?.id) {
+      sessionStorage.setItem(selectionKey, String(updated.id));
+      setFallbackId(String(updated.id));
+      next.set('record', String(updated.id));
+    }
+    setSearchParams(next, { replace: true });
+  };
+
+  if (askingToVote) {
+    if (role === 'DEPARTMENT_HEAD') return <Navigate to="/dashboard/elections/election-results" replace />;
+    return <CastVoteRedirectPage />;
+  }
 
   if (loading) {
     return (
@@ -92,16 +137,12 @@ export default function ElectionsHub({ startCreateElection = false }) {
   }
 
   if (!activeElection) {
-    const askingToVote = location.pathname.endsWith('/cast-vote');
-    const askingForResults = location.pathname.endsWith('/election-results');
-    if (askingToVote && role === 'DEPARTMENT_HEAD') return <Navigate to="/dashboard/elections/election-results" replace />;
-    if (askingToVote) return <CastVoteRedirectPage />;
-    return <div className="space-y-4">{(askingToVote || askingForResults) && <div className="relative overflow-hidden rounded-lg border border-[#DDE7EF] bg-white p-6 text-center"><div aria-hidden="true" className="pointer-events-none h-20 rounded-lg bg-[#EEF6FB] opacity-40 blur-sm" /><div className="absolute inset-0 grid place-items-center bg-white/70 p-4"><div><h2 className="text-lg font-black text-[#0F172A]">{askingToVote ? 'No election is currently open.' : 'Election results are not available yet.'}</h2><p className="mt-1 text-sm text-[#64748B]">{askingToVote ? 'Select an open election when voting begins.' : 'Select an open election with visible live totals or a closed election with released results.'}</p></div></div></div>}<ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} /></div>;
+    return <ElectionPickerPage onSelect={handleSelect} startCreate={startCreateElection} editElectionId={editElectionId} onEditClosed={handleEditClosed} />;
   }
 
   return (
     <div className="space-y-5">
-      <ElectionBreadcrumb election={activeElection} onClear={handleClear} />
+      <ElectionWorkspaceHeader election={activeElection} role={role} onClear={handleClear} onChanged={refreshElection} />
       <Outlet context={{ election: activeElection, role, refreshElection, selectElection: handleSelect }} />
     </div>
   );
