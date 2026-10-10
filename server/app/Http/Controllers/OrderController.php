@@ -33,17 +33,7 @@ class OrderController extends Controller
 
         $filters = $this->validateOrderFilters($request);
 
-        $query = Order::with([
-            'organization:id,name',
-            'merchandise:id,name,category,price,image_url',
-            'variant:id,name,image_url',
-            'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title,account_status',
-            'processor:school_id,first_name,last_name,role,position_title',
-            'approver:school_id,first_name,last_name,role,position_title',
-            'claimVerifier:school_id,first_name,last_name,role,position_title',
-            'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
-        ])
-            ->where('organization_id', $user->organization_id);
+        $query = $this->orderRowQuery()->where('organization_id', $user->organization_id);
 
         $personalView = ! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true) || $request->boolean('mine');
 
@@ -58,11 +48,7 @@ class OrderController extends Controller
         $summary = $personalView ? null : $this->orderSummary($request, $filters);
         $orders = $query->paginate(10)->withQueryString();
 
-        $orders->getCollection()->each(function (Order $order) {
-            if (! in_array($order->status, ['paid', 'claimed'], true)) {
-                $order->setAttribute('claim_token', null);
-            }
-        });
+        $orders->getCollection()->each(fn (Order $order) => $this->hideUnreleasedClaimToken($order));
 
         return response()->json([
             ...$orders->toArray(),
@@ -70,6 +56,47 @@ class OrderController extends Controller
             'filter_options' => $personalView ? null : $this->orderFilterOptions($request),
             'active_filters' => array_filter($filters, fn ($value) => $value !== null && $value !== ''),
         ]);
+    }
+
+    public function show(Request $request, $id)
+    {
+        $user = $request->user();
+        $query = $this->orderRowQuery()->where('organization_id', $user->organization_id);
+
+        if (! in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true)) {
+            $query->where('student_id', $user->id);
+        }
+
+        $order = $query->find($id);
+        if (! $order) {
+            return response()->json(['message' => 'Order not found.'], 404);
+        }
+
+        $this->hideUnreleasedClaimToken($order);
+
+        return response()->json($order);
+    }
+
+    /** The relations every order row carries, so the list and the single order share one shape. */
+    private function orderRowQuery(): Builder
+    {
+        return Order::with([
+            'organization:id,name',
+            'merchandise:id,name,category,price,image_url',
+            'variant:id,name,image_url',
+            'student:school_id,first_name,last_name,email,department,program,major,year_level,section,role,position_title,account_status',
+            'processor:school_id,first_name,last_name,role,position_title',
+            'approver:school_id,first_name,last_name,role,position_title',
+            'claimVerifier:school_id,first_name,last_name,role,position_title',
+            'transaction:id,receipt_reference,receipt_number,transaction_date,amount',
+        ]);
+    }
+
+    private function hideUnreleasedClaimToken(Order $order): void
+    {
+        if (! in_array($order->status, ['paid', 'claimed'], true)) {
+            $order->setAttribute('claim_token', null);
+        }
     }
 
     public function analyticsUsers(Request $request)

@@ -519,8 +519,18 @@ class ApprovalRequestController extends Controller
                 ->get(['entity_id', 'status'])
                 ->mapWithKeys(fn (ApprovalRequest $latest) => [$latest->entity_id => ['approval_status' => $latest->status]])
                 ->all(),
+            'financial_report' => $this->financialReportExtras($entities),
             default => [],
         };
+    }
+
+    private function financialReportExtras(Collection $reports): array
+    {
+        $legacyLedger = FinancialReport::legacyLedgerFor($reports);
+
+        return $reports->mapWithKeys(fn (FinancialReport $report) => [
+            $report->id => ['statement' => FinancialReportStatement::from($report->savedTransactions($legacyLedger))],
+        ])->all();
     }
 
     private function eventExtras(Collection $events): array
@@ -605,15 +615,13 @@ class ApprovalRequestController extends Controller
                 'payment_reference' => $entity->payment_reference,
                 'status' => $entity->status,
             ],
-            'financial_report' => $this->financialReportSummary($entity),
+            'financial_report' => $this->financialReportSummary($entity, $extra['statement']),
             default => null,
         };
     }
 
-    private function financialReportSummary(FinancialReport $report): array
+    private function financialReportSummary(FinancialReport $report, array $statement): array
     {
-        $statement = FinancialReportStatement::from($report->savedTransactions());
-
         return [
             'organization' => $report->organization?->only(['id', 'name', 'acronym']),
             'report_type' => $report->report_type,
