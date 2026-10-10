@@ -118,16 +118,23 @@ function BriefingBody({ data }) {
  * The role-aware briefing that opens every home page: greeting and headline, the first-run
  * checklist (above the work queue until it is finished), what needs this person now, the study's
  * areas, and what the AI noticed (with the "Why?" disclosure). Composed above each home page's own content.
+ * A page that shows figures from the same payload (the student account panel) reads them through onData.
  */
-export default function RoleBriefing() {
+export default function RoleBriefing({ onData }) {
   const [state, setState] = useState({ loading: true, error: null, data: null });
 
   const load = useCallback(() => {
     setState({ loading: true, error: null, data: null });
     getBriefing()
-      .then((response) => setState({ loading: false, error: null, data: response.data }))
-      .catch(() => setState({ loading: false, error: true, data: null }));
-  }, []);
+      .then((response) => {
+        setState({ loading: false, error: null, data: response.data });
+        onData?.(response.data);
+      })
+      .catch(() => {
+        setState({ loading: false, error: true, data: null });
+        onData?.(null);
+      });
+  }, [onData]);
 
   useEffect(() => { load(); }, [load]);
 

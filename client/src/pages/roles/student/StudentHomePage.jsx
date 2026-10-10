@@ -7,6 +7,7 @@ import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { RoleBriefing } from '../../../components/dashboard';
 import { Button } from '../../../components/ui';
+import { peso } from '../../../lib/format';
 
 function formatEventDate(value) {
   if (!value) return '';
@@ -25,7 +26,28 @@ function FeedSkeleton() {
   );
 }
 
+function clearanceLine(clearance) {
+  switch (clearance?.status) {
+    case 'in_progress': {
+      const pending = Number(clearance.pending_count) || 0;
+      return `Clearance: ${pending} ${pending === 1 ? 'signature' : 'signatures'} pending`;
+    }
+    case 'cleared': return 'Clearance: Cleared';
+    case 'held': return 'On hold: see My clearance';
+    case 'none': return 'No clearance period';
+    default: return null;
+  }
+}
+
+function owedLine(owedTotal) {
+  if (owedTotal == null) return null;
+  const amount = Number(owedTotal);
+  if (!Number.isFinite(amount)) return null;
+  return amount > 0 ? `You owe ${peso(amount)}` : 'Nothing owed';
+}
+
 export default function StudentHomePage() {
+  const [account, setAccount] = useState(null);
   const [items, setItems] = useState([]);
   const [organization, setOrganization] = useState(null);
   const [sidebar, setSidebar] = useState({ active_election: null, upcoming_events: [] });
@@ -83,12 +105,15 @@ export default function StudentHomePage() {
     requestedPages.current.delete(page);
     loadPage(page, items.length === 0);
   };
+  const handleBriefing = useCallback((data) => setAccount(data?.account ?? null), []);
+  const owedText = owedLine(account?.owed_total);
+  const clearanceText = clearanceLine(account?.clearance);
   const activeElection = sidebar.active_election;
   const upcomingEvents = Array.isArray(sidebar.upcoming_events) ? sidebar.upcoming_events : [];
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6 overflow-x-hidden">
-      <RoleBriefing />
+      <RoleBriefing onData={handleBriefing} />
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,720px)_360px] xl:justify-center">
         <section className="min-w-0 space-y-4" aria-label="Organization feed">
           <div className="flex flex-wrap items-end justify-between gap-2">
@@ -134,8 +159,8 @@ export default function StudentHomePage() {
           <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm" aria-labelledby="student-account-title">
             <div className="flex items-center justify-between gap-3"><h2 id="student-account-title" className="text-sm font-black text-[#0F172A]">Your account</h2><ReceiptText size={17} className="text-[#0878B7]" aria-hidden="true" /></div>
             <div className="mt-2 divide-y divide-[#DDE7EF]">
-              <Link to="/dashboard/finance/statement-of-account" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">Statement of account</span><span className="block text-[11px] text-[#64748B]">See what you owe and your receipts</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
-              <Link to="/dashboard/my-clearance" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">My clearance</span><span className="block text-[11px] text-[#64748B]">See which offices have signed</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
+              <Link to="/dashboard/finance/statement-of-account" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">Statement of account</span><span className="block text-[11px] text-[#64748B]">{owedText ?? 'See what you owe and your receipts'}</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
+              <Link to="/dashboard/my-clearance" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">My clearance</span><span className="block text-[11px] text-[#64748B]">{clearanceText ?? 'See which offices have signed'}</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
             </div>
           </section>
         </aside>
