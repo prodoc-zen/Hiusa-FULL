@@ -18,6 +18,7 @@ import { fetchAllPages } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { organizationOverviewPath } from './agencyStatus';
 
 const PANEL_ID = 'sao-organizations-panel';
@@ -29,12 +30,22 @@ const STATUS_TABS = [
   { key: 'archived', label: 'Archived', panelId: PANEL_ID },
 ];
 const STATUS_KEYS = STATUS_TABS.map((tab) => tab.key);
+const DEFAULT_ORDER = ['pending', 'returned', 'active', 'archived'];
+const FALLBACK_STATUS = 'active';
 const EMPTY_COPY = {
   pending: 'No organizations are waiting for review.',
   active: 'No active student organizations match this view.',
   returned: 'No organizations are returned to their Department Head.',
   archived: 'No archived organizations.',
 };
+const EMPTY_HINT = {
+  pending: 'Department Heads register the organizations of their college. New registrations appear here for your review.',
+  active: 'Approved registrations appear here. Review the pending ones first.',
+  returned: 'A returned registration waits for its Department Head to edit and resubmit it.',
+  archived: 'Archive an active organization to keep it here as read only.',
+};
+const provisionPath = (organizationId) => `/dashboard/super-admin/admins?organization=${organizationId}&create=1`;
+const needsAdministrator = (organization) => organization.lifecycle_status === 'active' && Number(organization.administrators_count ?? organization.administrators?.length ?? 0) === 0;
 const inputClass = 'mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 font-normal outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20';
 
 function LifecycleBadge({ status }) {
@@ -42,7 +53,8 @@ function LifecycleBadge({ status }) {
   return <span role="img" aria-label="Archived, read only" className="h-fit"><StatusBadge status={status} /></span>;
 }
 
-function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
+function ReviewDrawer({ organization, open, onClose, onReviewed, onApproved, onStale }) {
+  const [approved, setApproved] = useState(false);
   const [details, setDetails] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState('');
@@ -98,7 +110,12 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
       await reviewSystemOrganization(organization.id, decision === 'return'
         ? { decision, remarks: trimmed, submitted_at: organization.submitted_at }
         : { decision, submitted_at: organization.submitted_at });
-      onReviewed(decision === 'approve' ? `${formatDisplayText(organization.name)} approved and activated.` : `${formatDisplayText(organization.name)} returned to its Department Head.`);
+      if (decision === 'approve') {
+        setApproved(true);
+        onApproved(`${formatDisplayText(organization.name)} approved and activated.`);
+      } else {
+        onReviewed(`${formatDisplayText(organization.name)} returned to its Department Head.`);
+      }
     } catch (cause) {
       if (cause?.response?.status === 409) {
         onStale(getApiErrorMessage(cause, 'This organization was already reviewed.'));
@@ -110,6 +127,9 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
     }
   }
 
+  const registration = approved
+    ? { id: organization.id, name: organization.name, lifecycle_status: 'active', administrators_count: 0 }
+    : { id: organization.id, name: organization.name, lifecycle_status: 'pending' };
   const submittedBy = details?.overview?.lifecycle?.submitted_by?.name;
   const documents = details?.documents || [];
 
@@ -120,7 +140,7 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
       description={formatDisplayText(organization.name)}
       onClose={() => !submitting && onClose()}
       width="max-w-lg"
-      footer={(
+      footer={approved ? <Button variant="secondary" onClick={onClose}>Close</Button> : (
         <>
           {loadError && !loading && <p role="note" className="mr-auto text-xs font-semibold text-danger-strong">Approve is unavailable until the registration details load.</p>}
           <Button variant="secondary" onClick={() => decide('return')} loading={submitting === 'return'} disabled={Boolean(submitting) || loading}>Return</Button>
@@ -128,6 +148,10 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
         </>
       )}
     >
+      <div className="mb-5 space-y-3">
+        <RegistrationStepper organization={registration} viewerRole="SUPER_ADMIN" />
+        {approved && <RegistrationNextStep organization={registration} viewerRole="SUPER_ADMIN" />}
+      </div>
       <dl className="grid gap-3 text-sm">
         <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-bold text-ink">{formatDisplayText(organization.name)} {organization.acronym && `(${organization.acronym})`}</dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">College</dt><dd className="font-medium text-ink">{organization.college || 'Not assigned'}</dd></div>
@@ -157,12 +181,12 @@ function ReviewDrawer({ organization, open, onClose, onReviewed, onStale }) {
         )}
       </section>
 
-      <div className="mt-5 border-t border-line pt-4">
+      {!approved && <div className="mt-5 border-t border-line pt-4">
         <Field label="Remarks (required to return)" error={remarksError} hint="Shown to the Department Head when you return the registration.">
           <Textarea ref={remarksRef} rows={4} maxLength={3000} value={remarks} onChange={(event) => { setRemarks(event.target.value); setRemarksError(''); }} disabled={Boolean(submitting)} />
         </Field>
         {submitError && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{submitError}</p>}
-      </div>
+      </div>}
     </Drawer>
   );
 }
@@ -236,7 +260,7 @@ export default function SystemOrganizationsPage() {
     }
   }, []);
   useEffect(() => {
-    loadCounts().then((byStatus) => setDefaultStatus((byStatus?.pending || 0) > 0 ? 'pending' : 'active'));
+    loadCounts().then((byStatus) => setDefaultStatus(DEFAULT_ORDER.find((key) => (byStatus?.[key] || 0) > 0) ?? (byStatus ? DEFAULT_ORDER[0] : FALLBACK_STATUS)));
   }, [loadCounts]);
 
   useEffect(() => {
@@ -254,6 +278,7 @@ export default function SystemOrganizationsPage() {
       if (token !== requestToken.current) return;
       setItems([...(data.data || [])].sort((left, right) =>
         (left.college || '').localeCompare(right.college || '')
+        || Number(needsAdministrator(right)) - Number(needsAdministrator(left))
         || Number(Boolean(left.parent_organization_id)) - Number(Boolean(right.parent_organization_id))
         || left.name.localeCompare(right.name)));
       setPage(data.current_page || requestedPage);
@@ -355,6 +380,12 @@ export default function SystemOrganizationsPage() {
     reloadAll();
   }
 
+  function approvedReview(message) {
+    setActionError('');
+    setNotice(message);
+    reloadAll();
+  }
+
   function staleReview(message) {
     closeReview();
     setNotice('');
@@ -410,18 +441,20 @@ export default function SystemOrganizationsPage() {
           const lifecycle = org.lifecycle_status || status;
           const name = formatDisplayText(org.name);
           return <Fragment key={org.id}>{(index === 0 || items[index - 1].college !== org.college) && <h2 className="flex items-center gap-2 text-sm font-bold text-[#0F2F62] lg:col-span-2"><span className="h-4 w-4 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: colleges.find((college) => college.name === org.college)?.color || '#DDE7EF' }} />{org.college || 'No college assigned'}</h2>}<article className={`rounded-lg border border-[#DDE7EF] p-5 ${lifecycle === 'archived' ? 'bg-subtle' : 'bg-white'}`}><div className="flex justify-between gap-3"><div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#E6F6FD] text-[#0F2F62]" style={{ borderLeft: `4px solid ${org.color || '#0B8ED0'}` }}>{org.logo_url ? <img src={resolveAssetUrl(org.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} aria-hidden="true" />}</span><div><h3 className="font-bold text-slate-900">{name}</h3><p className="text-xs font-semibold text-slate-500">{org.acronym} · {org.college || 'No college assigned'}</p>{org.parent_organization && <p className="mt-1 text-xs font-semibold text-[#0878B7]">Sub organization of {formatDisplayText(org.parent_organization.name)}</p>}</div></div><LifecycleBadge status={lifecycle} /></div><RichTextBody value={org.description || 'No organization description yet.'} className="mt-4 min-h-10 text-sm text-slate-600" />
+            <RegistrationRowStatus organization={{ ...org, lifecycle_status: lifecycle }} viewerRole="SUPER_ADMIN" className="mt-3" />
             {lifecycle === 'pending' && org.submitted_at && <p className="mt-3 text-xs font-semibold text-slate-500">Submitted {manilaDate(org.submitted_at)}</p>}
             {lifecycle === 'returned' && <p className="mt-3 rounded-lg bg-subtle p-3 text-sm text-ink"><span className="block text-xs font-bold text-ink-muted">Returned with remarks</span>{org.review_remarks || 'No remarks were recorded.'}</p>}
             <div className="mt-4 flex flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 text-xs font-semibold text-slate-500"><span className="inline-flex items-center gap-1"><Users size={14} aria-hidden="true" /> {org.users_count} members · {org.administrators_count ?? org.administrators?.length ?? 0} admins</span>
               <span className="flex items-center gap-1">
                 <Button to={organizationOverviewPath(org.id)} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`Open ${name}`}>Open</Button>
                 {lifecycle === 'pending' && <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" onClick={() => { setReviewTarget(org); setReviewOpen(true); }} aria-label={`Review ${name}`}>Review</Button>}
+                {needsAdministrator({ ...org, lifecycle_status: lifecycle }) && <Button to={provisionPath(org.id)} variant="secondary" size="sm" className="max-md:min-h-[42px]" aria-label={`Provision administrator for ${name}`}>Provision administrator</Button>}
                 {lifecycle === 'archived' && <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" onClick={() => { setLifecycleError(''); setRestoreTarget(org); }} aria-label={`Restore ${name}`}>Restore</Button>}
                 {lifecycle === 'active' && <TableRowActions subject={name} label="Organization actions" actions={[{ label: 'Edit organization', icon: PencilLine, onClick: () => { setLogoFile(null); setForm(org); } }, { label: 'Add existing user', icon: UserPlus, disabled: !org.is_active || !org.college, onClick: () => setMembershipOrganization(org) }, { label: 'Manage user profiles', icon: Users, onClick: () => setProfileOrganization(org) }, { label: 'Archive organization', icon: Archive, onClick: () => { setLifecycleError(''); setArchiveTarget(org); } }]} />}
               </span></div></article></Fragment>;
         })}
       </section>}
-      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ?'Try a different search term.' : undefined} />}
+      {!loading && !error && !items.length && <EmptyState icon={Building2} kind={debouncedSearch.trim() ? 'filtered' : 'first-run'} title={EMPTY_COPY[status]} description={debouncedSearch.trim() ? 'Try a different search term.' : EMPTY_HINT[status]} />}
       {lastPage > 1 && <nav aria-label="Organization pages" className="flex items-center justify-end gap-3 text-xs font-semibold text-slate-600"><button type="button" disabled={loading || page <= 1} onClick={() => setPage(page - 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Previous</button><span>Page {page} of {lastPage}</span><button type="button" disabled={loading || page >= lastPage} onClick={() => setPage(page + 1)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 disabled:opacity-40">Next</button></nav>}
       </div>
       {form &&!membershipOrganization && !profileOrganization && <AccessibleOverlay label="Edit organization" onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 grid place-items-center bg-slate-950/50 p-4"><form onSubmit={save} className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white p-6 shadow-2xl"><h3 className="text-lg font-black text-slate-900">Edit organization</h3>{error && <p role="alert" className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<div className="mt-5 grid gap-3">
@@ -432,7 +465,7 @@ export default function SystemOrganizationsPage() {
         <label className="text-sm font-semibold text-slate-700">Organization color<input type="color" value={form.color || '#0B8ED0'} onChange={(event) => setForm({ ...form, color: event.target.value })} className="mt-1 h-11 w-20 rounded-lg border border-[#DDE7EF] bg-white p-1" /></label>
         <label className="text-sm font-semibold text-slate-700">Organization logo (optional)<input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setLogoFile(event.target.files?.[0] || null)} className="mt-1 block w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm" />{logoFile && <span className="mt-1 block text-xs text-slate-500">{logoFile.name}</span>}</label>
         <div className="text-sm font-semibold text-slate-700"><label htmlFor="organization-description"><FieldIcon label="Description" />Description</label><RichTextEditor id="organization-description" value={form.description || ''} onChange={(description) => setForm({ ...form, description })} rows={4} /></div>      </div><div className="mt-5 border-t border-[#DDE7EF] pt-4"><h4 className="text-sm font-bold text-[#0F2F62]">Organization members</h4><p className="mt-1 text-xs text-[#64748B]">Add an existing user from this organization's college with a separate profile. Save changes to the college before adding members.</p><button type="button" disabled={busy || !form.is_active || !form.college_id || form.college_id !== editingBase?.college_id} onClick={() => setMembershipOrganization(editingBase)} className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7] disabled:opacity-50"><UserPlus size={16} aria-hidden="true" /> Add existing user</button><button type="button" disabled={busy} onClick={() => setProfileOrganization(editingBase)} className="ml-2 mt-3 min-h-11 rounded-lg border border-[#DDE7EF] px-4 text-sm font-bold text-[#0878B7]">Manage user profiles</button></div><div className="mt-6 flex justify-end gap-2"><button type="button" disabled={busy} onClick={() => setForm(null)} className="min-h-11 rounded-lg px-4 text-sm font-bold text-slate-600 disabled:opacity-50">Cancel</button><button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{busy ? 'Saving…' : 'Save organization'}</button></div></form></AccessibleOverlay>}
-      {reviewTarget && <ReviewDrawer key={reviewTarget.id} organization={reviewTarget} open={reviewOpen} onClose={closeReview} onReviewed={finishReview} onStale={staleReview} />}
+      {reviewTarget && <ReviewDrawer key={reviewTarget.id} organization={reviewTarget} open={reviewOpen} onClose={closeReview} onReviewed={finishReview} onApproved={approvedReview} onStale={staleReview} />}
       {archiveTarget && <ArchiveModal organization={archiveTarget} busy={lifecycleBusy} error={lifecycleError} onCancel={() => setArchiveTarget(null)} onConfirm={(reason) => runLifecycle(() => archiveSystemOrganization(archiveTarget.id, reason ? { reason } : {}), archiveTarget, `${formatDisplayText(archiveTarget.name)} archived.`)} />}
       <ConfirmModal open={Boolean(restoreTarget)} title="Restore organization" message={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)} so it can be edited and used again?` : ''} recordName={restoreTarget ? `Restore ${formatDisplayText(restoreTarget.name)}?` : ''} confirmText="Restore organization" variant="primary" busy={lifecycleBusy} onCancel={() => setRestoreTarget(null)} onConfirm={() => runLifecycle(() => restoreSystemOrganization(restoreTarget.id), restoreTarget, `${formatDisplayText(restoreTarget.name)} restored.`)} />
       {profileOrganization && <ManageAccountProfilesModal organization={profileOrganization} onClose={() => setProfileOrganization(null)} onDeleted={(result) => { setNotice(result.message); load(); }} />}
