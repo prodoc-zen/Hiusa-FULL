@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import notify from '../../../lib/notify';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   CalendarDays,
   CheckCircle2,
@@ -20,10 +20,16 @@ import {
   Vote,
 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
+import Button from '../../../components/ui/Button';
+import EmptyState from '../../../components/ui/EmptyState';
+import FlowStepper from '../../../components/ui/FlowStepper';
+import PageHeader from '../../../components/ui/PageHeader';
+import { isReturned, withApprovalState } from '../../../components/elections/electionFlow';
+import { electionLifecycle } from '../../../lib/lifecycle';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import { createElection, deleteElection, downloadElectionLetter, finalizeElection, getElections, updateElection } from '../../../services/electionService';
+import { createElection, deleteElection, downloadElectionLetter, getElections, updateElection } from '../../../services/electionService';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -58,6 +64,7 @@ function formatDateTime(value) {
 }
 
 function formatTimeline(election) {
+  if (isReturned(election)) return 'Returned by the Department Head';
   if (election.status === 'pending_approval') return 'Awaiting Department Head review';
   const now = Date.now();
   const start = new Date(election.start_time).getTime();
@@ -177,7 +184,7 @@ function ElectionFormFields({ form, setForm, editing = false }) {
   );
 }
 
-export default function ElectionPickerPage({ onSelect, startCreate = false }) {
+export default function ElectionPickerPage({ onSelect, startCreate = false, editElectionId = null, onEditClosed = null }) {
   let currentUser = null;
   try { currentUser = JSON.parse(localStorage.getItem('user')); } catch {}
   const canManageElections = currentUser?.role === 'ADMIN';
@@ -199,6 +206,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   const [deleting, setDeleting] = useState(false);
   const [statusBusy, setStatusBusy] = useState({ id: null, target: '' });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
+  const editRequestHandled = useRef(false);
   const pageSize = 6;
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
 
@@ -236,6 +244,8 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     return '';
   };
 
+  const startCreateFlow = () => { setForm(blankElection()); setFormError(''); setShowCreate(true); };
+
   const handleCreate = async (event) => {
     event.preventDefault();
     const validationError = validateForm(form, true);
@@ -255,15 +265,29 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     setShowEdit(true);
   };
 
+  const closeEdit = (updated = null) => {
+    setShowEdit(false);
+    if (editElectionId) onEditClosed?.(updated);
+  };
+
+  useEffect(() => {
+    if (!editElectionId || editRequestHandled.current || loading || !canManageElections) return;
+    editRequestHandled.current = true;
+    const target = elections.find((item) => String(item.id) === String(editElectionId));
+    if (target) openEdit(target);
+    else onEditClosed?.(null);
+  });
+
   const handleEdit = async (event) => {
     event.preventDefault();
     const validationError = validateForm(editForm, false);
     if (validationError) { setFormError(validationError); notify.error(validationError); return; }
+    const wasReturned = isReturned(elections.find((item) => item.id === editForm.id));
     setSubmitting(true); setFormError('');
     try {
       const updated = await updateElection(editForm.id, { title: editForm.title.trim(), room: editForm.room.trim(), start_time: localDateTimeToIso(editForm.start_time), end_time: localDateTimeToIso(editForm.end_time), status: editForm.status, imageFile: editForm.imageFile, remove_image: editForm.remove_image ? 1 : undefined });
-      setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); setShowEdit(false);
-      setFeedback({ open: true, type: 'success', message: 'Election updated.' });
+      setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item)); closeEdit(updated);
+      setFeedback({ open: true, type: 'success', message: wasReturned ? 'Election updated and sent back for approval.' : 'Election updated.' });
     } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to update election.'); setFormError(message); notify.error(message); }
     finally { setSubmitting(false); }
   };
@@ -279,17 +303,6 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
     finally { setStatusBusy({ id: null, target: '' }); }
   };
 
-  const handleFinalize = async (id) => {
-    if (statusBusy.id) return;
-    setStatusBusy({ id, target: 'finalize' }); setError('');
-    try {
-      const updated = await finalizeElection(id);
-      setElections((current) => current.map((item) => item.id === updated.id ? { ...item, ...updated } : item));
-      setFeedback({ open: true, type: 'success', message: 'Ballot finalized. Open voting during the scheduled period.' });
-    } catch (requestError) { const message = getApiErrorMessage(requestError, 'Unable to finalize the ballot.'); setError(message); notify.error(message); }
-    finally { setStatusBusy({ id: null, target: '' }); }
-  };
-
   const handleDelete = async () => {
     if (!deleteTarget || deleting) return;
     setDeleting(true);
@@ -301,11 +314,8 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
   return (
     <div className="space-y-5">
       <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
+      <PageHeader primary={canManageElections && !viewingHistory && (loading || elections.length > 0) ? <Button leftIcon={Plus} onClick={startCreateFlow}>Create election</Button> : undefined} />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] p-4 sm:p-5">
-          <p className="max-w-2xl text-sm text-[#64748B]">Select an election to manage its ballot and voting period.</p>
-          {canManageElections && !viewingHistory && <button type="button" onClick={() => { setForm(blankElection()); setFormError(''); setShowCreate(true); }} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62]"><Plus size={16} /> Create election</button>}
-        </div>
         {academicPeriods.length > 0 && <label className="block px-4 pt-4 text-xs font-semibold text-[#0F172A] sm:px-5">Academic period
           <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 block h-11 w-full max-w-sm rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</select>
         </label>}
@@ -328,33 +338,53 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
 
       {error && <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{error}</div>}
       {loading && <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="Loading elections">{[1, 2, 3, 4].map((item) => <div key={item} className="h-96 animate-pulse rounded-lg border border-[#DDE7EF] bg-slate-100" />)}<span className="sr-only">Loading elections...</span></div>}
-      {!loading && filteredElections.length === 0 && <section className="rounded-lg border border-dashed border-[#DDE7EF] bg-white p-10 text-center"><Vote size={36} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-bold text-[#0F172A]">{elections.length === 0 && currentUser?.role === 'STUDENT' ? 'No election is currently open.' : 'No elections found'}</h2><p className="mt-1 text-sm text-[#64748B]">{elections.length === 0 && currentUser?.role === 'STUDENT' ? 'Voting and live totals become available after the admin finalizes and opens an election.' : elections.length ? 'Try another search or status filter.' : canManageElections ? 'Create the first election to begin setup.' : 'No elections are available for your organization yet.'}</p></section>}
+      {!loading && filteredElections.length === 0 && (
+        <section className="rounded-lg border border-dashed border-[#DDE7EF] bg-white">
+          {elections.length > 0 ? (
+            <EmptyState kind="filtered" title="No elections match" description="Try another search or status." onClearFilters={() => { setSearchTerm(''); setStatusFilter('all'); }} />
+          ) : canManageElections && !viewingHistory ? (
+            <EmptyState icon={Vote} title="Create your first election" description="Submit an election for Department Head approval, then build its ballot with party lists and candidates." action={<Button leftIcon={Plus} onClick={startCreateFlow}>Create your first election</Button>} />
+          ) : canManageElections ? (
+            <EmptyState icon={Vote} title="No elections in this semester" description="Switch the academic period to see other elections." />
+          ) : currentUser?.role === 'STUDENT' ? (
+            <EmptyState icon={Vote} title="No election is currently open" description="Voting and live totals become available after the Admin finalizes and opens an election." />
+          ) : (
+            <EmptyState kind="restricted" title="No elections yet" description="Only the Admin creates elections. It appears here once the Department Head approves it." />
+          )}
+        </section>
+      )}
 
       {!loading && pagedElections.length > 0 && (
         <section className="grid gap-4 lg:grid-cols-2">
           {pagedElections.map((election) => {
             const votes = getElectionVoteCount(election);
             const isBusy = statusBusy.id === election.id;
+            const returned = isReturned(election);
+            const lifecycle = electionLifecycle(withApprovalState(election), currentUser?.role);
             return (
               <article key={election.id} className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm transition hover:border-[#0B8ED0]/40">
                 <div className="relative aspect-[16/7] overflow-hidden bg-[#0F2F62]">
                   {election.image_url ? <img src={resolveAssetUrl(election.image_url)} alt="" className="h-full w-full object-cover transition duration-300 hover:scale-[1.02]" /> : <div className="grid h-full place-items-center text-white/70"><Vote size={46} /></div>}
                   <div className="absolute inset-0 bg-[#0B1831]/20" />
-                  <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyles[election.status] || statusStyles.closed}`}>{election.status === 'active' && <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />}{statusLabels[election.status] || election.status}</span>
+                  <span className={`absolute left-3 top-3 inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${returned ? 'border-red-200 bg-red-50 text-red-700' : statusStyles[election.status] || statusStyles.closed}`}>{election.status === 'active' && <span className="h-2 w-2 animate-pulse rounded-full bg-emerald-500" />}{returned ? 'Returned' : statusLabels[election.status] || election.status}</span>
                 </div>
                 <div className="p-4 sm:p-5">
                   <h2 className="text-xl font-black leading-tight text-[#0F172A]">{formatDisplayText(election.title)}</h2>
                   <p className="mt-1.5 inline-flex items-center gap-1.5 text-xs font-semibold text-[#64748B]"><Clock3 size={13} /> {formatTimeline(election)}</p>
+                  <div className="mt-3">
+                    <FlowStepper variant="compact" steps={lifecycle.steps} ariaLabel={`Progress for ${formatDisplayText(election.title)}`} summary={lifecycle.nextAction.title} />
+                    <p className="mt-1 hidden text-xs font-semibold text-[#0F172A] sm:block">Next: {lifecycle.nextAction.title}</p>
+                    {returned && election.approval_remarks && <p className="mt-1 text-xs font-semibold text-red-700">Reason: {election.approval_remarks}</p>}
+                  </div>
                   <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
-                  <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Select election <ChevronRight size={16} /></button>
+                  <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Open election <ChevronRight size={16} /></button>
                   {election.has_informative_letter && currentUser?.role !== 'STUDENT' && <button type="button" onClick={() => downloadElectionLetter(election.id).catch((requestError) => notify.error(getApiErrorMessage(requestError, 'Unable to download the letter.')))} className="mt-2 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#0878B7] hover:underline"><Upload size={14} className="rotate-180" /> Informative letter</button>}
                   {canManageElections && !viewingHistory && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EEF6FB] pt-3">
-                      {election.status !== 'closed' && <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> Edit</button>}
+                      {election.status !== 'closed' && <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> {returned ? 'Edit and resubmit' : 'Edit'}</button>}
                       {election.status !== 'closed' && <button type="button" onClick={() => setDeleteTarget(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-red-200 px-3 text-xs font-bold text-red-600 hover:bg-red-50"><Trash2 size={14} /> Delete</button>}
-                      {election.status === 'pending_approval' && <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700"><CheckCircle2 size={14} /> In review</span>}
-                      {election.status === 'upcoming' && !election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleFinalize(election.id)} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#EEF6FB] disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <CheckCircle2 size={14} />} Finalize ballot</button>}
+                      {election.status === 'pending_approval' && !returned && <span className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-700"><CheckCircle2 size={14} /> In review</span>}
                       {election.status === 'upcoming' && election.finalized_at && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'active')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-200 px-3 text-xs font-bold text-emerald-700 hover:bg-emerald-50 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <Power size={14} />} Open voting</button>}
                       {election.status === 'active' && <button type="button" disabled={Boolean(statusBusy.id)} onClick={() => handleStatusChange(election.id, 'closed')} className="ml-auto inline-flex h-10 items-center gap-1.5 rounded-lg border border-slate-300 px-3 text-xs font-bold text-slate-700 hover:bg-slate-100 disabled:opacity-50">{isBusy ? <LoaderCircle size={14} className="animate-spin" /> : <PowerOff size={14} />} Close</button>}
                     </div>
@@ -371,7 +401,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false }) {
       <Modal open={showCreate && canManageElections} title="Create election" description="Build the ballot and submit it for Department Head approval." onClose={() => !submitting && setShowCreate(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowCreate(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="create-election-form" disabled={submitting || !form.title.trim() || !form.start_time || !form.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Submitting...' : 'Submit for approval'}</button></div>}>
         <form id="create-election-form" onSubmit={handleCreate}><ElectionFormFields form={form} setForm={setForm} />{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</div>}</form>
       </Modal>
-      <Modal open={showEdit && canManageElections} title="Edit election" description="Update election branding and schedule." onClose={() => !submitting && setShowEdit(false)} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => setShowEdit(false)} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="edit-election-form" disabled={submitting || !editForm.title || !editForm.start_time || !editForm.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Saving...' : 'Save changes'}</button></div>}>
+      <Modal open={showEdit && canManageElections} title="Edit election" description="Update election branding and schedule." onClose={() => !submitting && closeEdit()} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-3xl" footer={<div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end"><button type="button" onClick={() => closeEdit()} disabled={submitting} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#64748B] hover:bg-[#F8FBFD]">Cancel</button><button type="submit" form="edit-election-form" disabled={submitting || !editForm.title || !editForm.start_time || !editForm.end_time} className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] disabled:opacity-40">{submitting ? 'Saving...' : 'Save changes'}</button></div>}>
         <form id="edit-election-form" onSubmit={handleEdit}><ElectionFormFields form={editForm} setForm={setEditForm} editing />{formError && <div className="mt-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700">{formError}</div>}</form>
       </Modal>
       <ConfirmModal open={Boolean(deleteTarget)} title="Delete Election" message={getElectionVoteCount(deleteTarget) > 0 ? `This permanently removes the election and ${getElectionVoteCount(deleteTarget)} cast vote${getElectionVoteCount(deleteTarget) === 1 ? '' : 's'}.` : 'This permanently removes the election setup, candidates, and approval request.'} recordName={deleteTarget?.title || ''} confirmText={getElectionVoteCount(deleteTarget) > 0 ? 'Delete Anyway' : 'Delete'} variant="danger" busy={deleting} onCancel={() => !deleting && setDeleteTarget(null)} onConfirm={handleDelete} />

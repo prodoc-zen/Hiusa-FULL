@@ -73,7 +73,7 @@ export default function ElectionResultsPage() {
         </div>
         <div className="p-5 sm:p-7 lg:p-8">
           <p className="text-[11px] font-bold uppercase tracking-widest text-[#0878B7]">{isFinal ? 'Election concluded' : 'Voting in progress'}</p>
-          <h1 className="mt-2 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{formatDisplayText(election.title)}</h1>
+          <h2 className="mt-2 text-2xl font-black leading-tight text-[#0F172A] sm:text-3xl">{formatDisplayText(election.title)}</h2>
           <p className="mt-3 text-sm leading-6 text-[#64748B]">{isFinal ? 'Verified vote totals and declared winners across every ballot position.' : 'Vote totals update while voting is open. Winners will be declared after closing.'}</p>
           <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[{ label: 'Ballots', value: summary.voters, icon: Vote }, { label: 'Selections', value: summary.selections, icon: BarChart3 }, { label: 'Positions', value: positions.length, icon: Award }, { label: 'Candidates', value: summary.candidates.length, icon: UsersRound }].map((stat) => <div key={stat.label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><stat.icon size={16} className="text-[#0878B7]" /><p className="mt-2 text-xl font-black text-[#0F172A]">{stat.value}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">{stat.label}</p></div>)}
