@@ -122,7 +122,7 @@ describe('CollegeOrganizationsPage', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'View checklist for Chess Club' })[0]);
 
     const drawer = await screen.findByRole('dialog');
-    expect(within(drawer).getByText('Waiting for SAO review')).toBeInTheDocument();
+    expect(within(drawer).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
     expect(within(drawer).getByText('constitution.pdf')).toBeInTheDocument();
     expect(within(drawer).getByText('Submitted')).toBeInTheDocument();
     expect(within(drawer).getByText('Approved')).toBeInTheDocument();
@@ -312,5 +312,109 @@ describe('CollegeOrganizationsPage', () => {
     expect(await within(dialog).findByText('Enter the organization name.')).toBeInTheDocument();
     expect(name).toHaveAttribute('aria-invalid', 'true');
     await waitFor(() => expect(name).toHaveFocus());
+  });
+
+  describe('registration flow', () => {
+    const rowOf = (name) => screen.getAllByRole('row').find((row) => within(row).queryByText(name));
+
+    it('says in words what happens next for every lifecycle status', async () => {
+      mocks.getCollegeOrganizations.mockResolvedValue(paginator([...organizations, organization({ id: 5, name: 'Waiting Club', acronym: 'WAIT', administrators_count: 0 })]));
+      renderPage();
+      await screen.findAllByText('Chess Club');
+
+      expect(within(rowOf('Chess Club')).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
+      expect(within(rowOf('Drama Guild')).getByText('Returned: edit and resubmit')).toBeInTheDocument();
+      expect(within(rowOf('Waiting Club')).getByText('Approved: waiting for an administrator')).toBeInTheDocument();
+      expect(within(rowOf('Robotics Society')).getByText('Active: administrator can sign in')).toBeInTheDocument();
+      expect(within(rowOf('Old Band')).getByText('Archived: read only')).toBeInTheDocument();
+    });
+
+    it('shows a compact stepper on each row with the step it is on', async () => {
+      renderPage();
+      await screen.findAllByText('Chess Club');
+
+      expect(within(rowOf('Chess Club')).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
+      expect(within(rowOf('Robotics Society')).getByText('Complete: 4 of 4 steps done')).toBeInTheDocument();
+    });
+
+    it('shows the full stepper and a waiting callout without a button for a pending registration', async () => {
+      renderPage('/dashboard/department-head/organizations?record=2');
+      const drawer = await screen.findByRole('dialog');
+
+      const stepper = within(drawer).getByRole('list', { name: 'Registration progress for Chess Club' });
+      expect(within(stepper).getByText('SAO review').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(within(drawer).getByRole('status')).toHaveTextContent('Pending review: waiting for SAO review');
+      expect(within(drawer).getByRole('status')).toHaveTextContent('Owner: SAO');
+      expect(within(drawer).queryByRole('button', { name: 'Edit and resubmit' })).not.toBeInTheDocument();
+    });
+
+    it('offers Edit and resubmit with the SAO remarks for a returned registration', async () => {
+      renderPage('/dashboard/department-head/organizations?record=3');
+      const drawer = await screen.findByRole('dialog');
+
+      expect(within(drawer).getByText('Returned: edit and resubmit')).toBeInTheDocument();
+      expect(within(drawer).getByText('The constitution is missing signatures.')).toBeInTheDocument();
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Edit and resubmit' }));
+
+      expect(await screen.findByRole('dialog', { name: /Edit and resubmit Drama Guild/ })).toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('record='));
+    });
+
+    it('waits for the SAO to provide an administrator after approval', async () => {
+      mocks.getCollegeOrganizations.mockResolvedValue(paginator([organization({ id: 5, name: 'Waiting Club', acronym: 'WAIT', administrators_count: 0 })]));
+      renderPage('/dashboard/department-head/organizations?record=5');
+      const drawer = await screen.findByRole('dialog');
+
+      expect(within(drawer).getByRole('status')).toHaveTextContent('Approved: waiting for an administrator');
+      expect(within(drawer).getByRole('status')).toHaveTextContent('Owner: SAO');
+    });
+  });
+
+  describe('record parameter', () => {
+    it('opens the detail drawer for ?record and keeps it alongside the status filter', async () => {
+      renderPage('/dashboard/department-head/organizations?status=returned&record=2');
+      const drawer = await screen.findByRole('dialog');
+
+      expect(within(drawer).getByText('Chess Club')).toBeInTheDocument();
+      expect(screen.getByTestId('location')).toHaveTextContent('status=returned');
+    });
+
+    it('writes ?record when a row opens its drawer and removes it on close', async () => {
+      renderPage();
+      await screen.findAllByText('Chess Club');
+
+      fireEvent.click(screen.getAllByRole('button', { name: 'View checklist for Chess Club' })[0]);
+      await screen.findByRole('dialog');
+      expect(screen.getByTestId('location')).toHaveTextContent('?record=2');
+
+      fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close' }));
+      await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('record='));
+    });
+
+    it('tells the head when the record is not in the college and drops the parameter', async () => {
+      renderPage('/dashboard/department-head/organizations?record=999');
+
+      expect(await screen.findByRole('alert')).toHaveTextContent('That organization is not in your college');
+      expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+      await waitFor(() => expect(screen.getByTestId('location')).not.toHaveTextContent('record='));
+    });
+  });
+
+  describe('first use', () => {
+    it('names the first step and offers to register when the college has no organizations', async () => {
+      mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
+      renderPage();
+
+      expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
+      expect(screen.getByText(/Register your first student organization\. The SAO reviews it, then provides its administrator\./)).toBeInTheDocument();
+      expect(screen.getAllByRole('button', { name: 'Register an organization' })).toHaveLength(2);
+    });
+
+    it('has one h1 from the shared header', async () => {
+      renderPage();
+      await screen.findAllByText('Robotics Society');
+
+      expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    });
   });
 });
