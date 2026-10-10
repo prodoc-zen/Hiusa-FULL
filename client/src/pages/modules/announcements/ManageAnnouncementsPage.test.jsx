@@ -105,6 +105,13 @@ describe('ManageAnnouncementsPage', () => {
       expect(link).toHaveAttribute('href', '/dashboard/approvals');
     });
 
+    it('opens the approval record when the announcement carries its approval id', async () => {
+      announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...stages[1], created_by: 202, approval_id: 58 }));
+      renderPage();
+      fireEvent.click(await screen.findByRole('button', { name: 'Pending Post' }));
+      expect(screen.getByRole('link', { name: 'Review this announcement' })).toHaveAttribute('href', '/dashboard/approvals?record=58');
+    });
+
     it('shows an officer why an announcement was returned and lets them edit it', async () => {
       localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER', school_id: 101 }));
       announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...stages[3], review_remarks: 'Add the venue.' }));
