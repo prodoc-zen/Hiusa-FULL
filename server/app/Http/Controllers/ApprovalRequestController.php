@@ -21,7 +21,9 @@ use App\Services\EventApprovalChain;
 use App\Services\FinancialReportStatement;
 use App\Services\OrderFulfillmentService;
 use DomainException;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 
@@ -59,21 +61,11 @@ class ApprovalRequestController extends Controller
             return response()->json(['message' => 'Forbidden.'], 403);
         }
 
-        $query = ApprovalRequest::with([
-            'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
-            'reviewer:school_id,first_name,last_name,email,role,position_title',
-            'assignedApprover:school_id,first_name,last_name,email,role,position_title',
-        ]);
+        $query = $this->rowsWithPeople();
         if ($submitted) {
-            $query->whereIn('organization_id', array_intersect($this->readableOrganizationIds($request), [$user->organization_id]));
+            $this->scopeToSubmitted($query, $user, $this->readableOrganizationIds($request));
         } else {
-            $query->where('required_role', $user->role)
-                ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
-            if ($user->role !== 'SUPER_ADMIN') {
-                $query->whereIn('organization_id', $this->readableOrganizationIds($request));
-            } else {
-                $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
-            }
+            $this->scopeToAwaiting($query, $user, $this->readableOrganizationIds($request));
         }
 
         $status = $filters['status'] ?? ($submitted ? 'all' : 'pending');
@@ -113,6 +105,56 @@ class ApprovalRequestController extends Controller
         $this->attachEntityDetails($approvals);
 
         return response()->json($approvals);
+    }
+
+    public function show(Request $request, $approvalRequest)
+    {
+        $user = $request->user();
+        $scoped = $user->scopedOrganizationIds();
+        $approval = ctype_digit((string) $approvalRequest)
+            ? $this->rowsWithPeople()->whereKey($approvalRequest)->where(function ($visible) use ($user, $scoped) {
+                $visible->where(fn ($submitted) => $this->scopeToSubmitted($submitted, $user, $scoped));
+                if ($user->role !== 'SBO_OFFICER') {
+                    $visible->orWhere(fn ($awaiting) => $this->scopeToAwaiting($awaiting, $user, $scoped));
+                }
+            })->first()
+            : null;
+
+        if (! $approval) {
+            return response()->json(['message' => 'Approval request not found.'], 404);
+        }
+
+        $this->attachEntityDetails(collect([$approval]));
+
+        return response()->json($approval);
+    }
+
+    private function rowsWithPeople(): Builder
+    {
+        return ApprovalRequest::with([
+            'requester:school_id,first_name,last_name,email,role,position_title,department,program,year_level,section',
+            'reviewer:school_id,first_name,last_name,email,role,position_title',
+            'assignedApprover:school_id,first_name,last_name,email,role,position_title',
+        ]);
+    }
+
+    /** Requests the caller filed for their own organization. */
+    private function scopeToSubmitted(Builder $query, User $user, array $organizationIds): void
+    {
+        $query->whereIn('organization_id', array_intersect($organizationIds, [$user->organization_id]));
+    }
+
+    /** Requests waiting on the caller's role, narrowed to the organizations the caller may read. */
+    private function scopeToAwaiting(Builder $query, User $user, array $organizationIds): void
+    {
+        $query->where('required_role', $user->role)
+            ->where(fn ($assigned) => $assigned->whereNull('assigned_approver')->orWhere('assigned_approver', $user->school_id));
+
+        if ($user->role !== 'SUPER_ADMIN') {
+            $query->whereIn('organization_id', $organizationIds);
+        } else {
+            $query->whereIn('entity_type', $this->superAdminReviewableEntityTypes());
+        }
     }
 
     public function review(Request $request, $id)
@@ -420,21 +462,84 @@ class ApprovalRequestController extends Controller
 
     private function attachEntityDetails($approvals): void
     {
-        $grouped = $approvals->groupBy('entity_type');
-        foreach ($approvals as $approval) {
-            $entity = match ($approval->entity_type) {
-                'event' => Event::where('organization_id', $approval->organization_id)->find($approval->entity_id),
-                'budget' => Budget::with('event:id,title')->where('organization_id', $approval->organization_id)->find($approval->entity_id),
-                'election' => Election::where('organization_id', $approval->organization_id)->find($approval->entity_id),
-                'announcement' => Announcement::where('organization_id', $approval->organization_id)->find($approval->entity_id),
-                'payment' => Order::with(['merchandise:id,name', 'student:school_id,first_name,last_name'])->where('organization_id', $approval->organization_id)->find($approval->entity_id),
-                'financial_report' => FinancialReport::with(['organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name'])
-                    ->where('organization_id', $approval->organization_id)->find($approval->entity_id),
-                default => null,
-            };
-            $approval->title = $this->entityTitle($approval, $entity);
-            $approval->summary = $this->entitySummary($approval, $entity);
+        $entities = [];
+        $extras = [];
+        foreach ($approvals->groupBy('entity_type') as $type => $group) {
+            $entities[$type] = $this->loadEntities($type, $group->pluck('entity_id')->unique()->all());
+            $extras[$type] = $this->summaryExtras($type, $entities[$type]);
         }
+
+        foreach ($approvals as $approval) {
+            $entity = $entities[$approval->entity_type]->get($approval->entity_id);
+            $entity = $entity && (int) $entity->organization_id === (int) $approval->organization_id ? $entity : null;
+            $approval->title = $this->entityTitle($approval, $entity);
+            $approval->summary = $this->entitySummary($approval, $entity, $extras[$approval->entity_type][$approval->entity_id] ?? []);
+        }
+    }
+
+    /** One query per entity type for the whole page, keyed by id. */
+    private function loadEntities(string $type, array $ids): Collection
+    {
+        $query = match ($type) {
+            'event' => Event::withCount([
+                'tasks',
+                'tasks as completed_tasks_count' => fn ($tasks) => $tasks->where('status', 'completed'),
+                'attendanceRecords as present_count' => fn ($attendance) => $attendance->whereIn('status', ['present', 'late']),
+            ]),
+            'budget' => Budget::with('event:id,title'),
+            'election' => Election::query(),
+            'announcement' => Announcement::query(),
+            'payment' => Order::with(['merchandise:id,name', 'student:school_id,first_name,last_name']),
+            'financial_report' => FinancialReport::with(['organization:id,name,acronym', 'event:id,title', 'generator:school_id,first_name,last_name']),
+            default => null,
+        };
+
+        return $query ? $query->whereIn('id', $ids)->get()->keyBy('id') : collect();
+    }
+
+    /**
+     * Summary fields that need a query of their own, computed for every record of one type at once
+     * so a page costs the same however many rows it holds. Keys match what the events, elections
+     * and budgets endpoints return, so one lifecycle function reads both.
+     *
+     * @return array<int, array<string, mixed>> keyed by entity id
+     */
+    private function summaryExtras(string $type, Collection $entities): array
+    {
+        if ($entities->isEmpty()) {
+            return [];
+        }
+
+        $ids = $entities->keys();
+
+        return match ($type) {
+            'event' => $this->eventExtras($entities),
+            'budget' => collect(Budget::spentAmounts($ids))->map(fn (string $spent) => ['spent_amount' => $spent])->all(),
+            'election' => ApprovalRequest::whereIn('id', ApprovalRequest::where('entity_type', 'election')->whereIn('entity_id', $ids)->selectRaw('MAX(id)')->groupBy('entity_id'))
+                ->get(['entity_id', 'status'])
+                ->mapWithKeys(fn (ApprovalRequest $latest) => [$latest->entity_id => ['approval_status' => $latest->status]])
+                ->all(),
+            default => [],
+        };
+    }
+
+    private function eventExtras(Collection $events): array
+    {
+        $described = $this->eventChain->describe($events);
+        $files = EventRequirementFile::with('requirement:id,name')->whereIn('event_id', $events->keys())->get()->groupBy('event_id');
+        $budgets = Budget::whereIn('event_id', $events->keys())->orderBy('id')->get(['id', 'event_id', 'submission_status'])->groupBy('event_id');
+
+        return $events->mapWithKeys(fn (Event $event) => [$event->id => [
+            'approval_stage' => $described[$event->id]['approval_stage'],
+            'requirements_required' => $described[$event->id]['requirements_required'],
+            'requirements_submitted' => $described[$event->id]['requirements_submitted'],
+            'budgets' => $budgets->get($event->id, collect())->map(fn (Budget $budget) => ['id' => $budget->id, 'submission_status' => $budget->submission_status])->all(),
+            'requirement_files' => $files->get($event->id, collect())->map(fn ($file) => [
+                'id' => $file->id,
+                'requirement' => $file->requirement?->name,
+                'original_name' => $file->original_name,
+            ])->all(),
+        ]])->all();
     }
 
     private function entityTitle(ApprovalRequest $approval, mixed $entity): string
@@ -450,7 +555,7 @@ class ApprovalRequestController extends Controller
         };
     }
 
-    private function entitySummary(ApprovalRequest $approval, mixed $entity): ?array
+    private function entitySummary(ApprovalRequest $approval, mixed $entity, array $extra): ?array
     {
         if (! $entity) {
             return null;
@@ -462,23 +567,29 @@ class ApprovalRequestController extends Controller
                 'end_time' => $entity->end_time,
                 'location' => $entity->location,
                 'status' => $entity->status,
-                'requirement_files' => EventRequirementFile::with('requirement:id,name')
-                    ->where('event_id', $entity->id)->get()->map(fn ($file) => [
-                        'id' => $file->id,
-                        'requirement' => $file->requirement?->name,
-                        'original_name' => $file->original_name,
-                    ])->all(),
+                'requires_budget' => (bool) $entity->requires_budget,
+                'tasks_count' => $entity->tasks_count,
+                'completed_tasks_count' => $entity->completed_tasks_count,
+                'present_count' => $entity->present_count,
+                ...$extra,
             ],
             'budget' => [
+                'submission_status' => $entity->submission_status,
                 'allocated_amount' => $entity->allocated_amount,
                 'remaining_amount' => $entity->remaining_amount,
+                'department_head_approved_at' => $entity->department_head_approved_at,
                 'event_title' => $entity->event?->title,
+                ...$extra,
             ],
             'election' => [
                 'start_time' => $entity->start_time,
                 'end_time' => $entity->end_time,
+                'status' => $entity->status,
                 'target_status' => $entity->status,
+                'finalized_at' => $entity->finalized_at,
                 'results_visible' => $entity->results_visible,
+                'approval_status' => null,
+                ...$extra,
             ],
             'announcement' => [
                 'target_role' => $entity->target_role,
@@ -510,6 +621,7 @@ class ApprovalRequestController extends Controller
             'period_end' => $report->period_end,
             'summary_text' => $report->summary_text,
             'submission_status' => $report->submission_status,
+            'department_head_approved_at' => $report->department_head_approved_at,
             'signatories' => $report->signatories,
             'supporting_documents' => $report->supportingDocumentLinks(),
             'total_income' => $statement['totals']['income'],

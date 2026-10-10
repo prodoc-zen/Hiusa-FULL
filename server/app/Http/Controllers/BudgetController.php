@@ -37,6 +37,7 @@ class BudgetController extends Controller
             ->paginate($paging['per_page'] ?? 20);
 
         $this->attachApprovalInfo($budgets);
+        $this->attachSpentAmount($budgets->items());
 
         return response()->json($budgets);
     }
@@ -77,7 +78,10 @@ class BudgetController extends Controller
             return $budget;
         });
 
-        return response()->json($budget->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']), 201);
+        $budget->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']);
+        $this->attachSpentAmount([$budget]);
+
+        return response()->json($budget, 201);
     }
 
     public function update(Request $request, $id)
@@ -144,7 +148,10 @@ class BudgetController extends Controller
                 $this->restartApprovalAtDepartmentHead($budget, $request);
             }
 
-            return response()->json($budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']));
+            $fresh = $budget->fresh()->load(['event:id,title', 'financialSemester:id,name,starts_on,ends_on']);
+            $this->attachSpentAmount([$fresh]);
+
+            return response()->json($fresh);
         });
     }
 
@@ -291,6 +298,16 @@ class BudgetController extends Controller
             $approval = $approvals->get($budget->id);
             $budget->approval_status = $approval?->status;
             $budget->approval_remarks = $approval?->remarks;
+        }
+    }
+
+    /** @param  iterable<Budget>  $budgets */
+    private function attachSpentAmount(iterable $budgets): void
+    {
+        $spent = Budget::spentAmounts(collect($budgets)->pluck('id'));
+
+        foreach ($budgets as $budget) {
+            $budget->spent_amount = $spent[$budget->id];
         }
     }
 
