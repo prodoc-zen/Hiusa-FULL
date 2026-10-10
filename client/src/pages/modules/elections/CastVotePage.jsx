@@ -17,6 +17,7 @@ import {
   Vote,
 } from 'lucide-react';
 import Modal from '../../../components/Modal';
+import NextStep from '../../../components/ui/NextStep';
 import { isVotingOpen } from '../../../utils/electionAccess';
 import { castVotes } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -133,7 +134,12 @@ export default function CastVotePage({ election: electionOverride = null, refres
           <div className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4 text-center"><p className="text-[11px] font-bold uppercase tracking-widest text-[#64748B]">Ballot receipt hash</p><p className="mt-1 break-all font-mono text-sm font-black text-[#0878B7] sm:text-lg">{receipt || currentUserVotes[0]?.vote_hash || 'CAST-SUCCESSFUL'}</p></div>
           <h3 className="mt-6 text-sm font-black text-[#0F172A]">Your selections</h3>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">{selections.map((selection) => <div key={selection.position} className="flex items-center gap-3 rounded-lg border border-[#DDE7EF] p-3">{selection.candidate && <CandidatePortrait candidate={selection.candidate} name={selection.name} className="h-12 w-12" />}<div><p className="text-[10px] font-bold uppercase text-[#64748B]">{selection.position}</p><p className="mt-0.5 text-sm font-bold text-[#0F172A]">{formatDisplayText(selection.name)}</p></div></div>)}</div>
-          <button type="button" onClick={() => onReturnToDashboard ? onReturnToDashboard() : navigate('/dashboard/student')} className="mt-6 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] sm:w-auto">Return to dashboard <ArrowRight size={16} /></button>
+          <NextStep
+            className="mt-6"
+            title="What happens next"
+            body={`Your receipt stays on the Vote page. Results appear there once voting closes${election.end_time ? ` on ${formatVotingDateTime(election.end_time)}` : ''} and they are released.`}
+            primary={{ label: 'Back to Vote', onClick: () => onReturnToDashboard ? onReturnToDashboard() : navigate('/dashboard/elections/cast-vote') }}
+          />
         </div>
       </div>
     );
