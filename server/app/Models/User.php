@@ -69,6 +69,7 @@ class User extends Authenticatable
         'email',
         'contact_number',
         'password_hash',
+        'must_change_password',
         'role',
         'account_status',
         'position_title',
@@ -103,6 +104,7 @@ class User extends Authenticatable
         return [
             'school_id' => 'integer',
             'is_member' => 'boolean',
+            'must_change_password' => 'boolean',
             'password_hash' => 'hashed',
             'notification_preferences' => 'array',
         ];
