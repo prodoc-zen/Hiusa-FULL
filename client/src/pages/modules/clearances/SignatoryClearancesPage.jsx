@@ -1,14 +1,28 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
-import { Button, Card, DataTable, Input, PageHeader, Select } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, NextStep, PageHeader, Select } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriods, getClearanceSignatures, updateClearanceSignature } from '../../../services/clearanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import notify from '../../../lib/notify';
+import { clearanceLifecycle, toNextStepProps } from '../../../lib/lifecycle';
+import useRecordParam from '../../../lib/useRecordParam';
 import SignAction from './SignAction';
-import { humanizeRole } from './clearanceLabels';
+import { clearanceStageText, humanizeRole } from './clearanceLabels';
+
+function getCurrentRole() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')?.role || '';
+  } catch {
+    return '';
+  }
+}
+
+function studentName(row) {
+  return row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : `Student ${row.student_id}`;
+}
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -17,7 +31,24 @@ const STATUS_OPTIONS = [
   { value: 'cleared', label: 'Cleared' },
 ];
 
+// The callout names the stage and who owns it; the buttons that do the work are SignAction's, below it.
+function SignatureDetail({ row, role, onSign }) {
+  const stage = clearanceLifecycle({ signatures: [row] }, role);
+  const next = { ...toNextStepProps(stage), primary: undefined };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <FlowStepper steps={stage.steps} ariaLabel="Clearance signature" />
+      <NextStep {...next} />
+      <SignAction signatureId={row.id} status={row.status} remarks={row.remarks} roleLabel={humanizeRole(row.required_role)} onSign={onSign} />
+    </div>
+  );
+}
+
 export default function SignatoryClearancesPage() {
+  const role = useMemo(() => getCurrentRole(), []);
+  const [recordId, setRecordId] = useRecordParam();
+  const [pinned, setPinned] = useState(null);
   const [periods, setPeriods] = useState([]);
   const [periodId, setPeriodId] = useState('');
   const [status, setStatus] = useState('');
@@ -54,6 +85,24 @@ export default function SignatoryClearancesPage() {
 
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); setSelectedIds(new Set()); }, [filters]);
+
+  const found = recordId ? rows.find((row) => String(row.id) === recordId) : null;
+  const selected = recordId ? (found ?? (pinned && String(pinned.id) === recordId ? pinned : null)) : null;
+
+  useEffect(() => {
+    if (found) setPinned(found);
+  }, [found]);
+
+  // A deep link can name a signature on a later page, so walk the pages until it turns up.
+  useEffect(() => {
+    if (!recordId || selected || loading || error) return;
+    if (page < meta.lastPage) {
+      setPage(page + 1);
+      return;
+    }
+    notify.error('That signature is not in your signing queue.');
+    setRecordId(null);
+  }, [recordId, selected, loading, error, page, meta.lastPage, setRecordId]);
 
   const visibleRows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -97,18 +146,25 @@ export default function SignatoryClearancesPage() {
       header: 'Student',
       render: (row) => (
         <div>
-          <p className="font-bold text-ink">{row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : `Student ${row.student_id}`}</p>
+          <button type="button" onClick={() => { setPinned(row); setRecordId(row.id); }} className="text-left font-bold text-ink hover:text-brand-700">{studentName(row)}</button>
           <p className="text-xs font-medium text-ink-muted">{row.student_id}</p>
         </div>
       ),
     },
     { key: 'required_role', header: 'Role', render: (row) => humanizeRole(row.required_role) },
     { key: 'period', header: 'Period', render: (row) => row.clearancePeriod?.title || '-' },
+    { key: 'stage', header: 'Stage', render: (row) => <span className="text-xs font-semibold text-ink-muted-strong">{clearanceStageText({ signatures: [row] })}</span> },
   ];
+
+  async function sign(row, nextStatus, remarks) {
+    await updateClearanceSignature(row.id, { status: nextStatus, remarks });
+    notify.success(nextStatus === 'cleared' ? 'Signature cleared.' : 'Signature put on hold.');
+    load();
+  }
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Clearance signing queue" description="Sign, hold, or clear a hold for your organization's students." />
+      <PageHeader />
 
       <Card bodyClassName="p-0">
         <DataTable
@@ -135,11 +191,7 @@ export default function SignatoryClearancesPage() {
                 status={row.status}
                 remarks={row.remarks}
                 roleLabel={humanizeRole(row.required_role)}
-                onSign={async (nextStatus, remarks) => {
-                  await updateClearanceSignature(row.id, { status: nextStatus, remarks });
-                  notify.success(nextStatus === 'cleared' ? 'Signature cleared.' : 'Signature put on hold.');
-                  load();
-                }}
+                onSign={(nextStatus, remarks) => sign(row, nextStatus, remarks)}
               />
             </div>
           )}
@@ -170,16 +222,23 @@ export default function SignatoryClearancesPage() {
               <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} in queue{search ? ' · search applies to this page' : ''}</p>
             </div>
           )}
-          emptyState={(
-            <div className="px-6 py-14 text-center">
-              <ClipboardCheck size={34} strokeWidth={1.75} className="mx-auto text-brand-600" aria-hidden="true" />
-              <p className="mt-3 text-lg font-bold text-ink">Nothing waiting on your signature</p>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm font-medium text-ink-muted">Once a clearance period opens, your organization's students needing your signature will show up here.</p>
-            </div>
+          emptyState={periodId || status || search ? (
+            <EmptyState kind="filtered" title="No signatures match these filters" description="Try another period or status, or clear the filters." onClearFilters={() => { setPeriodId(''); setStatus(''); setSearch(''); }} />
+          ) : (
+            <EmptyState
+              kind="first-run"
+              icon={ClipboardCheck}
+              title="Nothing waiting on your signature"
+              description="The SAO opens a clearance period each semester. Once it does, your organization's students who need your signature show up here."
+            />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="signatures" />}
         />
       </Card>
+
+      <Drawer open={Boolean(selected)} title={selected ? studentName(selected) : undefined} description={selected ? `${selected.clearancePeriod?.title || 'Clearance'} · ${humanizeRole(selected.required_role)}` : undefined} onClose={() => setRecordId(null)}>
+        {selected && <SignatureDetail row={selected} role={role} onSign={(nextStatus, remarks) => sign(selected, nextStatus, remarks)} />}
+      </Drawer>
 
       <Modal
         open={bulkOpen}

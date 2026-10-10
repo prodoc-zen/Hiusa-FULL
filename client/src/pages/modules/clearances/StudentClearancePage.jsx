@@ -1,8 +1,9 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CheckCircle2, CircleDashed, ClipboardCheck, PauseCircle } from 'lucide-react';
-import { Card, DrawnCheck, EmptyState, ErrorState, ProgressMeter, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Card, DrawnCheck, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
 import { getMyClearances } from '../../../services/clearanceService';
+import { clearanceLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import { manilaDate } from '../../../lib/format';
 import { clearanceStatusTone, humanizeRole, whoToSee } from './clearanceLabels';
 
@@ -59,39 +60,34 @@ export default function StudentClearancePage() {
     [periods, selectedId],
   );
 
-  if (loading) {
-    return (
-      <div className="flex flex-col gap-4">
-        <SkeletonCard />
-      </div>
-    );
-  }
-
-  if (error) {
-    return <ErrorState description={error} onRetry={load} />;
-  }
-
-  if (periods.length === 0) {
-    return (
-      <EmptyState
-        kind="first-run"
-        icon={ClipboardCheck}
-        title="No clearance period yet"
-        description="Once your organization or the Student Affairs Office opens a clearance period, your checklist will show up here."
-      />
-    );
-  }
-
-  const clearedCount = selected.signatures.filter((signature) => signature.status === 'cleared').length;
+  const showing = !loading && !error ? selected : undefined;
+  const stage = useMemo(() => (showing ? clearanceLifecycle(showing, 'STUDENT') : null), [showing]);
+  const clearedCount = showing ? showing.signatures.filter((signature) => signature.status === 'cleared').length : 0;
+  // The celebration card below already says a complete clearance is done, so the callout stays for open ones.
+  const nextStep = stage && !showing.is_complete ? { ...toNextStepProps(stage), primary: undefined } : null;
 
   return (
     <div className="flex flex-col gap-4">
-      <div>
-        <h1 className="text-[28px] font-extrabold leading-tight text-ink">My clearance</h1>
-        <p className="mt-1 text-sm font-medium text-ink-muted-strong">{formatDisplayText(selected.title)} · {selected.academic_year}</p>
-      </div>
+      <PageHeader
+        meta={showing && <span className="text-xs font-semibold text-ink-muted-strong">{formatDisplayText(showing.title)} · {showing.academic_year}</span>}
+        stepper={stage && <FlowStepper steps={stage.steps} ariaLabel="Clearance signatures" />}
+        nextStep={nextStep && <NextStep {...nextStep} />}
+      />
 
-      {periods.length > 1 && (
+      {loading && <SkeletonCard />}
+
+      {!loading && error && <ErrorState description={error} onRetry={load} />}
+
+      {!loading && !error && periods.length === 0 && (
+        <EmptyState
+          kind="first-run"
+          icon={ClipboardCheck}
+          title="No clearance period yet"
+          description="The Student Affairs Office opens a clearance period each semester. Once it does, your checklist shows up here with one line for every signature you need."
+        />
+      )}
+
+      {showing && periods.length > 1 && (
         <Select aria-label="Choose clearance period" value={selectedId} onChange={(event) => setSelectedId(event.target.value)}>
           {[...periods].sort((a, b) => b.clearance_period_id - a.clearance_period_id).map((entry) => (
             <option key={entry.clearance_period_id} value={entry.clearance_period_id}>{formatDisplayText(entry.title)} ({entry.academic_year})</option>
@@ -99,23 +95,23 @@ export default function StudentClearancePage() {
         </Select>
       )}
 
-      {selected.is_complete ? (
+      {showing && (showing.is_complete ? (
         <Card>
           <div className="flex flex-col items-center gap-3 py-6 text-center">
             <DrawnCheck label="Clearance complete" size="lg" />
             <p className="text-lg font-bold text-ink">Your clearance is complete!</p>
-            <p className="max-w-sm text-sm font-medium text-ink-muted">Every required signature for {formatDisplayText(selected.title)} has been cleared.</p>
+            <p className="max-w-sm text-sm font-medium text-ink-muted">Every required signature for {formatDisplayText(showing.title)} has been cleared.</p>
           </div>
         </Card>
       ) : (
         <Card>
-          <ProgressMeter label="Signatures cleared" value={clearedCount} max={selected.signatures.length} valueLabel={`${clearedCount} of ${selected.signatures.length}`} className="mb-3" />
-          {selected.deadline_at && <p className="mb-3 text-xs font-semibold text-ink-muted">Deadline: {manilaDate(selected.deadline_at, 'long')}</p>}
+          <ProgressMeter label="Signatures cleared" value={clearedCount} max={showing.signatures.length} valueLabel={`${clearedCount} of ${showing.signatures.length}`} className="mb-3" />
+          {showing.deadline_at && <p className="mb-3 text-xs font-semibold text-ink-muted">Deadline: {manilaDate(showing.deadline_at, 'long')}</p>}
           <div>
-            {selected.signatures.map((signature) => <SignatureRow key={signature.id} signature={signature} />)}
+            {showing.signatures.map((signature) => <SignatureRow key={signature.id} signature={signature} />)}
           </div>
         </Card>
-      )}
+      ))}
     </div>
   );
 }
