@@ -168,6 +168,10 @@ function ApprovalsRoute() {
 }
 
 function ActivityCalendarRoute() {
+  if (getStoredRole() === 'ADMIN') {
+    return <Navigate to="/dashboard/events/manage-events?view=calendar" replace />;
+  }
+
   return <EventsPage initialTab="events" />;
 }
 
