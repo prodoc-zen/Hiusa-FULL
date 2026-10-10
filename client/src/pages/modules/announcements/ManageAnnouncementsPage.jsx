@@ -1,9 +1,9 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
-import { Download, Eye, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { Badge, StatusBadge } from './announcementShared.jsx';
+import { Download, Eye, Megaphone, Pencil, Plus, Send, Trash2, X } from 'lucide-react';
+import { AnnouncementStageChip, Badge, announcementStage } from './announcementShared.jsx';
+import { Button, EmptyState, NextStep, PageHeader } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import TableFilterBar from '../../../components/TableFilterBar';
 import TableRowActions from '../../../components/TableRowActions';
@@ -84,8 +84,9 @@ function getCurrentUserId() {
   }
 }
 
+const CREATE_PATH = '/dashboard/announcements/create-announcement';
+
 export default function ManageAnnouncementsPage() {
-  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [meta, setMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 20 });
   const [summary, setSummary] = useState({ total: 0, published: 0, unpublished: 0, pending: 0, views: 0 });
@@ -231,32 +232,77 @@ export default function ManageAnnouncementsPage() {
     }
   }
 
+  function askPublish(announcement) {
+    setConfirmState({ open: true, title: announcement.is_published ? 'Unpublish announcement' : 'Publish announcement', message: `${announcement.is_published ? 'Unpublish' : 'Publish'} ${announcement.title}?`, confirmText: announcement.is_published ? 'Unpublish' : 'Publish', action: async () => handleToggle(announcement.id), busy: false });
+  }
+
+  function nextStepFor(announcement, canModify) {
+    const stage = announcementStage(announcement);
+    const isAdmin = currentRole === 'ADMIN';
+    if (stage.key === 'pending') {
+      return isAdmin
+        ? { tone: 'action', title: 'An officer is waiting for your approval', body: 'Approve it to publish, or return it with remarks.', actorRole: 'Admin', primary: { label: 'Review this announcement', to: '/dashboard/approvals' } }
+        : { tone: 'waiting', title: 'Waiting for Admin approval', body: 'No action needed from you.', actorRole: 'Admin' };
+    }
+    if (stage.key === 'returned') {
+      return canModify
+        ? { tone: 'blocked', title: 'Returned by the Admin', body: `${announcement.review_remarks ? `${announcement.review_remarks} ` : ''}Edit it to send it for approval again.`, primary: { label: 'Edit announcement', onClick: () => openEdit(announcement) } }
+        : { tone: 'waiting', title: 'Returned to the officer', body: 'The officer can edit it and send it again.' };
+    }
+    if (stage.key === 'draft') {
+      return canModify && isAdmin
+        ? { tone: 'action', title: 'Not published yet', body: 'Publish it when it is ready for its audience.', primary: { label: 'Publish announcement', onClick: () => askPublish(announcement) } }
+        : { tone: 'waiting', title: 'Not published yet', body: 'Only the Admin can publish announcements.', actorRole: 'Admin' };
+    }
+    return {
+      tone: 'done',
+      title: 'Published',
+      body: announcement.announcement_source === 'SAO' ? 'Only the SAO can change this announcement.' : canModify ? 'Its audience can see it now.' : 'Only its author or the Admin can change it.',
+    };
+  }
+
+  const header = (
+    <PageHeader
+      purpose={currentRole === 'SBO_OFFICER' ? 'Post updates for your organization. Each one goes to the Admin for approval before it is published.' : undefined}
+      meta={currentRole === 'SBO_OFFICER' ? <Badge color="yellow">Needs Admin approval</Badge> : undefined}
+      primary={<Button to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
+    />
+  );
+
   if (loading) {
     return (
-      <div className="space-y-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
-        ))}
+      <div className="space-y-6">
+        {header}
+        <div className="space-y-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />
+          ))}
+        </div>
       </div>
     );
   }
 
   if (error) {
     return (
-      <div className="rounded-lg border border-red-100 bg-red-50 p-6 text-center">
-        <p className="text-sm font-semibold text-red-700">{error}</p>
-        <button onClick={loadAnnouncements} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
+      <div className="space-y-6">
+        {header}
+        <div className="rounded-lg border border-red-100 bg-red-50 p-6 text-center">
+          <p className="text-sm font-semibold text-red-700">{error}</p>
+          <button onClick={loadAnnouncements} className="mt-2 text-sm font-bold text-red-600 underline">Try again</button>
+        </div>
       </div>
     );
   }
 
   return (
+    <div className="space-y-6">
+    {header}
     <div className="rounded-lg border border-[#DDE7EF] bg-white p-5">
       {actionError && !confirmState.open && !editing && <p role="alert" className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {actionMessage && <p role="status" className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700">{actionMessage}</p>}
       <div className="mb-4 grid gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 lg:grid-cols-4">
         {[
-          ['Matching records', summary.total], ['Published', summary.published], ['Pending approval', summary.pending], ['Recorded views', summary.views],
+          ['Matching records', summary.total], ['Published', summary.published], ['Waiting for approval', summary.pending], ['Recorded views', summary.views],
         ].map(([label, value]) => <dl key={label} className="bg-white p-3.5"><dt className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</dt><dd className="mt-1 text-xl font-black tabular-nums text-[#0F172A]">{value}</dd></dl>)}
       </div>
       <section className="mb-4 rounded-lg border border-[#DDE7EF] p-4" aria-label="Announcement interactions">
@@ -269,7 +315,7 @@ export default function ManageAnnouncementsPage() {
           return <div key={item.id} className="grid gap-2 sm:grid-cols-[minmax(0,12rem)_minmax(0,1fr)]"><p className="truncate text-xs font-semibold text-[#0F172A]" title={formatDisplayText(item.title)}>{formatDisplayText(item.title)}</p><div className="space-y-1"><div className="flex items-center gap-2"><span className="w-14 text-[11px] text-slate-500">Views</span><div className="h-3 flex-1 rounded bg-[#EEF6FB]"><div className="h-full rounded bg-[#0B8ED0]" style={{ width: `${views / maximum * 100}%` }} /></div><span className="w-8 text-right text-[11px] font-semibold tabular-nums">{views}</span></div><div className="flex items-center gap-2"><span className="w-14 text-[11px] text-slate-500">Likes</span><div className="h-3 flex-1 rounded bg-[#EEF6FB]"><div className="h-full rounded bg-[#0F2F62]" style={{ width: `${reactions / maximum * 100}%` }} /></div><span className="w-8 text-right text-[11px] font-semibold tabular-nums">{reactions}</span></div></div></div>;
         })}</div>}
       </section>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] pt-4"><h2 className="text-base font-black text-[#0F172A]">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={() => navigate('/dashboard/announcements/create-announcement')} className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white"><Plus size={14} /> Create announcement</button><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-2 border-t border-[#DDE7EF] pt-4"><h2 className="text-base font-black text-[#0F172A]">Announcement list</h2><div className="flex flex-wrap gap-2"><button type="button" onClick={handleExport} disabled={!meta.total || exporting} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-4 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><Download size={14} /> {exporting ? 'Exporting...' : 'Export CSV'}</button></div></div>
       <div className="-mx-5 mb-4">
         <TableFilterBar searchValue={search} onSearchChange={setSearch} searchPlaceholder="Search title, content, or author" activeFilters={activeAnnouncementFilters} onClear={clearAnnouncementFilters} resultCount={meta.total} resultLabel={meta.total === 1 ? 'announcement' : 'announcements'} secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600">{CATEGORY_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
@@ -280,16 +326,23 @@ export default function ManageAnnouncementsPage() {
           <select value={sort} onChange={(e) => setSort(e.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-semibold text-slate-600"><option value="newest">Newest first</option><option value="oldest">Oldest first</option><option value="title">Title A-Z</option><option value="most_viewed">Most viewed</option></select>
         </TableFilterBar>
       </div>
-      {items.length === 0 ? <p className="py-8 text-center text-sm text-[#64748B]">No announcements match these filters.</p> : <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-sm"><thead className="bg-[#F8FBFD]"><tr><th className="px-4 py-3">Title</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Audience</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{items.map((a) => {
+      {items.length === 0 ? (activeAnnouncementFilters.length > 0
+        ? <EmptyState kind="filtered" title="No announcements match these filters" onClearFilters={clearAnnouncementFilters} />
+        : <EmptyState
+          icon={Megaphone}
+          title="No announcements yet"
+          description={currentRole === 'SBO_OFFICER' ? 'Write your first announcement. It goes to the Admin for approval before it is published.' : 'Write your first announcement to tell members what is happening.'}
+          action={<Button variant="secondary" to={CREATE_PATH} leftIcon={Plus}>New announcement</Button>}
+        />) : <div className="overflow-x-auto"><table className="w-full min-w-[580px] text-left text-sm"><thead className="bg-[#F8FBFD]"><tr><th className="px-4 py-3">Title</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Audience</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{items.map((a) => {
         const canModify = a.announcement_source !== 'SAO' && (currentRole === 'ADMIN' || Number(a.created_by) === Number(currentUserId));
         const canPublish = canModify && currentRole === 'ADMIN';
         const isExpanded = expandedId === a.id;
-        return <Fragment key={a.id}><tr className="hover:bg-[#F8FBFD]"><td className="px-4 py-3"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-bold text-[#0F172A] hover:text-[#0878B7]">{formatDisplayText(a.title)}</button></td><td className="px-4 py-3">{a.approval_status === 'pending' ? <Badge color="yellow">Pending approval</Badge> : a.approval_status === 'rejected' ? <Badge color="red">Rejected</Badge> : <StatusBadge status={a.is_published ? 'Published' : 'Draft'} />}</td><td className="px-4 py-3 text-[#64748B]">{ROLE_LABEL[a.target_role] || a.target_role}</td><td className="px-4 py-3"><TableRowActions subject={a.title} label="Announcement actions" actions={[
+        return <Fragment key={a.id}><tr className="hover:bg-[#F8FBFD]"><td className="px-4 py-3"><button type="button" aria-expanded={isExpanded} aria-controls={`announcement-details-${a.id}`} onClick={() => setExpandedId(isExpanded ? null : a.id)} className="min-h-10 text-left font-bold text-[#0F172A] hover:text-[#0878B7]">{formatDisplayText(a.title)}</button></td><td className="px-4 py-3"><AnnouncementStageChip announcement={a} /></td><td className="px-4 py-3 text-[#64748B]">{ROLE_LABEL[a.target_role] || a.target_role}</td><td className="px-4 py-3"><TableRowActions subject={a.title} label="Announcement actions" actions={[
           { label: 'View full record', icon: Eye, onClick: () => setDetails(a) },
           canModify && { label: 'Edit announcement', icon: Pencil, onClick: () => openEdit(a) },
-          canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve & publish' : 'Publish announcement', icon: Send, onClick: () => setConfirmState({ open: true, title: a.is_published ? 'Unpublish announcement' : 'Publish announcement', message: `${a.is_published ? 'Unpublish' : 'Publish'} ${a.title}?`, confirmText: a.is_published ? 'Unpublish' : 'Publish', action: async () => handleToggle(a.id), busy: false }) },
+          canPublish && { label: a.is_published ? 'Unpublish announcement' : a.approval_status === 'pending' ? 'Approve & publish' : 'Publish announcement', icon: Send, onClick: () => askPublish(a) },
           canModify && { label: 'Delete announcement', icon: Trash2, danger: true, onClick: () => setConfirmState({ open: true, title: 'Delete announcement', message: `Delete ${a.title}?`, confirmText: 'Delete', action: async () => handleDelete(a.id), busy: false }) },
-        ]} /></td></tr>{isExpanded && <tr id={`announcement-details-${a.id}`}><td colSpan={4} className="bg-[#F8FBFD] px-4 py-5"><article className="mx-auto max-w-2xl rounded-lg border border-[#DDE7EF] bg-white"><header className="border-b border-[#DDE7EF] p-4"><p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p><p className="text-xs text-[#64748B]">Published {formatDateTime(a.published_at)}</p></header><div className="p-4"><h3 className="text-lg font-black text-[#0F172A]">{formatDisplayText(a.title)}</h3><RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-[#0F172A]" />{a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}</div><dl className="grid gap-2 border-t border-[#DDE7EF] p-4 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="font-bold text-[#64748B]">{label}</dt><dd className="mt-1 text-[#0F172A]">{value || '-'}</dd></div>)}</dl></article></td></tr>}</Fragment>;
+        ]} /></td></tr>{isExpanded && <tr id={`announcement-details-${a.id}`}><td colSpan={4} className="bg-[#F8FBFD] px-4 py-5"><NextStep {...nextStepFor(a, canModify)} className="mx-auto mb-4 max-w-2xl" /><article className="mx-auto max-w-2xl rounded-lg border border-[#DDE7EF] bg-white"><header className="border-b border-[#DDE7EF] p-4"><p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(a.source_organization?.name) || formatDisplayText(a.organization?.name) || 'HIUSA'}</p><p className="text-xs text-[#64748B]">Published {formatDateTime(a.published_at)}</p></header><div className="p-4"><h3 className="text-lg font-black text-[#0F172A]">{formatDisplayText(a.title)}</h3><RichTextBody value={a.body} className="mt-2 text-sm leading-6 text-[#0F172A]" />{a.image_url && <img src={resolveAssetUrl(a.image_url)} alt="" className="mt-3 max-h-80 w-full object-contain" />}</div><dl className="grid gap-2 border-t border-[#DDE7EF] p-4 text-xs sm:grid-cols-2">{[['Posted by', creatorName(a)], ['Created', formatDateTime(a.created_at)], ['Updated', formatDateTime(a.updated_at)], ['Reviewer', a.reviewer ? `${a.reviewer.first_name} ${a.reviewer.last_name}` : '-'], ['Category', CATEGORY_LABEL[a.category] || a.category], ['Views', a.views_count || 0]].map(([label, value]) => <div key={label}><dt className="font-bold text-[#64748B]">{label}</dt><dd className="mt-1 text-[#0F172A]">{value || '-'}</dd></div>)}</dl></article></td></tr>}</Fragment>;
       })}</tbody></table></div>}
       <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
 
@@ -345,7 +398,7 @@ export default function ManageAnnouncementsPage() {
           <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-6 shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
             <div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">Announcement #{details.id}</p><h3 className="mt-1 text-xl font-black text-[#0F172A]">{formatDisplayText(details.title)}</h3></div><button onClick={() => setDetails(null)} className="rounded-lg p-2 text-slate-500 hover:bg-slate-100"><X size={18} /></button></div>
             <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{[
-              ['Audience', ROLE_LABEL[details.target_role] || details.target_role], ['Category', CATEGORY_LABEL[details.category] || details.category], ['Approval', details.approval_status], ['Publication', details.is_published ? 'Published' : 'Draft'],
+              ['Audience', ROLE_LABEL[details.target_role] || details.target_role], ['Category', CATEGORY_LABEL[details.category] || details.category], ['Stage', announcementStage(details).label], ['Publication', details.is_published ? 'Published' : 'Draft'],
               ['Unique Views', details.views_count || 0], ['Created', formatDateTime(details.created_at)], ['Updated', formatDateTime(details.updated_at)], ['Published', formatDateTime(details.published_at)],
             ].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><p className="text-[10px] font-bold uppercase tracking-wide text-slate-500">{label}</p><p className="mt-1 break-words text-sm font-semibold text-[#0F172A]">{value ?? '-'}</p></div>)}</div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2"><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Author</p><p className="mt-2 text-sm font-bold text-[#0F172A]">{creatorName(details)}</p><p className="mt-1 text-xs text-slate-500">{[details.creator?.school_id, details.creator?.email, details.creator?.role, details.creator?.position_title, details.creator?.department, details.creator?.program, details.creator?.year_level, details.creator?.section].filter(Boolean).join(' · ') || '-'}</p></div><div className="rounded-lg border border-[#DDE7EF] p-4"><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Review trail</p><p className="mt-2 text-sm font-bold text-[#0F172A]">{details.reviewer ? `${formatDisplayText(details.reviewer.first_name)} ${formatDisplayText(details.reviewer.last_name)}` : 'Not reviewed'}</p><p className="mt-1 whitespace-pre-wrap text-xs text-slate-500">{details.review_remarks || 'No review remarks.'}</p></div></div>
@@ -353,6 +406,7 @@ export default function ManageAnnouncementsPage() {
           </div>
         </AccessibleOverlay>
       )}
+    </div>
     </div>
   );
 }
