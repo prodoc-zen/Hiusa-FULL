@@ -1,6 +1,16 @@
-import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { fireEvent, render as renderUi, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
+import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancePage from './FinancePage';
+
+const render = (ui, route = '/dashboard/finance') => renderUi(<MemoryRouter initialEntries={[route]}>{ui}</MemoryRouter>);
+
+// The two export tests build a real workbook. exceljs is a large module that the page imports on first
+// use, so under a full parallel run that first import used to land inside a test and outlast its
+// timeout. Importing it once here puts the cost in a hook that has its own, generous limit.
+beforeAll(async () => {
+  await import('exceljs');
+}, 60000);
 
 const financeMocks = vi.hoisted(() => ({
   getTransactions: vi.fn(),
@@ -185,7 +195,7 @@ describe('FinancePage transaction search', () => {
   it('opens the budget proposal form when launched from the request selector', async () => {
     render(<FinancePage initialTab="budgets" startBudgetProposal />);
 
-    expect(await screen.findByRole('heading', { name: 'Propose Budget' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'Propose budget' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Submit for Approval' })).toBeInTheDocument();
   });
 
@@ -200,9 +210,9 @@ describe('FinancePage transaction search', () => {
     expect(await screen.findByText('Operating Budget')).toBeInTheDocument();
     expect(screen.getByText(/View only\./)).toBeInTheDocument();
     expect(financeMocks.getBudgets).toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: 'Propose Budget' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Propose budget' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'AI Advice' })).not.toBeInTheDocument();
-    expect(screen.queryByRole('heading', { name: 'Propose Budget' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: 'Propose budget' })).not.toBeInTheDocument();
   });
 
   it('shows an SBO officer the forecasts without the admin-only generate action', async () => {
@@ -210,9 +220,9 @@ describe('FinancePage transaction search', () => {
 
     render(<FinancePage initialTab="forecasting" />);
 
-    expect(await screen.findByText('No forecasts recorded yet.')).toBeInTheDocument();
+    expect(await screen.findByText('No forecasts to show yet')).toBeInTheDocument();
     expect(financeMocks.getForecasts).toHaveBeenCalled();
-    expect(screen.queryByRole('button', { name: /Generate Forecast/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /Generate forecast/ })).not.toBeInTheDocument();
   });
 
   it('creates an income statement as a separate document with a letterhead image', async () => {
@@ -285,7 +295,7 @@ describe('FinancePage transaction search', () => {
     await screen.findByText('August Report');
     fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
     await waitFor(() => expect(financeMocks.getFinancialReport).toHaveBeenCalledWith(61));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 12000 });
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 25000 });
     expect(URL.createObjectURL.mock.calls[0][0].type).toBe('application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     const workbookBuffer = await new Promise((resolve) => {
       const reader = new FileReader();
@@ -301,7 +311,7 @@ describe('FinancePage transaction search', () => {
     expect(click).toHaveBeenCalled();
     expect(click.mock.instances[0].download).toBe('hiusa-financial-report-61.xlsx');
     click.mockRestore();
-  }, 15000);
+  }, 40000);
 
   it('exports cash advances in their own section, apart from income and expense', async () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: [{ id: 62, title: 'October report', summary_text: 'Saved facts', document_type: 'financial_report', submission_status: 'draft' }] });
@@ -321,7 +331,7 @@ describe('FinancePage transaction search', () => {
     render(<FinancePage initialTab="reports" />);
     await screen.findByText('October Report');
     fireEvent.click(screen.getAllByRole('button', { name: 'Export Excel' }).at(-1));
-    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 12000 });
+    await waitFor(() => expect(URL.createObjectURL).toHaveBeenCalled(), { timeout: 25000 });
     const workbookBuffer = await new Promise((resolve) => {
       const reader = new FileReader();
       reader.onload = () => resolve(reader.result);
@@ -345,7 +355,7 @@ describe('FinancePage transaction search', () => {
     expect(amountOf('Cash advance entry', 'Cash Advance Repayment (income)')).toBe(200);
     expect(amountOf('Ledger transaction', 'Membership (income)')).toBe(1000);
     click.mockRestore();
-  }, 15000);
+  }, 40000);
 
   it('shows the cash advances beside a generated report without adding them to income or expense', async () => {
     financeMocks.generateFinancialReport.mockResolvedValue({ data: {
@@ -374,7 +384,7 @@ describe('FinancePage transaction search', () => {
     financeMocks.createBudget.mockResolvedValue({ data: { id: 9 } });
     render(<FinancePage initialTab="budgets" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Propose Budget' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Propose budget' }));
     fireEvent.change(screen.getByPlaceholderText('e.g. Sports Fest 2026 Budget'), { target: { value: 'First Semester Allocation' } });
     const [amount, threshold] = screen.getAllByPlaceholderText('0.00');
     fireEvent.change(amount, { target: { value: '1500' } });
@@ -525,7 +535,7 @@ describe('FinancePage forecast explainability', () => {
 
     render(<FinancePage initialTab="forecasting" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Generate Forecast' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Generate forecast' }));
 
     expect((await screen.findAllByText(/Not enough history/i)).length).toBeGreaterThan(0);
     expect(screen.getByRole('button', { name: 'Retry' })).toBeInTheDocument();

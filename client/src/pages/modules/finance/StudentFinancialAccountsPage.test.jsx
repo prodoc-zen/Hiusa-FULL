@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentFinancialAccountsPage from './StudentFinancialAccountsPage';
 
@@ -120,5 +121,44 @@ describe('StudentFinancialAccountsPage invoice cancellation', () => {
 
     await waitFor(() => expect(screen.getAllByRole('dialog')).toHaveLength(1));
     expect(mocks.updateInvoiceStatus).not.toHaveBeenCalled();
+  });
+});
+
+describe('StudentFinancialAccountsPage header and empty states', () => {
+  const emptyPayload = { data: { data: [], summary: {}, filter_options: { departments: [], programs: [], year_levels: [] }, total: 0, per_page: 10, current_page: 1 } };
+  const renderPage = () => render(<MemoryRouter initialEntries={['/dashboard/finance/student-accounts']}><StudentFinancialAccountsPage /></MemoryRouter>);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    mocks.getStudentDebts.mockResolvedValue(emptyPayload);
+  });
+
+  it('uses the shared header: one h1 from the menu label, a purpose line and one primary action', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Student accounts' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText(/Review charges, payments, and student clearance/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Add student charge' })).toHaveLength(1);
+  });
+
+  it('explains where accounts come from and links to the members page on first use', async () => {
+    renderPage();
+
+    expect(await screen.findByText('No student accounts yet')).toBeInTheDocument();
+    expect(screen.getByText(/Add members first, then use Add student charge above/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Add members' })).toHaveAttribute('href', '/dashboard/admin/users');
+  });
+
+  it('offers Clear filters when a search hides every account, and the reset clears it', async () => {
+    renderPage();
+    await screen.findByText('No student accounts yet');
+
+    fireEvent.change(screen.getByPlaceholderText('Name, school ID, email, course...'), { target: { value: 'zzz' } });
+    expect(await screen.findByText('No student accounts match these filters')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(screen.getByPlaceholderText('Name, school ID, email, course...')).toHaveValue('');
+    expect(await screen.findByText('No student accounts yet')).toBeInTheDocument();
   });
 });

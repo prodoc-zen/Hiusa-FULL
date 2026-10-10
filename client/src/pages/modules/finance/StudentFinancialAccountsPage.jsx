@@ -2,13 +2,14 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, BadgeCheck, Eye, FilePlus2, Search, WalletCards } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Eye, FilePlus2, Search, UsersRound, WalletCards } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import TableRowActions from '../../../components/TableRowActions';
 import { createInvoice, getStudentDebts, recordInvoicePayment, updateInvoiceStatus } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { Button, EmptyState, PageHeader } from '../../../components/ui';
 
 const money = (value) => `₱${Number(value || 0).toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const date = (value) => value ? new Date(value).toLocaleDateString('en-PH', { year: 'numeric', month: 'short', day: 'numeric' }) : 'No due date';
@@ -42,6 +43,7 @@ export default function StudentFinancialAccountsPage() {
   }, [filters.per_page, page, params]);
 
   useEffect(() => { const timer = setTimeout(load, 250); return () => clearTimeout(timer); }, [load]);
+  const filtersActive = Boolean(filters.search.trim() || filters.department || filters.program || filters.year_level || filters.status !== 'all');
   const updateFilter = (key, value) => { setFilters((current) => ({ ...current, [key]: value })); setPage(1); };
   const clearFilters = () => { setFilters({ search: '', status: 'all', department: '', program: '', year_level: '', sort: 'highest_debt', per_page: 10 }); setPage(1); };
   const refreshAndReselect = async (schoolId) => { await load(); if (schoolId) { const response = await getStudentDebts({ student_id: schoolId }); setSelected(response.data?.[0] || null); } };
@@ -67,7 +69,7 @@ export default function StudentFinancialAccountsPage() {
 
   return <div className="space-y-5">
     <FeedbackToast feedback={feedback} onClose={() => setFeedback({ open: false })} />
-    <div className="flex justify-end"><button type="button" onClick={() => { setCharge({ student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }} className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62] sm:w-auto"><FilePlus2 size={16} /> Add Student Charge</button></div>
+    <PageHeader primary={<Button leftIcon={FilePlus2} onClick={() => { setCharge({ student_id: '', description: '', amount_due: '', due_date: '' }); setFormError(''); }}>Add student charge</Button>} />
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[
@@ -95,7 +97,16 @@ export default function StudentFinancialAccountsPage() {
         {loading ? Array.from({ length: 6 }, (_, index) => <tr key={index}>{Array.from({ length: 7 }, (__, cell) => <td key={cell} className="px-4 py-4"><div className="h-4 animate-pulse rounded bg-slate-100" /></td>)}</tr>) : rows.map((account) => <tr key={account.student.school_id} className="hover:bg-[#F8FBFD]"><td className="px-4 py-3.5"><p className="text-sm font-bold text-[#0F172A]">{formatDisplayText(account.student.name)}</p><p className="mt-0.5 text-xs text-slate-500">{account.student.school_id}</p></td><td className="px-4 py-3.5"><p className="text-xs font-semibold text-slate-700">{account.student.program || 'Course not recorded'}</p><p className="mt-0.5 text-xs text-slate-500">{[account.student.department, account.student.year_level, account.student.section].filter(Boolean).join(' · ') || 'Academic details not recorded'}</p></td><td className="px-4 py-3.5 text-right text-sm font-bold text-slate-700">{money(account.invoice_debt)}<p className="text-[10px] font-medium text-slate-500">{account.unpaid_invoice_count} open</p></td><td className="px-4 py-3.5 text-right text-sm font-bold text-slate-700">{money(account.reserved_order_debt)}<p className="text-[10px] font-medium text-slate-500">{account.pending_order_count} pending</p></td><td className="px-4 py-3.5 text-right text-sm font-black text-[#0F172A]">{money(account.total_debt)}</td><td className="px-4 py-3.5"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${account.overdue_invoice_count ? 'bg-red-50 text-red-700' : account.total_debt > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{account.overdue_invoice_count ? 'Overdue' : account.total_debt > 0 ? 'Pending clearance' : 'Cleared'}</span></td><td className="px-4 py-3.5 text-right"><TableRowActions subject={account.student.name} label="Account actions" actions={[{ label: 'View account', icon: Eye, onClick: () => setSelected(account) }]} /></td></tr>)}
       </tbody></table></div>
       <div className="divide-y divide-[#DDE7EF] md:hidden">{loading ? Array.from({ length: 4 }, (_, index) => <div key={index} className="m-4 h-28 animate-pulse rounded-lg bg-slate-100" />) : rows.map((account) => <article key={account.student.school_id} className="p-4"><div className="flex items-start justify-between gap-3"><div><p className="font-bold text-[#0F172A]">{formatDisplayText(account.student.name)}</p><p className="text-xs text-slate-500">{account.student.school_id}</p></div><span className={`rounded-full px-2.5 py-1 text-[10px] font-bold ${account.total_debt > 0 ? 'bg-amber-50 text-amber-700' : 'bg-emerald-50 text-emerald-700'}`}>{account.total_debt > 0 ? 'Pending' : 'Cleared'}</span></div><p className="mt-2 text-xs text-slate-500">{account.student.program || 'Course not recorded'} · {account.student.year_level || 'Year not recorded'}</p><div className="mt-3 flex items-end justify-between"><div><p className="text-[10px] font-bold uppercase text-slate-500">Outstanding</p><p className="text-lg font-black text-[#0F172A]">{money(account.total_debt)}</p></div><button type="button" onClick={() => setSelected(account)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white">View account</button></div></article>)}</div>
-      {!loading && rows.length === 0 && <div className="px-5 py-12 text-center"><BadgeCheck className="mx-auto text-slate-300" size={34} /><p className="mt-3 text-sm font-bold text-slate-600">No student accounts match these filters.</p></div>}
+      {!loading && !error && rows.length === 0 && (filtersActive ? (
+        <EmptyState kind="filtered" title="No student accounts match these filters" description="Try a different search or clear the filters." onClearFilters={clearFilters} />
+      ) : (
+        <EmptyState
+          icon={UsersRound}
+          title="No student accounts yet"
+          description="An account appears for each member of your organization, with what they owe and their clearance. Add members first, then use Add student charge above to bill them."
+          action={<Button variant="secondary" to="/dashboard/admin/users">Add members</Button>}
+        />
+      ))}
       <PaginationControls currentPage={meta.current_page} totalItems={meta.total} pageSize={meta.per_page} onPageChange={setPage} label="student accounts" />
     </section>
 
