@@ -1,15 +1,17 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import { CirclePlus, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import { createElectionPosition, deleteElectionPosition } from '../../../services/electionService';
+import ManageVotersPage from './ManageVotersPage';
 
 export default function ElectionDetailPage() {
   const { election, refreshElection } = useOutletContext();
+  const [searchParams] = useSearchParams();
   const [newPositionTitle, setNewPositionTitle] = useState('');
   const [newPositionMaxWinners, setNewPositionMaxWinners] = useState(1);
   const [localPositions, setLocalPositions] = useState(() => election?.positions || []);
@@ -27,6 +29,8 @@ export default function ElectionDetailPage() {
   if (!election) {
     return <div className="py-20 text-center text-sm text-slate-500">Election not found.</div>;
   }
+
+  if (searchParams.get('view') === 'voters') return <ManageVotersPage />;
 
   const positions = localPositions;
   const candidates = election.candidates || [];
