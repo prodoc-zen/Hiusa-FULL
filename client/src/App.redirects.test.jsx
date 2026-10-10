@@ -26,6 +26,8 @@ describe('merged and demoted routes', () => {
   beforeEach(() => localStorage.clear());
 
   it.each([
+    ['ADMIN', '/dashboard/tasks/create-task', 'tasks /dashboard/tasks/task-board?new=1'],
+    ['ADMIN', '/dashboard/tasks/task-progress', 'tasks /dashboard/tasks/task-board?view=progress'],
     ['ADMIN', '/dashboard/events/activity-calendar', 'events /dashboard/events/manage-events?view=calendar'],
     ['ADMIN', '/dashboard/admin/sbo-positions', 'positions /dashboard/admin/positions'],
     ['DEPARTMENT_HEAD', '/dashboard/approvals', 'approvals /dashboard/department-head/approvals'],
