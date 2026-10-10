@@ -1,12 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { File, Lock, ShieldCheck } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, PageHeader, ProgressMeter, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { accreditationLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import notify from '../../../lib/notify';
 import { manilaDate, relativeTime } from '../../../lib/format';
 import { unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus, getRequirementTypes, getSubmissions, submitComplianceDocument } from '../../../services/complianceService';
 import ComplianceDropzone, { validateComplianceFile } from './ComplianceDropzone';
+import { complianceStageText } from './complianceStage';
 import { RichTextBody } from '../../../components/RichText';
 
 function getCurrentRole() {
@@ -33,7 +35,7 @@ function deadlineTone(requirement) {
 
 export default function OrganizationCompliancePage() {
   const role = useMemo(() => getCurrentRole(), []);
-  const [state, setState] = useState({ loading: true, error: null, academicYear: null, requirements: [] });
+  const [state, setState] = useState({ loading: true, error: null, academicYear: null, accreditationStatus: null, requirements: [] });
   const [uploadTarget, setUploadTarget] = useState(null);
   const [selectedFile, setSelectedFile] = useState(null);
   const [fileError, setFileError] = useState(null);
@@ -49,6 +51,7 @@ export default function OrganizationCompliancePage() {
           loading: false,
           error: null,
           academicYear: statusRes.data?.academic_year ?? null,
+          accreditationStatus: org?.accreditation_status ?? null,
           requirements: org ? mergeRequirements(org.requirements || [], unwrapList(typesRes.data), unwrapList(submissionsRes.data)) : [],
         });
       })
@@ -99,24 +102,31 @@ export default function OrganizationCompliancePage() {
   if (role !== 'ADMIN') {
     return (
       <div className="space-y-5">
-        <PageHeader title="Organization compliance" description="Submit and track your organization's accreditation requirements." />
+        <PageHeader />
         <Card><EmptyState kind="restricted" title="Admin access only" description="Only your organization's admin can manage compliance submissions." /></Card>
       </div>
     );
   }
 
   const approvedCount = state.requirements.filter((requirement) => requirement.status === 'approved').length;
+  const ready = !state.loading && !state.error && state.requirements.length > 0;
+  const accreditation = ready && state.accreditationStatus
+    ? accreditationLifecycle({ status: state.accreditationStatus, total: state.requirements.length, approved: approvedCount }, 'ADMIN')
+    : null;
 
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        title="Organization compliance"
-        description={state.academicYear ? `What your organization must submit for the ${state.academicYear} academic year.` : 'What your organization must submit for accreditation.'}
-        meta={!state.loading && !state.error && state.requirements.length > 0 && (
-          <div className="w-full max-w-xs">
-            <ProgressMeter label="Requirements met" value={approvedCount} max={state.requirements.length} valueLabel={`${approvedCount}/${state.requirements.length}`} />
-          </div>
+        meta={ready && (
+          <>
+            {state.academicYear && <span className="text-xs font-semibold text-ink-muted-strong">Academic year {state.academicYear}</span>}
+            <div className="w-full max-w-xs">
+              <ProgressMeter label="Requirements met" value={approvedCount} max={state.requirements.length} valueLabel={`${approvedCount}/${state.requirements.length}`} />
+            </div>
+          </>
         )}
+        stepper={accreditation && <FlowStepper steps={accreditation.steps} ariaLabel="Accreditation progress" />}
+        nextStep={accreditation && <NextStep {...toNextStepProps(accreditation)} primary={undefined} />}
       />
 
       {state.loading && (
@@ -135,7 +145,7 @@ export default function OrganizationCompliancePage() {
             kind="first-run"
             icon={ShieldCheck}
             title="No requirements assigned yet"
-            description="SAO has not published any compliance requirements for this academic year. Check back once they do."
+            description="The SAO publishes the compliance requirements for each academic year. Once it does, each one appears here for you to upload."
           />
         </Card>
       )}
@@ -151,7 +161,7 @@ export default function OrganizationCompliancePage() {
               { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && requirement.submission?.remarks && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.submission.remarks}</p>}</div> },
               { key: 'date', header: 'Submitted', render: (requirement) => requirement.submission?.submitted_at ? manilaDate(requirement.submission.submitted_at, 'long') : 'Not submitted' },
               { key: 'deadline', header: 'Deadline', render: (requirement) => <span className={deadlineTone(requirement)}>{manilaDate(requirement.deadline_at, 'long')} <span className="block text-xs">{relativeTime(requirement.deadline_at)}</span></span> },
-              { key: 'status', header: 'Status', render: (requirement) => <StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} /> },
+              { key: 'status', header: 'Status', render: (requirement) => <div className="flex flex-col items-start gap-1"><StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} /><span className="text-xs font-semibold text-ink-muted-strong">{complianceStageText(requirement)}</span></div> },
               { key: 'file', header: 'Upload', render: (requirement) => requirement.submission?.file_original_name ? <span className="inline-flex items-center gap-1 text-xs"><File size={13} aria-hidden="true" />{requirement.submission.file_original_name}</span> : 'No file' },
             ]}
             actions={(requirement) => requirement.status !== 'approved' ? <Button variant="secondary" size="sm" onClick={() => openUpload(requirement)}>{requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document'}</Button> : <span className="inline-flex items-center gap-1 text-xs text-ink-muted"><Lock size={13} />Locked</span>}

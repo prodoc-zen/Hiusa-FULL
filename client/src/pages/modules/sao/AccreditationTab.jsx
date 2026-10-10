@@ -1,6 +1,7 @@
 import { useMemo } from 'react';
 import { Check, ShieldCheck } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, ProgressMeter, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, FlowStepper, ProgressMeter, StatusBadge } from '../../../components/ui';
+import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
 
 function orgApprovedCount(org) {
@@ -39,7 +40,13 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
       header: 'Accreditation',
       render: (org) => {
         const badge = accreditationBadge(org.accreditation_status);
-        return <StatusBadge tone={badge.tone} label={badge.label} />;
+        const stage = accreditationLifecycle({ status: org.accreditation_status, total: org.requirements.length, approved: orgApprovedCount(org) }, 'SUPER_ADMIN');
+        return (
+          <div className="flex min-w-[170px] flex-col items-start gap-1.5">
+            <StatusBadge tone={badge.tone} label={badge.label} />
+            <FlowStepper variant="compact" steps={stage.steps} ariaLabel={`Accreditation progress for ${org.organization_name}`} />
+          </div>
+        );
       },
     },
     {

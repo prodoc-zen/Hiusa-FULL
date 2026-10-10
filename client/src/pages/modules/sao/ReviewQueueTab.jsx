@@ -1,14 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Check, ExternalLink } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, IconButton, Select, StatusBadge, Textarea } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, IconButton, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
+import { toNextStepProps } from '../../../lib/lifecycle';
+import useRecordParam from '../../../lib/useRecordParam';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { downloadSubmissionDocument, getSubmissions, reviewSubmission } from '../../../services/complianceService';
+import { complianceStage, complianceStageText } from './complianceStage';
 
 const DEFAULT_STATUS = 'submitted';
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -17,8 +20,14 @@ function documentKind(name) {
   return /semestral/i.test(name || '') ? 'Semestral report' : 'Renewal document';
 }
 
+function stageInput(submission) {
+  return { status: submission.status, remarks: submission.remarks, requirement_name: submission.requirement_type?.name };
+}
+
 export default function ReviewQueueTab({ organizations, filters, onFiltersChange, onChanged }) {
   const { organizationId, status } = filters;
+  const [recordId, setRecordId] = useRecordParam();
+  const [pinned, setPinned] = useState(null);
   const [queue, setQueue] = useState({ loading: true, error: null, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
   const [page, setPage] = useState(1);
   const [openingDocumentId, setOpeningDocumentId] = useState(null);
@@ -42,6 +51,24 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
 
   useEffect(() => { loadQueue(page); }, [loadQueue, page]);
   useEffect(() => { setPage(1); }, [status, organizationId]);
+
+  const found = recordId ? queue.items.find((item) => String(item.id) === recordId) ?? null : null;
+  const openSubmission = found ?? (pinned && String(pinned.id) === recordId ? pinned : null);
+
+  useEffect(() => {
+    if (found) setPinned(found);
+  }, [found]);
+
+  // A deep link can name a submission on a later page, so walk the pages until it turns up.
+  useEffect(() => {
+    if (!recordId || openSubmission || queue.loading || queue.error) return;
+    if (page < queue.meta.lastPage) {
+      setPage(page + 1);
+      return;
+    }
+    notify.error('That submission is not in the review queue.');
+    setRecordId(null);
+  }, [recordId, openSubmission, queue.loading, queue.error, queue.meta.lastPage, page, setRecordId]);
 
   async function openDocument(submission) {
     const preview = window.open('', '_blank');
@@ -74,6 +101,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
     setReviewError(null);
     try {
       await reviewSubmission(reviewTarget.submission.id, { ...payload, submitted_at: reviewTarget.submission.submitted_at });
+      setPinned({ ...reviewTarget.submission, status: payload.status, remarks: payload.remarks ?? reviewTarget.submission.remarks });
       notify.success(successMessage);
       closeReview();
       loadQueue(page);
@@ -115,7 +143,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
   }
 
   const columns = [
-    { key: 'organization', header: 'Organization', render: (submission) => submission.organization?.name || 'Unknown' },
+    { key: 'organization', header: 'Organization', render: (submission) => <button type="button" onClick={() => { setPinned(submission); setRecordId(submission.id); }} className="text-left font-bold text-ink hover:text-brand-700">{submission.organization?.name || 'Unknown'}</button> },
     {
       key: 'requirement',
       header: 'Requirement',
@@ -128,7 +156,16 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
     },
     { key: 'submitted_at', header: 'Submitted', render: (submission) => manilaDate(submission.submitted_at, 'long') },
     { key: 'submitted_by', header: 'Submitted by', render: (submission) => (submission.submitter ? `${submission.submitter.first_name} ${submission.submitter.last_name}` : 'Unknown') },
-    { key: 'status', header: 'Status', render: (submission) => <StatusBadge status={submission.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (submission) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={submission.status} />
+          <span className="text-xs font-semibold text-ink-muted-strong">{complianceStageText(stageInput(submission))}</span>
+        </div>
+      ),
+    },
   ];
 
   const filtersActive = Boolean(organizationId) || status !== DEFAULT_STATUS;
@@ -202,11 +239,39 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
           <EmptyState
             kind="first-run"
             icon={Check}
-            title="Nothing waiting on you"
-            description="Submissions from organizations will land here for your review as they come in."
+            title="Nothing to review"
+            description="Organization admins upload each requirement from their Compliance page. Every submission lands here for your decision."
           />
         )}
       />
+
+      <Drawer
+        open={Boolean(openSubmission)}
+        title={openSubmission ? (openSubmission.requirement_type?.name || 'Submission') : undefined}
+        description={openSubmission ? openSubmission.organization?.name : undefined}
+        onClose={() => setRecordId(null)}
+      >
+        {openSubmission && (
+          <div className="flex flex-col gap-4">
+            <FlowStepper steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />
+            <NextStep {...toNextStepProps(complianceStage(stageInput(openSubmission), 'SUPER_ADMIN'))} primary={undefined} />
+            <dl className="grid gap-3 text-sm">
+              <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-bold text-ink">{manilaDate(openSubmission.submitted_at, 'long')}</dd></div>
+              <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-bold text-ink">{openSubmission.submitter ? `${openSubmission.submitter.first_name} ${openSubmission.submitter.last_name}` : 'Unknown'}</dd></div>
+              {openSubmission.remarks && <div><dt className="text-xs font-semibold text-ink-muted">SAO remarks</dt><dd className="font-medium text-ink">{openSubmission.remarks}</dd></div>}
+            </dl>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="secondary" leftIcon={ExternalLink} onClick={() => openDocument(openSubmission)} disabled={openingDocumentId === openSubmission.id}>Open document</Button>
+              {openSubmission.status === 'submitted' && (
+                <>
+                  <Button variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'return' }); }}>Return</Button>
+                  <Button onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'approve' }); }}>Approve</Button>
+                </>
+              )}
+            </div>
+          </div>
+        )}
+      </Drawer>
 
       <ConfirmModal
         open={reviewTarget?.action === 'approve'}
