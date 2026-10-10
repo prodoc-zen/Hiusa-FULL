@@ -3,7 +3,10 @@ import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { Button, Drawer, EmptyState, FlowStepper, NextStep, PageHeader } from "../../../components/ui";
+import { orderLifecycle, toNextStepProps } from "../../../lib/lifecycle";
+import useRecordParam from "../../../lib/useRecordParam";
 import TableRowActions from "../../../components/TableRowActions";
 import {
   AlertTriangle,
@@ -13,7 +16,6 @@ import {
   Crown,
   ChevronLeft,
   ChevronRight,
-  Circle,
   PhilippinePeso,
   Download,
   ImagePlus,
@@ -199,47 +201,37 @@ function reviewActionLabel(action) {
   return capitalize(String(action || "review updated").replaceAll("_", " "));
 }
 
-function StepNode({ active, done, label }) {
-  return (
-    <div className="flex items-center gap-3">
-      <div
-        className={`grid h-7 w-7 place-items-center rounded-full border-2 transition-colors ${done ? "border-emerald-500 bg-emerald-500" : active ? "border-[#0B8ED0] bg-[#0878B7]" : "border-slate-200 bg-white"}`}
-      >
-        {done ? (
-          <CheckCircle size={14} className="text-white" />
-        ) : (
-          <Circle
-            size={10}
-            className={active ? "text-white" : "text-slate-300"}
-          />
-        )}
-      </div>
-      <span
-        className={`text-xs font-bold ${done || active ? "text-[#0F172A]" : "text-slate-500"}`}
-      >
-        {label}
-      </span>
-    </div>
-  );
+// The lifecycle describes a pending order from the buyer's side. A cash order carries no proof, so the
+// staff who collect the cash are the ones who verify it, and the officer and the Admin review in two
+// steps: the officer's verification waits for the Admin's approval.
+function staffOrderFlow(order, role) {
+  const flow = orderLifecycle(order, role);
+  if (order.status !== "pending") return flow;
+  if (order.officer_review_status === "approved") {
+    if (role === "ADMIN") {
+      return { ...flow, actorRole: "ADMIN", nextAction: { tone: "action", title: "Approve the verified payment", body: "An officer verified this payment. Approve it to issue the claim token." } };
+    }
+    return { ...flow, actorRole: "ADMIN", nextAction: { tone: "waiting", title: "Verified: waiting for Admin approval", body: "You verified this payment. The Admin approves it and the claim token is issued." } };
+  }
+  if (!order.payment_proof_url) {
+    return { ...flow, actorRole: role, nextAction: { tone: "action", title: "Collect the cash and verify the payment", body: "No GCash proof was submitted. Verify the payment once the buyer has paid at pickup." } };
+  }
+  return flow;
 }
 
-function StepTracker({ status }) {
-  const done1 = ["paid", "claimed"].includes(status);
-  const done2 = status === "claimed";
+function staffNextStepProps(order, role, flow, onVerify) {
+  const props = toNextStepProps(flow);
+  if (order.status === "pending" && flow.nextAction.tone === "action") {
+    return { ...props, primary: { label: role === "ADMIN" ? "Approve payment" : "Verify payment", onClick: onVerify } };
+  }
+  return props;
+}
+
+function OrderStage({ flow, title, order, className = "" }) {
   return (
-    <div className="flex flex-col">
-      <StepNode active={status === "pending"} done={done1} label="Ordered" />
-      <p className="ml-10 text-[11px] text-slate-500">Your order has been placed.</p>
-      <div
-        className={`ml-[13px] h-6 w-px ${done1 ? "bg-emerald-400" : "bg-slate-200"}`}
-      />
-      <StepNode active={status === "paid"} done={done2} label="Paid" />
-      <p className="ml-10 text-[11px] text-slate-500">{done1 ? 'Payment approved. Bring your claim token to pickup.' : 'Awaiting payment approval.'}</p>
-      <div
-        className={`ml-[13px] h-6 w-px ${done2 ? "bg-emerald-400" : "bg-slate-200"}`}
-      />
-      <StepNode active={status === "claimed"} done={false} label="Claimed" />
-      <p className="ml-10 text-[11px] text-slate-500">{done2 ? 'Items handed over and token used.' : 'Show your token when collecting your items.'}</p>
+    <div className={`min-w-0 space-y-1.5 ${className}`}>
+      {order.status !== "cancelled" && <FlowStepper variant="compact" steps={flow.steps} ariaLabel={`ORD-${order.id} progress`} />}
+      <p className="text-xs font-semibold text-[#0F172A]">{title ?? flow.nextAction.title}</p>
     </div>
   );
 }
@@ -375,6 +367,7 @@ function FulfillmentOrderRow({
   ]
     .filter(Boolean)
     .join(" · ");
+  const flow = staffOrderFlow(order, role);
 
   return (
     <article className="rounded-lg border border-[#DDE7EF] bg-white p-4 transition hover:bg-[#F8FBFD] sm:p-5">
@@ -402,6 +395,7 @@ function FulfillmentOrderRow({
           <p className="mt-1 truncate text-[11px] text-slate-500">
             {academicProfile || order.student?.department || "No academic profile"}
           </p>
+          <OrderStage flow={flow} order={order} className="mt-3" />
         </div>
 
         <div className="min-w-0 border-t border-[#EEF6FB] pt-4 xl:border-l xl:border-t-0 xl:pl-5 xl:pt-0">
@@ -473,6 +467,14 @@ function FulfillmentOrderRow({
           >
             Review
           </button>
+          {order.status === "paid" && (
+            <Link
+              to="/dashboard/merchandise/claim-tokens"
+              className="inline-flex min-h-11 flex-1 items-center justify-center gap-1.5 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"
+            >
+              Claim desk <ArrowRight size={13} />
+            </Link>
+          )}
           {order.status === "pending" && (
             <>
               <button
@@ -499,6 +501,8 @@ function FulfillmentOrderRow({
 
 export default function MerchandisePage({ initialTab }) {
   const location = useLocation();
+  const navigate = useNavigate();
+  const [recordId, setRecordId] = useRecordParam();
   const role = getRole();
   const isFulfillmentRole = role === "ADMIN" || role === "SBO_OFFICER";
   const defaultTab =
@@ -513,6 +517,8 @@ export default function MerchandisePage({ initialTab }) {
 
   const [items, setItems] = useState([]);
   const [orders, setOrders] = useState([]);
+  const [mineOrders, setMineOrders] = useState([]);
+  const [placedOrderIds, setPlacedOrderIds] = useState(() => location.state?.placedOrderIds ?? []);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [inventorySearch, setInventorySearch] = useState("");
@@ -627,11 +633,18 @@ export default function MerchandisePage({ initialTab }) {
     danger: false,
   });
 
-  async function openOrderDetails(order) {
-    setOrderDetails(order);
+  function openOrderDetails(order) {
+    setRecordId(order.id);
+  }
+
+  function closeOrderDetails() {
+    setRecordId(null);
+  }
+
+  async function loadOrderTrail(orderId) {
     setOrderReviewTrail({ loading: true, entries: [], error: "" });
     try {
-      const response = await getOrderAuditLogs(order.id);
+      const response = await getOrderAuditLogs(orderId);
       setOrderReviewTrail({
         loading: false,
         entries: Array.isArray(response.data) ? response.data : [],
@@ -738,6 +751,7 @@ export default function MerchandisePage({ initialTab }) {
         extractOrders(oRes);
         if (gcashRes) setGcashSettings(gcashRes.data ?? gcashRes);
         if (allMineOrders) {
+          setMineOrders(allMineOrders);
           setPendingOrdersTotal(allMineOrders.filter((o) => o.status === "pending").length);
         }
       })
@@ -773,6 +787,60 @@ export default function MerchandisePage({ initialTab }) {
   useEffect(() => {
     if (initialTab) setActiveTab(initialTab);
   }, [initialTab]);
+  useEffect(() => {
+    if (activeTab !== "inventory" || role !== "ADMIN") return;
+    getGcashSettings()
+      .then((response) => setGcashSettings(response.data ?? response))
+      .catch(() => {});
+  }, [activeTab, role]);
+  useEffect(() => {
+    if (activeTab !== "my-orders") setPlacedOrderIds([]);
+  }, [activeTab]);
+  useEffect(() => {
+    if (!recordId || !["orders", "tokens", "my-orders"].includes(activeTab)) {
+      setOrderDetails(null);
+      return undefined;
+    }
+    const found = [...orders, ...mineOrders].find((order) => String(order.id) === recordId);
+    if (found) {
+      setOrderDetails(found);
+      return undefined;
+    }
+    if (loading || (orderDetails && String(orderDetails.id) === recordId)) return undefined;
+
+    const notFound = () => {
+      showFeedback("error", `ORD-${recordId} was not found${isPersonalShoppingView ? " in your orders" : ""}.`);
+      setRecordId(null);
+    };
+    if (isPersonalShoppingView) {
+      notFound();
+      return undefined;
+    }
+    // There is no single-order endpoint, so a deep link to an order outside the loaded page looks it
+    // up by id through the queue search, oldest first so the exact id ranks ahead of partial matches.
+    let cancelled = false;
+    getOrders({ page: 1, ...EMPTY_ORDER_FILTERS, search: recordId, sort: "oldest" })
+      .then((response) => {
+        if (cancelled) return;
+        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
+        const hit = rows.find((order) => String(order.id) === recordId);
+        if (hit) setOrderDetails(hit);
+        else notFound();
+      })
+      .catch(() => {
+        if (!cancelled) notFound();
+      });
+    return () => {
+      cancelled = true;
+    };
+    // The setter changes identity with every URL change and the open order is only read to avoid a
+    // second lookup, so neither may re-run the effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordId, activeTab, orders, mineOrders, loading, isPersonalShoppingView]);
+  useEffect(() => {
+    if (!orderDetails?.id || isPersonalShoppingView) return;
+    loadOrderTrail(orderDetails.id);
+  }, [orderDetails?.id, isPersonalShoppingView]);
   useEffect(() => {
     if (isPersonalShoppingView || activeTab !== "orders") return undefined;
     const timer = window.setTimeout(async () => {
@@ -1053,7 +1121,7 @@ export default function MerchandisePage({ initialTab }) {
       const res = await updateOrderStatus(id, status, remarks, verifiedAmount);
       setOrders((prev) => prev.map((o) => (o.id === id ? res.data : o)));
       if (orderDetails?.id === id) {
-        await openOrderDetails(res.data);
+        await loadOrderTrail(id);
       }
       setTransactionMessage(
         role === "SBO_OFFICER" && status === "paid"
@@ -1086,11 +1154,10 @@ export default function MerchandisePage({ initialTab }) {
         payment_reference: reference.trim(),
         payment_proof: proofFile,
       });
-      setOrders((current) =>
-        current.map((row) =>
-          row.id === order.id ? { ...row, ...res.data } : row,
-        ),
-      );
+      const merge = (rows) =>
+        rows.map((row) => (row.id === order.id ? { ...row, ...res.data } : row));
+      setOrders(merge);
+      setMineOrders(merge);
       setPaymentModal({
         open: false,
         order: null,
@@ -1139,9 +1206,10 @@ export default function MerchandisePage({ initialTab }) {
       danger: true,
       action: async () => {
         const response = await cancelOrder(order.id);
-        setOrders((current) =>
-          current.map((row) => (row.id === order.id ? response.data : row)),
-        );
+        const replace = (rows) =>
+          rows.map((row) => (row.id === order.id ? response.data : row));
+        setOrders(replace);
+        setMineOrders(replace);
         setPendingOrdersTotal((current) => Math.max(0, current - 1));
         setTransactionMessage(
           `Order ORD-${order.id} was cancelled.`,
@@ -1415,9 +1483,10 @@ export default function MerchandisePage({ initialTab }) {
     }
 
     const submittedIds = [];
+    const placedIds = [];
     try {
       for (const row of cart) {
-        await placeOrder({
+        const placed = await placeOrder({
           merchandise_id: row.item.id,
           merchandise_variant_id: row.item.merchandise_variant_id,
           quantity: row.quantity,
@@ -1432,15 +1501,20 @@ export default function MerchandisePage({ initialTab }) {
               : null,
         });
         submittedIds.push(cartKey(row.item));
+        if (placed?.data?.id) placedIds.push(placed.data.id);
       }
 
       setCart([]);
       setCheckoutOpen(false);
       setCheckoutPayment({ method: "cash", reference: "", proof_file: null });
       await load();
+      setPlacedOrderIds(placedIds);
       setActiveTab("my-orders");
+      navigate("/dashboard/merchandise/my-orders", { state: { placedOrderIds: placedIds } });
       setTransactionMessage(
-        "Order list submitted successfully. Wait for payment confirmation.",
+        placedIds.length === 1
+          ? `Order ORD-${placedIds[0]} reserved.`
+          : "Your orders are reserved.",
       );
     } catch (err) {
       const msg =
@@ -1665,6 +1739,68 @@ export default function MerchandisePage({ initialTab }) {
     ordersMeta.current_page * ordersMeta.per_page,
     ordersMeta.total,
   );
+  const gcashReady = Boolean(gcashSettings?.gcash_qr_url);
+  const gcashUnavailable = gcashSettings !== null && !gcashReady;
+
+  function renderStaffStage(order, className) {
+    return <OrderStage flow={staffOrderFlow(order, role)} order={order} className={className} />;
+  }
+
+  function browseShop() {
+    setActiveTab("order");
+    navigate("/dashboard/merchandise/order-merchandise");
+  }
+
+  function openProofModal(order) {
+    setPaymentModal({
+      open: true,
+      order,
+      reference: order.payment_reference || "",
+      proof_file: null,
+      busy: false,
+      error: "",
+    });
+  }
+
+  // My orders is always seen as the buyer, even by an officer or Admin buying for themselves. Rows, the
+  // detail and the checkout confirmation all read this one function so their stage text cannot differ.
+  function buyerStage(order) {
+    const flow = orderLifecycle(order, "STUDENT");
+    const props = toNextStepProps(flow);
+    if (order.status === "pending" && !order.payment_proof_url && gcashUnavailable) {
+      return { flow, props: { ...props, title: "Pay cash at pickup", body: "Online payment is not available. Your items are reserved and the order is confirmed once the payment is checked." } };
+    }
+    return { flow, props };
+  }
+
+  function buyerNextStepProps(order, { reserved = 0 } = {}) {
+    const { props } = buyerStage(order);
+    const next = reserved
+      ? { ...props, title: reserved > 1 ? `${reserved} orders reserved` : `ORD-${order.id} reserved`, body: `${reserved > 1 ? `ORD-${order.id} is next. ` : ""}Next: ${props.title}. ${props.body}` }
+      : props;
+    if (order.status === "pending" && props.tone === "action") {
+      return {
+        ...next,
+        primary: gcashReady
+          ? { label: "Submit GCash proof", onClick: () => openProofModal(order) }
+          : reserved ? { label: "View order", onClick: () => openOrderDetails(order) } : undefined,
+      };
+    }
+    return next;
+  }
+
+  function renderBuyerStage(order, className) {
+    const { flow, props } = buyerStage(order);
+    return <OrderStage flow={flow} title={props.title} order={order} className={className} />;
+  }
+
+  const placedOrders = placedOrderIds
+    .map((id) => orders.find((order) => order.id === id) ?? mineOrders.find((order) => order.id === id))
+    .filter(Boolean);
+  const placedNextStep = placedOrders.length > 0 && activeTab === "my-orders" ? (
+    <NextStep {...buyerNextStepProps(placedOrders[0], { reserved: placedOrders.length })} />
+  ) : null;
+
   const feedbackPopup = feedback.open ? (
     <div className="dashboard-centered-popup fixed top-[calc(var(--dashboard-navbar-bottom,68px)+0.75rem)] z-[70] w-[calc(100vw-2rem)] -translate-x-1/2">
       <div
@@ -1700,6 +1836,7 @@ export default function MerchandisePage({ initialTab }) {
   if (isPersonalShoppingView) {
     return (
       <div className="space-y-6">
+        <PageHeader nextStep={placedNextStep} />
         {feedbackPopup}
         <ProductImageViewer lightbox={lightbox} onChange={setLightbox} onClose={() => setLightbox(null)} />
         <Modal open={Boolean(productPreview)} title={formatDisplayText(productPreview?.name)} onClose={() => setProductPreview(null)} maxWidth="max-w-xl" footer={productPreview && <button type="button" onClick={() => { if (addToCart(productPreview)) setProductPreview(null); }} disabled={productPreview.stock_quantity === 0} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white disabled:opacity-50"><ShoppingBag size={16} />Add to cart</button>}>
@@ -1806,7 +1943,9 @@ export default function MerchandisePage({ initialTab }) {
                   {availableUnits} total units available across {availableItems.length} products
                 </p>
                 <p className="text-xs font-medium text-slate-500">
-                  Stock refreshes after every reservation or cancellation.
+                  {gcashUnavailable
+                    ? "Online payment is not available. Pay cash at pickup."
+                    : "Stock refreshes after every reservation or cancellation."}
                 </p>
               </div>
             </div>
@@ -1821,21 +1960,23 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : filteredStudentItems.length === 0 ? (
-              <div className="rounded-lg border border-[#DDE7EF] bg-white p-12 text-center">
-                <Package size={36} className="mx-auto mb-3 text-slate-200" />
-                <p className="text-sm font-bold text-[#0F172A]">
-                  No merchandise matches your filters.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setStudentItemSearch("");
-                    setStudentCategory("all");
-                  }}
-                  className="mt-3 text-xs font-bold text-[#0878B7] hover:text-[#0878B7]"
-                >
-                  Clear search and category
-                </button>
+              <div className="rounded-lg border border-[#DDE7EF] bg-white">
+                {items.some((item) => item.is_active) ? (
+                  <EmptyState
+                    kind="filtered"
+                    title="No merchandise matches your filters."
+                    onClearFilters={() => {
+                      setStudentItemSearch("");
+                      setStudentCategory("all");
+                    }}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={Package}
+                    title="Nothing to buy yet."
+                    description="Your officers add merchandise here."
+                  />
+                )}
               </div>
             ) : (
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
@@ -2125,16 +2266,21 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : filteredStudentOrders.length === 0 ? (
-              <div className="rounded-lg border border-[#DDE7EF] bg-white p-12 text-center">
-                <ShoppingBag
-                  size={36}
-                  className="mx-auto mb-3 text-slate-200"
-                />
-                <p className="text-sm font-semibold text-slate-500">
-                  {studentOrderSearch.trim() && ordersMeta.total > 0
-                    ? "No orders on this page match your search."
-                    : "No orders yet. Browse merchandise to place your first order."}
-                </p>
+              <div className="rounded-lg border border-[#DDE7EF] bg-white">
+                {studentOrderSearch.trim() && ordersMeta.total > 0 ? (
+                  <EmptyState
+                    kind="filtered"
+                    title="No orders on this page match your search."
+                    onClearFilters={() => setStudentOrderSearch("")}
+                  />
+                ) : (
+                  <EmptyState
+                    icon={ShoppingBag}
+                    title="No orders yet."
+                    description="Browse the shop to place your first order."
+                    action={<Button onClick={browseShop}>Browse the shop</Button>}
+                  />
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -2143,8 +2289,6 @@ export default function MerchandisePage({ initialTab }) {
                     key={o.id}
                     className={`rounded-lg border bg-white p-5 shadow-sm ${o.status === "claimed" ? "border-emerald-200" : o.status === "paid" ? "border-amber-200" : "border-[#DDE7EF]"}`}
                   >
-                    <div className="grid gap-4 lg:grid-cols-[210px_minmax(0,1fr)]">
-                    <aside className="rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-4"><p className="mb-4 text-xs font-bold uppercase text-[#0F2F62]">Order status</p>{o.status === 'cancelled' ? <p className="text-sm font-bold text-red-700">Cancelled</p> : <StepTracker status={o.status} />}</aside>
                     <div className="min-w-0 space-y-3">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="flex min-w-0 items-start gap-3">
@@ -2184,6 +2328,16 @@ export default function MerchandisePage({ initialTab }) {
                         </span>
                       </div>
                     </div>
+                    <div className="flex flex-wrap items-end justify-between gap-3 border-t border-[#EEF6FB] pt-3">
+                      {renderBuyerStage(o, "min-w-[220px] flex-1")}
+                      <button
+                        type="button"
+                        onClick={() => openOrderDetails(o)}
+                        className="inline-flex min-h-11 items-center rounded-lg border border-[#DDE7EF] bg-white px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]"
+                      >
+                        View details
+                      </button>
+                    </div>
                     {o.status === "paid" && (
                       <ClaimTicket order={o} onPrint={() => printClaimTicket(o)} />
                     )}
@@ -2201,9 +2355,9 @@ export default function MerchandisePage({ initialTab }) {
                         <p className="text-[12px] font-semibold text-[#0B1831]">
                           {o.payment_proof_url
                             ? "Payment proof submitted and awaiting officer verification."
-                            : gcashSettings?.gcash_qr_url
+                            : gcashReady
                               ? "You can submit GCash proof now or pay cash on pickup."
-                              : "Pay cash on pickup. GCash is unavailable until the official QR code is configured."}
+                              : "Online payment is not available. Pay cash at pickup."}
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {gcashSettings?.gcash_qr_url && (
@@ -2260,7 +2414,6 @@ export default function MerchandisePage({ initialTab }) {
                       </div>
                     )}
                     </div>
-                    </div>
                   </div>
                 ))}
               </div>
@@ -2274,6 +2427,36 @@ export default function MerchandisePage({ initialTab }) {
             />
           </section>
         )}
+
+        <Drawer
+          open={Boolean(orderDetails) && activeTab === "my-orders"}
+          title={orderDetails ? `ORD-${orderDetails.id}` : ""}
+          description={orderDetails ? formatDisplayText(orderDetails.merchandise?.name) : ""}
+          onClose={closeOrderDetails}
+          width="max-w-xl"
+        >
+          {orderDetails && (
+            <div className="space-y-5">
+              <FlowStepper steps={buyerStage(orderDetails).flow.steps} ariaLabel={`ORD-${orderDetails.id} progress`} />
+              <NextStep {...buyerNextStepProps(orderDetails)} />
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-line pt-4 text-sm">
+                {[
+                  ["Quantity", orderDetails.quantity],
+                  ["Total", fmt(orderDetails.total_price)],
+                  ["Payment", (orderDetails.payment_method || "cash").toUpperCase()],
+                  ["Ordered", fmtDate(orderDetails.created_at)],
+                  orderDetails.claim_token && ["Claim token", orderDetails.claim_token],
+                  orderDetails.claimed_at && ["Claimed", fmtDateTime(orderDetails.claimed_at)],
+                ].filter(Boolean).map(([label, value]) => (
+                  <div key={label} className="min-w-0">
+                    <dt className="text-xs font-semibold text-ink-muted-strong">{label}</dt>
+                    <dd className={`mt-0.5 break-all font-semibold text-ink ${label === "Claim token" ? "font-mono tracking-wider" : ""}`}>{value}</dd>
+                  </div>
+                ))}
+              </dl>
+            </div>
+          )}
+        </Drawer>
 
         {checkoutOpen && (
           <AccessibleOverlay label="Confirm merchandise reservation" onClose={() => !checkoutSubmitting && setCheckoutOpen(false)} className="fixed inset-0 z-[60] flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
@@ -2340,16 +2523,20 @@ export default function MerchandisePage({ initialTab }) {
                       {!gcashSettings?.gcash_qr_url ? " - unavailable" : ""}
                     </option>
                   </select>
+                  <p className="mt-1 text-xs font-medium text-slate-600">
+                    {checkoutPayment.method === "gcash"
+                      ? "Next: an officer checks your proof. Once it is verified, your claim token appears in My orders."
+                      : "Next: your items are reserved. Pay cash at pickup. Once an officer verifies the payment, your claim token appears in My orders."}
+                  </p>
                   {cart.length > 1 && (
                     <p className="mt-1 text-xs text-slate-500">
                       For GCash, checkout one product at a time so every order
                       has its own reference and proof.
                     </p>
                   )}
-                  {!gcashSettings?.gcash_qr_url && (
+                  {!gcashReady && (
                     <p className="mt-1 text-xs font-medium text-amber-700">
-                      GCash is unavailable until an administrator uploads the
-                      official payment QR code.
+                      Online payment is not available. Pay cash at pickup.
                     </p>
                   )}
                 </div>
@@ -2557,8 +2744,33 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   // ── OFFICER VIEW ──────────────────────────────────────────────────────────────
+  const outOfStockItems = items.filter((item) => item.is_active && item.stock_quantity === 0);
+  const everyItemSoldOut = outOfStockItems.length > 0 && outOfStockItems.length === items.filter((item) => item.is_active).length;
+  const inventoryGuidance = activeTab === "inventory" && !loading && role === "ADMIN" && (outOfStockItems.length > 0 || gcashUnavailable) ? (
+    <div className="space-y-3">
+      {outOfStockItems.length > 0 && (
+        <NextStep
+          title={everyItemSoldOut ? "Every active item is out of stock" : `${outOfStockItems.length} ${outOfStockItems.length === 1 ? "item is" : "items are"} out of stock`}
+          body="Students cannot order an item until you add stock."
+          primary={{ label: "Add stock", onClick: () => openAddStockModal(outOfStockItems[0]) }}
+        />
+      )}
+      {gcashUnavailable && (
+        <NextStep
+          title="Set up GCash so students can pay online"
+          body="Upload the official GCash QR code. Until then students pay cash at pickup."
+          primary={{ label: "Set up GCash", onClick: () => setShowPaymentSettings(true) }}
+        />
+      )}
+    </div>
+  ) : undefined;
+  const addProductButton = activeTab === "inventory" && role === "ADMIN" && (loading || items.length > 0) ? (
+    <Button leftIcon={Plus} onClick={() => setShowForm(true)}>Add product</Button>
+  ) : undefined;
+
   return (
     <div className="space-y-6">
+      <PageHeader primary={addProductButton} nextStep={inventoryGuidance} />
       {feedbackPopup}
       {activeTab === "inventory" && (
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -2643,13 +2855,6 @@ export default function MerchandisePage({ initialTab }) {
                   className="w-full bg-transparent text-[13px] outline-none placeholder:text-slate-500 sm:w-[140px]"
                 />
               </div>
-              {role === "ADMIN" && <button
-                onClick={() => setShowForm(true)}
-                className="flex h-10 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition"
-              >
-                <Plus size={16} />
-                <span className="hidden sm:inline">Add Product</span>
-              </button>}
             </div>
           </div>
           {loading ? (
@@ -2662,9 +2867,29 @@ export default function MerchandisePage({ initialTab }) {
               ))}
             </div>
           ) : filteredInventoryItems.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-500">
-              No inventory items yet.
-            </p>
+            items.length > 0 ? (
+              <EmptyState
+                kind="filtered"
+                title="No items match these filters."
+                onClearFilters={() => {
+                  setInventorySearch("");
+                  setInventoryCategory("all");
+                }}
+              />
+            ) : role === "ADMIN" ? (
+              <EmptyState
+                icon={Package}
+                title="No items yet."
+                description="Add your first merchandise item so students can order it from the Shop."
+                action={<Button leftIcon={Plus} onClick={() => setShowForm(true)}>Add your first item</Button>}
+              />
+            ) : (
+              <EmptyState
+                kind="restricted"
+                title="No items yet."
+                description="Only the Admin can add merchandise."
+              />
+            )
           ) : (
             <div className="grid gap-4 p-5 sm:grid-cols-2 xl:grid-cols-3">
               {filteredInventoryItems.map((item) => (
@@ -3048,9 +3273,20 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : filteredOfficerOrders.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">
-                {activeOrderFilterCount > 0 ? "No orders match these filters." : "No orders yet."}
-              </p>
+              activeOrderFilterCount > 0 ? (
+                <EmptyState
+                  kind="filtered"
+                  title="No orders match these filters."
+                  onClearFilters={() => setOrderFilters(EMPTY_ORDER_FILTERS)}
+                />
+              ) : (
+                <EmptyState
+                  icon={ShoppingBag}
+                  title="No orders yet."
+                  description={role === "ADMIN" ? "Orders appear here when students check out from the Shop. Add merchandise in Inventory first." : "Orders appear here when students check out from the Shop."}
+                  action={role === "ADMIN" ? <Button variant="secondary" to="/dashboard/merchandise/manage-inventory">Open inventory</Button> : undefined}
+                />
+              )
             ) : (
               <>
               <div className={orderQueueView === 'cards' ? 'grid gap-3 p-3 sm:grid-cols-2' : 'grid gap-3 p-3 xl:hidden'}>
@@ -3194,6 +3430,7 @@ export default function MerchandisePage({ initialTab }) {
                           >
                             {capitalize(o.status)}
                           </span>
+                          {renderStaffStage(o, "mt-2")}
                           <p className="mt-2 text-[10px] text-slate-500">
                             Released by{" "}
                             {o.claim_verifier
@@ -3226,6 +3463,7 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4">
                           <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
                             { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
+                            o.status === 'paid' && { label: 'Release at claim desk', icon: Ticket, onClick: () => navigate('/dashboard/merchandise/claim-tokens') },
                             o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' }) },
                             o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => setRejectionModal({ open: true, order: o, remarks: '', busy: false, error: '' }) },
                           ]} />
@@ -3299,7 +3537,7 @@ export default function MerchandisePage({ initialTab }) {
         closeOnEscape={!paymentSettingsBusy}
         maxWidth="max-w-2xl"
       >
-        <GcashPaymentSettingsPage embedded showHeading={false} readOnly={role !== "ADMIN"} onBusyChange={setPaymentSettingsBusy} />
+        <GcashPaymentSettingsPage embedded showHeading={false} readOnly={role !== "ADMIN"} onBusyChange={setPaymentSettingsBusy} onSaved={setGcashSettings} />
       </Modal>
 
       {analyticsModal.open && (
@@ -3496,7 +3734,7 @@ export default function MerchandisePage({ initialTab }) {
       )}
 
       {orderDetails && (
-        <AccessibleOverlay label="Merchandise order details" onClose={() => setOrderDetails(null)} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Merchandise order details" onClose={closeOrderDetails} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/55 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between">
               <div>
@@ -3513,11 +3751,15 @@ export default function MerchandisePage({ initialTab }) {
               <button
                 type="button"
                 aria-label="Close order details"
-                onClick={() => setOrderDetails(null)}
+                onClick={closeOrderDetails}
                 className="grid h-9 w-9 place-items-center rounded-lg text-slate-500 hover:bg-[#F8FBFD]"
               >
                 <X size={18} />
               </button>
+            </div>
+            <div className="mt-5 space-y-4">
+              <FlowStepper steps={staffOrderFlow(orderDetails, role).steps} ariaLabel={`ORD-${orderDetails.id} progress`} />
+              <NextStep {...staffNextStepProps(orderDetails, role, staffOrderFlow(orderDetails, role), () => openPaymentVerification(orderDetails))} />
             </div>
             <div className="mt-5"><ReceiptDocument order={orderDetails} onViewProof={handleViewPaymentProof} /></div>
             <section className="mt-5 border-t border-[#DDE7EF] pt-5">
@@ -3603,10 +3845,10 @@ export default function MerchandisePage({ initialTab }) {
               </span>
               <div>
                 <h2 className="text-lg font-bold text-[#0F172A]">
-                  Validate a claim token
+                  Release an order
                 </h2>
                 <p className="mt-1 text-sm font-medium text-slate-500">
-                  Match the buyer and item below, then confirm before releasing merchandise.
+                  Enter the buyer's claim token, match the buyer and item, then confirm before releasing merchandise.
                 </p>
               </div>
             </div>
@@ -3642,13 +3884,13 @@ export default function MerchandisePage({ initialTab }) {
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#DDE7EF] p-5">
               <div>
               <h2 className="text-lg font-bold text-[#0F172A]">
-                Token register
+                Claim desk register
               </h2>
               <p className="text-sm font-medium text-slate-500">
-                Review pending and claimed tokens.
+                Orders waiting to be claimed and orders already released.
               </p>
               </div>
-              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select></div>
+              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="paid">Waiting to be claimed</option><option value="claimed">Claimed</option></select></div>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -3660,9 +3902,20 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : tokenOrders.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">
-                No tokens match this status.
-              </p>
+              tokenStatusFilter === "paid" ? (
+                <EmptyState
+                  icon={Ticket}
+                  title="Nothing is waiting at the claim desk."
+                  description="Orders appear here once their payment is verified and the buyer has a claim token."
+                  action={<Button variant="secondary" to="/dashboard/merchandise/manage-orders">Open orders</Button>}
+                />
+              ) : (
+                <EmptyState
+                  icon={Ticket}
+                  title="No orders have been claimed yet."
+                  description="Released orders are listed here after you confirm a claim."
+                />
+              )
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[1050px] text-left">
@@ -3693,7 +3946,7 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4">{o.student?.program || "-"}</td>
                         <td className="px-4 py-4 uppercase">{o.payment_method || "-"}</td>
                         <td className="px-4 py-4 font-bold">{o.quantity}</td>
-                        <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-bold ${o.status === 'claimed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{o.status === 'claimed' ? 'Claimed' : 'Pending claim'}</span><br /><span className="font-mono text-xs">{o.claim_token || '-'}</span></td>
+                        <td className="px-4 py-4"><span className={`rounded-full px-2 py-1 text-xs font-bold ${o.status === 'claimed' ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-800'}`}>{o.status === 'claimed' ? 'Claimed' : 'Waiting to be claimed'}</span><br /><span className="font-mono text-xs">{o.claim_token || '-'}</span></td>
                         <td className="px-4 py-4"><TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[{ label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) }]} /></td>
                       </tr>
                     ))}

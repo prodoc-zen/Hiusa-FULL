@@ -1,6 +1,6 @@
 import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { MemoryRouter } from "react-router-dom";
+import { MemoryRouter, useLocation } from "react-router-dom";
 import MerchandisePage from "./MerchandisePage";
 
 const merchandiseMocks = vi.hoisted(() => ({
@@ -359,7 +359,7 @@ describe("MerchandisePage fulfillment experience", () => {
       </MemoryRouter>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Validate a claim token" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Release an order" })).toBeInTheDocument();
     expect(await screen.findByText("CLAIMTOKEN123456")).toBeInTheDocument();
     await waitFor(() =>
       expect(orderMocks.getOrders).toHaveBeenCalledWith(
@@ -409,5 +409,343 @@ describe("MerchandisePage fulfillment experience", () => {
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
     fireEvent.click(screen.getAllByRole("button", { name: "Add Stock" }).at(-1));
     await waitFor(() => expect(merchandiseMocks.adjustStock).toHaveBeenCalledWith(1, 1, "New delivery", null));
+  });
+});
+
+function LocationProbe() {
+  const location = useLocation();
+  return <p data-testid="location">{location.pathname}{location.search}</p>;
+}
+
+function renderAt(entry, initialTab) {
+  return render(
+    <MemoryRouter initialEntries={[entry]}>
+      <LocationProbe />
+      <MerchandisePage initialTab={initialTab} />
+    </MemoryRouter>,
+  );
+}
+
+const buyerOrder = (overrides) => ({
+  merchandise: products[0],
+  quantity: 1,
+  total_price: "350.00",
+  payment_method: "cash",
+  payment_proof_url: null,
+  payment_reference: null,
+  officer_review_status: "pending",
+  admin_review_status: "pending",
+  status: "pending",
+  claim_token: null,
+  created_at: "2026-09-13T10:00:00Z",
+  ...overrides,
+});
+
+const progress = (id) => screen.getAllByRole("progressbar", { name: `ORD-${id} progress` })[0];
+
+describe("MerchandisePage order stages for the buyer", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("user", JSON.stringify({ school_id: 910001, role: "STUDENT" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+  });
+
+  it("puts every order status on the four step order stepper with its next action", async () => {
+    orderMocks.getOrders.mockResolvedValue({
+      data: paginatedOrders([
+        buyerOrder({ id: 1 }),
+        buyerOrder({ id: 2, payment_method: "gcash", payment_proof_url: "proofs/2.jpg", payment_reference: "1234567890123" }),
+        buyerOrder({ id: 3, status: "paid", claim_token: "CLAIMTOKEN123456" }),
+        buyerOrder({ id: 4, status: "claimed", claim_token: "CLAIMTOKEN654321", claimed_at: "2026-09-20T10:00:00Z" }),
+        buyerOrder({ id: 5, status: "cancelled", review_remarks: "Out of stock." }),
+      ]),
+    });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    await screen.findByText("Pay cash at pickup, or submit GCash proof");
+    expect(progress(1)).toHaveAttribute("aria-valuetext", "Step 1 of 4: Reserved");
+    expect(progress(2)).toHaveAttribute("aria-valuetext", "Step 2 of 4: Payment check");
+    expect(screen.getAllByText("Waiting for payment check").length).toBeGreaterThan(0);
+    expect(progress(3)).toHaveAttribute("aria-valuetext", "Step 3 of 4: Paid");
+    expect(screen.getByText("Show token CLAIMTOKEN123456 at the claim desk")).toBeInTheDocument();
+    expect(progress(4)).toHaveAttribute("aria-valuetext", "Complete: 4 of 4 steps done");
+    expect(screen.getByText(/^Collected on /)).toBeInTheDocument();
+    expect(screen.queryByRole("progressbar", { name: "ORD-5 progress" })).not.toBeInTheDocument();
+    expect(screen.getAllByText("Cancelled").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Out of stock.")).toBeInTheDocument();
+  });
+
+  it("tells a buyer there is no online payment instead of offering GCash", async () => {
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 1 })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    expect(await screen.findByText("Pay cash at pickup")).toBeInTheDocument();
+    expect(screen.getAllByText("Online payment is not available. Pay cash at pickup.").length).toBeGreaterThan(0);
+    expect(screen.queryByRole("button", { name: "Submit GCash Proof" })).not.toBeInTheDocument();
+  });
+
+  it("says so on the shop when GCash is not set up and not when it is", async () => {
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    const first = renderAt("/dashboard/merchandise/order-merchandise", "order");
+    expect(await screen.findByText("Online payment is not available. Pay cash at pickup.")).toBeInTheDocument();
+    first.unmount();
+
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+    await screen.findByText("HIUSA Shirt");
+    expect(screen.queryByText("Online payment is not available. Pay cash at pickup.")).not.toBeInTheDocument();
+  });
+
+  it("opens an order's detail from ?record= with the full stepper and closes it", async () => {
+    orderMocks.getOrders.mockResolvedValue({
+      data: paginatedOrders([buyerOrder({ id: 3, status: "paid", claim_token: "CLAIMTOKEN123456" }), buyerOrder({ id: 4 })]),
+    });
+    renderAt("/dashboard/merchandise/my-orders?record=3", "my-orders");
+
+    const dialog = await screen.findByRole("dialog", { name: "ORD-3" });
+    const steps = within(dialog).getByRole("list", { name: "ORD-3 progress" });
+    const current = within(steps).getAllByRole("listitem").find((step) => step.getAttribute("aria-current") === "step");
+    expect(current).toHaveTextContent("Paid");
+    expect(within(dialog).getByText("Show token CLAIMTOKEN123456 at the claim desk")).toBeInTheDocument();
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close panel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("location")).toHaveTextContent(/^\/dashboard\/merchandise\/my-orders$/);
+  });
+
+  it("pushes ?record= when a row is opened and returns to the list on close", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 4 })]) });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    fireEvent.click(await screen.findByRole("button", { name: "View details" }));
+    expect(await screen.findByRole("dialog", { name: "ORD-4" })).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("?record=4");
+
+    fireEvent.click(screen.getByRole("button", { name: "Close panel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("location")).not.toHaveTextContent("record=");
+  });
+
+  it("reports an unknown ?record= instead of opening an empty panel", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 4 })]) });
+    renderAt("/dashboard/merchandise/my-orders?record=999", "my-orders");
+
+    expect(await screen.findByText("ORD-999 was not found in your orders.")).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("location")).not.toHaveTextContent("record="));
+  });
+
+  it("shows a first-run orders state with a button to the shop", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Browse the shop" }));
+    expect(await screen.findByText("HIUSA Shirt")).toBeInTheDocument();
+    expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/merchandise/order-merchandise");
+  });
+
+  it("tells a buyer nothing is for sale yet when no item is active", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    expect(await screen.findByText("Nothing to buy yet.")).toBeInTheDocument();
+    expect(screen.getByText("Your officers add merchandise here.")).toBeInTheDocument();
+  });
+
+  it("confirms a checkout with what happens next and shows the same stage on the order row", async () => {
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    localStorage.setItem("hiusa_student_cart", JSON.stringify([{ item: { ...products[0] }, quantity: 1 }]));
+    const placed = buyerOrder({ id: 41 });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+    orderMocks.placeOrder.mockImplementation(async () => {
+      orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([placed]) });
+      return { data: placed };
+    });
+    renderAt("/dashboard/merchandise/order-merchandise", "order");
+
+    fireEvent.click(await screen.findByRole("button", { name: /My Cart/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Review & Continue" }));
+    expect(screen.getByText(/Next: your items are reserved\. Pay cash at pickup/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Place Reservation" }));
+
+    expect(await screen.findByText("ORD-41 reserved")).toBeInTheDocument();
+    expect(screen.getByText(/Next: Pay cash at pickup\./)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId("location")).toHaveTextContent("/dashboard/merchandise/my-orders"));
+    expect(progress(41)).toHaveAttribute("aria-valuetext", "Step 1 of 4: Reserved");
+    expect(screen.getByText("Pay cash at pickup")).toBeInTheDocument();
+  });
+});
+
+describe("MerchandisePage order stages for staff", () => {
+  const staffOrder = (overrides) => buyerOrder({
+    student: { school_id: 2200451, first_name: "Rafael", last_name: "Aquino", role: "STUDENT" },
+    ...overrides,
+  });
+  const queue = (rows) => ({
+    data: {
+      ...paginatedOrders(rows),
+      summary: { total_users: 1, purchased_users: 1, not_purchased_users: 0, purchase_rate: 100, paid_orders: 0, pending_orders: rows.length, claimed_orders: 0, unclaimed_orders: 0, total_collected: 0, outstanding_balance: 0, breakdown: [] },
+      filter_options: { programs: [], majors: [], roles: [], positions: [], merchandise: products, statuses: [], payment_methods: [] },
+    },
+  });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("user", JSON.stringify({ school_id: 100002, role: "SBO_OFFICER" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+  });
+
+  it("gives an officer the one action for each stage", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([
+      staffOrder({ id: 1, payment_method: "gcash", payment_proof_url: "proofs/1.jpg", payment_reference: "1234567890123" }),
+      staffOrder({ id: 2 }),
+      staffOrder({ id: 3, officer_review_status: "approved" }),
+      staffOrder({ id: 4, status: "paid", claim_token: "CLAIMTOKEN123456", officer_review_status: "approved", admin_review_status: "approved" }),
+      staffOrder({ id: 5, status: "claimed", claim_token: "CLAIMTOKEN654321", claimed_at: "2026-09-20T10:00:00Z" }),
+      staffOrder({ id: 6, status: "cancelled" }),
+    ]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    expect((await screen.findAllByText("Verify the payment")).length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Collect the cash and verify the payment").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Verified: waiting for Admin approval").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Release at the claim desk").length).toBeGreaterThan(0);
+    expect(progress(1)).toHaveAttribute("aria-valuetext", "Step 2 of 4: Payment check");
+    expect(progress(4)).toHaveAttribute("aria-valuetext", "Step 3 of 4: Paid");
+    expect(progress(5)).toHaveAttribute("aria-valuetext", "Complete: 4 of 4 steps done");
+    expect(screen.queryByRole("progressbar", { name: "ORD-6 progress" })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("link", { name: /Claim desk/ })[0]).toHaveAttribute("href", "/dashboard/merchandise/claim-tokens");
+  });
+
+  it("asks the Admin to approve a payment the officer already verified", async () => {
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 3, officer_review_status: "approved" })]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    expect((await screen.findAllByText("Approve the verified payment")).length).toBeGreaterThan(0);
+  });
+
+  it("opens an order from ?record= with the stepper and the verify action", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 2 })]));
+    renderAt("/dashboard/merchandise/manage-orders?record=2", "orders");
+
+    const dialog = await screen.findByRole("dialog", { name: "Merchandise order details" });
+    expect(within(dialog).getByRole("list", { name: "ORD-2 progress" })).toBeInTheDocument();
+    expect(within(dialog).getByText("Collect the cash and verify the payment")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Verify payment" }));
+    expect(screen.getByRole("dialog", { name: "Verify merchandise payment" })).toBeInTheDocument();
+  });
+
+  it("looks up an order that is not on the loaded page by its id and closes it", async () => {
+    const far = staffOrder({ id: 99, status: "paid", claim_token: "CLAIMTOKEN123456" });
+    orderMocks.getOrders.mockImplementation(async (params) => (params?.search === "99" ? queue([far]) : queue([staffOrder({ id: 2 })])));
+    renderAt("/dashboard/merchandise/manage-orders?record=99", "orders");
+
+    const dialog = await screen.findByRole("dialog", { name: "Merchandise order details" });
+    expect(within(dialog).getByText("Release at the claim desk")).toBeInTheDocument();
+    expect(orderMocks.getOrders).toHaveBeenCalledWith(expect.objectContaining({ search: "99" }));
+
+    fireEvent.click(within(dialog).getByRole("button", { name: "Close order details" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(screen.getByTestId("location")).not.toHaveTextContent("record=");
+  });
+
+  it("shows a first-run orders state and a filtered one that clears", async () => {
+    orderMocks.getOrders.mockResolvedValue(queue([]));
+    renderAt("/dashboard/merchandise/manage-orders", "orders");
+
+    expect(await screen.findByText("No orders yet.")).toBeInTheDocument();
+    expect(screen.getByText("Orders appear here when students check out from the Shop.")).toBeInTheDocument();
+
+    fireEvent.click(within(screen.getByRole("group", { name: "Filter orders by status" })).getByRole("button", { name: "Claimed" }));
+    expect(await screen.findByText("No orders match these filters.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Clear filters" }));
+    await waitFor(() => expect(screen.getByText("No orders yet.")).toBeInTheDocument());
+  });
+});
+
+describe("MerchandisePage inventory guidance and the Claim desk", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    localStorage.setItem("user", JSON.stringify({ school_id: 100001, role: "ADMIN" }));
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [products[0]], current_page: 1, last_page: 1 } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders() });
+  });
+
+  it("points the Admin to GCash setup when no QR is uploaded and opens the settings in place", async () => {
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect(await screen.findByText("Set up GCash so students can pay online")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Set up GCash" }));
+    expect(screen.getByRole("dialog", { name: "GCash payment settings" })).toBeInTheDocument();
+  });
+
+  it("drops the GCash step as soon as the QR is saved from the settings dialog", async () => {
+    merchandiseMocks.uploadGcashQr.mockResolvedValue({ data: { gcash_qr_url: "/storage/official-qr.png" } });
+    const OriginalURL = globalThis.URL;
+    vi.stubGlobal("URL", class extends OriginalURL {
+      static createObjectURL() { return "blob:gcash-preview"; }
+      static revokeObjectURL() {}
+    });
+    try {
+      renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+      fireEvent.click(await screen.findByRole("button", { name: "Set up GCash" }));
+      const dialog = screen.getByRole("dialog", { name: "GCash payment settings" });
+      const qr = new File(["qr-image"], "official-qr.png", { type: "image/png" });
+      fireEvent.change(await within(dialog).findByLabelText("Official GCash QR image"), { target: { files: [qr] } });
+      fireEvent.click(within(dialog).getByRole("button", { name: "Save GCash QR" }));
+
+      await waitFor(() => expect(screen.queryByText("Set up GCash so students can pay online")).not.toBeInTheDocument());
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("drops the GCash step once a QR exists", async () => {
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    await screen.findByText("HIUSA Shirt");
+    await waitFor(() => expect(merchandiseMocks.getGcashSettings).toHaveBeenCalled());
+    expect(screen.queryByText("Set up GCash so students can pay online")).not.toBeInTheDocument();
+  });
+
+  it("warns when an active item is out of stock and offers to add stock", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: products, current_page: 1, last_page: 1 } });
+    merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: "/storage/qr.png" } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect(await screen.findByText("1 item is out of stock")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add stock" }));
+    expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
+  });
+
+  it("keeps one primary action and a first-run state when there are no items", async () => {
+    merchandiseMocks.getMerchandise.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1 } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect(await screen.findByText("No items yet.")).toBeInTheDocument();
+    expect(screen.getByText("Add your first merchandise item so students can order it from the Shop.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Add product" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Add your first item" }));
+    expect(screen.getByRole("dialog", { name: "Add merchandise product" })).toBeInTheDocument();
+  });
+
+  it("titles the validation page the Claim desk and says so when nothing waits there", async () => {
+    renderAt("/dashboard/merchandise/claim-tokens", "tokens");
+
+    expect(await screen.findByRole("heading", { level: 1, name: "Claim desk" })).toBeInTheDocument();
+    expect(await screen.findByText("Nothing is waiting at the claim desk.")).toBeInTheDocument();
+    expect(screen.queryByText(/Validate/)).not.toBeInTheDocument();
   });
 });

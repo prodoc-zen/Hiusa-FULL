@@ -5,7 +5,7 @@ import FeedbackToast from '../../../components/FeedbackToast';
 import { getGcashSettings, uploadGcashQr } from '../../../services/merchandiseService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 
-export default function GcashPaymentSettingsPage({ embedded = false, readOnly = false, showHeading = true, onBusyChange }) {
+export default function GcashPaymentSettingsPage({ embedded = false, readOnly = false, showHeading = true, onBusyChange, onSaved }) {
   const [settings, setSettings] = useState(null);
   const [file, setFile] = useState(null);
   const [preview, setPreview] = useState('');
@@ -33,6 +33,7 @@ export default function GcashPaymentSettingsPage({ embedded = false, readOnly = 
     try {
       const response = await uploadGcashQr(file);
       setSettings(response.data ?? response);
+      onSaved?.(response.data ?? response);
       setImageError(false);
       setFile(null);
       setFeedback({ open: true, type: 'success', message: 'GCash QR code updated. Students can now use it at merchandise checkout.' });
