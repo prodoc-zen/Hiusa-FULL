@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Announcement;
+use App\Models\AuditLog;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
@@ -116,7 +117,7 @@ class AdminDashboardAndImportTest extends TestCase
 
         $this->assertSame($existingHash, $existing->fresh()->password_hash);
         $this->assertSame(0, $issued->where('school_id', $existing->school_id)->count());
-        foreach (\App\Models\AuditLog::all() as $log) {
+        foreach (AuditLog::all() as $log) {
             foreach ($issued->pluck('password') as $password) {
                 $this->assertStringNotContainsString($password, json_encode($log->toArray()));
             }
