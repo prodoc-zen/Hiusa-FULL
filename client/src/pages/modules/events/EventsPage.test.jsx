@@ -80,7 +80,7 @@ describe('EventsPage approval-request launch', () => {
   it('opens a blank event form from the request selector route', async () => {
     render(<MemoryRouter initialEntries={['/dashboard/approval-requests/new/event']}><EventsPage initialTab="events" startEventRequest /></MemoryRouter>);
 
-    expect(await screen.findByRole('heading', { name: 'Create Event' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'New event' })).toBeInTheDocument();
     expect(screen.getByLabelText('Event Name *')).toHaveValue('');
   });
 
@@ -148,7 +148,8 @@ describe('EventsPage approval-request launch', () => {
 
     render(<MemoryRouter initialEntries={['/dashboard/events/event-planner']}><EventsPage initialTab="tasks" /></MemoryRouter>);
 
-    await screen.findByRole('heading', { name: 'Build an Event To-do List' });
+    expect(await screen.findByRole('heading', { level: 1, name: 'Planning' })).toBeInTheDocument();
+    expect(screen.queryByText('Build an Event To-do List')).not.toBeInTheDocument();
     await screen.findByRole('option', { name: 'Leadership Summit' });
     fireEvent.change(screen.getByLabelText('Event', { exact: true }), { target: { value: '9' } });
     fireEvent.change(screen.getByLabelText('Optional planning context'), { target: { value: 'Plan setup and safety.' } });
