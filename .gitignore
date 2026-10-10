@@ -46,3 +46,6 @@ graphify-out/
 
 # written by scripts/serve-lan.ps1
 .lan-pids
+
+# reviewed read-only upgrade checks (database dumps stay ignored)
+!scripts/upgrade-checks.sql
