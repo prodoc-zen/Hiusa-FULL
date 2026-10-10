@@ -266,8 +266,7 @@ export default function DepartmentHeadApprovalsPage() {
   }, [load]);
 
   // ?record= opens the drawer. The row is taken from the loaded list when it is there; otherwise
-  // (a notification link, a filter hiding it, another page of results) it is looked up by id in the
-  // scopes the viewer can see.
+  // (a notification link, a filter hiding it, another page of results) it is read by id from the server.
   useEffect(() => {
     if (!recordId) {
       setOpened(null);
@@ -285,10 +284,7 @@ export default function DepartmentHeadApprovalsPage() {
   useEffect(() => {
     if (opened?.state !== 'searching') return undefined;
     let cancelled = false;
-    const scopes = isOfficer ? [{ scope: 'submitted' }]
-      : isAdmin ? (tab === 'submitted' ? [{ scope: 'submitted' }, {}] : [{}, { scope: 'submitted' }])
-        : [{}];
-    findApprovalRequest(opened.id, scopes)
+    findApprovalRequest(opened.id)
       .then((found) => {
         if (!cancelled) setOpened({ id: opened.id, request: found, state: found ? 'ready' : 'missing' });
       })
@@ -296,7 +292,7 @@ export default function DepartmentHeadApprovalsPage() {
         if (!cancelled) setOpened({ id: opened.id, request: null, state: 'missing' });
       });
     return () => { cancelled = true; };
-  }, [opened, isOfficer, isAdmin, tab]);
+  }, [opened]);
 
   function changeTab(next) {
     const params = new URLSearchParams(searchParams);

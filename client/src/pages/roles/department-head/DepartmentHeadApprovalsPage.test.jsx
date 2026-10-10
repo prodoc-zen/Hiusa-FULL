@@ -7,10 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { budgetLifecycle, electionLifecycle, eventLifecycle, financialReportLifecycle } from '../../../lib/lifecycle';
 import DepartmentHeadApprovalsPage from './DepartmentHeadApprovalsPage';
 
-const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), openProtectedFile: vi.fn() }));
+const mocks = vi.hoisted(() => ({ getApprovalRequests: vi.fn(), getApprovalRequest: vi.fn(), reviewApprovalRequest: vi.fn(), downloadFinancialReportPdf: vi.fn(), getCollegeOrganizations: vi.fn(), openProtectedFile: vi.fn() }));
 vi.mock('../../../services/collegeOrganizationService', () => ({ getCollegeOrganizations: mocks.getCollegeOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => ({ openProtectedFile: mocks.openProtectedFile }));
-vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest }));
+vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, getApprovalRequest: mocks.getApprovalRequest, reviewApprovalRequest: mocks.reviewApprovalRequest }));
 vi.mock('../../../services/financeService', () => ({ downloadFinancialReportPdf: mocks.downloadFinancialReportPdf }));
 
 function LocationProbe() {
@@ -388,18 +388,16 @@ describe('DepartmentHeadApprovalsPage drawer', () => {
   });
 
   it('finds a request that is not on the loaded page by looking it up', async () => {
-    mocks.getApprovalRequests.mockImplementation(async (params) => {
-      if (params.per_page === 1) return page([], { per_page: 1, total: 0 });
-      if (params.per_page === 100) return page([{ ...budgetRow, id: 77, title: 'Hidden Budget' }], { per_page: 100 });
-      return page([eventRow]);
-    });
+    mocks.getApprovalRequest.mockResolvedValue({ data: { ...budgetRow, id: 77, title: 'Hidden Budget' } });
     renderPage('/dashboard/department-head/approvals?record=77');
 
     expect(await screen.findByRole('dialog', { name: 'Hidden Budget' })).toBeInTheDocument();
-    expect(mocks.getApprovalRequests).toHaveBeenCalledWith(expect.objectContaining({ status: 'all', per_page: 100, page: 1 }));
+    expect(mocks.getApprovalRequest).toHaveBeenCalledWith('77');
+    expect(mocks.getApprovalRequests.mock.calls.every(([params]) => params.per_page !== 100)).toBe(true);
   });
 
-  it('says the request is not available when no scope contains it', async () => {
+  it('says the request is not available when the server does not show it to this person', async () => {
+    mocks.getApprovalRequest.mockRejectedValue({ response: { status: 404 } });
     renderPage('/dashboard/department-head/approvals?record=999');
 
     expect(await screen.findByText('This request is not available to you')).toBeInTheDocument();
