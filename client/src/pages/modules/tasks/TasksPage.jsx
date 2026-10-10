@@ -3,7 +3,7 @@ import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   AlertCircle,
   Bot,
@@ -19,7 +19,7 @@ import {
   X,
 } from 'lucide-react';
 import { getTasks, createTask, deleteTask, previewTaskRecommendation, updateTask, updateTaskStatus } from '../../../services/taskService';
-import { Button, Field, Input, Select } from '../../../components/ui';
+import { Button, EmptyState, Field, FlowStepper, Input, NextStep, PageHeader, SegmentedControl, Select } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
@@ -33,6 +33,9 @@ import { fetchAllPages, listMeta, unwrapList } from '../../../services/paginatio
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import TableFilterBar from '../../../components/TableFilterBar';
 import TableRowActions from '../../../components/TableRowActions';
+import { taskLifecycle, toNextStepProps } from '../../../lib/lifecycle';
+import { getBreadcrumbs, getPageMeta } from '../../../lib/pageMeta';
+import useRecordParam from '../../../lib/useRecordParam';
 
 function getDelegationDetail(source) {
   if (!source || typeof source !== 'object') return null;
@@ -77,7 +80,8 @@ function formatDate(d) {
 
 export default function TasksPage({ initialTab = 'board' }) {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState(initialTab);
+  const { pathname, search: locationSearch } = useLocation();
+  const [recordId, setRecordId] = useRecordParam();
   const [tasks, setTasks] = useState([]);
   const [tasksMeta, setTasksMeta] = useState({ total: 0, currentPage: 1, lastPage: 1, perPage: 10 });
   const [allTasks, setAllTasks] = useState([]);
@@ -92,7 +96,8 @@ export default function TasksPage({ initialTab = 'board' }) {
   const [academicPeriods, setAcademicPeriods] = useState([]);
   const [selectedPeriodId, setSelectedPeriodId] = useState('');
   const [page, setPage] = useState(1);
-  const [selectedTask, setSelectedTask] = useState(null);
+  const [detailTask, setDetailTask] = useState(null);
+  const [totalsLoaded, setTotalsLoaded] = useState(false);
   const [progressForm, setProgressForm] = useState({ progress_percent: 0, progress_note: '' });
   const [progressSaving, setProgressSaving] = useState(false);
   const [completionTask, setCompletionTask] = useState(null);
@@ -123,7 +128,27 @@ export default function TasksPage({ initialTab = 'board' }) {
   const canUpdateAssignedTasks = currentUserRole === 'SBO_OFFICER';
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
   const canEditTasks = (canManageTasks || canUpdateAssignedTasks) && !viewingHistory;
+  const query = new URLSearchParams(locationSearch);
+  const activeTab = initialTab === 'ai' ? 'ai'
+    : canManageTasks && (initialTab === 'create' || query.get('new') === '1') ? 'create'
+      : canManageTasks && (initialTab === 'progress' || query.get('view') === 'progress') ? 'progress'
+        : 'board';
+  const listedTask = recordId ? [...tasks, ...allTasks].find((task) => String(task.id) === recordId) ?? null : null;
+  const selectedTask = recordId ? (detailTask && String(detailTask.id) === recordId ? detailTask : listedTask) : null;
   const selectedTaskPeriod = academicPeriods.find((period) => period.id === selectedTask?.academic_semester_id);
+
+  function showView(view) {
+    const next = new URLSearchParams();
+    if (view === 'create') next.set('new', '1');
+    if (view === 'progress') next.set('view', 'progress');
+    const search = next.toString();
+    navigate({ pathname: initialTab === 'board' ? pathname : '/dashboard/tasks/task-board', search: search ? `?${search}` : '' });
+  }
+
+  function closeDetails() {
+    setDetailTask(null);
+    setRecordId(null);
+  }
 
   useEffect(() => { getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([])); }, []);
 
@@ -184,6 +209,7 @@ export default function TasksPage({ initialTab = 'board' }) {
         });
         setKindTotals({ event_related: listMeta(eventRes.data).total, standalone: listMeta(standaloneRes.data).total });
         setAllTasks(fullTasks);
+        setTotalsLoaded(true);
       })
       .catch(() => { if (current) setError('Failed to load task summaries.'); });
     return () => { current = false; };
@@ -193,8 +219,20 @@ export default function TasksPage({ initialTab = 'board' }) {
   useEffect(loadTotals, [canManageTasks, serverFilters]);
 
   useEffect(() => {
-    setActiveTab(initialTab);
-  }, [initialTab]);
+    if (!recordId) {
+      setDetailTask(null);
+      return;
+    }
+    if (listedTask) {
+      if (!detailTask || String(detailTask.id) !== recordId) {
+        setDetailTask(listedTask);
+        setProgressForm({ progress_percent: listedTask.progress_percent ?? 0, progress_note: '' });
+      }
+    } else if (totalsLoaded && !loading && !(detailTask && String(detailTask.id) === recordId)) {
+      notify.error('That task is not in this list.');
+      setRecordId(null);
+    }
+  }, [recordId, listedTask, detailTask, totalsLoaded, loading, setRecordId]);
 
   useEffect(() => {
     if (Object.keys(editFieldErrors).length) editFormRef.current?.querySelector('[aria-invalid="true"]')?.focus();
@@ -273,7 +311,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       });
       notify.success(`"${editForm.title.trim()}" updated.`);
       setEditingTask(null);
-      setSelectedTask(null);
+      closeDetails();
       load();
       loadTotals();
     } catch (err) {
@@ -294,7 +332,7 @@ export default function TasksPage({ initialTab = 'board' }) {
     try {
       await deleteTask(taskToDelete.id);
       notify.success(`"${taskToDelete.title}" deleted.`);
-      setSelectedTask((current) => (current?.id === taskToDelete.id ? null : current));
+      if (String(taskToDelete.id) === recordId) closeDetails();
       setTaskToDelete(null);
       load();
       loadTotals();
@@ -329,7 +367,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       });
       load();
       loadTotals();
-      setSelectedTask((current) => (current?.id === id ? res.data : current));
+      setDetailTask((current) => (current?.id === id ? res.data : current));
       return res.data;
     } catch (err) {
       setError(err.response?.data?.message ?? 'Failed to update task status.');
@@ -338,8 +376,9 @@ export default function TasksPage({ initialTab = 'board' }) {
   }
 
   function openTaskDetails(task) {
-    setSelectedTask(task);
+    setDetailTask(task);
     setProgressForm({ progress_percent: task.progress_percent ?? 0, progress_note: '' });
+    setRecordId(task.id);
   }
 
   async function saveProgressUpdate() {
@@ -409,9 +448,51 @@ export default function TasksPage({ initialTab = 'board' }) {
     setPage(1);
   };
 
+  const viewTitle = activeTab === 'create' ? 'New task' : activeTab === 'progress' ? 'Task progress' : null;
+  const routeMeta = getPageMeta(pathname, currentUserRole);
+  const headerBreadcrumbs = viewTitle && viewTitle !== routeMeta.title
+    ? [...getBreadcrumbs(pathname, currentUserRole).slice(0, -1), { label: routeMeta.title, to: pathname }, { label: viewTitle }]
+    : undefined;
+  const headerPurpose = viewTitle && viewTitle !== routeMeta.title
+    ? (activeTab === 'create' ? 'Assign a task to an officer or event.' : 'Review progress across organization tasks.')
+    : undefined;
+
+  function taskNextStep(task) {
+    const props = toNextStepProps(taskLifecycle(task, currentUserRole));
+    if (props.tone !== 'action' || !props.primary) return props;
+    if (!canEditTasks) return { ...props, primary: undefined };
+    const action = (run) => () => run().catch((err) => notify.error(getApiErrorMessage(err, 'Failed to update task status.')));
+    if (task.status === 'pending') {
+      if (task.workflow_status === 'blocked') {
+        return { ...props, primary: { label: props.primary.label, disabledReason: task.dependency ? `Blocked by ${formatDisplayText(task.dependency.title)}. Finish that task first.` : 'This task is blocked by another task.' } };
+      }
+      return { ...props, primary: { label: props.primary.label, onClick: action(() => handleStatusChange(task.id, 'in_progress', 'Task work started.', Math.max(1, task.progress_percent ?? 0))) } };
+    }
+    return { ...props, primary: { label: props.primary.label, onClick: () => setCompletionTask(task) } };
+  }
+
+  function taskStepper(task) {
+    const lifecycle = taskLifecycle(task, currentUserRole);
+    return <FlowStepper variant="compact" steps={lifecycle.steps} summary={lifecycle.nextAction.title} ariaLabel={`Stage of ${formatDisplayText(task.title)}`} className="mt-2" />;
+  }
+
+  const firstRunTasks = tasksMeta.total === 0 && activeTaskFilters.length === 0;
+
   return (
     <div className="space-y-6">
-      {academicPeriods.length > 0 && activeTab !== 'create' && <label className="block max-w-sm text-xs font-semibold text-[#0F172A]">Academic period<select value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); setSelectedTask(null); setPage(1); }} className="mt-1 block h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</select></label>}
+      <PageHeader
+        title={viewTitle ?? undefined}
+        purpose={headerPurpose}
+        breadcrumbs={headerBreadcrumbs}
+        meta={canManageTasks && (activeTab === 'board' || activeTab === 'progress') ? (
+          <div role="group" aria-label="Task view">
+            <SegmentedControl options={[{ value: 'board', label: 'Board' }, { value: 'progress', label: 'Progress' }]} value={activeTab} onChange={showView} />
+          </div>
+        ) : undefined}
+        actions={activeTab === 'create' ? <Button variant="secondary" onClick={() => showView('board')}>Back to tasks</Button> : undefined}
+        primary={canManageTasks && !viewingHistory && (activeTab === 'board' || activeTab === 'progress') ? <Button leftIcon={Plus} onClick={() => showView('create')}>New task</Button> : undefined}
+      />
+      {academicPeriods.length > 0 && activeTab !== 'create' && <label className="block max-w-sm text-xs font-semibold text-[#0F172A]">Academic period<select value={selectedPeriodId} onChange={(event) => { setSelectedPeriodId(event.target.value); closeDetails(); setPage(1); }} className="mt-1 block h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Active period</option>{academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}</select></label>}
       {viewingHistory && <p className="text-xs font-medium text-[#64748B]">Completed semester tasks are available for viewing only.</p>}
       {activeTab !== 'create' && <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {[
@@ -484,12 +565,6 @@ export default function TasksPage({ initialTab = 'board' }) {
             </div>
             <div className="flex w-full flex-wrap gap-2 sm:w-auto">
               <button type="button" onClick={exportVisibleTasks} className="inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD] sm:flex-none"><Download size={14} />Export</button>
-              {canManageTasks && !viewingHistory && (
-                <button type="button" onClick={() => navigate('/dashboard/tasks/create-task')} className="flex h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white transition hover:bg-[#0F2F62] sm:flex-none">
-                  <Plus size={16} />
-                  <span>Create Task</span>
-                </button>
-              )}
             </div>
           </div>
 
@@ -516,14 +591,30 @@ export default function TasksPage({ initialTab = 'board' }) {
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : filteredTasks.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-500">
-              {tasksMeta.total === 0 ? 'No tasks found.' : search.trim() ? 'No tasks on this page match your search.' : 'No tasks on this page.'}
-            </p>
+            firstRunTasks ? (
+              canManageTasks ? (
+                <EmptyState
+                  icon={ListChecks}
+                  title="No tasks yet"
+                  description={viewingHistory ? 'No tasks were recorded in this period.' : 'Create your first task to give an officer something to do and a deadline to meet.'}
+                  action={viewingHistory ? undefined : <Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
+                />
+              ) : (
+                <EmptyState icon={ListChecks} title="Nothing assigned to you yet" description="Your Admin delegates tasks here." />
+              )
+            ) : (
+              <EmptyState
+                kind="filtered"
+                title={tasksMeta.total === 0 ? 'No tasks match these filters' : search.trim() ? 'No tasks on this page match your search' : 'No tasks on this page'}
+                onClearFilters={activeTaskFilters.length > 0 ? clearTaskFilters : undefined}
+              />
+            )
           ) : (
             <>
             <div className="space-y-3 p-3 lg:hidden" aria-label="Tasks">
               {filteredTasks.map((t) => <article key={t.id} className="min-w-0 rounded-lg border border-[#DDE7EF] p-4">
                 <div className="flex flex-wrap items-start justify-between gap-2"><div className="min-w-0 flex-1"><h3 className="break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(t.title)}</h3><p className="mt-1 text-xs font-semibold text-[#0878B7]">{t.event_id ? 'Event task' : 'Standalone task'}</p><RichTextBody value={t.description || 'No description'} className="mt-1 line-clamp-2 text-xs text-slate-500" /></div><span className={`rounded-full px-2.5 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>{capitalize(t.workflow_status || t.status)}</span></div>
+                {taskStepper(t)}
                 <dl className="mt-3 grid grid-cols-2 gap-2 text-xs"><div className="min-w-0"><dt className="text-slate-500">Assignee</dt><dd className="break-words font-semibold text-slate-700">{t.assignee ? `${formatDisplayText(t.assignee.first_name)} ${formatDisplayText(t.assignee.last_name)}` : '-'}</dd></div><div><dt className="text-slate-500">Deadline</dt><dd className="font-semibold text-slate-700">{formatDate(t.deadline)}</dd></div><div className="col-span-2 min-w-0"><dt className="text-slate-500">Related event</dt><dd className="break-words font-semibold text-slate-700">{formatDisplayText(t.event?.title) || 'General organization task'}</dd></div></dl>
                 <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Task progress" aria-valuenow={Number(t.progress_percent || 0)} aria-valuemin="0" aria-valuemax="100"><div className="h-full rounded-full bg-[#0878B7]" style={{ width: `${Math.min(100, Number(t.progress_percent || 0))}%` }} /></div><p className="mt-1 text-xs text-slate-500">{t.progress_percent || 0}% complete</p>
                 <div className="mt-3 flex flex-wrap gap-2"><button type="button" onClick={() => openTaskDetails(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">View details</button>{canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0))} className="min-h-11 rounded-lg bg-[#E6F6FD] px-3 text-xs font-bold text-[#0F2F62]">Start</button>}{canEditTasks && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-11 rounded-lg bg-emerald-50 px-3 text-xs font-bold text-emerald-700">Complete</button>}{canManageTasks && !viewingHistory && t.status === 'completed' && <button type="button" onClick={() => handleStatusChange(t.id, 'pending', 'Task reopened by an administrator.', 0)} className="min-h-11 rounded-lg border border-amber-200 bg-amber-50 px-3 text-xs font-bold text-amber-800">Reopen</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => openEditTask(t)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700">Edit</button>}{canManageTasks && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setTaskToDelete(t); }} className="min-h-11 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700">Delete</button>}</div>
@@ -557,6 +648,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                         <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[t.workflow_status || t.status] || 'bg-slate-100 text-slate-500'}`}>
                           {capitalize(t.workflow_status || t.status)}
                         </span>
+                        <div className="w-44">{taskStepper(t)}</div>
                       </td>
                       <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${formatDisplayText(t.creator.first_name)} ${formatDisplayText(t.creator.last_name)}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
                       <td className="px-5 py-4">
@@ -590,17 +682,22 @@ export default function TasksPage({ initialTab = 'board' }) {
         <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
           <h2 className="text-lg font-bold text-[#0F172A]">Officer Workload</h2>
           <p className="mb-5 text-sm font-medium text-slate-500">Task completion progress per assignee</p>
-          {loading ? (
+          {loading || !totalsLoaded ? (
             <div className="space-y-3">
               {[1, 2, 3].map((i) => <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : Object.keys(workloadByAssignee).length === 0 ? (
-            <p className="py-8 text-center text-sm text-slate-500">No assigned tasks yet.</p>
+            <EmptyState
+              icon={ListChecks}
+              title="No assigned tasks yet"
+              description="Progress per officer appears here once a task is assigned."
+              action={viewingHistory ? undefined : <Button variant="secondary" leftIcon={Plus} onClick={() => showView('create')}>Create your first task</Button>}
+            />
           ) : (
             <div className="space-y-4">
               {Object.values(workloadByAssignee).map((entry) => (
                 <div key={entry.user.school_id ?? entry.user.id} className="flex items-center gap-4 rounded-lg bg-[#F8FBFD] p-4">
-                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-[#0B8ED0] to-[#16C7F3] text-xs font-black text-white">
+                  <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#0878B7] text-xs font-black text-white">
                     {entry.user.first_name?.[0]}{entry.user.last_name?.[0]}
                   </div>
                   <div className="min-w-0 flex-1">
@@ -612,7 +709,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                     </div>
                     <div className="h-2.5 rounded-full bg-[#EEF6FB] overflow-hidden">
                       <div
-                        className="h-full rounded-full bg-gradient-to-r from-[#0B8ED0] to-[#16C7F3] transition-all duration-500"
+                        className="h-full rounded-full bg-[#0B8ED0] transition-all duration-500"
                         style={{ width: `${entry.total > 0 ? (entry.completed / entry.total) * 100 : 0}%` }}
                       />
                     </div>
@@ -764,7 +861,7 @@ export default function TasksPage({ initialTab = 'board' }) {
       )}
 
       {selectedTask && (
-        <AccessibleOverlay label="Task details" onClose={() => setSelectedTask(null)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
+        <AccessibleOverlay label="Task details" onClose={closeDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
           <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
@@ -773,8 +870,11 @@ export default function TasksPage({ initialTab = 'board' }) {
                 <p className="mt-1 text-sm text-slate-500">Due {formatDate(selectedTask.deadline)} · {capitalize(selectedTask.workflow_status || selectedTask.status)}</p>
                 {selectedTask.workflow_status === 'blocked' && selectedTask.dependency && <p className="mt-1 text-xs font-semibold text-amber-700">Blocked by {formatDisplayText(selectedTask.dependency.title)}</p>}
               </div>
-              <button type="button" aria-label="Close task details" onClick={() => setSelectedTask(null)} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <button type="button" aria-label="Close task details" onClick={closeDetails} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
+
+            <FlowStepper steps={taskLifecycle(selectedTask, currentUserRole).steps} ariaLabel="Task stages" className="mt-5" />
+            <NextStep {...taskNextStep(selectedTask)} className="mt-4" />
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2">
               <div className="rounded-lg border border-[#DDE7EF] p-4">
@@ -813,7 +913,7 @@ export default function TasksPage({ initialTab = 'board' }) {
               <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 p-4">
                 <h3 className="text-sm font-bold text-amber-900">Reopen task</h3>
                 <p className="mt-1 text-xs leading-5 text-amber-800">Reset this completed task to Not Started and clear its completion progress.</p>
-                <button type="button" onClick={async () => { const updated = await handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0); setSelectedTask(updated); }} className="mt-3 h-10 rounded-lg border border-amber-300 bg-white px-4 text-xs font-bold text-amber-800 hover:bg-amber-100">Set to Not Started</button>
+                <button type="button" onClick={() => handleStatusChange(selectedTask.id, 'pending', 'Task reopened by an administrator.', 0)} className="mt-3 h-10 rounded-lg border border-amber-300 bg-white px-4 text-xs font-bold text-amber-800 hover:bg-amber-100">Set to Not Started</button>
               </div>
             )}
 
