@@ -2594,7 +2594,7 @@ export default function MerchandisePage({ initialTab }) {
               <div className="mt-4 flex items-start gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3">
                 <Info size={15} className="mt-0.5 shrink-0 text-[#0878B7]" />
                 <p className="text-[11px] font-medium leading-5 text-[#0B1831]">
-                  Submitting reserves the stock. You may cancel later from My Orders only while the order remains unpaid and unreviewed.
+                  Stock is set aside for you only after your payment is approved. You may cancel later from My Orders only while the order remains unpaid and unreviewed.
                 </p>
               </div>
               <div className="mt-5 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
