@@ -2,6 +2,7 @@ import { ChevronRight, ShieldCheck } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import StatusBadge from '../ui/StatusBadge';
 import { relativeTime } from '../../lib/format';
+import { getItemHref, getStoredRole, getWaitingOnLabel } from '../../utils/notificationLinks';
 
 const SEVERITY = {
   high: { tone: 'danger', label: 'High' },
@@ -9,7 +10,9 @@ const SEVERITY = {
   low: { tone: 'info', label: 'Low' },
 };
 
-function Row({ item }) {
+function Row({ item, role }) {
+  const href = getItemHref(item, role);
+  const waitingOn = getWaitingOnLabel(item);
   const severity = SEVERITY[item.severity] || { tone: 'neutral', label: 'Notice' };
 
   const body = (
@@ -18,18 +21,24 @@ function Row({ item }) {
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-bold text-ink">{item.title}</p>
         <p className="mt-0.5 text-xs font-medium leading-5 text-ink-muted">{item.detail}</p>
+        {waitingOn && <p className="mt-1 text-xs font-semibold text-ink-muted">{waitingOn}</p>}
         {item.due_at && <p className="mt-1 text-xs font-semibold text-ink-muted">{relativeTime(item.due_at)}</p>}
       </div>
-      {item.href && <ChevronRight size={16} className="shrink-0 text-ink-soft" aria-hidden="true" />}
+      {href && (
+        <span className="flex shrink-0 items-center gap-0.5 self-center text-xs font-bold text-brand-600">
+          Open
+          <ChevronRight size={16} aria-hidden="true" />
+        </span>
+      )}
     </>
   );
 
   const className = 'flex items-start gap-3 px-1 py-3.5';
 
-  if (item.href) {
+  if (href) {
     return (
       <li>
-        <Link to={item.href} className={`${className} -mx-1 rounded-control transition-colors duration-150 hover:bg-subtle`}>
+        <Link to={href} className={`${className} -mx-1 rounded-control transition-colors duration-150 hover:bg-subtle`}>
           {body}
         </Link>
       </li>
@@ -42,9 +51,10 @@ function Row({ item }) {
 /**
  * ELEVATION_SPEC section 6, step 2: prioritized, actionable items from
  * GET /dashboard/briefing's `attention` array, already sorted by severity
- * then due date by the server.
+ * then due date by the server. Each row is one link: the server's href, or the deep link built from
+ * its entity_type and entity_id when it gave none.
  */
-export default function AttentionList({ items = [] }) {
+export default function AttentionList({ items = [], role = getStoredRole() }) {
   if (items.length === 0) {
     return (
       <div className="flex items-start gap-3 py-4">
@@ -57,5 +67,5 @@ export default function AttentionList({ items = [] }) {
     );
   }
 
-  return <ul className="divide-y divide-line-soft">{items.map((item) => <Row key={item.id} item={item} />)}</ul>;
+  return <ul className="divide-y divide-line-soft">{items.map((item) => <Row key={item.id} item={item} role={role} />)}</ul>;
 }
