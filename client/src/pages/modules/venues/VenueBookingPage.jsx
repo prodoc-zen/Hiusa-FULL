@@ -1,19 +1,23 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { CalendarRange, ClipboardList, MapPin } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
-import { localDateTimeToIso } from '../../../utils/dateTime';
+import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
+import useRecordParam from '../../../lib/useRecordParam';
+import { isoToLocalDateTimeInput, localDateTimeToIso } from '../../../utils/dateTime';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { createVenueBooking, getVenueAvailability, getVenueBookings, getVenues, withdrawVenueBooking } from '../../../services/venueService';
 import { getEvents } from '../../../services/eventService';
 import VenueAvailabilityTimeline from './VenueAvailabilityTimeline';
+import { venueStageText } from './venueStage';
 
 function getCurrentRole() {
   try {
@@ -35,10 +39,35 @@ function formatRange(start, end) {
   return `${manilaDate(start, 'long')}, ${new Date(start).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })} - ${new Date(end).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}`;
 }
 
+// Rejected is the one stage where the Admin has something to do from here, so its callout gets the Book again button.
+function BookingDetail({ booking, role, onBookAgain, onWithdraw }) {
+  const stage = venueBookingLifecycle(booking, role);
+  const next = toNextStepProps(stage);
+  const primary = stage.nextAction.label ? { label: stage.nextAction.label, onClick: onBookAgain } : undefined;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <FlowStepper steps={stage.steps} ariaLabel="Venue booking progress" />
+      <NextStep {...next} primary={primary} />
+      <dl className="grid gap-3 text-sm">
+        <div><dt className="text-xs font-semibold text-ink-muted">Event</dt><dd className="font-bold text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Requested time</dt><dd className="font-bold text-ink">{formatRange(booking.start_time, booking.end_time)}</dd></div>
+        {booking.remarks && <div><dt className="text-xs font-semibold text-ink-muted">SAO remarks</dt><dd className="font-medium text-ink">{booking.remarks}</dd></div>}
+      </dl>
+      {onWithdraw && <Button variant="secondary" onClick={onWithdraw}>Withdraw request</Button>}
+    </div>
+  );
+}
+
 const EMPTY_REQUEST_FORM = { venue_type: 'on_campus', venue_id: '', off_campus_location: '', event_id: '', start_time: '', end_time: '' };
 
 export default function VenueBookingPage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const [searchParams] = useSearchParams();
+  const eventParam = searchParams.get('event');
+  const handledEventParam = useRef(null);
+  const [recordId, setRecordId] = useRecordParam();
+  const [eventsLoaded, setEventsLoaded] = useState(false);
 
   const [venues, setVenues] = useState({ loading: true, error: null, items: [] });
   const [events, setEvents] = useState([]);
@@ -87,7 +116,10 @@ export default function VenueBookingPage() {
     if (!['ADMIN', 'SBO_OFFICER'].includes(role)) return;
     loadVenues();
     loadBookings(1);
-    getEvents({ per_page: 100 }).then((response) => setEvents(unwrapList(response.data))).catch(() => setEvents([]));
+    getEvents({ per_page: 100 })
+      .then((response) => setEvents(unwrapList(response.data)))
+      .catch(() => setEvents([]))
+      .finally(() => setEventsLoaded(true));
   }, [loadVenues, loadBookings, role]);
 
   useEffect(() => { loadAvailability(); }, [loadAvailability]);
@@ -95,18 +127,41 @@ export default function VenueBookingPage() {
 
   const selectedVenue = venues.items.find((venue) => String(venue.id) === String(selectedVenueId));
 
-  function openRequestForm(offCampus = false) {
+  function openRequestForm(offCampus = false, linkedEvent = null) {
     setRequestError(null);
+    const planned = linkedEvent?.planning_details ?? {};
     setRequestForm({
-      venue_type: offCampus === true ? 'off_campus' : 'on_campus',
-      venue_id: selectedVenueId,
-      off_campus_location: '',
-      event_id: '',
-      start_time: range.from ? `${range.from}T09:00` : '',
-      end_time: range.from ? `${range.from}T17:00` : '',
+      venue_type: offCampus === true || planned.venue_type === 'off_campus' ? 'off_campus' : 'on_campus',
+      venue_id: planned.venue_id ? String(planned.venue_id) : selectedVenueId,
+      off_campus_location: planned.venue_type === 'off_campus' ? (linkedEvent.location || '') : '',
+      event_id: linkedEvent ? String(linkedEvent.id) : '',
+      start_time: linkedEvent?.start_time ? isoToLocalDateTimeInput(linkedEvent.start_time) : (range.from ? `${range.from}T09:00` : ''),
+      end_time: linkedEvent?.end_time ? isoToLocalDateTimeInput(linkedEvent.end_time) : (range.from ? `${range.from}T17:00` : ''),
     });
     setRequestOpen(true);
   }
+
+  // The event page's Book venue button lands here with ?event=<id>: open the form with that event chosen.
+  useEffect(() => {
+    if (!eventParam || !eventsLoaded || venues.loading || handledEventParam.current === eventParam) return;
+    handledEventParam.current = eventParam;
+    const linkedEvent = events.find((item) => String(item.id) === eventParam);
+    if (linkedEvent) openRequestForm(false, linkedEvent);
+    else notify.error('That event is not available for a venue booking.');
+  }, [eventParam, eventsLoaded, events, venues.loading]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const openBooking = recordId ? bookings.items.find((booking) => String(booking.id) === recordId) ?? null : null;
+
+  // A deep link can name a request on a later page, so walk the pages until it turns up.
+  useEffect(() => {
+    if (!recordId || openBooking || bookings.loading || bookings.error) return;
+    if (bookingsPage < bookings.meta.lastPage) {
+      setBookingsPage(bookingsPage + 1);
+      return;
+    }
+    notify.error('That booking request is not in your organization\'s list.');
+    setRecordId(null);
+  }, [recordId, openBooking, bookings.loading, bookings.error, bookings.meta.lastPage, bookingsPage, setRecordId]);
 
   async function handleRequestSubmit(event) {
     event.preventDefault();
@@ -167,17 +222,26 @@ export default function VenueBookingPage() {
   if (!['ADMIN', 'SBO_OFFICER'].includes(role)) {
     return (
       <div className="space-y-5">
-        <PageHeader title="Venues" description="Browse venues and request a booking for your organization." />
+        <PageHeader />
         <Card><EmptyState kind="restricted" title="Organization access only" description="Only organization admins and officers can request venue bookings." /></Card>
       </div>
     );
   }
 
   const bookingColumns = [
-    { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || booking.off_campus_location || 'Unknown' },
+    { key: 'venue', header: 'Venue', render: (booking) => <button type="button" onClick={() => setRecordId(booking.id)} className="text-left font-bold text-ink hover:text-brand-700">{booking.venue?.name || booking.off_campus_location || 'Unknown'}</button> },
     { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
     { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
-    { key: 'status', header: 'Status', render: (booking) => <StatusBadge status={booking.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (booking) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={booking.status} />
+          <span className="text-xs font-semibold text-ink-muted-strong">{venueStageText(booking)}</span>
+        </div>
+      ),
+    },
     { key: 'remarks', header: 'SAO remarks', render: (booking) => booking.status === 'rejected' && booking.remarks ? <span className="text-ink-muted">{booking.remarks}</span> : <span className="text-ink-soft">-</span> },
   ];
 
@@ -185,10 +249,14 @@ export default function VenueBookingPage() {
     return booking.status === 'pending' || (booking.status === 'approved' && new Date(booking.start_time) > new Date());
   }
 
+  const firstRun = !bookings.loading && !bookings.error && bookings.items.length === 0;
+
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader title="Venues" description="Check availability, request a booking, and track your organization's requests." />
-      <div className="flex justify-end"><Button variant="secondary" onClick={() => openRequestForm(true)}>Request an off-campus venue</Button></div>
+      <PageHeader
+        actions={<Button variant="secondary" onClick={() => openRequestForm(true)}>Request an off-campus venue</Button>}
+        primary={firstRun ? undefined : <Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
+      />
 
       <Card title="Find a venue" description="Pending requests and approved bookings for the venue and dates you choose.">
         <div className="grid gap-4 sm:grid-cols-3">
@@ -218,7 +286,7 @@ export default function VenueBookingPage() {
                 <p className="text-sm font-bold text-ink">{formatDisplayText(selectedVenue.name)}</p>
                 <p className="text-xs font-medium text-ink-muted">{selectedVenue.location} - capacity {selectedVenue.capacity}</p>
               </div>
-              <Button size="sm" onClick={openRequestForm}>Request this venue</Button>
+              <Button size="sm" variant="secondary" onClick={() => openRequestForm()}>Request this venue</Button>
             </div>
             {availability.loading ? (
               <p className="text-sm font-medium text-ink-muted">Checking availability...</p>
@@ -253,8 +321,8 @@ export default function VenueBookingPage() {
               kind="first-run"
               icon={ClipboardList}
               title="No booking requests yet"
-              description="Requests your organization sends to SAO will show up here with their status."
-              action={<Button leftIcon={CalendarRange} onClick={openRequestForm}>Request a venue</Button>}
+              description="Request a venue for an event and the SAO decides it. Each request shows up here with its status."
+              action={<Button leftIcon={CalendarRange} onClick={() => openRequestForm()}>Request a venue</Button>}
             />
           )}
         />
@@ -296,6 +364,17 @@ export default function VenueBookingPage() {
           {requestError && <p role="alert" className="text-sm font-semibold text-danger-strong sm:col-span-2">{requestError}</p>}
         </form>
       </Modal>
+
+      <Drawer open={Boolean(openBooking)} title={openBooking ? (openBooking.venue?.name || openBooking.off_campus_location || 'Venue request') : undefined} description={openBooking ? `Venue request #${openBooking.id}` : undefined} onClose={() => setRecordId(null)}>
+        {openBooking && (
+          <BookingDetail
+            booking={openBooking}
+            role={role}
+            onBookAgain={() => { setRecordId(null); openRequestForm(); }}
+            onWithdraw={canWithdraw(openBooking) ? () => setWithdrawTarget(openBooking) : null}
+          />
+        )}
+      </Drawer>
 
       <Modal open={Boolean(submittedBooking)} title="Booking request sent" description="SAO will review this request. This is your booking reference, not an approval." onClose={() => setSubmittedBooking(null)} maxWidth="max-w-md" footer={<Button onClick={() => setSubmittedBooking(null)}>Done</Button>}>
         {submittedBooking && <div className="rounded-lg border border-[#DDE7EF] bg-[#FFFDF7] p-5">

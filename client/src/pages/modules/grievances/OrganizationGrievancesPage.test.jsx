@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import OrganizationGrievancesPage from './OrganizationGrievancesPage';
 
@@ -33,23 +34,23 @@ describe('OrganizationGrievancesPage', () => {
 
   it('shows an empty state when the organization has no grievances', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
-    render(<OrganizationGrievancesPage />);
-    expect(await screen.findByText('No grievances yet')).toBeInTheDocument();
+    render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
+    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
   });
 
   it('shows a retryable error state', async () => {
     mocks.getGrievances.mockRejectedValueOnce(new Error('down'));
-    render(<OrganizationGrievancesPage />);
+    render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
     expect(await screen.findByText('Failed to load grievances addressed to your organization.')).toBeInTheDocument();
 
     mocks.getGrievances.mockResolvedValue(envelope([]));
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('No grievances yet')).toBeInTheDocument();
+    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
   });
 
   it('never renders an identity for an anonymous filer, showing a dignified confidential badge instead', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([ANONYMOUS_GRIEVANCE]));
-    render(<OrganizationGrievancesPage />);
+    render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
     const [titleElement] = await screen.findAllByText('Unsafe Stairwell');
     const table = within(titleElement.closest('[data-view="table"]'));
     expect(table.getByText('Unsafe Stairwell')).toBeInTheDocument();
@@ -61,7 +62,7 @@ describe('OrganizationGrievancesPage', () => {
     mocks.getGrievances.mockResolvedValue(envelope([ANONYMOUS_GRIEVANCE]));
     mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Bulb replaced.' } });
 
-    render(<OrganizationGrievancesPage />);
+    render(<MemoryRouter><OrganizationGrievancesPage /></MemoryRouter>);
     const [tableTrigger] = await screen.findAllByText('Unsafe Stairwell');
     fireEvent.click(tableTrigger);
 

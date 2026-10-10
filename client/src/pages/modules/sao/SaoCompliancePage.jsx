@@ -36,10 +36,11 @@ export default function SaoCompliancePage() {
   const role = useMemo(() => getCurrentRole(), []);
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
-  const activeTab = TABS.some((tab) => tab.key === requestedTab) ? requestedTab : DEFAULT_TAB;
+  const hasRecord = Boolean(searchParams.get('record'));
+  const activeTab = TABS.some((tab) => tab.key === requestedTab) ? requestedTab : (hasRecord ? 'review' : DEFAULT_TAB);
 
   const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, organizations: [] });
-  const [reviewFilters, setReviewFilters] = useState(DEFAULT_REVIEW_FILTERS);
+  const [reviewFilters, setReviewFilters] = useState(hasRecord ? { organizationId: '', status: '' } : DEFAULT_REVIEW_FILTERS);
 
   const loadOverview = useCallback(() => {
     setOverview((current) => ({ ...current, loading: true, error: null }));
@@ -67,7 +68,7 @@ export default function SaoCompliancePage() {
   if (role !== 'SUPER_ADMIN') {
     return (
       <div className="space-y-5">
-        <PageHeader title="Compliance and accreditation" description="Track every organization's accreditation status and review submitted documents." />
+        <PageHeader />
         <Card><EmptyState kind="restricted" title="SAO access only" description="Only the Student Affairs Office can review organization compliance." /></Card>
       </div>
     );
@@ -82,10 +83,7 @@ export default function SaoCompliancePage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader
-        title="Compliance and accreditation"
-        description="See who is behind on their requirements, manage what every organization must submit, and review everything that has come in."
-      />
+      <PageHeader />
 
       <Tabs value={activeTab} onChange={changeTab} tabs={tabs} />
 

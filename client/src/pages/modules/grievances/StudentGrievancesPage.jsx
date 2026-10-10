@@ -1,15 +1,17 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
 import RichTextEditor from '../../../components/RichText';
-import { CheckCircle2, Circle, MessageSquareWarning, ShieldCheck, Trash2 } from 'lucide-react';
+import { MessageSquareWarning, ShieldCheck, Trash2 } from 'lucide-react';
 import {
   Button,
   Card,
   EmptyState,
   ErrorState,
   Field,
+  FlowStepper,
   IconButton,
   Input,
+  PageHeader,
   SegmentedControl,
   SkeletonCard,
   StatusBadge,
@@ -22,40 +24,13 @@ import { getGrievances, createGrievance, deleteGrievance } from '../../../servic
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { addressedToLabel, grievanceStatusTone, urgencyTone } from './grievanceLabels';
+import useRecordParam from '../../../lib/useRecordParam';
+import { addressedToLabel, grievanceStage, grievanceStageText, grievanceStatusTone, urgencyTone } from './grievanceLabels';
 
 const ADDRESSED_TO_OPTIONS = [
   { value: 'organization', label: 'My organization' },
   { value: 'sao', label: 'Student Affairs Office' },
 ];
-
-const TIMELINE_STEPS = (status) => [
-  { key: 'submitted', label: 'Filed', done: true },
-  { key: 'under_review', label: 'Under review', done: ['under_review', 'resolved', 'dismissed'].includes(status) },
-  { key: 'final', label: status === 'dismissed' ? 'Dismissed' : 'Resolved', done: ['resolved', 'dismissed'].includes(status) },
-];
-
-function GrievanceTimeline({ status }) {
-  const steps = TIMELINE_STEPS(status);
-
-  return (
-    <ol className="flex items-center gap-1.5">
-      {steps.map((step, index) => (
-        <li key={step.key} className="flex flex-1 items-center gap-1.5">
-          <div className="flex flex-col items-center gap-1">
-            {step.done ? (
-              <CheckCircle2 size={16} className="text-brand-600" aria-hidden="true" />
-            ) : (
-              <Circle size={16} className="text-line" aria-hidden="true" />
-            )}
-            <span className={`whitespace-nowrap text-[11px] font-semibold ${step.done ? 'text-ink' : 'text-ink-soft'}`}>{step.label}</span>
-          </div>
-          {index < steps.length - 1 && <div className={`h-0.5 flex-1 ${step.done ? 'bg-brand-600' : 'bg-line'}`} aria-hidden="true" />}
-        </li>
-      ))}
-    </ol>
-  );
-}
 
 function ClassificationAdvisory({ grievance }) {
   return (
@@ -74,7 +49,8 @@ function ClassificationAdvisory({ grievance }) {
 }
 
 export default function StudentGrievancesPage() {
-  const [tab, setTab] = useState('file');
+  const [recordId, setRecordId] = useRecordParam();
+  const [tab, setTab] = useState(recordId ? 'mine' : 'file');
   const [grievances, setGrievances] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -101,6 +77,17 @@ export default function StudentGrievancesPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!recordId || tab !== 'mine' || loading || error) return;
+    const card = document.getElementById(`grievance-${recordId}`);
+    if (card) {
+      card.scrollIntoView?.({ block: 'center' });
+      return;
+    }
+    notify.error('That grievance is not in your list.');
+    setRecordId(null);
+  }, [recordId, loading, error, grievances, setRecordId, tab]);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -150,10 +137,7 @@ export default function StudentGrievancesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-[28px] font-extrabold leading-tight text-ink">My grievances</h1>
-        <p className="mt-1 max-w-[65ch] text-sm font-medium text-ink-muted-strong">A safe, confidential way to raise a concern with your organization or directly with the Student Affairs Office.</p>
-      </div>
+      <PageHeader primary={tab === 'mine' && grievances.length > 0 && <Button onClick={() => setTab('file')}>File a grievance</Button>} />
 
       <Tabs
         tabs={[
@@ -222,15 +206,15 @@ export default function StudentGrievancesPage() {
             <EmptyState
               kind="first-run"
               icon={MessageSquareWarning}
-              title="No grievances filed yet"
-              description="When you file a grievance, its status and any remarks from reviewers will show up here."
-              action={<Button variant="primary" size="sm" onClick={() => setTab('file')}>File a grievance</Button>}
+              title="No grievances filed"
+              description="If something went wrong, file one here. You can follow its status and any remarks from reviewers on this page."
+              action={<Button onClick={() => setTab('file')}>File a grievance</Button>}
             />
           )}
 
           {!loading && !error && grievances.map((grievance) => (
-            <Card key={grievance.id}>
-              <div className="flex flex-col gap-3">
+            <Card key={grievance.id} className={String(grievance.id) === recordId ? 'ring-2 ring-brand-600' : ''}>
+              <div id={`grievance-${grievance.id}`} className="flex flex-col gap-3">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div>
                     <p className="text-base font-bold text-ink">{formatDisplayText(grievance.title)}</p>
@@ -242,7 +226,8 @@ export default function StudentGrievancesPage() {
                   </div>
                 </div>
 
-                <GrievanceTimeline status={grievance.status} />
+                <FlowStepper steps={grievanceStage(grievance, 'STUDENT').steps} ariaLabel={`Progress of ${formatDisplayText(grievance.title)}`} />
+                <p className="text-sm font-bold text-ink">{grievanceStageText(grievance)}</p>
 
                 <ClassificationAdvisory grievance={grievance} />
 

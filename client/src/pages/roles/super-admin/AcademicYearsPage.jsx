@@ -182,7 +182,7 @@ export default function AcademicYearsPage() {
 
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader title="Academic periods" description="SAO sets the university-wide academic year and semester. Completed periods remain available for records." />
+      <PageHeader primary={years.items.length > 0 && <Button leftIcon={Plus} onClick={() => openModal()}>Add academic year</Button>} />
 
       {current && (
         <Card title={`${current.label} is the current year`} description={`${manilaDate(current.starts_on, 'long')} to ${manilaDate(current.ends_on, 'long')}`}>
@@ -200,7 +200,7 @@ export default function AcademicYearsPage() {
         </Card>
       )}
 
-      <Card title="Calendar" description="Exactly one year is current at a time." actions={<Button leftIcon={Plus} onClick={() => openModal()}>Add academic year</Button>}>
+      <Card title="Calendar" description="Exactly one year is current at a time.">
         <DataTable
           columns={columns}
           rows={years.items}

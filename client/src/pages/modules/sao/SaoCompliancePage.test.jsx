@@ -305,7 +305,7 @@ describe('SaoCompliancePage', () => {
 
       expect((await screen.findAllByText('Could not load the review queue.')).length).toBeGreaterThan(0);
       fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-      expect((await screen.findAllByText('Nothing waiting on you')).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText('Nothing to review')).length).toBeGreaterThan(0);
     });
   });
 });

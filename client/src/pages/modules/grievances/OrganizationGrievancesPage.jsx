@@ -1,13 +1,15 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DataTable, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
+import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { relativeTime } from '../../../lib/format';
 import notify from '../../../lib/notify';
 import GrievanceDetailDrawer from './GrievanceDetailDrawer';
-import { CATEGORIES, grievanceStatusTone, urgencyTone } from './grievanceLabels';
+import { CATEGORIES, grievanceStageText, grievanceStatusTone, urgencyTone } from './grievanceLabels';
+import useGrievanceRecord from './useGrievanceRecord';
 
 const STATUS_OPTIONS = [
   { value: '', label: 'All statuses' },
@@ -34,7 +36,7 @@ export default function OrganizationGrievancesPage() {
   const [category, setCategory] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selected, setSelected] = useState(null);
+  const { selected, open, close, replace } = useGrievanceRecord();
 
   const filters = useMemo(() => ({
     status: status || undefined,
@@ -59,9 +61,15 @@ export default function OrganizationGrievancesPage() {
   useEffect(() => { load(); }, [load]);
   useEffect(() => { setPage(1); }, [filters]);
 
+  function clearFilters() {
+    setStatus('');
+    setUrgency('');
+    setCategory('');
+  }
+
   async function handleTransition(id, data) {
     const res = await updateGrievanceStatus(id, data);
-    setSelected(res.data);
+    replace(res.data);
     notify.success('Grievance updated. The student has been notified.');
     load();
   }
@@ -71,14 +79,23 @@ export default function OrganizationGrievancesPage() {
       key: 'title',
       header: 'Grievance',
       render: (row) => (
-        <button type="button" onClick={() => setSelected(row)} className="text-left font-bold text-ink hover:text-brand-700">
+        <button type="button" onClick={() => open(row)} className="text-left font-bold text-ink hover:text-brand-700">
           {formatDisplayText(row.title)}
           <span className="block text-xs font-medium text-ink-muted">{row.category}</span>
         </button>
       ),
     },
     { key: 'urgency', header: 'Urgency', render: (row) => <StatusBadge tone={urgencyTone(row.urgency)} label={row.urgency} /> },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (row) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={row.status} tone={grievanceStatusTone(row.status)} />
+          <span className="text-xs font-semibold text-ink-muted-strong">{grievanceStageText(row)}</span>
+        </div>
+      ),
+    },
     {
       key: 'filer',
       header: 'Filed by',
@@ -91,7 +108,7 @@ export default function OrganizationGrievancesPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader title="Grievances" description="Confidential concerns filed by students against your organization. Anonymous filers are never identified here." />
+      <PageHeader />
 
       <Card bodyClassName="p-0">
         <DataTable
@@ -120,22 +137,26 @@ export default function OrganizationGrievancesPage() {
                 </Select>
               </div>
               {filtersActive && (
-                <button type="button" onClick={() => { setStatus(''); setUrgency(''); setCategory(''); }} className="ml-auto text-xs font-bold text-brand-700 hover:text-navy-800">Clear filters</button>
+                <button type="button" onClick={clearFilters} className="ml-auto text-xs font-bold text-brand-700 hover:text-navy-800">Clear filters</button>
               )}
               <p className="w-full text-xs font-semibold tabular-nums text-ink-muted sm:ml-auto sm:w-auto">{meta.total} {meta.total === 1 ? 'grievance' : 'grievances'}</p>
             </div>
           )}
-          emptyState={filtersActive ? undefined : (
-            <div className="px-6 py-14 text-center">
-              <p className="text-lg font-bold text-ink">No grievances yet</p>
-              <p className="mx-auto mt-1.5 max-w-sm text-sm font-medium text-ink-muted">When a student files a concern with your organization, it will appear here for review.</p>
-            </div>
+          emptyState={filtersActive ? (
+            <EmptyState kind="filtered" title="No grievances match these filters" description="Try a different status, urgency, or category." onClearFilters={clearFilters} />
+          ) : (
+            <EmptyState
+              kind="first-run"
+              icon={MessageSquareWarning}
+              title="Nothing to review"
+              description="Students of your organization file confidential grievances from My grievances. Each one appears here for you to review."
+            />
           )}
           pagination={<PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="grievances" />}
         />
       </Card>
 
-      <GrievanceDetailDrawer grievance={selected} viewerRole="ADMIN" onClose={() => setSelected(null)} onTransition={handleTransition} />
+      <GrievanceDetailDrawer grievance={selected} viewerRole="ADMIN" onClose={close} onTransition={handleTransition} />
     </div>
   );
 }
