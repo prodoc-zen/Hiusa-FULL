@@ -2,7 +2,8 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import RichTextEditor from '../../../components/RichText';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   AlertTriangle,
   ChevronLeft,
@@ -17,6 +18,8 @@ import {
   ReceiptText,
   Sparkles,
   Trash2,
+  TrendingUp,
+  Wallet,
   X,
 } from 'lucide-react';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
@@ -30,11 +33,11 @@ import {
   deleteBudget,
   getPersonalReceipts,
   getInvoices,
-  getAuditLogs,
   getForecasts,
   generateForecast,
   getBudgets,
   createBudget,
+  updateBudget,
   generateBudgetAdvice,
   getFinancialReports,
   getFinancialReport,
@@ -58,6 +61,11 @@ import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import FinancialForecastChart from '../../../components/finance/FinancialForecastChart';
 import ReceiptDocument, { printReceiptElement } from '../../../components/receipts/ReceiptDocument';
+import BudgetDetailDrawer from '../../../components/finance/BudgetDetailDrawer';
+import ReportDetailDrawer, { withDraftDefault } from '../../../components/finance/ReportDetailDrawer';
+import { Button, EmptyState, FlowStepper, PageHeader } from '../../../components/ui';
+import { budgetLifecycle, financialReportLifecycle } from '../../../lib/lifecycle';
+import useRecordParam from '../../../lib/useRecordParam';
 
 const OVERSIGHT_TABS = ['transactions', 'budgets', 'forecasting', 'reports'];
 
@@ -268,7 +276,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [personalReceipts, setPersonalReceipts] = useState([]);
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [invoices, setInvoices] = useState([]);
-  const [auditLogs, setAuditLogs] = useState([]);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -290,6 +297,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [reportForm, setReportForm] = useState({ document_type: 'financial_report', report_type: 'semester', financial_semester_id: '', event_id: '', period_start: '', period_end: '', treasurer: '', president: '', adviser: '', sbo_adviser: '', letterhead: null, letter_date: '', letter_subject: '', letter_recipient: '', letter_body: '', letter_closing: '' });
   const [reportFiles, setReportFiles] = useState({});
   const [reportSubmitting, setReportSubmitting] = useState(null);
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [recordId, setRecordId] = useRecordParam();
+  const eventParam = searchParams.get('event');
+  const eventParamHandled = useRef(null);
   const [reportPdfDownloading, setReportPdfDownloading] = useState(null);
   const [reportExcelDownloading, setReportExcelDownloading] = useState(null);
 
@@ -302,6 +313,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [events, setEvents] = useState([]);
   const [showBudgetForm, setShowBudgetForm] = useState(false);
   const [budgetForm, setBudgetForm] = useState({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
+  const [editingBudget, setEditingBudget] = useState(null);
   const [budgetFormError, setBudgetFormError] = useState(null);
   const [budgetFormSubmitting, setBudgetFormSubmitting] = useState(false);
   const [budgetAdviceGenerating, setBudgetAdviceGenerating] = useState(null);
@@ -359,11 +371,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewBudgets || canManageLedger ? fetchAllPages((p) => getEvents(p).then((r) => r.data)) : Promise.resolve([]),
       canViewPersonalReceipts ? getPersonalReceipts() : Promise.resolve({ data: [] }),
       canViewInvoices ? getInvoices() : Promise.resolve({ data: [] }),
-      currentUserRole === 'ADMIN' ? getAuditLogs() : Promise.resolve({ data: { data: [] } }),
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       currentUserRole === 'ADMIN' ? getFinancialSemesters() : Promise.resolve({ data: [] }),
     ])
-      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, auditRes, reports, semesterRes]) => {
+      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, reports, semesterRes]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -380,7 +391,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setEvents(eventsList);
         setPersonalReceipts(Array.isArray(receiptRes.data) ? receiptRes.data : []);
         setInvoices(Array.isArray(invoiceRes.data) ? invoiceRes.data : []);
-        setAuditLogs(Array.isArray(auditRes.data?.data) ? auditRes.data.data : []);
         setReports(reports);
         setSemesters(semesterRes.data || []);
       })
@@ -410,6 +420,29 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     }
   }
 
+  function openBudgetForm(budget = null) {
+    setEditingBudget(budget);
+    setBudgetForm(budget ? {
+      title: budget.title || '',
+      allocated_amount: budget.allocated_amount ?? '',
+      warning_threshold: budget.warning_threshold ?? '',
+      event_id: budget.event_id ? String(budget.event_id) : '',
+      financial_semester_id: budget.financial_semester_id ? String(budget.financial_semester_id) : '',
+    } : { title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
+    setBudgetFormError(null);
+    setShowBudgetForm(true);
+  }
+
+  function closeBudgetForm() {
+    setShowBudgetForm(false);
+    setEditingBudget(null);
+    if (searchParams.has('event')) {
+      const next = new URLSearchParams(searchParams);
+      next.delete('event');
+      setSearchParams(next, { replace: true });
+    }
+  }
+
   async function handleCreateBudget(e) {
     e.preventDefault();
     if (!budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === '') {
@@ -429,16 +462,18 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setBudgetFormSubmitting(true);
     setBudgetFormError(null);
     try {
-      await createBudget({
+      const payload = {
         title: budgetForm.title,
         allocated_amount: parseFloat(budgetForm.allocated_amount),
         warning_threshold: parseFloat(budgetForm.warning_threshold),
         event_id: budgetForm.event_id || null,
         financial_semester_id: budgetForm.financial_semester_id || null,
-      });
-      setShowBudgetForm(false);
+      };
+      if (editingBudget) await updateBudget(editingBudget.id, payload);
+      else await createBudget(payload);
+      closeBudgetForm();
       setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: '', financial_semester_id: '' });
-      showFeedback('success', 'Budget proposal submitted for approval.');
+      showFeedback('success', editingBudget ? 'Budget updated and sent back for approval.' : 'Budget proposal submitted for approval.');
       load(txMeta.current_page);
     } catch (err) {
       const message = getApiErrorMessage(err, 'Failed to save budget.');
@@ -464,6 +499,22 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       setShowBudgetForm(true);
     }
   }, [canProposeBudget, startBudgetProposal]);
+  // ?event= is how an event page hands its event over: the budget form opens with it selected, or the
+  // report builder switches to the event report type. Handled once per value so closing the form sticks.
+  useEffect(() => {
+    if (!eventParam || eventParamHandled.current === eventParam) return;
+    if (activeTab === 'budgets' && canProposeBudget) {
+      setEditingBudget(null);
+      setBudgetForm({ title: '', allocated_amount: '', warning_threshold: '', event_id: eventParam, financial_semester_id: '' });
+      setBudgetFormError(null);
+      setShowBudgetForm(true);
+    } else if (activeTab === 'reports' && currentUserRole === 'ADMIN') {
+      setReportForm((current) => ({ ...current, report_type: 'event', event_id: eventParam }));
+    } else {
+      return;
+    }
+    eventParamHandled.current = eventParam;
+  }, [activeTab, canProposeBudget, currentUserRole, eventParam]);
 
   async function handleCreate(e) {
     e.preventDefault();
@@ -879,10 +930,33 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     && (!reportFilter.status || report.submission_status === reportFilter.status)
     && (!reportFilter.document_type || report.document_type === reportFilter.document_type)
     && (!reportFilter.event_id || String(report.event_id) === reportFilter.event_id));
+  const clearReportFilters = () => setReportFilter({ search: '', status: '', document_type: '', event_id: '' });
+  const reportFiltersActive = Boolean(reportFilter.search || reportFilter.status || reportFilter.document_type || reportFilter.event_id);
+
+  const selectedBudget = activeTab === 'budgets' && recordId ? budgets.find((budget) => String(budget.id) === recordId) : null;
+  const selectedReport = activeTab === 'reports' && recordId ? reports.find((report) => String(report.id) === recordId) : null;
+  const recordMissing = Boolean(recordId) && !loading && !error && ((activeTab === 'budgets' && !selectedBudget) || (activeTab === 'reports' && !selectedReport));
+
+  let headerPrimary = null;
+  if (activeTab === 'transactions' && canManageLedger) {
+    headerPrimary = <Button leftIcon={Plus} onClick={() => openTransactionForm()}>Record transaction</Button>;
+  } else if (activeTab === 'budgets' && canProposeBudget) {
+    headerPrimary = <Button leftIcon={Plus} onClick={() => openBudgetForm()}>Propose budget</Button>;
+  } else if (activeTab === 'forecasting' && canGenerateForecast) {
+    headerPrimary = <Button leftIcon={Sparkles} disabled={forecastGenerating} onClick={handleGenerateForecast}>{forecastGenerating ? 'Generating...' : 'Generate forecast'}</Button>;
+  }
+
+  const missingRecordNotice = (noun) => (
+    <p role="status" className="flex flex-wrap items-center gap-3 rounded-lg border border-warning/40 bg-warning-tint px-4 py-3 text-sm font-semibold text-ink">
+      That {noun} was not found. It may have been deleted, or it belongs to another organization.
+      <Button size="sm" variant="secondary" onClick={() => setRecordId(null)}>Dismiss</Button>
+    </p>
+  );
 
   return (
     <div className="space-y-5 pb-8">
       <FeedbackToast feedback={feedback} onClose={closeFeedback} />
+      <PageHeader primary={headerPrimary} />
 
       {canReadFinance && !canManageLedger && OVERSIGHT_TABS.includes(activeTab) && (
         <p className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm font-medium text-slate-600">
@@ -933,16 +1007,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-4 sm:flex-row sm:items-center sm:justify-between sm:px-5">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">Transactions</h2>
+              <h2 className="text-base font-bold text-[#0F172A]">Ledger</h2>
               <p className="mt-0.5 text-xs text-slate-600">Income and expenses, with their source and receipt</p>
-            </div>
-            <div className="flex w-full gap-2 sm:w-auto">
-              {canManageLedger && (
-                <button onClick={() => openTransactionForm()} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-semibold text-white transition hover:bg-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] sm:w-auto">
-                  <Plus size={16} />
-                  Record transaction
-                </button>
-              )}
             </div>
           </div>
 
@@ -1004,11 +1070,21 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : filtered.length === 0 ? (
-            <div className="px-5 py-12 text-center">
-              <p className="text-sm font-semibold text-[#0F172A]">{activeTransactionFilters.length ? 'No matching transactions' : 'No transactions recorded yet'}</p>
-              <p className="mt-1 text-sm text-slate-600">{activeTransactionFilters.length ? 'Try a different search or clear the filters.' : 'Recorded income and expenses will appear here.'}</p>
-              {activeTransactionFilters.length > 0 && <button type="button" onClick={clearTransactionFilters} className="mt-3 min-h-11 px-4 text-sm font-semibold text-[#0878B7] underline underline-offset-4">Clear filters</button>}
-            </div>
+            activeTransactionFilters.length > 0 ? (
+              <EmptyState kind="filtered" title="No matching transactions" description="Try a different search or clear the filters." onClearFilters={clearTransactionFilters} />
+            ) : canManageLedger ? (
+              <EmptyState
+                icon={Wallet}
+                title="No transactions recorded yet"
+                description="The ledger is where the organization's income and expenses are kept. Verified collections, cash advances, paid student charges and merchandise orders post here by themselves. Choose Record transaction above for anything else."
+              />
+            ) : (
+              <EmptyState
+                kind="restricted"
+                title="No transactions to show yet"
+                description="Only the organization Admin records transactions. Verified collections, cash advances, paid charges and orders post here by themselves."
+              />
+            )
           ) : (
             <div>
               <ul className="divide-y divide-[#DDE7EF] md:hidden" aria-label="Transactions">
@@ -1137,26 +1213,35 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white">
           <div className="flex flex-col gap-3 border-b border-[#DDE7EF] p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h2 className="text-base font-bold text-[#0F172A]">Budget requests</h2>
-              <p className="mt-0.5 text-xs text-slate-600">Review allocations and the funds left to spend</p>
+              <h2 className="text-base font-bold text-[#0F172A]">Budgets</h2>
+              <p className="mt-0.5 text-xs text-slate-600">Review allocations, where each budget is in approval, and the funds left to spend</p>
             </div>
-            {canProposeBudget && (
-              <button onClick={() => setShowBudgetForm(true)} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-semibold text-white transition hover:bg-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] sm:w-auto">
-                <Plus size={16} />
-                Propose Budget
-              </button>
-            )}
           </div>
+          {recordMissing && <div className="border-b border-[#DDE7EF] p-4">{missingRecordNotice('budget')}</div>}
 
           {loading ? (
             <div className="space-y-2 p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : budgets.length === 0 ? (
-            <div className="px-5 py-12 text-center"><p className="text-sm font-semibold text-[#0F172A]">No budgets proposed yet.</p><p className="mt-1 text-sm text-slate-600">New budget requests will appear here.</p></div>
+            canProposeBudget ? (
+              <EmptyState
+                icon={Wallet}
+                title="No budgets yet"
+                description="A budget sets how much an event or activity may spend, and the ledger tracks spending against it. Choose Propose budget above to send your first one to the Department Head for approval."
+              />
+            ) : (
+              <EmptyState
+                kind="restricted"
+                title="No budgets to show yet"
+                description="Only the organization Admin proposes budgets. They appear here, with their approval stage, once the Admin proposes one."
+              />
+            )
           ) : (
             <div className="divide-y divide-[#DDE7EF]">
-              {budgets.map((b) => (
+              {budgets.map((b) => {
+                const lifecycle = b.submission_status ? budgetLifecycle(b, currentUserRole) : null;
+                return (
                 <div key={b.id} className="flex flex-col gap-4 p-4 sm:p-5 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
@@ -1165,6 +1250,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {b.approval_status || 'pending'}
                       </span>
                     </div>
+                    {lifecycle && <FlowStepper variant="compact" ariaLabel={`Budget progress for ${formatDisplayText(b.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-2 max-w-sm" />}
                     {b.event && <p className="mt-1 text-xs text-slate-600">{formatDisplayText(b.event.title)}</p>}
                     {b.financial_semester && <p className="mt-1 text-xs font-semibold text-[#0F2F62]">Semester: {formatDisplayText(b.financial_semester.name)}</p>}
                     <dl className="mt-3 grid grid-cols-2 gap-x-6 gap-y-2 text-xs sm:flex sm:flex-wrap sm:gap-x-8">
@@ -1225,7 +1311,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       </div>
                     )}
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
+                  <div className="flex shrink-0 flex-wrap items-center gap-2">
+                    <Button size="sm" variant="secondary" aria-label={`View details for ${formatDisplayText(b.title)}`} onClick={() => setRecordId(b.id)}>View details</Button>
                     {canGenerateBudgetAdvice && <button
                         type="button"
                         onClick={() => handleGenerateBudgetAdvice(b.id)}
@@ -1238,7 +1325,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {canProposeBudget && <button type="button" onClick={() => askDelete('budget', b)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete budget</button>}
                   </div>
                 </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </section>
@@ -1249,20 +1337,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           <div className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5">
             <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-bold text-[#0F172A]">Financial Forecast</h2>
+                <h2 className="text-lg font-bold text-[#0F172A]">Forecast</h2>
                 <p className="text-sm font-medium text-slate-500">OLS projections based on monthly transaction history</p>
               </div>
-              {canGenerateForecast && (
-                <button
-                  type="button"
-                  onClick={handleGenerateForecast}
-                  disabled={forecastGenerating}
-                  className="flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50"
-                >
-                  <Sparkles size={15} />
-                  {forecastGenerating ? 'Generating...' : 'Generate Forecast'}
-                </button>
-              )}
             </div>
             {forecastGenError && (
               <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-lg border border-red-100 bg-red-50 p-3 text-xs font-semibold text-red-700">
@@ -1275,7 +1352,15 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 {[1, 2, 3].map((i) => <div key={i} className="h-8 animate-pulse rounded-lg bg-slate-100" />)}
               </div>
             ) : forecasts.length === 0 ? (
-              <p className="py-6 text-center text-sm text-slate-500">No forecasts recorded yet.</p>
+              canGenerateForecast ? (
+                <EmptyState
+                  icon={TrendingUp}
+                  title="No forecasts yet"
+                  description="A forecast projects income and spending from the months of ledger history you have. Choose Generate forecast above once the ledger covers at least a few months."
+                />
+              ) : (
+                <EmptyState kind="restricted" title="No forecasts to show yet" description="Only the organization Admin generates forecasts. They appear here once one is generated." />
+              )
             ) : (
               <div className="space-y-3">
                 <FinancialForecastChart forecasts={forecasts} />
@@ -1519,7 +1604,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
           <section className="rounded-lg border border-[#DDE7EF] bg-white">
             <div className="border-b border-[#DDE7EF] p-5">
-              <h2 className="text-lg font-bold text-[#0F172A]">Report History</h2>
+              <h2 className="text-lg font-bold text-[#0F172A]">Financial reports</h2>
+              <p className="mt-1 text-xs text-slate-600">Each saved report moves from draft to the Department Head, then the SAO.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
                 <select aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select>
@@ -1527,13 +1613,24 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 <select aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</select>
               </div>
             </div>
+            {recordMissing && <div className="border-b border-[#DDE7EF] p-4">{missingRecordNotice('report')}</div>}
             {reports.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">{currentUserRole === 'ADMIN' ? 'No saved reports yet. Generate a Financial Report or Income Statement above.' : 'No saved reports yet. Reports the organization admin prepares will appear here.'}</p>
+              currentUserRole === 'ADMIN' ? (
+                <EmptyState
+                  icon={FileText}
+                  title="No saved reports yet"
+                  description="A financial report or income statement turns your ledger into a document for review. Generate one above; it saves here as a draft, then you submit it to the Department Head."
+                />
+              ) : (
+                <EmptyState kind="restricted" title="No saved reports to show yet" description="Only the organization Admin prepares financial reports. They appear here, with their approval stage, once saved." />
+              )
             ) : visibleReports.length === 0 ? (
-              <p className="p-8 text-center text-sm text-slate-500">No saved reports match these filters.</p>
+              <EmptyState kind="filtered" title="No saved reports match these filters" description="Try a different search or clear the filters." onClearFilters={reportFiltersActive ? clearReportFilters : undefined} />
             ) : (
               <div className="divide-y divide-[#DDE7EF]">
-                {visibleReports.map((report) => (
+                {visibleReports.map((report) => {
+                  const lifecycle = financialReportLifecycle(withDraftDefault(report), currentUserRole);
+                  return (
                   <div key={report.id} className="p-5">
                     <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                       <p className="font-bold text-[#0F172A]">{formatDisplayText(report.title)}</p>
@@ -1542,12 +1639,17 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     <p className="mt-1 text-xs text-slate-500">{report.summary_text}</p>
                     <div className="mt-2 flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[#EEF6FB] px-2.5 py-1 text-[11px] font-bold text-[#0F2F62]">{report.document_type === 'income_statement' ? 'Income Statement' : 'Financial Report'}</span>
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>
+                    </div>
+                    <FlowStepper variant="compact" ariaLabel={`Report progress for ${formatDisplayText(report.title)}`} steps={lifecycle.steps} summary={lifecycle.nextAction.title} className="mt-3 max-w-sm" />
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <Button size="sm" variant="secondary" aria-label={`View details for ${formatDisplayText(report.title)}`} onClick={() => setRecordId(report.id)}>View details</Button>
                       <button type="button" disabled={reportExcelDownloading === report.id} onClick={() => handleExportSavedReport(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><FileSpreadsheet size={14} />{reportExcelDownloading === report.id ? 'Preparing...' : 'Export Excel'}</button><button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handleDownloadReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Download size={14} />{reportPdfDownloading === report.id ? 'Preparing...' : 'Download PDF'}</button>
                       <button type="button" disabled={reportPdfDownloading === report.id} onClick={() => handlePreviewReportPdf(report)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 disabled:opacity-50"><Eye size={14} />Preview / print</button>
                     </div>
-                    <div className="mt-2 flex flex-wrap items-center gap-2"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold capitalize text-slate-600">{String(report.submission_status || 'draft').replaceAll('_', ' ')}</span>{currentUserRole === 'ADMIN' && ['draft', 'rejected'].includes(report.submission_status || 'draft') && <><label className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-600"><FieldIcon label="Supporting files" />Supporting files<input aria-label={`Supporting documents for ${formatDisplayText(report.title)}`} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" className="sr-only" onChange={(event) => setReportFiles((current) => ({ ...current, [report.id]: Array.from(event.target.files || []) }))}/></label><span className="text-xs text-slate-500">{(reportFiles[report.id] || []).length} file(s)</span><button type="button" disabled={reportSubmitting === report.id} onClick={() => handleSubmitReport(report)} className="min-h-11 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white disabled:opacity-40">{reportSubmitting === report.id ? 'Submitting…' : 'Submit for review'}</button></>}</div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </section>
@@ -1564,7 +1666,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
             </div>
           ) : personalReceipts.length === 0 ? (
-            <p className="p-8 text-center text-sm text-slate-500">No receipts available yet.</p>
+            <EmptyState icon={ReceiptText} title="No receipts yet" description="A receipt appears here after a payment you made is verified by the organization." />
           ) : (
             <div className="grid gap-4 p-4 sm:grid-cols-2 xl:grid-cols-3">
               {personalReceipts.map((receipt) => (
@@ -1625,13 +1727,6 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           {invoices.length === 0 ? <p className="p-8 text-center text-sm text-emerald-700">Financially cleared. No outstanding invoices.</p> : (
             <div className="overflow-x-auto"><table className="w-full min-w-[800px] text-left text-sm"><thead className="bg-[#F8FBFD] text-xs font-bold uppercase text-slate-600"><tr><th scope="col" className="px-5 py-3">Description</th><th scope="col" className="px-5 py-3">Reference</th><th scope="col" className="px-5 py-3">Due date</th><th scope="col" className="px-5 py-3">Status</th><th scope="col" className="px-5 py-3 text-right">Amount due</th><th scope="col" className="px-5 py-3 text-right">Paid</th><th scope="col" className="px-5 py-3 text-right">Balance</th></tr></thead><tbody className="divide-y divide-[#DDE7EF]">{invoices.map((invoice) => <tr key={invoice.id}><td className="px-5 py-3 font-semibold text-[#0F172A]">{invoice.description}</td><td className="px-5 py-3 text-slate-600">{invoice.reference || '—'}</td><td className="px-5 py-3 text-slate-600">{invoice.due_date || 'Not set'}</td><td className="px-5 py-3 capitalize text-slate-600">{String(invoice.status).replaceAll('_', ' ')}</td><td className="px-5 py-3 text-right tabular-nums">{fmt(invoice.amount_due)}</td><td className="px-5 py-3 text-right tabular-nums text-emerald-700">{fmt(invoice.amount_paid)}</td><td className="px-5 py-3 text-right tabular-nums font-bold text-red-700">{fmt(invoice.remaining_balance)}</td></tr>)}</tbody></table></div>
           )}
-        </section>
-      )}
-
-      {activeTab === 'audit' && currentUserRole === 'ADMIN' && (
-        <section className="rounded-lg border border-[#DDE7EF] bg-white">
-          <div className="border-b border-[#DDE7EF] p-5"><h2 className="text-lg font-bold text-[#0F172A]">Admin Audit Logs</h2><p className="mt-1 text-sm text-slate-500">Read-only activity history across financial, approval, order, and system modules.</p></div>
-          {auditLogs.length === 0 ? <p className="p-8 text-center text-sm text-slate-500">No audit activity recorded.</p> : <div className="divide-y divide-[#DDE7EF]">{auditLogs.map((log) => <article key={log.id} className="p-4"><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><p className="text-[11px] font-bold uppercase tracking-wide text-[#0878B7]">{log.module_label}</p><h3 className="font-bold text-[#0F172A]">{log.action_label}</h3><p className="mt-1 text-sm text-slate-600">{log.subject}</p></div><time className="shrink-0 text-xs text-slate-500">{String(log.created_at || '').replace('T', ' ').slice(0, 19)}</time></div><div className="mt-3 grid gap-2 text-xs sm:grid-cols-2"><p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Performed by:</strong> {formatDisplayText(log.actor?.name) || 'System'}{log.actor?.role ? ` · ${log.actor.role}` : ''}</p>{log.affected_user && <p className="rounded-md bg-[#F8FBFD] p-2 text-slate-600"><strong className="text-[#0F172A]">Student / affected user:</strong> {formatDisplayText(log.affected_user.name)} · {log.affected_user.department || 'Department not recorded'} · {log.affected_user.program || 'Course not recorded'} · {log.affected_user.year_level || 'Year not recorded'}</p>}</div>{log.changes?.length > 0 && <div className="mt-3 flex flex-wrap gap-2">{log.changes.slice(0, 6).map((change) => <span key={change.field} className="rounded-full border border-[#DDE7EF] px-2.5 py-1 text-[11px] text-slate-600"><strong>{change.field}:</strong> {change.from ? `${change.from} → ` : ''}{change.to}</span>)}</div>}</article>)}</div>}
         </section>
       )}
 
@@ -1762,14 +1857,16 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       )}
 
       {showBudgetForm && (
-        <AccessibleOverlay label="Propose budget" onClose={() => setShowBudgetForm(false)} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
+        <AccessibleOverlay label={editingBudget ? 'Edit budget' : 'Propose budget'} onClose={closeBudgetForm} className="fixed inset-0 z-[80] flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">Propose Budget</h2>
-              <button onClick={() => setShowBudgetForm(false)} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
+              <h2 className="text-lg font-bold text-[#0F172A]">{editingBudget ? 'Edit budget' : 'Propose budget'}</h2>
+              <button type="button" aria-label="Close budget form" onClick={closeBudgetForm} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
             <p className="mb-4 text-xs font-medium text-slate-500">
-              New budgets await Super Admin approval before funds can be tracked against them.
+              {editingBudget
+                ? 'Saving sends this budget back to the Department Head for approval.'
+                : 'New budgets await Department Head approval before funds can be tracked against them.'}
             </p>
             <form className="space-y-4" onSubmit={handleCreateBudget}>
               <div className="space-y-1.5">
@@ -1827,23 +1924,39 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   <option value="">No semester</option>
                   {semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)}</option>)}
                 </select>
-                <button type="button" onClick={() => { setShowBudgetForm(false); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-[#0878B7] underline hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one in Financial Reports</button>
+                <button type="button" onClick={() => { closeBudgetForm(); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-[#0878B7] underline hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one in Financial Reports</button>
               </div>
               {budgetFormError && <p className="text-xs text-red-600">{budgetFormError}</p>}
               <div className="flex justify-end gap-3 pt-2">
-                <button type="button" onClick={() => setShowBudgetForm(false)} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
+                <button type="button" onClick={closeBudgetForm} className="h-11 rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-slate-600 hover:bg-[#F8FBFD]">Cancel</button>
                 <button
                   type="submit"
                   disabled={budgetFormSubmitting || !budgetForm.title.trim() || budgetForm.allocated_amount === '' || budgetForm.warning_threshold === ''}
                   className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
                 >
-                  {budgetFormSubmitting ? 'Submitting...' : 'Submit for Approval'}
+                  {budgetFormSubmitting ? 'Submitting...' : editingBudget ? 'Resubmit for Approval' : 'Submit for Approval'}
                 </button>
               </div>
             </form>
           </div>
         </AccessibleOverlay>
       )}
+
+      <BudgetDetailDrawer
+        budget={selectedBudget}
+        viewerRole={currentUserRole}
+        onClose={() => setRecordId(null)}
+        onEdit={canProposeBudget ? openBudgetForm : undefined}
+      />
+      <ReportDetailDrawer
+        report={selectedReport}
+        viewerRole={currentUserRole}
+        onClose={() => setRecordId(null)}
+        files={selectedReport ? reportFiles[selectedReport.id] || [] : []}
+        onFilesChange={(files) => setReportFiles((current) => ({ ...current, [selectedReport.id]: files }))}
+        onSubmit={() => handleSubmitReport(selectedReport)}
+        submitting={selectedReport ? reportSubmitting === selectedReport.id : false}
+      />
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
