@@ -15,6 +15,12 @@ describe('ClassListImportPanel', () => {
     service.applyClassList.mockResolvedValue({ created: 1, updated: 0, unchanged: 0, invalid: 1, duplicate: 0 });
   });
 
+  it('tells the admin that imported students must set their own password at first sign-in', () => {
+    render(<ClassListImportPanel />);
+
+    expect(screen.getByText(/Each student must set their own password at first sign-in\./)).toBeInTheDocument();
+  });
+
   it('previews classifications, confirms only valid rows, and displays results', async () => {
     render(<ClassListImportPanel />);
     const file = new File(['school_id,program,year_level,section\n'], 'students.csv', { type: 'text/csv' });

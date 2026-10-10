@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\CacheApiResponse;
 use App\Http\Middleware\EnsureOrganizationWritable;
+use App\Http\Middleware\EnsurePasswordChanged;
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\LogRequestDetails;
 use App\Http\Middleware\SecurityHeadersMiddleware;
@@ -11,6 +12,7 @@ use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
 use Illuminate\Http\Request;
+use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Support\Facades\Route;
 
 return Application::configure(basePath: dirname(__DIR__))
@@ -48,7 +50,12 @@ return Application::configure(basePath: dirname(__DIR__))
             'role' => EnsureRole::class,
             'org.writable' => EnsureOrganizationWritable::class,
             'account.profile' => UseAccountProfile::class,
+            'password.changed' => EnsurePasswordChanged::class,
         ]);
+
+        // Route model binding would otherwise answer 404 for a missing record
+        // before a flagged user is told to change the password.
+        $middleware->prependToPriorityList(before: SubstituteBindings::class, prepend: EnsurePasswordChanged::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->render(function (AuthenticationException $exception, Request $request) {

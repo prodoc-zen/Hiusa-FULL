@@ -37,6 +37,11 @@ export default function LoginPage() {
       localStorage.setItem('auth_token', response.data.access_token);
       localStorage.setItem('user', JSON.stringify(response.data.user));
 
+      if (response.data.user?.must_change_password) {
+        navigate('/change-password', { replace: true });
+        return;
+      }
+
       const role = response.data.user?.role;
       navigate(ROLE_REDIRECTS[role] || '/dashboard');
     } catch (err) {
