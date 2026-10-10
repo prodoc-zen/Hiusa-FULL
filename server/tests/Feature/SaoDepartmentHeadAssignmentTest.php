@@ -85,6 +85,12 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         $this->assertNotEmpty($token);
 
         app('auth')->forgetGuards();
+        $this->withToken($token)->getJson('/api/college/organizations')->assertForbidden()->assertJsonPath('error_code', 'PASSWORD_CHANGE_REQUIRED');
+
+        app('auth')->forgetGuards();
+        $this->withToken($token)->putJson('/api/user/password', ['current_password' => 'Dean2026!Pass', 'password' => 'My-own-Dean-pass1', 'password_confirmation' => 'My-own-Dean-pass1'])->assertOk();
+
+        app('auth')->forgetGuards();
         $this->withToken($token)->getJson('/api/college/organizations')
             ->assertOk()
             ->assertJsonFragment(['id' => $student->id]);

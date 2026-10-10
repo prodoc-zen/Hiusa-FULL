@@ -60,6 +60,8 @@ class SaoBrandingAndPositionsTest extends TestCase
 
         $adviser = SboPosition::create(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => 'Adviser', 'is_active' => true]);
         $admin = User::where('school_id', 87654321)->firstOrFail();
+        $this->assertTrue($admin->must_change_password);
+        $admin->update(['must_change_password' => false]);
         Sanctum::actingAs($admin);
         $this->getJson('/api/sbo-positions')->assertOk()->assertJsonFragment(['title' => 'Adviser']);
         $this->putJson('/api/sbo-positions/'.$adviser->id, ['description' => 'Changed'])->assertForbidden();

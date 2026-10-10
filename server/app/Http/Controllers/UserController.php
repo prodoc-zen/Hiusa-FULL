@@ -167,6 +167,7 @@ class UserController extends Controller
             'email' => $validatedData['email'],
             'contact_number' => $validatedData['contact_number'] ?? null,
             'password_hash' => $validatedData['password'],
+            'must_change_password' => true,
             'role' => $validatedData['role'],
             'account_status' => $validatedData['account_status'] ?? 'active',
             'is_member' => true,
@@ -508,6 +509,7 @@ class UserController extends Controller
 
         if (array_key_exists('password', $validatedData)) {
             $validatedData['password_hash'] = $validatedData['password'];
+            $validatedData['must_change_password'] = true;
             unset($validatedData['password']);
             $user->update($this->normalizeUserPayload($validatedData, $user));
             $user->tokens()->delete();
@@ -702,6 +704,7 @@ class UserController extends Controller
             'email' => $validatedData['email'],
             'contact_number' => $validatedData['contact_number'] ?? null,
             'password_hash' => $validatedData['password'],
+            'must_change_password' => false,
             'role' => $validatedData['role'] ?? 'STUDENT',
             'account_status' => 'active',
             'is_member' => true,
@@ -854,7 +857,7 @@ class UserController extends Controller
             ], 403);
         }
 
-        $user->update(['password_hash' => $validated['password']]);
+        $user->update(['password_hash' => $validated['password'], 'must_change_password' => false]);
         $user->tokens()->delete();
 
         DB::table('password_reset_tokens')
@@ -912,10 +915,14 @@ class UserController extends Controller
             return response()->json(['message' => 'Current password is incorrect.'], 422);
         }
 
-        $user->update(['password_hash' => $request->password]);
-        $user->tokens()->delete();
+        if ($user->must_change_password && Hash::check($request->password, $user->password_hash)) {
+            return response()->json(['message' => 'Choose a password different from your current one.'], 422);
+        }
 
-        return response()->json(['message' => 'Password updated successfully. Please log in again.']);
+        $user->update(['password_hash' => $request->password, 'must_change_password' => false]);
+        $user->tokens()->whereKeyNot($user->currentAccessToken()->getKey())->delete();
+
+        return response()->json(['message' => 'Password updated successfully.', 'user' => $user->fresh()]);
     }
 
     private function activeOrganizationUser(int $organizationId, string $email): ?User

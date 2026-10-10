@@ -13,7 +13,7 @@
 use App\Http\Controllers\EventRegistrationController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(function () {
+Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/me/event-registrations', [EventRegistrationController::class, 'mine'])
         ->middleware(['throttle:api-read', 'role:ADMIN,SBO_OFFICER,DEPARTMENT_HEAD,STUDENT']);
 
