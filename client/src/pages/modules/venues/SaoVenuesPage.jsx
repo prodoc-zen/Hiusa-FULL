@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
-  Button, Card, DataTable, EmptyState, Field, IconButton, Input, PageHeader,
+  Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, IconButton, Input, NextStep, PageHeader,
   Select, StatusBadge, Tabs, Textarea,
 } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -10,6 +10,8 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
+import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
+import useRecordParam from '../../../lib/useRecordParam';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import {
@@ -17,6 +19,7 @@ import {
   reviewVenueBooking, updateVenue,
 } from '../../../services/venueService';
 import VenueWeekCalendar, { addDays, todayInManila, weekStartOf } from './VenueWeekCalendar';
+import { venueStageText } from './venueStage';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -46,10 +49,37 @@ function formatRange(start, end) {
   return `${manilaDate(start, 'long')}, ${new Date(start).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })} - ${new Date(end).toLocaleTimeString('en-PH', { hour: 'numeric', minute: '2-digit', timeZone: 'Asia/Manila' })}`;
 }
 
+// The Approve and Reject buttons open the review modals, so the callout carries no button of its own.
+function BookingDetail({ booking, onApprove, onReject }) {
+  const stage = venueBookingLifecycle(booking, 'SUPER_ADMIN');
+  const next = { ...toNextStepProps(stage), primary: undefined };
+
+  return (
+    <div className="flex flex-col gap-4">
+      <FlowStepper steps={stage.steps} ariaLabel="Venue booking progress" />
+      <NextStep {...next} />
+      <dl className="grid gap-3 text-sm">
+        <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-bold text-ink">{booking.organization?.name || 'Unknown'}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Event</dt><dd className="font-bold text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
+        <div><dt className="text-xs font-semibold text-ink-muted">Requested time</dt><dd className="font-bold text-ink">{formatRange(booking.start_time, booking.end_time)}</dd></div>
+        {booking.remarks && <div><dt className="text-xs font-semibold text-ink-muted">Remarks</dt><dd className="font-medium text-ink">{booking.remarks}</dd></div>}
+      </dl>
+      {booking.status === 'pending' && (
+        <div className="flex flex-wrap gap-2">
+          <Button variant="secondary" onClick={onReject}>Reject</Button>
+          <Button onClick={onApprove}>Approve</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function SaoVenuesPage() {
   const role = useMemo(() => getCurrentRole(), []);
+  const [recordId, setRecordId] = useRecordParam();
+  const [pinned, setPinned] = useState(null);
 
-  const [activeTab, setActiveTab] = useState('venues');
+  const [activeTab, setActiveTab] = useState(recordId ? 'bookings' : 'venues');
 
   const [venues, setVenues] = useState({ loading: true, error: null, items: [] });
   const [venueModal, setVenueModal] = useState(null);
@@ -62,7 +92,7 @@ export default function SaoVenuesPage() {
 
   const [bookings, setBookings] = useState({ loading: true, error: null, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
   const [bookingsPage, setBookingsPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState('pending');
+  const [statusFilter, setStatusFilter] = useState(recordId ? '' : 'pending');
   const [venueFilter, setVenueFilter] = useState('');
   const queueRef = useRef(null);
   const [reviewState, setReviewState] = useState(null);
@@ -182,6 +212,24 @@ export default function SaoVenuesPage() {
     }
   }
 
+  const found = recordId ? bookings.items.find((booking) => String(booking.id) === recordId) ?? null : null;
+  const openBooking = found ?? (pinned && String(pinned.id) === recordId ? pinned : null);
+
+  useEffect(() => {
+    if (found) setPinned(found);
+  }, [found]);
+
+  // A deep link can name a request on a later page, so walk the pages until it turns up.
+  useEffect(() => {
+    if (!recordId || openBooking || bookings.loading || bookings.error) return;
+    if (bookingsPage < bookings.meta.lastPage) {
+      setBookingsPage(bookingsPage + 1);
+      return;
+    }
+    notify.error('That booking request is not in the list.');
+    setRecordId(null);
+  }, [recordId, openBooking, bookings.loading, bookings.error, bookings.meta.lastPage, bookingsPage, setRecordId]);
+
   function showInQueue(slot) {
     setStatusFilter(slot.status);
     setVenueFilter(String(slot.venue_id));
@@ -204,7 +252,8 @@ export default function SaoVenuesPage() {
   async function confirmApprove() {
     setReviewBusy(true);
     try {
-      await reviewVenueBooking(reviewState.booking.id, { status: 'approved' });
+      const response = await reviewVenueBooking(reviewState.booking.id, { status: 'approved' });
+      setPinned(response?.data?.id ? response.data : { ...reviewState.booking, status: 'approved' });
       notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" approved.`);
       setReviewState(null);
       loadBookings(bookingsPage);
@@ -220,7 +269,8 @@ export default function SaoVenuesPage() {
     if (!rejectRemarks.trim()) return;
     setReviewBusy(true);
     try {
-      await reviewVenueBooking(reviewState.booking.id, { status: 'rejected', remarks: rejectRemarks.trim() });
+      const response = await reviewVenueBooking(reviewState.booking.id, { status: 'rejected', remarks: rejectRemarks.trim() });
+      setPinned(response?.data?.id ? response.data : { ...reviewState.booking, status: 'rejected', remarks: rejectRemarks.trim() });
       notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" rejected.`);
       setReviewState(null);
       setRejectRemarks('');
@@ -236,7 +286,7 @@ export default function SaoVenuesPage() {
   if (role !== 'SUPER_ADMIN') {
     return (
       <div className="space-y-5">
-        <PageHeader title="Venues" description="Manage the venue catalog and review booking requests." />
+        <PageHeader />
         <Card><EmptyState kind="restricted" title="SAO access only" description="Only the Student Affairs Office manages the venue catalog." /></Card>
       </div>
     );
@@ -250,18 +300,27 @@ export default function SaoVenuesPage() {
   ];
 
   const bookingColumns = [
-    { key: 'organization', header: 'Organization', render: (booking) => booking.organization?.name || 'Unknown' },
+    { key: 'organization', header: 'Organization', render: (booking) => <button type="button" onClick={() => setRecordId(booking.id)} className="text-left font-bold text-ink hover:text-brand-700">{booking.organization?.name || 'Unknown'}</button> },
     { key: 'venue', header: 'Venue', render: (booking) => booking.venue?.name || booking.off_campus_location || 'Unknown' },
     { key: 'event', header: 'Event', render: (booking) => booking.event?.title || 'Not linked' },
     { key: 'when', header: 'Requested time', render: (booking) => formatRange(booking.start_time, booking.end_time) },
-    { key: 'status', header: 'Status', render: (booking) => <StatusBadge status={booking.status} /> },
+    {
+      key: 'status',
+      header: 'Status',
+      render: (booking) => (
+        <div className="flex flex-col items-start gap-1">
+          <StatusBadge status={booking.status} />
+          <span className="text-xs font-semibold text-ink-muted-strong">{venueStageText(booking)}</span>
+        </div>
+      ),
+    },
   ];
 
   const bookingFiltersActive = statusFilter !== 'pending' || Boolean(venueFilter);
 
   return (
     <div className="space-y-5 pb-8">
-      <PageHeader title="Venues" description="Keep the venue catalog current and decide booking requests with conflicts in view." />
+      <PageHeader primary={activeTab === 'venues' && venues.items.length > 0 && <Button leftIcon={Plus} onClick={() => openVenueModal()}>New venue</Button>} />
 
       <Tabs
         value={activeTab}
@@ -273,7 +332,7 @@ export default function SaoVenuesPage() {
       />
 
       {activeTab === 'venues' && (
-        <Card title="Venues" description="Capacity, location, and whether an organization can book it." actions={<Button leftIcon={Plus} onClick={() => openVenueModal()}>New venue</Button>}>
+        <Card title="Venues" description="Capacity, location, and whether an organization can book it.">
           <DataTable
             columns={venueColumns}
             rows={venues.items}
@@ -342,12 +401,14 @@ export default function SaoVenuesPage() {
                 label="requests"
               />
             )}
-            emptyState={(
+            emptyState={bookingFiltersActive ? (
+              <EmptyState kind="filtered" title="No booking requests match these filters" description="Try another status or venue, or clear the filters." onClearFilters={() => { setStatusFilter('pending'); setVenueFilter(''); }} />
+            ) : (
               <EmptyState
                 kind="first-run"
                 icon={ClipboardCheck}
-                title="No booking requests waiting"
-                description="Requests from organizations will appear here for your decision."
+                title="Nothing to review"
+                description="Organization admins and officers request venues from Venue booking. Each request appears here for your decision."
               />
             )}
           />
@@ -372,6 +433,10 @@ export default function SaoVenuesPage() {
           />
         </Card>
       )}
+
+      <Drawer open={Boolean(openBooking)} title={openBooking ? (openBooking.venue?.name || openBooking.off_campus_location || 'Venue request') : undefined} description={openBooking ? `Venue request #${openBooking.id}` : undefined} onClose={() => setRecordId(null)}>
+        {openBooking && <BookingDetail booking={openBooking} onApprove={() => openReview(openBooking, 'approve')} onReject={() => openReview(openBooking, 'reject')} />}
+      </Drawer>
 
       <Modal
         open={Boolean(venueModal)}

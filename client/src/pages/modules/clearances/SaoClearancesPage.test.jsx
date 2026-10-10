@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoClearancesPage from './SaoClearancesPage';
 
@@ -29,13 +30,13 @@ describe('SaoClearancesPage', () => {
 
   it('shows a first-run empty state with a call to open a period', async () => {
     mocks.getClearancePeriods.mockResolvedValue(envelope([]));
-    render(<SaoClearancesPage />);
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
     expect(await screen.findByText('No clearance periods yet')).toBeInTheDocument();
   });
 
   it('shows a retryable error state', async () => {
     mocks.getClearancePeriods.mockRejectedValueOnce(new Error('down'));
-    render(<SaoClearancesPage />);
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
     expect(await screen.findByText('Failed to load clearance periods.')).toBeInTheDocument();
 
     mocks.getClearancePeriods.mockResolvedValue(envelope([]));
@@ -50,7 +51,7 @@ describe('SaoClearancesPage', () => {
       { student_id: 2, student_name: 'Juan Cruz', organization_id: 3, is_complete: false, signatures: [] },
     ]));
 
-    render(<SaoClearancesPage />);
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
     expect(await screen.findByText('Second Semester Clearance')).toBeInTheDocument();
     expect(screen.getByText('Organization adviser')).toBeInTheDocument();
     expect(await screen.findByText('1 of 2')).toBeInTheDocument();
@@ -60,7 +61,7 @@ describe('SaoClearancesPage', () => {
     async function openDeleteDialog() {
       mocks.getClearancePeriods.mockResolvedValue(envelope([PERIOD]));
       mocks.getClearancePeriodStudents.mockResolvedValue(envelope([]));
-      render(<SaoClearancesPage />);
+      render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('button', { name: /Delete Second Semester Clearance/ }));
       const dialog = await screen.findByRole('dialog', { name: 'Delete this clearance period?' });
       fireEvent.click(within(dialog).getByRole('button', { name: 'Delete period' }));
@@ -88,7 +89,7 @@ describe('SaoClearancesPage', () => {
     mocks.getClearancePeriods.mockResolvedValue(envelope([]));
     mocks.createClearancePeriod.mockResolvedValue({ data: PERIOD });
 
-    render(<SaoClearancesPage />);
+    render(<MemoryRouter><SaoClearancesPage /></MemoryRouter>);
     await screen.findByText('No clearance periods yet');
     fireEvent.click(screen.getAllByRole('button', { name: 'New clearance period' })[0]);
 

@@ -87,8 +87,6 @@ export default function StudyObjectivesPage() {
       <style>{PRINT_STYLES}</style>
 
       <PageHeader
-        title="Study objectives in action"
-        description="A living traceability matrix: every objective the study set out to prove, next to the evidence this system produces for it right now."
         meta={!loading && !error && <span className="text-xs font-semibold text-ink-muted">{scopeSentence(data?.scope)}</span>}
         actions={
           <Button variant="secondary" leftIcon={Printer} onClick={() => window.print()} className="objectives-no-print">
@@ -114,9 +112,10 @@ export default function StudyObjectivesPage() {
       {!loading && !error && objectives.length === 0 && (
         <Card>
           <EmptyState
+            kind="first-run"
             icon={ClipboardList}
             title="No objectives are configured yet"
-            description="Once the objectives catalog is set up, every study objective will appear here with its live evidence."
+            description="The study team sets up the objectives catalog. Once it is in place, every objective appears here next to its live evidence."
           />
         </Card>
       )}
