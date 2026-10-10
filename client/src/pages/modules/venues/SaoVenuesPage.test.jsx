@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoVenuesPage from './SaoVenuesPage';
 
@@ -26,7 +27,7 @@ describe('SaoVenuesPage', () => {
   });
 
   it('changes venue status through the status switch', async () => {
-    render(<SaoVenuesPage />);
+    render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
     const [switchControl] = await screen.findAllByRole('switch', { name: 'Main Hall active status' });
     expect(switchControl).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByRole('button', { name: 'Mark inactive' })).not.toBeInTheDocument();
@@ -52,7 +53,7 @@ describe('SaoVenuesPage', () => {
     afterEach(() => vi.useRealTimers());
 
     it('shows who holds each venue this week below the booking queue', async () => {
-      render(<SaoVenuesPage />);
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
 
       const agenda = within(await screen.findByTestId('week-agenda'));
@@ -64,7 +65,7 @@ describe('SaoVenuesPage', () => {
     });
 
     it('puts the decision queue before the availability calendar', async () => {
-      render(<SaoVenuesPage />);
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
       const queue = await screen.findByRole('heading', { name: 'Booking requests' });
       const calendar = await screen.findByRole('heading', { name: 'Availability calendar' });
@@ -72,7 +73,7 @@ describe('SaoVenuesPage', () => {
     });
 
     it('keeps the calendar venue and the queue venue filter in sync', async () => {
-      render(<SaoVenuesPage />);
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
       await within(await screen.findByTestId('week-agenda')).findByText('Hackathon');
 
@@ -87,13 +88,13 @@ describe('SaoVenuesPage', () => {
       venueMocks.getVenueBookings.mockImplementation((params) => Promise.resolve({
         data: { data: [{ id: params.status === 'pending' ? 1 : 2, venue_id: 8, status: params.status, start_time: '2026-10-07T01:00:00Z', end_time: '2026-10-07T02:00:00Z', organization: { name: 'Arts Guild' }, venue: { name: 'Main Hall' } }], total: params.from ? 130 : 1, current_page: 1, last_page: 1 },
       }));
-      render(<SaoVenuesPage />);
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
       expect(await screen.findByText(/Showing the first 2 bookings of 260/)).toBeInTheDocument();
     });
 
     it('reloads for the next week and for a single venue', async () => {
-      render(<SaoVenuesPage />);
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
       await within(await screen.findByTestId('week-agenda')).findByText('Hackathon');
 
@@ -106,7 +107,7 @@ describe('SaoVenuesPage', () => {
 
     it('shows a retryable error when the calendar cannot load', async () => {
       venueMocks.getVenueBookings.mockRejectedValue({ response: { data: { message: 'Calendar is down.' } } });
-      render(<SaoVenuesPage />);
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
       fireEvent.click(await screen.findByRole('tab', { name: /Booking requests/ }));
       expect((await screen.findAllByText('Calendar is down.')).length).toBeGreaterThan(0);
     });
