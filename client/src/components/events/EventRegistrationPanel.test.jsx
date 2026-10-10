@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EventRegistrationPanel from './EventRegistrationPanel';
 import { cancelEventRegistration, getEventRegistrations, getMyEventRegistrations, registerForEvent } from '../../services/eventService';
@@ -31,6 +31,30 @@ describe('EventRegistrationPanel', () => {
     expect(await screen.findByRole('button', { name: 'Cancel registration' })).toBeInTheDocument();
     expect(registerForEvent).toHaveBeenCalledWith(7);
     expect(screen.getByText('Registered')).toBeInTheDocument();
+  });
+
+  it('says "You are registered" and moves the stepper to check-in', async () => {
+    vi.mocked(getMyEventRegistrations).mockResolvedValue(mine({ id: 1, event_id: 7, status: 'registered', registered_at: past }));
+    render(<EventRegistrationPanel event={event()} role="STUDENT" />);
+
+    expect(await screen.findByText('You are registered')).toBeInTheDocument();
+    const steps = screen.getByRole('list', { name: 'Your registration progress' });
+    expect(within(steps).getByText('Register').closest('li')).toHaveTextContent('Done');
+    expect(within(steps).getByText('Check in at the event').closest('li')).toHaveAttribute('aria-current', 'step');
+  });
+
+  it('marks the stepper blocked when registration is closed and when a registered student never checked in', async () => {
+    vi.mocked(getMyEventRegistrations).mockResolvedValue(mine(null));
+    const { unmount } = render(<EventRegistrationPanel event={event({ start_time: past })} role="STUDENT" />);
+    const closed = await screen.findByRole('list', { name: 'Your registration progress' });
+    expect(within(closed).getByText('Register').closest('li')).toHaveTextContent('Blocked');
+    expect(within(closed).getByText('Closed')).toBeInTheDocument();
+    unmount();
+
+    vi.mocked(getMyEventRegistrations).mockResolvedValue({ data: { upcoming: [], past: [{ id: 1, event_id: 7, status: 'no_show' }] } });
+    render(<EventRegistrationPanel event={event({ start_time: past })} role="STUDENT" />);
+    const missed = await screen.findByRole('list', { name: 'Your registration progress' });
+    expect(within(missed).getByText('Check in at the event').closest('li')).toHaveTextContent('Blocked');
   });
 
   it('lets a registered student cancel before the event starts', async () => {
