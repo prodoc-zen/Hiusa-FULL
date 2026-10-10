@@ -285,9 +285,9 @@ function App() {
           <Route path="tasks">
             <Route index element={<TasksIndexRedirect />} />
             <Route path="task-board" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
-            <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="create" /></ProtectedRoute>} />
+            <Route path="create-task" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/tasks/task-board?new=1" replace /></ProtectedRoute>} />
             <Route path="assigned-tasks" element={<ProtectedRoute allowedRoles={["SBO_OFFICER"]}><TasksPage initialTab="board" /></ProtectedRoute>} />
-            <Route path="task-progress" element={<ProtectedRoute allowedRoles={["ADMIN"]}><TasksPage initialTab="progress" /></ProtectedRoute>} />
+            <Route path="task-progress" element={<ProtectedRoute allowedRoles={["ADMIN"]}><Navigate to="/dashboard/tasks/task-board?view=progress" replace /></ProtectedRoute>} />
             <Route path="ai-delegation" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><TasksPage initialTab="ai" /></ProtectedRoute>} />
           </Route>
 
