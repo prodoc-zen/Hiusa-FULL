@@ -58,4 +58,25 @@ describe('Officer DashboardPage stat cards', () => {
 
     await waitFor(() => expect(statValue('Pending Orders')).toBe('8'));
   });
+
+  it('names the first action when nothing has been assigned yet, instead of showing zeros', async () => {
+    const none = { data: { data: [], current_page: 1, last_page: 1, per_page: 10, total: 0 } };
+    taskMocks.getTasks.mockResolvedValue(none);
+    eventMocks.getEvents.mockResolvedValue(none);
+    orderMocks.getOrders.mockResolvedValue(none);
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    expect(await screen.findByText('No work has been assigned to you yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Open My tasks' })).toHaveAttribute('href', '/dashboard/tasks/assigned-tasks');
+    expect(screen.queryByText('Open Tasks')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Check-in' })).toBeInTheDocument();
+  });
+
+  it('does not call a failed load an empty queue', async () => {
+    taskMocks.getTasks.mockRejectedValue(new Error('offline'));
+    render(<MemoryRouter><DashboardPage /></MemoryRouter>);
+
+    await waitFor(() => expect(statValue('Open Tasks')).toBe('0'));
+    expect(screen.queryByText('No work has been assigned to you yet')).not.toBeInTheDocument();
+  });
 });

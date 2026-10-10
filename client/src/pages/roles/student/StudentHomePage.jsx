@@ -1,11 +1,12 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { CalendarDays, ChevronRight, Inbox, RefreshCw, ShieldCheck, Vote } from 'lucide-react';
+import { CalendarDays, ChevronRight, Inbox, ReceiptText, RefreshCw, ShieldCheck, Vote } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import FeedPost from '../../../components/feed/FeedPost';
 import { getStudentFeed } from '../../../services/studentFeedService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { RoleBriefing } from '../../../components/dashboard';
+import { Button } from '../../../components/ui';
 
 function formatEventDate(value) {
   if (!value) return '';
@@ -101,7 +102,7 @@ export default function StudentHomePage() {
 
           {!initialLoading && items.length === 0 && !error && (
             <div className="rounded-lg border border-dashed border-[#DDE7EF] bg-white px-5 py-14 text-center">
-              <Inbox size={34} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-black text-[#0F172A]">Your feed is quiet</h2><p className="mt-1 text-sm text-[#64748B]">Official organization updates will appear here when published.</p>
+              <Inbox size={34} className="mx-auto text-[#94A3B8]" /><h2 className="mt-3 text-base font-black text-[#0F172A]">Your feed is quiet</h2><p className="mt-1 text-sm text-[#64748B]">Official organization updates will appear here when published. In the meantime, find an event to join.</p><Button to="/dashboard/events/activity-calendar" variant="secondary" className="mt-4">Find an event to join</Button>
             </div>
           )}
           {error && (
@@ -128,6 +129,14 @@ export default function StudentHomePage() {
               {upcomingEvents.length ? upcomingEvents.map((event) => <div key={event.id} className="flex gap-3 py-3 first:pt-1"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#EEF6FB] px-1 text-center text-[9px] font-black uppercase text-[#0F2F62]">{formatEventDate(event.start_time)}</span><div className="min-w-0"><p className="line-clamp-2 text-xs font-bold leading-5 text-[#0F172A]">{formatDisplayText(event.title)}</p>{event.location && <p className="mt-0.5 truncate text-[11px] text-[#64748B]">{event.location}</p>}</div></div>) : <p className="py-4 text-xs text-[#64748B]">No upcoming events yet.</p>}
             </div>
             <Link to="/dashboard/events/activity-calendar" className="mt-2 inline-flex h-10 w-full items-center justify-center gap-1 text-xs font-bold text-[#0878B7] hover:underline">Open activity calendar <ChevronRight size={14} /></Link>
+          </section>
+
+          <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm" aria-labelledby="student-account-title">
+            <div className="flex items-center justify-between gap-3"><h2 id="student-account-title" className="text-sm font-black text-[#0F172A]">Your account</h2><ReceiptText size={17} className="text-[#0878B7]" aria-hidden="true" /></div>
+            <div className="mt-2 divide-y divide-[#DDE7EF]">
+              <Link to="/dashboard/finance/statement-of-account" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">Statement of account</span><span className="block text-[11px] text-[#64748B]">See what you owe and your receipts</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
+              <Link to="/dashboard/my-clearance" className="flex min-h-14 items-center justify-between gap-3 py-2 hover:bg-[#F8FBFD]"><span className="min-w-0"><span className="block text-xs font-bold text-[#0F172A]">My clearance</span><span className="block text-[11px] text-[#64748B]">See which offices have signed</span></span><ChevronRight size={14} className="shrink-0 text-[#94A3B8]" aria-hidden="true" /></Link>
+            </div>
           </section>
         </aside>
       </div>
