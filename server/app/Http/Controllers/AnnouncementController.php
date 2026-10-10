@@ -13,6 +13,7 @@ use App\Services\ApprovalEntityLabel;
 use App\Services\GroqResponsesService;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -242,10 +243,34 @@ class AnnouncementController extends Controller
             $announcements->getCollection()->each->makeHidden('views_count');
         }
 
+        $approvalIds = $canManageAnnouncements ? $this->latestApprovalIds($announcements->getCollection()->pluck('id')) : [];
+        $announcements->getCollection()->each(fn (Announcement $row) => $row->setAttribute('approval_id', $approvalIds[$row->id] ?? null));
+
         return response()->json([
             ...$announcements->toArray(),
             'summary' => $summary,
         ]);
+    }
+
+    /** Latest approval request id per announcement id, in one query. */
+    private function latestApprovalIds(Collection $announcementIds): array
+    {
+        if ($announcementIds->isEmpty()) {
+            return [];
+        }
+
+        return ApprovalRequest::where('entity_type', 'announcement')
+            ->whereIn('entity_id', $announcementIds)
+            ->groupBy('entity_id')
+            ->selectRaw('entity_id, MAX(id) as latest_id')
+            ->pluck('latest_id', 'entity_id')
+            ->map(fn ($id) => (int) $id)
+            ->all();
+    }
+
+    private function withApprovalId(Announcement $announcement): Announcement
+    {
+        return $announcement->setAttribute('approval_id', $this->latestApprovalIds(collect([$announcement->id]))[$announcement->id] ?? null);
     }
 
     public function recordView(Request $request, $id)
@@ -383,7 +408,7 @@ class AnnouncementController extends Controller
 
         $this->recordAnnouncementAudit($request, 'created', $announcement, null, $this->auditableAnnouncementValues($announcement));
 
-        return response()->json($announcement->load([
+        return response()->json($this->withApprovalId($announcement)->load([
             'creator:school_id,first_name,last_name,role',
             'reviewer:school_id,first_name,last_name,role',
         ]), 201);
@@ -481,7 +506,7 @@ class AnnouncementController extends Controller
         $freshAnnouncement = $announcement->fresh();
         $this->recordAnnouncementAudit($request, 'updated', $freshAnnouncement, $oldValues, $this->auditableAnnouncementValues($freshAnnouncement));
 
-        return response()->json($freshAnnouncement->load([
+        return response()->json($this->withApprovalId($freshAnnouncement)->load([
             'creator:school_id,first_name,last_name,role',
             'reviewer:school_id,first_name,last_name,role',
         ]));
@@ -597,7 +622,7 @@ class AnnouncementController extends Controller
 
             $this->dispatchAnnouncementNotifications($freshAnnouncement);
 
-            return response()->json($freshAnnouncement->load([
+            return response()->json($this->withApprovalId($freshAnnouncement)->load([
                 'creator:school_id,first_name,last_name,role',
                 'reviewer:school_id,first_name,last_name,role',
             ]));
@@ -629,7 +654,7 @@ class AnnouncementController extends Controller
             $this->auditableAnnouncementValues($freshAnnouncement)
         );
 
-        return response()->json($freshAnnouncement->load([
+        return response()->json($this->withApprovalId($freshAnnouncement)->load([
             'creator:school_id,first_name,last_name,role',
             'reviewer:school_id,first_name,last_name,role',
         ]));

@@ -161,12 +161,16 @@ class EventController extends Controller
         $events->load([
             'budgets' => fn ($query) => $query
                 ->withCount('transactions')
-                ->withSum(['transactions as spent_amount' => fn ($transactions) => $transactions->where('type', 'expense')], 'amount')
                 ->withSum(['transactions as income_amount' => fn ($transactions) => $transactions->where('type', 'income')], 'amount')
                 ->orderBy('created_at', 'desc'),
         ]);
 
         $budgets = $events->flatMap(fn (Event $event) => $event->budgets);
+
+        $spent = Budget::spentAmounts($budgets->pluck('id'));
+        foreach ($budgets as $budget) {
+            $budget->spent_amount = $spent[$budget->id];
+        }
 
         $approvals = $budgets->isEmpty()
             ? collect()

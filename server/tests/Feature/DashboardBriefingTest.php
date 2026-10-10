@@ -5,11 +5,15 @@ namespace Tests\Feature;
 use App\Models\Announcement;
 use App\Models\ApprovalRequest;
 use App\Models\Budget;
+use App\Models\ClearancePeriod;
+use App\Models\ClearanceSignature;
 use App\Models\ComplianceRequirementType;
 use App\Models\Election;
 use App\Models\Event;
 use App\Models\FinancialForecast;
 use App\Models\FinancialReport;
+use App\Models\Invoice;
+use App\Models\InvoicePayment;
 use App\Models\Merchandise;
 use App\Models\Order;
 use App\Models\Organization;
@@ -21,6 +25,7 @@ use App\Models\Vote;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
 use Tests\Concerns\CreatesCollegeFixtures;
@@ -986,5 +991,154 @@ class DashboardBriefingTest extends TestCase
         foreach ($this->collectHrefs($response->json()) as $href) {
             $this->assertHrefWithinAllowlist($href, config('client_routes.DEPARTMENT_HEAD'), 'DEPARTMENT_HEAD');
         }
+    }
+
+    private function makeInvoice(Organization $organization, User $student, string $amount, array $approvedPayments = []): Invoice
+    {
+        $invoice = Invoice::create([
+            'organization_id' => $organization->id, 'reference' => 'INV-'.Str::upper(Str::random(8)), 'student_id' => $student->school_id,
+            'description' => 'Organization fee', 'amount_due' => $amount, 'status' => $approvedPayments === [] ? 'unpaid' : 'partially_paid',
+        ]);
+        foreach ($approvedPayments as $paid) {
+            InvoicePayment::create(['invoice_id' => $invoice->id, 'amount' => $paid, 'recorded_by' => $student->school_id, 'status' => 'approved']);
+        }
+
+        return $invoice;
+    }
+
+    private function makeClearanceSignatures(User $student, Organization $organization, array $statuses, ?ClearancePeriod $period = null): ClearancePeriod
+    {
+        $period ??= ClearancePeriod::create([
+            'academic_year' => '2026-2027', 'title' => 'Clearance '.Str::random(4), 'required_roles' => array_keys($statuses), 'created_by' => $student->school_id,
+        ]);
+        foreach ($statuses as $role => $status) {
+            ClearanceSignature::create([
+                'clearance_period_id' => $period->id, 'student_id' => $student->school_id, 'organization_id' => $organization->id, 'required_role' => $role, 'status' => $status,
+            ]);
+        }
+
+        return $period;
+    }
+
+    public function test_student_briefing_account_is_empty_for_a_student_with_no_charges_or_clearance(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+
+        Sanctum::actingAs($student);
+        $account = $this->getJson('/api/dashboard/briefing')->assertOk()->json('account');
+
+        $this->assertSame([
+            'owed_total' => '0.00',
+            'has_open_invoices' => false,
+            'clearance' => ['status' => 'none', 'pending_count' => 0, 'held_count' => 0],
+        ], $account);
+    }
+
+    public function test_student_briefing_owed_total_matches_the_student_financial_account(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $other = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $this->makeInvoice($organization, $student, '500.00', ['200.00']);
+        $this->makeInvoice($organization, $student, '120.50');
+        $this->makeInvoice($organization, $other, '999.00');
+        $paidOff = $this->makeInvoice($organization, $student, '80.00');
+        $paidOff->update(['status' => 'paid']);
+        $waived = $this->makeInvoice($organization, $student, '60.00');
+        $waived->update(['status' => 'waived']);
+        $invoice = $this->makeInvoice($organization, $student, '40.00');
+        InvoicePayment::create(['invoice_id' => $invoice->id, 'amount' => '40.00', 'recorded_by' => $student->school_id, 'status' => 'pending']);
+        Order::factory()->create([
+            'organization_id' => $organization->id, 'student_id' => $student->school_id, 'merchandise_id' => Merchandise::factory()->create()->id,
+            'status' => 'pending', 'total_price' => '150.00', 'processed_by' => null, 'approved_by' => null, 'claimed_at' => null,
+        ]);
+
+        Sanctum::actingAs($student);
+        $debts = $this->getJson('/api/student-debts?student_id='.$student->school_id)->assertOk();
+        $account = $this->getJson('/api/dashboard/briefing')->assertOk()->json('account');
+
+        $this->assertSame('610.50', number_format((float) $debts->json('0.total_debt'), 2, '.', ''));
+        $this->assertSame('610.50', $account['owed_total']);
+        $this->assertTrue($account['has_open_invoices']);
+    }
+
+    public function test_student_briefing_owed_total_is_zero_and_no_open_invoices_once_everything_is_paid(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $this->makeInvoice($organization, $student, '80.00')->update(['status' => 'paid']);
+
+        Sanctum::actingAs($student);
+        $account = $this->getJson('/api/dashboard/briefing')->assertOk()->json('account');
+
+        $this->assertSame('0.00', $account['owed_total']);
+        $this->assertFalse($account['has_open_invoices']);
+    }
+
+    public function test_student_briefing_clearance_reports_in_progress_cleared_and_held(): void
+    {
+        $organization = Organization::factory()->create();
+        $inProgress = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $cleared = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $held = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $this->makeClearanceSignatures($inProgress, $organization, ['organization_treasurer' => 'cleared', 'adviser' => 'pending', 'sao' => 'pending']);
+        $this->makeClearanceSignatures($cleared, $organization, ['organization_treasurer' => 'cleared', 'sao' => 'cleared']);
+        $this->makeClearanceSignatures($held, $organization, ['organization_treasurer' => 'held', 'adviser' => 'pending', 'sao' => 'cleared']);
+
+        Sanctum::actingAs($inProgress);
+        $this->assertSame(['status' => 'in_progress', 'pending_count' => 2, 'held_count' => 0], $this->getJson('/api/dashboard/briefing')->assertOk()->json('account.clearance'));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($cleared);
+        $this->assertSame(['status' => 'cleared', 'pending_count' => 0, 'held_count' => 0], $this->getJson('/api/dashboard/briefing')->assertOk()->json('account.clearance'));
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($held);
+        $this->assertSame(['status' => 'held', 'pending_count' => 1, 'held_count' => 1], $this->getJson('/api/dashboard/briefing')->assertOk()->json('account.clearance'));
+    }
+
+    public function test_student_briefing_clearance_reads_only_the_latest_period_and_only_their_own_signatures(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $classmate = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $old = $this->makeClearanceSignatures($student, $organization, ['organization_treasurer' => 'held', 'sao' => 'held']);
+        $current = $this->makeClearanceSignatures($student, $organization, ['organization_treasurer' => 'cleared', 'sao' => 'pending']);
+        $this->makeClearanceSignatures($classmate, $organization, ['organization_treasurer' => 'held'], $current);
+
+        $this->assertGreaterThan($old->id, $current->id);
+
+        Sanctum::actingAs($student);
+        $this->assertSame(['status' => 'in_progress', 'pending_count' => 1, 'held_count' => 0], $this->getJson('/api/dashboard/briefing')->assertOk()->json('account.clearance'));
+    }
+
+    public function test_student_briefing_account_queries_do_not_grow_with_invoices_and_clearance_lines(): void
+    {
+        $organization = Organization::factory()->create();
+        $student = User::factory()->student()->create(['organization_id' => $organization->id]);
+        $this->makeInvoice($organization, $student, '100.00', ['10.00']);
+        $this->makeClearanceSignatures($student, $organization, ['organization_treasurer' => 'pending']);
+
+        Sanctum::actingAs($student);
+        DB::enableQueryLog();
+        $this->getJson('/api/dashboard/briefing')->assertOk();
+        $firstCount = count(DB::getQueryLog());
+        DB::flushQueryLog();
+        DB::disableQueryLog();
+
+        foreach (range(1, 8) as $i) {
+            $this->makeInvoice($organization, $student, '100.00', ['10.00', '5.00']);
+        }
+        $this->makeClearanceSignatures($student, $organization, ['adviser' => 'held', 'sao' => 'cleared', 'dean' => 'pending'], ClearancePeriod::query()->latest('id')->first());
+
+        $this->app['auth']->forgetGuards();
+        Sanctum::actingAs($student);
+        DB::enableQueryLog();
+        $this->getJson('/api/dashboard/briefing')->assertOk();
+        $secondCount = count(DB::getQueryLog());
+        DB::disableQueryLog();
+
+        $this->assertLessThanOrEqual($firstCount, $secondCount);
     }
 }

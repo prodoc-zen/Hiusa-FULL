@@ -9,6 +9,7 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\FinancialReportPdfService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -111,5 +112,52 @@ class ApprovalCardReportSnapshotTest extends TestCase
         $this->assertSame(400.0, (float) $card['total_income']);
         $this->assertSame(150.0, (float) $card['total_expense']);
         $this->assertSame(250.0, (float) $card['net_balance']);
+    }
+
+    public function test_cards_for_reports_saved_before_snapshots_cost_the_same_queries_however_many_there_are(): void
+    {
+        config(['performance.api_cache.enabled' => false]);
+        $foreign = Transaction::create([
+            'organization_id' => Organization::factory()->create()->id, 'recorded_by' => $this->admin->school_id, 'budget_id' => null,
+            'event_id' => null, 'payer_id' => null, 'type' => 'income', 'amount' => '777.00', 'category' => 'General',
+            'description' => 'Another organization entry', 'transaction_date' => '2026-08-15',
+        ]);
+        $seed = function (int $number) use ($foreign): FinancialReport {
+            $income = $this->entry('income', (string) (100 * $number).'.00', "Income {$number}");
+            $expense = $this->entry('expense', (string) (10 * $number).'.00', "Expense {$number}");
+            $report = FinancialReport::create([
+                'organization_id' => $this->organization->id, 'report_type' => 'monthly', 'title' => "Legacy report {$number}",
+                'source_transaction_ids' => [$income->id, $expense->id, $foreign->id], 'signatories' => $this->signatories(), 'submission_status' => 'pending_department_head',
+                'generated_by' => $this->admin->school_id, 'generated_at' => now(), 'submitted_at' => now(),
+            ]);
+            ApprovalRequest::create([
+                'organization_id' => $this->organization->id, 'entity_type' => 'financial_report', 'entity_id' => $report->id,
+                'requested_by' => $this->admin->school_id, 'required_role' => 'DEPARTMENT_HEAD', 'status' => 'pending', 'requested_at' => now(),
+            ]);
+
+            return $report;
+        };
+        $queryCount = function (): int {
+            $count = 0;
+            DB::listen(function () use (&$count) {
+                $count++;
+            });
+            Sanctum::actingAs($this->departmentHead);
+            $this->getJson('/api/approval-requests?entity_type=financial_report')->assertOk();
+
+            return $count;
+        };
+
+        $first = $seed(1);
+        $before = $queryCount();
+        $others = collect(range(2, 6))->map($seed);
+        $after = $queryCount();
+
+        $this->assertSame($before, $after);
+        foreach ($others->prepend($first) as $index => $report) {
+            $card = $this->cardFor($report->id);
+            $this->assertSame((float) (100 * ($index + 1)), (float) $card['total_income']);
+            $this->assertSame((float) (10 * ($index + 1)), (float) $card['total_expense']);
+        }
     }
 }
