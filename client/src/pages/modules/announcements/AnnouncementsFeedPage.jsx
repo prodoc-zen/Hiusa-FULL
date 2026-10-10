@@ -1,6 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Heart, Search } from 'lucide-react';
+import { Heart, Megaphone, Search } from 'lucide-react';
+import { EmptyState, PageHeader } from '../../../components/ui';
 import { getAnnouncements, setAnnouncementReaction } from '../../../services/announcementService';
 import { getNotifications, markRead } from '../../../services/notificationService';
 import PaginationControls from '../../../components/PaginationControls';
@@ -63,12 +64,17 @@ export default function AnnouncementsFeedPage() {
     return () => { cancelled = true; };
   }, []);
   const updateReaction = (id, result) => setAnnouncements((current) => current.map((item) => item.id === id ? { ...item, ...result } : item));
-  return <div className="mx-auto w-full max-w-2xl space-y-4">
+  const hasFilters = Boolean(search.trim()) || category !== 'all';
+  const clearFilters = () => { setSearch(''); setCategory('all'); };
+  return <div className="space-y-6">
+    <PageHeader />
+    <div className="mx-auto w-full max-w-2xl space-y-4">
     <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 sm:p-5"><div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_170px]"><label className="relative"><span className="sr-only">Search announcements</span><Search size={16} className="absolute left-3 top-3.5 text-[#64748B]" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search announcements" className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-4 focus:ring-[#16C7F3]/15" /></label><select aria-label="Announcement category" value={category} onChange={(event) => setCategory(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm focus:border-[#0B8ED0] focus:outline-none"><option value="all">All categories</option>{categories.map((value) => <option key={value} value={value}>{value[0].toUpperCase() + value.slice(1)}</option>)}</select></div></section>
     {loading && <div role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-8 text-center text-sm text-[#64748B]">Loading announcements...</div>}
     {error && <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Try again</button></div>}
-    {!loading && !error && announcements.length === 0 && <div className="rounded-lg border border-[#DDE7EF] bg-white p-8 text-center text-sm text-[#64748B]">No announcements match your search.</div>}
+    {!loading && !error && announcements.length === 0 && <div className="rounded-lg border border-[#DDE7EF] bg-white">{hasFilters ? <EmptyState kind="filtered" title="No announcements match" description="Try a different search or category." onClearFilters={clearFilters} /> : <EmptyState icon={Megaphone} title="No announcements yet" description="Your officers post them here." />}</div>}
     {!loading && !error && announcements.map((item) => <AnnouncementCard key={item.id} announcement={item} onReaction={updateReaction} />)}
     {!loading && !error && <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />}
+    </div>
   </div>;
 }
