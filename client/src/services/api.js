@@ -27,6 +27,15 @@ export function clearApiCache() {
   apiGetCache.clear();
 }
 
+function markPasswordChangeRequired() {
+  try {
+    const user = JSON.parse(localStorage.getItem('user')) || {};
+    localStorage.setItem('user', JSON.stringify({ ...user, must_change_password: true }));
+  } catch {
+    localStorage.removeItem('user');
+  }
+}
+
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem('auth_token');
 
@@ -58,6 +67,14 @@ api.interceptors.response.use(
 
     if (status === 403) {
       error.isForbidden = true;
+
+      if (error.response.data?.error_code === 'PASSWORD_CHANGE_REQUIRED') {
+        error.isPasswordChangeRequired = true;
+        markPasswordChangeRequired();
+        if (window.location.pathname !== '/change-password') {
+          window.location.assign('/change-password');
+        }
+      }
     }
 
     if (status === 422) {
