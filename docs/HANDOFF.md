@@ -29,7 +29,7 @@ Also new: an agency overview page, an organization overview page (read only "ins
 
 ## The very next action
 
-Nothing is mandatory. If the work is accepted: review `git log --oneline 44c8054..HEAD`, then push. Before a production deploy run `php artisan migrate`, `php artisan financial-reports:secure-documents`, and after the SAO activates a semester `php artisan compliance:seed-semestral-report` if that semester predates the change.
+Nothing is mandatory. If the work is accepted: review `git log --oneline 44c8054..HEAD`, then push. Before a production deploy run `php artisan migrate`, `php artisan financial-reports:secure-documents`, `php artisan users:flag-default-passwords` (after a backup; slow, see `docs/UPGRADE_2026-10.md` section 5), and after the SAO activates a semester `php artisan compliance:seed-semestral-report` if that semester predates the change.
 
 ## Open decisions for Jade (each with a recommendation)
 
