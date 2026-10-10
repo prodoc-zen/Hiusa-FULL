@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Plus } from 'lucide-react';
+import { HandCoins, Plus } from 'lucide-react';
 import AccessibleOverlay from '../AccessibleOverlay';
 import ConfirmModal from '../ConfirmModal';
 import { approveCashAdvance, createCashAdvance, getCashAdvances, releaseCashAdvance, repayCashAdvance } from '../../services/financeService';
@@ -7,7 +7,7 @@ import { getApiErrorMessage } from '../../utils/apiError';
 import { formatDateTime } from '../../utils/dateTime';
 import { peso } from '../../lib/format';
 import notify from '../../lib/notify';
-import { Button, Field, Input, StatusBadge, Textarea } from '../ui';
+import { Button, EmptyState, Field, Input, StatusBadge, Textarea } from '../ui';
 
 const STATUS_FILTERS = [
   ['', 'All statuses'],
@@ -161,9 +161,15 @@ export default function CashAdvancesSection({ onLedgerChange }) {
         </div>
       )}
       {!state.loading && !state.error && state.rows.length === 0 && (
-        <p className="p-8 text-center text-sm text-slate-600">
-          {status ? 'No cash advances with this status.' : 'No cash advances yet. Request one when an officer needs funds before an event; another admin approves it.'}
-        </p>
+        status ? (
+          <EmptyState kind="filtered" title="No cash advances with this status" description="Show every status to see the rest." onClearFilters={() => setStatus('')} />
+        ) : (
+          <EmptyState
+            icon={HandCoins}
+            title="No cash advances yet"
+            description="A cash advance lends the organization's money to an officer before an event. Choose Request cash advance above; a different admin approves it, and repayments return the money to the ledger."
+          />
+        )
       )}
       {state.rows.length > 0 && (
         <ul className="divide-y divide-[#DDE7EF]">
