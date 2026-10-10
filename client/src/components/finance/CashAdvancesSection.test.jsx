@@ -112,4 +112,18 @@ describe('CashAdvancesSection', () => {
     await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Request cash advance' })).not.toBeInTheDocument());
     expect(createCashAdvance).toHaveBeenLastCalledWith({ amount: '750', purpose: 'Sound system rental', notes: null });
   });
+
+  it('explains what a cash advance is when there are none, and offers Clear filters under a status filter', async () => {
+    vi.mocked(getCashAdvances).mockResolvedValue({ data: [] });
+    render(<CashAdvancesSection />);
+
+    expect(await screen.findByText('No cash advances yet')).toBeInTheDocument();
+    expect(screen.getByText(/Choose Request cash advance above; a different admin approves it/)).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText('Status'), { target: { value: 'released' } });
+    expect(await screen.findByText('No cash advances with this status')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(await screen.findByText('No cash advances yet')).toBeInTheDocument();
+    expect(screen.getByLabelText('Status')).toHaveValue('');
+  });
 });
