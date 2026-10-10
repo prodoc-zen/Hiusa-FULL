@@ -7,6 +7,7 @@ use App\Models\User;
 use App\Services\ApprovalEntityLabel;
 use App\Services\Compliance\AccreditationStatusService;
 use App\Services\NotificationVisibility;
+use App\Services\StudentAccountBalances;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -69,6 +70,7 @@ class DashboardBriefingService
         private readonly ClientRouteAccess $routeAccess,
         private readonly AccreditationStatusService $accreditation,
         private readonly SetupChecklistService $setup,
+        private readonly StudentAccountBalances $balances,
     ) {}
 
     public function build(User $user): array
@@ -198,6 +200,7 @@ class DashboardBriefingService
             'setup' => $this->setup->forUser($user),
             'summary' => $this->summary($attention),
             'attention' => $attention,
+            'account' => $this->studentAccount($user, $orgId),
             'pillars' => [
                 'elections' => $this->electionsPillar($orgId),
                 'events' => $this->eventsPillar($orgId),
@@ -904,6 +907,41 @@ class DashboardBriefingService
             'unit' => 'count',
             'label' => 'Orders pending verification',
             'context' => "{$readyToClaim} ready to claim · ₱".number_format($revenue, 2).' revenue this month',
+        ];
+    }
+
+    /**
+     * The student's own balance (read through StudentAccountBalances, the
+     * computation behind GET /api/student-debts) and where their clearance
+     * stands in the most recent period they hold signature lines in, the
+     * same rows GET /api/clearances/mine groups by period.
+     */
+    private function studentAccount(User $user, int $organizationId): array
+    {
+        $row = $this->balances->rows(collect([$user]), $organizationId)->first();
+
+        $counts = DB::table('clearance_signatures')
+            ->where('student_id', $user->school_id)
+            ->where('clearance_period_id', fn ($query) => $query->selectRaw('MAX(clearance_period_id)')->from('clearance_signatures')->where('student_id', $user->school_id))
+            ->selectRaw('COUNT(*) as total, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as pending, SUM(CASE WHEN status = ? THEN 1 ELSE 0 END) as held', ['pending', 'held'])
+            ->first();
+        $total = (int) ($counts->total ?? 0);
+        $pending = (int) ($counts->pending ?? 0);
+        $held = (int) ($counts->held ?? 0);
+
+        return [
+            'owed_total' => number_format((float) $row['total_debt'], 2, '.', ''),
+            'has_open_invoices' => $row['unpaid_invoice_count'] > 0,
+            'clearance' => [
+                'status' => match (true) {
+                    $total === 0 => 'none',
+                    $held > 0 => 'held',
+                    $pending > 0 => 'in_progress',
+                    default => 'cleared',
+                },
+                'pending_count' => $pending,
+                'held_count' => $held,
+            ],
         ];
     }
 

@@ -106,9 +106,24 @@ forbidden path, makes the whole `href` `null`.
       "open_elections": 1,
       "last_activity_at": "2026-09-20T08:00:00+00:00" // or null
     }
-  ]
+  ],
+  "account": {
+    // STUDENT only
+    "owed_total": "610.50", // decimal string, 2 places
+    "has_open_invoices": true,
+    "clearance": { "status": "in_progress", "pending_count": 2, "held_count": 0 } // status: none | in_progress | cleared | held
+  }
 }
 ```
+
+### Student `account`
+
+Only the STUDENT briefing carries `account`.
+
+- `owed_total` is the `total_debt` of the student's row in `GET /api/student-debts`: open invoices less approved payments, plus pending merchandise orders no invoice or transaction covers. Both read it from `App\Services\StudentAccountBalances`, so they cannot disagree. Cancelled, waived and paid invoices and unapproved payments are not counted as paid or owed.
+- `has_open_invoices` is `true` while the student has any invoice that is not `paid`, `cancelled` or `waived`.
+- `clearance` reads the student's own `clearance_signatures` (the rows behind `GET /api/clearances/mine`) in the most recent clearance period they hold signature lines in (the highest `clearance_period_id`). `status` is `none` with no signature lines, `held` when any line is `held`, `in_progress` when none is held and any is `pending`, otherwise `cleared`. `pending_count` and `held_count` count lines in that period with that status.
+- One aggregate query for clearance plus the shared balance reads (invoices, their payments, pending orders); none of it grows with the number of invoices or signature lines.
 
 ## Attention item `type_total`
 
