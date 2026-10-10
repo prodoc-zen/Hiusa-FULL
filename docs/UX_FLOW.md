@@ -384,6 +384,11 @@ Shown in: Finance > Financial reports list and the SAO Compliance > Financial re
 | 4 Voting | `active` | Students, Officers, Admin vote; Officer monitors | "Voting is open until <time>" / for voters "Cast your ballot" |
 | 5 Results | `closed` (+ `results_visible`) | Admin releases | "Results released" / "Closed: release the results" |
 
+Server gaps fixed (the clients read these keys):
+
+- Returned: a rejected approval no longer leaves the election silent. It stays `pending_approval` (no new status value) and `GET /api/elections`, `GET /api/elections/{id}` and the `POST`/`PUT` responses carry `approval_status` (`pending` | `approved` | `rejected`, from the latest approval row, `null` when none), `approval_remarks` (the reviewer's reason) and `approval_id`. The Admin edits the election with the existing `PUT /api/elections/{id}`; that reopens the Department Head approval (`approval_status` back to `pending`, remarks cleared, approvers notified, audit `resubmitted`). Student payloads omit the three approval keys. Client text for stage 1: `approval_status = rejected` shows "Returned: <approval_remarks>. Edit and resubmit".
+- Automatic opening: the scheduled command `elections:sync-statuses` (every minute) moves approved, finalized elections whose `start_time` has passed and `end_time` has not from `upcoming` to `active` (and closes ended ones); `Election::synchronizeScheduledStatuses()` applies the same transition on every read, so a request never sees a stale status. `results_visible` and `finalized_at` are present in every election payload.
+
 Shown in: the election workspace banner (replace the sentence at `ElectionBreadcrumb.jsx:73`), the picker cards. Steps in the in-page strip follow the same order: Overview, Party lists, Candidates, Voters, Vote, Results.
 
 ### 4.5 Merchandise order
