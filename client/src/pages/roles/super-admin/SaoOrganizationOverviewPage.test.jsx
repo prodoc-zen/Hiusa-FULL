@@ -112,12 +112,65 @@ describe('SaoOrganizationOverviewPage', () => {
   it('shows returned remarks and the pending note', async () => {
     mocks.getSystemOrganizationOverview.mockResolvedValue(overview('returned', { review_remarks: 'Attach the signed constitution.' }));
     const { unmount } = renderPage();
-    expect(await screen.findByText('Attach the signed constitution.')).toBeInTheDocument();
+    expect(await screen.findByText('Your remarks: Attach the signed constitution.')).toBeInTheDocument();
     unmount();
     mocks.getSystemOrganizationOverview.mockResolvedValue(overview('pending'));
     renderPage();
-    expect(await screen.findByText(/waiting for SAO review/)).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Review this registration' })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=5');
+    expect(await screen.findByText('Review this registration')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review registration' })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=5');
+  });
+
+  describe('registration progress', () => {
+    const progress = async () => within(await screen.findByRole('region', { name: 'Registration progress' }));
+    const stage = (view) => view.getByRole('list', { name: 'Registration progress for Computing Society' });
+
+    it('shows the SAO review step and a Review this registration action for a pending registration', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('pending'));
+      renderPage();
+      const view = await progress();
+
+      expect(within(stage(view)).getByText('SAO review').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(view.getByText('Review this registration')).toBeInTheDocument();
+      expect(view.getByRole('link', { name: 'Review registration' })).toBeInTheDocument();
+    });
+
+    it('waits for the Department Head with the SAO remarks after a return', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('returned', { review_remarks: 'Attach the signed constitution.' }));
+      renderPage();
+      const view = await progress();
+
+      expect(view.getByText('Waiting for the Department Head to resubmit')).toBeInTheDocument();
+      expect(view.getByText('Your remarks: Attach the signed constitution.')).toBeInTheDocument();
+      expect(view.queryByRole('link')).not.toBeInTheDocument();
+    });
+
+    it('asks the SAO to provision an administrator when an active organization has none', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue({ ...overview('active'), leadership: [], member_counts: { STUDENT: 0, SBO_OFFICER: 0, ADMIN: 0, total: 0 } });
+      renderPage();
+      const view = await progress();
+
+      expect(within(stage(view)).getByText('Administrator').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(view.getByText('Provision an administrator')).toBeInTheDocument();
+      expect(view.getByRole('link', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=5&create=1');
+      expect(screen.getByText(/Provision an administrator so the organization can sign in/)).toBeInTheDocument();
+    });
+
+    it('shows a complete stepper and the administrator state once an administrator exists', async () => {
+      renderPage();
+      const view = await progress();
+
+      expect(within(stage(view)).getAllByText(/^Done:/)).toHaveLength(4);
+      expect(view.getByText('Active: administrator can sign in')).toBeInTheDocument();
+    });
+
+    it('shows the stepper without a callout for an archived organization', async () => {
+      mocks.getSystemOrganizationOverview.mockResolvedValue(overview('archived'));
+      renderPage();
+      const view = await progress();
+
+      expect(within(stage(view)).getAllByText(/^Skipped:/)).toHaveLength(2);
+      expect(view.queryByText(/Active: administrator can sign in/)).not.toBeInTheDocument();
+    });
   });
 
   it('links to the compliance queues instead of dead ending', async () => {

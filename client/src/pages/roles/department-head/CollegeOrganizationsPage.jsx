@@ -9,6 +9,8 @@ import { fetchAllPages } from '../../../services/pagination';
 import { getCollegeOrganizations, getRegistrationRequirements, registerOrganization, resubmitOrganization } from '../../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
+import useRecordParam from '../../../lib/useRecordParam';
+import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -252,13 +254,8 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
         <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />
         {organization.submitted_at && <span className="text-xs font-medium text-ink-muted">Submitted {manilaDate(organization.submitted_at, 'long')}</span>}
       </div>
-      {organization.lifecycle_status === 'pending' && <p className="text-sm font-semibold text-ink">Waiting for SAO review</p>}
-      {organization.lifecycle_status === 'returned' && organization.review_remarks && (
-        <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
-          <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">SAO remarks</p>
-          <p className="mt-1 text-sm font-medium text-danger-strong">{organization.review_remarks}</p>
-        </div>
-      )}
+      <RegistrationStepper organization={organization} viewerRole="DEPARTMENT_HEAD" />
+      <RegistrationNextStep organization={organization} viewerRole="DEPARTMENT_HEAD" onPrimary={() => onEdit(organization)} />
       {organization.lifecycle_status === 'archived' && <p className="text-sm font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
       <div>
         <h3 className="text-base font-bold text-ink">Requirement checklist</h3>
@@ -282,7 +279,6 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
         )}
       </div>
       <div className="flex justify-end gap-2">
-        {organization.lifecycle_status === 'returned' && <Button onClick={() => onEdit(organization)}>Edit and resubmit</Button>}
         <Button variant="secondary" onClick={onClose}>Close</Button>
       </div>
     </div>
@@ -295,10 +291,9 @@ export default function CollegeOrganizationsPage() {
   const requestedStatus = searchParams.get('status');
   const tab = Object.hasOwn(LIFECYCLE, requestedStatus) ? requestedStatus : 'all';
   const [formTarget, setFormTarget] = useState(null);
-  const [detailsTarget, setDetailsTarget] = useState(null);
+  const [recordId, setRecordId] = useRecordParam();
   const [lastDetails, setLastDetails] = useState(null);
-  if (detailsTarget && detailsTarget !== lastDetails) setLastDetails(detailsTarget);
-  const shownDetails = detailsTarget ?? lastDetails;
+  const [missingRecord, setMissingRecord] = useState(false);
 
   function changeTab(key) {
     setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
@@ -316,6 +311,21 @@ export default function CollegeOrganizationsPage() {
   const counts = useMemo(() => state.organizations.reduce((totals, organization) => ({ ...totals, [organization.lifecycle_status]: (totals[organization.lifecycle_status] || 0) + 1 }), {}), [state.organizations]);
   const rows = useMemo(() => (tab === 'all' ? state.organizations : state.organizations.filter((organization) => organization.lifecycle_status === tab)), [state.organizations, tab]);
   const college = state.organizations[0]?.college;
+  const detailsTarget = recordId ? state.organizations.find((organization) => String(organization.id) === recordId) ?? null : null;
+  if (detailsTarget && detailsTarget !== lastDetails) setLastDetails(detailsTarget);
+  const shownDetails = detailsTarget ?? lastDetails;
+
+  useEffect(() => {
+    if (!recordId || state.loading || state.error) return;
+    if (state.organizations.some((organization) => String(organization.id) === recordId)) return;
+    setMissingRecord(true);
+    setRecordId(null);
+  }, [recordId, setRecordId, state.error, state.loading, state.organizations]);
+
+  function openDetails(organization) {
+    setMissingRecord(false);
+    setRecordId(organization.id);
+  }
 
   const tabs = [
     { key: 'all', label: `All (${state.organizations.length})`, panelId: STATUS_PANEL_ID },
@@ -334,7 +344,7 @@ export default function CollegeOrganizationsPage() {
           <div className="min-w-0 text-left">
             <p className={`break-words font-semibold ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
             <p className="text-xs font-medium text-ink-muted">{organization.acronym}</p>
-            {organization.lifecycle_status === 'pending' && <p className="mt-1 text-xs font-semibold text-warning-strong">Waiting for SAO review</p>}
+            <RegistrationRowStatus organization={organization} viewerRole="DEPARTMENT_HEAD" className="mt-2 max-w-xs" />
             {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-1 max-w-sm text-xs font-semibold text-danger-strong">SAO remarks: {organization.review_remarks}</p>}
             {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
           </div>
@@ -353,17 +363,17 @@ export default function CollegeOrganizationsPage() {
 
   function handleSaved(options) {
     if (!options?.stayOpen) closeForm();
-    setDetailsTarget(null);
+    setRecordId(null);
     load();
   }
 
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        title="Organizations"
         description={college ? `Student organizations of ${college}. Register new ones and follow their SAO review.` : 'Register student organizations and follow their SAO review.'}
-        actions={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
+        primary={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
       />
+      {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
 
       <Card bodyClassName="p-0">
         <div className="px-4 pt-2"><Tabs tabs={tabs} value={tab} onChange={changeTab} /></div>
@@ -378,18 +388,12 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState title="No organizations yet" description="Organizations you register for your college appear here with their review status." />
+              ? <EmptyState title="No organizations yet" description="Register your first student organization. The SAO reviews it, then provides its administrator." action={<Button variant="secondary" leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>} />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2">
-                {organization.lifecycle_status === 'pending' && <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => setDetailsTarget(organization)}>View checklist</Button>}
-                {organization.lifecycle_status === 'returned' && (
-                  <>
-                    <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => setDetailsTarget(organization)}>View checklist</Button>
-                    <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>
-                  </>
-                )}
-                {(organization.lifecycle_status === 'active' || organization.lifecycle_status === 'archived') && <span className="text-xs font-medium text-ink-muted">Read only</span>}
+                <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
+                {organization.lifecycle_status === 'returned' && <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>}
               </div>
             )}
           />
@@ -406,11 +410,11 @@ export default function CollegeOrganizationsPage() {
         />
       )}
 
-      <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setDetailsTarget(null)} width="max-w-lg">
+      <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setRecordId(null)} width="max-w-lg">
         <OrganizationDetails
           organization={shownDetails}
-          onClose={() => setDetailsTarget(null)}
-          onEdit={(organization) => { setDetailsTarget(null); setFormTarget({ mode: 'resubmit', organization }); }}
+          onClose={() => setRecordId(null)}
+          onEdit={(organization) => { setRecordId(null); setFormTarget({ mode: 'resubmit', organization }); }}
         />
       </Drawer>
     </div>

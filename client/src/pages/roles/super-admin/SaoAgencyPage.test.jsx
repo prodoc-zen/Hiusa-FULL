@@ -111,7 +111,7 @@ describe('SaoAgencyPage', () => {
   it('collapses a college without organizations to one muted line', async () => {
     renderPage();
     const heading = await screen.findByRole('heading', { name: /College of Arts \(COA\)/ });
-    expect(heading.closest('section')).toHaveTextContent('No organizations yet');
+    expect(heading.closest('section')).toHaveTextContent('No student organizations yet. The Department Head registers them.');
     expect(within(heading.closest('section')).queryByRole('button')).not.toBeInTheDocument();
   });
 
@@ -146,5 +146,58 @@ describe('SaoAgencyPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
     expect(await screen.findByRole('region', { name: 'Agency totals' })).toBeInTheDocument();
     expect(mocks.getSystemAgency).toHaveBeenCalledTimes(2);
+  });
+
+  describe('registration flow', () => {
+    const waiting = row({ id: 3, name: 'Chess Club', acronym: 'CHESS', administrators_count: 0, pending_approvals_count: 0, pending_documents_count: 0 });
+    const busy = row({ id: 4, name: 'Zebra Society', acronym: 'ZS', pending_approvals_count: 3, pending_documents_count: 0 });
+    const quiet = row({ id: 5, name: 'Art Club', acronym: 'AC', pending_approvals_count: 0, pending_documents_count: 0 });
+    const pending = row({ id: 2, name: 'Robotics Club', acronym: 'RC', lifecycle_status: 'pending', is_active: false, administrators_count: 0, pending_approvals_count: 0, pending_documents_count: 0 });
+    const returned = row({ id: 6, name: 'Drama Guild', acronym: 'DG', lifecycle_status: 'returned', is_active: false, administrators_count: 0, pending_approvals_count: 0, pending_documents_count: 0 });
+    const college = (organizations, counts = {}) => ({ id: 1, name: 'College of Computing', code: 'CCS', organizations_count: organizations.length, by_lifecycle_status: { pending: 0, returned: 0, active: 0, archived: 0, ...counts }, organizations });
+
+    it('lists the organizations that need the SAO first within a college', async () => {
+      mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [college([quiet, busy, waiting, pending], { pending: 1, active: 3 })] }));
+      renderPage();
+      const table = (await screen.findAllByRole('table'))[0];
+
+      const names = within(table).getAllByRole('row').slice(1).map((tableRow) => within(tableRow).getAllByText(/Club|Society/)[0].textContent);
+      expect(names).toEqual(['Robotics Club', 'Chess Club', 'Zebra Society', 'Art Club']);
+    });
+
+    it('puts a college with an organization awaiting an administrator ahead of quieter ones', async () => {
+      const calm = { id: 2, name: 'College of Arts', code: 'COA', organizations_count: 1, by_lifecycle_status: { pending: 0, returned: 3, active: 1, archived: 0 }, organizations: [quiet] };
+      mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [calm, college([waiting], { active: 1 })] }));
+      renderPage();
+      await screen.findByRole('heading', { name: /College of Computing/ });
+
+      const order = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent.replace(/\s*\(\w+\)$/, ''));
+      expect(order).toEqual(['College of Computing', 'College of Arts']);
+      expect(screen.getByRole('button', { name: /College of Computing/ })).toHaveAttribute('aria-expanded', 'true');
+      expect(screen.getByText(/awaiting administrator/)).toBeInTheDocument();
+    });
+
+    it('says what the SAO does next for each lifecycle status', async () => {
+      mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [college([pending, waiting, quiet, returned], { pending: 1, returned: 1, active: 2 })] }));
+      renderPage();
+      const table = (await screen.findAllByRole('table'))[0];
+      const rowOf = (name) => within(table).getByText(name).closest('tr');
+
+      expect(within(rowOf('Robotics Club')).getByText('Review this registration')).toBeInTheDocument();
+      expect(within(rowOf('Robotics Club')).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
+      expect(within(rowOf('Chess Club')).getByText('Provision an administrator')).toBeInTheDocument();
+      expect(within(rowOf('Chess Club')).getByText('Step 3 of 4: Administrator')).toBeInTheDocument();
+      expect(within(rowOf('Art Club')).getByText('Active: administrator can sign in')).toBeInTheDocument();
+      expect(within(rowOf('Drama Guild')).getByText('Waiting for the Department Head to resubmit')).toBeInTheDocument();
+    });
+
+    it('links Provision administrator to the prefilled administrator form', async () => {
+      mocks.getSystemAgency.mockResolvedValue(agency({ colleges: [college([waiting, quiet], { active: 2 })] }));
+      renderPage();
+
+      const link = (await screen.findAllByRole('link', { name: 'Provision administrator for Chess Club' }))[0];
+      expect(link).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=3&create=1');
+      expect(screen.queryByRole('link', { name: 'Provision administrator for Art Club' })).not.toBeInTheDocument();
+    });
   });
 });

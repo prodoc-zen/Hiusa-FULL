@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Building2, ImagePlus, UserPlus } from 'lucide-react';
-import { Button, EmptyState, ErrorState, Field, Input, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
 import { getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -103,7 +103,7 @@ export default function SystemCollegesPage() {
 
   return (
     <div className="space-y-5">
-      <p className="max-w-[75ch] text-sm font-medium text-ink-muted">Colleges are a fixed list managed in the system. You can update each college's logo, open its organizations and assign its Department Head.</p>
+      <PageHeader purpose="Assign each college's Department Head, open its organizations and update its logo." />
       {error && !loading ? <ErrorState description={error} onRetry={load} /> : (
         <>
           <Field label="Search colleges" className="max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>

@@ -9,7 +9,7 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
 
-const renderPage = () => render(<MemoryRouter><SystemCollegesPage /></MemoryRouter>);
+const renderPage = () => render(<MemoryRouter initialEntries={['/dashboard/super-admin/colleges']}><SystemCollegesPage /></MemoryRouter>);
 
 describe('SystemCollegesPage', () => {
   beforeEach(() => {
@@ -24,7 +24,16 @@ describe('SystemCollegesPage', () => {
     expect(screen.queryByRole('button', { name: /add college/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /delete/i })).not.toBeInTheDocument();
-    expect(screen.getByText(/fixed list managed in the system/i)).toBeInTheDocument();
+    expect(screen.getByText("Assign each college's Department Head, open its organizations and update its logo.")).toBeInTheDocument();
+  });
+
+  it('has one h1, from the shared header, with a breadcrumb', async () => {
+    renderPage();
+    await screen.findByText('College of Arts');
+
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Colleges');
+    expect(screen.getByRole('navigation', { name: 'Breadcrumb' })).toBeInTheDocument();
   });
 
   it('links each college to its organizations', async () => {

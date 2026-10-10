@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { ArrowLeft, Building2, ExternalLink, FileText } from 'lucide-react';
 import { Link, useParams } from 'react-router-dom';
 import ConfirmModal from '../../../components/ConfirmModal';
+import { RegistrationNextStep, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { Button, ErrorState, SkeletonCard, SkeletonStat, StatusBadge } from '../../../components/ui';
 import { peso } from '../../../lib/format';
 import { getComplianceDocuments } from '../../../services/complianceService';
@@ -160,6 +161,7 @@ export default function SaoOrganizationOverviewPage() {
   const { organization, lifecycle, leadership = [], member_counts: members = {}, events = {}, budget = {}, compliance = {}, pending_approvals_count: pendingApprovals = 0 } = overview;
   const accreditation = accreditationBadge(compliance.accreditation_status);
   const name = formatDisplayText(organization.name);
+  const registration = { id: organization.id, name, lifecycle_status: lifecycle.status, review_remarks: lifecycle.review_remarks, administrators_count: members.ADMIN ?? 0 };
 
   return (
     <div className="space-y-5">
@@ -185,14 +187,10 @@ export default function SaoOrganizationOverviewPage() {
           {lifecycle.archived_at && <span className="block text-xs font-medium text-ink-muted">Archived {formatDateTime(lifecycle.archived_at)}{lifecycle.archived_by ? ` by ${lifecycle.archived_by.name}` : ''}.</span>}
         </p>
       )}
-      {lifecycle.status === 'pending' && (
-        <p role="note" className="rounded-lg border border-line bg-warning-tint p-3 text-sm font-semibold text-ink">
-          This registration is waiting for SAO review. <Link to={`/dashboard/super-admin/organizations?status=pending&review=${organization.id}`} className="font-bold text-brand-700 underline">Review this registration</Link>
-        </p>
-      )}
-      {lifecycle.status === 'returned' && (
-        <p role="note" className="rounded-lg border border-line bg-subtle p-3 text-sm text-ink"><span className="block text-xs font-bold text-ink-muted">Returned with remarks</span>{lifecycle.review_remarks || 'No remarks were recorded.'}</p>
-      )}
+      <section aria-label="Registration progress" className="space-y-3">
+        <RegistrationStepper organization={registration} viewerRole="SUPER_ADMIN" />
+        {lifecycle.status !== 'archived' && <RegistrationNextStep organization={registration} viewerRole="SUPER_ADMIN" />}
+      </section>
       {actionError && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{actionError}</p>}
       {notice && <p role="status" className="rounded-lg bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
 
@@ -209,7 +207,7 @@ export default function SaoOrganizationOverviewPage() {
                 </li>
               ))}
             </ul>
-          ) : <p className="text-sm font-medium text-ink-muted">No administrators or officers yet.</p>}
+          ) : <p className="text-sm font-medium text-ink-muted">{lifecycle.status === 'active' ? 'No administrators or officers yet. Provision an administrator so the organization can sign in.' : 'No administrators or officers yet. The first administrator is provisioned after the SAO approves the registration.'}</p>}
         </Section>
 
         <Section id="members" title="Members by role">
