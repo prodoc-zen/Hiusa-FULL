@@ -3,9 +3,9 @@ import Button from '../ui/Button';
 import { greetingFor, manilaDate } from '../../lib/format';
 
 const ROLE_LABELS = {
-  SUPER_ADMIN: 'Super Admin',
-  ADMIN: 'Admin',
-  SBO_OFFICER: 'Officer',
+  SUPER_ADMIN: 'SAO',
+  ADMIN: 'Organization Admin',
+  SBO_OFFICER: 'SBO Officer',
   DEPARTMENT_HEAD: 'Department Head',
   STUDENT: 'Student',
 };
