@@ -64,6 +64,7 @@ class NotifyApproversJob implements ShouldQueue
                 'title' => $this->approval->required_role === 'SUPER_ADMIN' ? 'New SAO Approval Request' : 'Approval Request Submitted',
                 'message' => Str::headline($this->approval->entity_type).' "'.$entityLabel.'" requires your review.',
                 'notification_type' => 'general',
+                'entity_type' => $this->approval->entity_type,
                 'is_read' => false,
                 'sent_at' => now(),
             ]);
