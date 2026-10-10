@@ -3,6 +3,7 @@ import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from "react";
 import { Clock3, Download, Eye, X } from "lucide-react";
+import { EmptyState, PageHeader } from "../../../components/ui";
 import PaginationControls from "../../../components/PaginationControls";
 import TableFilterBar from "../../../components/TableFilterBar";
 import { exportAuditLogs, getAuditLogs } from "../../../services/financeService";
@@ -142,6 +143,7 @@ export default function GeneralAuditLogPage() {
 
   return (
     <div className="space-y-5">
+      <PageHeader />
       <section className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <TableFilterBar
           searchValue={filters.search}
@@ -263,12 +265,11 @@ export default function GeneralAuditLogPage() {
             ))}
           </div>
         ) : logs.length === 0 ? (
-          <div className="p-12 text-center">
-            <Clock3 size={34} className="mx-auto text-slate-300" />
-            <p className="mt-3 text-sm font-bold text-slate-600">
-              No audit activity matches these filters.
-            </p>
-          </div>
+          activeAuditFilters.length > 0 ? (
+            <EmptyState kind="filtered" title="No audit activity matches these filters" description="Try a wider date range or another module." onClearFilters={clearAuditFilters} />
+          ) : (
+            <EmptyState kind="first-run" icon={Clock3} title="No audit activity yet" description="Every approval, payment, event, and setting change is recorded here as people work in the system." />
+          )
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-left text-xs">
