@@ -64,14 +64,64 @@ class AdminDashboardAndImportTest extends TestCase
             ->assertJsonPath('rows.0.status', 'update')->assertJsonPath('rows.1.status', 'new')
             ->assertJsonPath('rows.2.status', 'duplicate')->assertJsonPath('rows.3.status', 'duplicate')->assertJsonPath('rows.4.status', 'invalid');
         $this->assertDatabaseMissing('users', ['school_id' => 87654321]);
-        $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => $preview->json('hash'), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])
+        $this->assertArrayNotHasKey('temporary_passwords', $preview->json());
+        $applied = $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => $preview->json('hash'), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])
             ->assertOk()->assertJsonPath('updated', 1)->assertJsonPath('created', 1)
             ->assertJsonPath('invalid', 1)->assertJsonPath('duplicate', 2);
         $this->assertDatabaseHas('users', ['school_id' => $student->school_id, 'program' => 'BSIT', 'year_level' => '1st Year', 'section' => '1-A']);
         $this->assertDatabaseHas('users', ['school_id' => 87654321, 'email' => 'new.student@example.test', 'role' => 'STUDENT']);
-        $this->assertTrue(Hash::check('4321-uclm', User::find(87654321)->password_hash));
+        $created = User::find(87654321);
+        $this->assertTrue($created->must_change_password);
+        $this->assertFalse(Hash::check('4321-uclm', $created->password_hash));
+        $applied->assertJsonCount(1, 'temporary_passwords')
+            ->assertJsonPath('temporary_passwords.0.school_id', 87654321)
+            ->assertJsonPath('temporary_passwords.0.name', 'New Student');
+        $this->assertTrue(Hash::check($applied->json('temporary_passwords.0.password'), $created->password_hash));
+        $this->assertSame(0, collect($applied->json('temporary_passwords'))->where('school_id', $student->school_id)->count());
         $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => $preview->json('hash'), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])->assertUnprocessable();
         $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => str_repeat('0', 64), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])->assertUnprocessable();
+    }
+
+    public function test_class_list_import_issues_unique_random_one_time_temporary_passwords_and_never_stores_them(): void
+    {
+        $organization = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $existing = User::factory()->student()->create(['organization_id' => $organization->id, 'program' => 'BSIT', 'year_level' => '1st Year', 'section' => '1-A']);
+        $existingHash = $existing->password_hash;
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/academic-structure/programs', ['name' => 'BSIT', 'duration_years' => 4, 'sections' => ['1' => 1, '2' => 0, '3' => 0, '4' => 0]])->assertCreated();
+        $csv = "school_id,first_name,last_name,email,program,year_level,section\n"
+            .$existing->school_id.",{$existing->first_name},{$existing->last_name},{$existing->email},BSIT,1,1-A\n"
+            ."20000001,Ana,One,ana.one@example.test,BSIT,1,1-A\n"
+            ."20000002,Ben,Two,ben.two@example.test,BSIT,1,1-A\n";
+        $file = fn () => UploadedFile::fake()->createWithContent('students.csv', $csv);
+        $preview = $this->post('/api/academic-structure/class-list/preview', ['file' => $file()])->assertOk();
+        $applied = $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => $preview->json('hash'), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])
+            ->assertOk()->assertJsonPath('created', 2)->assertJsonPath('unchanged', 1)
+            ->assertJsonCount(2, 'temporary_passwords');
+
+        $issued = collect($applied->json('temporary_passwords'));
+        $this->assertSame([20000001, 20000002], $issued->pluck('school_id')->all());
+        $this->assertSame(['Ana One', 'Ben Two'], $issued->pluck('name')->all());
+        $this->assertCount(2, $issued->pluck('password')->unique());
+        foreach ($issued as $entry) {
+            $this->assertMatchesRegularExpression('/^[A-HJ-NP-Za-km-np-z2-9]{10}$/', $entry['password']);
+            $this->assertStringNotContainsString(substr((string) $entry['school_id'], -4), $entry['password']);
+            $user = User::find($entry['school_id']);
+            $this->assertTrue($user->must_change_password);
+            $this->assertTrue(Hash::check($entry['password'], $user->password_hash));
+            $this->assertNotSame($entry['password'], $user->password_hash);
+            $this->assertFalse(Hash::check(substr((string) $entry['school_id'], -4).'-uclm', $user->password_hash));
+        }
+
+        $this->assertSame($existingHash, $existing->fresh()->password_hash);
+        $this->assertSame(0, $issued->where('school_id', $existing->school_id)->count());
+        foreach (\App\Models\AuditLog::all() as $log) {
+            foreach ($issued->pluck('password') as $password) {
+                $this->assertStringNotContainsString($password, json_encode($log->toArray()));
+            }
+        }
+        $this->assertStringContainsString('no-store', (string) $applied->headers->get('Cache-Control'));
     }
 
     public function test_csv_import_rejects_invalid_columns_and_non_admin_access(): void
