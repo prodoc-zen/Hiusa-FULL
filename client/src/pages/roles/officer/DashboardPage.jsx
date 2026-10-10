@@ -14,6 +14,7 @@ import { getEvents } from '../../../services/eventService';
 import { getOrders } from '../../../services/orderService';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
+import { Button, EmptyState } from '../../../components/ui';
 
 const STATUS_BADGE = {
   pending:     'bg-amber-50 text-amber-700',
@@ -40,6 +41,7 @@ export default function DashboardPage() {
   const [urgentTasks, setUrgentTasks] = useState([]);
   const [taskStatusTotals, setTaskStatusTotals] = useState({ pending: 0, in_progress: 0, completed: 0, overdue: 0 });
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -96,7 +98,10 @@ export default function DashboardPage() {
         });
 
       } catch {
-        if (!cancelled) setStats({ openTasks: 0, completedTasks: 0, upcomingEvents: 0, pendingOrders: 0 });
+        if (!cancelled) {
+          setStats({ openTasks: 0, completedTasks: 0, upcomingEvents: 0, pendingOrders: 0 });
+          setFailed(true);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -120,11 +125,50 @@ export default function DashboardPage() {
   ];
 
   const quickActions = [
-    { label: 'Assigned Tasks', path: '/dashboard/tasks/assigned-tasks', icon: ClipboardList },
-    { label: 'Event Check-In', path: '/dashboard/events/check-in', icon: CalendarDays },
+    { label: 'My tasks', path: '/dashboard/tasks/assigned-tasks', icon: ClipboardList },
+    { label: 'Check-in', path: '/dashboard/events/check-in', icon: CalendarDays },
     { label: 'My Receipts', path: '/dashboard/finance/personal-receipts', icon: Coins },
-    { label: 'Post Announcement', path: '/dashboard/announcements/create-announcement', icon: Megaphone },
+    { label: 'New announcement', path: '/dashboard/announcements/create-announcement', icon: Megaphone },
   ];
+
+  const quickActionsSection = (
+    <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
+      <h2 className="mb-3 text-base font-bold text-[#0F172A]">Quick Actions</h2>
+      <div className="grid grid-cols-2 gap-2">
+        {quickActions.map((a) => (
+          <NavLink
+            key={a.path}
+            to={a.path}
+            className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-bold text-[#0F172A] transition hover:border-[#0B8ED0]/30 hover:bg-white hover:text-[#0878B7] sm:text-sm"
+          >
+            <a.icon size={16} className="shrink-0 text-[#0878B7]" aria-hidden="true" />
+            {a.label}
+          </NavLink>
+        ))}
+      </div>
+    </section>
+  );
+
+  // Nothing assigned yet: name the first action instead of a wall of zeros.
+  const firstRun = !loading && !failed && totalTasksCount === 0 && Object.values(stats).every((value) => value === 0);
+
+  if (firstRun) {
+    return (
+      <div className="mx-auto w-full max-w-[1280px] space-y-6">
+        <RoleBriefing />
+        <section className="rounded-lg border border-[#DDE7EF] bg-white" aria-label="Work queue">
+          <EmptyState
+            kind="first-run"
+            icon={ClipboardList}
+            title="No work has been assigned to you yet"
+            description="Tasks, orders to verify and events show up here once your Admin assigns them. Start by opening My tasks."
+            action={<Button to="/dashboard/tasks/assigned-tasks">Open My tasks</Button>}
+          />
+        </section>
+        {quickActionsSection}
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1280px] space-y-6">
@@ -224,21 +268,7 @@ export default function DashboardPage() {
             )}
           </section>
 
-          <section className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm">
-            <h2 className="mb-3 text-base font-bold text-[#0F172A]">Quick Actions</h2>
-            <div className="grid grid-cols-2 gap-2">
-              {quickActions.map((a) => (
-                <NavLink
-                  key={a.path}
-                  to={a.path}
-                  className="flex items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3 text-xs font-bold text-[#0F172A] transition hover:border-[#0B8ED0]/30 hover:bg-white hover:text-[#0878B7] sm:text-sm"
-                >
-                  <a.icon size={16} className="shrink-0 text-[#0878B7]" aria-hidden="true" />
-                  {a.label}
-                </NavLink>
-              ))}
-            </div>
-          </section>
+          {quickActionsSection}
         </div>
       </div>
 

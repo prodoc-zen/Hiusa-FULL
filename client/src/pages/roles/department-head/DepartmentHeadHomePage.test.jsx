@@ -62,6 +62,31 @@ describe('DepartmentHeadHomePage', () => {
     expect(within(returned).queryByText('Action needed')).not.toBeInTheDocument();
   });
 
+  it('puts the college organizations before the oversight snapshot', async () => {
+    renderPage();
+
+    const heading = await screen.findByRole('heading', { name: 'College of Engineering organizations' });
+    const snapshot = await screen.findByText('Oversight snapshot');
+    expect(heading.compareDocumentPosition(snapshot) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('names the first action when the college has no organization yet', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
+    renderPage();
+
+    expect(await screen.findByText('No student organizations yet')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Register an organization' })).toHaveAttribute('href', '/dashboard/department-head/organizations');
+    expect(screen.queryByRole('link', { name: /^Returned/ })).not.toBeInTheDocument();
+  });
+
+  it('does not call a failed load an empty college', async () => {
+    mocks.getCollegeOrganizations.mockRejectedValue(new Error('network'));
+    renderPage();
+
+    await screen.findByRole('button', { name: 'Try again' });
+    expect(screen.queryByText('No student organizations yet')).not.toBeInTheDocument();
+  });
+
   it('keeps the existing oversight snapshot', async () => {
     renderPage();
 
