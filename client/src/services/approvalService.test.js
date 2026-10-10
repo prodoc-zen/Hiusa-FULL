@@ -1,11 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
-import { getApprovalRequests, getSubmittedApprovals, reviewApprovalRequest } from './approvalService';
+import { getApprovalRequest, getApprovalRequests, getSubmittedApprovals, reviewApprovalRequest } from './approvalService';
 
 vi.mock('./api', () => ({ default: { get: vi.fn(), patch: vi.fn() } }));
 
 describe('approvalService', () => {
   beforeEach(() => vi.clearAllMocks());
+
+  it('reads one request by id', () => {
+    getApprovalRequest(31);
+    expect(api.get).toHaveBeenCalledWith('/approval-requests/31');
+  });
 
   it('lists the requests awaiting the caller without a scope', () => {
     getApprovalRequests({ status: 'pending' });
