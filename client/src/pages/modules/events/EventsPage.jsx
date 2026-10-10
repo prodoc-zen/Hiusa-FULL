@@ -2,10 +2,11 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
+import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   CalendarCheck2,
+  CalendarPlus,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -50,6 +51,11 @@ import ScannerStatus from '../../../components/fingerprint/ScannerStatus';
 import TableFilterBar from '../../../components/TableFilterBar';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import EventRegistrationPanel from '../../../components/events/EventRegistrationPanel';
+import { EventFlowFooter, EventFlowPanel, EventRowProgress } from '../../../components/events/EventFlow';
+import { FILE_STAGES, RETURNED_STAGES, eventFlow, stageText } from '../../../components/events/eventStage';
+import useRequirementProgress from '../../../components/events/useRequirementProgress';
+import { Button, EmptyState, PageHeader } from '../../../components/ui';
+import useRecordParam from '../../../lib/useRecordParam';
 
 const statusBadge = {
   planning: 'bg-amber-50 text-amber-700',
@@ -335,9 +341,12 @@ function BiometricCheckIn({ eventId, onRecorded, users = [], department = '', ac
 export default function EventsPage({ initialTab = 'events', startEventRequest = false }) {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [recordId, setRecordId] = useRecordParam();
   const [showForm, setShowForm] = useState(false);
   const [activeTab, setActiveTab] = useState(initialTab);
-  const [eventsView, setEventsView] = useState(() => (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list'));
+  const viewParam = searchParams.get('view');
+  const eventsView = ['calendar', 'list'].includes(viewParam) ? viewParam : (location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list');
   const [events, setEvents] = useState([]);
   const [eventRows, setEventRows] = useState([]);
   const [eventTotal, setEventTotal] = useState(0);
@@ -349,6 +358,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [dateFilter, setDateFilter] = useState('');
   const [eventStatusFilter, setEventStatusFilter] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
+  const [submissionVersion, setSubmissionVersion] = useState(0);
   const detailsRequestRef = useRef(0);
   const [detailsLoading, setDetailsLoading] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
@@ -408,6 +418,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const canCreateEvents = currentUserRole === 'ADMIN';
   const canManageAttendance = ['ADMIN', 'SBO_OFFICER'].includes(currentUserRole);
   const viewingHistory = Boolean(selectedPeriodId) && Number(selectedPeriodId) !== academicPeriods.find((period) => period.status === 'active')?.id;
+  const seesEventFlow = ['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const holdsEventFiles = ['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole);
+  const requirementProgress = useRequirementProgress(selectedEvent?.id, holdsEventFiles && selectedEvent?.requirements_required === true && !detailsLoading, submissionVersion);
+  const selectedFlow = selectedEvent && seesEventFlow ? eventFlow(selectedEvent, currentUserRole, requirementProgress) : null;
 
   useEffect(() => {
     getAcademicPeriods().then(setAcademicPeriods).catch(() => setAcademicPeriods([]));
@@ -483,9 +497,31 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     }
   }, [canCreateEvents, startEventRequest]);
 
+  function changeEventsView(view) {
+    const next = new URLSearchParams(searchParams);
+    next.set('view', view);
+    setSearchParams(next, { replace: true });
+  }
+
   useEffect(() => {
-    setEventsView(location.pathname.endsWith('activity-calendar') ? 'calendar' : 'list');
-  }, [location.pathname]);
+    if (searchParams.get('new') !== '1' || activeTab !== 'events' || !canCreateEvents) return;
+    openCreateForm();
+    const next = new URLSearchParams(searchParams);
+    next.delete('new');
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, canCreateEvents, searchParams]);
+
+  useEffect(() => {
+    if (!recordId) {
+      if (selectedEvent) closeLocalDetails();
+      return;
+    }
+    if (String(selectedEvent?.id) === recordId) return;
+    const known = [...eventRows, ...events].find((event) => String(event.id) === recordId);
+    loadEventDetails(known ?? { id: Number(recordId) }, true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recordId]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCurrentTime(Date.now()), 30000);
@@ -662,7 +698,12 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setShowForm(true);
   }
 
-  async function openEventDetails(event) {
+  function openEventDetails(event) {
+    setRecordId(event.id);
+    return loadEventDetails(event);
+  }
+
+  async function loadEventDetails(event, fromLink = false) {
     const requestId = detailsRequestRef.current + 1;
     detailsRequestRef.current = requestId;
     setSelectedEvent(event);
@@ -671,17 +712,41 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     try {
       const response = await getEvent(event.id);
       if (detailsRequestRef.current === requestId) setSelectedEvent(response.data);
-    } catch {
-      if (detailsRequestRef.current === requestId) setSelectedEvent(event);
+    } catch (requestError) {
+      if (detailsRequestRef.current !== requestId) return;
+      if (fromLink && !event.title) {
+        closeLocalDetails();
+        setRecordId(null);
+        notify.error(getApiErrorMessage(requestError, 'That event could not be opened. It may have been removed or belong to another organization.'));
+        return;
+      }
+      setSelectedEvent(event);
     } finally {
       if (detailsRequestRef.current === requestId) setDetailsLoading(false);
     }
   }
 
-  function closeEventDetails() {
+  function closeLocalDetails() {
     detailsRequestRef.current += 1;
     setSelectedEvent(null);
     setDetailsLoading(false);
+  }
+
+  function closeEventDetails() {
+    closeLocalDetails();
+    setRecordId(null);
+  }
+
+  async function refreshSelectedEvent() {
+    const id = selectedEvent?.id;
+    if (!id) return;
+    try {
+      const response = await getEvent(id);
+      setSelectedEvent((current) => (current?.id === id ? response.data : current));
+      setEvents((current) => current.map((event) => event.id === id ? response.data : event));
+      setEventRows((current) => current.map((event) => event.id === id ? response.data : event));
+    } catch {}
+    setEventReload((value) => value + 1);
   }
 
   async function handleStatusUpdate(status) {
@@ -843,6 +908,20 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     const end = new Date(event.end_time).getTime();
     return ['approved', 'ongoing'].includes(event.status) && Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime <= end;
   });
+  const preselectedEventId = searchParams.get('event');
+  const preselectedRef = useRef(null);
+  useEffect(() => {
+    const key = `${activeTab}:${preselectedEventId}`;
+    if (!preselectedEventId || loading || preselectedRef.current === key) return;
+    const source = activeTab === 'attendance' ? attendanceEvents : activeTab === 'tasks' ? events : [];
+    const match = source.find((event) => String(event.id) === preselectedEventId);
+    if (!match) return;
+    preselectedRef.current = key;
+    if (activeTab === 'attendance') handleSelectAttEvent(match.id);
+    else selectPlanningEvent(String(match.id));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, attendanceEvents, events, loading, preselectedEventId]);
+
   const attendanceEvent = attendanceData?.event ?? attendanceEvents.find((event) => String(event.id) === String(selectedAttEventId));
   const attendanceCount = Number(attendanceData?.count ?? attendanceData?.records?.length ?? 0);
   const currentlyInside = Number(attendanceData?.checked_in_count ?? attendanceCount);
@@ -916,10 +995,60 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     setEventsPage(1);
   };
 
+  const filesAtStage = FILE_STAGES.includes(selectedEvent?.approval_stage);
+  const eventFilesPanel = holdsEventFiles && selectedEvent && selectedEvent.requirements_required !== false
+    ? <EventSubmissionPanel eventId={selectedEvent.id} role={currentUserRole} onSubmitted={() => { setSubmissionVersion((value) => value + 1); refreshSelectedEvent(); }} />
+    : null;
+  const hasEventFilters = Boolean(search.trim() || dateFilter || eventStatusFilter);
+  const isReturned = (event) => (event.approval_stage ? RETURNED_STAGES.includes(event.approval_stage) : event.approval_status === 'rejected');
+  const eventStatusText = (event) => (event.status === 'planning' ? stageText(event) : null) || statusLabel[event.status] || capitalize(event.status);
+
+  function eventListEmptyState() {
+    if (hasEventFilters) {
+      return <EmptyState kind="filtered" title="No events match these filters" description="Change the search, date or status, or clear the filters to see every event in this period." onClearFilters={clearEventFilters} />;
+    }
+    if (currentUserRole === 'ADMIN') {
+      return viewingHistory ? (
+        <EmptyState icon={CalendarPlus} title="No events in this semester" description="This semester is closed, so no new events can be proposed in it. Switch the academic period to the active one to propose an event." />
+      ) : (
+        <EmptyState
+          icon={CalendarPlus}
+          title="No events proposed yet"
+          description="Every event starts as a proposal. The Department Head approves it first, and the SAO clears it when SAO files apply, before it can be funded, run and reported."
+          action={<Button leftIcon={Plus} onClick={openCreateForm}>Propose your first event</Button>}
+        />
+      );
+    }
+    if (currentUserRole === 'SBO_OFFICER') {
+      return <EmptyState kind="restricted" title="No events yet" description="Only your organization's Admin can propose events. Approved events appear here with their tasks and check-in." />;
+    }
+    if (currentUserRole === 'DEPARTMENT_HEAD') {
+      return (
+        <EmptyState
+          icon={CalendarCheck2}
+          title="No events from your college yet"
+          description="Events that organizations propose appear here, and the ones waiting for your decision are in Approvals."
+          action={<Button variant="secondary" to="/dashboard/department-head/approvals">Open approvals</Button>}
+        />
+      );
+    }
+    return (
+      <EmptyState
+        icon={CalendarCheck2}
+        title="No events to join yet"
+        description="Approved events appear here with a Register button. Watch the announcements for dates, then come back to reserve your spot."
+        action={<Button variant="secondary" to="/dashboard/announcements/view-announcements">Read announcements</Button>}
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
+      <PageHeader
+        primary={activeTab === 'events' && canCreateEvents && !viewingHistory ? <Button leftIcon={Plus} onClick={openCreateForm}>New event</Button> : undefined}
+      />
 
-      {activeTab !== 'attendance' && <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
+      {activeTab === 'events' && <section className="grid grid-cols-1 gap-px overflow-hidden rounded-lg border border-[#DDE7EF] bg-[#DDE7EF] sm:grid-cols-2 xl:grid-cols-4">
         {[
           { label: 'Total Events', value: events.length, helper: 'This academic year', icon: Calendar },
           { label: 'Upcoming', value: upcoming, helper: 'Scheduled', icon: Clock },
@@ -939,47 +1068,35 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'events' && (
         <section className="space-y-4">
-          {academicPeriods.length > 0 && <label className="block max-w-sm text-xs font-semibold text-slate-700">Academic period
+          <div className="flex flex-wrap items-end justify-between gap-3">
+          {academicPeriods.length > 0 ? <label className="block w-full max-w-sm text-xs font-semibold text-slate-700">Academic period
             <select value={selectedPeriodId} onChange={(event) => setSelectedPeriodId(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm">
               <option value="">Active period</option>
               {academicPeriods.map((period) => <option key={period.id} value={period.id}>AY {period.academic_year.label} · {period.number === 1 ? '1st' : '2nd'} Semester · {period.status}</option>)}
             </select>
-          </label>}
-          {viewingHistory && <p className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
-          <div className="flex flex-col gap-3 rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <h2 className="text-lg font-bold text-[#0F172A]">All Events</h2>
-              <p className="text-sm font-medium text-slate-500">Create, manage, and monitor events</p>
-            </div>
-            <div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center">
-              <div role="group" aria-label="Switch events view" className="flex h-11 shrink-0 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-1">
-                <button
-                  type="button"
-                  aria-label="List view"
-                  aria-pressed={eventsView === 'list'}
-                  onClick={() => setEventsView('list')}
-                  className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'list' ? 'bg-white text-[#0878B7] shadow-sm' : 'text-slate-500'}`}
-                >
-                  <List size={15} /> <span className="hidden sm:inline">List</span>
-                </button>
-                <button
-                  type="button"
-                  aria-label="Calendar view"
-                  aria-pressed={eventsView === 'calendar'}
-                  onClick={() => setEventsView('calendar')}
-                  className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'calendar' ? 'bg-white text-[#0878B7] shadow-sm' : 'text-slate-500'}`}
-                >
-                  <Calendar size={15} /> <span className="hidden sm:inline">Calendar</span>
-                </button>
-              </div>
-              {canCreateEvents && !viewingHistory && (
-                <button onClick={openCreateForm} className="flex h-11 items-center gap-2 rounded-lg bg-[#0878B7] px-4 text-[13px] font-bold text-white hover:bg-[#0F2F62] transition">
-                  <Plus size={16} />
-                  <span className="hidden sm:inline">Create Event</span>
-                </button>
-              )}
-            </div>
+          </label> : <span />}
+          <div role="group" aria-label="Switch events view" className="flex h-11 w-fit shrink-0 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-1">
+            <button
+              type="button"
+              aria-label="List view"
+              aria-pressed={eventsView === 'list'}
+              onClick={() => changeEventsView('list')}
+              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'list' ? 'bg-white text-[#0878B7] shadow-sm' : 'text-slate-500'}`}
+            >
+              <List size={15} /> <span className="hidden sm:inline">List</span>
+            </button>
+            <button
+              type="button"
+              aria-label="Calendar view"
+              aria-pressed={eventsView === 'calendar'}
+              onClick={() => changeEventsView('calendar')}
+              className={`flex h-9 items-center gap-1.5 rounded-md px-3 text-[13px] font-bold transition ${eventsView === 'calendar' ? 'bg-white text-[#0878B7] shadow-sm' : 'text-slate-500'}`}
+            >
+              <Calendar size={15} /> <span className="hidden sm:inline">Calendar</span>
+            </button>
           </div>
+          </div>
+          {viewingHistory && <p className="rounded-lg border border-[#DDE7EF] bg-white px-4 py-3 text-sm text-slate-600">Viewing completed semester records. New events use only the active period.</p>}
 
           {eventsView === 'list' && (
             <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
@@ -1013,7 +1130,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   {[1, 2, 3].map((i) => <div key={i} className="h-14 animate-pulse rounded-lg bg-slate-100" />)}
                 </div>
               ) : filteredEvents.length === 0 ? (
-                <p className="p-8 text-center text-sm text-slate-500">No events found.</p>
+                eventListEmptyState()
               ) : (
                 <>
                 <div className="divide-y divide-[#DDE7EF] lg:hidden">
@@ -1023,15 +1140,16 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                       <article key={evt.id} className="p-4 sm:p-5">
                         <div className="flex items-start justify-between gap-3">
                           <div className="min-w-0"><h3 className="font-black leading-6 text-[#0F172A]">{formatDisplayText(evt.title)}</h3><RichTextBody value={evt.description || 'No description provided'} className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500" /></div>
-                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{statusLabel[evt.status] || capitalize(evt.status)}</span>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>{eventStatusText(evt)}</span>
                         </div>
+                        {seesEventFlow && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-3" />}
                         <dl className="mt-4 grid gap-3 text-xs sm:grid-cols-2">
                           <div><dt className="font-bold uppercase tracking-wide text-slate-500">Schedule</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{formatDateTime(evt.start_time)}<span className="block font-normal text-slate-500">Ends {formatDateTime(evt.end_time)}</span></dd></div>
                           <div><dt className="font-bold uppercase tracking-wide text-slate-500">Venue</dt><dd className="mt-1 font-semibold leading-5 text-slate-700">{evt.location || 'Not specified'}</dd></div>
                           <div><dt className="font-bold uppercase tracking-wide text-slate-500">Operations</dt><dd className="mt-1 font-semibold text-slate-700">{evt.present_count || 0} present / late · {evt.tasks_count || 0} tasks</dd></div>
                           {canCreateEvents && <div><dt className="font-bold uppercase tracking-wide text-slate-500">Budget</dt><dd className="mt-1"><span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${budgetStatus.tone}`}>{budgetStatus.label}</span></dd></div>}
                         </dl>
-                        {evt.approval_status === 'rejected' && evt.approval_remarks && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-5 text-red-700">Rejected: {evt.approval_remarks}</p>}
+                        {isReturned(evt) && evt.approval_remarks && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-xs font-semibold leading-5 text-red-700">Returned: {evt.approval_remarks}</p>}
                         <div className="mt-4 flex gap-2 border-t border-[#DDE7EF] pt-3">
                           <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-xs font-bold text-[#0878B7]"><Eye size={15} /> View details</button>
                           {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
@@ -1078,13 +1196,14 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                           <td className="px-5 py-4 text-xs"><p className="font-bold text-[#0F172A]">{evt.tasks_count || 0} linked</p><p className="text-[10px] text-slate-500">Workflow tasks</p></td>
                           <td className="px-5 py-4">
                             <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[evt.status] || 'bg-slate-100 text-slate-500'}`}>
-                              {statusLabel[evt.status] || capitalize(evt.status)}
+                              {eventStatusText(evt)}
                             </span>
-                            {evt.approval_status === 'rejected' && evt.approval_remarks && (
+                            {isReturned(evt) && evt.approval_remarks && (
                               <p className="mt-1 max-w-[220px] text-[11px] text-red-600">
-                                <span className="font-semibold">Rejected:</span> {evt.approval_remarks}
+                                <span className="font-semibold">Returned:</span> {evt.approval_remarks}
                               </p>
                             )}
+                            {seesEventFlow && <EventRowProgress flow={eventFlow(evt, currentUserRole)} title={formatDisplayText(evt.title)} className="mt-2 w-[220px]" />}
                           </td>
                           {canCreateEvents && (() => {
                             const budgetStatus = getEventBudgetStatus(evt);
@@ -1127,13 +1246,22 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {activeTab === 'tasks' && (
         <section className="space-y-4">
+          {!loading && events.length === 0 ? (
+            <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
+              <EmptyState
+                icon={CalendarPlus}
+                title="No event to plan yet"
+                description="A to-do list is built for an event, and an event starts as a proposal for the Department Head to approve. Propose one first, then come back to plan its tasks."
+                action={<Button leftIcon={Plus} to="/dashboard/events/manage-events?new=1">Propose your first event</Button>}
+              />
+            </div>
+          ) : (
           <div className="overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
             <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
               <div className="flex items-start gap-3">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><List size={19} /></div>
                 <div>
-                  <h2 className="text-lg font-bold text-[#0F172A]">Build an Event To-do List</h2>
-                  <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-500">Choose an event and describe what needs to happen. The AI will suggest a plan, due dates, and officers. You review everything before any task is created.</p>
+                  <p className="max-w-3xl text-sm leading-6 text-slate-500">Choose an event and describe what needs to happen. The AI will suggest a plan, due dates, and officers. You review everything before any task is created.</p>
                 </div>
               </div>
 
@@ -1252,6 +1380,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
               </div>
             )}
           </div>
+          )}
 
           <div className="rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
           <div className="border-b border-[#DDE7EF] p-4 sm:p-5">
@@ -1577,15 +1706,20 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
 
       {selectedEvent && (
         <AccessibleOverlay label="Event details" onClose={closeEventDetails} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 p-4 backdrop-blur-sm">
-          <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
+          <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             {selectedEvent.image_url && <img src={resolveAssetUrl(selectedEvent.image_url)} alt="" className="mb-5 max-h-72 w-full rounded-lg object-cover" />}
             <div className="flex items-start justify-between gap-4">
               <div>
-                <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{statusLabel[selectedEvent.status] || capitalize(selectedEvent.status)}</span>
-                <h2 className="mt-3 text-xl font-extrabold text-[#0F172A]">{formatDisplayText(selectedEvent.title)}</h2>
+                <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusBadge[selectedEvent.status] || 'bg-slate-100 text-slate-600'}`}>{eventStatusText(selectedEvent)}</span>
+                <h2 className="mt-3 text-xl font-extrabold text-[#0F172A]">{formatDisplayText(selectedEvent.title) || 'Loading event'}</h2>
               </div>
               <button type="button" aria-label="Close event details" onClick={closeEventDetails} className="grid h-11 w-11 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
+            {selectedFlow && !detailsLoading && (
+              <EventFlowPanel flow={selectedFlow}>
+                {filesAtStage && eventFilesPanel}
+              </EventFlowPanel>
+            )}
             {detailsLoading ? (
               <div className="mt-5 h-28 animate-pulse rounded-lg bg-slate-100" />
             ) : (
@@ -1611,8 +1745,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     )}
                   </div>
                   <div>
-                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Approval Status</p>
-                    <p className="mt-1 font-bold text-[#0F172A]">{capitalize(selectedEvent.approval_status || selectedEvent.status)}</p>
+                    <p className="text-xs font-bold uppercase tracking-wide text-slate-500">Approval stage</p>
+                    <p className="mt-1 font-bold text-[#0F172A]">{stageText(selectedEvent) || capitalize(selectedEvent.approval_status || selectedEvent.status)}</p>
                   </div>
                 </div>
                 {(selectedEvent.planning_details?.requirements || selectedEvent.planning_details?.resources || selectedEvent.planning_details?.budget_notes || selectedEvent.planning_details?.vendor_deadlines || selectedEvent.planning_details?.logistics_checklist) && (
@@ -1632,7 +1766,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <p className="flex items-center gap-2 font-bold text-[#0F172A]"><Wallet size={16} /> Linked Budget Status</p>
                         <p className="mt-1 text-xs text-slate-500">Only budgets explicitly linked to this event are included.</p>
                       </div>
-                      <button type="button" onClick={() => navigate('/dashboard/finance/budget-allocation')} className="rounded-lg border border-[#DDE7EF] px-3 py-2 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]">
+                      <button type="button" onClick={() => navigate(selectedEvent.budgets?.length === 1 ? `/dashboard/finance/budget-allocation?record=${selectedEvent.budgets[0].id}` : `/dashboard/finance/budget-allocation?event=${selectedEvent.id}`)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD]">
                         Manage Budgets
                       </button>
                     </div>
@@ -1688,7 +1822,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <p className="mt-1 text-xs text-slate-500">Approval can only be granted through the approval workflow.</p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       {allowedStatusTransitions[selectedEvent.status].map((status) => (
-                        <button key={status} type="button" disabled={statusUpdating} onClick={() => handleStatusUpdate(status)} className="rounded-lg bg-[#0878B7] px-3 py-2 text-xs font-bold text-white hover:bg-[#0F2F62] disabled:opacity-50">
+                        <button key={status} type="button" disabled={statusUpdating} onClick={() => handleStatusUpdate(status)} className="min-h-11 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0878B7] hover:bg-[#F8FBFD] disabled:opacity-50">
                           {statusUpdating ? 'Updating...' : `Mark ${capitalize(status)}`}
                         </button>
                       ))}
@@ -1696,20 +1830,23 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     {statusError && <p className="mt-2 text-xs text-red-600">{statusError}</p>}
                   </div>
                 )}
-                {selectedEvent.approval_remarks && <p className="rounded-lg bg-red-50 p-3 text-red-700"><span className="font-bold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
+                {!selectedFlow && isReturned(selectedEvent) && selectedEvent.approval_remarks && <p className="rounded-lg bg-red-50 p-3 text-red-700"><span className="font-bold">Approval remarks:</span> {selectedEvent.approval_remarks}</p>}
                 <EventRegistrationPanel event={selectedEvent} role={currentUserRole} />
-                {['ADMIN', 'DEPARTMENT_HEAD'].includes(currentUserRole) && <EventSubmissionPanel eventId={selectedEvent.id} role={currentUserRole} onSubmitted={() => { setSelectedEvent((current) => ({ ...current, approval_status: 'pending' })); setEventReload((value) => value + 1); }} />}
+                {!filesAtStage && eventFilesPanel}
               </div>
+            )}
+            {selectedFlow && !detailsLoading && (
+              <EventFlowFooter flow={selectedFlow} busy={statusUpdating} onEdit={() => { const target = selectedEvent; closeEventDetails(); openEditForm(target); }} onStart={() => handleStatusUpdate('ongoing')} />
             )}
           </div>
         </AccessibleOverlay>
       )}
 
       {showForm && (
-        <AccessibleOverlay label={editingEventId ? 'Edit event' : 'Create event'} onClose={() => { setShowForm(false); setEditingEventId(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
+        <AccessibleOverlay label={editingEventId ? 'Edit event' : 'New event'} onClose={() => { setShowForm(false); setEditingEventId(null); }} className="fixed inset-0 z-50 flex items-center justify-center bg-[#0B1831]/50 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-lg bg-white p-6 shadow-2xl">
             <div className="mb-5 flex items-center justify-between">
-              <h2 className="text-lg font-bold text-[#0F172A]">{editingEventId ? 'Edit Event' : 'Create Event'}</h2>
+              <h2 className="text-lg font-bold text-[#0F172A]">{editingEventId ? 'Edit event' : 'New event'}</h2>
               <button type="button" aria-label="Close event form" onClick={() => { setShowForm(false); setEditingEventId(null); }} className="grid h-8 w-8 place-items-center rounded-md text-slate-500 hover:bg-[#F8FBFD]"><X size={18} /></button>
             </div>
             <form className="space-y-4" onSubmit={handleSaveEvent}>
@@ -1830,7 +1967,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                     <input id="event-budget-threshold" type="number" min="0" step="0.01" disabled={Boolean(editingEventId && form.proposed_budget_id)} value={form.budget_warning_threshold} onChange={(e) => setForm({ ...form, budget_warning_threshold: e.target.value })} placeholder="0.00" className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] disabled:bg-slate-100" />
                   </div>
                   <p className="text-xs font-medium text-[#0878B7] sm:col-span-2">
-                    {editingEventId && form.proposed_budget_id ? 'This proposal is already linked. Change approved budget values from Finance so its approval history is preserved.' : 'Entering an amount creates a linked proposed budget and a separate Super Admin approval request.'}
+                    {editingEventId && form.proposed_budget_id ? 'This proposal is already linked. Change approved budget values from Finance so its approval history is preserved.' : 'Entering an amount creates a linked proposed budget with its own approval request for the Department Head.'}
                   </p>
                 </div>
               )}
@@ -1880,7 +2017,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                   disabled={formSubmitting || !form.title.trim() || !form.date || !form.startTime || !form.endDate || !form.endTime || (form.requires_budget && !form.budget_notes.trim())}
                   className="h-11 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white hover:bg-[#0F2F62] transition disabled:opacity-50"
                 >
-                  {formSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Submit for Approval'}
+                  {formSubmitting ? 'Saving...' : editingEventId ? 'Save Changes' : 'Submit proposal'}
                 </button>
               </div>
             </form>
