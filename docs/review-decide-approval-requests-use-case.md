@@ -41,3 +41,16 @@
 - **Reject Request:** rejecting requires a reason in both UI and API validation, updates the request, and applies rejection to supported entities.
 - **Notify Requester:** review decisions create a notification for the requester.
 - **Record Audit Log:** approval decisions write an audit log entry in the approvals module.
+
+## Row Payload and Single Request Endpoint
+
+`GET /api/approval-requests` and `GET /api/approval-requests/{approvalRequest}` return the same row shape: the approval fields, `requester`, `reviewer`, `assignedApprover`, `title` and `summary`. The summary is built from one query per entity type for the whole page, and its key names match the events, elections, budgets and financial reports payloads, so one lifecycle function reads the same stage on every page.
+
+| `entity_type` | Lifecycle keys in `summary` |
+|---|---|
+| `event` | `status`, `approval_stage` (the `EventApprovalChain` stage, same as `/api/events`), `requirements_required`, `requirements_submitted`, `requires_budget`, `budgets` (`[{id, submission_status}]`), `tasks_count`, `completed_tasks_count`, `present_count`, plus `start_time`, `end_time`, `location`, `requirement_files` |
+| `election` | `status`, `finalized_at`, `results_visible`, `approval_status` (status of the election's latest approval request), plus `start_time`, `end_time`, `target_status` |
+| `budget` | `submission_status`, `allocated_amount`, `remaining_amount`, `spent_amount`, `department_head_approved_at`, plus `event_title` |
+| `financial_report` | `submission_status`, `department_head_approved_at`, plus the existing statement fields |
+
+`GET /api/approval-requests/{approvalRequest}` is open to `SUPER_ADMIN`, `ADMIN`, `DEPARTMENT_HEAD` and `SBO_OFFICER` and throttled like the list. A request is visible when the list would show it to the caller, in either scope: awaiting the caller's role within their organizations (not for `SBO_OFFICER`), or filed for the caller's own organization (`scope=submitted`). Any other request, and any id that does not exist or is not numeric, returns the same `404` body (`{"message": "Approval request not found."}`). Other roles are refused by the role middleware with `403`.
