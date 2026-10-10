@@ -16,7 +16,7 @@ describe('BriefingHeader', () => {
     render(<MemoryRouter><BriefingHeader user={user} summary={{ attention_count: 3, headline: 'Two approvals and one closing election need you today.' }} /></MemoryRouter>);
 
     expect(screen.getByRole('heading', { level: 2, name: /Good (morning|afternoon|evening), Maria/ })).toBeInTheDocument();
-    expect(screen.getByText(/Admin/)).toBeInTheDocument();
+    expect(screen.getByText(/Organization Admin/)).toBeInTheDocument();
     expect(screen.getByText(/Computer Science Society/)).toBeInTheDocument();
     expect(screen.getByText('Two approvals and one closing election need you today.')).toBeInTheDocument();
   });
@@ -33,6 +33,20 @@ describe('BriefingHeader', () => {
     );
 
     expect(screen.getByRole('link', { name: 'Create Announcement' })).toHaveAttribute('href', '/dashboard/announcements/create-announcement');
+  });
+
+  it('names every role the way the menu does, with one SAO name', () => {
+    const labelFor = (role) => {
+      const { unmount } = render(<MemoryRouter><BriefingHeader user={{ ...user, role, organization: null }} summary={{ attention_count: 0, headline: 'x' }} /></MemoryRouter>);
+      const text = screen.getByText(/University-wide/).textContent;
+      unmount();
+      return text;
+    };
+    expect(labelFor('SUPER_ADMIN')).toMatch(/ SAO /);
+    expect(labelFor('SUPER_ADMIN')).not.toMatch(/Super Admin|Student Affairs/);
+    expect(labelFor('SBO_OFFICER')).toMatch(/SBO Officer/);
+    expect(labelFor('DEPARTMENT_HEAD')).toMatch(/Department Head/);
+    expect(labelFor('STUDENT')).toMatch(/Student/);
   });
 
   it('falls back to a university-wide scope label when there is no organization', () => {
