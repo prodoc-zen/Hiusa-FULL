@@ -19,7 +19,7 @@ vi.mock('../../../utils/openProtectedFile', () => fileMocks);
 const SUBMITTED_AT = '2026-10-01T08:30:00.000000Z';
 const org = (overrides = {}) => ({ id: 3, name: 'Main SBO', acronym: 'SBO', college: 'College of Arts', college_id: 1, lifecycle_status: 'active', is_active: true, users_count: 0, administrators: [], ...overrides });
 const pageOf = (data) => ({ data, current_page: 1, last_page: 1 });
-const agency = (pending = 0) => ({ totals: { colleges: 1, organizations: 5, by_lifecycle_status: { pending, returned: 1, active: 3, archived: 1 } } });
+const agency = (pending = 0, others = {}) => ({ totals: { colleges: 1, organizations: 5, by_lifecycle_status: { pending, returned: 1, active: 3, archived: 1, ...others } } });
 
 function Probe() {
   const location = useLocation();
@@ -42,7 +42,8 @@ describe('SystemOrganizationsPage', () => {
   });
 
   describe('status tabs', () => {
-    it('defaults to Active when nothing is pending and keeps ?status in the URL', async () => {
+    it('defaults to Active when only active and archived organizations exist and keeps ?status in the URL', async () => {
+      mocks.getSystemAgency.mockResolvedValue(agency(0, { returned: 0 }));
       renderPage();
       expect(await screen.findByText('Main SBO')).toBeInTheDocument();
       expect(lastStatusParam()).toBe('active');
@@ -50,6 +51,53 @@ describe('SystemOrganizationsPage', () => {
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-selected', 'true');
       expect(screen.getByRole('tabpanel', { name: 'Active' })).toContainElement(screen.getByText('Main SBO'));
       expect(screen.getByRole('tab', { name: 'Active (3)' })).toHaveAttribute('aria-controls', screen.getByRole('tabpanel').id);
+    });
+
+    it('opens on the first non-empty tab in the order pending, returned, active, archived', async () => {
+      const cases = [
+        [agency(2), 'pending'],
+        [agency(0), 'returned'],
+        [agency(0, { returned: 0 }), 'active'],
+        [agency(0, { returned: 0, active: 0 }), 'archived'],
+        [agency(0, { returned: 0, active: 0, archived: 0 }), 'pending'],
+      ];
+      for (const [counts, expected] of cases) {
+        vi.clearAllMocks();
+        mocks.getSystemAgency.mockResolvedValue(counts);
+        mocks.getSystemColleges.mockResolvedValue([]);
+        mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
+        const { unmount } = renderPage();
+        await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent(`?status=${expected}`));
+        unmount();
+      }
+    });
+
+    it('falls back to Active when the counts cannot be loaded', async () => {
+      mocks.getSystemAgency.mockRejectedValue({ response: { status: 500, data: {} } });
+      renderPage();
+      await waitFor(() => expect(screen.getByTestId('search')).toHaveTextContent('?status=active'));
+      expect(await screen.findByText('Main SBO')).toBeInTheDocument();
+    });
+
+    it('waits for the counts and never loads or shows another tab first', async () => {
+      let releaseCounts;
+      mocks.getSystemAgency.mockImplementation(() => new Promise((resolve) => { releaseCounts = () => resolve(agency(2)); }));
+      renderPage();
+      await new Promise((resolve) => { setTimeout(resolve, 20); });
+      expect(mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined)).toHaveLength(0);
+      expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+      expect(screen.getByTestId('search')).toHaveTextContent('');
+      releaseCounts();
+      await waitFor(() => expect(screen.getByRole('tab', { name: 'Pending review (2)' })).toHaveAttribute('aria-selected', 'true'));
+      const loaded = mocks.getSystemOrganizations.mock.calls.filter(([params]) => params.search !== undefined).map(([params]) => params.lifecycle_status);
+      expect(new Set(loaded)).toEqual(new Set(['pending']));
+    });
+
+    it('does not consult the counts for the default when ?status is given', async () => {
+      renderPage('/dashboard/super-admin/organizations?status=archived');
+      await screen.findByText('Main SBO');
+      expect(lastStatusParam()).toBe('archived');
+      expect(screen.getByRole('tab', { name: /^Archived/ })).toHaveAttribute('aria-selected', 'true');
     });
 
     it('labels the search field visibly', async () => {
@@ -247,6 +295,42 @@ describe('SystemOrganizationsPage', () => {
       await waitFor(() => expect(mocks.getSystemOrganizations.mock.calls.length).toBeGreaterThan(before));
     });
 
+    it('keeps the drawer open after approval and hands over to Provision administrator', async () => {
+      mocks.reviewSystemOrganization.mockResolvedValue({});
+      const drawer = await openReview();
+      await within(drawer).findByText('Dean Reyes');
+      expect(within(drawer).getByRole('list', { name: 'Registration progress for Robotics Club' })).toBeInTheDocument();
+      expect(within(drawer).queryByRole('link', { name: 'Provision administrator' })).not.toBeInTheDocument();
+
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+
+      await waitFor(() => expect(within(drawer).getByText('Provision an administrator')).toBeInTheDocument());
+      expect(screen.getByRole('dialog', { name: 'Review registration' })).toBe(drawer);
+      expect(within(drawer).getByRole('link', { name: 'Provision administrator' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=8&create=1');
+      expect(within(drawer).queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+      expect(within(drawer).queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
+      expect(within(drawer).queryByLabelText(/Remarks/)).not.toBeInTheDocument();
+      const stepper = within(drawer).getByRole('list', { name: 'Registration progress for Robotics Club' });
+      expect(within(stepper).getByText('Administrator').closest('li')).toHaveAttribute('aria-current', 'step');
+      expect(within(drawer).getByRole('button', { name: 'Close' })).toBeInTheDocument();
+    });
+
+    it('closes the drawer after a return because the Department Head acts next', async () => {
+      mocks.reviewSystemOrganization.mockResolvedValue({});
+      const drawer = await openReview();
+      await within(drawer).findByText('Dean Reyes');
+      fireEvent.change(within(drawer).getByLabelText(/Remarks/), { target: { value: 'Attach the signed constitution.' } });
+      fireEvent.click(within(drawer).getByRole('button', { name: 'Return' }));
+      await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Review registration' })).not.toBeInTheDocument());
+    });
+
+    it('says on the card that the SAO reviews a pending registration', async () => {
+      renderPage('/dashboard/super-admin/organizations?status=pending');
+      const card = (await screen.findByRole('button', { name: 'Review Robotics Club' })).closest('article');
+      expect(within(card).getByText('Review this registration')).toBeInTheDocument();
+      expect(within(card).getByText('Step 2 of 4: SAO review')).toBeInTheDocument();
+    });
+
     it('shows the server message and reloads on a 409', async () => {
       mocks.reviewSystemOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'This registration changed. Review it again.' } } });
       const drawer = await openReview();
@@ -313,6 +397,26 @@ describe('SystemOrganizationsPage', () => {
     });
   });
 
+  describe('after approval', () => {
+    const waiting = org({ id: 4, name: 'Chess Club', acronym: 'CC', administrators_count: 0 });
+    const staffed = org({ id: 5, name: 'Art Club', acronym: 'AC', administrators_count: 2 });
+
+    it('lists organizations that need an administrator first with a link to provision one', async () => {
+      mocks.getSystemOrganizations.mockResolvedValue(pageOf([staffed, waiting]));
+      renderPage('/dashboard/super-admin/organizations?status=active');
+      await screen.findByText('Chess Club');
+
+      const names = screen.getAllByRole('heading', { level: 3 }).map((heading) => heading.textContent);
+      expect(names).toEqual(['Chess Club', 'Art Club']);
+      const card = screen.getByText('Chess Club').closest('article');
+      expect(within(card).getByText('Provision an administrator')).toBeInTheDocument();
+      expect(within(card).getByRole('link', { name: 'Provision administrator for Chess Club' })).toHaveAttribute('href', '/dashboard/super-admin/admins?organization=4&create=1');
+      const done = screen.getByText('Art Club').closest('article');
+      expect(within(done).getByText('Active: administrator can sign in')).toBeInTheDocument();
+      expect(within(done).queryByRole('link', { name: /Provision administrator/ })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows returned remarks read-only with no actions menu', async () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([org({ lifecycle_status: 'returned', is_active: false, review_remarks: 'Add the adviser signature.' })]));
     renderPage('/dashboard/super-admin/organizations?status=returned');
@@ -370,5 +474,12 @@ describe('SystemOrganizationsPage', () => {
     mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
     renderPage('/dashboard/super-admin/organizations?status=archived');
     expect(await screen.findByText('No archived organizations.')).toBeInTheDocument();
+  });
+
+  it('names who registers organizations when nothing is waiting for review', async () => {
+    mocks.getSystemOrganizations.mockResolvedValue(pageOf([]));
+    renderPage('/dashboard/super-admin/organizations?status=pending');
+    expect(await screen.findByText('No organizations are waiting for review.')).toBeInTheDocument();
+    expect(screen.getByText(/Department Heads register the organizations of their college/)).toBeInTheDocument();
   });
 });

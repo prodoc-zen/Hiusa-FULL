@@ -1,6 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
-import { Fragment, useCallback, useEffect, useMemo, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   AlertCircle,
   ArrowRightLeft,
@@ -20,6 +21,7 @@ import {
   createSystemAdmin,
   deleteSystemAdmin,
   getSystemAdmins,
+  getSystemOrganizationOverview,
   getSystemOrganizations,
   initiateSystemAdminPasswordReset,
   updateSystemAdmin,
@@ -29,6 +31,9 @@ import ConfirmModal from "../../../components/ConfirmModal";
 import AccessibleOverlay from "../../../components/AccessibleOverlay";
 import TableRowActions from "../../../components/TableRowActions";
 import AdminHandoverDrawer from "./AdminHandoverDrawer";
+import { organizationOverviewPath } from "./agencyStatus";
+import { Button, NextStep, PageHeader } from "../../../components/ui";
+import { RegistrationNextStep, RegistrationStepper } from "../../../components/organizations/RegistrationFlow";
 import AddExistingUserModal from '../../../components/users/AddExistingUserModal';
 import ManageAccountProfilesModal from '../../../components/users/ManageAccountProfilesModal';
 
@@ -48,6 +53,7 @@ const emptyForm = () => ({
   email: "",
   contact_number: "",
   organization_id: "",
+  organization_locked: false,
   position_title: "",
   account_status: "active",
   password: "",
@@ -61,6 +67,9 @@ function statusStyle(status) {
 }
 
 export default function SystemAdminsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const handledLink = useRef(null);
+  const [provisioning, setProvisioning] = useState(null);
   const [admins, setAdmins] = useState([]);
   const [organizations, setOrganizations] = useState([]);
   const [form, setForm] = useState(null);
@@ -103,6 +112,44 @@ export default function SystemAdminsPage() {
   useEffect(() => {
     load();
   }, [load]);
+
+  const linkedOrganizationId = searchParams.get("organization");
+  const createRequested = searchParams.get("create") === "1";
+
+  useEffect(() => {
+    if (loading || !linkedOrganizationId) return;
+    const key = `${linkedOrganizationId}:${createRequested}`;
+    if (handledLink.current === key) return;
+    handledLink.current = key;
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("organization");
+      next.delete("create");
+      return next;
+    }, { replace: true });
+
+    async function resolveOrganization() {
+      const listed = organizations.find((item) => String(item.id) === linkedOrganizationId);
+      if (listed) return listed;
+      const { organization, lifecycle, member_counts: members } = await getSystemOrganizationOverview(linkedOrganizationId);
+      const fetched = { ...organization, lifecycle_status: lifecycle?.status ?? organization.lifecycle_status, administrators_count: members?.ADMIN ?? 0 };
+      setOrganizations((current) => [...current, fetched]);
+      return fetched;
+    }
+
+    resolveOrganization().then((organization) => {
+      if (!createRequested) {
+        setOrganizationFilter(String(organization.id));
+        return;
+      }
+      if (organization.lifecycle_status !== "active") {
+        setError(`${formatDisplayText(organization.name)} is not active yet. Approve its registration before assigning an administrator.`);
+        return;
+      }
+      setProvisioning({ organization, adminName: null });
+      openCreate({ organization_id: String(organization.id), organization_locked: true });
+    }).catch((cause) => setError(getApiErrorMessage(cause, "Could not open that organization to assign an administrator.")));
+  }, [loading, linkedOrganizationId, createRequested, organizations, setSearchParams]);
 
   async function removeAdmin() {
     if (!deleteTarget) return;
@@ -159,11 +206,11 @@ export default function SystemAdminsPage() {
     setError("");
   }
 
-  function openCreate() {
+  function openCreate(preset = {}) {
     setError("");
     setSuccess("");
     setShowPassword(false);
-    setForm(emptyForm());
+    setForm({ ...emptyForm(), ...preset });
   }
 
   function openEdit(admin) {
@@ -218,6 +265,8 @@ export default function SystemAdminsPage() {
       } else {
         await createSystemAdmin(payload);
         setSuccess("New Admin user created with the password set by SAO.");
+        const organization = organizations.find((item) => item.id === payload.organization_id);
+        if (organization) setProvisioning({ organization: { ...organization, lifecycle_status: organization.lifecycle_status ?? "active", administrators_count: Math.max(1, Number(organization.administrators_count ?? 0) + 1) }, adminName: `${formatDisplayText(payload.first_name)} ${formatDisplayText(payload.last_name)}` });
       }
       setForm(null);
       await load();
@@ -251,20 +300,35 @@ export default function SystemAdminsPage() {
     }
   }
 
+  const provisioned = provisioning?.adminName ? provisioning : null;
+  const awaiting = provisioning && !provisioned ? provisioning : null;
+  const newAdminButton = (
+    <Button variant={awaiting ? "secondary" : "primary"} leftIcon={UserPlus} onClick={() => openCreate()}>New Admin User</Button>
+  );
+
   return (
     <div className="space-y-6">
+      <PageHeader
+        primary={awaiting ? undefined : newAdminButton}
+        actions={awaiting ? newAdminButton : undefined}
+        stepper={provisioning && <RegistrationStepper organization={provisioning.organization} viewerRole="SUPER_ADMIN" />}
+        nextStep={provisioned ? (
+          <NextStep
+            tone="done"
+            title={`Done: ${provisioned.adminName} can sign in`}
+            body={`${formatDisplayText(provisioned.organization.name)} now has an administrator.`}
+            primary={{ label: "Open organization", to: organizationOverviewPath(provisioned.organization.id) }}
+          />
+        ) : awaiting && (
+          <RegistrationNextStep
+            organization={awaiting.organization}
+            viewerRole="SUPER_ADMIN"
+            onPrimary={() => openCreate({ organization_id: String(awaiting.organization.id), organization_locked: true })}
+          />
+        )}
+      />
       {profileUser && <ManageAccountProfilesModal user={profileUser} onClose={() => setProfileUser(null)} onDeleted={(result) => { setSuccess(result.message); load(); }} />}
       {membershipUser && <AddExistingUserModal actorRole="SUPER_ADMIN" initialUser={membershipUser} onClose={() => setMembershipUser(null)} onAdded={() => setSuccess('Organization profile added to the existing user.')} />}
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={openCreate}
-          className="inline-flex h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
-        >
-          <UserPlus size={17} /> New Admin User
-        </button>
-      </div>
-
       <section className="grid gap-3 sm:grid-cols-3">
         {[
           ["Total Admins", admins.length, Users],
@@ -480,7 +544,7 @@ export default function SystemAdminsPage() {
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
                 <FieldIcon label="Assigned organization *" />Assigned organization *
-                <select required value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <select required disabled={form.organization_locked} value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   <option value="">Select an active student organization</option>
                   {organizations
                     .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
@@ -490,6 +554,7 @@ export default function SystemAdminsPage() {
                       </option>
                     ))}
                 </select>
+                {form.organization_locked && <span className="block text-xs font-medium text-slate-500">Locked to the organization you are provisioning.</span>}
               </label>
               {!isEditing && (
                 <>
