@@ -15,6 +15,7 @@ function renderPage() {
       <Routes>
         <Route path="/login" element={<LoginPage />} />
         <Route path="/dashboard/student" element={<p>Student dashboard</p>} />
+        <Route path="/change-password" element={<p>Change password page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -48,5 +49,23 @@ describe('LoginPage', () => {
       password: 'Demo@12345',
     }));
     expect(await screen.findByText('Student dashboard')).toBeInTheDocument();
+  });
+
+  it('sends a user who must change a default password to the change password page instead of the dashboard', async () => {
+    authMocks.login.mockResolvedValue({
+      data: {
+        access_token: 'test-token',
+        user: { school_id: 2100142, role: 'STUDENT', must_change_password: true },
+      },
+    });
+    renderPage();
+
+    fireEvent.change(screen.getByPlaceholderText('Enter your school ID or ID number'), { target: { value: '2100142' } });
+    fireEvent.change(screen.getByPlaceholderText('Enter your password'), { target: { value: '0142-uclm' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Sign in' }));
+
+    expect(await screen.findByText('Change password page')).toBeInTheDocument();
+    expect(screen.queryByText('Student dashboard')).not.toBeInTheDocument();
+    expect(localStorage.getItem('auth_token')).toBe('test-token');
   });
 });

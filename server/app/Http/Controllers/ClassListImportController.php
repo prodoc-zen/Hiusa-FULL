@@ -68,6 +68,7 @@ class ClassListImportController extends Controller
                         'last_name' => $row['last_name'],
                         'email' => $row['email'],
                         'password_hash' => substr(str_pad($row['school_id'], 4, '0', STR_PAD_LEFT), -4).'-uclm',
+                        'must_change_password' => true,
                         'role' => 'STUDENT',
                         'account_status' => 'active',
                         'is_member' => true,

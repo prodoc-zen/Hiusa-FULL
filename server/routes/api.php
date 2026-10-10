@@ -59,7 +59,7 @@ Route::post('/password/reset/validate', [UserController::class, 'validatePasswor
 Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:password');
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
 
-Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(function () {
+Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
     Route::get('/academic-periods/active', [AcademicSemesterController::class, 'active'])->middleware('throttle:api-read');
     Route::get('/user/profiles', [AccountProfileController::class, 'index'])->middleware('throttle:api-read');

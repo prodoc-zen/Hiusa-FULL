@@ -8,6 +8,7 @@ import LoggedInRoute from './LoggedInRoute';
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
+const ChangePasswordPage = lazy(() => import('./pages/auth/ChangePasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
 const AdminHomePage = lazy(() => import('./pages/roles/admin/AdminHomePage'));
 const SuperAdminHomePage = lazy(() => import('./pages/roles/super-admin/SuperAdminHomePage'));
@@ -205,6 +206,7 @@ function App() {
 
       {/* Dashboard Pages */}
       <Route element={<ProtectedRoute />}>
+        <Route path="/change-password" element={<ChangePasswordPage />} />
         <Route path="/dashboard" element={<DashboardLayout />}>
           {/* Role Home Pages */}
           <Route index element={<DashboardIndexRedirect />} />
