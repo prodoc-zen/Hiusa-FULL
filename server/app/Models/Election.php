@@ -34,6 +34,40 @@ class Election extends Model
         ];
     }
 
+    /**
+     * Keep the persisted workflow status aligned with the approved voting
+     * schedule. Closed elections stay closed so an administrator can still end
+     * voting early without the scheduler reopening them. Only approved,
+     * finalized ballots open, and only inside their voting window.
+     *
+     * @param  array<int>|null  $organizationIds  null covers every organization
+     * @return array{opened: int, closed: int}
+     */
+    public static function synchronizeScheduledStatuses(?array $organizationIds = null, ?int $electionId = null): array
+    {
+        $now = now();
+        $semesterId = AcademicSemester::active()?->id;
+        $baseQuery = fn () => static::query()
+            ->whereNotNull('approved_at')
+            ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhere('academic_semester_id', $semesterId))
+            ->when($organizationIds !== null, fn ($query) => $query->whereIn('organization_id', $organizationIds))
+            ->when($electionId, fn ($query) => $query->whereKey($electionId));
+
+        $closed = $baseQuery()
+            ->whereIn('status', ['upcoming', 'active'])
+            ->where('end_time', '<', $now)
+            ->update(['status' => 'closed']);
+
+        $opened = $baseQuery()
+            ->where('status', 'upcoming')
+            ->whereNotNull('finalized_at')
+            ->where('start_time', '<=', $now)
+            ->where('end_time', '>=', $now)
+            ->update(['status' => 'active']);
+
+        return ['opened' => $opened, 'closed' => $closed];
+    }
+
     public function positions(): HasMany
     {
         return $this->hasMany(ElectionPosition::class)->orderBy('id');

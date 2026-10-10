@@ -101,7 +101,7 @@ class ElectionController extends Controller
             ->orderBy('created_at', 'desc')
             ->get();
 
-        return response()->json($elections);
+        return response()->json($this->withApprovalFields($request, $elections->toArray()));
     }
 
     public function show(Request $request, $id)
@@ -137,7 +137,7 @@ class ElectionController extends Controller
             ->where('voter_id', $user->school_id)
             ->get(['id', 'position_id', 'candidate_id', 'vote_hash', 'voter_id']);
 
-        $data = $election->toArray();
+        [$data] = $this->withApprovalFields($request, [$election->toArray()]);
         $data['my_votes'] = $myVotes;
         $data['vote_counts'] = Vote::where('election_id', $id)
             ->selectRaw('candidate_id, COUNT(*) as vote_count')
@@ -230,7 +230,7 @@ class ElectionController extends Controller
             $this->auditableElectionValues($election)
         );
 
-        return response()->json($election, 201);
+        return response()->json($this->withApprovalFields($request, [$election->toArray()])[0], 201);
     }
 
     public function informativeLetter(Request $request, $id)
@@ -379,7 +379,7 @@ class ElectionController extends Controller
             $this->auditableElectionValues($freshElection)
         );
 
-        return response()->json($freshElection);
+        return response()->json($this->withApprovalFields($request, [$freshElection->toArray()])[0]);
     }
 
     private function validElectionStatusTransition(string $currentStatus, string $nextStatus): bool
@@ -436,25 +436,44 @@ class ElectionController extends Controller
 
     private function synchronizeScheduledStatuses(array $organizationIds, ?int $electionId = null): void
     {
-        $now = now();
-        $baseQuery = fn () => Election::query()
-            ->whereIn('organization_id', $organizationIds)
-            ->whereNotNull('approved_at')
-            ->where(fn ($query) => $query->whereNull('academic_semester_id')->orWhere('academic_semester_id', AcademicSemester::active()?->id))
-            ->when($electionId, fn ($query) => $query->whereKey($electionId));
+        Election::synchronizeScheduledStatuses($organizationIds, $electionId);
+    }
 
-        // Keep the persisted workflow status aligned with the approved voting
-        // schedule. Closed elections remain closed so an administrator can
-        // still end voting early without the scheduler reopening them.
-        $baseQuery()
-            ->where('status', 'upcoming')
-            ->where('end_time', '<', $now)
-            ->update(['status' => 'closed']);
+    /**
+     * Latest approval row per election in one query, so the Admin can read why
+     * an election was returned without a request per row.
+     *
+     * @param  array<int>  $electionIds
+     * @return array<int, array{approval_status: string, approval_remarks: ?string, approval_id: int}>
+     */
+    private function approvalFields(array $electionIds): array
+    {
+        $latestIds = ApprovalRequest::where('entity_type', 'election')
+            ->whereIn('entity_id', $electionIds)
+            ->selectRaw('MAX(id) as id')
+            ->groupBy('entity_id')
+            ->pluck('id');
 
-        $baseQuery()
-            ->where('status', 'active')
-            ->where('end_time', '<', $now)
-            ->update(['status' => 'closed']);
+        return ApprovalRequest::whereIn('id', $latestIds)
+            ->get(['id', 'entity_id', 'status', 'remarks'])
+            ->mapWithKeys(fn (ApprovalRequest $approval) => [$approval->entity_id => [
+                'approval_status' => $approval->status,
+                'approval_remarks' => $approval->remarks,
+                'approval_id' => $approval->id,
+            ]])
+            ->all();
+    }
+
+    private function withApprovalFields(Request $request, array $payloads): array
+    {
+        if ($request->user()->role === 'STUDENT') {
+            return $payloads;
+        }
+
+        $fields = $this->approvalFields(array_column($payloads, 'id'));
+        $none = ['approval_status' => null, 'approval_remarks' => null, 'approval_id' => null];
+
+        return array_map(fn (array $payload) => $payload + ($fields[$payload['id']] ?? $none), $payloads);
     }
 
     public function destroy(Request $request, $id)
