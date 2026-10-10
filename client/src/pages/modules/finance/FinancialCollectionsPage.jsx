@@ -1,10 +1,11 @@
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useState } from 'react';
-import { ArrowDownToLine, CheckCircle2, Plus } from 'lucide-react';
+import { ArrowDownToLine, CheckCircle2, HandCoins, Plus } from 'lucide-react';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import CashAdvancesSection from '../../../components/finance/CashAdvancesSection';
 import { createCollection, getCollections, getFinancialDashboard, recordRemittance, verifyCollection } from '../../../services/financeService';
 import { getApiErrorMessage } from '../../../utils/apiError';
+import { Button, EmptyState, PageHeader } from '../../../components/ui';
 
 const money = (value) => new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP' }).format(Number(value || 0));
 const inputClass = 'mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30';
@@ -88,14 +89,22 @@ export default function FinancialCollectionsPage() {
   }
 
   return <div className="space-y-5 pb-8">
-    <div className="flex justify-end"><button type="button" onClick={() => { setError(''); setCreateOpen(true); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white"><Plus size={17} />Record collection</button></div>
+    <PageHeader primary={<Button leftIcon={Plus} onClick={() => { setError(''); setCreateOpen(true); }}>Record collection</Button>} />
     {error && !createOpen && !remit && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
     {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     {loading ? <p role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-6 text-sm text-slate-600">Loading financial overview...</p> : dashboard && <dl className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       {[['Available funds', dashboard.available_funds], ['Verified collections', dashboard.total_collections], ['Remitted', dashboard.total_remitted], ['Awaiting remittance', dashboard.unremitted_collections]].map(([label, value]) => <div key={label} className="rounded-lg border border-[#DDE7EF] bg-white p-4"><dt className="text-xs font-semibold text-slate-600">{label}</dt><dd className="mt-2 text-xl font-bold tabular-nums text-[#0F2F62]">{money(value)}</dd></div>)}
     </dl>}
     <section className="rounded-lg border border-[#DDE7EF] bg-white"><div className="flex flex-wrap items-end justify-between gap-3 border-b border-[#DDE7EF] p-4 sm:p-5"><div><h2 className="text-base font-bold text-[#0F172A]">Collection records</h2><p className="mt-1 text-xs text-slate-600">A verified collection creates one income entry. Remittances do not create another.</p></div><label className="text-xs font-semibold text-slate-700"><FieldIcon label="Status" />Status<select value={filter} onChange={(event) => setFilter(event.target.value)} className={inputClass}><option value="all">All</option><option value="pending">Pending</option><option value="verified">Verified</option></select></label></div>
-      {!loading && !collections.length && <p className="p-8 text-center text-sm text-slate-600">No collections match this status.</p>}
+      {!loading && !collections.length && (filter === 'all' ? (
+        <EmptyState
+          icon={HandCoins}
+          title="No collections recorded yet"
+          description="A collection is money the organization received, such as dues or sales. Choose Record collection above; another admin then verifies it and it posts to the ledger as income."
+        />
+      ) : (
+        <EmptyState kind="filtered" title="No collections match this status" description="Show every collection to see the rest." onClearFilters={() => setFilter('all')} />
+      ))}
       <div className="divide-y divide-[#DDE7EF]">{collections.map((collection) => <article key={collection.id} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-start sm:justify-between sm:p-5"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words text-sm font-bold text-[#0F172A]">{collection.source}</h3><span className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${collection.status === 'verified' ? 'bg-green-50 text-green-800' : 'bg-amber-50 text-amber-800'}`}>{collection.status}</span></div><p className="mt-1 text-xs text-slate-600">{collection.reference} · {String(collection.collected_at || '').slice(0, 10)}</p>{collection.notes && <p className="mt-1 break-words text-xs text-slate-600">{collection.notes}</p>}<p className="mt-2 text-xs text-slate-600">Remitted {money(collection.total_remitted)} · Remaining {money(collection.unremitted_balance)}</p></div><div className="flex shrink-0 flex-wrap items-center gap-2 sm:justify-end"><strong className="w-full text-base tabular-nums text-[#0F2F62] sm:w-auto">{money(collection.amount_collected)}</strong>{collection.status === 'pending' && Number(collection.collected_by) !== Number(user.school_id) && <button type="button" disabled={busy} onClick={() => verify(collection)} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#0B8ED0] px-3 text-xs font-bold text-[#0878B7] disabled:opacity-50"><CheckCircle2 size={15} />Verify</button>}{collection.status === 'verified' && Number(collection.unremitted_balance) > 0 && <button type="button" disabled={busy} onClick={() => { setError(''); setRemit(collection); setRemitAmount(''); }} className="inline-flex min-h-11 items-center gap-1 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F2F62] disabled:opacity-50"><ArrowDownToLine size={15} />Remit</button>}</div></article>)}</div>
     </section>
     <CashAdvancesSection onLedgerChange={load} />

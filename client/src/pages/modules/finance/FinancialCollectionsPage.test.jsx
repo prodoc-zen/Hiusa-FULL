@@ -1,9 +1,10 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import FinancialCollectionsPage from './FinancialCollectionsPage';
 
 const mocks = vi.hoisted(() => ({
-  getFinancialDashboard: vi.fn(), getCollections: vi.fn(), createCollection: vi.fn(), verifyCollection: vi.fn(), recordRemittance: vi.fn(),
+  getFinancialDashboard: vi.fn(), getCollections: vi.fn(), createCollection: vi.fn(), verifyCollection: vi.fn(), recordRemittance: vi.fn(), getCashAdvances: vi.fn(),
 }));
 vi.mock('../../../services/financeService', () => mocks);
 
@@ -48,5 +49,46 @@ describe('FinancialCollectionsPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Record collection' }));
     await waitFor(() => expect(mocks.createCollection).toHaveBeenCalledTimes(2));
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  });
+});
+
+describe('FinancialCollectionsPage header and empty states', () => {
+  const renderPage = () => render(<MemoryRouter initialEntries={['/dashboard/finance/collections']}><FinancialCollectionsPage /></MemoryRouter>);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', school_id: 10 }));
+    mocks.getFinancialDashboard.mockResolvedValue({ data: { available_funds: 0, total_collections: 0, total_remitted: 0, unremitted_collections: 0 } });
+    mocks.getCollections.mockResolvedValue({ data: [] });
+    mocks.getCashAdvances.mockResolvedValue({ data: [] });
+  });
+
+  it('uses the shared header: one h1 from the menu label, a purpose line and one primary action', async () => {
+    renderPage();
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Collections and advances' })).toBeInTheDocument();
+    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
+    expect(screen.getByText(/Track money received, its verification and remittance/)).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Record collection' })).toHaveLength(1);
+  });
+
+  it('explains what a collection is and what happens after it is recorded when there are none', async () => {
+    renderPage();
+
+    expect(await screen.findByText('No collections recorded yet')).toBeInTheDocument();
+    expect(screen.getByText(/Choose Record collection above; another admin then verifies it/)).toBeInTheDocument();
+    expect(screen.queryByText('No collections match this status.')).not.toBeInTheDocument();
+  });
+
+  it('offers Clear filters when the status filter hides every collection', async () => {
+    renderPage();
+    await screen.findByText('No collections recorded yet');
+
+    fireEvent.change(screen.getAllByLabelText('Status')[0], { target: { value: 'verified' } });
+    expect(await screen.findByText('No collections match this status')).toBeInTheDocument();
+    mocks.getCollections.mockResolvedValue({ data: [{ id: 2, source: 'Membership', reference: 'COL-2', status: 'verified', amount_collected: 1000, collected_by: 11, unremitted_balance: 0, total_remitted: 1000 }] });
+    fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' })[0]);
+    expect(await screen.findByText('Membership')).toBeInTheDocument();
+    expect(screen.getAllByLabelText('Status')[0]).toHaveValue('all');
   });
 });
