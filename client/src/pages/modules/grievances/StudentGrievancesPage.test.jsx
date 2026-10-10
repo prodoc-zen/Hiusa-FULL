@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import StudentGrievancesPage from './StudentGrievancesPage';
 
@@ -21,24 +22,24 @@ describe('StudentGrievancesPage', () => {
   });
 
   it('shows a first-run empty state on the "My grievances" tab when there are none', async () => {
-    render(<StudentGrievancesPage />);
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
     fireEvent.click(screen.getByRole('tab', { name: 'My grievances' }));
-    expect(await screen.findByText('No grievances filed yet')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances filed')).toBeInTheDocument();
   });
 
   it('shows a retryable error state when loading fails', async () => {
     mocks.getGrievances.mockRejectedValue(new Error('network'));
-    render(<StudentGrievancesPage />);
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
     fireEvent.click(screen.getByRole('tab', { name: 'My grievances' }));
     expect(await screen.findByText('Failed to load your grievances.')).toBeInTheDocument();
 
     mocks.getGrievances.mockResolvedValue({ data: { data: [] } });
     fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(await screen.findByText('No grievances filed yet')).toBeInTheDocument();
+    expect(await screen.findByText('No grievances filed')).toBeInTheDocument();
   });
 
   it('hides the anonymity toggle when addressed directly to SAO, since the org never sees it', () => {
-    render(<StudentGrievancesPage />);
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
     expect(screen.getByText('File this anonymously to my organization')).toBeInTheDocument();
 
     fireEvent.click(screen.getByRole('radio', { name: 'Student Affairs Office' }));
@@ -64,7 +65,7 @@ describe('StudentGrievancesPage', () => {
       },
     });
 
-    render(<StudentGrievancesPage />);
+    render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
     fireEvent.change(screen.getByLabelText(/what's this about/i), { target: { value: 'Harassment near the guard post' } });
     fireEvent.change(screen.getByLabelText(/tell us what happened/i), { target: { value: 'Detailed account.' } });
     fireEvent.click(screen.getByRole('button', { name: 'File this grievance' }));
@@ -89,7 +90,7 @@ describe('StudentGrievancesPage', () => {
 
     async function openDeleteDialog() {
       mocks.getGrievances.mockResolvedValue({ data: { data: [submitted, reviewed] } });
-      render(<StudentGrievancesPage />);
+      render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
       fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
       fireEvent.click(await screen.findByRole('button', { name: 'Delete grievance Broken Lock' }));
       const dialog = await screen.findByRole('dialog', { name: 'Delete this grievance?' });
@@ -98,7 +99,7 @@ describe('StudentGrievancesPage', () => {
 
     it('offers delete only while the grievance is still submitted', async () => {
       mocks.getGrievances.mockResolvedValue({ data: { data: [submitted, reviewed] } });
-      render(<StudentGrievancesPage />);
+      render(<MemoryRouter><StudentGrievancesPage /></MemoryRouter>);
       fireEvent.click(screen.getByRole('tab', { name: /My grievances/ }));
       await screen.findByText('Broken Lock');
       expect(screen.getAllByRole('button', { name: /Delete grievance/ })).toHaveLength(1);
