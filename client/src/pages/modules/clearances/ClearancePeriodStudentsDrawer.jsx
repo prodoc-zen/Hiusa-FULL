@@ -1,12 +1,13 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Drawer, EmptyState, ErrorState, Input, SkeletonText, StatusBadge } from '../../../components/ui';
+import { Drawer, EmptyState, ErrorState, FlowStepper, Input, SkeletonText, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriodStudents, updateClearanceSignature } from '../../../services/clearanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import notify from '../../../lib/notify';
+import { clearanceLifecycle } from '../../../lib/lifecycle';
 import SignAction from './SignAction';
-import { SAO_ROLE, clearanceStatusTone, humanizeRole } from './clearanceLabels';
+import { SAO_ROLE, clearanceStageText, clearanceStatusTone, humanizeRole } from './clearanceLabels';
 
 export default function ClearancePeriodStudentsDrawer({ period, onClose, onSignatureChanged }) {
   const [students, setStudents] = useState([]);
@@ -48,7 +49,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
           {loading && <SkeletonText lines={6} />}
           {!loading && error && <ErrorState description={error} onRetry={load} />}
           {!loading && !error && students.length === 0 && (
-            <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} title="No students found" description="No active student matches this search." />
+            <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} onClearFilters={() => setQ('')} title="No students in this period" description={q ? 'No student in this period matches this search.' : 'Opening a period adds a signature line for every active student. None are on this one yet.'} />
           )}
 
           {!loading && !error && students.map((student) => (
@@ -59,6 +60,10 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
                   <p className="text-xs font-medium text-ink-muted">{student.student_id}</p>
                 </div>
                 {student.is_complete && <StatusBadge tone="success" label="All cleared" />}
+              </div>
+              <div className="mt-2">
+                <FlowStepper variant="compact" steps={clearanceLifecycle(student, 'SUPER_ADMIN').steps} ariaLabel={`Clearance progress for ${student.student_name || student.student_id}`} />
+                <p className="mt-1 text-xs font-bold text-ink">{clearanceStageText(student)}</p>
               </div>
               <div className="mt-2 flex flex-col gap-2">
                 {student.signatures.map((signature) => (

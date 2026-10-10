@@ -10,6 +10,7 @@ import PaginationControls from '../../../components/PaginationControls';
 import { deleteClearancePeriod, getClearancePeriods, getClearancePeriodStudents } from '../../../services/clearanceService';
 import { listMeta, unwrapList, fetchAllPages } from '../../../services/pagination';
 import { manilaDate } from '../../../lib/format';
+import useRecordParam from '../../../lib/useRecordParam';
 import CreateClearancePeriodModal from './CreateClearancePeriodModal';
 import ClearancePeriodStudentsDrawer from './ClearancePeriodStudentsDrawer';
 import { humanizeRole } from './clearanceLabels';
@@ -22,7 +23,7 @@ export default function SaoClearancesPage() {
   const [error, setError] = useState(null);
   const [progress, setProgress] = useState({});
   const [createOpen, setCreateOpen] = useState(false);
-  const [selectedPeriod, setSelectedPeriod] = useState(null);
+  const [recordId, setRecordId] = useRecordParam();
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
@@ -60,6 +61,19 @@ export default function SaoClearancesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periods]);
 
+  const selectedPeriod = recordId ? periods.find((period) => String(period.id) === recordId) ?? null : null;
+
+  // A deep link can name a period on a later page, so walk the pages until it turns up.
+  useEffect(() => {
+    if (!recordId || selectedPeriod || loading || error) return;
+    if (page < meta.lastPage) {
+      setPage(page + 1);
+      return;
+    }
+    notify.error('That clearance period no longer exists.');
+    setRecordId(null);
+  }, [recordId, selectedPeriod, loading, error, page, meta.lastPage, setRecordId]);
+
   async function confirmDelete() {
     setDeleteBusy(true);
     setDeleteError(null);
@@ -77,14 +91,11 @@ export default function SaoClearancesPage() {
     }
   }
 
+  const firstRun = !loading && !error && periods.length === 0;
+
   return (
     <div className="flex flex-col gap-5">
-      <PageHeader
-        title="Clearances"
-        description="Open a clearance period and track how many students have completed every required signature."
-        actions={<Button leftIcon={Plus} onClick={() => setCreateOpen(true)}>New clearance period</Button>}
-      />
-
+      <PageHeader primary={firstRun ? undefined : <Button leftIcon={Plus} onClick={() => setCreateOpen(true)}>New clearance period</Button>} />
 
       {loading && (
         <div className="flex flex-col gap-3">
@@ -94,7 +105,7 @@ export default function SaoClearancesPage() {
 
       {!loading && error && <ErrorState description={error} onRetry={load} />}
 
-      {!loading && !error && periods.length === 0 && (
+      {firstRun && (
         <EmptyState
           kind="first-run"
           icon={ClipboardCheck}
@@ -126,7 +137,7 @@ export default function SaoClearancesPage() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    <Button variant="secondary" onClick={() => setSelectedPeriod(period)}>View students</Button>
+                    <Button variant="secondary" onClick={() => setRecordId(period.id)}>View students</Button>
                     <IconButton icon={Trash2} label={`Delete ${formatDisplayText(period.title)}`} variant="danger" onClick={() => { setDeleteError(null); setDeleteTarget(period); }} />
                   </div>
                 </div>
@@ -150,7 +161,7 @@ export default function SaoClearancesPage() {
         onConfirm={confirmDelete}
       />
       <CreateClearancePeriodModal open={createOpen} onClose={() => setCreateOpen(false)} onCreated={() => { setCreateOpen(false); setProgress({}); if (page === 1) load(); else setPage(1); }} />
-      <ClearancePeriodStudentsDrawer period={selectedPeriod} onClose={() => setSelectedPeriod(null)} onSignatureChanged={() => setProgress((current) => { const next = { ...current }; if (selectedPeriod) delete next[selectedPeriod.id]; return next; })} />
+      <ClearancePeriodStudentsDrawer period={selectedPeriod} onClose={() => setRecordId(null)} onSignatureChanged={() => setProgress((current) => { const next = { ...current }; if (selectedPeriod) delete next[selectedPeriod.id]; return next; })} />
     </div>
   );
 }

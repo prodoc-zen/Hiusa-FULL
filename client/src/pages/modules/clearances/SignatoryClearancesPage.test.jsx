@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SignatoryClearancesPage from './SignatoryClearancesPage';
 
@@ -36,13 +37,13 @@ describe('SignatoryClearancesPage', () => {
 
   it('shows a designed empty state when nothing is waiting for a signature', async () => {
     mocks.getClearanceSignatures.mockResolvedValue(envelope([]));
-    render(<SignatoryClearancesPage />);
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     expect(await screen.findByText('Nothing waiting on your signature')).toBeInTheDocument();
   });
 
   it('shows a retryable error state', async () => {
     mocks.getClearanceSignatures.mockRejectedValueOnce(new Error('down'));
-    render(<SignatoryClearancesPage />);
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     expect(await screen.findByText('Failed to load your clearance signing queue.')).toBeInTheDocument();
 
     mocks.getClearanceSignatures.mockResolvedValue(envelope([]));
@@ -54,7 +55,7 @@ describe('SignatoryClearancesPage', () => {
     mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW]));
     mocks.updateClearanceSignature.mockResolvedValue({ data: { ...PENDING_ROW, status: 'held', remarks: 'Unpaid dues.' } });
 
-    render(<SignatoryClearancesPage />);
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     const [row] = (await screen.findAllByText('Maria Santos')).map((el) => el.closest('tr') || el.closest('li'));
     fireEvent.click(within(row).getByRole('button', { name: 'Hold' }));
 
@@ -72,7 +73,7 @@ describe('SignatoryClearancesPage', () => {
     mocks.getClearanceSignatures.mockResolvedValue(envelope([PENDING_ROW, second]));
     mocks.updateClearanceSignature.mockResolvedValue({ data: { ...PENDING_ROW, status: 'cleared' } });
 
-    render(<SignatoryClearancesPage />);
+    render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     await screen.findAllByText('Maria Santos');
     fireEvent.click(screen.getByRole('button', { name: /select all pending/i }));
     fireEvent.click(screen.getByRole('button', { name: 'Clear 2 selected' }));
