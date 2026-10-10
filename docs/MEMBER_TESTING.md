@@ -98,7 +98,16 @@ One line per finding, in this shape:
 
 Mark each as: blocked (could not finish), lost (finished but confused), wording (misleading text), or looks wrong (layout or visual). Send blocked findings first.
 
-## 8. Known limits of this copy
+## 8. Safety notes for whoever hosts the demo
+
+- Plain HTTP: passwords and sign-in tokens that cross the network can be read by anyone else on it. Use a network you trust (a home router or a lab you control), not shared public Wi-Fi.
+- The demo accounts have known passwords, and the SAO account (930027) has full SAO power over that database. Treat every tester as an administrator of the demo data.
+- Serve a database that holds no real student data, emails or fingerprint templates. Files that testers upload are saved on the host computer's disk.
+- The script opens its ports for your own subnet only and only on networks Windows calls Private. If your Wi-Fi is classed as Public, switch it to Private in Windows settings, or pass `-AllowPublicNetwork` knowing the risk. The database port stays closed to the network, and error pages show no file paths or stack traces.
+- Stop the demo when the test ends: `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop`. It stops only what it started.
+- Sign-in has a lockout: five wrong passwords for one account lock it for 15 minutes. If several testers share one demo account, someone mistyping can lock the others out. Wait 15 minutes or use a different account.
+
+## 9. Known limits of this copy
 
 - Email is not sent from the demo laptop, so password reset links do not arrive. Ask the SAO to reset a password if you need one.
 - The AI features fall back to rule-based answers when the AI service is not running.
