@@ -26,6 +26,7 @@ describe('merged and demoted routes', () => {
   beforeEach(() => localStorage.clear());
 
   it.each([
+    ['ADMIN', '/dashboard/events/activity-calendar', 'events /dashboard/events/manage-events?view=calendar'],
     ['ADMIN', '/dashboard/admin/sbo-positions', 'positions /dashboard/admin/positions'],
     ['DEPARTMENT_HEAD', '/dashboard/approvals', 'approvals /dashboard/department-head/approvals'],
   ])('sends %s from %s to the surviving page with its query', async (role, path, landed) => {
