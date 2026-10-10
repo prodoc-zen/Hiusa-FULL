@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Models\Budget;
 use App\Models\CashAdvance;
 use App\Models\CashAdvanceRepayment;
+use App\Models\Event;
 use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
@@ -97,6 +98,31 @@ class BudgetSpentAmountTest extends TestCase
         $this->entry($budget, 'income', '40.00');
 
         $this->putJson('/api/budgets/'.$budget->id, ['title' => 'Renamed'])->assertOk()->assertJsonPath('spent_amount', '120.00');
+    }
+
+    public function test_an_events_linked_budget_shows_the_same_spent_amount_as_the_budget_payload(): void
+    {
+        $event = Event::factory()->create([
+            'organization_id' => $this->organization->id, 'created_by' => $this->admin->school_id, 'status' => 'approved',
+            'start_time' => now()->addWeek(), 'end_time' => now()->addWeek()->addHours(3),
+        ]);
+        $budget = $this->budget('Event budget');
+        $budget->update(['event_id' => $event->id]);
+        $this->entry($budget, 'expense', '250.00');
+        $this->entry($budget, 'income', '900.00', 'Sponsorship');
+        $this->advanceAgainst($budget, '500.00', '200.00');
+        $untouched = $this->budget('Untouched event budget');
+        $untouched->update(['event_id' => $event->id]);
+
+        $budgetRows = $this->getJson('/api/budgets')->assertOk()->json('data');
+        $shown = $this->getJson("/api/events/{$event->id}")->assertOk()->json('budgets');
+        $listed = collect($this->getJson('/api/events')->assertOk()->json('data'))->firstWhere('id', $event->id)['budgets'];
+
+        foreach ([$shown, $listed] as $eventBudgets) {
+            $this->assertSame('250.00', $this->row($eventBudgets, $budget->id)['spent_amount']);
+            $this->assertSame('0.00', $this->row($eventBudgets, $untouched->id)['spent_amount']);
+            $this->assertSame($this->row($budgetRows, $budget->id)['spent_amount'], $this->row($eventBudgets, $budget->id)['spent_amount']);
+        }
     }
 
     public function test_budget_list_query_count_stays_constant_across_a_page(): void
