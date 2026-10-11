@@ -1,9 +1,10 @@
-import { ArrowRight, Check, Circle, Minus, TriangleAlert } from 'lucide-react';
+import { ArrowRight, Check, Circle, Minus, TriangleAlert, X } from 'lucide-react';
 
 const STATE_WORD = {
   done: 'Done',
   current: 'Current step',
   blocked: 'Blocked',
+  stopped: 'Stopped',
   upcoming: 'Upcoming',
   skipped: 'Skipped',
 };
@@ -12,6 +13,7 @@ const STATE_BADGE = {
   done: { icon: Check, className: 'bg-success text-white' },
   current: { icon: ArrowRight, className: 'bg-brand-700 text-white' },
   blocked: { icon: TriangleAlert, className: 'bg-danger text-white' },
+  stopped: { icon: X, className: 'bg-danger text-white' },
   upcoming: { icon: Circle, className: 'border border-line bg-surface text-ink-soft' },
   skipped: { icon: Minus, className: 'border border-line bg-subtle text-ink-muted-strong' },
 };
@@ -20,6 +22,7 @@ const LABEL_TONE = {
   done: 'text-ink',
   current: 'font-bold text-ink',
   blocked: 'font-bold text-danger-strong',
+  stopped: 'font-bold text-danger-strong',
   upcoming: 'text-ink-muted-strong',
   skipped: 'text-ink-muted-strong',
 };
@@ -74,14 +77,14 @@ function CompactStepper({ steps, ariaLabel, summary, className }) {
   const counted = steps.filter((step) => normalize(step.state) !== 'skipped');
   const total = counted.length;
   const done = counted.filter((step) => normalize(step.state) === 'done').length;
-  const focusIndex = counted.findIndex((step) => ['current', 'blocked'].includes(normalize(step.state)));
+  const focusIndex = counted.findIndex((step) => ['current', 'blocked', 'stopped'].includes(normalize(step.state)));
   const focus = focusIndex >= 0 ? counted[focusIndex] : null;
   const state = focus ? normalize(focus.state) : done === total && total > 0 ? 'done' : 'upcoming';
   const text = focus
-    ? `Step ${focusIndex + 1} of ${total}: ${focus.label}`
+    ? `${state === 'stopped' ? 'Stopped at step' : 'Step'} ${focusIndex + 1} of ${total}: ${focus.label}`
     : done === total && total > 0 ? `Complete: ${done} of ${total} steps done` : `${done} of ${total} steps done`;
   const percent = total > 0 ? Math.round((done / total) * 100) : 0;
-  const meterTone = state === 'blocked' ? 'bg-danger' : state === 'done' ? 'bg-success' : 'bg-brand-600';
+  const meterTone = ['blocked', 'stopped'].includes(state) ? 'bg-danger' : state === 'done' ? 'bg-success' : 'bg-brand-600';
 
   return (
     <div className={`flex flex-col gap-1.5 ${className}`}>

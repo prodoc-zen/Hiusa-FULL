@@ -206,6 +206,15 @@ describe('getNotificationDestination table', () => {
     }
   });
 
+  it('never returns a route the role cannot open for an approval notice of any entity type', () => {
+    for (const role of ROLES) {
+      for (const entityType of ['event', 'financial_report', 'budget', 'election', 'announcement', 'payment', null]) {
+        const destination = getNotificationDestination({ reference_type: 'approval_request', reference_id: 7, notification_type: 'general', entity_type: entityType }, role);
+        if (destination !== null) expect(isAllowed(role, destination), `${entityType} for ${role}: ${destination}`).toBe(true);
+      }
+    }
+  });
+
   it('gives every role that can open a page for a type a link, not null', () => {
     const openable = {
       approval_request: ['ADMIN', 'DEPARTMENT_HEAD'],
@@ -245,6 +254,27 @@ describe('getNotificationDestination rules', () => {
     const notification = { reference_type: 'approval_request', reference_id: 31, notification_type: 'general', title: 'Approval Request Submitted' };
     expect(getNotificationDestination(notification, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals?record=31');
     expect(getNotificationDestination(notification, 'ADMIN')).toBe('/dashboard/approvals?record=31');
+  });
+
+  it('lands an approval notice for the SAO on the tab of the entity type it names', () => {
+    const notice = (entity_type) => ({ reference_type: 'approval_request', reference_id: 31, notification_type: 'general', entity_type });
+    expect(getNotificationDestination(notice('event'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=events');
+    expect(getNotificationDestination(notice('financial_report'), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
+    for (const other of ['budget', 'election', 'announcement', 'payment']) {
+      expect(getNotificationDestination(notice(other), 'SUPER_ADMIN'), other).toBe('/dashboard/super-admin/compliance');
+    }
+    expect(getNotificationDestination(notice(null), 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
+    expect(getNotificationDestination({ ...notice(undefined) }, 'SUPER_ADMIN')).toBe('/dashboard/super-admin/compliance?tab=financial');
+  });
+
+  it('keeps Admin and Department Head approval notices on their approvals page whatever the entity type', () => {
+    const notice = { reference_type: 'approval_request', reference_id: 31, notification_type: 'general', entity_type: 'event' };
+    expect(getNotificationDestination(notice, 'ADMIN')).toBe('/dashboard/approvals?record=31');
+    expect(getNotificationDestination(notice, 'DEPARTMENT_HEAD')).toBe('/dashboard/department-head/approvals?record=31');
+  });
+
+  it('does not read entity_type for a notice that is not an approval request', () => {
+    expect(getNotificationDestination({ reference_type: 'event', reference_id: 3, entity_type: 'budget' }, 'ADMIN')).toBe('/dashboard/events/manage-events?record=3');
   });
 
   it('sends an announcement decision to the requester and a broadcast to the feed', () => {

@@ -63,6 +63,49 @@ describe('StudentHomePage', () => {
     expect(screen.queryByText('My open tasks')).not.toBeInTheDocument();
   });
 
+  const briefingWith = (account) => ({ data: {
+    user: { first_name: 'Ana', role: 'STUDENT', organization: { id: 1, name: 'Supreme Student Council' } },
+    summary: { attention_count: 0, headline: "You're all caught up." },
+    attention: [], pillars: {}, insights: [],
+    ...(account === undefined ? {} : { account }),
+  } });
+
+  it('shows what is owed and the clearance state as links in the account panel', async () => {
+    vi.mocked(getBriefing).mockResolvedValueOnce(briefingWith({ owed_total: '610.50', has_open_invoices: true, clearance: { status: 'in_progress', pending_count: 2, held_count: 0 } }));
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+
+    expect(await screen.findByRole('link', { name: /You owe ₱610\.50/ })).toHaveAttribute('href', '/dashboard/finance/statement-of-account');
+    expect(screen.getByRole('link', { name: /Clearance: 2 signatures pending/ })).toHaveAttribute('href', '/dashboard/my-clearance');
+  });
+
+  it.each([
+    [{ owed_total: '0.00', has_open_invoices: false, clearance: { status: 'cleared', pending_count: 0, held_count: 0 } }, /Nothing owed/, /Clearance: Cleared/],
+    [{ owed_total: '0', has_open_invoices: false, clearance: { status: 'held', pending_count: 1, held_count: 1 } }, /Nothing owed/, /On hold: see My clearance/],
+    [{ owed_total: '0', has_open_invoices: false, clearance: { status: 'none', pending_count: 0, held_count: 0 } }, /Nothing owed/, /No clearance period/],
+    [{ owed_total: '10.00', has_open_invoices: true, clearance: { status: 'in_progress', pending_count: 1, held_count: 0 } }, /You owe ₱10\.00/, /Clearance: 1 signature pending/],
+  ])('words the account figures %#', async (account, owed, clearance) => {
+    vi.mocked(getBriefing).mockResolvedValueOnce(briefingWith(account));
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+
+    expect(await screen.findByRole('link', { name: owed })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: clearance })).toHaveAttribute('href', '/dashboard/my-clearance');
+  });
+
+  it('keeps the account links when the briefing has no account key or fails', async () => {
+    vi.mocked(getBriefing).mockResolvedValueOnce(briefingWith(undefined));
+    const { unmount } = render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    expect(await screen.findByRole('link', { name: /Statement of account/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /My clearance/ })).toBeInTheDocument();
+    expect(screen.queryByText(/You owe/)).not.toBeInTheDocument();
+    unmount();
+
+    vi.mocked(getBriefing).mockRejectedValueOnce(new Error('down'));
+    render(<MemoryRouter><StudentHomePage /></MemoryRouter>);
+    expect(await screen.findByText('Your briefing could not load')).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /Statement of account/ })).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: /My clearance/ })).toBeInTheDocument();
+  });
+
   it('names the first action when the feed is empty', async () => {
     getStudentFeed.mockResolvedValue({ organization: null, items: [], sidebar: { active_election: null, upcoming_events: [] }, pagination: { current_page: 1, has_more: false, next_page: null } });
     render(<MemoryRouter><StudentHomePage /></MemoryRouter>);

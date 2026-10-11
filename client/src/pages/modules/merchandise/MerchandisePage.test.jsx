@@ -12,6 +12,7 @@ const merchandiseMocks = vi.hoisted(() => ({
 }));
 const orderMocks = vi.hoisted(() => ({
   getOrders: vi.fn(),
+  getOrder: vi.fn(),
   cancelOrder: vi.fn(),
   placeOrder: vi.fn(),
   verifyClaimToken: vi.fn(),
@@ -532,11 +533,29 @@ describe("MerchandisePage order stages for the buyer", () => {
 
   it("reports an unknown ?record= instead of opening an empty panel", async () => {
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 4 })]) });
+    orderMocks.getOrder.mockRejectedValue({ response: { status: 404 } });
     renderAt("/dashboard/merchandise/my-orders?record=999", "my-orders");
 
     expect(await screen.findByText("ORD-999 was not found in your orders.")).toBeInTheDocument();
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     await waitFor(() => expect(screen.getByTestId("location")).not.toHaveTextContent("record="));
+  });
+
+  it("opens a buyer's own order from ?record= when it is not on the loaded page", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 4 })]) });
+    orderMocks.getOrder.mockResolvedValue({ data: buyerOrder({ id: 77, status: "paid", claim_token: "CLAIMTOKEN123456" }) });
+    renderAt("/dashboard/merchandise/my-orders?record=77", "my-orders");
+
+    expect(await screen.findByRole("dialog", { name: "ORD-77" })).toBeInTheDocument();
+    expect(orderMocks.getOrder).toHaveBeenCalledWith("77");
+  });
+
+  it("does not read the order separately when it is already on the loaded page", async () => {
+    orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 3 })]) });
+    renderAt("/dashboard/merchandise/my-orders?record=3", "my-orders");
+
+    expect(await screen.findByRole("dialog", { name: "ORD-3" })).toBeInTheDocument();
+    expect(orderMocks.getOrder).not.toHaveBeenCalled();
   });
 
   it("shows a first-run orders state with a button to the shop", async () => {
@@ -644,14 +663,16 @@ describe("MerchandisePage order stages for staff", () => {
     expect(screen.getByRole("dialog", { name: "Verify merchandise payment" })).toBeInTheDocument();
   });
 
-  it("looks up an order that is not on the loaded page by its id and closes it", async () => {
+  it("reads an order that is not on the loaded page by its id and closes it", async () => {
     const far = staffOrder({ id: 99, status: "paid", claim_token: "CLAIMTOKEN123456" });
-    orderMocks.getOrders.mockImplementation(async (params) => (params?.search === "99" ? queue([far]) : queue([staffOrder({ id: 2 })])));
+    orderMocks.getOrders.mockResolvedValue(queue([staffOrder({ id: 2 })]));
+    orderMocks.getOrder.mockResolvedValue({ data: far });
     renderAt("/dashboard/merchandise/manage-orders?record=99", "orders");
 
     const dialog = await screen.findByRole("dialog", { name: "Merchandise order details" });
     expect(within(dialog).getByText("Release at the claim desk")).toBeInTheDocument();
-    expect(orderMocks.getOrders).toHaveBeenCalledWith(expect.objectContaining({ search: "99" }));
+    expect(orderMocks.getOrder).toHaveBeenCalledWith("99");
+    expect(orderMocks.getOrders).not.toHaveBeenCalledWith(expect.objectContaining({ search: "99" }));
 
     fireEvent.click(within(dialog).getByRole("button", { name: "Close order details" }));
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
