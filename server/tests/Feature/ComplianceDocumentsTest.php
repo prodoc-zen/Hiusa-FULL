@@ -650,4 +650,63 @@ class ComplianceDocumentsTest extends TestCase
             $this->assertSame($listed, $summarised, 'summary differs from the file list for ['.$query.']');
         }
     }
+
+    public function test_a_page_reads_only_the_rows_it_needs_from_every_source(): void
+    {
+        $this->periods();
+        foreach (['Coding Club', 'Drama Guild', 'Chess Club'] as $name) {
+            $organization = $this->studentOrganization($name);
+            $this->documentsFor($organization, $this->submitter($organization));
+        }
+        Sanctum::actingAs($this->director());
+        $sources = [];
+        DB::listen(function ($query) use (&$sources) {
+            $sql = str_replace(['"', '`'], '', $query->sql);
+            foreach (['organization_compliance_submissions', 'event_requirement_files', 'financial_reports'] as $table) {
+                if (str_starts_with($sql, 'select') && str_contains($sql, "from {$table}") && str_contains($sql, 'order by')) {
+                    $sources[$table] = $sql;
+                }
+            }
+        });
+
+        $page = $this->getJson('/api/compliance/documents?per_page=1')->assertOk();
+
+        $this->assertSame(15, $page->json('total'));
+        $this->assertCount(1, $page->json('data'));
+        $this->assertCount(3, $sources);
+        foreach ($sources as $table => $sql) {
+            $this->assertStringContainsString(' limit ', $sql, "{$table} was read without a row limit");
+        }
+    }
+
+    public function test_pages_walk_the_whole_list_in_the_same_order_for_every_filter(): void
+    {
+        $this->periods();
+        foreach (['Coding Club', 'Drama Guild', 'Chess Club'] as $name) {
+            $organization = $this->studentOrganization($name);
+            $this->documentsFor($organization, $this->submitter($organization));
+        }
+        $this->complianceFile($this->studentOrganization('Robotics Guild', null, 'pending'), 'Letter of Intent', 'submitted');
+        Sanctum::actingAs($this->director());
+
+        foreach (['', '&academic_semester_id='.$this->first->id, '&academic_semester_id='.$this->second->id, '&source=compliance', '&family=registration',
+            '&family=semester_renewal', '&source=financial_supporting_document', '&source=financial_report&academic_semester_id='.$this->first->id] as $query) {
+            $whole = collect($this->getJson('/api/compliance/documents?per_page=100'.$query)->assertOk()->json('data'))->map(fn (array $row) => $row['open_url'])->all();
+            $walked = [];
+            foreach ([1, 2, 3, 4, 5, 6] as $page) {
+                $walked = [...$walked, ...collect($this->getJson("/api/compliance/documents?per_page=3&page={$page}".$query)->assertOk()->json('data'))->map(fn (array $row) => $row['open_url'])->all()];
+            }
+
+            $this->assertSame($whole, $walked, 'paging differs from the whole list for ['.$query.']');
+        }
+    }
+
+    public function test_a_window_deeper_than_the_cap_is_refused_instead_of_loaded(): void
+    {
+        Sanctum::actingAs($this->director());
+
+        $this->getJson('/api/compliance/documents?per_page=100&page=20')->assertOk();
+        $this->getJson('/api/compliance/documents?per_page=100&page=21')->assertUnprocessable();
+        $this->getJson('/api/compliance/documents?per_page=100&page=21&group=organization')->assertOk();
+    }
 }
