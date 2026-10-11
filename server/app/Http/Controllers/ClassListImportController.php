@@ -16,6 +16,8 @@ class ClassListImportController extends Controller
 {
     private const HEADERS = ['school_id', 'program', 'year_level', 'section'];
 
+    private const PASSWORD_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+
     public function preview(Request $request)
     {
         $file = $this->validatedFile($request);
@@ -53,6 +55,7 @@ class ClassListImportController extends Controller
         $results = DB::transaction(function () use ($rows, $organizationId, $request) {
             $updated = 0;
             $created = 0;
+            $temporaryPasswords = [];
             foreach ($rows as $row) {
                 if (! in_array($row['status'], ['update', 'new'], true)) {
                     continue;
@@ -61,13 +64,14 @@ class ClassListImportController extends Controller
                     if (User::where('school_id', $row['school_id'])->orWhere('email', $row['email'])->exists()) {
                         throw ValidationException::withMessages(['file' => ['An account was created since preview. Preview the file again.']]);
                     }
+                    $temporaryPassword = $this->temporaryPassword();
                     $user = User::create([
                         'organization_id' => $organizationId,
                         'school_id' => (int) $row['school_id'],
                         'first_name' => $row['first_name'],
                         'last_name' => $row['last_name'],
                         'email' => $row['email'],
-                        'password_hash' => substr(str_pad($row['school_id'], 4, '0', STR_PAD_LEFT), -4).'-uclm',
+                        'password_hash' => $temporaryPassword,
                         'must_change_password' => true,
                         'role' => 'STUDENT',
                         'account_status' => 'active',
@@ -83,6 +87,7 @@ class ClassListImportController extends Controller
                         'record_id' => $user->school_id, 'new_values' => $user->only(['school_id', 'first_name', 'last_name', 'email', 'program', 'year_level', 'section']),
                         'ip_address' => $request->ip(), 'created_at' => now(),
                     ]);
+                    $temporaryPasswords[] = ['school_id' => $user->school_id, 'name' => trim($user->first_name.' '.$user->last_name), 'password' => $temporaryPassword];
                     $created++;
 
                     continue;
@@ -110,7 +115,7 @@ class ClassListImportController extends Controller
                 $updated++;
             }
 
-            return ['updated' => $updated, 'created' => $created];
+            return ['updated' => $updated, 'created' => $created, 'temporary_passwords' => $temporaryPasswords];
         });
         Cache::forget('class-list-preview:'.$token);
 
@@ -119,7 +124,18 @@ class ClassListImportController extends Controller
             'unchanged' => collect($rows)->where('status', 'unchanged')->count(),
             'invalid' => collect($rows)->where('status', 'invalid')->count(),
             'duplicate' => collect($rows)->where('status', 'duplicate')->count(),
-        ]);
+        ])->header('Cache-Control', 'no-store, private');
+    }
+
+    private function temporaryPassword(): string
+    {
+        $last = strlen(self::PASSWORD_ALPHABET) - 1;
+        $password = '';
+        for ($i = 0; $i < 10; $i++) {
+            $password .= self::PASSWORD_ALPHABET[random_int(0, $last)];
+        }
+
+        return $password;
     }
 
     private function validatedFile(Request $request)
