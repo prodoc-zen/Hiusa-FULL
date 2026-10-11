@@ -141,7 +141,7 @@ class User extends Authenticatable
     }
 
     /** The organization columns a member's own account payload carries; reviewer and submitter ids and remarks are not among them. */
-    private const SERIALIZED_ORGANIZATION_COLUMNS = [
+    public const SERIALIZED_ORGANIZATION_COLUMNS = [
         'id', 'name', 'slug', 'college', 'college_id', 'organization_type', 'acronym', 'parent_organization_id',
         'is_active', 'logo_url', 'color', 'lifecycle_status',
     ];
@@ -149,6 +149,7 @@ class User extends Authenticatable
     public function activateProfile(AccountProfile $profile): void
     {
         $this->activeAccountProfile = $profile;
+        $profile->organization?->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS);
         $this->setRelation('organization', $profile->organization?->withoutRelations()->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS));
     }
 
