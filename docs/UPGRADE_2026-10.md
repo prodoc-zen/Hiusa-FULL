@@ -43,6 +43,15 @@ sudo -u www-data /usr/local/bin/hiusa-artisan financial-reports:secure-documents
 
 This moves existing financial report supporting documents from the public disk to the private one and removes the public link. It is safe to repeat. It prints how many documents it moved and how many listed files were missing; a missing file is a document that was already gone.
 
+Accounts that existed before this release keep `must_change_password = false`, including class-list students still on the old `<last four digits of the school ID>-uclm` password and demo accounts on `Demo@12345` or `Admin@123456`. Take a database backup first, then run:
+
+```bash
+sudo -u www-data /usr/local/bin/hiusa-artisan users:flag-default-passwords --dry-run
+sudo -u www-data /usr/local/bin/hiusa-artisan users:flag-default-passwords
+```
+
+The command checks each account that is not yet flagged against those known defaults and requires a password change at the next sign-in where one matches. It prints how many accounts it checked and flagged, never a password or hash. `--dry-run` writes nothing. `--never-signed-in` also flags every account that has no sign-in token at all; a token is removed on sign-out, so this can also flag someone who signed in and out before. It is a command and not a migration because every check is a bcrypt comparison: budget about half a second per account (about 15 minutes for 2,000 accounts), run it in a maintenance window, and rerun it safely if it is interrupted, since flagged accounts are skipped.
+
 When the SAO opens the next academic semester in the app, the semestral report requirement is created with it. For a semester that is already open, run once:
 
 ```bash

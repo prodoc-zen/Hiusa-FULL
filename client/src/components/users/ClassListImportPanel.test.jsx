@@ -33,6 +33,64 @@ describe('ClassListImportPanel', () => {
     expect(await screen.findByRole('status')).toHaveTextContent('1 created');
   });
 
+  it('no longer describes a predictable first password', () => {
+    render(<ClassListImportPanel />);
+
+    expect(screen.queryByText(/-uclm/)).not.toBeInTheDocument();
+    expect(screen.getByText(/random temporary password/i)).toBeInTheDocument();
+  });
+
+  describe('temporary passwords', () => {
+    const issued = [
+      { school_id: 20000001, name: 'Ana One', password: 'Abcdefg234' },
+      { school_id: 20000002, name: '=cmd Two', password: 'Hjkmnpq567' },
+    ];
+    let createObjectURL;
+    let blobs;
+
+    const importWithPasswords = async (temporary_passwords = issued) => {
+      service.applyClassList.mockResolvedValue({ created: 2, updated: 0, unchanged: 0, invalid: 0, duplicate: 0, temporary_passwords });
+      render(<ClassListImportPanel />);
+      fireEvent.change(screen.getByLabelText('Choose class list'), { target: { files: [new File(['x'], 'students.csv', { type: 'text/csv' })] } });
+      fireEvent.click(screen.getByRole('button', { name: 'Preview' }));
+      fireEvent.click(await screen.findByRole('button', { name: /confirm and apply/i }));
+      await screen.findByRole('status');
+    };
+
+    beforeEach(() => {
+      blobs = [];
+      createObjectURL = vi.fn((blob) => { blobs.push(blob); return 'blob:passwords'; });
+      URL.createObjectURL = createObjectURL;
+      URL.revokeObjectURL = vi.fn();
+    });
+
+    it('shows a one-time notice and downloads a formula-safe CSV built in the browser', async () => {
+      await importWithPasswords();
+
+      expect(screen.getByText(/Temporary passwords\. Shown once\. Give each student theirs; they must choose their own password at first sign-in\./)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole('button', { name: 'Download temporary passwords (CSV)' }));
+
+      expect(blobs).toHaveLength(1);
+      const text = await blobs[0].text();
+      expect(text).toBe("school_id,name,temporary_password\r\n20000001,Ana One,Abcdefg234\r\n20000002,'=cmd Two,Hjkmnpq567");
+    });
+
+    it('drops the list when the notice is dismissed', async () => {
+      await importWithPasswords();
+
+      fireEvent.click(screen.getByRole('button', { name: 'Dismiss' }));
+
+      expect(screen.queryByRole('button', { name: 'Download temporary passwords (CSV)' })).not.toBeInTheDocument();
+      expect(screen.queryByText(/Shown once/)).not.toBeInTheDocument();
+    });
+
+    it('shows no notice when the import created no accounts', async () => {
+      await importWithPasswords([]);
+
+      expect(screen.queryByRole('button', { name: 'Download temporary passwords (CSV)' })).not.toBeInTheDocument();
+    });
+  });
+
   it('shows file validation errors from the API', async () => {
     service.previewClassList.mockRejectedValue({ response: { data: { errors: { file: ['Required columns are missing.'] } } } });
     render(<ClassListImportPanel />);
