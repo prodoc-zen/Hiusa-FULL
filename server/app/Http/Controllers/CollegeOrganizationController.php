@@ -245,7 +245,7 @@ class CollegeOrganizationController extends Controller
     /** True when anything outside the registration itself points at the organization: accounts, events, money, elections and the rest. */
     private function hasRecords(Organization $organization): bool
     {
-        foreach (Schema::getTables() as $table) {
+        foreach (Schema::getTables(Schema::getCurrentSchemaListing()) as $table) {
             if (in_array($table['name'], self::REGISTRATION_TABLES, true)) {
                 continue;
             }
