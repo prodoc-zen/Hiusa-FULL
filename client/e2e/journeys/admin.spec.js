@@ -56,8 +56,9 @@ async function homeReady(page) {
 }
 
 // Reaches a menu leaf the way a person does: on a phone the menu opens first, then the group, then the leaf.
+// Opening the menu is chrome, not a step, so that tap is not counted (docs/UX_FLOW.md section 9, Counting rules).
 async function openLeaf(t, page, width, group, leaf) {
-  if (width < 1024) await t.tap(page.getByRole('button', { name: 'Open menu' }), 'open menu');
+  if (width < 1024) await page.getByRole('button', { name: 'Open menu' }).click();
   if (group) await t.tap(page.getByRole('button', { name: group, exact: true }), group);
   await t.tap(page.getByRole('link', { name: leaf, exact: true }).first(), leaf);
 }
