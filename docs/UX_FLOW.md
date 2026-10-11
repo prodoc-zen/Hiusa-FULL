@@ -473,6 +473,8 @@ Who sees which occupant. `GET /venues/{venue}/availability` is the one endpoint 
 
 The booking list (`GET /venue-bookings`) already returns only the caller's own organization to Admin and Officer, and every organization to the SAO. Student and Department Head cannot reach either endpoint.
 
+Stored times. Booking times are Manila wall-clock time. Before the server read an incoming instant as Manila, a request sent as UTC was saved as its UTC wall clock, eight hours early. The migration `2026_10_11_000001_shift_utc_venue_bookings_to_manila` moves those rows forward eight hours once; it selects only rows that have a `booking_requested` audit row (written by the API alone) and were created before it ran, so seeded rows are untouched. Run it on a copy of the live database first and count the affected rows beforehand (`venue_bookings` rows whose id appears in `audit_logs` with action `booking_requested`).
+
 ### 4.10 Clearance
 
 | Stage | Status values | Who acts | Next-action text |
