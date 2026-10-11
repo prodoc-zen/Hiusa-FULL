@@ -295,11 +295,28 @@ describe('SaoCompliancePage', () => {
     });
 
     it('lets the queue be filtered to an organization still waiting for registration approval', async () => {
-      mocks.getSystemOrganizations.mockResolvedValue({ data: [{ id: 21, name: 'Robotics Guild' }], current_page: 1, last_page: 1 });
+      mocks.getSystemOrganizations.mockImplementation((params) => Promise.resolve({
+        data: params.lifecycle_status === 'pending' ? [{ id: 21, name: 'Robotics Guild' }] : [],
+        current_page: 1,
+        last_page: 1,
+      }));
       renderPage('/dashboard/super-admin/compliance?tab=review');
 
       expect(await screen.findByRole('option', { name: 'Robotics Guild (registration)' })).toBeInTheDocument();
       expect(mocks.getSystemOrganizations).toHaveBeenCalledWith(expect.objectContaining({ lifecycle_status: 'pending' }));
+    });
+
+    it('also lets the queue be filtered to an organization whose registration was returned', async () => {
+      mocks.getSystemOrganizations.mockImplementation((params) => Promise.resolve({
+        data: { pending: [{ id: 21, name: 'Robotics Guild' }], returned: [{ id: 22, name: 'Chess Club' }] }[params.lifecycle_status] ?? [],
+        current_page: 1,
+        last_page: 1,
+      }));
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+
+      expect(await screen.findByRole('option', { name: 'Chess Club (registration)' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Robotics Guild (registration)' })).toBeInTheDocument();
+      expect(mocks.getSystemOrganizations).toHaveBeenCalledWith(expect.objectContaining({ lifecycle_status: 'returned' }));
     });
 
     it('requires remarks to return a submission, with a field error instead of a disabled button', async () => {

@@ -61,11 +61,11 @@ export default function SaoCompliancePage() {
 
   useEffect(() => { if (role === 'SUPER_ADMIN') loadOverview(); }, [loadOverview, role]);
 
-  // New organizations are not accredited yet, so the accreditation overview skips them, but their registration files are in the queue.
+  // New and returned organizations are not accredited yet, so the accreditation overview skips them, but their registration files are in the queue.
   useEffect(() => {
     if (role !== 'SUPER_ADMIN') return;
-    fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: 'pending' }))
-      .then((items) => setPendingRegistrations(items.map((organization) => ({ organization_id: organization.id, organization_name: `${organization.name} (registration)` }))))
+    Promise.all(['pending', 'returned'].map((lifecycleStatus) => fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: lifecycleStatus }))))
+      .then(([pending, returned]) => setPendingRegistrations([...pending, ...returned].map((organization) => ({ organization_id: organization.id, organization_name: `${organization.name} (registration)` }))))
       .catch(() => setPendingRegistrations([]));
   }, [role]);
 

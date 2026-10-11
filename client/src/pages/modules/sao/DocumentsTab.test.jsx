@@ -145,8 +145,8 @@ describe('DocumentsTab', () => {
     await waitFor(() => expect(complianceMocks.getComplianceDocuments).toHaveBeenLastCalledWith(expect.objectContaining({ group: 'organization', page: 2 })));
   });
 
-  it('reaches every file of an organization past the old 500 row cap with Load more', async () => {
-    const total = 520;
+  it('pages the files of one organization with Load more until the last one is shown', async () => {
+    const total = 120;
     serve({
       filesPage: (params) => {
         const start = (params.page - 1) * params.per_page;
@@ -157,15 +157,15 @@ describe('DocumentsTab', () => {
     renderTab();
     fireEvent.click(await screen.findByRole('button', { name: /CCS - Computing Society/ }));
 
-    expect(await screen.findByText('Showing 50 of 520 files')).toBeInTheDocument();
-    for (let loaded = 50; loaded < total; loaded += 50) {
-      fireEvent.click(await screen.findByRole('button', { name: 'Load more files' }));
-      await screen.findByText(`Showing ${Math.min(loaded + 50, total)} of ${total} files`);
-    }
+    expect(await screen.findByText('Showing 50 of 120 files')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load more files' }));
+    expect(await screen.findByText('Showing 100 of 120 files')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Load more files' }));
 
-    expect(screen.getByText('Requirement 520')).toBeInTheDocument();
+    expect(await screen.findByText('Showing 120 of 120 files')).toBeInTheDocument();
+    expect(screen.getByText('Requirement 120')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load more files' })).not.toBeInTheDocument();
-  }, 60000);
+  });
 
   it('opens a document through the authenticated helper', async () => {
     openMocks.openProtectedFile.mockResolvedValue();

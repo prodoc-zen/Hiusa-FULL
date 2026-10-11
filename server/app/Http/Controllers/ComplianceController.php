@@ -260,7 +260,7 @@ class ComplianceController extends Controller
         ]);
     }
 
-    public function submissions(Request $request)
+    public function submissions(Request $request, ComplianceDocumentService $documents)
     {
         $filters = $request->validate([
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
@@ -269,7 +269,7 @@ class ComplianceController extends Controller
         ]);
 
         $query = OrganizationComplianceSubmission::with([
-            'organization:id,name,acronym,lifecycle_status',
+            'organization:id,name,acronym,lifecycle_status,submitted_at,reviewed_at',
             'requirementType:id,academic_year,name,deadline_at',
             'submitter:school_id,first_name,last_name',
             'reviewer:school_id,first_name,last_name',
@@ -292,7 +292,7 @@ class ComplianceController extends Controller
         // Registration files are decided in the organization review, so the queue marks them instead of offering a decision.
         $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute(
             'is_registration',
-            in_array($submission->organization?->lifecycle_status, ComplianceDocumentService::REGISTRATION_LIFECYCLES, true),
+            $documents->isRegistrationFile($submission->organization, $submission->submitted_at),
         ));
 
         return response()->json($page);
