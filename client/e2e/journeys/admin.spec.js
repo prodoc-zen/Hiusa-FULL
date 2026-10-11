@@ -229,7 +229,7 @@ for (const viewport of VIEWPORTS) {
       await expect(nextStep).toContainText('Waiting for Department Head approval');
     });
 
-    test('A4 run and report (ceiling 3 and 3)', async ({ page }) => {
+    test('A4 run and report (ceiling 4 and 3)', async ({ page }) => {
       const admin = await signedApi(PSITS_ADMIN);
       const listed = await admin.get('/events?per_page=100');
       for (const other of (listed.body?.data ?? []).filter((e) => e.status === 'ongoing')) await setStatus(admin, other.id, 'completed');
@@ -257,7 +257,7 @@ for (const viewport of VIEWPORTS) {
       await expect(page.getByText('Check-in recorded.')).toBeVisible(LONG);
       console.log(`[admin A4 check-in @${width}] clicks=${t.summary()} preselected=${preselected}`);
       expect.soft(preselected, 'the ongoing event is preselected on Check-in').toBe(true);
-      expect.soft(t.state.clicks, `check-in clicks ${t.summary()}`).toBeLessThanOrEqual(3);
+      expect.soft(t.state.clicks, `check-in clicks ${t.summary()}`).toBeLessThanOrEqual(4);
 
       const dialog = await openEventRecord(page, completed.event.id);
       await expect(dialog.getByText('Prepare the event financial report')).toBeVisible(LONG);

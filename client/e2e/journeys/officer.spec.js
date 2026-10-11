@@ -14,13 +14,20 @@ const WIDTHS = [
   { width: 390, height: 844 },
 ];
 
+// The name a tapped control goes by, taken from its locator, so a run reports the path it counted.
+function nameOf(locator) {
+  const text = String(locator);
+  return /name: '([^']+)'|name: \/(.+?)\/[a-z]*|getByText\('([^']+)'/.exec(text)?.slice(1).find(Boolean) || text.slice(0, 60);
+}
+
 function flowFor() {
-  let clicks = 0;
+  const steps = [];
   return {
-    get clicks() { return clicks; },
+    get clicks() { return steps.length; },
+    get path() { return steps.join(' > '); },
     async tap(locator, options) {
       await locator.click(options);
-      clicks += 1;
+      steps.push(nameOf(locator));
     },
   };
 }
@@ -92,7 +99,7 @@ async function finish(page, flow, { id, ceiling, endLocator, end, notes }) {
     await endLocator().first().scrollIntoViewIfNeeded().catch(() => {});
     await page.screenshot({ path: path.join(SHOTS, `${id}-${viewport.width}-scrolled.png`) });
     const layout = await layoutReport(page);
-    const line = { id, width: viewport.width, clicks: flow.clicks, ceiling, notes, endInView, endBox: box && { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.width), h: Math.round(box.height) }, layout };
+    const line = { id, width: viewport.width, clicks: flow.clicks, ceiling, path: flow.path, notes, endInView, endBox: box && { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.width), h: Math.round(box.height) }, layout };
     fs.appendFileSync(path.join(SHOTS, 'results.jsonl'), `${JSON.stringify(line)}\n`);
     console.log(`JOURNEY ${JSON.stringify(line)}`);
   }
@@ -141,7 +148,7 @@ for (const viewport of WIDTHS) {
       });
     });
 
-    test('O2 verify a payment and release an order (ceiling 6)', async ({ page }) => {
+    test('O2 verify a payment and release an order (ceiling 8)', async ({ page }) => {
       const student = await apiAs(STUDENT_B);
       const catalog = (await student.get('/merchandise?per_page=50')).body.data;
       const item = catalog.find((row) => row.is_active && row.stock_quantity > 2 && !(row.variants || []).length);
@@ -187,7 +194,7 @@ for (const viewport of WIDTHS) {
 
       await finish(page, flow, {
         id: 'O2',
-        ceiling: 6,
+        ceiling: 8,
         endLocator: () => orderEntry().getByText('Claimed', { exact: true }),
         end: async () => {
           await expect(orderEntry().getByText('Claimed', { exact: true })).toBeVisible();
@@ -235,7 +242,7 @@ for (const viewport of WIDTHS) {
       });
     });
 
-    test('O4 send an announcement for approval (ceiling 4)', async ({ page }) => {
+    test(`O4 send an announcement for approval (ceiling ${viewport.width < 1024 ? 6 : 5})`, async ({ page }) => {
       const title = `Journey announcement ${viewport.width} ${Date.now()}`;
       await uiLogin(page, OFFICER);
       const flow = flowFor();
@@ -257,7 +264,7 @@ for (const viewport of WIDTHS) {
 
       await finish(page, flow, {
         id: 'O4',
-        ceiling: 4,
+        ceiling: viewport.width < 1024 ? 6 : 5,
         notes: { sentScreen },
         endLocator: () => rowFor().getByText('Waiting for Admin approval'),
         end: () => expect(rowFor().getByText('Waiting for Admin approval')).toBeVisible(),

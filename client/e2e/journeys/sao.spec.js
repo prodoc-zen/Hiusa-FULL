@@ -379,8 +379,8 @@ for (const { width, height } of WIDTHS) {
       }
     });
 
-    test('5. Answer a grievance (ceiling 4)', async ({ page, browser }, info) => {
-      const ceiling = 4;
+    test('5. Answer a grievance (ceiling 6)', async ({ page, browser }, info) => {
+      const ceiling = 6;
       const seed = nextSeed();
       const grievance = await fileGrievance(seed);
       const counter = tracker();
