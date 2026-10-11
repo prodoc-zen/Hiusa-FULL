@@ -224,8 +224,8 @@ class VenueBookingTest extends TestCase
         $secondBookingId = VenueBooking::create([
             'venue_id' => $venue->id,
             'organization_id' => $orgB->id,
-            'start_time' => $day->copy()->setTime(10, 0)->toISOString(),
-            'end_time' => $day->copy()->setTime(12, 0)->toISOString(),
+            'start_time' => $day->copy()->setTime(10, 0),
+            'end_time' => $day->copy()->setTime(12, 0),
             'status' => 'pending',
             'requested_by' => $adminB->school_id,
         ])->id;

@@ -30,8 +30,8 @@ class VenueCalendarTest extends TestCase
             'event_id' => $event?->id,
             'status' => $status,
             'requested_by' => User::factory()->create()->school_id,
-            'start_time' => $start->copy()->utc(),
-            'end_time' => $end->copy()->utc(),
+            'start_time' => $start,
+            'end_time' => $end,
         ]);
     }
 
