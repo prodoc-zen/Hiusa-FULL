@@ -267,6 +267,17 @@ describe('FinancePage financial report lifecycle', () => {
     expect(screen.getByRole('progressbar', { name: 'Report progress for October Report' })).toHaveAttribute('aria-valuetext', 'Step 1 of 4: Draft');
   });
 
+  it('names the next step on each saved report row at desktop widths too', async () => {
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [report({ submission_status: 'pending_department_head' }), report({ id: 62, title: 'October report', submission_status: undefined })] });
+    renderPage('ADMIN', REPORTS, { initialTab: 'reports' });
+
+    await screen.findByRole('progressbar', { name: 'Report progress for August Report' });
+    // The compact stepper shows the next action alone below 640 px; from 640 px up the row prints it under the stepper.
+    const desktopLine = (text) => screen.getAllByText(text).filter((node) => node.className.includes('sm:block'));
+    expect(desktopLine('Waiting for Department Head approval')).toHaveLength(1);
+    expect(desktopLine('Review and submit')).toHaveLength(1);
+  });
+
   it('submits a draft with its supporting files from the detail', async () => {
     financeMocks.submitFinancialReport.mockResolvedValue({ data: report({ submission_status: 'pending_department_head' }) });
     financeMocks.getFinancialReports.mockResolvedValue({ data: [report()] });

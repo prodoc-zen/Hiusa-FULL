@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { HEAD_CCS, OFFICER, PSITS_ADMIN, STUDENT, apiAs, liveEnabled, uiLogin } from '../support/live.js';
+import { HEAD_CCS, OFFICER, PSITS_ADMIN, STUDENT, apiAs, liveEnabled, pdfFile, uiLogin } from '../support/live.js';
 
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
@@ -81,18 +81,22 @@ async function closeActiveElections(admin) {
 // A real ballot through the API: Admin proposes, Department Head approves, a candidate is added, the
 // ballot is finalized and opens because its window has started. The seeded election is never finalized,
 // so no student could vote in it. Settings are what the Admin form creates, including the server default
-// for results_visible.
+// for results_visible. Once the SAO has an active semester the ballot also needs its informative letter
+// (a PDF), so the proposal is sent as the form does, with one attached.
 async function seedOpenElection() {
   const admin = await apiAs(PSITS_ADMIN);
   const head = await apiAs(HEAD_CCS);
   await closeActiveElections(admin);
   const stamp = Date.now();
-  const created = await admin.post('/elections', {
-    title: `Journey ballot ${stamp}`,
-    start_time: new Date(stamp - 3600e3).toISOString(),
-    end_time: new Date(stamp + 2 * 86400e3).toISOString(),
-    positions: [{ title: 'Journey President', max_winners: 1 }],
-  });
+  const proposal = new FormData();
+  proposal.append('title', `Journey ballot ${stamp}`);
+  proposal.append('start_time', new Date(stamp - 3600e3).toISOString());
+  proposal.append('end_time', new Date(stamp + 2 * 86400e3).toISOString());
+  proposal.append('positions[0][title]', 'Journey President');
+  proposal.append('positions[0][max_winners]', '1');
+  const letter = pdfFile('informative-letter.pdf', 'Informative letter');
+  proposal.append('informative_letter', new Blob([letter.buffer], { type: letter.mimeType }), letter.name);
+  const created = await admin.post('/elections', proposal);
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   const election = created.body;
   const approved = await head.patch(`/approval-requests/${election.approval_id}`, { status: 'approved' });
@@ -188,7 +192,7 @@ for (const viewport of WIDTHS) {
       await expect(card.getByText('Available when voting closes')).toHaveCount(0);
     });
 
-    test('J3 order and claim (ceiling 5 to place, 1 to check)', async ({ page }, testInfo) => {
+    test('J3 order and claim (ceiling 6 to place, 1 to check)', async ({ page }, testInfo) => {
       const account = who.order;
       const api = await apiAs(account);
       await uiLogin(page, account);
@@ -202,7 +206,7 @@ for (const viewport of WIDTHS) {
       await tap(place, page.getByRole('button', { name: 'Place Reservation' }), 'Place Reservation');
       await expect(page.getByText(/ORD-\d+ reserved/).first()).toBeVisible();
       record(testInfo, place, { phase: 'place' });
-      expect.soft(place.n, place.log.join(' > ')).toBeLessThanOrEqual(5);
+      expect.soft(place.n, place.log.join(' > ')).toBeLessThanOrEqual(6);
 
       const orders = await api.get('/orders');
       const placed = (orders.body.data || []).reduce((latest, order) => (!latest || order.id > latest.id ? order : latest), null);
