@@ -357,6 +357,53 @@ describe('TasksPage', () => {
     });
   });
 
+  describe('direct row actions on the desktop table', () => {
+    const base = { event_id: null, priority: 'high', assigned_to: 'OFF-1', assignee: officer, deadline: '2026-10-10', progress_percent: 0 };
+    const rowOf = async (title) => {
+      await screen.findAllByText(title);
+      return within(screen.getAllByRole('row').find((row) => within(row).queryByText(title)));
+    };
+    const serve = (...records) => mocks.getTasks.mockImplementation(() => Promise.resolve(envelope(records)));
+
+    it('lets the assignee start a pending task from its row without opening the menu', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'pending' };
+      serve(task);
+      mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'in_progress', progress_percent: 1 } });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      const row = await rowOf('Stage Task');
+      expect(row.queryByRole('button', { name: 'Complete' })).not.toBeInTheDocument();
+      fireEvent.click(row.getByRole('button', { name: 'Start' }));
+      await waitFor(() => expect(mocks.updateTaskStatus).toHaveBeenCalledWith(1, { status: 'in_progress', progress_note: 'Task work started.', progress_percent: 1 }));
+    });
+
+    it('lets the assignee complete an in-progress task from its row through the confirmation', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      const task = { ...base, id: 1, title: 'sTAGE tASK', status: 'in_progress', progress_percent: 40 };
+      serve(task);
+      mocks.updateTaskStatus.mockResolvedValue({ data: { ...task, status: 'completed', progress_percent: 100 } });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      const row = await rowOf('Stage Task');
+      expect(row.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+      fireEvent.click(row.getByRole('button', { name: 'Complete' }));
+      fireEvent.click(await screen.findByRole('button', { name: 'Confirm Completion' }));
+      await waitFor(() => expect(mocks.updateTaskStatus).toHaveBeenCalledWith(1, { status: 'completed', progress_note: 'Task marked as completed.', progress_percent: 100 }));
+    });
+
+    it('offers no Start on the row of a blocked task or to the Admin', async () => {
+      localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+      serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'pending', workflow_status: 'blocked', dependency: { id: 9, title: 'eARLIER tASK' } });
+      const { unmount } = render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      expect((await rowOf('Stage Task')).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+      unmount();
+
+      localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+      serve({ ...base, id: 1, title: 'sTAGE tASK', status: 'pending' });
+      render(<MemoryRouter><TasksPage /></MemoryRouter>);
+      expect((await rowOf('Stage Task')).queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+    });
+  });
+
   describe('empty states', () => {
     it('asks the Admin to create the first task and opens the form', async () => {
       mocks.getTasks.mockImplementation(() => Promise.resolve(envelope([])));
