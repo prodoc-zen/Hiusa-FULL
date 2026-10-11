@@ -7,6 +7,10 @@ return [
         'max_bytes' => (int) env('API_RESPONSE_CACHE_MAX_BYTES', 1048576),
     ],
 
+    'database' => [
+        'statement_timeout_seconds' => (int) env('DB_STATEMENT_TIMEOUT', 30),
+    ],
+
     'rate_limits' => [
         'public_per_minute' => (int) env('RATE_LIMIT_PUBLIC_PER_MINUTE', 60),
         'read_per_minute' => (int) env('RATE_LIMIT_READ_PER_MINUTE', 120),
