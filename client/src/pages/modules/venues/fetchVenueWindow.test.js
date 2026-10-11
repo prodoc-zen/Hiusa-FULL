@@ -32,6 +32,20 @@ describe('fetchWindowBookings', () => {
     expect(mocks.getVenueBookings).toHaveBeenCalledWith({ from: '2026-10-05T00:00:00+08:00', to: '2026-10-11T23:59:59+08:00', status: 'pending', venue_id: '8', page: 1, per_page: 100 });
   });
 
+  it('counts a booking the server repeats on two pages once and still reports the ones it never returned', async () => {
+    mocks.getVenueBookings.mockImplementation(({ status, page }) => {
+      const pages = { 1: [row(1, status), row(2, status)], 2: [row(2, status), row(3, status)] };
+      return Promise.resolve({ data: { data: status === 'pending' ? pages[page] : [], total: status === 'pending' ? 5 : 0, current_page: page, last_page: status === 'pending' ? 2 : 1 } });
+    });
+
+    const result = await fetchWindowBookings({ from: 'a', to: 'b' });
+
+    const ids = result.items.map((item) => item.id);
+    expect(ids.sort()).toEqual([1, 2, 3]);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(result.truncated).toEqual({ shown: 3, total: 5 });
+  });
+
   it('asks for every venue when none is chosen', async () => {
     serve({ pending: [], approved: [] }, { pending: 1, approved: 1 });
     await fetchWindowBookings({ from: 'a', to: 'b', venueId: '' });

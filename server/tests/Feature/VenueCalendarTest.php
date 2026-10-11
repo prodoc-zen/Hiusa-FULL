@@ -9,6 +9,7 @@ use App\Models\Venue;
 use App\Models\VenueBooking;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
@@ -124,5 +125,44 @@ class VenueCalendarTest extends TestCase
         $unused = Venue::create(['name' => 'Annex', 'location' => 'Main Campus', 'capacity' => 20]);
         $this->deleteJson("/api/venues/{$unused->id}")->assertOk();
         $this->assertDatabaseMissing('venues', ['id' => $unused->id]);
+    }
+
+    public function test_pages_of_bookings_sharing_one_start_time_return_every_booking_exactly_once(): void
+    {
+        $venue = Venue::create(['name' => 'Auditorium', 'location' => 'Main Campus', 'capacity' => 500]);
+        $organization = Organization::factory()->create();
+        $requester = User::factory()->create();
+        $start = Carbon::parse('2026-11-03 08:00:00', 'Asia/Manila')->utc();
+        $ids = [];
+        for ($i = 0; $i < 130; $i++) {
+            $ids[] = VenueBooking::create([
+                'venue_id' => $venue->id,
+                'organization_id' => $organization->id,
+                'status' => 'approved',
+                'requested_by' => $requester->school_id,
+                'start_time' => $start,
+                'end_time' => $start->copy()->addHour(),
+            ])->id;
+        }
+
+        Sanctum::actingAs($this->user('SUPER_ADMIN'));
+        $query = 'status=approved&per_page=100&from='.urlencode($start->copy()->subDay()->toISOString()).'&to='.urlencode($start->copy()->addDay()->toISOString());
+        $queries = [];
+        DB::listen(function ($executed) use (&$queries) {
+            $queries[] = $executed->sql;
+        });
+        $first = $this->getJson("/api/venue-bookings?{$query}&page=1")->assertOk()->json('data');
+        $second = $this->getJson("/api/venue-bookings?{$query}&page=2")->assertOk()->json('data');
+
+        $returned = array_merge(array_column($first, 'id'), array_column($second, 'id'));
+        $this->assertCount(100, $first);
+        $this->assertCount(30, $second);
+        $this->assertCount(130, array_unique($returned));
+        $this->assertEqualsCanonicalizing($ids, $returned);
+        $listing = array_values(array_filter($queries, fn ($sql) => str_contains($sql, 'from "venue_bookings"') && str_contains($sql, 'limit')));
+        $this->assertNotEmpty($listing);
+        foreach ($listing as $sql) {
+            $this->assertMatchesRegularExpression('/order by "start_time" desc, "id" desc/', $sql);
+        }
     }
 }

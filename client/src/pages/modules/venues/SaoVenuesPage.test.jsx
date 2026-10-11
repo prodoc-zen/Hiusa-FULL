@@ -234,5 +234,42 @@ describe('SaoVenuesPage', () => {
       expect(dialog.queryByText(/Touching Club/)).not.toBeInTheDocument();
       expect(venueMocks.getVenueAvailability).toHaveBeenCalledWith(8, { from: pending.start_time, to: pending.end_time });
     });
+
+    it('warns instead of stating there is no overlap when the availability check fails', async () => {
+      const pending = booking(32, 'pending', '2026-10-07T02:00:00Z', '2026-10-07T04:00:00Z', 'Arts Guild');
+      serveQueue([pending], [pending]);
+      venueMocks.getVenueAvailability.mockRejectedValue(new Error('offline'));
+
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
+      openTab(/Booking requests/);
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
+
+      const dialog = within(await screen.findByRole('dialog', { name: 'Approve this booking?' }));
+      expect(await dialog.findByText('Could not check for overlapping bookings. Check the calendar before approving.')).toBeInTheDocument();
+      expect(dialog.queryByText('No overlapping bookings for this venue and time.')).not.toBeInTheDocument();
+    });
+
+    it('says the queue conflict lookup failed instead of quietly dropping every Conflict label, and retries', async () => {
+      const clash = booking(32, 'pending', '2026-10-07T02:00:00Z', '2026-10-07T04:00:00Z', 'Arts Guild');
+      const approved = booking(31, 'approved', '2026-10-07T01:00:00Z', '2026-10-07T03:00:00Z', 'Computer Society');
+      let windowDown = true;
+      venueMocks.getVenueBookings.mockImplementation((params) => {
+        if (params.from && windowDown) return Promise.reject(new Error('offline'));
+        if (params.from) return Promise.resolve(envelope([clash, approved].filter((row) => row.status === params.status)));
+        return Promise.resolve({ data: { data: [clash], total: 1, current_page: 1, last_page: 1, per_page: 20 } });
+      });
+
+      render(<MemoryRouter><SaoVenuesPage /></MemoryRouter>);
+      openTab(/Booking requests/);
+
+      expect(await screen.findByText(/Could not check these requests for conflicts/)).toBeInTheDocument();
+      const rowOf = () => screen.getAllByRole('row').find((row) => within(row).queryByText('Arts Guild'));
+      expect(within(rowOf()).queryByText('Conflict')).not.toBeInTheDocument();
+
+      windowDown = false;
+      fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
+      await waitFor(() => expect(within(rowOf()).getByText('Conflict')).toBeInTheDocument());
+      expect(screen.queryByText(/Could not check these requests for conflicts/)).not.toBeInTheDocument();
+    });
   });
 });

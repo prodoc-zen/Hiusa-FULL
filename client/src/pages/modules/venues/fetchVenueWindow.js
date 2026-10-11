@@ -5,19 +5,20 @@ const PER_PAGE = 100;
 const MAX_PAGES = 50;
 
 async function fetchEveryPage(params) {
-  const items = [];
+  const byId = new Map();
   let meta;
   let page = 1;
   do {
     const response = await getVenueBookings({ ...params, page, per_page: PER_PAGE });
     meta = listMeta(response.data);
-    items.push(...unwrapList(response.data));
+    unwrapList(response.data).forEach((item) => byId.set(item.id, item));
     page += 1;
   } while (page <= meta.lastPage && page <= MAX_PAGES);
-  return { items, total: meta.total };
+  return { items: [...byId.values()], total: meta.total };
 }
 
 // Every pending and approved booking that touches the window, however many pages the server needs.
+// A repeated id across pages is counted once, so a duplicate can never hide a booking the walk missed.
 // `truncated` is only set when the page ceiling stopped the walk, so a short list is never silent.
 export async function fetchWindowBookings({ from, to, venueId }) {
   const results = await Promise.all(['pending', 'approved'].map((status) => fetchEveryPage({ from, to, status, venue_id: venueId || undefined })));
