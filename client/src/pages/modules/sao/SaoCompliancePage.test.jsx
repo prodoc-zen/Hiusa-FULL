@@ -286,7 +286,7 @@ describe('SaoCompliancePage', () => {
       await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(expect.stringContaining('This registration was withdrawn')));
       expect(toasts.error).toHaveBeenCalledTimes(1);
       await waitFor(() => expect(mocks.getSubmissions.mock.calls.length).toBeGreaterThan(1));
-      expect(screen.getByTestId('search')).not.toHaveTextContent('record=12');
+      await waitFor(() => expect(screen.getByTestId('search')).not.toHaveTextContent('record=12'));
     });
 
     it('sends a pending registration document to the organization review instead of offering a decision', async () => {
