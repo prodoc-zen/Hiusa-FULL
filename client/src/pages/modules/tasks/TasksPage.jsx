@@ -457,6 +457,11 @@ export default function TasksPage({ initialTab = 'board' }) {
     ? (activeTab === 'create' ? 'Assign a task to an officer or event.' : 'Review progress across organization tasks.')
     : undefined;
 
+  function startTask(task) {
+    handleStatusChange(task.id, 'in_progress', 'Task work started.', Math.max(1, task.progress_percent ?? 0))
+      .catch((err) => notify.error(getApiErrorMessage(err, 'Failed to update task status.')));
+  }
+
   function taskNextStep(task) {
     const props = toNextStepProps(taskLifecycle(task, currentUserRole));
     if (props.tone !== 'action' || !props.primary) return props;
@@ -651,7 +656,9 @@ export default function TasksPage({ initialTab = 'board' }) {
                         <div className="w-44">{taskStepper(t)}</div>
                       </td>
                       <td className="px-5 py-4 text-[10px] text-slate-500"><p>{t.creator ? `${formatDisplayText(t.creator.first_name)} ${formatDisplayText(t.creator.last_name)}` : '-'}</p><p>Created {formatDate(t.created_at)}</p><p>Completed {formatDate(t.completed_at)}</p></td>
-                      <td className="px-5 py-4">
+                      <td className="px-5 py-4"><div className="flex items-center gap-2">
+                        {canUpdateAssignedTasks && !viewingHistory && t.status === 'pending' && t.workflow_status !== 'blocked' && <button type="button" onClick={() => startTask(t)} className="min-h-10 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white transition hover:bg-[#0F2F62]">Start</button>}
+                        {canUpdateAssignedTasks && !viewingHistory && ['in_progress', 'overdue'].includes(t.status) && <button type="button" onClick={() => setCompletionTask(t)} className="min-h-10 rounded-lg bg-emerald-600 px-4 text-xs font-bold text-white transition hover:bg-emerald-700">Complete</button>}
                         <TableRowActions subject={t.title} label="Task actions" actions={[
                           { label: 'View task', icon: Eye, onClick: () => openTaskDetails(t) },
                           canEditTasks && t.status === 'pending' && t.workflow_status !== 'blocked' && { label: 'Start task', icon: CheckCircle2, onClick: () => handleStatusChange(t.id, 'in_progress', 'Task work started.', Math.max(1, t.progress_percent ?? 0)) },
@@ -660,7 +667,7 @@ export default function TasksPage({ initialTab = 'board' }) {
                           canManageTasks && !viewingHistory && { label: 'Edit task', icon: Pencil, onClick: () => openEditTask(t) },
                           canManageTasks && !viewingHistory && { label: 'Delete task', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setTaskToDelete(t); } },
                         ]} />
-                      </td>
+                      </div></td>
                     </tr>
                   ))}
                 </tbody>

@@ -42,6 +42,17 @@ describe('ManageAnnouncementsPage', () => {
     expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 
+  it('lets the list table fit a phone: no fixed minimum width and the Audience column steps aside', async () => {
+    announcementMocks.getAnnouncements.mockResolvedValue(listOf({ ...record, approval_status: 'pending', is_published: false }));
+    renderPage();
+    const chip = await screen.findByText('Waiting for Admin approval');
+    const table = chip.closest('table');
+    expect(table.className).not.toMatch(/(^|\s)min-w-/);
+    expect(table.className).toContain('sm:min-w-[580px]');
+    expect(within(table).getByRole('columnheader', { name: 'Audience' })).toHaveClass('hidden', 'sm:table-cell');
+    expect(within(table).getByRole('columnheader', { name: 'Status' })).not.toHaveClass('hidden');
+  });
+
   it('puts New announcement in the header as the one primary action, linking to the create page', async () => {
     renderPage();
     await screen.findByRole('button', { name: 'Campus Update' });

@@ -2,8 +2,9 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  Ban,
   Calendar,
   CalendarCheck2,
   CalendarPlus,
@@ -99,6 +100,8 @@ const allowedStatusTransitions = {
   completed: [],
   cancelled: [],
 };
+
+const canCancelEvent = (evt) => allowedStatusTransitions[evt.status]?.includes('cancelled') ?? false;
 
 function capitalize(s) {
   return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
@@ -411,6 +414,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [eventToDelete, setEventToDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [eventToCancel, setEventToCancel] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
 
   let currentUser = {};
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
@@ -463,6 +469,21 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setDeleteError(getApiErrorMessage(requestError, 'This event could not be deleted.'));
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function confirmCancelEvent() {
+    setCancelBusy(true);
+    setCancelError(null);
+    try {
+      await updateEventStatus(eventToCancel.id, 'cancelled');
+      notify.success(`"${eventToCancel.title}" cancelled.`);
+      setEventToCancel(null);
+      load();
+    } catch (requestError) {
+      setCancelError(getApiErrorMessage(requestError, 'This event could not be cancelled.'));
+    } finally {
+      setCancelBusy(false);
     }
   }
 
@@ -643,15 +664,17 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         },
       };
 
+      let created = null;
       if (editingEventId) {
         await updateEvent(editingEventId, payload);
       } else {
-        await createEvent(payload);
+        created = (await createEvent(payload))?.data;
       }
       setShowForm(false);
       setEditingEventId(null);
       setForm(emptyEventForm());
       load();
+      if (created?.id) openEventDetails(created);
     } catch (err) {
       setFormError(getApiErrorMessage(err, `We could not ${editingEventId ? 'update' : 'create'} this event. Please try again.`));
     } finally {
@@ -900,6 +923,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `attendance-${event?.id || 'event'}-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
   };
+  const startDistance = (event) => {
+    const start = new Date(event.start_time).getTime();
+    return Number.isFinite(start) ? Math.abs(start - currentTime) : Infinity;
+  };
   const attendanceEvents = events.filter((event) => {
     if (canManageAttendance) {
       return ['approved', 'ongoing'].includes(event.status);
@@ -907,7 +934,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     const start = new Date(event.start_time).getTime();
     const end = new Date(event.end_time).getTime();
     return ['approved', 'ongoing'].includes(event.status) && Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime <= end;
-  });
+  }).sort((a, b) => (Number(b.status === 'ongoing') - Number(a.status === 'ongoing')) || startDistance(a) - startDistance(b));
+  const ongoingAttendanceEvents = attendanceEvents.filter((event) => event.status === 'ongoing');
   const preselectedEventId = searchParams.get('event');
   const preselectedRef = useRef(null);
   useEffect(() => {
@@ -921,6 +949,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     else selectPlanningEvent(String(match.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, attendanceEvents, events, loading, preselectedEventId]);
+
+  const autoPickedRef = useRef(false);
+  useEffect(() => {
+    if (autoPickedRef.current || activeTab !== 'attendance' || !canManageAttendance || viewingHistory || loading || preselectedEventId) return;
+    if (ongoingAttendanceEvents.length !== 1) return;
+    autoPickedRef.current = true;
+    handleSelectAttEvent(ongoingAttendanceEvents[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, canManageAttendance, viewingHistory, loading, preselectedEventId, ongoingAttendanceEvents.length]);
 
   const attendanceEvent = attendanceData?.event ?? attendanceEvents.find((event) => String(event.id) === String(selectedAttEventId));
   const attendanceCount = Number(attendanceData?.count ?? attendanceData?.records?.length ?? 0);
@@ -1153,7 +1190,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <div className="mt-4 flex gap-2 border-t border-[#DDE7EF] pt-3">
                           <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-xs font-bold text-[#0878B7]"><Eye size={15} /> View details</button>
                           {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
-                          {canCreateEvents && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setEventToDelete(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Trash2 size={15} /> Delete event</button>}
+                          {canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && <button type="button" onClick={() => { setDeleteError(null); setEventToDelete(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Trash2 size={15} /> Delete event</button>}
+                          {canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && <button type="button" onClick={() => { setCancelError(null); setEventToCancel(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Ban size={15} /> Cancel event</button>}
                         </div>
                       </article>
                     );
@@ -1220,7 +1258,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             <TableRowActions subject={evt.title} label="Event actions" actions={[
                               { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
                               canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
-                              canCreateEvents && !viewingHistory && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
+                              canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
+                              canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
                             ]} />
                           </td>
                         </tr>
@@ -1442,6 +1481,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         <section aria-label="Event check-in" className="space-y-4">
           {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
           <p className="text-sm font-semibold text-slate-600">{attendanceEvents.length} events open for check-in</p>
+          {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-slate-600">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-bold text-[#0878B7] underline underline-offset-2 hover:text-[#0F2F62]">Go to Events</Link></p>}
           {loading ? (
             <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-white p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
@@ -2036,6 +2076,19 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         error={deleteError}
         onCancel={() => setEventToDelete(null)}
         onConfirm={confirmDeleteEvent}
+      />
+      <ConfirmModal
+        open={Boolean(eventToCancel)}
+        title="Cancel this event?"
+        message="The event stays on record as cancelled because its files, approvals, attendance, budget or venue booking keep it from being deleted. Its pending and approved venue bookings are withdrawn so the venue is free again. A cancelled event cannot be reopened."
+        recordName={eventToCancel?.title}
+        confirmText="Cancel event"
+        cancelText="Keep event"
+        variant="danger"
+        busy={cancelBusy}
+        error={cancelError}
+        onCancel={() => setEventToCancel(null)}
+        onConfirm={confirmCancelEvent}
       />
     </div>
   );

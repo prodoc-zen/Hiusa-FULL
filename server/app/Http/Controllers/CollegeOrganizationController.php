@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicSemester;
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
@@ -14,6 +15,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -29,6 +31,11 @@ use Illuminate\Validation\ValidationException;
 class CollegeOrganizationController extends Controller
 {
     private const PENDING_LIMIT = 10;
+
+    /** Tables whose rows a registration legitimately owns, so they never count as activity. */
+    private const REGISTRATION_TABLES = ['audit_logs', 'organization_compliance_submissions'];
+
+    private const ORGANIZATION_COLUMNS = ['organization_id', 'parent_organization_id', 'source_organization_id'];
 
     private const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
 
@@ -46,9 +53,30 @@ class CollegeOrganizationController extends Controller
             ->paginate($filters['per_page'] ?? 50);
 
         $checklists = $this->checklists($page->getCollection()->whereIn('lifecycle_status', ['pending', 'returned'])->pluck('id'));
-        $page->getCollection()->transform(fn (Organization $organization) => $this->row($organization, $checklists));
+        $scoped = array_values(array_intersect($page->getCollection()->pluck('id')->all(), $request->user()->scopedOrganizationIds()));
+        $roleCounts = $this->roleCounts($scoped);
+        $leadership = $this->leadership($scoped);
+        $page->getCollection()->transform(fn (Organization $organization) => $this->row($organization, $checklists, [
+            'role_counts' => [
+                'admin' => (int) ($roleCounts[$organization->id]['ADMIN'] ?? 0),
+                'sbo_officer' => (int) ($roleCounts[$organization->id]['SBO_OFFICER'] ?? 0),
+                'student' => (int) ($roleCounts[$organization->id]['STUDENT'] ?? 0),
+            ],
+            'leadership' => $leadership->get($organization->id, []),
+        ]));
 
         return response()->json($page);
+    }
+
+    public function overview(Request $request)
+    {
+        $user = $request->user();
+        $college = $this->college($user);
+
+        return response()->json([
+            'college' => $college->only(['id', 'name', 'code', 'logo_url', 'color']),
+            'head' => ['name' => trim("{$user->first_name} {$user->last_name}")],
+        ]);
     }
 
     public function requirements(Request $request)
@@ -126,11 +154,11 @@ class CollegeOrganizationController extends Controller
         return response()->json($this->present($college, $organization->id), 201);
     }
 
-    public function update(Request $request, Organization $organization)
+    public function update(Request $request, string $organization)
     {
         $user = $request->user();
         $college = $this->college($user);
-        abort_unless($organization->organization_type === 'STUDENT_ORGANIZATION' && (int) $organization->college_id === $college->id, 404);
+        $organization = $this->registrationOf($college, $organization);
         if ($organization->lifecycle_status !== 'returned') {
             return response()->json(['message' => 'Only a returned registration can be edited.'], 409);
         }
@@ -153,7 +181,7 @@ class CollegeOrganizationController extends Controller
         try {
             $conflict = DB::transaction(function () use ($request, $user, $organization, $changes, $data, &$stored, &$replaced) {
                 $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
-                if ($locked->lifecycle_status !== 'returned') {
+                if (! $locked || $locked->lifecycle_status !== 'returned') {
                     return true;
                 }
                 foreach ($data['files'] ?? [] as $typeId => $file) {
@@ -189,6 +217,55 @@ class CollegeOrganizationController extends Controller
         return response()->json($this->present($college, $organization->id));
     }
 
+    public function destroy(Request $request, string $organization)
+    {
+        $user = $request->user();
+        $college = $this->college($user);
+        $organization = $this->registrationOf($college, $organization);
+
+        $paths = [];
+        $result = DB::transaction(function () use ($request, $organization, $college, &$paths) {
+            $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
+            if (! $locked || ! in_array($locked->lifecycle_status, ['pending', 'returned'], true)) {
+                return 'not_withdrawable';
+            }
+            if ($this->hasRecords($locked)) {
+                return 'has_records';
+            }
+
+            $paths = OrganizationComplianceSubmission::where('organization_id', $locked->id)->pluck('file_path')->filter()->all();
+            $this->audit($request, 'organization_registration_withdrawn', $locked, ['name' => $locked->name, 'lifecycle_status' => $locked->lifecycle_status, 'college_id' => $college->id], 'A Department Head withdrew an organization registration.', $request->user()->organization_id);
+            $locked->delete();
+
+            return $locked;
+        });
+
+        if ($result === 'not_withdrawable') {
+            return response()->json(['message' => 'Only a pending or returned registration can be withdrawn. Ask the SAO to archive an active organization.'], 409);
+        }
+        if ($result === 'has_records') {
+            return response()->json(['message' => 'This organization already has members, users or other records, so it cannot be withdrawn.'], 409);
+        }
+        Storage::disk('local')->delete($paths);
+
+        if ($result->lifecycle_status === 'pending') {
+            $this->notifyDirectors($result, 'Organization registration withdrawn', "{$college->name} withdrew {$result->name} before review.", false);
+        }
+
+        return response()->json(['message' => 'Registration withdrawn.']);
+    }
+
+    /** A wrong college and a missing id answer alike, so a Department Head cannot probe other colleges. */
+    private function registrationOf(College $college, string $id): Organization
+    {
+        $organization = ctype_digit($id)
+            ? Organization::where('organization_type', 'STUDENT_ORGANIZATION')->where('college_id', $college->id)->find($id)
+            : null;
+        abort_unless($organization, 404, 'Organization not found.');
+
+        return $organization;
+    }
+
     private function college(User $user): College
     {
         $home = Organization::whereKey($user->organization_id)->first(['id', 'organization_type', 'college_id']);
@@ -196,6 +273,23 @@ class CollegeOrganizationController extends Controller
         abort_if(! $college, 403, 'Your account is not assigned to a college.');
 
         return $college;
+    }
+
+    /** True when anything outside the registration itself points at the organization: accounts, events, money, elections and the rest. */
+    private function hasRecords(Organization $organization): bool
+    {
+        foreach (Schema::getTables(Schema::getCurrentSchemaListing()) as $table) {
+            if (in_array($table['name'], self::REGISTRATION_TABLES, true)) {
+                continue;
+            }
+            foreach (array_intersect(self::ORGANIZATION_COLUMNS, Schema::getColumnListing($table['name'])) as $column) {
+                if (DB::table($table['name'])->where($column, $organization->id)->exists()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function query(College $college)
@@ -213,13 +307,53 @@ class CollegeOrganizationController extends Controller
         return $this->row($organization, $this->checklists(collect([$organization->id])));
     }
 
-    private function row(Organization $organization, Collection $checklists): array
+    private function roleCounts(array $organizationIds): Collection
+    {
+        if ($organizationIds === []) {
+            return collect();
+        }
+
+        return AccountProfile::whereIn('organization_id', $organizationIds)
+            ->where('account_status', 'active')
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
+            ->selectRaw('organization_id, role, count(*) as total')
+            ->groupBy('organization_id', 'role')
+            ->get()
+            ->groupBy('organization_id')
+            ->map(fn (Collection $rows) => $rows->pluck('total', 'role'));
+    }
+
+    private function leadership(array $organizationIds): Collection
+    {
+        if ($organizationIds === []) {
+            return collect();
+        }
+
+        return AccountProfile::query()
+            ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
+            ->whereIn('account_profiles.organization_id', $organizationIds)
+            ->where('account_profiles.account_status', 'active')
+            ->whereIn('account_profiles.role', ['ADMIN', 'SBO_OFFICER'])
+            ->orderBy('account_profiles.role')
+            ->orderBy('users.last_name')
+            ->orderBy('users.first_name')
+            ->get(['account_profiles.organization_id', 'account_profiles.role', 'account_profiles.position_title', 'users.first_name', 'users.last_name'])
+            ->groupBy('organization_id')
+            ->map(fn (Collection $rows) => $rows->map(fn ($row) => [
+                'name' => trim("{$row->first_name} {$row->last_name}"),
+                'role' => $row->role,
+                'position_title' => $row->position_title,
+            ])->values()->all());
+    }
+
+    private function row(Organization $organization, Collection $checklists, array $extra = []): array
     {
         return [
             ...$organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'lifecycle_status', 'is_active', 'review_remarks', 'submitted_at', 'reviewed_at', 'archived_at']),
             'members_count' => $organization->members_count,
             'administrators_count' => $organization->administrators_count,
             'registration_requirements' => $checklists->get($organization->id),
+            ...$extra,
         ];
     }
 
@@ -283,7 +417,7 @@ class CollegeOrganizationController extends Controller
         return $slug;
     }
 
-    private function notifyDirectors(Organization $organization, string $title, string $message): void
+    private function notifyDirectors(Organization $organization, string $title, string $message, bool $linked = true): void
     {
         User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get(['school_id', 'organization_id'])
             ->each(fn (User $sao) => Notification::create([
@@ -292,15 +426,15 @@ class CollegeOrganizationController extends Controller
                 'notification_type' => 'general',
                 'title' => $title,
                 'message' => $message,
-                'reference_type' => 'organization',
-                'reference_id' => $organization->id,
+                'reference_type' => $linked ? 'organization' : null,
+                'reference_id' => $linked ? $organization->id : null,
                 'is_read' => false,
                 'sent_at' => now(),
             ]));
     }
 
-    private function audit(Request $request, string $action, Organization $organization, array $values, string $description): void
+    private function audit(Request $request, string $action, Organization $organization, array $values, string $description, ?int $scopeOrganizationId = null): void
     {
-        AuditLog::create(['organization_id' => $organization->id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'organizations', 'action' => $action, 'description' => $description, 'record_type' => Organization::class, 'record_id' => $organization->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
+        AuditLog::create(['organization_id' => $scopeOrganizationId ?? $organization->id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'organizations', 'action' => $action, 'description' => $description, 'record_type' => Organization::class, 'record_id' => $organization->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
     }
 }

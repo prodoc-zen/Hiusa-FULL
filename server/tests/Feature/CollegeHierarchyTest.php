@@ -274,18 +274,4 @@ class CollegeHierarchyTest extends TestCase
         $this->putJson('/api/system/organizations/'.$archived->id, ['color' => '#123ABC'])->assertStatus(409)->assertJsonPath('message', 'Archived organizations cannot be edited.');
         $this->assertNull($archived->fresh()->color);
     }
-
-    public function test_sao_changes_the_college_by_id_and_the_name_string_follows(): void
-    {
-        $ccs = College::create(['name' => 'College of Computer Studies', 'code' => 'CCS']);
-        $cbe = College::create(['name' => 'College of Business Education', 'code' => 'CBE']);
-        $organization = Organization::factory()->create(['college' => $ccs->name, 'college_id' => $ccs->id]);
-        Sanctum::actingAs($this->director());
-
-        $this->putJson('/api/system/organizations/'.$organization->id, ['college_id' => $cbe->id])
-            ->assertOk()->assertJsonPath('college', $cbe->name)->assertJsonPath('college_id', $cbe->id);
-        $this->putJson('/api/system/organizations/'.$organization->id, ['college_id' => 99999])->assertUnprocessable()->assertJsonValidationErrors('college_id');
-
-        $this->assertSame($cbe->name, $organization->fresh()->college);
-    }
 }

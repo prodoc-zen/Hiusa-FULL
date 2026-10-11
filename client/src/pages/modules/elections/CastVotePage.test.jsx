@@ -17,15 +17,18 @@ const election = {
   candidates: [{ id: 11, position_id: 1, platform: 'Transparent student services.', user: { first_name: 'Ana', last_name: 'Reyes' }, partylist: { name: 'Forward' } }],
 };
 
+let shown = election;
+
 vi.mock('react-router-dom', () => ({
   useNavigate: () => vi.fn(),
-  useOutletContext: () => ({ election, refreshElection: vi.fn().mockResolvedValue(undefined) }),
+  useOutletContext: () => ({ election: shown, refreshElection: vi.fn().mockResolvedValue(undefined) }),
 }));
 vi.mock('../../../services/electionService', () => ({ castVotes: vi.fn() }));
 
 describe('CastVotePage', () => {
   beforeEach(() => {
     localStorage.setItem('user', JSON.stringify({ id: 100, role: 'STUDENT' }));
+    shown = election;
   });
 
   it('presents a guided ballot overview and candidate selection workspace', () => {
@@ -67,6 +70,20 @@ describe('CastVotePage', () => {
     expect(screen.getByText('What happens next')).toBeInTheDocument();
     expect(screen.getByText(/Results appear there once voting closes/)).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Back to Vote' })).toBeInTheDocument();
+  });
+
+  it('says live totals can be viewed on the Vote page when the results are marked visible', async () => {
+    shown = { ...election, results_visible: true };
+    castVotes.mockResolvedValue({ receipt: 'SAFE-RECEIPT' });
+    render(<CastVotePage />);
+    fireEvent.click(screen.getByRole('button', { name: /Start my ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Ana Reyes/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Review ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: /Submit final ballot/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Confirm and submit' }));
+
+    expect(await screen.findByText(/Live totals can be viewed on the Vote page/)).toBeInTheDocument();
+    expect(screen.queryByText(/Results appear there once voting closes/)).not.toBeInTheDocument();
   });
 
   it('keeps the already-voted message when the server refuses a second ballot', async () => {

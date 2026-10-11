@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   reviewSubmission: vi.fn(),
   downloadSubmissionDocument: vi.fn(),
   notifyError: vi.fn(),
+  notifySuccess: vi.fn(),
 }));
 
 vi.mock('../../../services/complianceService', () => ({
@@ -24,7 +25,7 @@ vi.mock('../../../services/complianceService', () => ({
   downloadSubmissionDocument: mocks.downloadSubmissionDocument,
 }));
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: vi.fn().mockResolvedValue([]) }));
-vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: mocks.notifyError } }));
+vi.mock('../../../lib/notify', () => ({ default: { success: mocks.notifySuccess, error: mocks.notifyError } }));
 vi.mock('./EventRequirementsTab', () => ({ default: () => <p>Event requirements content</p> }));
 vi.mock('./FinancialReportsTab', () => ({ default: () => <p>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
@@ -181,6 +182,16 @@ describe('SaoCompliancePage review queue', () => {
     await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledWith(12, expect.objectContaining({ status: 'approved' })));
     expect(await screen.findByRole('dialog', { name: 'Officer Roster' })).toBeInTheDocument();
     expect(mocks.notifyError).not.toHaveBeenCalled();
+  });
+
+  it('shows the decision toast at the bottom so it never covers the drawer header', async () => {
+    mocks.reviewSubmission.mockResolvedValue({ data: {} });
+    renderAt('/dashboard/super-admin/compliance?record=12', <SaoCompliancePage />);
+    const drawer = await screen.findByRole('dialog', { name: 'Officer Roster' });
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Approve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Approve this submission?' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Approve' }));
+    await waitFor(() => expect(mocks.notifySuccess).toHaveBeenCalledWith(expect.any(String), { position: 'bottom-center' }));
   });
 
   it('walks to a later page to find the submission named by ?record=', async () => {

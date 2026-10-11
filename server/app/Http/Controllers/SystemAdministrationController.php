@@ -107,7 +107,7 @@ class SystemAdministrationController extends Controller
         if (! $organization->isWritable()) {
             return response()->json(['message' => $organization->isArchived() ? 'Archived organizations cannot be edited.' : 'Only active organizations can be edited.'], 409);
         }
-        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'college_id' => ['sometimes', 'required', 'integer', Rule::exists('colleges', 'id')], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/'], 'is_active' => ['sometimes', 'boolean']]);
+        $data = $request->validate(['name' => ['sometimes', 'required', 'string', 'max:255', Rule::unique('organizations', 'name')->ignore($organization->id)], 'acronym' => ['sometimes', 'required', 'string', 'max:50', Rule::unique('organizations', 'acronym')->ignore($organization->id)], 'parent_organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')->whereNull('parent_organization_id')->where('is_active', true)->where('id', '!=', $organization->id)], 'description' => ['nullable', 'string', 'max:3000'], 'logo_url' => ['nullable', 'url', 'max:2048'], 'color' => ['nullable', 'regex:/^#[0-9a-fA-F]{6}$/']]);
         if ($organization->suborganizations()->exists() && array_key_exists('parent_organization_id', $data) && $data['parent_organization_id']) {
             return response()->json(['message' => 'An organization with suborganizations cannot become a suborganization.'], 422);
         }
@@ -115,17 +115,9 @@ class SystemAdministrationController extends Controller
         if (isset($data['name'])) {
             $data['slug'] = Str::slug($data['name']);
         }
-        if (isset($data['college_id'])) {
-            $data['college'] = College::whereKey($data['college_id'])->value('name');
-        }
         $organization->update($data);
         $fresh = $organization->fresh();
-        $action = match (true) {
-            ($old['is_active'] ?? null) !== $fresh->is_active && $fresh->is_active => 'organization_activated',
-            ($old['is_active'] ?? null) !== $fresh->is_active => 'organization_deactivated',
-            default => 'organization_updated',
-        };
-        $this->audit($request, $action, $fresh, ['before' => $old, 'after' => $fresh->toArray()], 'SAO updated a student organization.');
+        $this->audit($request, 'organization_updated', $fresh, ['before' => $old, 'after' => $fresh->toArray()], 'SAO updated a student organization.');
 
         return response()->json($fresh);
     }

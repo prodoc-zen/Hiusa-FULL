@@ -27,7 +27,7 @@ class OrganizationLifecycleController extends Controller
         // resubmission cannot slip in between and be approved unseen.
         $result = DB::transaction(function () use ($request, $organization, $data, $reviewer) {
             $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
-            if ($locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'pending') {
+            if (! $locked || $locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'pending') {
                 return 'not_pending';
             }
             if (! $locked->submitted_at || ! $locked->submitted_at->equalTo($data['submitted_at'])) {
@@ -71,7 +71,7 @@ class OrganizationLifecycleController extends Controller
 
         $archived = DB::transaction(function () use ($organization, $request, $data) {
             $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
-            if ($locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'active') {
+            if (! $locked || $locked->organization_type !== 'STUDENT_ORGANIZATION' || $locked->lifecycle_status !== 'active') {
                 return null;
             }
             $locked->update(['lifecycle_status' => 'archived', 'is_active' => false, 'archived_at' => now(), 'archived_by' => $request->user()->school_id]);
@@ -90,7 +90,7 @@ class OrganizationLifecycleController extends Controller
     {
         $restored = DB::transaction(function () use ($request, $organization) {
             $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
-            if ($locked->lifecycle_status !== 'archived') {
+            if (! $locked || $locked->lifecycle_status !== 'archived') {
                 return null;
             }
             $locked->update(['lifecycle_status' => 'active', 'is_active' => true, 'archived_at' => null, 'archived_by' => null]);

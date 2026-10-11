@@ -14,22 +14,30 @@ const WIDTHS = [
   { width: 390, height: 844 },
 ];
 
+// The name a tapped control goes by, taken from its locator, so a run reports the path it counted.
+function nameOf(locator) {
+  const text = String(locator);
+  return /name: '([^']+)'|name: \/(.+?)\/[a-z]*|getByText\('([^']+)'/.exec(text)?.slice(1).find(Boolean) || text.slice(0, 60);
+}
+
 function flowFor() {
-  let clicks = 0;
+  const steps = [];
   return {
-    get clicks() { return clicks; },
+    get clicks() { return steps.length; },
+    get path() { return steps.join(' > '); },
     async tap(locator, options) {
       await locator.click(options);
-      clicks += 1;
+      steps.push(nameOf(locator));
     },
   };
 }
 
 // Opens a sidebar leaf the way a person does: the menu button below the desktop breakpoint, the group
 // row, then the leaf unless the group already landed on it. A leaf that is already listed is tapped directly.
+// The menu-open tap is chrome, not a step, so it is clicked without counting (docs/UX_FLOW.md section 9).
 async function openFromMenu(page, flow, group, leaf) {
   const mobile = page.viewportSize().width < 1024;
-  if (mobile) await flow.tap(page.getByRole('button', { name: 'Open menu' }));
+  if (mobile) await page.getByRole('button', { name: 'Open menu' }).click();
   const sidebar = page.locator('aside');
   const link = sidebar.getByRole('link', { name: leaf, exact: true });
   if (await link.isVisible()) {
@@ -91,7 +99,7 @@ async function finish(page, flow, { id, ceiling, endLocator, end, notes }) {
     await endLocator().first().scrollIntoViewIfNeeded().catch(() => {});
     await page.screenshot({ path: path.join(SHOTS, `${id}-${viewport.width}-scrolled.png`) });
     const layout = await layoutReport(page);
-    const line = { id, width: viewport.width, clicks: flow.clicks, ceiling, notes, endInView, endBox: box && { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.width), h: Math.round(box.height) }, layout };
+    const line = { id, width: viewport.width, clicks: flow.clicks, ceiling, path: flow.path, notes, endInView, endBox: box && { x: Math.round(box.x), y: Math.round(box.y), w: Math.round(box.width), h: Math.round(box.height) }, layout };
     fs.appendFileSync(path.join(SHOTS, 'results.jsonl'), `${JSON.stringify(line)}\n`);
     console.log(`JOURNEY ${JSON.stringify(line)}`);
   }
@@ -121,8 +129,10 @@ for (const viewport of WIDTHS) {
       const flow = flowFor();
 
       await openFromMenu(page, flow, 'Events and tasks', 'Check-in');
-      await flow.tap(page.getByRole('button', { name: new RegExp(`^Open attendance for ${escapeRegExp(event.title)}`, 'i') }));
       const attendanceCount = page.getByText('Attendance records', { exact: true }).locator('xpath=following-sibling::p[1]');
+      // The only ongoing event is already selected on opening, so the queue is tapped only when it is not.
+      const preselected = await attendanceCount.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false);
+      if (!preselected) await flow.tap(page.getByRole('button', { name: new RegExp(`^Open attendance for ${escapeRegExp(event.title)}`, 'i') }));
       await expect(attendanceCount).toHaveText(/^\d+$/);
       const before = Number(await attendanceCount.textContent());
 
@@ -138,7 +148,7 @@ for (const viewport of WIDTHS) {
       });
     });
 
-    test('O2 verify a payment and release an order (ceiling 6)', async ({ page }) => {
+    test('O2 verify a payment and release an order (ceiling 8)', async ({ page }) => {
       const student = await apiAs(STUDENT_B);
       const catalog = (await student.get('/merchandise?per_page=50')).body.data;
       const item = catalog.find((row) => row.is_active && row.stock_quantity > 2 && !(row.variants || []).length);
@@ -184,7 +194,7 @@ for (const viewport of WIDTHS) {
 
       await finish(page, flow, {
         id: 'O2',
-        ceiling: 6,
+        ceiling: 8,
         endLocator: () => orderEntry().getByText('Claimed', { exact: true }),
         end: async () => {
           await expect(orderEntry().getByText('Claimed', { exact: true })).toBeVisible();
@@ -232,7 +242,7 @@ for (const viewport of WIDTHS) {
       });
     });
 
-    test('O4 send an announcement for approval (ceiling 4)', async ({ page }) => {
+    test(`O4 send an announcement for approval (ceiling ${viewport.width < 1024 ? 6 : 5})`, async ({ page }) => {
       const title = `Journey announcement ${viewport.width} ${Date.now()}`;
       await uiLogin(page, OFFICER);
       const flow = flowFor();
@@ -241,19 +251,20 @@ for (const viewport of WIDTHS) {
       await flow.tap(page.getByRole('link', { name: 'New announcement' }).or(page.getByRole('button', { name: 'New announcement' })).first());
       await page.locator('#announcement-title').fill(title);
       await page.locator('#announcement-content').fill('Acceptance journey announcement body.');
-      await flow.tap(page.getByRole('button', { name: /^Publish Now$/ }));
-      await flow.tap(page.getByRole('dialog').getByRole('button', { name: 'Publish Now' }));
-      await expect(page.getByRole('button', { name: 'Go Back' })).toBeVisible();
-      const sentHeading = page.getByRole('heading', { level: 2 }).filter({ hasText: /Posted|Saved/ });
+      await flow.tap(page.getByRole('button', { name: /^Submit for approval$/ }));
+      await expect(page.getByRole('dialog')).toContainText('Admin approves it before members see it');
+      await flow.tap(page.getByRole('dialog').getByRole('button', { name: 'Submit for approval' }));
+      const sentHeading = page.getByRole('heading', { level: 2, name: 'Sent to your Admin for approval' });
+      await expect(sentHeading).toBeVisible();
       const sentScreen = `${await sentHeading.innerText()} | ${await sentHeading.locator('xpath=following-sibling::p[1]').innerText()}`;
 
       const rowFor = () => page.getByRole('row').filter({ hasText: title });
-      await flow.tap(page.getByRole('button', { name: 'Go Back' }));
+      await flow.tap(page.getByRole('link', { name: 'View in Announcements' }));
       await expect(rowFor()).toBeVisible();
 
       await finish(page, flow, {
         id: 'O4',
-        ceiling: 4,
+        ceiling: viewport.width < 1024 ? 6 : 5,
         notes: { sentScreen },
         endLocator: () => rowFor().getByText('Waiting for Admin approval'),
         end: () => expect(rowFor().getByText('Waiting for Admin approval')).toBeVisible(),

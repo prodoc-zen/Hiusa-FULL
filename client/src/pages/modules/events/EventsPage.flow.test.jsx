@@ -11,6 +11,7 @@ const eventMocks = vi.hoisted(() => ({
   getEventRegistrations: vi.fn(),
   updateEventStatus: vi.fn(),
   getAttendance: vi.fn(),
+  createEvent: vi.fn(),
 }));
 
 vi.mock('../../../services/eventService', () => ({
@@ -21,7 +22,6 @@ vi.mock('../../../services/eventService', () => ({
   confirmEventWorkflow: vi.fn(),
   discardEventWorkflow: vi.fn(),
   deleteEvent: vi.fn(),
-  createEvent: vi.fn(),
   updateEvent: vi.fn(),
   submitEventRequirements: vi.fn(),
   downloadEventRequirementFile: vi.fn(),
@@ -379,6 +379,107 @@ describe('deep links', () => {
     renderPage('/dashboard/events/check-in?event=50', { initialTab: 'attendance' });
 
     await waitFor(() => expect(eventMocks.getAttendance).toHaveBeenCalledWith(50, expect.objectContaining({ page: 1 })));
+  });
+});
+
+describe('Check-in queue on opening', () => {
+  const hours = (offset) => new Date(Date.now() + offset * 3600 * 1000).toISOString();
+  const ongoing = (id, title, startOffset) => ({ ...base, id, title, status: 'ongoing', approval_stage: 'approved', approval_status: 'approved', start_time: hours(startOffset), end_time: hours(startOffset + 8) });
+  const approved = (id, title, startOffset) => ({ ...ongoing(id, title, startOffset), status: 'approved' });
+  const serve = (role, ...events) => {
+    localStorage.setItem('user', JSON.stringify({ role }));
+    eventMocks.getEvents.mockResolvedValue(page(events));
+    eventMocks.getAttendance.mockResolvedValue({ data: { event: events[0], count: 0, summary: {}, records: [], pagination: { current_page: 1, last_page: 1, per_page: 10, total: 0 } } });
+  };
+  const open = () => renderPage('/dashboard/events/check-in', { initialTab: 'attendance' });
+  const queueTitles = () => screen.getAllByRole('button', { name: /^Open attendance for / }).map((button) => button.getAttribute('aria-label').replace('Open attendance for ', ''));
+
+  it.each(['ADMIN', 'SBO_OFFICER'])('preselects the only ongoing event for the %s', async (role) => {
+    serve(role, approved(61, 'Later Seminar', 48), ongoing(60, 'Happening Now', -1));
+    open();
+
+    await waitFor(() => expect(eventMocks.getAttendance).toHaveBeenCalledWith(60, expect.objectContaining({ page: 1 })));
+    expect(eventMocks.getAttendance).not.toHaveBeenCalledWith(61, expect.anything());
+    expect(await screen.findByText('Manual check-in')).toBeInTheDocument();
+    expect(screen.queryByText(/No event is ongoing right now/)).not.toBeInTheDocument();
+  });
+
+  it('lists several ongoing events with the nearest start first and selects none', async () => {
+    serve('ADMIN', ongoing(62, 'Started Early', -6), ongoing(63, 'Started Lately', -1), ongoing(64, 'Started Midway', -3));
+    open();
+
+    await screen.findByRole('button', { name: 'Open attendance for Started Lately' });
+    expect(queueTitles()).toEqual(['Started Lately', 'Started Midway', 'Started Early']);
+    expect(eventMocks.getAttendance).not.toHaveBeenCalled();
+    expect(screen.getByText('Choose an event to begin')).toBeInTheDocument();
+  });
+
+  it('says no event is ongoing and links to Events when only approved events wait', async () => {
+    serve('ADMIN', approved(65, 'Next Week Assembly', 72));
+    open();
+
+    expect(await screen.findByText(/No event is ongoing right now/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Events' })).toHaveAttribute('href', '/dashboard/events/manage-events');
+    expect(eventMocks.getAttendance).not.toHaveBeenCalled();
+    expect(screen.getByRole('button', { name: 'Open attendance for Next Week Assembly' })).toBeInTheDocument();
+  });
+
+  it('says no event is ongoing and links an officer to the calendar when there are no events', async () => {
+    serve('SBO_OFFICER');
+    open();
+
+    expect(await screen.findByText(/No event is ongoing right now/)).toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Go to Events' })).toHaveAttribute('href', '/dashboard/events/activity-calendar');
+  });
+
+  it('keeps the event named in ?event= instead of preselecting the ongoing one', async () => {
+    serve('ADMIN', ongoing(66, 'Happening Now', -1), approved(67, 'Chosen Seminar', 24));
+    renderPage('/dashboard/events/check-in?event=67', { initialTab: 'attendance' });
+
+    await waitFor(() => expect(eventMocks.getAttendance).toHaveBeenCalledWith(67, expect.objectContaining({ page: 1 })));
+    expect(eventMocks.getAttendance).not.toHaveBeenCalledWith(66, expect.anything());
+  });
+});
+
+describe('proposing an event', () => {
+  it('lands on the new event with its stepper and the one next step after Submit proposal', async () => {
+    const proposed = { ...FIXTURES.awaiting_department_head, id: 77, title: 'Brand New Gala' };
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    eventMocks.createEvent.mockResolvedValue({ data: proposed });
+    eventMocks.getEvent.mockResolvedValue({ data: proposed });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'New event' }));
+    const form = await screen.findByRole('dialog', { name: 'New event' });
+    fireEvent.change(within(form).getByLabelText('Event Name *'), { target: { value: 'Brand New Gala' } });
+    fireEvent.change(form.querySelector('#event-start-date'), { target: { value: '2030-10-01' } });
+    fireEvent.change(form.querySelector('#event-start-time'), { target: { value: '09:00' } });
+    fireEvent.change(form.querySelector('#event-end-date'), { target: { value: '2030-10-01' } });
+    fireEvent.change(form.querySelector('#event-end-time'), { target: { value: '12:00' } });
+    fireEvent.click(within(form).getByRole('button', { name: 'Submit proposal' }));
+
+    const drawer = await screen.findByRole('dialog', { name: 'Event details' });
+    expect(screen.queryByRole('dialog', { name: 'New event' })).not.toBeInTheDocument();
+    await waitFor(() => expect(screen.getByTestId('location')).toHaveTextContent('/dashboard/events/manage-events?record=77'));
+    expect(await within(drawer).findByRole('list', { name: 'Event progress' })).toBeInTheDocument();
+    expect(await within(drawer).findByText('Waiting for Department Head approval')).toBeInTheDocument();
+    expect(within(drawer).getAllByRole('status')).toHaveLength(1);
+    expect(eventMocks.getEvent).toHaveBeenCalledWith(77);
+  });
+
+  it('stays on the list after saving an edit', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    eventMocks.getEvents.mockResolvedValue(page([FIXTURES.not_submitted]));
+    eventMocks.getEvent.mockResolvedValue({ data: FIXTURES.not_submitted });
+    renderPage();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Founders Day' }));
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Edit event' }));
+    const form = await screen.findByRole('dialog', { name: 'Edit event' });
+    fireEvent.click(within(form).getByRole('button', { name: 'Save Changes' }));
+
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Edit event' })).not.toBeInTheDocument());
+    expect(screen.queryByRole('dialog', { name: 'Event details' })).not.toBeInTheDocument();
   });
 });
 

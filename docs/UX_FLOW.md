@@ -79,6 +79,7 @@ Clicks are counted from the role's home. "Expand" is the group click: groups wit
 | Give it an administrator | Administrators (another item, second in the list) > Create Admin User > fill > submit. The approval toast says only "approved and activated" (`SystemOrganizationsPage.jsx:101`) | 3 more |
 | Review compliance | Compliance > Review queue tab > open > decide. The briefing link lands on the Accreditation tab, not the queue (`DashboardBriefingService.php:1170`, `SaoCompliancePage.jsx:16`) | 4 |
 | Decide a financial report or an event with requirements | Compliance > Financial reports or Event requirements tab (`SaoCompliancePage.jsx:22-23`). There is no SAO Approvals item; `/super-admin/approvals` redirects (`App.jsx:216`) | 4 |
+| Find any file an organization submitted | Compliance > Track documents tab: one row per organization (college, file count, latest submission), expand it for its files grouped by Event requirements, Semestral report, Semester renewal, Financial reports, Financial report supporting documents and Registration documents. Each file shows a status (and the Department Head or SAO stage for events) and View opens it in a new tab. An event file appears only once the Department Head has approved the event, because that is when the SAO can open it. A pending registration document links to "Open organization review" for the decision, and the Review queue marks it the same way | 3 |
 | Answer a grievance | SAO Administration expand > Grievances > open > set status | 4 |
 | See who needs attention | Agency overview (first child) or the health table on the home page | 2 |
 
@@ -132,13 +133,13 @@ Category numbers follow the brief: 1 navigation order and grouping, 2 duplicate 
 **Inconsistent vocabulary and patterns (6)**
 
 29. The SAO is "SAO" (`navigation.js:9`), "Super Admin" (`BriefingHeader.jsx:6`, `DashboardLayout.jsx:10`), "Student Affairs" (`TopBar.jsx:197`). The Admin is "Organization Admin", "Admin" and "Administrators". Organizations are "SBOs" on the SAO home (`SuperAdminHomePage.jsx:21-23`) and "organizations" elsewhere.
-30. One act, three verbs: "Create Event" (`EventsPage.jsx:978`), "Event proposal" (`SubmitApprovalRequestPage.jsx:28`), "Event Request" (`DashboardLayout.jsx:38`), "Propose Budget". Financial reports are called "Transaction History" (menu), "Received reports" (SAO home action, `SuperAdminHomePage.jsx:9`) and "Financial reports" (SAO tab). "Check In", "Event Check-In"; "Validate Tokens", "Claim Tokens", "Claim token".
+30. One act, three verbs: "Create Event" (`EventsPage.jsx:978`), "Event proposal" (`SubmitApprovalRequestPage.jsx:28`), "Event Request" (`DashboardLayout.jsx:38`), "Propose Budget". Financial reports are called "Transaction History" (menu), "Compliance and financial reports" (SAO home action, `SuperAdminHomePage.jsx:10`) and "Financial reports" (SAO Compliance tab, whose purpose line reads "Reports organizations submitted for SAO review. Decide each one here."). The old "Received reports" wording is gone. "Check In", "Event Check-In"; "Validate Tokens", "Claim Tokens", "Claim token".
 31. Three patterns for a module with several views: route driven props with no in-page tabs (Events, Finance, Tasks, Merchandise: `App.jsx:240-276`), a hub with a banner card and tab strip (Elections), the `Tabs` primitive with `?tab=` (Compliance). A person cannot predict which.
 
 **First use (7)**
 
 32. Department Head: the getting-started list is a single step, "Add your contact number" (`SetupChecklistService.php:22,83-96`: the fingerprint and event steps are role-filtered out); the attention list can only contain approvals (`DashboardBriefingService.php:157-159`). Their first real job, register an organization, appears nowhere in the briefing; the link is a text button deep in the page (`DepartmentHeadHomePage.jsx:150`).
-33. SAO: the checklist leads with a step the SAO can no longer do (break 22), omits "make sure each college has a Department Head", and its three headline actions are Manage organizations, Manage administrators, Review received reports (`SuperAdminHomePage.jsx:9`).
+33. SAO: the checklist leads with a step the SAO can no longer do (break 22), omits "make sure each college has a Department Head", and its six actions are Registrations and organizations, Administrators, Colleges and Department Heads, Compliance and financial reports, University announcements, Notifications (`SuperAdminHomePage.jsx:10`).
 34. Student: the briefing carries a Tasks pillar and task attention (`RoleBriefing.jsx:19`, `DashboardBriefingService.php:186-187`) for a role with no Tasks page (`navigation.js:69`); the fingerprint step has no link (it is an in-person step, `SetupChecklistService.php:90`) and does not say where to go. The home has no "what I owe" or "my clearance".
 35. Admin: the checklist is good (positions, members, programs, compliance, budget, event: `SetupChecklistService.php:71-80`) but sits beside "Needs attention" under a collapsed "Organization indicators" block (`RoleBriefing.jsx:66-79`), so the first screen shows indicators and greeting before the 6 steps; step 5 "Propose your first budget" and step 6 "Plan your first event" are in the wrong order for the event-with-budget flow.
 
@@ -444,9 +445,35 @@ Shown in: Tasks board cards and the officer My tasks list; event drawer prepare 
 | Lifecycle | Stages and status values | Who acts | Next-action text |
 |---|---|---|---|
 | Grievance | `submitted` then `under_review` then `resolved` or `dismissed`; `addressed_to` organization or sao | Admin (organization) or SAO; Student files | "Waiting for <Admin or SAO> to review" |
-| Venue booking | `pending` then `approved` or `rejected`; `withdrawn` by Admin | SAO | "Waiting for SAO approval" |
+| Venue booking | `pending` then `approved` or `rejected`; `withdrawn` by the requesting organization (Admin or Officer) | SAO decides; Admin or Officer requests, books again after a rejection and may withdraw | Pending: "Waiting for SAO approval" (SAO sees "Review the booking: approve it or return it with remarks", recorded as `rejected`); rejected: "Rejected: read the remarks and request again"; withdrawn: "Withdrawn" |
 
 Shown in: Student My grievances rows, Admin and SAO grievance drawers; Venue booking list and the event Prepare step.
+
+#### SAO venue calendar
+
+The SAO opens Venues on a calendar, the way a shared calendar works, because the decision it makes is "can this venue take this request" and the answer is a picture of who already holds the venue and when.
+
+| Part | Rule |
+|---|---|
+| Tabs | Calendar (the default), Booking requests, Venue catalog. A `?record=` link opens Booking requests |
+| Purpose line | "See who has each venue and when, and decide booking requests with conflicts in view." |
+| Views | Day, Week and Month, each with previous, next, Today and a date jump. Day is one lane per venue on a shared time axis and stacks the venues as lists at 390 px. Week is seven day columns that scroll inside their own box. Month shows booking chips with "+N more", which opens that day |
+| Each booking shows | Organization acronym (full name in the details), event title, venue and time range. Approved is solid green, Pending is dashed amber, both with the word in the label |
+| Completeness | The calendar asks the server for exactly the visible window (`from` and `to`) and walks every page for both statuses, so no booking is dropped. If the page ceiling were ever reached the calendar says "Showing the first N of M" instead of staying quiet |
+| Conflict | A pending request that strictly overlaps another pending or approved booking for the same venue carries a "Conflict" label (text and icon, never colour alone) in the queue, the request drawer, the calendar and the booking details. A booking that ends exactly when another starts is not a conflict; the server uses the same strict rule when it approves |
+| Approve dialog | Lists every other booking that overlaps the request, with its status, organization and time, before the SAO confirms. The server still refuses an approval that overlaps an approved booking |
+| Venue catalog | A venue with any booking, including rejected and withdrawn ones, cannot be deleted (409, the message points to marking it inactive). Marking it inactive stops new requests and keeps the history |
+
+Who sees which occupant. `GET /venues/{venue}/availability` is the one endpoint every booking role reads, and it anonymises by role:
+
+| Role | `reserved_by` | Extra fields |
+|---|---|---|
+| SUPER_ADMIN (the SAO is the agency, so it is exempt) | The occupant organization's name, for every organization | `organization` (id, name, acronym) and `event_title` |
+| ADMIN, SBO_OFFICER | "Your organization" or "Another organization" | None. Another organization's name, id and event are never returned |
+
+The booking list (`GET /venue-bookings`) already returns only the caller's own organization to Admin and Officer, and every organization to the SAO. Student and Department Head cannot reach either endpoint.
+
+Stored times. Booking times are Manila wall-clock time. The server reads an instant sent in UTC as the same Manila moment when it stores a booking, checks overlap and filters by date. Rows saved before that fix are not rewritten automatically: a booking requested while the client sent UTC may have been stored eight hours early, and an operator checks such rows by hand.
 
 ### 4.10 Clearance
 
@@ -587,10 +614,12 @@ Rules for the builders: each slice owns the files listed and touches no other fi
 
 Clicks start at the role home after login and count mouse or tap actions only (typing and file selection excluded). "Ceiling" is the maximum. Every journey ends on an assertion about visible state, not on a URL. All must pass at 1440 px and 390 px.
 
+**Counting rules.** The tap that opens the menu on a phone ("Open menu", 390 px) is chrome, not a step, so it is never counted, in any journey. Three ceilings differ from the figures listed below: the student vote journey is 6 (starting the ballot, choosing, reviewing and confirming are part of casting a ballot), and the SAO financial report and compliance review decisions are 4 (deciding opens a confirm, which is a tap). Every other journey that measures above its listed ceiling is in the Accepted deviations table at the end of this section.
+
 **STUDENT**
 1. Join an event (ceiling 3): Events, open an event, Register. End: the drawer shows "You are registered" and the home "Next for you" no longer lists "Register for an event".
-2. Vote (ceiling 2 from home, 3 from the menu): home "Cast ballot", complete the ballot, submit. End: receipt shown; Voting > Vote lists the election as "Voted"; results link says "Available when voting closes".
-3. Order and claim (ceiling 5 to place, 1 to check): Store > Shop, add, cart, checkout (cash), then My orders. End: stepper at "Reserved: pay cash at pickup". After an officer verifies (journey O-F2), My orders shows "Paid" and the token.
+2. Vote (ceiling 2 from home, 3 from the menu): home "Cast ballot", complete the ballot, submit. End: receipt shown; Voting > Vote lists the election as "Voted" with a "View live totals" link (live totals are shown while voting is open by product default).
+3. Order and claim (ceiling 5 to place, 1 to check): Store > Shop, add, cart, checkout (cash), then My orders. End: stepper at "Step 1 of 4: Reserved" with "pay cash at pickup". After an officer verifies (journey O-F2), My orders shows "Payment verified: waiting for Admin approval" and no token; after the Admin approves, it shows "Paid" and the token.
 4. See what I owe (ceiling 2): My payments > Statement of account. End: balance and clearance status visible without scrolling.
 5. File a grievance and check clearance (ceiling 4 and 2): Support > My grievances > File a grievance > submit; Support > My clearance. End: grievance row says "Waiting for <Admin or SAO> to review"; clearance shows one step per signatory.
 
@@ -619,6 +648,19 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 3. Decide a financial report (ceiling 3): attention item lands on Financial reports tab, open, approve. End: report shows Approved on both sides.
 4. See who needs attention (ceiling 2): Organizations > Agency overview. End: organizations needing action are listed first.
 5. Answer a grievance (ceiling 4): Reviews > Grievances, open, set Under review, then Resolved. End: student's My grievances shows Resolved.
+
+**Accepted deviations.** These journeys measure above the ceiling listed for them on a live stack, and each extra tap is deliberate. The journey specs carry the accepted ceiling. Two end states differ from the first version of this section, both in STUDENT journeys: STUDENT 2 shows a "View live totals" link after voting, because live totals are shown while voting is open by product default, and STUDENT 3 stops at "Payment verified: waiting for Admin approval" after an officer verifies, because the order awaits Admin approval, and "Paid" with the token appears only after the Admin approves. Every other end-state assertion is unchanged.
+
+| Journey | Widths | Listed ceiling | Measured and accepted | Why the extra taps stay |
+|---|---|---|---|---|
+| ADMIN 4, check-in | 1440 and 390 | 3 | 4 (Events and tasks, Check-in, pick member, Confirm Check-In) | The member is picked from the search result and then confirmed, so a mistyped school ID is never recorded. The ongoing event is already preselected, so nothing else is tapped. It is the same path as the officer's check-in (ceiling 4). |
+| SBO_OFFICER 2, verify and release | 1440 and 390 | 6 | 8 | Two confirms guard changes that move money and stock (verify the payment, confirm the claim and release). Orders and Claim desk are two pages, so the menu is used twice, and the last tap returns to Orders to see the stepper complete. |
+| SBO_OFFICER 4, announcement | 1440 / 390 | 4 | 5 at 1440, 6 at 390 | Submit for approval opens a confirm that names who approves it, because it changes approval state: members see nothing until the Admin approves. One more tap opens the sent row in Announcements. On a phone the Updates group opens first and does not navigate, so Announcements is one more tap. |
+| STUDENT 3, order | 1440 and 390 | 5 | 6 (Store, Shop, Add to Cart, My Cart, Review and Continue, Place Reservation) | The cart is reviewed before Place Reservation, which commits stock and a payment at pickup. |
+| SUPER_ADMIN 5, grievance | 1440 and 390 | 4 | 6 (Reviews, Grievances, open, Move to under review, Resolve, Resolve) | Resolving opens a confirm that requires the remarks the student reads, so the answer is written before it is sent. Under review is its own recorded status, tapped before Resolve. |
+| All 390 px journeys | 390 | as listed for each journey | as listed; the Open menu tap is chrome and is not counted, which is a raise of one tap for every phone journey | The drawer is the only way to reach a section on a phone, and counting it would make every phone journey exceed its desktop twin by one. |
+
+**Live run order.** On one freshly seeded database the journey specs run student, officer, admin, dept-head, sao. The Admin check-in journey completes every other ongoing event so the one it creates is preselected, and the Department Head and SAO specs open a new semester, which hides the seeded events from the student and officer journeys. The Department Head no-semester journey also needs a database where no semester has been opened yet.
 
 ## 10. Risks, decisions needed, and what was left alone
 
@@ -649,3 +691,5 @@ Could not verify (no servers were started, no browser was driven):
 - Whether `SystemOrganizationsPage` defaults to the Pending review tab when no `status` is given (`defaultStatus` is resolved asynchronously, `:198`); the spec assumes the first non-empty tab.
 - Rendered layout, contrast and focus order of the proposed stepper; the acceptance checks in slice 0 cover them once built.
 - The remaining USE_CASE_INVENTORY rows after line 219 (cut off at the read limit) were not read; HIER and ONBOARD claims here are taken from HANDOFF.md, PAPER_SCOPE_ADDENDUM section 2.4 and the code.
+
+Delete rules (what has a delete and what deliberately does not): Ledger rows that the system generated from a collection, cash advance, invoice or order, rows locked into a submitted report, submitted financial reports and cast votes have no delete anywhere, because each is evidence that other records and other roles rely on; they are corrected by a reversing record, a returned report or a closed election, never erased. Delete now exists, with guards, for these: a forecast (Admin only, with confirmation); a pending or returned organization registration (the owning Department Head withdraws it only while it has no members, users, events or other records, the SAO is told if it was pending, and active or archived organizations are archived instead); an event (refused with a 409 once it is ongoing or completed or has submitted requirement files, a decided approval request, attendance, a budget (any budget linked to the event, proposed or approved), or a venue booking that is still pending or approved, and the Events page then offers Cancel, which also withdraws those bookings so the venue is free again); a venue (the SAO deletes it only while it has never had a booking of any status, otherwise it is marked inactive, and the refusal is a 409); an election (refused with a 409 once it is open or closed or has any vote, and the Elections page then offers Close); and a budget (refused with a 409 once it is approved or has transactions). A merchandise item is not deleted at all: its former Delete action only ever deactivated it, so it is now labelled Deactivate and still refuses items with pending or paid orders.

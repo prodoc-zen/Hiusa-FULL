@@ -5,9 +5,11 @@ namespace App\Providers;
 use App\Contracts\FingerprintMatcher;
 use App\Services\HttpFingerprintMatcher;
 use App\Services\UnavailableFingerprintMatcher;
+use App\Support\DatabaseStatementTimeout;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\ServiceProvider;
 
@@ -36,6 +38,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        $statementTimeout = (int) config('performance.database.statement_timeout_seconds');
+        $driver = config('database.connections.'.config('database.default').'.driver');
+        if ($statementTimeout > 0 && ! $this->app->runningInConsole() && in_array($driver, ['mysql', 'mariadb'], true)) {
+            DatabaseStatementTimeout::register(DB::connection(), $statementTimeout);
+        }
+
         $tooManyRequests = fn (Request $request, array $headers) => response()->json([
             'message' => 'Too many requests. Please wait before trying again.',
         ], 429, $headers);

@@ -6,7 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Venue;
 use App\Models\VenueBooking;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 /** SAO's venue catalog. Booking requests live in VenueBookingController. */
 class VenueController extends Controller
@@ -18,21 +18,31 @@ class VenueController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
+        $isSao = $request->user()->role === 'SUPER_ADMIN';
+
+        // The SAO is the agency, so it sees who holds each slot. Everyone else gets
+        // only whether the slot is theirs, never the other organization or its event.
         $slots = VenueBooking::where('venue_id', $venue->id)
             ->whereIn('status', ['pending', 'approved'])
-            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
-            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)))
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>', $this->localTime($from)))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<', $this->localTime($to)))
+            ->when($isSao, fn ($q) => $q->with(['organization:id,name,acronym', 'event:id,title']))
             ->orderBy('start_time')
-            ->get(['id', 'organization_id', 'status', 'start_time', 'end_time'])
+            ->get(['id', 'organization_id', 'event_id', 'status', 'start_time', 'end_time'])
             ->map(fn (VenueBooking $booking) => [
                 'id' => $booking->id,
                 'start_time' => $booking->start_time,
                 'end_time' => $booking->end_time,
                 'status' => $booking->status,
-                'reserved_by' => $booking->organization_id === $request->user()->organization_id
-                    ? 'Your organization'
-                    : 'Another organization',
-            ]);
+                'reserved_by' => match (true) {
+                    $isSao => $booking->organization?->name ?? 'Unknown organization',
+                    $booking->organization_id === $request->user()->organization_id => 'Your organization',
+                    default => 'Another organization',
+                },
+            ] + ($isSao ? [
+                'organization' => $booking->organization,
+                'event_title' => $booking->event?->title,
+            ] : []));
 
         return response()->json($slots);
     }
@@ -111,24 +121,33 @@ class VenueController extends Controller
 
     public function destroy(Request $request, Venue $venue)
     {
-        $hasActiveBookings = $venue->bookings()->whereIn('status', ['pending', 'approved'])->exists();
-        if ($hasActiveBookings) {
-            return response()->json(['message' => 'This venue has pending or approved bookings and cannot be deleted.'], 409);
-        }
+        // A booking request locks the venue row before it checks the slot, so taking the same lock here
+        // means a booking is either seen by the check or waits for the delete.
+        $deleted = DB::transaction(function () use ($request, $venue) {
+            $locked = Venue::whereKey($venue->id)->lockForUpdate()->first();
+            if (! $locked || $locked->bookings()->exists()) {
+                return false;
+            }
 
-        AuditLog::create([
-            'organization_id' => null,
-            'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
-            'module' => 'venues',
-            'action' => 'venue_deleted',
-            'record_type' => Venue::class,
-            'record_id' => $venue->id,
-            'new_values' => $venue->toArray(),
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-        ]);
-        $venue->delete();
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'venues',
+                'action' => 'venue_deleted',
+                'record_type' => Venue::class,
+                'record_id' => $locked->id,
+                'new_values' => $locked->toArray(),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+            $locked->delete();
+
+            return true;
+        });
+        if (! $deleted) {
+            return response()->json(['message' => 'This venue has booking history, so it cannot be deleted. Mark it inactive instead to stop new requests.'], 409);
+        }
 
         return response()->json(['message' => 'Venue deleted.']);
     }

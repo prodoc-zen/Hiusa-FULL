@@ -17,6 +17,7 @@ const financeMocks = vi.hoisted(() => ({
   getTransactionSummary: vi.fn(),
   getPersonalReceipts: vi.fn(),
   getInvoices: vi.fn(),
+  getStudentDebts: vi.fn(),
   getAuditLogs: vi.fn(),
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
@@ -29,6 +30,7 @@ const financeMocks = vi.hoisted(() => ({
   downloadFinancialReportPdf: vi.fn(),
   submitFinancialReport: vi.fn(),
   deleteBudget: vi.fn(),
+  deleteForecast: vi.fn(),
   deleteTransaction: vi.fn(),
 }));
 
@@ -43,6 +45,9 @@ vi.mock('../../../services/financeService', () => ({
   downloadFinancialReportPdf: financeMocks.downloadFinancialReportPdf,
   submitFinancialReport: financeMocks.submitFinancialReport,
 }));
+
+const clearanceMocks = vi.hoisted(() => ({ getMyClearances: vi.fn() }));
+vi.mock('../../../services/clearanceService', () => clearanceMocks);
 
 const collegeMocks = vi.hoisted(() => ({ getCollegeOrganizations: vi.fn() }));
 vi.mock('../../../services/collegeOrganizationService', () => collegeMocks);
@@ -63,6 +68,8 @@ describe('FinancePage transaction search', () => {
     });
     financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
     financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getStudentDebts.mockResolvedValue({ data: { data: [] } });
+    clearanceMocks.getMyClearances.mockResolvedValue({ data: [] });
     financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
     financeMocks.getForecasts.mockResolvedValue({ data: [] });
     financeMocks.getBudgets.mockResolvedValue({ data: [] });
@@ -630,5 +637,207 @@ describe('FinancePage rows the server will not let the ledger change', () => {
     expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
     expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
+  });
+});
+
+describe('FinancePage forecast delete and approved budgets', () => {
+  const forecast = { id: 9, forecast_period: '2026-11', predicted_income: 5000, predicted_expense: 3000, predicted_balance: 2000, safe_spending_limit: 1600, model_details: { sample_months: 6, engine: 'python-fastapi', income: { r_squared: 0.95 }, expense: { r_squared: 0.9 } } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 0, net_balance: 0 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
+    financeMocks.getForecasts.mockResolvedValue({ data: [forecast] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+  });
+
+  it('deletes a forecast after confirmation and reloads the forecasts', async () => {
+    financeMocks.deleteForecast.mockResolvedValue({ data: { message: 'Forecast deleted successfully.' } });
+    render(<FinancePage initialTab="forecasting" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete forecast' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this forecast?' });
+    expect(financeMocks.deleteForecast).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete forecast' }));
+
+    await waitFor(() => expect(financeMocks.deleteForecast).toHaveBeenCalledWith(9));
+    await waitFor(() => expect(financeMocks.getForecasts).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the server message when a forecast cannot be deleted', async () => {
+    financeMocks.deleteForecast.mockRejectedValue({ response: { status: 404, data: { message: 'Forecast not found.' } } });
+    render(<FinancePage initialTab="forecasting" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete forecast' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this forecast?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete forecast' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Forecast not found.');
+  });
+
+  it('does not offer forecast deletion to officers', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText('Forecast for 2026-11')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete forecast' })).not.toBeInTheDocument();
+  });
+
+  it('hides Delete budget for an approved budget and keeps it for the rest', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [
+      { id: 4, title: 'Approved Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, submission_status: 'approved' },
+      { id: 5, title: 'Draft Budget', allocated_amount: 2000, remaining_amount: 2000, warning_threshold: 200, submission_status: 'pending_department_head' },
+    ] });
+    render(<FinancePage initialTab="budgets" />);
+
+    expect(await screen.findByText('Approved Budget')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Delete budget' })).toHaveLength(1);
+  });
+});
+
+describe('FinancePage statement of account for a student', () => {
+  const invoice = (overrides) => ({
+    id: 1,
+    description: 'Organization fee',
+    reference: 'INV-1',
+    due_date: '2026-12-01',
+    status: 'unpaid',
+    amount_due: '500.00',
+    amount_paid: 0,
+    remaining_balance: 500,
+    ...overrides,
+  });
+  const debts = (overrides) => ({ data: { data: [{ invoice_debt: 0, reserved_order_debt: 0, total_debt: 0, clearance_status: 'financially_cleared', unpaid_invoice_count: 0, pending_order_count: 0, ...overrides }] } });
+  const clearance = (signatures, overrides) => ({ clearance_period_id: 3, title: 'Midterm clearance', academic_year: '2026-2027', is_complete: false, signatures, ...overrides });
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'STUDENT' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 0, net_balance: 0 } });
+    financeMocks.getForecasts.mockResolvedValue({ data: [] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getStudentDebts.mockResolvedValue(debts());
+    clearanceMocks.getMyClearances.mockResolvedValue({ data: [] });
+  });
+
+  it('puts the outstanding balance and an on hold clearance with its reason above the invoices', async () => {
+    financeMocks.getInvoices.mockResolvedValue({ data: [invoice(), invoice({ id: 2, description: 'Shirt', amount_due: '250.50', remaining_balance: 250.5 }), invoice({ id: 3, status: 'paid', amount_due: '100.00', amount_paid: 100, remaining_balance: 0 })] });
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ invoice_debt: 750.5, total_debt: 750.5, clearance_status: 'pending_clearance', unpaid_invoice_count: 2 }));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('₱750.50')).toBeInTheDocument();
+    expect(within(region).getByText('2 unpaid invoices')).toBeInTheDocument();
+    expect(within(region).getByText('On hold')).toBeInTheDocument();
+    expect(within(region).getByText('You owe ₱750.50: 2 unpaid invoices.')).toBeInTheDocument();
+    expect(region.compareDocumentPosition(screen.getAllByText('Organization fee')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  it('names a held signature of the current clearance as the reason', async () => {
+    clearanceMocks.getMyClearances.mockResolvedValue({ data: [
+      clearance([{ id: 1, required_role: 'adviser', status: 'held', remarks: 'Return the borrowed projector' }, { id: 2, required_role: 'sao', status: 'cleared', remarks: null }]),
+    ] });
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    await waitFor(() => expect(within(region).getByText('On hold')).toBeInTheDocument());
+    expect(within(region).getByText('Nothing owed')).toBeInTheDocument();
+    expect(within(region).getByText('Organization adviser clearance is on hold: Return the borrowed projector')).toBeInTheDocument();
+    expect(clearanceMocks.getMyClearances).toHaveBeenCalledTimes(1);
+  });
+
+  it('says cleared when nothing is owed and no signature is held', async () => {
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    await waitFor(() => expect(within(region).getByText('Cleared')).toBeInTheDocument());
+    expect(within(region).getByText('₱0.00')).toBeInTheDocument();
+    expect(within(region).getByText('Nothing owed and no clearance signature is on hold.')).toBeInTheDocument();
+    expect(within(region).queryByText('On hold')).not.toBeInTheDocument();
+  });
+
+  it('does not say cleared before the invoices have loaded', async () => {
+    let release;
+    financeMocks.getInvoices.mockReturnValue(new Promise((resolve) => { release = resolve; }));
+    render(<FinancePage initialTab="invoices" />);
+
+    expect(screen.queryByRole('region', { name: 'Account summary' })).not.toBeInTheDocument();
+    expect(screen.queryByText('Cleared')).not.toBeInTheDocument();
+    release({ data: [invoice()] });
+    expect(await screen.findByRole('region', { name: 'Account summary' })).toBeInTheDocument();
+  });
+
+  it('keeps the balance and says so when the clearance signatures cannot be loaded', async () => {
+    financeMocks.getInvoices.mockResolvedValue({ data: [invoice()] });
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ invoice_debt: 500, total_debt: 500, clearance_status: 'pending_clearance', unpaid_invoice_count: 1 }));
+    clearanceMocks.getMyClearances.mockRejectedValue(new Error('down'));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('₱500.00')).toBeInTheDocument();
+    expect(within(region).getByText('Your clearance signatures could not be checked. Open My clearance to see them.')).toBeInTheDocument();
+  });
+
+  it('takes the balance from the server rule, so a reserved order with no invoice still puts the account on hold', async () => {
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ reserved_order_debt: 350, total_debt: 350, clearance_status: 'pending_clearance', pending_order_count: 1 }));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('₱350.00')).toBeInTheDocument();
+    expect(within(region).getByText('On hold')).toBeInTheDocument();
+    expect(within(region).queryByText('Cleared')).not.toBeInTheDocument();
+    expect(within(region).getByText('You owe ₱350.00: 1 reserved order.')).toBeInTheDocument();
+    expect(within(region).getByText('1 reserved order')).toBeInTheDocument();
+  });
+
+  it('lists unpaid invoices and reserved orders together in the reason', async () => {
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ invoice_debt: 500, reserved_order_debt: 200, total_debt: 700, clearance_status: 'pending_clearance', unpaid_invoice_count: 1, pending_order_count: 2 }));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('₱700.00')).toBeInTheDocument();
+    expect(within(region).getByText('You owe ₱700.00: 1 unpaid invoice and 2 reserved orders.')).toBeInTheDocument();
+  });
+
+  it('does not claim cleared or a zero balance when the balance cannot be loaded', async () => {
+    financeMocks.getStudentDebts.mockRejectedValue(new Error('down'));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('Your balance could not be loaded. Open the home page to see what you owe.')).toBeInTheDocument();
+    expect(within(region).queryByText('Cleared')).not.toBeInTheDocument();
+    expect(within(region).queryByText('₱0.00')).not.toBeInTheDocument();
+  });
+
+  it('lists each invoice as a card for narrow screens as well as a table row', async () => {
+    financeMocks.getInvoices.mockResolvedValue({ data: [invoice()] });
+    const { container } = render(<FinancePage initialTab="invoices" />);
+
+    await screen.findByRole('region', { name: 'Account summary' });
+    expect(container.querySelector('[data-view="table"]')).toBeInTheDocument();
+    expect(within(container.querySelector('[data-view="cards"]')).getByText('Organization fee')).toBeInTheDocument();
+    expect(within(container.querySelector('[data-view="cards"]')).getAllByText('₱500.00')).toHaveLength(2);
+  });
+
+  it('shows no account summary and loads no clearances for an Admin', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getInvoices.mockResolvedValue({ data: [invoice()] });
+    render(<FinancePage initialTab="invoices" />);
+
+    expect((await screen.findAllByText('Organization fee')).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('region', { name: 'Account summary' })).not.toBeInTheDocument();
+    expect(clearanceMocks.getMyClearances).not.toHaveBeenCalled();
+    expect(financeMocks.getStudentDebts).not.toHaveBeenCalled();
   });
 });

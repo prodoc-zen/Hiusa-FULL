@@ -76,6 +76,42 @@ describe('TopBar notifications', () => {
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
+  it('names the college, not a student organization, under a Department Head', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Ramon', last_name: 'Castillo', organization: { id: 9, name: 'College of Computer Studies', college: 'College of Computer Studies', college_id: 1, organization_type: 'COLLEGE' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const account = screen.getByRole('button', { name: 'Account menu for Ramon Castillo' });
+    expect(within(account).getByText('College of Computer Studies')).toBeInTheDocument();
+    expect(within(account).getByText('Department Head')).toBeInTheDocument();
+  });
+
+  it('keeps the college and Department Head untruncated and titled with the full line', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Ramon', last_name: 'Castillo', organization: { id: 9, name: 'College of Computer Studies', college: 'College of Computer Studies', college_id: 1, organization_type: 'COLLEGE' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const account = screen.getByRole('button', { name: 'Account menu for Ramon Castillo' });
+    const college = within(account).getByText('College of Computer Studies');
+    const role = within(account).getByText('Department Head');
+    expect(college.className).not.toMatch(/truncate/);
+    expect(role.className).not.toMatch(/truncate/);
+    expect(college.parentElement).toHaveAttribute('title', 'College of Computer Studies · Department Head');
+    expect(role.parentElement).toBe(college.parentElement);
+  });
+
+  it('shows the college and Department Head in the account panel for narrow screens', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Ramon', last_name: 'Castillo', organization: { id: 9, name: 'College of Computer Studies', college: 'College of Computer Studies', college_id: 1, organization_type: 'COLLEGE' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu for Ramon Castillo' }));
+    const panel = screen.getByRole('region', { name: 'Account and profiles' });
+    expect(within(panel).getByText('College of Computer Studies · Department Head')).toBeInTheDocument();
+  });
+
+  it('never shows a student organization as a Department Head organization', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Ramon', last_name: 'Castillo', organization: { id: 4, name: 'PSITS', college: 'College of Computer Studies', organization_type: 'STUDENT_ORGANIZATION' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const account = screen.getByRole('button', { name: 'Account menu for Ramon Castillo' });
+    expect(account).toHaveTextContent('College of Computer StudiesDepartment Head');
+    expect(account).not.toHaveTextContent('PSITS');
+  });
+
   it('gives a Department Head no merchandise cart', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Dana', last_name: 'Cruz' }));
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);

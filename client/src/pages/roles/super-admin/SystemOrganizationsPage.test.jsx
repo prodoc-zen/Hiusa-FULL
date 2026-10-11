@@ -194,15 +194,19 @@ describe('SystemOrganizationsPage', () => {
       expect(screen.getByLabelText('Organization name')).toHaveValue('Unsaved change');
     });
 
-    it('saves an edit with the college id', async () => {
+    it('shows the college read only and never sends a college change', async () => {
       mocks.updateSystemOrganization.mockResolvedValue(org());
       renderPage();
       fireEvent.click(await screen.findByRole('button', { name: 'Actions for Main SBO' }));
       fireEvent.click(screen.getByRole('menuitem', { name: 'Edit organization' }));
       const dialog = screen.getByRole('dialog', { name: 'Edit organization' });
-      fireEvent.change(within(dialog).getByLabelText('College'), { target: { value: '2' } });
+      expect(within(dialog).getByText('College of Arts')).toBeInTheDocument();
+      expect(within(dialog).queryByRole('combobox', { name: 'College' })).not.toBeInTheDocument();
       fireEvent.click(within(dialog).getByRole('button', { name: 'Save organization' }));
-      await waitFor(() => expect(mocks.updateSystemOrganization).toHaveBeenCalledWith(3, expect.objectContaining({ college_id: 2, name: 'Main SBO' })));
+      await waitFor(() => expect(mocks.updateSystemOrganization).toHaveBeenCalledWith(3, expect.objectContaining({ name: 'Main SBO' })));
+      const payload = mocks.updateSystemOrganization.mock.calls[0][1];
+      expect(payload).not.toHaveProperty('college_id');
+      expect(payload).not.toHaveProperty('college');
     });
 
     it('has no Active organization checkbox and never sends is_active', async () => {
