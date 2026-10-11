@@ -614,7 +614,7 @@ Rules for the builders: each slice owns the files listed and touches no other fi
 
 Clicks start at the role home after login and count mouse or tap actions only (typing and file selection excluded). "Ceiling" is the maximum. Every journey ends on an assertion about visible state, not on a URL. All must pass at 1440 px and 390 px.
 
-**Counting rules.** The tap that opens the menu on a phone ("Open menu", 390 px) is chrome, not a step, so it is never counted, in any journey. Two ceilings differ from the figures listed below: the student vote journey is 6 (starting the ballot, choosing, reviewing and confirming are part of casting a ballot), and the SAO financial report and compliance review decisions are 4 (deciding opens a confirm, which is a tap).
+**Counting rules.** The tap that opens the menu on a phone ("Open menu", 390 px) is chrome, not a step, so it is never counted, in any journey. Two ceilings differ from the figures listed below: the student vote journey is 6 (starting the ballot, choosing, reviewing and confirming are part of casting a ballot), the SAO financial report and compliance review decisions are 4, and the SAO grievance answer is 6 (deciding opens a confirm, which is a tap; resolving a grievance asks for remarks in a confirm).
 
 **STUDENT**
 1. Join an event (ceiling 3): Events, open an event, Register. End: the drawer shows "You are registered" and the home "Next for you" no longer lists "Register for an event".
@@ -647,7 +647,7 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 2. Review compliance (ceiling 3): attention item lands on the Review queue tab (not Accreditation), open submission, decide. End: submission status changes and accreditation roll up updates.
 3. Decide a financial report (ceiling 3): attention item lands on Financial reports tab, open, approve. End: report shows Approved on both sides.
 4. See who needs attention (ceiling 2): Organizations > Agency overview. End: organizations needing action are listed first.
-5. Answer a grievance (ceiling 4): Reviews > Grievances, open, set Under review, then Resolved. End: student's My grievances shows Resolved.
+5. Answer a grievance (ceiling 6): Reviews > Grievances, open, Under review, Resolve, confirm Resolve with remarks. End: student's My grievances shows Resolved.
 
 ## 10. Risks, decisions needed, and what was left alone
 
