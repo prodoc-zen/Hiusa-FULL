@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
 import { deleteClearancePeriod } from './clearanceService';
 import { deleteRequirementType, getComplianceDocuments } from './complianceService';
-import { getCollegeOrganizations, getRegistrationRequirements, registerOrganization, resubmitOrganization } from './collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, registerOrganization, resubmitOrganization } from './collegeOrganizationService';
 import { downloadFinancialReportDocument } from './financeService';
 import { deleteGrievance } from './grievanceService';
 import {
@@ -68,6 +68,8 @@ describe('hierarchy services', () => {
     getRegistrationRequirements();
     expect(api.get).toHaveBeenCalledWith('/college/organizations', { params: { lifecycle_status: 'pending' } });
     expect(api.get).toHaveBeenCalledWith('/college/organizations/requirements');
+    getCollegeOverview();
+    expect(api.get).toHaveBeenCalledWith('/college/overview');
   });
 
   it('registers an organization as multipart data with one file per requirement', () => {

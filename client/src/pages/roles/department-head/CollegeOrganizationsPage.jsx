@@ -1,15 +1,17 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { CalendarClock, File, Plus } from 'lucide-react';
+import { Building2, CalendarClock, File, Plus } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
+import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import useRecordParam from '../../../lib/useRecordParam';
 import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 
@@ -31,8 +33,35 @@ const REQUIREMENT_STATUS = {
   not_submitted: { tone: 'neutral', label: 'Not submitted' },
 };
 
+const LEADER_ROLE = { ADMIN: 'Admin', SBO_OFFICER: 'SBO Officer' };
+
 const STATUS_PANEL_ID = 'organization-status-panel';
 const NO_SEMESTER_NOTICE = 'No registration requirements are open. The SAO must activate a semester first.';
+
+function roleCount(organization, key) {
+  const count = organization.role_counts?.[key];
+  return count ?? (key === 'admin' ? organization.administrators_count ?? 0 : 0);
+}
+
+function CollegeHeader({ overview }) {
+  const user = storedUser();
+  const name = overview?.college?.name || headCollegeName(user);
+  if (!name) return null;
+  const headName = overview?.head?.name || `${user?.first_name || ''} ${user?.last_name || ''}`.trim();
+  const logo = overview?.college?.logo_url;
+
+  return (
+    <section aria-label="Your college" className="flex items-center gap-4 rounded-lg border border-line bg-surface p-4">
+      <span className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-lg bg-brand-50 text-brand-700" style={overview?.college?.color ? { borderLeft: `4px solid ${overview.college.color}` } : undefined}>
+        {logo ? <img src={resolveAssetUrl(logo)} alt="" className="h-full w-full object-cover" /> : <Building2 size={24} aria-hidden="true" />}
+      </span>
+      <div className="min-w-0">
+        <h2 className="break-words text-lg font-bold text-ink">{formatDisplayText(name)}</h2>
+        {headName && <p className="text-sm font-medium text-ink-muted">Department Head: {headName}</p>}
+      </div>
+    </section>
+  );
+}
 
 function formatSize(bytes) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
@@ -248,6 +277,7 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
   if (!organization) return null;
   const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active;
   const checklist = organization.registration_requirements || [];
+  const leadership = organization.leadership || [];
 
   return (
     <div className="space-y-5">
@@ -258,6 +288,29 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
       <RegistrationStepper organization={organization} viewerRole="DEPARTMENT_HEAD" />
       <RegistrationNextStep organization={organization} viewerRole="DEPARTMENT_HEAD" onPrimary={() => onEdit(organization)} />
       {organization.lifecycle_status === 'archived' && <p className="text-sm font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
+      <div>
+        <h3 className="text-base font-bold text-ink">Leadership</h3>
+        {leadership.length === 0 ? (
+          <p className="mt-2 text-sm font-medium text-ink-muted">No Admin or SBO Officer is assigned yet.</p>
+        ) : (
+          <ul className="mt-2 divide-y divide-line-soft">
+            {leadership.map((leader) => (
+              <li key={`${leader.role}-${leader.name}`} className="flex flex-wrap items-center justify-between gap-2 py-2">
+                <span className="text-sm font-semibold text-ink">{leader.name}</span>
+                <span className="text-xs font-medium text-ink-muted">{leader.position_title ? `${LEADER_ROLE[leader.role]}, ${leader.position_title}` : LEADER_ROLE[leader.role]}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+        <dl className="mt-3 grid grid-cols-3 gap-2 text-center">
+          {[['Admins', 'admin'], ['SBO Officers', 'sbo_officer'], ['Students', 'student']].map(([label, key]) => (
+            <div key={key} className="rounded-control bg-subtle p-2">
+              <dd className="text-lg font-black tabular-nums text-ink">{roleCount(organization, key)}</dd>
+              <dt className="text-xs font-semibold text-ink-muted">{label}</dt>
+            </div>
+          ))}
+        </dl>
+      </div>
       <div>
         <h3 className="text-base font-bold text-ink">Requirement checklist</h3>
         {checklist.length === 0 ? (
@@ -298,6 +351,7 @@ export default function CollegeOrganizationsPage() {
   const [withdrawTarget, setWithdrawTarget] = useState(null);
   const [withdrawBusy, setWithdrawBusy] = useState(false);
   const [withdrawError, setWithdrawError] = useState(null);
+  const [overview, setOverview] = useState(null);
 
   function changeTab(key) {
     setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
@@ -311,10 +365,14 @@ export default function CollegeOrganizationsPage() {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    let cancelled = false;
+    getCollegeOverview().then((res) => { if (!cancelled) setOverview(res.data); }).catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const counts = useMemo(() => state.organizations.reduce((totals, organization) => ({ ...totals, [organization.lifecycle_status]: (totals[organization.lifecycle_status] || 0) + 1 }), {}), [state.organizations]);
   const rows = useMemo(() => (tab === 'all' ? state.organizations : state.organizations.filter((organization) => organization.lifecycle_status === tab)), [state.organizations, tab]);
-  const college = state.organizations[0]?.college;
   const detailsTarget = recordId ? state.organizations.find((organization) => String(organization.id) === recordId) ?? null : null;
   if (detailsTarget && detailsTarget !== lastDetails) setLastDetails(detailsTarget);
   const shownDetails = detailsTarget ?? lastDetails;
@@ -349,15 +407,16 @@ export default function CollegeOrganizationsPage() {
             <p className={`break-words font-semibold ${organization.lifecycle_status === 'archived' ? 'text-ink-muted' : 'text-ink'}`}>{formatDisplayText(organization.name)}</p>
             <p className="text-xs font-medium text-ink-muted">{organization.acronym}</p>
             <RegistrationRowStatus organization={organization} viewerRole="DEPARTMENT_HEAD" className="mt-2 max-w-xs" />
-            {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-1 max-w-sm text-xs font-semibold text-danger-strong">SAO remarks: {organization.review_remarks}</p>}
+            {organization.lifecycle_status === 'returned' && organization.review_remarks && <p className="mt-2 max-w-sm rounded-control border border-danger/30 bg-danger-tint p-2 text-sm font-semibold text-danger-strong"><span className="block text-xs font-bold uppercase tracking-wide">SAO remarks</span>{organization.review_remarks}</p>}
             {organization.lifecycle_status === 'archived' && <p className="mt-1 text-xs font-semibold text-ink-muted">Archived by the SAO. Read only.</p>}
           </div>
         </div>
       ),
     },
     { key: 'status', header: 'Status', render: (organization) => { const lifecycle = LIFECYCLE[organization.lifecycle_status] || LIFECYCLE.active; const badge = <StatusBadge status={organization.lifecycle_status} label={lifecycle.label} tone={lifecycle.tone} />; return organization.lifecycle_status === 'archived' ? <span role="group" aria-label="Archived, read only">{badge}</span> : badge; } },
-    { key: 'members', header: 'Members', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.members_count ?? 0}</span> },
-    { key: 'admins', header: 'Admins', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.administrators_count ?? 0}</span> },
+    { key: 'admins', header: 'Admins', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'admin')}</span> },
+    { key: 'officers', header: 'SBO Officers', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'sbo_officer')}</span> },
+    { key: 'students', header: 'Students', align: 'right', render: (organization) => <span className={mutedIfArchived(organization)}>{roleCount(organization, 'student')}</span> },
     { key: 'submitted', header: 'Submitted', render: (organization) => <span className={mutedIfArchived(organization)}>{organization.submitted_at ? manilaDate(organization.submitted_at) : '-'}</span> },
   ];
 
@@ -391,9 +450,10 @@ export default function CollegeOrganizationsPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        description={college ? `Student organizations of ${college}. Register new ones and follow their SAO review.` : 'Register student organizations and follow their SAO review.'}
+        description="Student organizations registered under your college. Register new ones and follow their SAO review."
         primary={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
       />
+      <CollegeHeader overview={overview} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
 
       <Card bodyClassName="p-0">
