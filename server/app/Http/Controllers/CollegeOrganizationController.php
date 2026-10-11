@@ -235,7 +235,6 @@ class CollegeOrganizationController extends Controller
         return $this->row($organization, $this->checklists(collect([$organization->id])));
     }
 
-    /** Active role totals for every listed organization in one grouped query. */
     private function roleCounts(array $organizationIds): Collection
     {
         if ($organizationIds === []) {
@@ -252,7 +251,6 @@ class CollegeOrganizationController extends Controller
             ->map(fn (Collection $rows) => $rows->pluck('total', 'role'));
     }
 
-    /** The active Admins and SBO Officers of every listed organization, names and positions only. */
     private function leadership(array $organizationIds): Collection
     {
         if ($organizationIds === []) {
