@@ -44,6 +44,7 @@ import {
 import {
   cancelOrder,
   exportOrders,
+  getOrder,
   getOrderAnalyticsUsers,
   getOrderAuditLogs,
   getOrders,
@@ -812,19 +813,13 @@ export default function MerchandisePage({ initialTab }) {
       showFeedback("error", `ORD-${recordId} was not found${isPersonalShoppingView ? " in your orders" : ""}.`);
       setRecordId(null);
     };
-    if (isPersonalShoppingView) {
-      notFound();
-      return undefined;
-    }
-    // There is no single-order endpoint, so a deep link to an order outside the loaded page looks it
-    // up by id through the queue search, oldest first so the exact id ranks ahead of partial matches.
+    // A deep link to an order outside the loaded page reads that order by id. The server answers 404
+    // for an order this person cannot see, so a buyer's link to someone else's order is not found too.
     let cancelled = false;
-    getOrders({ page: 1, ...EMPTY_ORDER_FILTERS, search: recordId, sort: "oldest" })
+    getOrder(recordId)
       .then((response) => {
         if (cancelled) return;
-        const rows = Array.isArray(response.data?.data) ? response.data.data : [];
-        const hit = rows.find((order) => String(order.id) === recordId);
-        if (hit) setOrderDetails(hit);
+        if (response.data?.id) setOrderDetails(response.data);
         else notFound();
       })
       .catch(() => {

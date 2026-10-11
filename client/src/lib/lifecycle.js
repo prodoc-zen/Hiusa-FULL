@@ -36,13 +36,15 @@ function approvalsHref(role) {
   return APPROVAL_ROUTES[role] ?? null;
 }
 
-function buildSteps(defs, stage, { blocked = false, skipped = [], notes = {}, actors = {}, states = {} } = {}) {
+// `stopped` is the note for a record that ended without finishing (cancelled, withdrawn, archived): the
+// step it never reached reads Stopped, so a run of Skipped steps cannot look like a completed flow.
+function buildSteps(defs, stage, { blocked = false, stopped = null, skipped = [], notes = {}, actors = {}, states = {} } = {}) {
   return defs.map((def, index) => {
     let state = 'upcoming';
     if (skipped.includes(def.key)) state = 'skipped';
     else if (index < stage) state = 'done';
-    else if (index === stage) state = blocked ? 'blocked' : 'current';
-    return { key: def.key, label: def.label, state: states[def.key] ?? state, actor: actors[def.key] ?? def.actor, note: notes[def.key] };
+    else if (index === stage) state = stopped ? 'stopped' : blocked ? 'blocked' : 'current';
+    return { key: def.key, label: def.label, state: states[def.key] ?? state, actor: actors[def.key] ?? def.actor, note: notes[def.key] ?? (state === 'stopped' ? stopped : undefined) };
   });
 }
 
@@ -241,8 +243,8 @@ export function eventLifecycle(event, viewerRole) {
   if (!EVENT_STATUSES.includes(e.status)) return unknown(EVENT_STAGES, e.status, href);
 
   if (e.status === 'cancelled') {
-    const skipped = EVENT_STAGES.slice(1).map((stage) => stage.key);
-    return finish(buildSteps(EVENT_STAGES, 1, { skipped }), terminal('blocked', 'Cancelled', 'This event was cancelled. Nothing more to do.'), null, href);
+    const skipped = ['requirements', ...EVENT_STAGES.slice(3).map((stage) => stage.key)];
+    return finish(buildSteps(EVENT_STAGES, 2, { stopped: 'Cancelled', skipped }), terminal('blocked', 'Cancelled', 'This event was cancelled. Nothing more to do.'), null, href);
   }
 
   const approval = e.approval_status ?? null;
@@ -519,7 +521,7 @@ export function orderLifecycle(order, viewerRole) {
     case 'claimed':
       return finish(buildSteps(ORDER_STAGES, ORDER_STAGES.length), terminal('done', o.claimed_at ? `Collected on ${manilaDate(o.claimed_at)}` : 'Collected', 'The items were handed over.'), null, href);
     case 'cancelled':
-      return finish(buildSteps(ORDER_STAGES, 1, { skipped: ['proof', 'paid', 'claimed'] }), terminal('blocked', 'Cancelled', o.review_remarks ? `Cancelled: ${o.review_remarks}` : 'This order was cancelled.'), null, href);
+      return finish(buildSteps(ORDER_STAGES, 1, { stopped: 'Cancelled', skipped: ['paid', 'claimed'] }), terminal('blocked', 'Cancelled', o.review_remarks ? `Cancelled: ${o.review_remarks}` : 'This order was cancelled.'), null, href);
     default:
       return unknown(ORDER_STAGES, o.status, href);
   }
@@ -584,7 +586,7 @@ export function organizationRegistrationLifecycle(organization, viewerRole) {
       return finish(buildSteps(REGISTRATION_STAGES, REGISTRATION_STAGES.length), terminal('done', 'Administrator can sign in', 'The organization is set up and active.'), null, href);
     }
     case 'archived':
-      return finish(buildSteps(REGISTRATION_STAGES, 2, { skipped: ['administrator', 'first_use'] }), terminal('blocked', 'Archived: read only', 'The SAO can restore it from the organization page.'), null, href);
+      return finish(buildSteps(REGISTRATION_STAGES, 2, { stopped: 'Archived', skipped: ['first_use'] }), terminal('blocked', 'Archived: read only', 'The SAO can restore it from the organization page.'), null, href);
     default:
       return unknown(REGISTRATION_STAGES, o.lifecycle_status, href);
   }
@@ -789,7 +791,7 @@ export function venueBookingLifecycle(booking, viewerRole) {
         to: '/dashboard/venues',
       }, { title: 'Rejected by the SAO' }), 'ADMIN', href);
     case 'withdrawn':
-      return finish(buildSteps(VENUE_STAGES, 1, { skipped: ['review', 'approved'] }), terminal('blocked', 'Withdrawn', 'The organization withdrew this booking request.'), null, href);
+      return finish(buildSteps(VENUE_STAGES, 1, { stopped: 'Withdrawn', skipped: ['approved'] }), terminal('blocked', 'Withdrawn', 'The organization withdrew this booking request.'), null, href);
     default:
       return unknown(VENUE_STAGES, b.status, href);
   }

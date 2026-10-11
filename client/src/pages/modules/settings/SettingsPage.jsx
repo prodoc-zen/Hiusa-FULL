@@ -1,7 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Building2, CheckCircle2, Eye, EyeOff, IdCard, KeyRound, LockKeyhole, Mail, Phone, Save, ShieldCheck, UserRound } from 'lucide-react';
 import FeedbackToast from '../../../components/FeedbackToast';
 import NotificationPreferences from '../../../components/profile/NotificationPreferences';
@@ -27,7 +26,6 @@ function roleLabel(role) {
 }
 
 export default function SettingsPage() {
-  const navigate = useNavigate();
   const [currentUser, setCurrentUser] = useState(getStoredUser);
   const [passwordVisibility, setPasswordVisibility] = useState({ current: false, next: false, confirmation: false });
   const [feedback, setFeedback] = useState({ open: false, type: 'success', message: '' });
@@ -146,14 +144,13 @@ export default function SettingsPage() {
     setPwError(null);
 
     try {
-      await updatePassword(pwForm);
+      const response = await updatePassword(pwForm);
+      const updatedUser = { ...currentUser, ...response?.data?.user, must_change_password: false };
+
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      setCurrentUser(updatedUser);
       setPwForm({ current_password: '', password: '', password_confirmation: '' });
-      showFeedback('success', 'Password updated. Please log in again.');
-      window.setTimeout(() => {
-        localStorage.removeItem('auth_token');
-        localStorage.removeItem('user');
-        navigate('/login', { replace: true });
-      }, 1200);
+      showFeedback('success', 'Password updated. Your other devices were signed out.');
     } catch (error) {
       const message = getApiErrorMessage(error, 'Failed to update password.');
       setPwError(message);
@@ -316,7 +313,7 @@ export default function SettingsPage() {
               </div>
 
               <div className="flex flex-col gap-3 border-t border-[#DDE7EF] bg-[#F8FBFD] px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <p className="flex items-center gap-2 text-[11px] font-medium text-[#64748B]"><ShieldCheck size={15} /> Updating your password signs you out on every device.</p>
+                <p className="flex items-center gap-2 text-[11px] font-medium text-[#64748B]"><ShieldCheck size={15} /> Updating your password signs your other devices out. This one stays signed in.</p>
                 <button type="submit" disabled={pwSaving} className="inline-flex h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-5 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:opacity-50">
                   <LockKeyhole size={15} /> {pwSaving ? 'Updating...' : 'Update password'}
                 </button>

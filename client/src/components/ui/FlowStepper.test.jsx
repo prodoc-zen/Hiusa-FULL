@@ -11,6 +11,18 @@ const STEPS = [
 ];
 
 describe('FlowStepper full variant', () => {
+  it('marks a stopped step with the Stopped state word and its note', () => {
+    const steps = [
+      { key: 'a', label: 'Reserved', state: 'done' },
+      { key: 'b', label: 'Payment check', state: 'stopped', note: 'Cancelled' },
+      { key: 'c', label: 'Claimed', state: 'skipped' },
+    ];
+    render(<FlowStepper steps={steps} ariaLabel="Order progress" />);
+    const item = within(screen.getByRole('list', { name: 'Order progress' })).getAllByRole('listitem')[1];
+    expect(within(item).getByText(/^Stopped:/)).toHaveClass('sr-only');
+    expect(within(item).getByText('Cancelled')).toBeInTheDocument();
+  });
+
   it('renders an ordered list with the aria label and one item per step, in order', () => {
     render(<FlowStepper steps={STEPS} ariaLabel="Event progress" />);
     const list = screen.getByRole('list', { name: 'Event progress' });
@@ -90,6 +102,18 @@ describe('FlowStepper compact variant', () => {
     render(<FlowStepper steps={steps} variant="compact" />);
     expect(screen.getByText('Step 2 of 2: Review')).toBeInTheDocument();
     expect(screen.getByText(/^Blocked:/)).toHaveClass('sr-only');
+  });
+
+  it('reports a stopped record as stopped, never Complete', () => {
+    const steps = [
+      { key: 'a', label: 'Reserved', state: 'done' },
+      { key: 'b', label: 'Payment check', state: 'stopped', note: 'Cancelled' },
+      { key: 'c', label: 'Claimed', state: 'skipped' },
+    ];
+    render(<FlowStepper steps={steps} variant="compact" />);
+    expect(screen.getByText('Stopped at step 2 of 2: Payment check')).toBeInTheDocument();
+    expect(screen.getByText(/^Stopped:/)).toHaveClass('sr-only');
+    expect(screen.queryByText(/Complete/)).not.toBeInTheDocument();
   });
 
   it('says Complete when every step is done', () => {
