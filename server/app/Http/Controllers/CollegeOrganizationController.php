@@ -154,11 +154,11 @@ class CollegeOrganizationController extends Controller
         return response()->json($this->present($college, $organization->id), 201);
     }
 
-    public function update(Request $request, Organization $organization)
+    public function update(Request $request, string $organization)
     {
         $user = $request->user();
         $college = $this->college($user);
-        abort_unless($organization->organization_type === 'STUDENT_ORGANIZATION' && (int) $organization->college_id === $college->id, 404);
+        $organization = $this->registrationOf($college, $organization);
         if ($organization->lifecycle_status !== 'returned') {
             return response()->json(['message' => 'Only a returned registration can be edited.'], 409);
         }
@@ -181,7 +181,7 @@ class CollegeOrganizationController extends Controller
         try {
             $conflict = DB::transaction(function () use ($request, $user, $organization, $changes, $data, &$stored, &$replaced) {
                 $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
-                if ($locked->lifecycle_status !== 'returned') {
+                if (! $locked || $locked->lifecycle_status !== 'returned') {
                     return true;
                 }
                 foreach ($data['files'] ?? [] as $typeId => $file) {
@@ -217,11 +217,11 @@ class CollegeOrganizationController extends Controller
         return response()->json($this->present($college, $organization->id));
     }
 
-    public function destroy(Request $request, Organization $organization)
+    public function destroy(Request $request, string $organization)
     {
         $user = $request->user();
         $college = $this->college($user);
-        abort_unless($organization->organization_type === 'STUDENT_ORGANIZATION' && (int) $organization->college_id === $college->id, 404);
+        $organization = $this->registrationOf($college, $organization);
 
         $paths = [];
         $result = DB::transaction(function () use ($request, $organization, $college, &$paths) {
@@ -253,6 +253,17 @@ class CollegeOrganizationController extends Controller
         }
 
         return response()->json(['message' => 'Registration withdrawn.']);
+    }
+
+    /** A wrong college and a missing id answer alike, so a Department Head cannot probe other colleges. */
+    private function registrationOf(College $college, string $id): Organization
+    {
+        $organization = ctype_digit($id)
+            ? Organization::where('organization_type', 'STUDENT_ORGANIZATION')->where('college_id', $college->id)->find($id)
+            : null;
+        abort_unless($organization, 404, 'Organization not found.');
+
+        return $organization;
     }
 
     private function college(User $user): College
