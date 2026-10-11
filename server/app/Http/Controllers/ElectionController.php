@@ -22,6 +22,8 @@ use Illuminate\Validation\ValidationException;
 
 class ElectionController extends Controller
 {
+    private const ELECTION_GONE = 'election_gone';
+
     private function storeElectionImage(Request $request): string
     {
         return Storage::url($request->file('image')->store('elections', 'public'));
@@ -484,29 +486,44 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($election->status === 'closed') {
-            return response()->json(['message' => 'Closed elections cannot be deleted.'], 409);
-        }
-
-        if ($election->status === 'active') {
-            return response()->json(['message' => 'An open election cannot be deleted. Close it instead to keep the results.'], 409);
-        }
-
-        if ($election->votes()->exists()) {
-            return response()->json(['message' => 'This election already has cast votes and cannot be deleted.'], 409);
-        }
-
-        $oldValues = $this->auditableElectionValues($election);
+        // The checks run on the locked row. A vote, candidate or position takes a shared lock on its election through
+        // the foreign key and opening or closing updates the row, so each either lands before the checks and blocks
+        // the delete, or waits for it; the cascade can no longer take a vote cast in between.
         $electionId = $election->id;
         $imageUrl = $election->image_url;
         $letterPath = $election->informative_letter_path;
+        $oldValues = null;
+        $blocked = DB::transaction(function () use ($electionId, &$oldValues) {
+            $locked = Election::whereKey($electionId)->lockForUpdate()->first();
+            if (! $locked) {
+                return self::ELECTION_GONE;
+            }
+            if ($locked->status === 'closed') {
+                return 'Closed elections cannot be deleted.';
+            }
+            if ($locked->status === 'active') {
+                return 'An open election cannot be deleted. Close it instead to keep the results.';
+            }
+            if ($locked->votes()->exists()) {
+                return 'This election already has cast votes and cannot be deleted.';
+            }
 
-        ApprovalRequest::where('organization_id', $election->organization_id)
-            ->where('entity_type', 'election')
-            ->where('entity_id', $election->id)
-            ->delete();
+            $oldValues = $this->auditableElectionValues($locked);
+            ApprovalRequest::where('organization_id', $locked->organization_id)
+                ->where('entity_type', 'election')
+                ->where('entity_id', $locked->id)
+                ->delete();
+            $locked->delete();
 
-        $election->delete();
+            return null;
+        });
+        if ($blocked === self::ELECTION_GONE) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+        if ($blocked) {
+            return response()->json(['message' => $blocked], 409);
+        }
+
         $this->deleteElectionImage($imageUrl);
         if ($letterPath) {
             Storage::disk('local')->delete($letterPath);

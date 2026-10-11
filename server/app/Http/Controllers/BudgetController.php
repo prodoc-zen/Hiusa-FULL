@@ -16,6 +16,8 @@ use Illuminate\Validation\Rule;
 
 class BudgetController extends Controller
 {
+    private const BUDGET_GONE = 'budget_gone';
+
     public function __construct(
         private readonly HiusaAiService $aiService,
         private readonly GroqResponsesService $groq,
@@ -163,27 +165,36 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
-        if ($budget->submission_status === 'approved') {
-            return response()->json([
-                'message' => 'Cannot delete an approved budget. It stays on record as the allocation that was approved.',
-            ], 409);
-        }
+        // The checks run on the locked row. A ledger entry takes a shared lock on its budget through the foreign
+        // key and an approval updates the row, so each either lands before the checks and blocks the delete, or waits for it.
+        $blocked = DB::transaction(function () use ($budget, $request) {
+            $locked = Budget::whereKey($budget->id)->lockForUpdate()->first();
+            if (! $locked) {
+                return self::BUDGET_GONE;
+            }
+            if ($locked->submission_status === 'approved') {
+                return 'Cannot delete an approved budget. It stays on record as the allocation that was approved.';
+            }
+            if ($locked->transactions()->exists()) {
+                return 'Cannot delete a budget that has existing transactions. Remove all transactions first.';
+            }
 
-        if ($budget->transactions()->exists()) {
-            return response()->json([
-                'message' => 'Cannot delete a budget that has existing transactions. Remove all transactions first.',
-            ], 409);
-        }
-
-        DB::transaction(function () use ($budget, $request) {
-            $oldValues = $this->auditableValues($budget);
-            ApprovalRequest::where('organization_id', $budget->organization_id)
+            $oldValues = $this->auditableValues($locked);
+            ApprovalRequest::where('organization_id', $locked->organization_id)
                 ->where('entity_type', 'budget')
-                ->where('entity_id', $budget->id)
+                ->where('entity_id', $locked->id)
                 ->delete();
-            $budget->delete();
-            $this->recordBudgetAudit($request, 'deleted', $budget, $oldValues, null);
+            $locked->delete();
+            $this->recordBudgetAudit($request, 'deleted', $locked, $oldValues, null);
+
+            return null;
         });
+        if ($blocked === self::BUDGET_GONE) {
+            return response()->json(['message' => 'Budget not found.'], 404);
+        }
+        if ($blocked) {
+            return response()->json(['message' => $blocked], 409);
+        }
 
         return response()->json(['message' => 'Budget deleted successfully.']);
     }
