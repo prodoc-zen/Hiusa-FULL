@@ -159,10 +159,10 @@ class VenueCalendarTest extends TestCase
         $this->assertCount(30, $second);
         $this->assertCount(130, array_unique($returned));
         $this->assertEqualsCanonicalizing($ids, $returned);
-        $listing = array_values(array_filter($queries, fn ($sql) => str_contains($sql, 'from "venue_bookings"') && str_contains($sql, 'limit')));
+        $listing = array_values(array_filter(array_map(fn ($sql) => str_replace(['"', '`'], '', $sql), $queries), fn ($sql) => str_contains($sql, 'from venue_bookings') && str_contains($sql, 'limit')));
         $this->assertNotEmpty($listing);
         foreach ($listing as $sql) {
-            $this->assertMatchesRegularExpression('/order by "start_time" desc, "id" desc/', $sql);
+            $this->assertMatchesRegularExpression('/order by start_time desc, id desc/', $sql);
         }
     }
 }

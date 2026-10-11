@@ -194,7 +194,7 @@ class MerchandiseController extends Controller
         $blockedStatuses = ['pending', 'paid'];
         if ($item->orders()->whereIn('status', $blockedStatuses)->exists()) {
             return response()->json([
-                'message' => 'Cannot delete an item with pending or paid orders.',
+                'message' => 'Cannot deactivate an item with pending or paid orders.',
             ], 409);
         }
 

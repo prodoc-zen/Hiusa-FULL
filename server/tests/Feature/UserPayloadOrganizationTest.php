@@ -41,6 +41,34 @@ class UserPayloadOrganizationTest extends TestCase
         $this->assertSame(self::VISIBLE, $keys);
     }
 
+    public function test_an_officer_and_a_department_head_receive_the_same_whitelisted_organization_columns(): void
+    {
+        $college = College::create(['name' => 'College of Computer Studies', 'code' => 'CCS']);
+        $director = User::factory()->superAdmin()->create();
+        $private = [
+            'submitted_by' => $director->school_id, 'reviewed_by' => $director->school_id, 'archived_by' => $director->school_id,
+            'review_remarks' => 'internal note', 'gcash_qr_url' => 'https://example.test/qr.png',
+        ];
+        $organization = Organization::factory()->create([
+            'college' => $college->name, 'college_id' => $college->id, 'lifecycle_status' => 'active', 'is_active' => true, ...$private,
+        ]);
+        $home = Organization::factory()->create([
+            'name' => $college->name, 'college' => $college->name, 'college_id' => $college->id, 'organization_type' => 'COLLEGE', ...$private,
+        ]);
+        $callers = [
+            User::factory()->officer()->create(['organization_id' => $organization->id, 'account_status' => 'active']),
+            User::factory()->departmentHead()->create(['organization_id' => $home->id, 'account_status' => 'active']),
+        ];
+
+        foreach ($callers as $caller) {
+            Sanctum::actingAs($caller);
+            $json = $this->getJson('/api/user')->assertOk()->json();
+
+            $this->assertSame(self::VISIBLE, $this->sortedKeys($json['organization']), $caller->role.' received organization columns beyond the whitelist');
+            $this->assertSame([], $this->leakedKeys($json), $caller->role.' received reviewer fields from /api/user');
+        }
+    }
+
     public function test_the_member_directory_carries_no_reviewer_field_on_any_nested_organization(): void
     {
         $head = User::factory()->departmentHead()->create();

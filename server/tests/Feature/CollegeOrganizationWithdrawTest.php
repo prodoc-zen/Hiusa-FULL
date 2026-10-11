@@ -168,6 +168,25 @@ class CollegeOrganizationWithdrawTest extends TestCase
         $this->assertDatabaseMissing('organizations', ['id' => $id]);
     }
 
+    public function test_every_foreign_key_that_points_at_organizations_is_covered_by_the_record_scan(): void
+    {
+        $scanned = ['organization_id', 'parent_organization_id', 'source_organization_id'];
+        $own = ['audit_logs', 'organization_compliance_submissions'];
+        $uncovered = [];
+        foreach (Schema::getTables() as $table) {
+            foreach (Schema::getForeignKeys($table['name']) as $foreignKey) {
+                if ($foreignKey['foreign_table'] !== 'organizations' || in_array($table['name'], $own, true)) {
+                    continue;
+                }
+                foreach (array_diff($foreignKey['columns'], $scanned) as $column) {
+                    $uncovered[] = "{$table['name']}.{$column}";
+                }
+            }
+        }
+
+        $this->assertSame([], $uncovered, 'a new foreign key to organizations is not checked before a registration is withdrawn');
+    }
+
     public function test_only_a_department_head_can_use_the_withdraw_route(): void
     {
         $id = $this->register();

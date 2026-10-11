@@ -37,7 +37,7 @@ class OrganizationLifecycleRaceTest extends TestCase
         $id = $this->organization->id;
         $fired = false;
         DB::listen(function ($query) use (&$fired, $id) {
-            if (! $fired && str_contains($query->sql, 'from "organizations"') && str_contains($query->sql, 'limit 1')) {
+            if (! $fired && str_contains(str_replace(['"', '`'], '', $query->sql), 'from organizations') && str_contains($query->sql, 'limit 1')) {
                 $fired = true;
                 DB::table('organizations')->where('id', $id)->delete();
             }
@@ -62,7 +62,7 @@ class OrganizationLifecycleRaceTest extends TestCase
         $id = $this->organization->id;
         $fired = false;
         DB::listen(function ($query) use (&$fired, $id) {
-            if (! $fired && str_starts_with($query->sql, 'select * from "organizations" where "organization_type"') && str_contains($query->sql, 'limit 1')) {
+            if (! $fired && str_starts_with(str_replace(['"', '`'], '', $query->sql), 'select * from organizations where organization_type') && str_contains($query->sql, 'limit 1')) {
                 $fired = true;
                 DB::table('organizations')->where('id', $id)->delete();
             }
