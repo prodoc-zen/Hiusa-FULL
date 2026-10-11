@@ -31,6 +31,7 @@ import {
   updateTransaction,
   deleteTransaction,
   deleteBudget,
+  deleteForecast,
   getPersonalReceipts,
   getInvoices,
   getForecasts,
@@ -85,6 +86,12 @@ const allocationStatusTone = {
   within_limit: 'bg-emerald-50 text-emerald-700',
   reduce_allocation: 'bg-amber-50 text-amber-700',
   no_funds: 'bg-red-50 text-red-700',
+};
+
+const deleteLabels = {
+  budget: { title: 'Delete this budget?', confirm: 'Delete budget', done: 'Budget deleted.', failed: 'This budget could not be deleted.' },
+  forecast: { title: 'Delete this forecast?', confirm: 'Delete forecast', done: 'Forecast deleted.', failed: 'This forecast could not be deleted.' },
+  transaction: { title: 'Delete this transaction?', confirm: 'Delete transaction', done: 'Transaction deleted.', failed: 'This transaction could not be deleted.' },
 };
 
 function getForecastReliability(forecast) {
@@ -335,6 +342,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const canViewForecasts = canReadFinance;
   const canViewBudgets = canReadFinance;
   const canGenerateForecast = currentUserRole === 'ADMIN';
+  const canDeleteForecast = currentUserRole === 'ADMIN';
   const canViewPersonalReceipts = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canViewInvoices = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(currentUserRole);
   const canProposeBudget = currentUserRole === 'ADMIN';
@@ -409,12 +417,13 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     setDeleteError(null);
     try {
       if (kind === 'budget') await deleteBudget(record.id);
+      else if (kind === 'forecast') await deleteForecast(record.id);
       else await deleteTransaction(record.id);
-      showFeedback('success', kind === 'budget' ? 'Budget deleted.' : 'Transaction deleted.');
+      showFeedback('success', deleteLabels[kind].done);
       setDeleteTarget(null);
       load(kind === 'transaction' && transactions.length === 1 && txMeta.current_page > 1 ? txMeta.current_page - 1 : txMeta.current_page);
     } catch (err) {
-      setDeleteError(getApiErrorMessage(err, kind === 'budget' ? 'This budget could not be deleted.' : 'This transaction could not be deleted.'));
+      setDeleteError(getApiErrorMessage(err, deleteLabels[kind].failed));
     } finally {
       setDeleteBusy(false);
     }
@@ -1322,7 +1331,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         <Sparkles size={14} />
                         {budgetAdviceGenerating === b.id ? 'Analyzing...' : 'AI Advice'}
                       </button>}
-                    {canProposeBudget && <button type="button" onClick={() => askDelete('budget', b)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete budget</button>}
+                    {canProposeBudget && b.submission_status !== 'approved' && <button type="button" onClick={() => askDelete('budget', b)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete budget</button>}
                   </div>
                 </div>
                 );
@@ -1412,6 +1421,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                       )}
                       {f.confidence_note && <p className="mt-3 text-xs leading-5 text-slate-500">{f.confidence_note}</p>}
                       {f.model_details?.explanation_status === 'unavailable' && <p className="mt-2 text-[11px] font-semibold text-amber-700">AI explanation was unavailable. The OLS forecast and deterministic risk calculations completed normally; generate again to retry the explanation.</p>}
+                      {canDeleteForecast && <div className="mt-3 border-t border-[#DDE7EF] pt-3"><button type="button" onClick={() => askDelete('forecast', f)} className="flex min-h-11 items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-semibold text-red-700 transition hover:bg-red-100 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]"><Trash2 size={14} />Delete forecast</button></div>}
                     </div>
                   );
                 })}
@@ -1960,10 +1970,10 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
       <ConfirmModal
         open={Boolean(deleteTarget)}
-        title={deleteTarget?.kind === 'budget' ? 'Delete this budget?' : 'Delete this transaction?'}
-        message={deleteTarget?.kind === 'budget' ? 'The budget is removed for good. This cannot be undone. A budget that already has transactions cannot be deleted.' : 'The entry is removed from the ledger and its budget balance is adjusted. This cannot be undone. Entries created by collections, cash advances, invoices or orders must be changed where they came from.'}
-        recordName={deleteTarget?.kind === 'budget' ? deleteTarget.record.title : (deleteTarget?.record.description || `Transaction ${deleteTarget?.record.id}`)}
-        confirmText={deleteTarget?.kind === 'budget' ? 'Delete budget' : 'Delete transaction'}
+        title={deleteTarget ? deleteLabels[deleteTarget.kind].title : ''}
+        message={deleteTarget?.kind === 'forecast' ? 'The forecast is removed for good. Generate a new one from the current ledger whenever you need it. This cannot be undone.' : deleteTarget?.kind === 'budget' ? 'The budget is removed for good. This cannot be undone. An approved budget or one that already has transactions cannot be deleted.' : 'The entry is removed from the ledger and its budget balance is adjusted. This cannot be undone. Entries created by collections, cash advances, invoices or orders must be changed where they came from.'}
+        recordName={deleteTarget?.kind === 'forecast' ? `Forecast for ${deleteTarget.record.forecast_period}` : deleteTarget?.kind === 'budget' ? deleteTarget.record.title : (deleteTarget?.record.description || `Transaction ${deleteTarget?.record.id}`)}
+        confirmText={deleteTarget ? deleteLabels[deleteTarget.kind].confirm : 'Delete'}
         variant="danger"
         busy={deleteBusy}
         error={deleteError}

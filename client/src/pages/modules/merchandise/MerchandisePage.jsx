@@ -24,6 +24,7 @@ import {
   Package,
   Pencil,
   Plus,
+  PowerOff,
   Search,
   Settings2,
   SlidersHorizontal,
@@ -1279,15 +1280,15 @@ export default function MerchandisePage({ initialTab }) {
     });
   }
 
-  function confirmDeleteProduct(item) {
+  function confirmDeactivateProduct(item) {
     openConfirm({
-      title: "Delete Product",
-      message: `Delete ${item.name}? This cannot be undone.`,
-      confirmText: "Delete",
+      title: "Deactivate Product",
+      message: `Deactivate ${item.name}? Students will not be able to order it. It stays in the catalog and past orders keep their record. An item with pending or paid orders cannot be deactivated.`,
+      confirmText: "Deactivate",
       action: async () => {
         await deleteItem(item.id);
-        setItems((prev) => prev.filter((row) => row.id !== item.id));
-        setTransactionMessage(`${item.name} was deleted.`);
+        setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, is_active: false } : row)));
+        setTransactionMessage(`${item.name} was deactivated.`);
       },
     });
   }
@@ -2960,14 +2961,15 @@ export default function MerchandisePage({ initialTab }) {
                         <Pencil size={12} />
                         Edit
                       </button>
-                      <button
+                      {item.is_active && <button
                         type="button"
-                        onClick={() => confirmDeleteProduct(item)}
+                        onClick={() => confirmDeactivateProduct(item)}
                         className="grid h-7 w-7 place-items-center rounded-md border border-red-100 text-red-500 transition hover:bg-red-50"
-                        aria-label={`Delete ${formatDisplayText(item.name)}`}
+                        aria-label={`Deactivate ${formatDisplayText(item.name)}`}
+                        title="Deactivate"
                       >
-                        <Trash2 size={13} />
-                      </button>
+                        <PowerOff size={13} />
+                      </button>}
                     </div>
                   </div>}
                 </article>
