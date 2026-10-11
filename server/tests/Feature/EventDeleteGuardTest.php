@@ -139,19 +139,23 @@ class EventDeleteGuardTest extends TestCase
         foreach ([$approved, $spent] as $event) {
             $this->deleteJson("/api/events/{$event->id}")
                 ->assertConflict()
-                ->assertJsonPath('message', 'This event cannot be deleted because it has an approved budget or recorded transactions. Cancel it instead to keep the record.');
+                ->assertJsonPath('message', 'This event cannot be deleted because it has a budget. Cancel it instead to keep the record.');
             $this->assertModelExists($event);
         }
     }
 
-    public function test_a_proposed_budget_still_waiting_for_review_does_not_block_deletion(): void
+    public function test_a_proposed_budget_still_waiting_for_review_blocks_deletion(): void
     {
         $event = $this->event();
-        $this->budget($event, 'pending_department_head');
+        $budget = $this->budget($event, 'pending_department_head');
 
-        $this->deleteJson("/api/events/{$event->id}")->assertOk();
+        $this->deleteJson("/api/events/{$event->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', 'This event cannot be deleted because it has a budget. Cancel it instead to keep the record.');
 
-        $this->assertModelMissing($event);
+        $this->assertModelExists($event);
+        $this->assertModelExists($budget);
+        $this->assertSame($event->id, $budget->fresh()->event_id);
     }
 
     public function test_a_blocked_cancelled_event_is_told_it_is_already_cancelled(): void
@@ -161,7 +165,7 @@ class EventDeleteGuardTest extends TestCase
 
         $this->deleteJson("/api/events/{$event->id}")
             ->assertConflict()
-            ->assertJsonPath('message', 'This event cannot be deleted because it has an approved budget or recorded transactions. It is already cancelled and stays on record.');
+            ->assertJsonPath('message', 'This event cannot be deleted because it has a budget. It is already cancelled and stays on record.');
     }
 
     public function test_the_admin_event_list_and_detail_say_why_an_event_cannot_be_deleted(): void
