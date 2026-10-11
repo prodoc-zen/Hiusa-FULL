@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import process from 'node:process';
 import { expect, test } from '@playwright/test';
-import { SHOTS, SAO, HEAD_CCS, HEAD_CBE, PSITS_ADMIN, STUDENT, apiUrl, bearer, apiLogin, collect, liveEnabled, newSink, pdfFile, shot, uiLogin, clickAndCaptureOpenedPdf, openRowMenu } from './support/live.js';
+import { SHOTS, PSITS_ORGANIZATION_ID, SAO, HEAD_CCS, HEAD_CBE, PSITS_ADMIN, STUDENT, apiUrl, bearer, apiLogin, collect, liveEnabled, newSink, pdfFile, shot, uiLogin, clickAndCaptureOpenedPdf, openRowMenu } from './support/live.js';
 
 // Drives the SAO / college / organization hierarchy end to end in a real browser:
 // semester setup, Department Head registration, SAO review (return, resubmit,
@@ -18,6 +18,7 @@ const ORG_NAME = `Robotics Guild E2E${SUFFIX}`;
 const ORG_ACRONYM = `ROBOE2E${SUFFIX}`;
 const ADMIN_ID = Number(process.env.HIUSA_E2E_ADMIN_ID || 910091);
 const ADMIN_PASSWORD = 'Demo@12345';
+const ADMIN_NEW_PASSWORD = 'Robo@Changed2026';
 const FIRST_NAME = 'Robo';
 const LAST_NAME = `Admin${SUFFIX}`;
 
@@ -217,24 +218,28 @@ test('Step 6: SAO approves and provisions an Administrator', async ({ browser, r
   await expect(drawer).toContainText('charter-signed.pdf');
   await drawer.getByRole('button', { name: 'Approve' }).click();
   await expect(page.getByText(/approved and activated/)).toBeVisible({ timeout: 15000 });
-  await page.getByRole('tab', { name: /^Active/ }).click();
-  await expect(page.locator('article').filter({ hasText: ORG_NAME })).toContainText('Active', { timeout: 15000 });
-
-  await goto(page, '/dashboard/super-admin/admins');
-  await page.getByRole('button', { name: 'New Admin User' }).click();
+  // Approval leaves the drawer open on the next step: the SAO provisions the organization's administrator.
+  await expect(drawer).toContainText('Provision an administrator');
+  await drawer.getByRole('link', { name: 'Provision administrator' }).click();
+  await expect(page).toHaveURL(/\/dashboard\/super-admin\/admins\?organization=\d+&create=1$/);
   const form = page.getByRole('dialog', { name: /Create administrator/ });
   await form.getByLabel(/School ID/).fill(String(ADMIN_ID));
   await form.getByLabel(/First name/).fill(FIRST_NAME);
   await form.getByLabel(/Last name/).fill(LAST_NAME);
   await form.getByLabel(/Email address/).fill(`robo.admin${ADMIN_ID}@hiusa.local`);
   await form.getByLabel(/Position title/).fill('President');
-  await form.getByLabel(/Assigned organization/).selectOption({ label: `${ORG_ACRONYM}: ${ORG_NAME}` });
+  // Provisioning from the review drawer locks the organization to the one just approved.
+  await expect(form.getByLabel(/Assigned organization/)).toBeDisabled();
+  await expect(form.getByLabel(/Assigned organization/).locator('option:checked')).toHaveText(`${ORG_ACRONYM}: ${ORG_NAME}`);
   await form.getByLabel(/^Password \*/).fill(ADMIN_PASSWORD);
   await form.getByLabel(/Confirm password/).fill(ADMIN_PASSWORD);
   await form.getByRole('button', { name: 'Create Admin User' }).click();
   await expect(form).toBeHidden({ timeout: 20000 });
   await expect(page.getByText(String(ADMIN_ID)).first()).toBeVisible({ timeout: 15000 });
   await page.screenshot({ path: shot('A6-admins.png'), fullPage: true });
+
+  await goto(page, '/dashboard/super-admin/organizations?status=active');
+  await expect(page.locator('article').filter({ hasText: ORG_NAME })).toContainText('Active', { timeout: 15000 });
   void request;
 });
 
@@ -243,7 +248,8 @@ test('Step 7: new Administrator logs in through the UI', async ({ browser }) => 
   const context = await browser.newContext();
   const page = await context.newPage();
   collect(page, 'NEW_ADMIN', sink);
-  await uiLogin(page, { schoolId: ADMIN_ID, password: ADMIN_PASSWORD });
+  // A provisioned account signs in with the password the SAO set, then must choose its own.
+  await uiLogin(page, { schoolId: ADMIN_ID, password: ADMIN_PASSWORD }, { newPassword: ADMIN_NEW_PASSWORD });
   await expect(page).toHaveURL(/\/dashboard\/admin/);
   await expect(page.getByRole('main')).toBeVisible();
   await expect(page.locator('body')).not.toContainText(/403|forbidden/i);
@@ -281,7 +287,7 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   collect(adminPage, 'NEW_ADMIN_ARCHIVED', sink);
   await adminPage.goto('/login');
   await adminPage.getByLabel(/School ID/i).fill(String(ADMIN_ID));
-  await adminPage.getByLabel(/^Password/i).fill(ADMIN_PASSWORD);
+  await adminPage.getByLabel(/^Password/i).fill(ADMIN_NEW_PASSWORD);
   await adminPage.getByRole('button', { name: /^Sign in/ }).click();
   const alert = adminPage.getByRole('alert').first();
   await expect(alert).toBeVisible({ timeout: 15000 });
@@ -296,7 +302,9 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   const headRow = head.page.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
   await expect(headRow).toContainText('Archived', { timeout: 15000 });
   await expect(headRow).toContainText('Read only');
-  await expect(headRow.getByRole('button')).toHaveCount(0);
+  // Read only: the one control left is the checklist view, nothing that edits, resubmits or restores.
+  await expect(headRow.getByRole('button')).toHaveText('View checklist');
+  await expect(headRow.getByRole('button', { name: /^(Edit|Resubmit|Archive|Restore|Delete)/ })).toHaveCount(0);
   await head.page.screenshot({ path: shot('A8-head-archived.png'), fullPage: true });
 
   // Restore
@@ -304,11 +312,11 @@ test('Step 8: archive, read-only views, login refusal, restore, overview', async
   await page.getByRole('dialog').getByRole('button', { name: 'Restore organization' }).click();
   await expect(page.getByText(/restored\./)).toBeVisible({ timeout: 15000 });
 
-  const again = await apiLogin(request, { schoolId: ADMIN_ID, password: ADMIN_PASSWORD });
+  const again = await apiLogin(request, { schoolId: ADMIN_ID, password: ADMIN_NEW_PASSWORD });
   expect(again.status, 'restored Admin can authenticate').toBe(200);
   const loginContext = await browser.newContext();
   const loginPage = await loginContext.newPage();
-  await uiLogin(loginPage, { schoolId: ADMIN_ID, password: ADMIN_PASSWORD });
+  await uiLogin(loginPage, { schoolId: ADMIN_ID, password: ADMIN_NEW_PASSWORD });
   await expect(loginPage).toHaveURL(/\/dashboard\/admin/);
   await loginContext.close();
 
@@ -356,7 +364,7 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
 
   await goto(page, '/dashboard/super-admin/compliance?tab=documents');
   const orgSelect = page.getByLabel('Organization', { exact: true });
-  await expect(orgSelect.locator('option', { hasText: ORG_ACRONYM })).toHaveCount(1, { timeout: 15000 });
+  await expect(orgSelect.locator('option', { hasText: ORG_ACRONYM })).toHaveCount(1, { timeout: 40000 });
   await orgSelect.selectOption({ value: await orgSelect.locator('option', { hasText: ORG_ACRONYM }).getAttribute('value') });
   const openButtons = page.getByRole('tabpanel').getByRole('button', { name: /^Open / });
   await expect(openButtons.first()).toBeVisible({ timeout: 15000 });
@@ -423,11 +431,11 @@ test('Step 11: Department Head scope', async ({ browser, request }) => {
   const headRows = headBody.data || headBody;
   console.log('HEAD CCS approvals rows', headRows.length, JSON.stringify([...new Set(headRows.map((row) => row.organization_id))]));
   expect(headRows.length).toBeGreaterThan(0);
-  expect(headRows.every((row) => [1, state.orgId].includes(row.organization_id))).toBe(true);
+  expect(headRows.every((row) => [PSITS_ORGANIZATION_ID, state.orgId].includes(row.organization_id))).toBe(true);
   const cbeAuthEarly = await apiLogin(request, HEAD_CBE);
   const cbeApprovals = await (await request.get(`${apiUrl}/approval-requests`, { headers: bearer(cbeAuthEarly.token), params: { per_page: 100 } })).json();
   console.log('HEAD CBE approvals rows', (cbeApprovals.data || cbeApprovals).length);
-  expect((cbeApprovals.data || cbeApprovals).filter((row) => row.organization_id === 1)).toHaveLength(0);
+  expect((cbeApprovals.data || cbeApprovals).filter((row) => row.organization_id === PSITS_ORGANIZATION_ID)).toHaveLength(0);
   const bodyText = await page.locator('main').innerText();
   expect(bodyText).not.toMatch(/JPIA-CBE|FES-CTE|NSC-CHS|EIG-COE/);
   await page.screenshot({ path: shot('A11-head-approvals.png'), fullPage: true });
@@ -471,6 +479,8 @@ test('Step 11: Department Head scope', async ({ browser, request }) => {
 });
 
 test('Step 12: security spot checks', async ({ request }) => {
+  // Sign-ins are throttled per address; apiLogin waits out a 429, which can outlast the 30s default.
+  test.setTimeout(90_000);
   const admin = await apiLogin(request, PSITS_ADMIN);
   const create = await request.post(`${apiUrl}/users`, {
     headers: bearer(admin.token),
@@ -495,14 +505,15 @@ test('Step 12: security spot checks', async ({ request }) => {
 });
 
 test('Step 12b: another college head cannot edit this college organization', async ({ request }) => {
+  test.setTimeout(90_000);
   const cbe = await apiLogin(request, HEAD_CBE);
   const sao = await apiLogin(request, SAO);
   const id = state.orgId || await lookupOrgId(request, sao.token);
   const update = await request.put(`${apiUrl}/college/organizations/${id}`, { headers: bearer(cbe.token), multipart: { name: 'Hijacked', acronym: 'HIJACK' } });
   console.log('CBE head PUT /college/organizations/{CCS org} ->', update.status());
   expect([403, 404]).toContain(update.status());
-  const psits = await request.put(`${apiUrl}/college/organizations/1`, { headers: bearer(cbe.token), multipart: { name: 'Hijacked', acronym: 'HIJACK' } });
-  console.log('CBE head PUT /college/organizations/1 ->', psits.status());
+  const psits = await request.put(`${apiUrl}/college/organizations/${PSITS_ORGANIZATION_ID}`, { headers: bearer(cbe.token), multipart: { name: 'Hijacked', acronym: 'HIJACK' } });
+  console.log('CBE head PUT /college/organizations/PSITS ->', psits.status());
   expect([403, 404]).toContain(psits.status());
 });
 

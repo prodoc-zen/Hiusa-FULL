@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { PSITS_ADMIN } from "./support/accounts.js";
+import { injectSession, openRowMenu, sessionFor } from "./support/live.js";
 
 const buyer = {
   school_id: 21000001,
@@ -43,21 +45,10 @@ const order = {
   claimed_at: null,
 };
 
-test("merchandise management exposes dependent filters, KPIs, detailed columns, and drill-downs", async ({
-  page,
-}) => {
-  await page.addInitScript(() => {
-    localStorage.setItem("auth_token", "test-token");
-    localStorage.setItem(
-      "user",
-      JSON.stringify({
-        school_id: 1,
-        role: "ADMIN",
-        first_name: "Admin",
-        last_name: "User",
-      }),
-    );
-  });
+// A real Admin session (the app checks the token with the API); only the order endpoints are answered
+// from the fixture so the KPIs, filters and drill-downs have known data.
+async function mockOrderIntelligence(page) {
+  await injectSession(page, await sessionFor(PSITS_ADMIN));
   await page.route("**/api/**", async (route) => {
     const url = route.request().url();
     if (url.includes("/orders/analytics/users"))
@@ -152,39 +143,58 @@ test("merchandise management exposes dependent filters, KPIs, detailed columns, 
           },
         ]),
       });
-    return route.fulfill({ contentType: "application/json", body: "[]" });
+    return route.fallback();
   });
+}
 
+test("merchandise management exposes dependent filters, KPIs, detailed columns, and drill-downs", async ({
+  page,
+}) => {
+  await mockOrderIntelligence(page);
   await page.goto("/dashboard/merchandise/manage-orders");
   await expect(
-    page.getByRole("heading", { name: "Merchandise Order Intelligence" }),
+    page.getByRole("heading", { name: "Orders", level: 1 }),
   ).toBeVisible();
-  await expect(page.getByText("37", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Filters/ }).click();
+  await expect(page.getByText(/37 of 45 users purchased/)).toBeVisible();
+  await page.getByRole("button", { name: "More filters" }).click();
   await page
     .getByLabel("Program or course")
     .selectOption("BS Information Technology");
   await page.getByLabel("Year level").selectOption("4th Year");
   await expect(page.getByLabel("Section")).toBeEnabled();
-  await expect(page.getByLabel("Section").locator("option")).toHaveText([
-    "All sections",
-    "4-A",
-  ]);
+  await expect(page.getByLabel("Section").locator("option")).toHaveCount(2);
   await expect(
-    page.getByRole("columnheader", { name: "Academic Profile" }),
+    page.getByRole("columnheader", { name: "Student / User" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("columnheader", { name: "Review Trail" }),
+    page.getByRole("columnheader", { name: "Fulfillment" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "Details" }).click();
+  await openRowMenu(page, page.getByRole("row").filter({ hasText: "HIUSA Shirt" }));
+  await page.getByRole("menuitem", { name: "Review order" }).click();
   await expect(
     page.getByRole("heading", { name: "Order activity history" }),
   ).toBeVisible();
   await expect(page.getByText("Payment approved admin bypass")).toBeVisible();
   await page.getByRole("button", { name: "Close order details" }).click();
-  await page.getByRole("button", { name: /Purchased/ }).click();
-  await expect(page.getByRole("heading", { name: "Purchased" })).toBeVisible();
+  await page.getByRole("button", { name: "View purchasers" }).click();
+  await expect(page.getByRole("heading", { name: "Purchased users" })).toBeVisible();
   await expect(
     page.getByRole("cell", { name: "MERCH-ORD-7", exact: true }),
   ).toBeVisible();
+});
+
+test("section filter lists section names exactly as they are stored", async ({
+  page,
+}) => {
+  await mockOrderIntelligence(page);
+  await page.goto("/dashboard/merchandise/manage-orders");
+  await page.getByRole("button", { name: "More filters" }).click();
+  await page
+    .getByLabel("Program or course")
+    .selectOption("BS Information Technology");
+  await page.getByLabel("Year level").selectOption("4th Year");
+  await expect(page.getByLabel("Section").locator("option")).toHaveText([
+    "All sections",
+    "4-A",
+  ]);
 });

@@ -1,4 +1,8 @@
 import { test, expect } from '@playwright/test';
+import { PSITS_ADMIN } from './support/accounts.js';
+import { injectSession, liveEnabled, openRowMenu, sessionFor } from './support/live.js';
+
+test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
 const account = {
   student: { school_id: 20260001, name: 'Alex Rivera', email: 'alex@example.test', department: 'Computing', program: 'BSIT', year_level: '3rd Year', section: 'A', account_status: 'active' },
@@ -15,11 +19,9 @@ const account = {
 };
 
 test('admin can review paginated student financial accounts', async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('auth_token', 'test-token');
-    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN', first_name: 'Admin', last_name: 'User', email: 'admin@example.test' }));
-  });
-  await page.route('**/api/notifications**', (route) => route.fulfill({ contentType: 'application/json', body: JSON.stringify({ notifications: [], unread_count: 0 }) }));
+  // A real Admin session (the app checks the token with the API), with only the account list answered
+  // from the fixture so the paging and the detail drawer have known data to show.
+  await injectSession(page, await sessionFor(PSITS_ADMIN));
   await page.route('**/api/student-debts**', async (route) => {
     const url = new URL(route.request().url());
     const currentPage = Number(url.searchParams.get('page') || 1);
@@ -27,10 +29,11 @@ test('admin can review paginated student financial accounts', async ({ page }) =
   });
 
   await page.goto('/dashboard/finance/student-accounts');
-  await expect(page.getByRole('main').getByRole('heading', { name: 'Student Financial Accounts' })).toBeVisible();
+  await expect(page.getByRole('main').getByRole('heading', { name: 'Student accounts', level: 1 })).toBeVisible();
   await expect(page.getByText('Alex Rivera').first()).toBeVisible();
   await expect(page.getByText('₱1,000.00').first()).toBeVisible();
-  await page.getByRole('button', { name: 'View account' }).first().click();
+  await openRowMenu(page, page.getByRole('row').filter({ hasText: 'Alex Rivera' }));
+  await page.getByRole('menuitem', { name: 'View account' }).click();
   await expect(page.getByRole('heading', { name: 'Student Financial Account', exact: true })).toBeVisible();
   await expect(page.getByText('INV-TEST · Organization fee')).toBeVisible();
   await page.getByRole('button', { name: 'Close', exact: true }).click();

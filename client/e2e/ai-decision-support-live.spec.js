@@ -73,7 +73,7 @@ test('deterministic AI service applies forecast, budget, and delegation rules', 
   await expect(delegation).toBeOK();
   await expect(delegation.json()).resolves.toMatchObject({
     algorithm: 'rule_based_weighted_scoring',
-    weights: { position: 0.4, workload: 0.35, performance: 0.25 },
+    weights: { position: 0.35, workload: 0.3, performance: 0.2, recency: 0.15 },
     recommended_officer_id: 2,
   });
 

@@ -1,4 +1,6 @@
 import { test, expect } from '@playwright/test';
+import { PSITS_ADMIN } from './support/accounts.js';
+import { injectSession, sessionFor } from './support/live.js';
 
 const structure = {
   department: 'College of Computer Studies',
@@ -6,10 +8,7 @@ const structure = {
 };
 
 test.beforeEach(async ({ page }) => {
-  await page.addInitScript(() => {
-    localStorage.setItem('auth_token', 'test-token');
-    localStorage.setItem('user', JSON.stringify({ school_id: 1, role: 'ADMIN', first_name: 'Admin', last_name: 'User' }));
-  });
+  await injectSession(page, await sessionFor(PSITS_ADMIN));
   await page.route('**/api/**', async (route) => {
     const url = route.request().url();
     if (url.includes('/academic-structure')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify(structure) });
@@ -18,41 +17,59 @@ test.beforeEach(async ({ page }) => {
       { id: 2, role: 'SBO_OFFICER', title: 'Secretary', is_active: true },
     ]) });
     if (url.includes('/users')) return route.fulfill({ contentType: 'application/json', body: JSON.stringify([]) });
-    return route.fulfill({ contentType: 'application/json', body: JSON.stringify([]) });
+    return route.fallback();
   });
 });
 
 test('admin user management offers controlled academic dropdowns', async ({ page }) => {
   await page.goto('/dashboard/admin/users');
+  await expect(page.getByRole('heading', { name: 'People', level: 1 })).toBeVisible();
   await page.getByRole('button', { name: 'New User' }).click();
-  await expect(page.getByRole('textbox', { name: 'Department', exact: true })).toHaveValue('College of Computer Studies');
   const form = page.locator('#create-user-form');
   const roleSelect = form.locator('select').first();
-  await expect(form.getByLabel('Organization Position')).toBeDisabled();
+  // The position field only exists for roles that hold one.
+  await expect(form.getByLabel('Organization Position')).toHaveCount(0);
   await roleSelect.selectOption('SBO_OFFICER');
   await expect(form.getByLabel('Organization Position')).toBeEnabled();
   await expect(form.getByLabel('Organization Position').locator('option')).toHaveText(['Choose a position', 'Secretary']);
   await roleSelect.selectOption('STUDENT');
-  await expect(form.getByLabel('Organization Position')).toBeDisabled();
+  await expect(form.getByLabel('Organization Position')).toHaveCount(0);
+  await expect(form.getByLabel('Year Level')).toBeDisabled();
   await form.getByLabel('Course / Program').selectOption('BS Information Technology');
   await form.getByLabel('Year Level').selectOption('1st Year');
   await expect(form.getByLabel('Section')).toBeEnabled();
-  await expect(form.getByLabel('Section').locator('option')).toHaveText(['Choose a section', '1 - Non Block', '1-A', '1-B']);
+  await expect(form.getByLabel('Section').locator('option')).toHaveCount(4);
   await expect(form.getByLabel('Contact Number')).toBeVisible();
+  await page.getByRole('button', { name: 'Close modal' }).click();
+  await page.getByRole('button', { name: 'Filters' }).click();
   await expect(page.getByLabel('Filter by program')).toBeVisible();
   await expect(page.getByLabel('Filter by year level')).toBeVisible();
   await expect(page.getByLabel('Filter by section')).toBeVisible();
 });
 
+test('section choices keep the letter case they are stored with', async ({ page }) => {
+  await page.goto('/dashboard/admin/users');
+  await page.getByRole('button', { name: 'New User' }).click();
+  const form = page.locator('#create-user-form');
+  await form.getByLabel('Course / Program').selectOption('BS Information Technology');
+  await form.getByLabel('Year Level').selectOption('1st Year');
+  await expect(form.getByLabel('Section').locator('option')).toHaveText(['Choose a section', '1 - Non Block', '1-A', '1-B']);
+});
+
 test('programs and sections is available as an admin setup screen', async ({ page }) => {
   await page.goto('/dashboard/admin/programs-sections');
-  await expect(page.getByRole('heading', { name: 'Programs & Sections', level: 2 })).toBeVisible();
-  await expect(page.getByText('College of Computer Studies')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Programs and sections', level: 1 })).toBeVisible();
+  await expect(page.getByText('College of Computer Studies').first()).toBeVisible();
   await expect(page.getByLabel('1st Year sections')).toHaveValue('0');
-  await expect(page.getByText('BS Information Technology')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'BS Information Technology', level: 4 })).toBeVisible();
   await expect(page.getByText('4 - Non Block')).toBeVisible();
   await expect(page.getByRole('button', { name: 'Edit BS Information Technology' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Delete BS Information Technology' })).toBeVisible();
+});
+
+test('program names keep their upper-case abbreviation', async ({ page }) => {
+  await page.goto('/dashboard/admin/programs-sections');
+  await expect(page.getByRole('heading', { name: 'BS Information Technology', level: 4, exact: true })).toBeVisible();
 });
 
 test('user register stays compact and keeps private contact details in View', async ({ page }) => {
@@ -66,7 +83,11 @@ test('user register stays compact and keeps private contact details in View', as
   await expect(page.getByRole('columnheader', { name: 'Program / Major' })).toBeVisible();
   await expect(page.getByRole('cell', { name: '1 - Non Block', exact: true })).toBeVisible();
   await expect(page.getByText('jamie@example.test')).toHaveCount(0);
-  await page.getByRole('button', { name: 'View Jamie Student' }).click();
+  const trigger = page.getByRole('button', { name: 'Open actions for Jamie Student' });
+  await trigger.scrollIntoViewIfNeeded();
+  await page.waitForTimeout(600);
+  await trigger.click();
+  await page.getByRole('menuitem', { name: 'View Jamie Student' }).click();
   await expect(page.getByText('jamie@example.test')).toBeVisible();
   await expect(page.getByText('+63 912 345 6789')).toBeVisible();
 });

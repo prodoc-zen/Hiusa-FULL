@@ -17,6 +17,10 @@ export default defineConfig({
 
   timeout: 30_000,
 
+  // The live stack serves every page from a single-threaded PHP dev server, so a list can take a
+  // few seconds to fill. Assertions wait for it instead of failing at the 5s default.
+  expect: { timeout: 10_000 },
+
   use: {
     baseURL,
     trace: 'on-first-retry',
@@ -35,6 +39,8 @@ export default defineConfig({
     cwd: '.',
     url: baseURL,
     reuseExistingServer: !process.env.CI,
+    // A stack on another API port points the app at it without touching client/.env.
+    env: process.env.HIUSA_E2E_API_URL ? { VITE_API_URL: process.env.HIUSA_E2E_API_URL } : {},
     timeout: 120_000,
   },
 });
