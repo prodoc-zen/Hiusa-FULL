@@ -29,6 +29,7 @@ const financeMocks = vi.hoisted(() => ({
   downloadFinancialReportPdf: vi.fn(),
   submitFinancialReport: vi.fn(),
   deleteBudget: vi.fn(),
+  deleteForecast: vi.fn(),
   deleteTransaction: vi.fn(),
 }));
 
@@ -630,5 +631,66 @@ describe('FinancePage rows the server will not let the ledger change', () => {
     expect(within(system).getByText('Recorded by Collection verification. Change it there.')).toBeInTheDocument();
     expect(within(locked).queryByRole('button', { name: /^Actions for/ })).not.toBeInTheDocument();
     expect(within(locked).getByText("In submitted report 'August report'. Return the report to change it.")).toBeInTheDocument();
+  });
+});
+
+describe('FinancePage forecast delete and approved budgets', () => {
+  const forecast = { id: 9, forecast_period: '2026-11', predicted_income: 5000, predicted_expense: 3000, predicted_balance: 2000, safe_spending_limit: 1600, model_details: { sample_months: 6, engine: 'python-fastapi', income: { r_squared: 0.95 }, expense: { r_squared: 0.9 } } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+    financeMocks.getTransactions.mockResolvedValue({ data: { data: [], current_page: 1, last_page: 1, total: 0, per_page: 10 } });
+    financeMocks.getTransactionSummary.mockResolvedValue({ data: { total_income: 0, total_expense: 0, net_balance: 0 } });
+    financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
+    financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
+    financeMocks.getForecasts.mockResolvedValue({ data: [forecast] });
+    financeMocks.getBudgets.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialReports.mockResolvedValue({ data: [] });
+    financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
+  });
+
+  it('deletes a forecast after confirmation and reloads the forecasts', async () => {
+    financeMocks.deleteForecast.mockResolvedValue({ data: { message: 'Forecast deleted successfully.' } });
+    render(<FinancePage initialTab="forecasting" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete forecast' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this forecast?' });
+    expect(financeMocks.deleteForecast).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete forecast' }));
+
+    await waitFor(() => expect(financeMocks.deleteForecast).toHaveBeenCalledWith(9));
+    await waitFor(() => expect(financeMocks.getForecasts).toHaveBeenCalledTimes(2));
+  });
+
+  it('shows the server message when a forecast cannot be deleted', async () => {
+    financeMocks.deleteForecast.mockRejectedValue({ response: { status: 404, data: { message: 'Forecast not found.' } } });
+    render(<FinancePage initialTab="forecasting" />);
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete forecast' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete this forecast?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete forecast' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('Forecast not found.');
+  });
+
+  it('does not offer forecast deletion to officers', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'SBO_OFFICER' }));
+    render(<FinancePage initialTab="forecasting" />);
+
+    expect(await screen.findByText('Forecast for 2026-11')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Delete forecast' })).not.toBeInTheDocument();
+  });
+
+  it('hides Delete budget for an approved budget and keeps it for the rest', async () => {
+    financeMocks.getBudgets.mockResolvedValue({ data: [
+      { id: 4, title: 'Approved Budget', allocated_amount: 5000, remaining_amount: 4000, warning_threshold: 1000, submission_status: 'approved' },
+      { id: 5, title: 'Draft Budget', allocated_amount: 2000, remaining_amount: 2000, warning_threshold: 200, submission_status: 'pending_department_head' },
+    ] });
+    render(<FinancePage initialTab="budgets" />);
+
+    expect(await screen.findByText('Approved Budget')).toBeInTheDocument();
+    expect(screen.getAllByRole('button', { name: 'Delete budget' })).toHaveLength(1);
   });
 });

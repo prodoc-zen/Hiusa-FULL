@@ -155,3 +155,45 @@ describe('ElectionPickerPage empty states', () => {
     expect(await screen.findByText('HIUSA General Election 2026')).toBeInTheDocument();
   });
 });
+
+describe('ElectionPickerPage delete rules', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
+  });
+
+  it('offers Delete for an upcoming election without votes and deletes it without a confirmation flag', async () => {
+    electionMocks.getElections.mockResolvedValue([upcoming]);
+    electionMocks.deleteElection.mockResolvedValue({});
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
+
+    fireEvent.click(within(card).getByRole('button', { name: /Delete/ }));
+    const dialog = await screen.findByRole('dialog', { name: 'Delete Election' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(electionMocks.deleteElection).toHaveBeenCalledWith(7));
+  });
+
+  it('hides Delete for an open election and offers Close instead', async () => {
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'active', approved_at: '2026-09-01T00:00:00Z', finalized_at: '2026-09-02T00:00:00Z' }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const card = (await screen.findByText('HIUSA General Election 2026')).closest('article');
+
+    expect(within(card).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    expect(within(card).getByRole('button', { name: /Close/ })).toBeInTheDocument();
+  });
+
+  it('hides Delete for a closed election and for any election that has votes', async () => {
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'closed' }]);
+    const closed = render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const closedCard = (await screen.findByText('HIUSA General Election 2026')).closest('article');
+    expect(within(closedCard).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+    closed.unmount();
+
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, votes_count: 3 }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    const votedCard = (await screen.findByText('HIUSA General Election 2026')).closest('article');
+    expect(within(votedCard).queryByRole('button', { name: /Delete/ })).not.toBeInTheDocument();
+  });
+});

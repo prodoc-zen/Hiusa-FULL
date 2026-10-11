@@ -98,6 +98,7 @@ class EventController extends Controller
 
         if ($user->role === 'ADMIN') {
             $this->loadLinkedBudgets($events);
+            $this->attachDeleteBlockers($events->items());
         }
 
         return response()->json($events);
@@ -139,6 +140,7 @@ class EventController extends Controller
 
         if ($request->user()->role === 'ADMIN') {
             $this->loadLinkedBudgets($event);
+            $this->attachDeleteBlockers([$event]);
             $event->attendance_summary = collect(['present', 'late', 'excused', 'absent'])
                 ->mapWithKeys(fn (string $status) => [
                     $status => $event->attendanceRecords()->where('status', $status)->count(),
@@ -507,6 +509,10 @@ class EventController extends Controller
             return response()->json(['message' => 'You are not authorized to delete this event.'], 403);
         }
 
+        if ($reason = $this->deleteBlockers([$event])[$event->id]) {
+            return response()->json(['message' => $reason], 409);
+        }
+
         $imageUrl = $event->image_url;
         $requirementPaths = EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
         DB::transaction(function () use ($event) {
@@ -522,6 +528,49 @@ class EventController extends Controller
         Storage::disk('local')->delete($requirementPaths);
 
         return response()->json(['message' => 'Event deleted successfully.']);
+    }
+
+    /** @param  iterable<Event>  $events */
+    private function attachDeleteBlockers(iterable $events): void
+    {
+        $blockers = $this->deleteBlockers($events);
+
+        foreach ($events as $event) {
+            $event->delete_blocked_reason = $blockers[$event->id];
+        }
+    }
+
+    /**
+     * Why each event cannot be deleted, keyed by event id, or null when it can. An event that has
+     * run, collected files or attendance, been reviewed or carried approved money is kept on record
+     * and cancelled instead. A pending approval request alone does not block, since every proposal has one.
+     *
+     * @param  iterable<Event>  $events
+     * @return array<int, ?string>
+     */
+    private function deleteBlockers(iterable $events): array
+    {
+        $events = collect($events)->values();
+        $ids = $events->pluck('id');
+        $withFiles = EventRequirementFile::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        $reviewed = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->where('status', '!=', 'pending')->distinct()->pluck('entity_id')->flip();
+        $withAttendance = Attendance::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        $withMoney = Budget::whereIn('event_id', $ids)
+            ->where(fn ($budgets) => $budgets->where('submission_status', 'approved')->orWhereHas('transactions'))
+            ->distinct()->pluck('event_id')->flip();
+
+        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withMoney) {
+            $reason = match (true) {
+                in_array($event->status, ['ongoing', 'completed'], true) => "it is {$event->status}",
+                $withFiles->has($event->id) => 'it has submitted requirement files',
+                $reviewed->has($event->id) => 'it has already been reviewed in the approval workflow',
+                $withAttendance->has($event->id) => 'it has attendance records',
+                $withMoney->has($event->id) => 'it has an approved budget or recorded transactions',
+                default => null,
+            };
+
+            return [$event->id => $reason === null ? null : "This event cannot be deleted because {$reason}.".($event->status === 'cancelled' ? ' It is already cancelled and stays on record.' : ' Cancel it instead to keep the record.')];
+        })->all();
     }
 
     private function publicStoragePath(string $url): string

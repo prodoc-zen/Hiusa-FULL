@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getRegistrationRequirements: vi.fn(),
   registerOrganization: vi.fn(),
   resubmitOrganization: vi.fn(),
+  withdrawOrganization: vi.fn(),
 }));
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
 
@@ -416,5 +417,48 @@ describe('CollegeOrganizationsPage', () => {
 
       expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
     });
+  });
+});
+
+describe('CollegeOrganizationsPage withdraw', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations));
+  });
+
+  it('offers Withdraw only for pending and returned registrations', async () => {
+    renderPage();
+    await screen.findAllByText('Robotics Society');
+
+    expect(screen.getAllByRole('button', { name: 'Withdraw Chess Club' }).length).toBeGreaterThan(0);
+    expect(screen.getAllByRole('button', { name: 'Withdraw Drama Guild' }).length).toBeGreaterThan(0);
+    expect(screen.queryByRole('button', { name: 'Withdraw Robotics Society' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Withdraw Old Band' })).not.toBeInTheDocument();
+  });
+
+  it('withdraws a registration after confirmation and reloads the list', async () => {
+    mocks.withdrawOrganization.mockResolvedValue({ data: { message: 'Registration withdrawn.' } });
+    renderPage();
+    await screen.findAllByText('Robotics Society');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw Chess Club' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Withdraw this registration?' });
+    expect(mocks.withdrawOrganization).not.toHaveBeenCalled();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw registration' }));
+
+    await waitFor(() => expect(mocks.withdrawOrganization).toHaveBeenCalledWith(2));
+    await waitFor(() => expect(mocks.getCollegeOrganizations).toHaveBeenCalledTimes(2));
+  });
+
+  it('keeps the registration and shows the server message when it can no longer be withdrawn', async () => {
+    mocks.withdrawOrganization.mockRejectedValue({ response: { status: 409, data: { message: 'This organization already has members, users or other records, so it cannot be withdrawn.' } } });
+    renderPage();
+    await screen.findAllByText('Robotics Society');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Withdraw Drama Guild' })[0]);
+    const dialog = await screen.findByRole('dialog', { name: 'Withdraw this registration?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Withdraw registration' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('This organization already has members, users or other records, so it cannot be withdrawn.');
   });
 });

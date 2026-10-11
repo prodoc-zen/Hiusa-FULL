@@ -9,6 +9,7 @@ const merchandiseMocks = vi.hoisted(() => ({
   uploadGcashQr: vi.fn(),
   adjustStock: vi.fn(),
   getMerchandiseAuditLogs: vi.fn(),
+  deleteItem: vi.fn(),
 }));
 const orderMocks = vi.hoisted(() => ({
   getOrders: vi.fn(),
@@ -25,7 +26,6 @@ vi.mock("../../../services/merchandiseService", () => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
   adjustStock: merchandiseMocks.adjustStock,
-  deleteItem: vi.fn(),
   getMerchandiseAuditLogs: merchandiseMocks.getMerchandiseAuditLogs,
 }));
 
@@ -749,6 +749,22 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(await screen.findByText("1 item is out of stock")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Add stock" }));
     expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
+  });
+
+  it("deactivates an active item through the server rule instead of offering a delete", async () => {
+    merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deactivated successfully." } });
+    renderAt("/dashboard/merchandise/manage-inventory", "inventory");
+
+    expect(await screen.findByRole("button", { name: "Deactivate HIUSA Shirt" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete HIUSA Shirt" })).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Deactivate HIUSA Shirt" }));
+    const dialog = await screen.findByRole("dialog", { name: "Deactivate Product" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+
+    await waitFor(() => expect(merchandiseMocks.deleteItem).toHaveBeenCalledWith(1));
+    expect(await screen.findByText("HIUSA Shirt was deactivated.")).toBeInTheDocument();
+    expect(screen.getByText("HIUSA Shirt")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Deactivate HIUSA Shirt" })).not.toBeInTheDocument();
   });
 
   it("keeps one primary action and a first-run state when there are no items", async () => {

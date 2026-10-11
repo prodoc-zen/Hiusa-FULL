@@ -14,6 +14,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -29,6 +30,11 @@ use Illuminate\Validation\ValidationException;
 class CollegeOrganizationController extends Controller
 {
     private const PENDING_LIMIT = 10;
+
+    /** Tables whose rows a registration legitimately owns, so they never count as activity. */
+    private const REGISTRATION_TABLES = ['audit_logs', 'organization_compliance_submissions'];
+
+    private const ORGANIZATION_COLUMNS = ['organization_id', 'parent_organization_id', 'source_organization_id'];
 
     private const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
 
@@ -189,6 +195,44 @@ class CollegeOrganizationController extends Controller
         return response()->json($this->present($college, $organization->id));
     }
 
+    public function destroy(Request $request, Organization $organization)
+    {
+        $user = $request->user();
+        $college = $this->college($user);
+        abort_unless($organization->organization_type === 'STUDENT_ORGANIZATION' && (int) $organization->college_id === $college->id, 404);
+
+        $paths = [];
+        $result = DB::transaction(function () use ($request, $organization, $college, &$paths) {
+            $locked = Organization::whereKey($organization->id)->lockForUpdate()->first();
+            if (! $locked || ! in_array($locked->lifecycle_status, ['pending', 'returned'], true)) {
+                return 'not_withdrawable';
+            }
+            if ($this->hasRecords($locked)) {
+                return 'has_records';
+            }
+
+            $paths = OrganizationComplianceSubmission::where('organization_id', $locked->id)->pluck('file_path')->filter()->all();
+            $this->audit($request, 'organization_registration_withdrawn', $locked, ['name' => $locked->name, 'lifecycle_status' => $locked->lifecycle_status, 'college_id' => $college->id], 'A Department Head withdrew an organization registration.', $request->user()->organization_id);
+            $locked->delete();
+
+            return $locked;
+        });
+
+        if ($result === 'not_withdrawable') {
+            return response()->json(['message' => 'Only a pending or returned registration can be withdrawn. Ask the SAO to archive an active organization.'], 409);
+        }
+        if ($result === 'has_records') {
+            return response()->json(['message' => 'This organization already has members, users or other records, so it cannot be withdrawn.'], 409);
+        }
+        Storage::disk('local')->delete($paths);
+
+        if ($result->lifecycle_status === 'pending') {
+            $this->notifyDirectors($result, 'Organization registration withdrawn', "{$college->name} withdrew {$result->name} before review.", false);
+        }
+
+        return response()->json(['message' => 'Registration withdrawn.']);
+    }
+
     private function college(User $user): College
     {
         $home = Organization::whereKey($user->organization_id)->first(['id', 'organization_type', 'college_id']);
@@ -196,6 +240,23 @@ class CollegeOrganizationController extends Controller
         abort_if(! $college, 403, 'Your account is not assigned to a college.');
 
         return $college;
+    }
+
+    /** True when anything outside the registration itself points at the organization: accounts, events, money, elections and the rest. */
+    private function hasRecords(Organization $organization): bool
+    {
+        foreach (Schema::getTables() as $table) {
+            if (in_array($table['name'], self::REGISTRATION_TABLES, true)) {
+                continue;
+            }
+            foreach (array_intersect(self::ORGANIZATION_COLUMNS, Schema::getColumnListing($table['name'])) as $column) {
+                if (DB::table($table['name'])->where($column, $organization->id)->exists()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private function query(College $college)
@@ -283,7 +344,7 @@ class CollegeOrganizationController extends Controller
         return $slug;
     }
 
-    private function notifyDirectors(Organization $organization, string $title, string $message): void
+    private function notifyDirectors(Organization $organization, string $title, string $message, bool $linked = true): void
     {
         User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get(['school_id', 'organization_id'])
             ->each(fn (User $sao) => Notification::create([
@@ -292,15 +353,15 @@ class CollegeOrganizationController extends Controller
                 'notification_type' => 'general',
                 'title' => $title,
                 'message' => $message,
-                'reference_type' => 'organization',
-                'reference_id' => $organization->id,
+                'reference_type' => $linked ? 'organization' : null,
+                'reference_id' => $linked ? $organization->id : null,
                 'is_read' => false,
                 'sent_at' => now(),
             ]));
     }
 
-    private function audit(Request $request, string $action, Organization $organization, array $values, string $description): void
+    private function audit(Request $request, string $action, Organization $organization, array $values, string $description, ?int $scopeOrganizationId = null): void
     {
-        AuditLog::create(['organization_id' => $organization->id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'organizations', 'action' => $action, 'description' => $description, 'record_type' => Organization::class, 'record_id' => $organization->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
+        AuditLog::create(['organization_id' => $scopeOrganizationId ?? $organization->id, 'user_id' => $request->user()->school_id, 'actor_role' => $request->user()->role, 'module' => 'organizations', 'action' => $action, 'description' => $description, 'record_type' => Organization::class, 'record_id' => $organization->id, 'new_values' => $values, 'ip_address' => $request->ip(), 'created_at' => now()]);
     }
 }
