@@ -542,7 +542,7 @@ class EventController extends Controller
 
     /**
      * Why each event cannot be deleted, keyed by event id, or null when it can. An event that has
-     * run, collected files or attendance, been reviewed or carried approved money is kept on record
+     * run, collected files or attendance, been reviewed or has a budget is kept on record
      * and cancelled instead. A pending approval request alone does not block, since every proposal has one.
      *
      * @param  iterable<Event>  $events
@@ -555,17 +555,15 @@ class EventController extends Controller
         $withFiles = EventRequirementFile::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
         $reviewed = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->where('status', '!=', 'pending')->distinct()->pluck('entity_id')->flip();
         $withAttendance = Attendance::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
-        $withMoney = Budget::whereIn('event_id', $ids)
-            ->where(fn ($budgets) => $budgets->where('submission_status', 'approved')->orWhereHas('transactions'))
-            ->distinct()->pluck('event_id')->flip();
+        $withBudget = Budget::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
 
-        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withMoney) {
+        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withBudget) {
             $reason = match (true) {
                 in_array($event->status, ['ongoing', 'completed'], true) => "it is {$event->status}",
                 $withFiles->has($event->id) => 'it has submitted requirement files',
                 $reviewed->has($event->id) => 'it has already been reviewed in the approval workflow',
                 $withAttendance->has($event->id) => 'it has attendance records',
-                $withMoney->has($event->id) => 'it has an approved budget or recorded transactions',
+                $withBudget->has($event->id) => 'it has a budget',
                 default => null,
             };
 
