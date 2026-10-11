@@ -122,8 +122,10 @@ for (const viewport of WIDTHS) {
       const flow = flowFor();
 
       await openFromMenu(page, flow, 'Events and tasks', 'Check-in');
-      await flow.tap(page.getByRole('button', { name: new RegExp(`^Open attendance for ${escapeRegExp(event.title)}`, 'i') }));
       const attendanceCount = page.getByText('Attendance records', { exact: true }).locator('xpath=following-sibling::p[1]');
+      // The only ongoing event is already selected on opening, so the queue is tapped only when it is not.
+      const preselected = await attendanceCount.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false);
+      if (!preselected) await flow.tap(page.getByRole('button', { name: new RegExp(`^Open attendance for ${escapeRegExp(event.title)}`, 'i') }));
       await expect(attendanceCount).toHaveText(/^\d+$/);
       const before = Number(await attendanceCount.textContent());
 
@@ -242,14 +244,15 @@ for (const viewport of WIDTHS) {
       await flow.tap(page.getByRole('link', { name: 'New announcement' }).or(page.getByRole('button', { name: 'New announcement' })).first());
       await page.locator('#announcement-title').fill(title);
       await page.locator('#announcement-content').fill('Acceptance journey announcement body.');
-      await flow.tap(page.getByRole('button', { name: /^Publish Now$/ }));
-      await flow.tap(page.getByRole('dialog').getByRole('button', { name: 'Publish Now' }));
-      await expect(page.getByRole('button', { name: 'Go Back' })).toBeVisible();
-      const sentHeading = page.getByRole('heading', { level: 2 }).filter({ hasText: /Posted|Saved/ });
+      await flow.tap(page.getByRole('button', { name: /^Submit for approval$/ }));
+      await expect(page.getByRole('dialog')).toContainText('Admin approves it before members see it');
+      await flow.tap(page.getByRole('dialog').getByRole('button', { name: 'Submit for approval' }));
+      const sentHeading = page.getByRole('heading', { level: 2, name: 'Sent to your Admin for approval' });
+      await expect(sentHeading).toBeVisible();
       const sentScreen = `${await sentHeading.innerText()} | ${await sentHeading.locator('xpath=following-sibling::p[1]').innerText()}`;
 
       const rowFor = () => page.getByRole('row').filter({ hasText: title });
-      await flow.tap(page.getByRole('button', { name: 'Go Back' }));
+      await flow.tap(page.getByRole('link', { name: 'View in Announcements' }));
       await expect(rowFor()).toBeVisible();
 
       await finish(page, flow, {
