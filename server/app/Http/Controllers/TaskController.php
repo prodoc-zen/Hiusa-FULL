@@ -589,6 +589,10 @@ class TaskController extends Controller
         usort($rankings, fn (array $a, array $b) => $a['final_score'] === $b['final_score']
             ? $a['officer_id'] <=> $b['officer_id']
             : $b['final_score'] <=> $a['final_score']);
+        foreach ($rankings as $index => &$ranking) {
+            $ranking['rank'] = $index + 1;
+        }
+        unset($ranking);
 
         return [
             'algorithm' => 'rule_based_weighted_scoring',
