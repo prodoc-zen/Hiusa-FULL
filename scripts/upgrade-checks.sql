@@ -55,7 +55,7 @@ FROM users u
 LEFT JOIN account_profiles p ON p.user_school_id = u.school_id AND p.organization_id = u.organization_id
 WHERE p.id IS NULL;
 
-SELECT '10. review: free-text college names that did not match a college row (fix the name or add the college)' AS section;
+SELECT '10. review: free-text college names that did not match a college row (fix the name, or add the college with colleges:sync)' AS section;
 SELECT o.id, o.name, o.college
 FROM organizations o
 WHERE o.organization_type = 'STUDENT_ORGANIZATION' AND o.college IS NOT NULL AND o.college <> ''
