@@ -17,6 +17,7 @@ import { complianceStage, complianceStageText } from './complianceStage';
 
 const DEFAULT_STATUS = 'submitted';
 const ROW_ACTION = 'h-11! sm:h-9!';
+const BELOW_DRAWER_HEADER = { position: 'bottom-center' };
 
 function documentKind(submission) {
   if (submission.is_registration) return 'Registration document';
@@ -111,7 +112,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
     try {
       await reviewSubmission(reviewTarget.submission.id, { ...payload, submitted_at: reviewTarget.submission.submitted_at });
       setPinned({ ...reviewTarget.submission, status: payload.status, remarks: payload.remarks ?? reviewTarget.submission.remarks });
-      notify.success(successMessage);
+      notify.success(successMessage, BELOW_DRAWER_HEADER);
       closeReview();
       loadQueue(page);
       onChanged();
@@ -122,7 +123,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
         closeReview();
         loadQueue(page);
       } else {
-        notify.error(message);
+        notify.error(message, BELOW_DRAWER_HEADER);
       }
     } finally {
       setReviewBusy(false);

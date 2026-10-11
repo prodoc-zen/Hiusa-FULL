@@ -129,6 +129,35 @@ class AiFallbackParityTest extends TestCase
         $this->assertEquals(50.0, (float) Task::latest('id')->first()->recency_score);
     }
 
+    public function test_php_fallback_recommendation_numbers_the_rankings_with_ties_broken_by_officer_id(): void
+    {
+        Http::fake([
+            'http://127.0.0.1:8001/api/v1/task-delegation' => fn () => throw new ConnectionException('Connection refused'),
+        ]);
+
+        $admin = $this->user('ADMIN');
+        $firstTreasurer = $this->user('SBO_OFFICER', $admin->organization_id, 'Treasurer');
+        $secondTreasurer = $this->user('SBO_OFFICER', $admin->organization_id, 'Treasurer');
+        $secretary = $this->user('SBO_OFFICER', $admin->organization_id, 'Secretary');
+        $tiedIds = collect([$firstTreasurer, $secondTreasurer])->pluck('school_id')->sort()->values();
+
+        Sanctum::actingAs($admin);
+
+        $response = $this->postJson('/api/tasks/recommendation', ['title' => 'Prepare the budget liquidation report'])
+            ->assertOk()
+            ->assertJsonPath('delegation.engine', 'php-fallback')
+            ->assertJsonPath('delegation.recommended_officer_id', $tiedIds[0])
+            ->assertJsonPath('delegation.rankings.0.officer_id', $tiedIds[0])
+            ->assertJsonPath('delegation.rankings.0.rank', 1)
+            ->assertJsonPath('delegation.rankings.1.officer_id', $tiedIds[1])
+            ->assertJsonPath('delegation.rankings.1.rank', 2)
+            ->assertJsonPath('delegation.rankings.2.officer_id', $secretary->school_id)
+            ->assertJsonPath('delegation.rankings.2.rank', 3);
+
+        $this->assertSame($response->json('delegation.rankings.0.final_score'), $response->json('delegation.rankings.1.final_score'));
+        $this->assertSame([1, 2, 3], collect($response->json('delegation.evaluations'))->pluck('rank')->take(3)->all());
+    }
+
     private function seedTaskHistory(User $officer, int $organizationId, User $creator): void
     {
         // 2 currently active + 1 overdue (also active) => active_tasks = 3.
