@@ -46,6 +46,8 @@ graphify-out/
 
 # written by scripts/serve-lan.ps1
 .lan-pids
+# throwaway MariaDB datadir created by scripts/serve-lan.ps1 (holds its generated password)
+.lan-db/
 
 # reviewed read-only upgrade checks (database dumps stay ignored)
 !scripts/upgrade-checks.sql
