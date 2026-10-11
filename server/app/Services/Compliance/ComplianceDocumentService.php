@@ -23,13 +23,17 @@ use Illuminate\Support\Facades\DB;
  * One normalized, read-only list of every document an organization has put
  * in front of the university: compliance submissions, event proposal files,
  * submitted financial reports and their supporting documents. Each source is
- * loaded with a fixed number of queries, so the cost does not grow with the
- * row count, and nothing is cut off: callers paginate the result. open_url
- * values are relative to the API base, like the paths the client already uses
- * for the per-source download routes.
+ * read with a fixed number of queries, newest first and no further than the
+ * requested page reaches, so the cost follows the page and not the table; the
+ * total comes from one grouped count per source. open_url values are relative
+ * to the API base, like the paths the client already uses for the per-source
+ * download routes.
  */
 class ComplianceDocumentService
 {
+    /** Rows a page may reach into (page times page size); a deeper page is refused so one request cannot read a whole table. */
+    public const MAX_WINDOW = 2000;
+
     public const SOURCES = ['compliance', 'event_requirement', 'financial_report', 'financial_supporting_document'];
 
     /** What the SAO sees in each group: registration, semestral and renewal files all come from the compliance source. */
@@ -67,16 +71,25 @@ class ComplianceDocumentService
     public function __construct(private readonly EventApprovalChain $approvalChain) {}
 
     /**
+     * One page of the list, newest submission first, and how many rows the whole list has. Each source reads
+     * only as many rows as the page reaches (callers keep page times page size within MAX_WINDOW).
+     *
      * @param  array<int, int>  $organizationIds
-     * @return Collection<int, array<string, mixed>> newest submission first
+     * @return array{0: Collection<int, array<string, mixed>>, 1: int}
      */
-    public function rows(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole = null, ?string $family = null): Collection
+    public function page(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $page, int $perPage): array
     {
-        $rows = $this->collect($organizationIds, $semesterId, $source, $viewerRole, $family);
+        $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
+        if ($family && $source !== self::FAMILY_SOURCE[$family]) {
+            return [collect(), 0];
+        }
+
+        $total = (int) $this->counts($organizationIds, $semesterId, $source, $viewerRole, $family)->sum('total');
+        $rows = $this->collect($organizationIds, $semesterId, $source, $viewerRole, $family, $page * $perPage)->forPage($page, $perPage)->values();
         $names = User::whereIn('school_id', $rows->pluck('submitted_by')->filter()->unique())->get(['school_id', 'first_name', 'last_name'])
             ->mapWithKeys(fn (User $user) => [$user->school_id => trim($user->first_name.' '.$user->last_name)]);
 
-        return $rows->map(fn (array $row) => [
+        return [$rows->map(fn (array $row) => [
             'source' => $row['source'],
             'family' => $row['family'],
             'organization' => $row['organization']?->only(['id', 'name', 'acronym']),
@@ -91,7 +104,7 @@ class ComplianceDocumentService
             'file_name' => $row['file_name'],
             'open_url' => $row['open_url'],
             'academic_semester_id' => $row['academic_semester_id'],
-        ]);
+        ]), $total];
     }
 
     /**
@@ -103,18 +116,7 @@ class ComplianceDocumentService
      */
     public function organizationSummaries(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole = null, ?string $family = null): Collection
     {
-        $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
-        $counts = collect();
-        if ($source === null || $source === 'compliance') {
-            $counts = $counts->concat($this->complianceCounts($organizationIds, $semesterId));
-        }
-        if ($source === null || $source === 'event_requirement') {
-            $counts = $counts->concat($this->eventCounts($organizationIds, $semesterId, $viewerRole));
-        }
-        if ($source === null || in_array($source, ['financial_report', 'financial_supporting_document'], true)) {
-            $counts = $counts->concat($this->financialCounts($organizationIds, $semesterId, $source, $viewerRole));
-        }
-        $counts = $counts->when($family, fn (Collection $kept) => $kept->where('family', $family))->where('total', '>', 0);
+        $counts = $this->counts($organizationIds, $semesterId, $source ?? ($family ? self::FAMILY_SOURCE[$family] : null), $viewerRole, $family);
 
         $organizations = Organization::whereIn('id', $counts->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id'])->keyBy('id');
         $colleges = College::whereIn('id', $organizations->pluck('college_id')->filter()->unique())->pluck('name', 'id');
@@ -135,7 +137,30 @@ class ComplianceDocumentService
             ->map(fn (array $summary) => [...$summary, 'latest_submitted_at' => $summary['latest_submitted_at'] ? now()->setTimestamp($summary['latest_submitted_at']) : null]);
     }
 
+    /**
+     * Counts per organization and family, one grouped query per source.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function counts(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family): Collection
+    {
+        $counts = collect();
+        if ($source === null || $source === 'compliance') {
+            $counts = $counts->concat($this->complianceCounts($organizationIds, $semesterId));
+        }
+        if ($source === null || $source === 'event_requirement') {
+            $counts = $counts->concat($this->eventCounts($organizationIds, $semesterId, $viewerRole));
+        }
+        if ($source === null || in_array($source, ['financial_report', 'financial_supporting_document'], true)) {
+            $counts = $counts->concat($this->financialCounts($organizationIds, $semesterId, $source, $viewerRole));
+        }
+
+        return $counts->when($family, fn (Collection $kept) => $kept->where('family', $family))->where('total', '>', 0);
+    }
+
     /** SQL twin of settle(): the same registration, semestral and renewal split, so counts match the file list. */
+    private const COMPLIANCE_FAMILY_SQL = "case when o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.name = ? then 'semestral_report' else 'semester_renewal' end";
+
     private function complianceCounts(array $organizationIds, ?int $semesterId): Collection
     {
         return DB::table('organization_compliance_submissions as s')
@@ -144,7 +169,7 @@ class ComplianceDocumentService
             ->whereIn('s.organization_id', $organizationIds)
             ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
             ->selectRaw(
-                "s.organization_id, case when o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.name = ? then 'semestral_report' else 'semester_renewal' end as family, count(*) as total, max(s.submitted_at) as latest",
+                's.organization_id, '.self::COMPLIANCE_FAMILY_SQL.' as family, count(*) as total, max(s.submitted_at) as latest',
                 [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT],
             )
             ->groupBy('s.organization_id', 'family')
@@ -162,15 +187,10 @@ class ComplianceDocumentService
     /** Reports and their supporting documents, with the report's period resolved in SQL the way reportSemesterId() does. */
     private function financialCounts(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole): Collection
     {
-        $query = FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
-            ->when($viewerRole === 'SUPER_ADMIN', fn ($filtered) => $filtered->whereNotNull('department_head_approved_at'));
-        $documents = $query->getConnection()->getDriverName() === 'sqlite'
-            ? 'json_array_length(supporting_documents)'
-            : 'json_length(supporting_documents)';
-        $period = 'coalesce((select academic_semester_id from events where events.id = financial_reports.event_id), '
-            .'(select id from academic_semesters where date(starts_on) <= date(financial_reports.submitted_at) and date(ends_on) >= date(financial_reports.submitted_at) order by id limit 1))';
+        $query = $this->submittedReports($organizationIds, $semesterId, $viewerRole);
+        $documents = $this->documentCountSql($query);
 
-        $totals = $query->when($semesterId, fn ($filtered) => $filtered->whereRaw("{$period} = ?", [$semesterId]))
+        $totals = $query
             ->selectRaw("organization_id, count(*) as reports, coalesce(sum({$documents}), 0) as documents, max(submitted_at) as latest, max(case when {$documents} > 0 then submitted_at end) as documents_latest")
             ->groupBy('organization_id')->toBase()->get();
 
@@ -187,25 +207,44 @@ class ComplianceDocumentService
         return $counts;
     }
 
+    /** Submitted reports in scope; the SAO sees only those the Department Head has approved. */
+    private function submittedReports(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
+    {
+        $period = 'coalesce((select academic_semester_id from events where events.id = financial_reports.event_id), '
+            .'(select id from academic_semesters where date(starts_on) <= date(financial_reports.submitted_at) and date(ends_on) >= date(financial_reports.submitted_at) order by id limit 1))';
+
+        return FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
+            ->when($viewerRole === 'SUPER_ADMIN', fn ($filtered) => $filtered->whereNotNull('department_head_approved_at'))
+            ->when($semesterId, fn ($filtered) => $filtered->whereRaw("{$period} = ?", [$semesterId]));
+    }
+
+    private function documentCountSql(Builder $query): string
+    {
+        return $query->getConnection()->getDriverName() === 'sqlite'
+            ? 'json_array_length(supporting_documents)'
+            : 'json_length(supporting_documents)';
+    }
+
     private function countPart(mixed $organizationId, string $family, mixed $total, ?string $latest): array
     {
         return ['organization_id' => (int) $organizationId, 'family' => $family, 'total' => (int) $total, 'latest' => $latest ? Carbon::parse($latest) : null];
     }
 
-    private function collect(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, bool $withEventState = true): Collection
+    /** The newest `$limit` rows of the list, which is every row a page of up to that depth can show. */
+    private function collect(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $limit, bool $withEventState = true): Collection
     {
         $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
         $semesters = AcademicSemester::all()->keyBy('id');
         $rows = collect();
 
         if ($source === null || $source === 'compliance') {
-            $rows = $rows->concat($this->complianceRows($organizationIds, $semesterId, $semesters));
+            $rows = $rows->concat($this->complianceRows($organizationIds, $semesterId, $family, $limit, $semesters));
         }
         if ($source === null || $source === 'event_requirement') {
-            $rows = $rows->concat($this->eventRows($organizationIds, $semesterId, $viewerRole, $withEventState));
+            $rows = $rows->concat($this->eventRows($organizationIds, $semesterId, $viewerRole, $withEventState, $limit));
         }
         if ($source === null || in_array($source, ['financial_report', 'financial_supporting_document'], true)) {
-            $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $source, $viewerRole));
+            $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $source, $viewerRole, $limit));
         }
 
         $organizations = Organization::whereIn('id', $rows->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id', 'lifecycle_status', 'submitted_at', 'reviewed_at'])->keyBy('id');
@@ -250,13 +289,17 @@ class ComplianceDocumentService
         return $row;
     }
 
-    private function complianceRows(array $organizationIds, ?int $semesterId, Collection $semesters): Collection
+    private function complianceRows(array $organizationIds, ?int $semesterId, ?string $family, int $limit, Collection $semesters): Collection
     {
-        return OrganizationComplianceSubmission::whereIn('organization_id', $organizationIds)
-            ->when($semesterId, fn ($query) => $query->whereIn('requirement_type_id', fn ($types) => $types->from('compliance_requirement_types')->select('id')->where('academic_semester_id', $semesterId)))
+        return OrganizationComplianceSubmission::from('organization_compliance_submissions as s')
+            ->join('compliance_requirement_types as t', 't.id', '=', 's.requirement_type_id')
+            ->join('organizations as o', 'o.id', '=', 's.organization_id')
+            ->whereIn('s.organization_id', $organizationIds)
+            ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
+            ->when($family, fn ($query) => $query->whereRaw(self::COMPLIANCE_FAMILY_SQL.' = ?', [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $family]))
             ->with('requirementType:id,academic_year,academic_semester_id,name')
-            ->orderByDesc('submitted_at')->orderByDesc('id')
-            ->get(['id', 'organization_id', 'requirement_type_id', 'status', 'file_original_name', 'submitted_by', 'submitted_at', 'reviewed_at'])
+            ->orderByDesc('s.submitted_at')->orderByDesc('s.id')->limit($limit)
+            ->get(['s.id', 's.organization_id', 's.requirement_type_id', 's.status', 's.file_original_name', 's.submitted_by', 's.submitted_at', 's.reviewed_at'])
             ->map(function (OrganizationComplianceSubmission $submission) use ($semesters) {
                 $type = $submission->requirementType;
                 $semester = $semesters->get($type->academic_semester_id);
@@ -288,11 +331,11 @@ class ComplianceDocumentService
             ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->whereIn('event_id', fn ($rows) => $rows->from('approval_requests')->select('entity_id')->where('entity_type', 'event')->where('required_role', 'SUPER_ADMIN')));
     }
 
-    private function eventRows(array $organizationIds, ?int $semesterId, ?string $viewerRole, bool $withState): Collection
+    private function eventRows(array $organizationIds, ?int $semesterId, ?string $viewerRole, bool $withState, int $limit): Collection
     {
         $files = $this->eventFiles($organizationIds, $semesterId, $viewerRole)
             ->with('requirement:id,name')
-            ->orderByDesc('created_at')->orderByDesc('id')
+            ->orderByDesc('created_at')->orderByDesc('id')->limit($limit)
             ->get(['id', 'event_id', 'requirement_id', 'organization_id', 'original_name', 'uploaded_by', 'created_at']);
         $eventIds = $files->pluck('event_id')->unique();
         $events = Event::whereIn('id', $eventIds)->get(['id', 'title', 'academic_semester_id', 'planning_details', 'approved_at'])->keyBy('id');
@@ -321,11 +364,13 @@ class ComplianceDocumentService
         });
     }
 
-    private function financialRows(array $organizationIds, ?int $semesterId, Collection $semesters, ?string $source, ?string $viewerRole): Collection
+    /** A report yields at least one row of the kind asked for, so `$limit` reports are enough for `$limit` rows. */
+    private function financialRows(array $organizationIds, ?int $semesterId, Collection $semesters, ?string $source, ?string $viewerRole, int $limit): Collection
     {
-        $reports = FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
-            ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->whereNotNull('department_head_approved_at'))
-            ->orderByDesc('submitted_at')->orderByDesc('id')
+        $query = $this->submittedReports($organizationIds, $semesterId, $viewerRole);
+        $reports = $query
+            ->when($source === 'financial_supporting_document', fn ($withDocuments) => $withDocuments->whereRaw($this->documentCountSql($query).' > 0'))
+            ->orderByDesc('submitted_at')->orderByDesc('id')->limit($limit)
             ->get(['id', 'organization_id', 'event_id', 'report_type', 'title', 'period_start', 'period_end', 'supporting_documents', 'submission_status', 'submitted_at', 'generated_by', 'department_head_approved_at', 'sao_approved_at']);
         $eventSemesters = Event::whereIn('id', $reports->pluck('event_id')->filter()->unique())->pluck('academic_semester_id', 'id');
         $approvals = $this->latestApprovals('financial_report', $reports->pluck('id'));
@@ -333,9 +378,6 @@ class ComplianceDocumentService
         $rows = collect();
         foreach ($reports as $report) {
             $reportSemesterId = $this->reportSemesterId($report, $eventSemesters, $semesters);
-            if ($semesterId && $reportSemesterId !== $semesterId) {
-                continue;
-            }
 
             $approval = $approvals->get($report->id);
             [$status, $stage] = self::REPORT_STATE[$report->submission_status] ?? ['submitted', null];

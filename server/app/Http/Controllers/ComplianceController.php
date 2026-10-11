@@ -17,6 +17,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * SAO organization compliance and accreditation.
@@ -551,11 +552,21 @@ class ComplianceController extends Controller
         }
 
         $arguments = [$organizationIds, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role, $filters['family'] ?? null];
-        $rows = ($filters['group'] ?? null) === 'organization' ? $documents->organizationSummaries(...$arguments) : $documents->rows(...$arguments);
         $perPage = $filters['per_page'] ?? 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
+        $options = ['path' => $request->url(), 'query' => $request->query()];
 
-        return response()->json(new LengthAwarePaginator($rows->forPage($page, $perPage)->values(), $rows->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]));
+        if (($filters['group'] ?? null) === 'organization') {
+            $summaries = $documents->organizationSummaries(...$arguments);
+
+            return response()->json(new LengthAwarePaginator($summaries->forPage($page, $perPage)->values(), $summaries->count(), $perPage, $page, $options));
+        }
+        if ($page * $perPage > ComplianceDocumentService::MAX_WINDOW) {
+            throw ValidationException::withMessages(['page' => 'That page is too deep to load. Narrow the list with a filter or a search.']);
+        }
+        [$rows, $total] = $documents->page(...$arguments, page: $page, perPage: $perPage);
+
+        return response()->json(new LengthAwarePaginator($rows, $total, $perPage, $page, $options));
     }
 
     /** Organizations the caller may read compliance for, or null when it may read every organization. */
