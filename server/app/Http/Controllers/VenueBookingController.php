@@ -22,6 +22,8 @@ use Illuminate\Validation\Rule;
  */
 class VenueBookingController extends Controller
 {
+    private const EVENT_GONE = 'event_gone';
+
     public function index(Request $request)
     {
         $filters = $request->validate([
@@ -87,6 +89,9 @@ class VenueBookingController extends Controller
                     return null;
                 }
             }
+            if (! empty($data['event_id']) && ! Event::whereKey($data['event_id'])->lockForUpdate()->first()) {
+                return self::EVENT_GONE;
+            }
 
             return VenueBooking::create([
                 'venue_id' => $offCampus ? null : $data['venue_id'],
@@ -99,6 +104,9 @@ class VenueBookingController extends Controller
                 'requested_by' => $request->user()->school_id,
             ]);
         });
+        if ($booking === self::EVENT_GONE) {
+            return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
+        }
         if (! $booking) {
             return response()->json(['message' => 'This venue already has a pending or approved booking during that time. Choose another slot.'], 422);
         }

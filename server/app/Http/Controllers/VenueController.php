@@ -6,6 +6,7 @@ use App\Models\AuditLog;
 use App\Models\Venue;
 use App\Models\VenueBooking;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /** SAO's venue catalog. Booking requests live in VenueBookingController. */
 class VenueController extends Controller
@@ -120,23 +121,33 @@ class VenueController extends Controller
 
     public function destroy(Request $request, Venue $venue)
     {
-        if ($venue->bookings()->exists()) {
+        // A booking request locks the venue row before it checks the slot, so taking the same lock here
+        // means a booking is either seen by the check or waits for the delete.
+        $deleted = DB::transaction(function () use ($request, $venue) {
+            $locked = Venue::whereKey($venue->id)->lockForUpdate()->first();
+            if (! $locked || $locked->bookings()->exists()) {
+                return false;
+            }
+
+            AuditLog::create([
+                'organization_id' => null,
+                'user_id' => $request->user()->school_id,
+                'actor_role' => $request->user()->role,
+                'module' => 'venues',
+                'action' => 'venue_deleted',
+                'record_type' => Venue::class,
+                'record_id' => $locked->id,
+                'new_values' => $locked->toArray(),
+                'ip_address' => $request->ip(),
+                'created_at' => now(),
+            ]);
+            $locked->delete();
+
+            return true;
+        });
+        if (! $deleted) {
             return response()->json(['message' => 'This venue has booking history, so it cannot be deleted. Mark it inactive instead to stop new requests.'], 409);
         }
-
-        AuditLog::create([
-            'organization_id' => null,
-            'user_id' => $request->user()->school_id,
-            'actor_role' => $request->user()->role,
-            'module' => 'venues',
-            'action' => 'venue_deleted',
-            'record_type' => Venue::class,
-            'record_id' => $venue->id,
-            'new_values' => $venue->toArray(),
-            'ip_address' => $request->ip(),
-            'created_at' => now(),
-        ]);
-        $venue->delete();
 
         return response()->json(['message' => 'Venue deleted.']);
     }
