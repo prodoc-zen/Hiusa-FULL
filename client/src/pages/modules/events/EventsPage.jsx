@@ -4,6 +4,7 @@ import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
+  Ban,
   Calendar,
   CalendarCheck2,
   CalendarPlus,
@@ -99,6 +100,8 @@ const allowedStatusTransitions = {
   completed: [],
   cancelled: [],
 };
+
+const canCancelEvent = (evt) => allowedStatusTransitions[evt.status]?.includes('cancelled') ?? false;
 
 function capitalize(s) {
   return s ? s.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : '-';
@@ -411,6 +414,9 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
   const [eventToDelete, setEventToDelete] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [eventToCancel, setEventToCancel] = useState(null);
+  const [cancelBusy, setCancelBusy] = useState(false);
+  const [cancelError, setCancelError] = useState(null);
 
   let currentUser = {};
   try { currentUser = JSON.parse(localStorage.getItem('user') ?? '{}') ?? {}; } catch {}
@@ -463,6 +469,21 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       setDeleteError(getApiErrorMessage(requestError, 'This event could not be deleted.'));
     } finally {
       setDeleteBusy(false);
+    }
+  }
+
+  async function confirmCancelEvent() {
+    setCancelBusy(true);
+    setCancelError(null);
+    try {
+      await updateEventStatus(eventToCancel.id, 'cancelled');
+      notify.success(`"${eventToCancel.title}" cancelled.`);
+      setEventToCancel(null);
+      load();
+    } catch (requestError) {
+      setCancelError(getApiErrorMessage(requestError, 'This event could not be cancelled.'));
+    } finally {
+      setCancelBusy(false);
     }
   }
 
@@ -1153,7 +1174,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                         <div className="mt-4 flex gap-2 border-t border-[#DDE7EF] pt-3">
                           <button type="button" onClick={() => openEventDetails(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] text-xs font-bold text-[#0878B7]"><Eye size={15} /> View details</button>
                           {canCreateEvents && <button type="button" onClick={() => openEditForm(evt)} className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-lg bg-[#0878B7] text-xs font-bold text-white"><Pencil size={15} /> Edit event</button>}
-                          {canCreateEvents && !viewingHistory && <button type="button" onClick={() => { setDeleteError(null); setEventToDelete(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Trash2 size={15} /> Delete event</button>}
+                          {canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && <button type="button" onClick={() => { setDeleteError(null); setEventToDelete(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Trash2 size={15} /> Delete event</button>}
+                          {canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && <button type="button" onClick={() => { setCancelError(null); setEventToCancel(evt); }} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-red-200 bg-red-50 px-3 text-xs font-bold text-red-700"><Ban size={15} /> Cancel event</button>}
                         </div>
                       </article>
                     );
@@ -1220,7 +1242,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
                             <TableRowActions subject={evt.title} label="Event actions" actions={[
                               { label: 'View event', icon: Eye, onClick: () => openEventDetails(evt) },
                               canCreateEvents && { label: 'Edit event', icon: Pencil, onClick: () => openEditForm(evt) },
-                              canCreateEvents && !viewingHistory && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
+                              canCreateEvents && !viewingHistory && !evt.delete_blocked_reason && { label: 'Delete event', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setEventToDelete(evt); } },
+                              canCreateEvents && !viewingHistory && evt.delete_blocked_reason && canCancelEvent(evt) && { label: 'Cancel event', icon: Ban, danger: true, onClick: () => { setCancelError(null); setEventToCancel(evt); } },
                             ]} />
                           </td>
                         </tr>
@@ -2036,6 +2059,19 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         error={deleteError}
         onCancel={() => setEventToDelete(null)}
         onConfirm={confirmDeleteEvent}
+      />
+      <ConfirmModal
+        open={Boolean(eventToCancel)}
+        title="Cancel this event?"
+        message="The event stays on record as cancelled because its files, approvals, attendance or budget keep it from being deleted. A cancelled event cannot be reopened."
+        recordName={eventToCancel?.title}
+        confirmText="Cancel event"
+        cancelText="Keep event"
+        variant="danger"
+        busy={cancelBusy}
+        error={cancelError}
+        onCancel={() => setEventToCancel(null)}
+        onConfirm={confirmCancelEvent}
       />
     </div>
   );
