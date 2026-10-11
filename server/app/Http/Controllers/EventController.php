@@ -34,6 +34,8 @@ class EventController extends Controller
 {
     private const BOOKING_BLOCKER = 'it has a venue booking that is still pending or approved';
 
+    private const EVENT_GONE = 'event_gone';
+
     public function __construct(
         private readonly GroqResponsesService $groq,
         private readonly TaskDelegationService $delegation,
@@ -519,19 +521,34 @@ class EventController extends Controller
             return response()->json(['message' => 'You are not authorized to delete this event.'], 403);
         }
 
-        if ($reason = $this->deleteBlockers([$event])[$event->id]) {
-            return response()->json(['message' => $reason], 409);
-        }
-
         $imageUrl = $event->image_url;
-        $requirementPaths = EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
-        DB::transaction(function () use ($event) {
-            ApprovalRequest::where('organization_id', $event->organization_id)
+        $requirementPaths = [];
+        // The check runs on the locked row. A booking, file or attendance record takes a shared lock on its
+        // event through the foreign key, so it either lands before the check and blocks the delete, or waits for it.
+        $blocked = DB::transaction(function () use ($event, &$requirementPaths) {
+            $locked = Event::whereKey($event->id)->lockForUpdate()->first();
+            if (! $locked) {
+                return self::EVENT_GONE;
+            }
+            if ($reason = $this->deleteBlockers([$locked])[$locked->id]) {
+                return $reason;
+            }
+
+            $requirementPaths = EventRequirementFile::where('event_id', $locked->id)->pluck('path')->all();
+            ApprovalRequest::where('organization_id', $locked->organization_id)
                 ->where('entity_type', 'event')
-                ->where('entity_id', $event->id)
+                ->where('entity_id', $locked->id)
                 ->delete();
-            $event->delete();
+            $locked->delete();
+
+            return null;
         });
+        if ($blocked === self::EVENT_GONE) {
+            return response()->json(['message' => 'Event not found.'], 404);
+        }
+        if ($blocked) {
+            return response()->json(['message' => $blocked], 409);
+        }
         if ($imageUrl) {
             Storage::disk('public')->delete($this->publicStoragePath($imageUrl));
         }
