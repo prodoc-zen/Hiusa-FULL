@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
-import process from 'node:process';
+import { BY_ROLE, PSITS_ORGANIZATION_ID } from './support/accounts.js';
+import { liveEnabled, sessionFor } from './support/live.js';
 
 // Every authorized page, per role, is opened in a real browser and checked for
 // three things: the app shell stays mounted (a page component that throws with no
@@ -15,25 +16,16 @@ import process from 'node:process';
 //
 // Set HIUSA_LIVE_E2E=1 to run it.
 
-const apiUrl = process.env.HIUSA_E2E_API_URL || 'http://127.0.0.1:8000/api';
-const liveEnabled = process.env.HIUSA_LIVE_E2E === '1';
-
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
-const ACCOUNTS = {
-  SUPER_ADMIN: { schoolId: 930027, password: 'Demo@12345', organizationId: 6 },
-  ADMIN: { schoolId: 990001, password: 'Admin@123456', organizationId: 1 },
-  SBO_OFFICER: { schoolId: 900004, password: 'Demo@12345', organizationId: 1 },
-  DEPARTMENT_HEAD: { schoolId: 940001, password: 'Demo@12345', organizationId: 7 },
-  STUDENT: { schoolId: 2100142, password: 'Demo@12345', organizationId: 1 },
-};
-
+// Pages that only redirect are listed in the redirect test below, with their target. The sidebar
+// and these paths follow docs/UX_FLOW.md section 3.
 const ROUTES = {
   SUPER_ADMIN: [
     '/dashboard/super-admin',
     '/dashboard/super-admin/agency',
     '/dashboard/super-admin/organizations',
-    '/dashboard/super-admin/organizations/1',
+    `/dashboard/super-admin/organizations/${PSITS_ORGANIZATION_ID}`,
     '/dashboard/super-admin/colleges',
     '/dashboard/super-admin/admins',
     '/dashboard/super-admin/announcements',
@@ -50,7 +42,6 @@ const ROUTES = {
   ADMIN: [
     '/dashboard/admin',
     '/dashboard/admin/users',
-    '/dashboard/admin/sbo-positions',
     '/dashboard/admin/positions',
     '/dashboard/admin/programs-sections',
     '/dashboard/audit-logs',
@@ -66,7 +57,6 @@ const ROUTES = {
     '/dashboard/events/manage-events',
     '/dashboard/events/event-planner',
     '/dashboard/events/check-in',
-    '/dashboard/events/activity-calendar',
     '/dashboard/finance/financial-ledger',
     '/dashboard/finance/collections',
     '/dashboard/finance/student-accounts',
@@ -81,8 +71,6 @@ const ROUTES = {
     '/dashboard/merchandise/order-merchandise',
     '/dashboard/merchandise/my-orders',
     '/dashboard/tasks/task-board',
-    '/dashboard/tasks/create-task',
-    '/dashboard/tasks/task-progress',
     '/dashboard/tasks/ai-delegation',
     '/dashboard/compliance',
     '/dashboard/venues',
@@ -131,7 +119,6 @@ const ROUTES = {
     '/dashboard/department-head',
     '/dashboard/department-head/approvals',
     '/dashboard/department-head/organizations',
-    '/dashboard/approvals',
     '/dashboard/announcements/view-announcements',
     '/dashboard/events/activity-calendar',
     '/dashboard/finance/financial-ledger',
@@ -159,29 +146,25 @@ const ROUTES = {
   ],
 };
 
-async function signIn(page, request, role) {
-  const { schoolId, password, organizationId } = ACCOUNTS[role];
-  const login = await request.post(`${apiUrl}/login`, { data: { organization_id: organizationId, school_id: schoolId, password } });
-  await expect(login, `login failed for ${role} (${schoolId})`).toBeOK();
-  const payload = await login.json();
-  await page.addInitScript(({ token, user, organizationId: orgId }) => {
+async function signIn(page, role) {
+  const session = await sessionFor(BY_ROLE[role]);
+  await page.addInitScript(({ token, user }) => {
     window.localStorage.setItem('auth_token', token);
     window.localStorage.setItem('user', JSON.stringify(user));
-    window.localStorage.setItem('selected_organization', JSON.stringify({ id: orgId, name: 'HIUSA', acronym: 'HIUSA' }));
     // The elections hub shows a picker until an election is chosen; pre-select the
     // seeded one so the election sub-pages render their real content.
     window.sessionStorage.setItem('activeElectionId', '1');
-  }, { token: payload.access_token, user: payload.user, organizationId });
-  return payload;
+  }, session);
+  return session;
 }
 
 for (const role of Object.keys(ROUTES)) {
-  test(`${role} can open every authorized page`, async ({ page, request }) => {
+  test(`${role} can open every authorized page`, async ({ page }) => {
     // Each test walks every page for one role, so it needs far more than the
     // 30s default; without this the browser context closes mid-walk and the
     // remaining routes report spurious "browser has been closed" failures.
     test.setTimeout(600_000);
-    await signIn(page, request, role);
+    await signIn(page, role);
     const failures = [];
     const consoleErrors = [];
     page.on('pageerror', (error) => consoleErrors.push(`pageerror ${page.url()} ${String(error.message).slice(0, 160)}`));
@@ -222,23 +205,44 @@ for (const role of Object.keys(ROUTES)) {
   });
 }
 
-test('removed and redirected routes resolve where they should', async ({ page, request }) => {
-  test.setTimeout(180_000);
-  await signIn(page, request, 'SUPER_ADMIN');
-  const redirects = {
-    '/dashboard/super-admin/financial-reports': /\/dashboard\/super-admin\/compliance\?tab=financial$/,
-    '/dashboard/super-admin/approvals': /\/dashboard\/super-admin\/compliance\?tab=financial$/,
-    '/dashboard/super-admin/event-requirements': /\/dashboard\/super-admin\/compliance\?tab=events$/,
+test('removed and redirected routes resolve where they should', async ({ page }) => {
+  test.setTimeout(240_000);
+  const byRole = {
+    SUPER_ADMIN: {
+      '/dashboard/super-admin/financial-reports': /\/dashboard\/super-admin\/compliance\?tab=financial$/,
+      '/dashboard/super-admin/approvals': /\/dashboard\/super-admin\/compliance\?tab=financial$/,
+      '/dashboard/super-admin/event-requirements': /\/dashboard\/super-admin\/compliance\?tab=events$/,
+    },
+    // The Admin's old pages merged into surviving ones; the query tells the survivor which view to open.
+    ADMIN: {
+      '/dashboard/events/activity-calendar': /\/dashboard\/events\/manage-events\?view=calendar$/,
+      '/dashboard/tasks/create-task': /\/dashboard\/tasks\/task-board\?new=1$/,
+      '/dashboard/tasks/task-progress': /\/dashboard\/tasks\/task-board\?view=progress$/,
+      '/dashboard/admin/sbo-positions': /\/dashboard\/admin\/positions$/,
+      '/dashboard/events/event-operations': /\/dashboard\/events\/check-in$/,
+      '/dashboard/merchandise/gcash-payment': /\/dashboard\/merchandise\/manage-orders$/,
+    },
+    // A Department Head has one Approvals route.
+    DEPARTMENT_HEAD: {
+      '/dashboard/approvals': /\/dashboard\/department-head\/approvals$/,
+    },
   };
-  for (const [from, to] of Object.entries(redirects)) {
-    await page.goto(from, { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(to);
+  for (const [role, redirects] of Object.entries(byRole)) {
+    const context = await page.context().browser().newContext();
+    const rolePage = await context.newPage();
+    await signIn(rolePage, role);
+    for (const [from, to] of Object.entries(redirects)) {
+      await rolePage.goto(from, { waitUntil: 'domcontentloaded' });
+      await expect(rolePage, `${role} ${from}`).toHaveURL(to);
+      await expect(rolePage.getByRole('main')).toBeVisible({ timeout: 15000 });
+    }
+    await context.close();
   }
 });
 
-test('DEPARTMENT_HEAD is turned away from voting and merchandise', async ({ page, request }) => {
+test('DEPARTMENT_HEAD is turned away from voting and merchandise', async ({ page }) => {
   test.setTimeout(120_000);
-  await signIn(page, request, 'DEPARTMENT_HEAD');
+  await signIn(page, 'DEPARTMENT_HEAD');
   for (const path of ['/dashboard/elections/cast-vote', '/dashboard/merchandise/my-orders', '/dashboard/merchandise/order-merchandise', '/dashboard/merchandise/manage-orders']) {
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('main')).toBeVisible({ timeout: 15000 });
@@ -247,10 +251,10 @@ test('DEPARTMENT_HEAD is turned away from voting and merchandise', async ({ page
   }
 });
 
-test('STUDENT cannot open SAO or Department Head pages', async ({ page, request }) => {
+test('STUDENT cannot open SAO or Department Head pages', async ({ page }) => {
   test.setTimeout(120_000);
-  await signIn(page, request, 'STUDENT');
-  for (const path of ['/dashboard/super-admin/agency', '/dashboard/super-admin/organizations/1', '/dashboard/department-head/organizations']) {
+  await signIn(page, 'STUDENT');
+  for (const path of ['/dashboard/super-admin/agency', `/dashboard/super-admin/organizations/${PSITS_ORGANIZATION_ID}`, '/dashboard/department-head/organizations']) {
     await page.goto(path, { waitUntil: 'domcontentloaded' });
     await expect(page.getByRole('main')).toBeVisible({ timeout: 15000 });
     await page.waitForTimeout(1000);

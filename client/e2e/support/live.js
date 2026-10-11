@@ -3,15 +3,14 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
+// Ports come from the environment so several stacks can run side by side; the defaults are the CI ports.
 export const apiUrl = process.env.HIUSA_E2E_API_URL || 'http://127.0.0.1:8000/api';
+export const clientPort = process.env.HIUSA_E2E_CLIENT_PORT || '5173';
+export const baseUrl = process.env.HIUSA_E2E_BASE_URL || `http://127.0.0.1:${clientPort}`;
 export const liveEnabled = process.env.HIUSA_LIVE_E2E === '1';
 export const SHOTS = process.env.HIUSA_E2E_SHOTS || path.join(process.cwd(), 'test-results', 'live-shots');
 
-export const SAO = { schoolId: 930027, password: 'Demo@12345' };
-export const HEAD_CCS = { schoolId: 940001, password: 'Demo@12345' };
-export const HEAD_CBE = { schoolId: 940002, password: 'Demo@12345' };
-export const PSITS_ADMIN = { schoolId: 900001, password: 'Demo@12345' };
-export const STUDENT = { schoolId: 2100142, password: 'Demo@12345' };
+export * from './accounts.js';
 
 export function shot(name) {
   fs.mkdirSync(SHOTS, { recursive: true });
@@ -60,12 +59,31 @@ export function newSink() {
   return { console: [], pageErrors: [], http: [] };
 }
 
-export async function uiLogin(page, account) {
-  await page.goto('/login');
-  await page.getByLabel(/School ID/i).fill(String(account.schoolId));
-  await page.getByLabel(/^Password/i).fill(account.password);
-  await page.getByRole('button', { name: /^Sign in/ }).click();
-  await page.waitForURL(/\/dashboard/, { timeout: 20000 });
+// Accounts an administrator creates carry a default password and are sent to /change-password on first
+// sign-in. Pass `newPassword` to complete that step as part of the login; without it, landing there fails
+// loudly instead of timing out waiting for the dashboard.
+export async function uiLogin(page, account, { newPassword } = {}) {
+  // The login endpoint is throttled per address, so a long run can be answered 429 on a fresh sign-in.
+  // Wait out the window and submit again rather than failing on the rate limit.
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    await page.goto('/login');
+    await page.getByLabel(/School ID/i).fill(String(account.schoolId));
+    await page.getByLabel(/^Password/i).fill(account.password);
+    const answered = page.waitForResponse((response) => response.request().method() === 'POST' && /\/login$/.test(response.url()), { timeout: 20000 });
+    await page.getByRole('button', { name: /^Sign in/ }).click();
+    const response = await answered;
+    if (response.status() !== 429) break;
+    await page.waitForTimeout(8000);
+  }
+  await page.waitForURL(/\/(dashboard|change-password)/, { timeout: 20000 });
+  if (/\/change-password/.test(page.url())) {
+    if (!newPassword) throw new Error(`Account ${account.schoolId} must change its password before using the app; pass { newPassword } to uiLogin.`);
+    await page.getByLabel('Current password').fill(account.password);
+    await page.getByLabel('New password', { exact: true }).fill(newPassword);
+    await page.getByLabel('Confirm new password').fill(newPassword);
+    await page.getByRole('button', { name: 'Save new password' }).click();
+    await page.waitForURL(/\/dashboard/, { timeout: 20000 });
+  }
   await page.getByRole('navigation').first().waitFor({ state: 'visible', timeout: 15000 });
 }
 
@@ -84,6 +102,79 @@ export async function apiLogin(request, account) {
 
 export function bearer(token) {
   return { Authorization: `Bearer ${token}`, Accept: 'application/json' };
+}
+
+// For journeys: sign in by school id and password and get the bearer token back, no browser and no
+// Playwright request fixture needed. Backs off on the login throttle like sessionFor does.
+export async function loginToken(schoolId, password) {
+  const { token } = await sessionFor({ schoolId, password }, { fresh: true });
+  return token;
+}
+
+// Seeds or inspects state through the API as one account. `body` is sent as JSON (or as FormData when
+// the caller passes one); the answer is { status, ok, body } with the parsed JSON, never a thrown error
+// for a 4xx, so a journey can assert on a refusal as easily as on a success.
+export async function apiCall(token, method, apiPath, body) {
+  const headers = bearer(token);
+  const init = { method: method.toUpperCase(), headers };
+  if (body instanceof FormData) {
+    init.body = body;
+  } else if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+  const response = await fetch(`${apiUrl}${apiPath.startsWith('/') ? '' : '/'}${apiPath}`, init);
+  const payload = await response.json().catch(() => null);
+  return { status: response.status, ok: response.ok, body: payload };
+}
+
+// An account-bound client: const api = await apiAs(PSITS_ADMIN); await api.post('/events', {...}).
+export async function apiAs(account) {
+  const { token, user } = await sessionFor(account);
+  return {
+    token,
+    user,
+    get: (apiPath) => apiCall(token, 'GET', apiPath),
+    post: (apiPath, body) => apiCall(token, 'POST', apiPath, body),
+    put: (apiPath, body) => apiCall(token, 'PUT', apiPath, body),
+    patch: (apiPath, body) => apiCall(token, 'PATCH', apiPath, body),
+    delete: (apiPath) => apiCall(token, 'DELETE', apiPath),
+  };
+}
+
+// One sign-in per account per worker. The login endpoint is throttled (10 a minute per address, 5 per
+// account), so specs that each log in again would trip it on a long run. Tokens live as long as the
+// database does; a spec that reseeds must call forgetSessions().
+const sessionCache = new Map();
+
+export function forgetSessions() {
+  sessionCache.clear();
+}
+
+export async function sessionFor(account, { fresh = false } = {}) {
+  const key = String(account.schoolId);
+  if (!fresh && sessionCache.has(key)) return sessionCache.get(key);
+  let last = null;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const response = await fetch(`${apiUrl}/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+      body: JSON.stringify({ school_id: account.schoolId, password: account.password }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    last = { status: response.status, payload };
+    if (response.status === 429) {
+      await new Promise((resolve) => setTimeout(resolve, 6000));
+      continue;
+    }
+    if (response.ok && payload.access_token) {
+      const session = { token: payload.access_token, user: payload.user };
+      sessionCache.set(key, session);
+      return session;
+    }
+    break;
+  }
+  throw new Error(`Sign in failed for ${account.schoolId}: ${last?.status} ${JSON.stringify(last?.payload).slice(0, 200)}`);
 }
 
 export async function injectSession(page, session) {

@@ -1,53 +1,38 @@
 import { expect, test } from '@playwright/test';
-import process from 'node:process';
-
-const apiUrl = process.env.HIUSA_E2E_API_URL || 'http://127.0.0.1:8000/api';
-const liveEnabled = process.env.HIUSA_LIVE_E2E === '1';
+import { PSITS_ADVISER, STUDENT } from './support/accounts.js';
+import { injectSession, liveEnabled, openRowMenu, sessionFor } from './support/live.js';
 
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
-async function signInAs(page, request, schoolId, password) {
-  const login = await request.post(`${apiUrl}/login`, {
-    data: {
-      organization_id: 1,
-      school_id: schoolId,
-      password,
-    },
-  });
-  expect(login.ok()).toBeTruthy();
-
-  const payload = await login.json();
-  await page.addInitScript(({ token, user }) => {
-    window.localStorage.setItem('auth_token', token);
-    window.localStorage.setItem('user', JSON.stringify(user));
-    window.localStorage.setItem('selected_organization', JSON.stringify({ id: 1, name: 'HIUSA Student Body Organization', acronym: 'HIUSA' }));
-  }, { token: payload.access_token, user: payload.user });
-
-  return payload.user;
+async function signInAs(page, account) {
+  await injectSession(page, await sessionFor(account));
 }
 
-test('admin can inspect event, planner, calendar, and attendance workflows', async ({ page, request }) => {
-  await signInAs(page, request, 990002, 'Admin@123456');
+test('admin can inspect event, planner, calendar, and attendance workflows', async ({ page }) => {
+  await signInAs(page, PSITS_ADVISER);
 
   await page.goto('/dashboard/events/manage-events');
-  await expect(page.getByRole('heading', { name: 'All Events' })).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'HIUSA General Assembly' }).first()).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible();
+  await expect(page.getByRole('cell', { name: /HIUSA General Assembly/ }).first()).toBeVisible();
 
-  await page.getByLabel('View HIUSA General Assembly').first().click();
-  await expect(page.getByRole('heading', { name: 'HIUSA General Assembly' })).toBeVisible();
+  const assemblyRow = page.getByRole('row').filter({ hasText: 'HIUSA General Assembly' });
+  await openRowMenu(page, assemblyRow);
+  await page.getByRole('menuitem', { name: 'View event' }).click();
+  await expect(page.getByRole('dialog', { name: 'Event details' }).getByRole('heading', { name: 'HIUSA General Assembly' })).toBeVisible();
   await page.getByRole('button', { name: 'Close event details' }).click();
 
-  await page.getByPlaceholder('Search events...').fill('Sports Fest');
-  await expect(page.getByRole('cell', { name: 'Sports Fest 2024' }).first()).toBeVisible();
-  await expect(page.getByRole('cell', { name: 'HIUSA General Assembly' }).first()).toBeHidden();
+  await page.getByPlaceholder('Search events').fill('Sports Fest');
+  await expect(page.getByRole('cell', { name: /Sports Fest 2024/ }).first()).toBeVisible();
+  await expect(page.getByRole('cell', { name: /HIUSA General Assembly/ }).first()).toBeHidden();
 
-  await page.getByLabel('Edit Sports Fest 2024').first().click();
-  await expect(page.getByText('Edit Event', { exact: true })).toBeVisible();
+  await openRowMenu(page, page.getByRole('row').filter({ hasText: 'Sports Fest 2024' }));
+  await page.getByRole('menuitem', { name: 'Edit event' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit event' }).getByRole('heading', { name: 'Edit event' })).toBeVisible();
   await expect(page.getByLabel('Vendor Deadlines')).toBeVisible();
   await expect(page.getByLabel('Logistics Checklist')).toBeVisible();
   await page.getByRole('button', { name: 'Cancel' }).click();
-  await page.getByPlaceholder('Search events...').fill('');
-  await expect(page.getByRole('cell', { name: 'HIUSA General Assembly' }).first()).toBeVisible();
+  await page.getByPlaceholder('Search events').fill('');
+  await expect(page.getByRole('cell', { name: /HIUSA General Assembly/ }).first()).toBeVisible();
 
   let plannerRequest;
   await page.route('**/api/events/*/generate-plan', async (route) => {
@@ -78,10 +63,10 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
     });
   });
   await page.goto('/dashboard/events/event-planner');
-  await expect(page.getByRole('heading', { name: 'Build an Event To-do List' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Planning', level: 1 })).toBeVisible();
   await page.getByLabel('Event', { exact: true }).selectOption({ label: 'Sports Fest 2024' });
-  await page.getByLabel('What should the to-do list cover?').fill('Verify the complete planning workflow.');
-  const createToDoList = page.getByRole('button', { name: 'Create To-do List' });
+  await page.getByLabel('Optional planning context').fill('Verify the complete planning workflow.');
+  const createToDoList = page.getByRole('button', { name: 'Draft Editable To-do List' });
   await expect(createToDoList).toBeEnabled();
   await createToDoList.click();
   await expect(page.getByText(/\d+ suggested to-do items/)).toBeVisible();
@@ -103,22 +88,26 @@ test('admin can inspect event, planner, calendar, and attendance workflows', asy
     await expect(page.getByLabel(`Task ${index + 1} title`)).toHaveValue(taskTitle);
   }
 
+  // The old event-operations page is now the Check-in step of Events and tasks.
   await page.goto('/dashboard/events/event-operations');
-  await page.getByRole('button', { name: /Sports Fest 2024/ }).first().click();
-  await expect(page.getByText('One-scan fingerprint check-in')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Scan Fingerprint Once' })).toBeDisabled();
-  await expect(page.getByText('Record Manual Attendance')).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard\/events\/check-in$/);
+  await expect(page.getByRole('heading', { name: 'Check-in', level: 1 })).toBeVisible();
+  await page.getByRole('button', { name: 'Open attendance for Sports Fest 2024' }).click();
+  await expect(page.getByText('Fingerprint check-in / checkout')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Scan Fingerprint' })).toBeDisabled();
+  await expect(page.getByText('Manual check-in', { exact: true })).toBeVisible();
   await expect(page.getByLabel('Attendance status')).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/dashboard/events/activity-calendar');
-  await expect(page.getByRole('heading', { name: 'All Events' })).toBeVisible();
+  await expect(page).toHaveURL(/\/dashboard\/events\/manage-events\?view=calendar$/);
+  await expect(page.getByRole('heading', { name: 'Events', level: 1 })).toBeVisible();
   const hasPageOverflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1);
   expect(hasPageOverflow).toBeFalsy();
 });
 
-test('student cannot open admin event management', async ({ page, request }) => {
-  await signInAs(page, request, 2100142, 'Demo@12345');
+test('student cannot open admin event management', async ({ page }) => {
+  await signInAs(page, STUDENT);
   await page.goto('/dashboard/events/manage-events');
   await expect(page).toHaveURL(/\/dashboard\/student$/);
 });
