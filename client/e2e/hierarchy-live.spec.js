@@ -195,7 +195,8 @@ test('Step 5: Department Head sees Returned, edits and resubmits', async ({ brow
   await goto(page, '/dashboard/department-head/organizations');
   const row = page.getByRole('row', { name: new RegExp(ORG_ACRONYM) });
   await expect(row).toContainText('Returned', { timeout: 15000 });
-  await expect(row).toContainText('SAO remarks: Missing charter signature');
+  await expect(row).toContainText('SAO remarks');
+  await expect(row).toContainText('Missing charter signature');
   await row.getByRole('button', { name: 'Edit and resubmit' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toContainText('Missing charter signature');
@@ -366,7 +367,10 @@ test('Step 9: Compliance tabs, redirects and Track documents', async ({ browser 
   const orgSelect = page.getByLabel('Organization', { exact: true });
   await expect(orgSelect.locator('option', { hasText: ORG_ACRONYM })).toHaveCount(1, { timeout: 40000 });
   await orgSelect.selectOption({ value: await orgSelect.locator('option', { hasText: ORG_ACRONYM }).getAttribute('value') });
-  const openButtons = page.getByRole('tabpanel').getByRole('button', { name: /^Open / });
+  const organizationRow = page.getByRole('tabpanel').getByRole('button', { name: new RegExp(ORG_ACRONYM) });
+  await expect(organizationRow).toContainText('10 files', { timeout: 15000 });
+  await organizationRow.click();
+  const openButtons = page.getByRole('tabpanel').getByRole('button', { name: /^View / });
   await expect(openButtons.first()).toBeVisible({ timeout: 15000 });
   await expect.poll(() => openButtons.count(), { timeout: 20000, message: 'Track documents rows for the selected organization' }).toBe(10);
   const count = await openButtons.count();
@@ -387,17 +391,21 @@ test('Step 10: SAO venues booking calendar', async ({ browser }) => {
   const { page } = await roleContext(browser, 'SAO', SAO);
   const before = sink.console.length + sink.pageErrors.length;
   await goto(page, '/dashboard/super-admin/venues');
-  await page.getByRole('tab', { name: /Booking requests/ }).click();
+  await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true');
+  await expect(page.getByRole('tab', { name: /Booking requests/ })).toBeVisible();
+  await expect(page.getByRole('tab', { name: 'Venue catalog' })).toBeVisible();
   await expect(page.getByLabel('Venue to show')).toBeVisible({ timeout: 15000 });
-  await expect(page.getByRole('button', { name: 'Previous week' })).toBeVisible();
+  const previous = page.getByRole('button', { name: /^Previous (day|week|month)$/ });
+  const next = page.getByRole('button', { name: /^Next (day|week|month)$/ });
+  await expect(previous).toBeVisible();
   await expect(page.getByRole('button', { name: 'Today' })).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Next week' })).toBeVisible();
+  await expect(next).toBeVisible();
   const header = page.locator('main');
   const initial = await header.innerText();
-  await page.getByRole('button', { name: 'Next week' }).click();
+  await next.click();
   await expect.poll(async () => (await header.innerText()) !== initial, { timeout: 8000 }).toBe(true);
-  await page.getByRole('button', { name: 'Previous week' }).click();
-  await page.getByRole('button', { name: 'Previous week' }).click();
+  await previous.click();
+  await previous.click();
   await page.getByRole('button', { name: 'Today' }).click();
   const options = await page.getByLabel('Venue to show').locator('option').count();
   console.log('VENUE OPTIONS', options);
@@ -535,26 +543,59 @@ test('Step 13a: Admin delete controls on Events, Finance budgets and Tasks', asy
 
   await goto(page, '/dashboard/events/manage-events');
   await page.waitForLoadState('networkidle');
-  const eventRows = page.getByRole('row').filter({ has: page.getByRole('button', { name: /^Actions for / }) });
-  await expect(eventRows.first()).toBeVisible({ timeout: 15000 });
-  await openRowMenu(page, eventRows.first());
+  expect([200, 201], 'the throwaway event is created').toContain(eventResponse.status());
+  const throwaway = page.getByRole('row').filter({ hasText: eventTitle });
+  await expect(throwaway).toBeVisible({ timeout: 15000 });
+  await openRowMenu(page, throwaway);
   await expect(page.getByRole('menuitem', { name: 'Delete event' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Cancel event' })).toHaveCount(0);
   await page.getByRole('menuitem', { name: 'Delete event' }).click();
   const cancelDialog = page.getByRole('dialog', { name: 'Delete this event?' });
-  await expect(cancelDialog).toBeVisible();
+  await expect(cancelDialog).toContainText(eventTitle);
   await cancelDialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(cancelDialog).toBeHidden();
-  if (eventResponse.status() === 201 || eventResponse.status() === 200) {
-    const throwaway = page.getByRole('row').filter({ hasText: eventTitle });
-    await expect(throwaway).toBeVisible({ timeout: 15000 });
-    await openRowMenu(page, throwaway);
-    await page.getByRole('menuitem', { name: 'Delete event' }).click();
-    const dialog = page.getByRole('dialog', { name: 'Delete this event?' });
-    await expect(dialog).toContainText(eventTitle);
-    await dialog.getByRole('button', { name: 'Delete event' }).click();
-    await expect(page.getByText(`"${eventTitle}" deleted.`)).toBeVisible({ timeout: 15000 });
-    await expect(page.getByRole('row').filter({ hasText: eventTitle })).toHaveCount(0);
-  }
+  await openRowMenu(page, throwaway);
+  await page.getByRole('menuitem', { name: 'Delete event' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Delete this event?' });
+  await dialog.getByRole('button', { name: 'Delete event' }).click();
+  await expect(page.getByText(`"${eventTitle}" deleted.`)).toBeVisible({ timeout: 15000 });
+  await expect(page.getByRole('row').filter({ hasText: eventTitle })).toHaveCount(0);
+
+  const venues = await (await request.get(`${apiUrl}/venues`, { headers: bearer(admin.token) })).json();
+  const venue = (venues.data || []).find((item) => item.is_active !== false);
+  expect(venue, 'a seeded active venue to book').toBeTruthy();
+  const heldTitle = `E2E held-venue event ${stamp}`;
+  const heldResponse = await request.post(`${apiUrl}/events`, {
+    headers: bearer(admin.token),
+    data: { title: heldTitle, description: 'throwaway', start_time: '2026-11-21T09:00:00', end_time: '2026-11-21T11:00:00', location: venue.name, planning_details: { venue_type: 'on_campus', venue_id: venue.id } },
+  });
+  expect([200, 201], 'the held-venue event is created').toContain(heldResponse.status());
+  const held = await heldResponse.json();
+  const bookingResponse = await request.post(`${apiUrl}/venue-bookings`, {
+    headers: bearer(admin.token),
+    data: { venue_id: venue.id, event_id: held.id, start_time: '2026-11-21T09:00:00+08:00', end_time: '2026-11-21T11:00:00+08:00' },
+  });
+  expect(bookingResponse.status(), 'the venue booking for the held-venue event').toBe(201);
+  const booking = await bookingResponse.json();
+
+  await goto(page, '/dashboard/events/manage-events');
+  await page.waitForLoadState('networkidle');
+  const heldRow = page.getByRole('row').filter({ hasText: heldTitle });
+  await expect(heldRow).toBeVisible({ timeout: 15000 });
+  await openRowMenu(page, heldRow);
+  await expect(page.getByRole('menuitem', { name: 'Delete event' })).toHaveCount(0);
+  await expect(page.getByRole('menuitem', { name: 'Cancel event' })).toBeVisible();
+  await page.getByRole('menuitem', { name: 'Cancel event' }).click();
+  const heldDialog = page.getByRole('dialog', { name: 'Cancel this event?' });
+  await expect(heldDialog).toContainText(heldTitle);
+  await heldDialog.getByRole('button', { name: 'Cancel event' }).click();
+  await expect(heldDialog).toBeHidden({ timeout: 15000 });
+  const bookings = await (await request.get(`${apiUrl}/venue-bookings`, { headers: bearer(admin.token), params: { venue_id: venue.id, per_page: 100 } })).json();
+  expect((bookings.data || []).find((item) => item.id === booking.id)?.status, 'cancelling the event releases its venue booking').toBe('withdrawn');
+  await openRowMenu(page, heldRow);
+  await page.getByRole('menuitem', { name: 'Delete event' }).click();
+  await page.getByRole('dialog', { name: 'Delete this event?' }).getByRole('button', { name: 'Delete event' }).click();
+  await expect(page.getByText(`"${heldTitle}" deleted.`)).toBeVisible({ timeout: 15000 });
   await page.screenshot({ path: shot('A13-admin-events.png'), fullPage: true });
 
   await goto(page, '/dashboard/finance/budget-allocation');

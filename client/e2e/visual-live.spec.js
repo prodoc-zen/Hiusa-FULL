@@ -179,8 +179,17 @@ test('SAO screens at desktop and mobile', async ({ browser, request }) => {
       name: 'venues-calendar',
       path: '/dashboard/super-admin/venues',
       after: async (page) => {
-        await page.getByRole('tab', { name: /Booking requests/ }).click();
+        await expect(page.getByRole('tab', { name: 'Calendar' })).toHaveAttribute('aria-selected', 'true');
         await expect(page.getByLabel('Venue to show')).toBeVisible({ timeout: 15000 });
+        await settle(page);
+      },
+    },
+    {
+      name: 'venues-requests',
+      path: '/dashboard/super-admin/venues',
+      after: async (page) => {
+        await page.getByRole('tab', { name: /Booking requests/ }).click();
+        await expect(page.getByRole('tab', { name: /Booking requests/ })).toHaveAttribute('aria-selected', 'true');
         await settle(page);
       },
     },
