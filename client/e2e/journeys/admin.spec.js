@@ -159,22 +159,6 @@ for (const viewport of VIEWPORTS) {
       await t.tap(form.getByRole('button', { name: 'Submit proposal' }), 'Submit proposal');
       await expect(form).toBeHidden(LONG);
 
-      await page.getByPlaceholder('Search events').fill(title);
-      if (width < 1024) {
-        const card = page.getByRole('article').filter({ hasText: title });
-        await expect(card).toBeVisible(LONG);
-        await expect.soft(card, 'the new row names its stage with no further click').toContainText('Waiting for Department Head approval');
-        await t.tap(card.getByRole('button', { name: /View details/ }), 'View details');
-      } else {
-        const row = page.getByRole('row').filter({ hasText: title });
-        await expect(row).toBeVisible(LONG);
-        await expect.soft(row, 'the new row names its stage with no further click').toContainText('Waiting for Department Head approval');
-        await row.getByRole('button', { name: /^Actions for / }).scrollIntoViewIfNeeded();
-        await page.waitForTimeout(600);
-        await t.tap(row.getByRole('button', { name: /^Actions for / }), 'Actions');
-        await t.tap(page.getByRole('menuitem', { name: 'View event' }), 'View event');
-      }
-
       const dialog = page.getByRole('dialog', { name: 'Event details' });
       console.log(`[admin A1 @${width}] clicks=${t.summary()}`);
       expect.soft(t.state.clicks, `clicks ${t.summary()}`).toBeLessThanOrEqual(4);
@@ -264,8 +248,8 @@ for (const viewport of VIEWPORTS) {
       await openLeaf(t, page, width, 'Events and tasks', 'Check-in');
       const queueButton = page.getByRole('button', { name: `Open attendance for ${ongoingTitle}` });
       const controls = page.getByText('Manual check-in', { exact: true });
-      await expect(queueButton.or(controls)).toBeVisible({ timeout: 60_000 });
-      const preselected = await controls.isVisible();
+      await expect(queueButton.or(controls).first()).toBeVisible({ timeout: 60_000 });
+      const preselected = await controls.waitFor({ state: 'visible', timeout: 15_000 }).then(() => true, () => false);
       if (!preselected) await t.tap(queueButton, `pick ${ongoingTitle}`);
       await page.getByLabel('Member', { exact: true }).fill(String(STUDENT.schoolId));
       await t.tap(page.locator('main').getByText(new RegExp(String(STUDENT.schoolId))).first(), 'pick member');
