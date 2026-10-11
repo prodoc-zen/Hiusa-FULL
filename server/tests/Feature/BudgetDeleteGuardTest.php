@@ -93,6 +93,24 @@ class BudgetDeleteGuardTest extends TestCase
         $this->deleteJson("/api/budgets/{$budget->id}")->assertNotFound();
     }
 
+    public function test_the_delete_locks_the_approval_rows_before_the_budget_row_like_the_review_does(): void
+    {
+        $budget = $this->budget('pending_department_head');
+        $touched = [];
+        DB::listen(function ($query) use (&$touched) {
+            $sql = str_replace(['"', '`'], '', $query->sql);
+            if (str_starts_with($sql, 'select') && str_contains($sql, 'from approval_requests')) {
+                $touched[] = 'approval_requests';
+            } elseif (str_starts_with($sql, 'select * from budgets where budgets.id')) {
+                $touched[] = 'budgets';
+            }
+        });
+
+        $this->deleteJson("/api/budgets/{$budget->id}")->assertOk();
+
+        $this->assertSame(['approval_requests', 'budgets'], array_slice(array_values(array_unique($touched)), 0, 2));
+    }
+
     private function afterTheBudgetIsRead(callable $interleave): void
     {
         $fired = false;

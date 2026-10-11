@@ -9,6 +9,7 @@
 //
 // The database must be migrated and throwaway: the run seeds rows and does not clean them up. ONLY=<part of a
 // scenario name> runs a subset. The exit code is 1 when any check fails.
+use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Election;
 use App\Models\Event;
@@ -44,6 +45,21 @@ function seed(int $sao): array
     $election = Election::factory()->create(['organization_id' => $org->id, 'status' => 'upcoming', 'approved_at' => now(), 'finalized_at' => now()]);
 
     return compact('org', 'admin', 'director', 'venue', 'event', 'budget', 'election');
+}
+
+/** A seed with a pending Admin approval request for the budget and for the election, as a review finds them. */
+function seedWithApprovals(int $sao): array
+{
+    $s = seed($sao);
+    $officer = User::factory()->officer()->create(['organization_id' => $s['org']->id]);
+    foreach (['budget' => $s['budget'], 'election' => $s['election']] as $type => $record) {
+        $s[$type.'Approval'] = ApprovalRequest::create([
+            'organization_id' => $s['org']->id, 'entity_type' => $type, 'entity_id' => $record->id, 'required_role' => 'ADMIN',
+            'requested_by' => $officer->school_id, 'status' => 'pending', 'requested_at' => now(),
+        ]);
+    }
+
+    return $s;
 }
 
 /** Starts $a, then $b after $delay seconds, and returns both workers' reports. */
@@ -182,6 +198,63 @@ $scenarios = [
             'B was held until A committed' => $blocked($b),
             'B answered 409' => ($b['status'] ?? null) === 409,
             'approved budget still exists' => DB::table('budgets')->where('id', $s['budget']->id)->where('submission_status', 'approved')->exists(),
+        ]);
+    },
+    'budget_review_then_delete' => function () use ($sao, $hold, $blocked) {
+        $s = seedWithApprovals($sao);
+        [$a, $b] = run(
+            ['label' => 'A approve the budget request (pauses after taking the organization lock, before the budget lock)', 'user' => $s['admin']->school_id, 'method' => 'PATCH', 'uri' => "/api/approval-requests/{$s['budgetApproval']->id}", 'body' => ['status' => 'approved'], 'pause' => ['regex' => '/from `organizations`.*for update/', 'sec' => $hold]],
+            ['label' => 'B delete the budget', 'user' => $s['admin']->school_id, 'method' => 'DELETE', 'uri' => "/api/budgets/{$s['budget']->id}"],
+            1.2,
+        );
+        show('a review holds the approval row, then the budget delete arrives', [$a, $b], [
+            'A answered 200' => ($a['status'] ?? null) === 200,
+            'B was held until A committed' => $blocked($b),
+            'B answered 409, not a deadlock 500' => ($b['status'] ?? null) === 409,
+            'approved budget still exists' => DB::table('budgets')->where('id', $s['budget']->id)->where('submission_status', 'approved')->exists(),
+        ]);
+    },
+    'budget_delete_then_review' => function () use ($sao, $hold, $blocked) {
+        $s = seedWithApprovals($sao);
+        [$a, $b] = run(
+            ['label' => 'A delete the budget (pauses after taking the budget lock)', 'user' => $s['admin']->school_id, 'method' => 'DELETE', 'uri' => "/api/budgets/{$s['budget']->id}", 'pause' => ['regex' => '/from `budgets`.*for update/', 'sec' => $hold]],
+            ['label' => 'B approve the budget request', 'user' => $s['admin']->school_id, 'method' => 'PATCH', 'uri' => "/api/approval-requests/{$s['budgetApproval']->id}", 'body' => ['status' => 'approved']],
+            1.2,
+        );
+        show('budget delete holds its locks, a review of its request arrives', [$a, $b], [
+            'A answered 200' => ($a['status'] ?? null) === 200,
+            'B was held until A committed' => $blocked($b),
+            'B answered 404 or 409, not a server error' => in_array($b['status'] ?? null, [404, 409], true),
+            'budget and its request are gone' => ! DB::table('budgets')->where('id', $s['budget']->id)->exists() && ! DB::table('approval_requests')->where('id', $s['budgetApproval']->id)->exists(),
+        ]);
+    },
+    'election_review_then_delete' => function () use ($sao, $hold, $blocked) {
+        $s = seedWithApprovals($sao);
+        [$a, $b] = run(
+            ['label' => 'A approve the election request (pauses after taking the organization lock, before the election update)', 'user' => $s['admin']->school_id, 'method' => 'PATCH', 'uri' => "/api/approval-requests/{$s['electionApproval']->id}", 'body' => ['status' => 'approved'], 'pause' => ['regex' => '/from `organizations`.*for update/', 'sec' => $hold]],
+            ['label' => 'B delete the election', 'user' => $s['admin']->school_id, 'method' => 'DELETE', 'uri' => "/api/elections/{$s['election']->id}"],
+            1.2,
+        );
+        show('a review holds the approval row, then the election delete arrives', [$a, $b], [
+            'A answered 200' => ($a['status'] ?? null) === 200,
+            'B was held until A committed' => $blocked($b),
+            'B answered 200, not a deadlock 500' => ($b['status'] ?? null) === 200,
+            'election and its request are gone' => ! DB::table('elections')->where('id', $s['election']->id)->exists() && ! DB::table('approval_requests')->where('id', $s['electionApproval']->id)->exists(),
+        ]);
+    },
+    'election_delete_then_position' => function () use ($sao, $hold, $blocked) {
+        $s = seed($sao);
+        DB::table('elections')->where('id', $s['election']->id)->update(['finalized_at' => null]);
+        [$a, $b] = run(
+            ['label' => 'A delete the election (pauses after taking the election lock)', 'user' => $s['admin']->school_id, 'method' => 'DELETE', 'uri' => "/api/elections/{$s['election']->id}", 'pause' => ['regex' => '/from `elections`.*for update/', 'sec' => $hold]],
+            ['label' => 'B add a position to it', 'user' => $s['admin']->school_id, 'method' => 'POST', 'uri' => "/api/elections/{$s['election']->id}/positions", 'body' => ['title' => 'President']],
+            1.2,
+        );
+        show('election delete holds the lock, a position for that election arrives', [$a, $b], [
+            'A answered 200' => ($a['status'] ?? null) === 200,
+            'B was held until A committed' => $blocked($b),
+            'B answered 404, not a server error' => ($b['status'] ?? null) === 404,
+            'no position row left' => DB::table('election_positions')->count() === 0,
         ]);
     },
     'election_opens_then_delete' => function () use ($sao, $hold, $blocked) {

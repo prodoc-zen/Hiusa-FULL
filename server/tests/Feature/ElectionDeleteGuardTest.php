@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Models\Election;
+use App\Models\ElectionPosition;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -83,6 +84,52 @@ class ElectionDeleteGuardTest extends TestCase
         $this->afterTheElectionIsRead(fn () => DB::table('elections')->where('id', $election->id)->delete());
 
         $this->deleteJson("/api/elections/{$election->id}")->assertNotFound();
+    }
+
+    public function test_the_delete_locks_the_approval_rows_before_the_election_row_like_the_review_does(): void
+    {
+        $election = $this->election('upcoming');
+        $touched = [];
+        DB::listen(function ($query) use (&$touched) {
+            $sql = str_replace(['"', '`'], '', $query->sql);
+            if (str_starts_with($sql, 'select') && str_contains($sql, 'from approval_requests')) {
+                $touched[] = 'approval_requests';
+            } elseif (str_starts_with($sql, 'select * from elections where elections.id')) {
+                $touched[] = 'elections';
+            }
+        });
+
+        $this->deleteJson("/api/elections/{$election->id}")->assertOk();
+
+        $this->assertSame(['approval_requests', 'elections'], array_slice(array_values(array_unique($touched)), 0, 2));
+    }
+
+    public function test_a_position_added_to_an_election_deleted_after_it_was_read_answers_not_found(): void
+    {
+        $election = $this->election('upcoming');
+        $election->update(['finalized_at' => null]);
+        $this->afterTheElectionIsRead(fn () => DB::table('elections')->where('id', $election->id)->delete());
+
+        $this->postJson("/api/elections/{$election->id}/positions", ['title' => 'President'])->assertNotFound();
+
+        $this->assertSame(0, DB::table('election_positions')->count());
+    }
+
+    public function test_a_candidate_added_to_an_election_deleted_after_the_checks_answers_not_found(): void
+    {
+        $election = $this->election('upcoming');
+        $election->update(['finalized_at' => null]);
+        $position = ElectionPosition::create(['election_id' => $election->id, 'title' => 'President', 'max_winners' => 1]);
+        $student = User::factory()->student()->create(['organization_id' => $this->admin->organization_id]);
+        DB::listen(function ($query) use ($election) {
+            if (str_contains(str_replace(['"', '`'], '', $query->sql), 'from candidates where election_id')) {
+                DB::table('elections')->where('id', $election->id)->delete();
+            }
+        });
+
+        $this->postJson("/api/elections/{$election->id}/candidates", ['user_id' => $student->school_id, 'position_id' => $position->id])->assertNotFound();
+
+        $this->assertSame(0, DB::table('candidates')->count());
     }
 
     /** The request reads the election twice before its guard (the second read is the controller's), so the change lands after the second. */

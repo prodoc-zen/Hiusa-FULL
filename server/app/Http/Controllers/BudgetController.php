@@ -167,7 +167,14 @@ class BudgetController extends Controller
 
         // The checks run on the locked row. A ledger entry takes a shared lock on its budget through the foreign
         // key and an approval updates the row, so each either lands before the checks and blocks the delete, or waits for it.
+        // The approval rows are locked first because a review locks its approval row before the budget row, and the
+        // opposite order deadlocks the two.
         $blocked = DB::transaction(function () use ($budget, $request) {
+            ApprovalRequest::where('organization_id', $budget->organization_id)
+                ->where('entity_type', 'budget')
+                ->where('entity_id', $budget->id)
+                ->lockForUpdate()
+                ->get();
             $locked = Budget::whereKey($budget->id)->lockForUpdate()->first();
             if (! $locked) {
                 return self::BUDGET_GONE;
