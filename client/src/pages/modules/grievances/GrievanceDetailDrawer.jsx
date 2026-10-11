@@ -72,15 +72,12 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
   if (!transition) return null;
 
   const label = TRANSITION_ACTION_LABEL[transition] || transition;
-  const requiresRemarks = transition === 'resolved' || transition === 'dismissed';
 
   return (
     <Modal
       open
       title={label}
-      description={requiresRemarks
-        ? 'These remarks are shared with the student who filed this grievance.'
-        : 'The student will be notified that their grievance is now under review.'}
+      description="These remarks are shared with the student who filed this grievance."
       onClose={submitting ? undefined : onCancel}
       closeOnBackdrop={!submitting}
       closeOnEscape={!submitting}
@@ -92,18 +89,16 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
             variant={transition === 'dismissed' ? 'danger' : 'primary'}
             onClick={() => onConfirm(transition, remarks)}
             loading={submitting}
-            disabled={requiresRemarks && !remarks.trim()}
+            disabled={!remarks.trim()}
           >
             {label}
           </Button>
         </>
       )}
     >
-      {requiresRemarks && (
-        <Field label="Remarks" required hint="Explain the outcome in plain language.">
-          <Textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} placeholder="What was found, and what happens next..." />
-        </Field>
-      )}
+      <Field label="Remarks" required hint="Explain the outcome in plain language.">
+        <Textarea value={remarks} onChange={(event) => setRemarks(event.target.value)} rows={4} placeholder="What was found, and what happens next..." />
+      </Field>
       {error && <p role="alert" className="mt-3 text-sm font-semibold text-danger-strong">{error}</p>}
     </Modal>
   );
@@ -118,6 +113,14 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
     if (submitting) return;
     setPendingTransition(null);
     setError('');
+  }
+
+  function chooseTransition(status) {
+    if (status === 'under_review') {
+      confirmTransition(status);
+      return;
+    }
+    setPendingTransition(status);
   }
 
   async function confirmTransition(status, remarks) {
@@ -184,12 +187,14 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
                       key={status}
                       variant={index === 0 && status !== 'dismissed' ? 'primary' : 'secondary'}
                       size="sm"
-                      onClick={() => setPendingTransition(status)}
+                      onClick={() => chooseTransition(status)}
+                      disabled={submitting}
                     >
                       {TRANSITION_ACTION_LABEL[status]}
                     </Button>
                   ))}
                 </div>
+                {!pendingTransition && error && <p role="alert" className="mt-3 text-sm font-semibold text-danger-strong">{error}</p>}
               </div>
             )}
           </div>
