@@ -6,7 +6,7 @@ This guide is for the team members who test HIUSA. It says how to reach a copy o
 
 Pick one. Ask the person running the demo which one applies.
 
-- Same Wi-Fi or router as the demo laptop: open the address the demo laptop prints, for example `http://192.168.1.2:5173`. The laptop owner starts it with `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1` from the repository root (run it once as Administrator so Windows opens ports 5173 and 8000 for the local subnet). It serves the development database with its demo accounts, so use the development database table in section 2. If the laptop is on more than one network, the script prints which address to use and the `-HostIp` option for the other one.
+- Same Wi-Fi or router as the demo laptop: open the address the demo laptop prints, for example `http://192.168.1.2:5173`. The laptop owner starts it with `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1` from the repository root (run it once as Administrator so Windows opens ports 5173 and 8000 for the local subnet). It serves a throwaway database that it creates and seeds on its first run (a separate MariaDB on 127.0.0.1 port 3317, never the development database), so use the fresh seed table in section 2. The first run takes a minute or two; later runs reuse the same data, and `-Reset` wipes it and seeds again. If the laptop is on more than one network, the script prints which address to use and the `-HostIp` option for the other one.
 - A hosted copy: use the address the team gives you. Demo accounts only exist on a copy that was seeded for testing (the seeders create no accounts when the app runs with `APP_ENV=production`). Use the fresh seed table in section 2 for a copy seeded from the repository. Never test with demo passwords on a server that holds real student data.
 
 Use a desktop browser first, then repeat the first journey of your role on a phone.
@@ -15,7 +15,7 @@ Use a desktop browser first, then repeat the first journey of your role on a pho
 
 Sign in with School ID and password. Which table applies depends on the copy you were given, so ask the person running the demo. The two copies use different SAO logins: 930027 does not exist on a fresh seed.
 
-### Development database (the laptop that runs `serve-lan.ps1`)
+### Development database (not what `serve-lan.ps1` serves)
 
 Password for every account below is `Demo@12345`. These are the accounts as the team recorded them for the development database. They were not re-checked here, because that database was not touched; the seeders do not create 930027.
 
@@ -27,7 +27,7 @@ Password for every account below is `Demo@12345`. These are the accounts as the 
 | SBO Officer | 900004 | Treasurer. 900005 to 900007 are other officers. |
 | Student | 2100142 | Also 2100217. |
 
-### Fresh seed (`php artisan migrate:fresh --seed`)
+### Fresh seed (`php artisan migrate:fresh --seed`; also what `serve-lan.ps1` serves)
 
 Checked by signing in to a freshly seeded copy through the sign-in API on 11 Oct 2026. Every account below signed in with the password shown and received a token.
 
@@ -146,12 +146,12 @@ Mark each as: blocked (could not finish), lost (finished but confused), wording 
 - Plain HTTP: passwords and sign-in tokens that cross the network can be read by anyone else on it. Use a network you trust (a home router or a lab you control), not shared public Wi-Fi.
 - The demo accounts have known passwords, and the SAO account (930027 on the development database, 990001 on a fresh seed) has full SAO power over that database. Treat every tester as an administrator of the demo data.
 - Serve a database that holds no real student data, emails or fingerprint templates. Files that testers upload are saved on the host computer's disk.
-- The script opens its ports for your own subnet only and only on networks Windows calls Private. If your Wi-Fi is classed as Public, switch it to Private in Windows settings, or pass `-AllowPublicNetwork` knowing the risk. Only 8000 (the API) and 5173 (the web page) are opened, and only when the script runs as Administrator. If the database was not already running, the script starts it bound to this computer only; if it was already running, the script leaves it as it found it. Error pages show no file paths or stack traces (debug is switched off for the API the script starts).
-- Stop the demo when the test ends: `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop`. It stops the API and the web page it started, but leaves the database running (close it from the XAMPP control panel). Run `-Stop` as Administrator too, or the firewall rule stays until you remove "HIUSA LAN test" in Windows Firewall.
+- The script opens its ports for your own subnet only and only on networks Windows calls Private. If your Wi-Fi is classed as Public, switch it to Private in Windows settings, or pass `-AllowPublicNetwork` knowing the risk. Only 8000 (the API) and 5173 (the web page) are opened, and only when the script runs as Administrator. The script starts its own throwaway database (hiusa_lan, port 3317) bound to this computer only; it never uses the development database, and its generated password stays in the gitignored `.lan-db` folder. Error pages show no file paths or stack traces (debug is switched off for the API the script starts).
+- Stop the demo when the test ends: `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop`. It stops the API, the web page and the throwaway database it started (the data stays in `.lan-db` until you run the script with `-Reset`); no other database is touched. Run `-Stop` as Administrator too, or the firewall rule stays until you remove "HIUSA LAN test" in Windows Firewall.
 - Sign-in has a lockout: five wrong passwords for one account lock it for 15 minutes. If several testers share one demo account, someone mistyping can lock the others out. Wait 15 minutes or use a different account.
 
 ## 9. Known limits of this copy
 
 - Email is not sent from the demo laptop, so password reset links do not arrive. Ask the SAO to reset a password if you need one.
 - The AI features fall back to rule-based answers when the AI service is not running.
-- Demo data is the development database or a fresh seed. Records you create stay until the database is restored or reseeded. Ask the demo owner to restore it between test sessions. Reseeding a fresh copy with `php artisan migrate:fresh --seed` wipes everything, including the semester the SAO opened in section 3.
+- Demo data is a fresh seed (or the development database on a copy that is not run by `serve-lan.ps1`). Records you create stay until the database is restored or reseeded. Ask the demo owner to run `serve-lan.ps1 -Reset` between test sessions. Reseeding a fresh copy with `php artisan migrate:fresh --seed` wipes everything, including the semester the SAO opened in section 3.
