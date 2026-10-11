@@ -1762,6 +1762,17 @@ export default function MerchandisePage({ initialTab }) {
   // detail and the checkout confirmation all read this one function so their stage text cannot differ.
   function buyerStage(order) {
     const flow = orderLifecycle(order, "STUDENT");
+    if (order.status === "pending" && order.officer_review_status === "approved") {
+      const steps = flow.steps.map((step) => ({ ...step, state: step.key === "reserved" ? "done" : step.key === "proof" ? "current" : step.state }));
+      const verified = {
+        ...flow,
+        steps,
+        current: steps.find((step) => step.key === "proof"),
+        actorRole: "ADMIN",
+        nextAction: { tone: "waiting", title: "Payment verified: waiting for Admin approval", body: "An officer verified your payment. Your claim token is issued once the Admin approves it." },
+      };
+      return { flow: verified, props: toNextStepProps(verified) };
+    }
     const props = toNextStepProps(flow);
     if (order.status === "pending" && !order.payment_proof_url && gcashUnavailable) {
       return { flow, props: { ...props, title: "Pay cash at pickup", body: "Online payment is not available. Your items are reserved and the order is confirmed once the payment is checked." } };
