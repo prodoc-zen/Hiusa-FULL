@@ -68,7 +68,7 @@ mysql -u <user> -p <database> < scripts/upgrade-checks.sql
 
 Things to look at by eye: the list of colleges (are they the colleges you expect), how many active Department Heads each college has (more than one means two people share the role, which is allowed but unusual), and any organization whose free-text college name did not match a college row (section 10 of the script: fix the name or add the college).
 
-Venue bookings saved before this release may hold times that were sent in UTC and read back as Manila time, so they show hours off. Run `select count(*) from venue_bookings;` on the live database. If it is not zero, open each booking, compare it with what the organization asked for, and correct the times by hand. There is no data migration for this; a guess would move real reservations.
+Venue bookings saved before this release may hold times that were sent in UTC and read back as Manila time, so they show hours off. The live server held 4 bookings on 2026-10-12 (1 pending, 1 rejected, 2 withdrawn, none approved). Run `select count(*) from venue_bookings;` to see whether that has changed. Compare the pending one with what the requester typed and correct it by hand if it is 8 hours off. There is no data migration for this; a guess would move real reservations.
 
 ## 7. Smoke test as each role
 
