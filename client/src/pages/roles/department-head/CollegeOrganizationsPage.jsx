@@ -425,7 +425,10 @@ export default function CollegeOrganizationsPage() {
   }
 
   function handleSaved(options) {
-    if (!options?.stayOpen) closeForm();
+    if (!options?.stayOpen) {
+      if (formTarget?.mode === 'resubmit' && tab !== 'all') changeTab('pending');
+      closeForm();
+    }
     setRecordId(null);
     load();
   }
