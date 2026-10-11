@@ -2063,7 +2063,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
       <ConfirmModal
         open={Boolean(eventToCancel)}
         title="Cancel this event?"
-        message="The event stays on record as cancelled because its files, approvals, attendance or budget keep it from being deleted. A cancelled event cannot be reopened."
+        message="The event stays on record as cancelled because its files, approvals, attendance, budget or venue booking keep it from being deleted. Its pending and approved venue bookings are withdrawn so the venue is free again. A cancelled event cannot be reopened."
         recordName={eventToCancel?.title}
         confirmText="Cancel event"
         cancelText="Keep event"
