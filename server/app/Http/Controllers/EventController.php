@@ -17,7 +17,9 @@ use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Venue;
+use App\Models\VenueBooking;
 use App\Services\EventApprovalChain;
+use App\Services\EventVenueRelease;
 use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
 use Carbon\Carbon;
@@ -30,10 +32,13 @@ use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
+    private const BOOKING_BLOCKER = 'it has a venue booking that is still pending or approved';
+
     public function __construct(
         private readonly GroqResponsesService $groq,
         private readonly TaskDelegationService $delegation,
         private readonly EventApprovalChain $approvalChain,
+        private readonly EventVenueRelease $venueRelease,
     ) {}
 
     public function index(Request $request)
@@ -447,7 +452,12 @@ class EventController extends Controller
             $data['image_url'] = null;
         }
 
-        $event->update($data);
+        DB::transaction(function () use ($event, $data, $request) {
+            $event->update($data);
+            if (($data['status'] ?? null) === 'cancelled') {
+                $this->venueRelease->release($event, $request);
+            }
+        });
         if (($request->hasFile('image') || $removeImage) && $oldImageUrl) {
             Storage::disk('public')->delete($this->publicStoragePath($oldImageUrl));
         }
@@ -543,7 +553,7 @@ class EventController extends Controller
     /**
      * Why each event cannot be deleted, keyed by event id, or null when it can. An event that has
      * run, collected files or attendance, been reviewed or has a budget is kept on record
-     * and cancelled instead. A pending approval request alone does not block, since every proposal has one.
+     * and cancelled instead; so is one that still holds a pending or approved venue booking, which cancelling releases. A pending approval request alone does not block, since every proposal has one.
      *
      * @param  iterable<Event>  $events
      * @return array<int, ?string>
@@ -556,18 +566,25 @@ class EventController extends Controller
         $reviewed = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->where('status', '!=', 'pending')->distinct()->pluck('entity_id')->flip();
         $withAttendance = Attendance::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
         $withBudget = Budget::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        $withBooking = VenueBooking::whereIn('event_id', $ids)->whereIn('status', EventVenueRelease::ACTIVE_STATUSES)->distinct()->pluck('event_id')->flip();
 
-        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withBudget) {
+        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withBudget, $withBooking) {
             $reason = match (true) {
                 in_array($event->status, ['ongoing', 'completed'], true) => "it is {$event->status}",
                 $withFiles->has($event->id) => 'it has submitted requirement files',
                 $reviewed->has($event->id) => 'it has already been reviewed in the approval workflow',
                 $withAttendance->has($event->id) => 'it has attendance records',
                 $withBudget->has($event->id) => 'it has a budget',
+                $withBooking->has($event->id) => self::BOOKING_BLOCKER,
                 default => null,
             };
+            $advice = match (true) {
+                $reason === self::BOOKING_BLOCKER => ' Cancel it instead to release the venue.',
+                $event->status === 'cancelled' => ' It is already cancelled and stays on record.',
+                default => ' Cancel it instead to keep the record.',
+            };
 
-            return [$event->id => $reason === null ? null : "This event cannot be deleted because {$reason}.".($event->status === 'cancelled' ? ' It is already cancelled and stays on record.' : ' Cancel it instead to keep the record.')];
+            return [$event->id => $reason === null ? null : "This event cannot be deleted because {$reason}.{$advice}"];
         })->all();
     }
 
@@ -606,7 +623,12 @@ class EventController extends Controller
             return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
         }
 
-        $event->update($data);
+        DB::transaction(function () use ($event, $data, $request) {
+            $event->update($data);
+            if ($data['status'] === 'cancelled') {
+                $this->venueRelease->release($event, $request);
+            }
+        });
 
         return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
     }
