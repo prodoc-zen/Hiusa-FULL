@@ -5,7 +5,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import {
   rangeLabel, shiftAnchor, todayInManila, viewDays,
 } from './calendarDates';
-import { ConflictBadge } from './calendarParts';
+import { ConflictBadge, venueColor } from './calendarParts';
 import VenueBookingDetails from './VenueBookingDetails';
 import VenueDayView from './VenueDayView';
 import VenueMonthView from './VenueMonthView';
@@ -16,6 +16,17 @@ const VIEW_OPTIONS = [
   { value: 'week', label: 'Week' },
   { value: 'month', label: 'Month' },
 ];
+
+// A venue earns a legend entry when it is open for booking or holds a booking in this window.
+function venueLegend(venues, slots) {
+  const entries = venues
+    .filter((venue) => venue.is_active !== false || slots.some((slot) => slot.venue_id === venue.id))
+    .map((venue) => ({ id: venue.id, name: formatDisplayText(venue.name) }));
+  slots.forEach((slot) => {
+    if (!entries.some((entry) => entry.id === slot.venue_id)) entries.push({ id: slot.venue_id, name: formatDisplayText(slot.venue_name || 'Unknown venue') });
+  });
+  return entries;
+}
 
 // Day, week and month over one set of bookings. `loaded` names the view and day the bookings belong
 // to, so the grid stays on screen, dimmed, while the next window loads instead of flashing empty.
@@ -29,6 +40,7 @@ export default function VenueCalendar({
   const updating = loading && Boolean(loaded);
   const isEmpty = slots.length === 0;
   const unit = view;
+  const legendVenues = shown.view === 'week' && !venueId ? venueLegend(venues, slots) : [];
 
   return (
     <div>
@@ -54,6 +66,13 @@ export default function VenueCalendar({
           <span className="inline-flex items-center gap-1.5"><span className="h-3 w-3 rounded border border-dashed border-warning bg-warning-tint" aria-hidden="true" />Pending</span>
           <ConflictBadge />
         </div>
+        {legendVenues.length > 0 && (
+          <ul className="flex w-full flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-ink-muted" aria-label="Venue colours">
+            {legendVenues.map((entry) => (
+              <li key={entry.id} className="inline-flex items-center gap-1.5"><span data-venue-swatch className={`h-3 w-1.5 rounded-sm ${venueColor(entry.id)}`} aria-hidden="true" />{entry.name}</li>
+            ))}
+          </ul>
+        )}
       </div>
 
       <div className="mt-4">

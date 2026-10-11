@@ -27,7 +27,7 @@ export default function VenueWeekCalendar({ days, slots, conflictIds, showVenue,
       className="max-w-full overflow-x-auto rounded-control border border-line outline-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent"
       data-testid="week-grid"
     >
-      <VenueTimeGrid columns={columns} conflictIds={conflictIds} showVenue={showVenue} onSelect={onSelect} minColumn={104} />
+      <VenueTimeGrid columns={columns} conflictIds={conflictIds} showVenue={showVenue} onSelect={onSelect} minColumn={112} />
     </div>
   );
 }
