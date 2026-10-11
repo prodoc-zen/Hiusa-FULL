@@ -22,6 +22,8 @@ class PasswordChangeEnforcementTest extends TestCase
 
     private Organization $organization;
 
+    private string $temporaryPassword = '';
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -37,8 +39,9 @@ class PasswordChangeEnforcementTest extends TestCase
         $csv = "school_id,first_name,last_name,email,program,year_level,section\n{$schoolId},New,Student,new.student@example.test,BSIT,1,1-A\n";
         $file = fn () => UploadedFile::fake()->createWithContent('students.csv', $csv);
         $preview = $this->post('/api/academic-structure/class-list/preview', ['file' => $file()])->assertOk();
-        $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => $preview->json('hash'), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])
+        $applied = $this->post('/api/academic-structure/class-list/apply', ['file' => $file(), 'hash' => $preview->json('hash'), 'preview_token' => $preview->json('preview_token'), 'confirm' => 1])
             ->assertOk()->assertJsonPath('created', 1);
+        $this->temporaryPassword = $applied->json('temporary_passwords.0.password');
         $this->app['auth']->forgetGuards();
         $this->flushHeaders();
         $this->withHeaders(['Accept' => 'application/json']);
@@ -62,12 +65,12 @@ class PasswordChangeEnforcementTest extends TestCase
         return $this->withHeaders(['Accept' => 'application/json'])->withToken($token);
     }
 
-    public function test_an_imported_student_signs_in_with_the_default_password_flagged_to_change_it(): void
+    public function test_an_imported_student_signs_in_with_the_temporary_password_flagged_to_change_it(): void
     {
         $this->importStudent();
 
         $this->assertTrue((bool) User::find(87654321)->must_change_password);
-        $this->postJson('/api/login', ['school_id' => '87654321', 'password' => '4321-uclm'])
+        $this->postJson('/api/login', ['school_id' => '87654321', 'password' => $this->temporaryPassword])
             ->assertOk()
             ->assertJsonPath('user.must_change_password', true)
             ->assertJsonStructure(['access_token', 'token_type']);
@@ -76,7 +79,7 @@ class PasswordChangeEnforcementTest extends TestCase
     public function test_the_flag_is_on_the_current_user_payload(): void
     {
         $this->importStudent();
-        $token = $this->signIn('87654321', '4321-uclm');
+        $token = $this->signIn('87654321', $this->temporaryPassword);
 
         $this->as($token)->getJson('/api/user')->assertOk()->assertJsonPath('must_change_password', true);
     }
@@ -122,11 +125,11 @@ class PasswordChangeEnforcementTest extends TestCase
     public function test_changing_the_password_clears_the_flag_and_unlocks_every_route(): void
     {
         $this->importStudent();
-        $token = $this->signIn('87654321', '4321-uclm');
+        $token = $this->signIn('87654321', $this->temporaryPassword);
         $this->as($token)->getJson('/api/events')->assertForbidden();
 
         $this->as($token)->putJson('/api/user/password', [
-            'current_password' => '4321-uclm',
+            'current_password' => $this->temporaryPassword,
             'password' => 'my-own-secret',
             'password_confirmation' => 'my-own-secret',
         ])->assertOk();
@@ -140,15 +143,15 @@ class PasswordChangeEnforcementTest extends TestCase
             ->assertOk()->assertJsonPath('user.must_change_password', false);
     }
 
-    public function test_the_default_password_cannot_be_kept_as_the_new_password(): void
+    public function test_the_temporary_password_cannot_be_kept_as_the_new_password(): void
     {
         $this->importStudent();
-        $token = $this->signIn('87654321', '4321-uclm');
+        $token = $this->signIn('87654321', $this->temporaryPassword);
 
         $this->as($token)->putJson('/api/user/password', [
-            'current_password' => '4321-uclm',
-            'password' => '4321-uclm',
-            'password_confirmation' => '4321-uclm',
+            'current_password' => $this->temporaryPassword,
+            'password' => $this->temporaryPassword,
+            'password_confirmation' => $this->temporaryPassword,
         ])->assertUnprocessable()->assertJsonPath('message', 'Choose a password different from your current one.');
 
         $this->assertTrue((bool) User::find(87654321)->must_change_password);
@@ -168,11 +171,11 @@ class PasswordChangeEnforcementTest extends TestCase
     public function test_changing_the_password_revokes_the_other_sessions_but_keeps_the_current_one(): void
     {
         $this->importStudent();
-        $leaked = $this->signIn('87654321', '4321-uclm');
-        $current = $this->signIn('87654321', '4321-uclm');
+        $leaked = $this->signIn('87654321', $this->temporaryPassword);
+        $current = $this->signIn('87654321', $this->temporaryPassword);
 
         $this->as($current)->putJson('/api/user/password', [
-            'current_password' => '4321-uclm',
+            'current_password' => $this->temporaryPassword,
             'password' => 'my-own-secret',
             'password_confirmation' => 'my-own-secret',
         ])->assertOk();
