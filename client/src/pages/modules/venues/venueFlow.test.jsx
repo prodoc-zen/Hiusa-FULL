@@ -199,6 +199,7 @@ describe('SaoVenuesPage', () => {
   it('puts New venue in the header and names who sends requests on the empty queue', async () => {
     mocks.getVenueBookings.mockResolvedValue(page([]));
     renderAt('/dashboard/super-admin/venues', <SaoVenuesPage />);
+    fireEvent.click(await screen.findByRole('tab', { name: /Venue catalog/ }));
     expect(await screen.findByRole('button', { name: 'New venue' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'New venue' })).toHaveLength(1);
 
@@ -209,7 +210,7 @@ describe('SaoVenuesPage', () => {
 
   it('renders exactly one h1', async () => {
     renderAt('/dashboard/super-admin/venues', <SaoVenuesPage />);
-    await screen.findByRole('button', { name: 'New venue' });
+    await screen.findByRole('tab', { name: /Venue catalog/ });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 });

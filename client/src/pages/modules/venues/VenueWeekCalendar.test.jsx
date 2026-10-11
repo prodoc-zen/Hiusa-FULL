@@ -1,19 +1,20 @@
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import VenueWeekCalendar, { addDays, weekStartOf } from './VenueWeekCalendar';
+import { viewDays } from './calendarDates';
+import VenueWeekCalendar from './VenueWeekCalendar';
 
-const venues = [{ id: 8, name: 'Main Hall' }, { id: 9, name: 'Gym' }];
+const days = viewDays('week', '2026-10-05');
 
 const slots = [
-  { id: 1, start_time: '2026-10-05T01:00:00Z', end_time: '2026-10-05T03:00:00Z', status: 'approved', reserved_by: 'Computer Society', event_title: 'Hackathon', venue_name: 'Main Hall' },
-  { id: 2, start_time: '2026-10-05T02:00:00Z', end_time: '2026-10-05T04:00:00Z', status: 'pending', reserved_by: 'Arts Guild', event_title: null, venue_name: 'Gym' },
-  { id: 3, start_time: '2026-10-07T06:00:00Z', end_time: '2026-10-07T07:30:00Z', status: 'pending', reserved_by: 'Nursing Council', event_title: 'Orientation', venue_name: 'Main Hall' },
+  { id: 1, venue_id: 8, start_time: '2026-10-05T01:00:00Z', end_time: '2026-10-05T03:00:00Z', status: 'approved', reserved_by: 'CS', event_title: 'Hackathon', venue_name: 'Main Hall' },
+  { id: 2, venue_id: 9, start_time: '2026-10-05T02:00:00Z', end_time: '2026-10-05T04:00:00Z', status: 'pending', reserved_by: 'Arts Guild', event_title: null, venue_name: 'Gym' },
+  { id: 3, venue_id: 8, start_time: '2026-10-07T06:00:00Z', end_time: '2026-10-07T07:30:00Z', status: 'pending', reserved_by: 'Nursing Council', event_title: 'Orientation', venue_name: 'Main Hall' },
 ];
 
-function renderCalendar(props = {}) {
-  const handlers = { onVenueChange: vi.fn(), onWeekChange: vi.fn(), onRetry: vi.fn() };
-  render(<VenueWeekCalendar weekStart="2026-10-05" slots={slots} venues={venues} venueId="" loading={false} error={null} {...handlers} {...props} />);
-  return handlers;
+function renderWeek(props = {}) {
+  const onSelect = vi.fn();
+  render(<VenueWeekCalendar days={days} slots={slots} conflictIds={new Set()} showVenue onSelect={onSelect} {...props} />);
+  return { onSelect };
 }
 
 describe('VenueWeekCalendar', () => {
@@ -24,17 +25,11 @@ describe('VenueWeekCalendar', () => {
 
   afterEach(() => vi.useRealTimers());
 
-  it('anchors weeks on Monday in Manila time', () => {
-    expect(weekStartOf('2026-10-11')).toBe('2026-10-05');
-    expect(weekStartOf('2026-10-05')).toBe('2026-10-05');
-    expect(addDays('2026-10-26', 7)).toBe('2026-11-02');
-  });
-
   it('places each booking in its day column as a focusable button with organization, event, venue, status and time', () => {
-    renderCalendar();
+    renderWeek();
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
     expect(monday.getAllByRole('button')).toHaveLength(2);
-    expect(monday.getByRole('button', { name: /Approved booking, Computer Society, Hackathon, Main Hall, 9:00 AM to 11:00 AM/ })).toBeInTheDocument();
+    expect(monday.getByRole('button', { name: /Approved booking, CS, Hackathon, Main Hall, 9:00 AM to 11:00 AM/ })).toBeInTheDocument();
     expect(monday.getByRole('button', { name: /Pending booking, Arts Guild, Gym, 10:00 AM to 12:00 PM/ })).toBeInTheDocument();
 
     const wednesday = within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ }));
@@ -44,47 +39,52 @@ describe('VenueWeekCalendar', () => {
   });
 
   it('leads each block with the status and time in words so status is never colour only', () => {
-    renderCalendar();
+    renderWeek();
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
     expect(monday.getByText('Approved, 9-11 AM')).toBeInTheDocument();
     expect(monday.getByText('Pending, 10 AM-12 PM')).toBeInTheDocument();
     expect(within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ })).getByText('Pending, 2-3:30 PM')).toBeInTheDocument();
   });
 
-  it('opens the full booking in a details dialog and offers the booking requests queue', () => {
-    const onShowInQueue = vi.fn();
-    renderCalendar({ onShowInQueue });
+  it('labels a conflicting pending request with the word Conflict', () => {
+    renderWeek({ conflictIds: new Set([2]) });
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
-    fireEvent.click(monday.getByRole('button', { name: /Approved booking, Computer Society/ }));
+    const block = monday.getByRole('button', { name: /Pending booking, Conflict, Arts Guild/ });
+    expect(within(block).getByText('Conflict')).toBeInTheDocument();
+    expect(monday.getByRole('button', { name: /Approved booking, CS/ })).not.toHaveTextContent('Conflict');
+  });
 
-    const dialog = within(screen.getByRole('dialog', { name: 'Booking details' }));
-    expect(dialog.getByText('Computer Society')).toBeInTheDocument();
-    expect(dialog.getByText('Hackathon')).toBeInTheDocument();
-    expect(dialog.getByText('Main Hall')).toBeInTheDocument();
-    expect(dialog.getByText('Approved')).toBeInTheDocument();
-    expect(dialog.getByText('Monday, October 5, 2026')).toBeInTheDocument();
-    expect(dialog.getByText('9:00 AM to 11:00 AM')).toBeInTheDocument();
-
-    fireEvent.click(dialog.getByRole('button', { name: 'Show in booking requests' }));
-    expect(onShowInQueue).toHaveBeenCalledWith(expect.objectContaining({ id: 1 }));
-    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+  it('reports the clicked booking', () => {
+    const { onSelect } = renderWeek();
+    fireEvent.click(screen.getByRole('button', { name: /Nursing Council/ }));
+    expect(onSelect).toHaveBeenCalledWith(expect.objectContaining({ id: 3 }));
   });
 
   it('shares lanes only inside a cluster of overlapping bookings', () => {
-    renderCalendar({ slots: [
+    renderWeek({ slots: [
       slots[0],
       { ...slots[1], id: 9, start_time: '2026-10-05T01:30:00Z', end_time: '2026-10-05T02:30:00Z' },
-      { id: 10, start_time: '2026-10-05T07:00:00Z', end_time: '2026-10-05T08:00:00Z', status: 'approved', reserved_by: 'Late Club', event_title: null, venue_name: 'Gym' },
+      { id: 10, venue_id: 9, start_time: '2026-10-05T07:00:00Z', end_time: '2026-10-05T08:00:00Z', status: 'approved', reserved_by: 'Late Club', event_title: null, venue_name: 'Gym' },
     ] });
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
-    expect(monday.getByRole('button', { name: /Computer Society/ }).style.width).toBe('calc(50% - 4px)');
+    expect(monday.getByRole('button', { name: /CS/ }).style.width).toBe('calc(50% - 4px)');
     expect(monday.getByRole('button', { name: /Late Club/ }).style.width).toBe('calc(100% - 4px)');
   });
 
+  it('puts back to back bookings in the same lane, not side by side', () => {
+    renderWeek({ slots: [
+      slots[0],
+      { ...slots[1], id: 9, start_time: '2026-10-05T03:00:00Z', end_time: '2026-10-05T04:00:00Z' },
+    ] });
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    expect(monday.getByRole('button', { name: /CS/ }).style.width).toBe('calc(100% - 4px)');
+    expect(monday.getByRole('button', { name: /Arts Guild/ }).style.width).toBe('calc(100% - 4px)');
+  });
+
   it('extends the grid instead of dropping bookings outside the usual hours', () => {
-    renderCalendar({ slots: [
-      { id: 20, start_time: '2026-10-05T14:00:00Z', end_time: '2026-10-05T15:30:00Z', status: 'pending', reserved_by: 'Night Owls', event_title: null, venue_name: 'Gym' },
-      { id: 21, start_time: '2026-10-04T20:00:00Z', end_time: '2026-10-04T21:00:00Z', status: 'approved', reserved_by: 'Early Birds', event_title: null, venue_name: 'Gym' },
+    renderWeek({ slots: [
+      { id: 20, venue_id: 9, start_time: '2026-10-05T14:00:00Z', end_time: '2026-10-05T15:30:00Z', status: 'pending', reserved_by: 'Night Owls', event_title: null, venue_name: 'Gym' },
+      { id: 21, venue_id: 9, start_time: '2026-10-04T20:00:00Z', end_time: '2026-10-04T21:00:00Z', status: 'approved', reserved_by: 'Early Birds', event_title: null, venue_name: 'Gym' },
     ] });
     const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
     expect(monday.getByRole('button', { name: /Night Owls/ })).toBeInTheDocument();
@@ -96,75 +96,50 @@ describe('VenueWeekCalendar', () => {
 
   it('marks today with the word Today as well as colour', () => {
     vi.setSystemTime(new Date('2026-10-07T04:00:00Z'));
-    renderCalendar();
+    renderWeek();
     expect(within(screen.getByTestId('week-grid')).getByText('Today')).toBeInTheDocument();
   });
 
-  it('keeps the loaded grid visible while the next week loads', () => {
-    const { rerender } = render(<VenueWeekCalendar weekStart="2026-10-12" loadedWeekStart="2026-10-05" slots={slots} venues={venues} venueId="" loading error={null} onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={vi.fn()} />);
-    expect(screen.queryByRole('status', { name: 'Loading venue calendar' })).not.toBeInTheDocument();
-    expect(screen.getByText('Updating...')).toBeInTheDocument();
-    expect(screen.getByText('Oct 12 - Oct 18, 2026')).toBeInTheDocument();
-    expect(within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ })).getAllByRole('button')).toHaveLength(2);
-    rerender(<VenueWeekCalendar weekStart="2026-10-12" loadedWeekStart="2026-10-12" slots={[]} venues={venues} venueId="" loading={false} error={null} onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={vi.fn()} />);
-    expect(screen.queryByText('Updating...')).not.toBeInTheDocument();
+  it('scrolls inside its own labelled region so the page never scrolls sideways', () => {
+    renderWeek();
+    const region = screen.getByRole('region', { name: /Week of bookings/ });
+    expect(region).toHaveClass('overflow-x-auto', 'max-w-full');
+    expect(region).toHaveAttribute('tabindex', '0');
   });
 
-  it('says when the calendar fetch was capped', () => {
-    renderCalendar({ truncated: { shown: 200, total: 340 } });
-    expect(screen.getByText(/Showing the first 200 bookings of 340/)).toBeInTheDocument();
+  it('gives each venue its own colour so two venues at the same hour are told apart', () => {
+    renderWeek();
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    const swatch = (name) => monday.getByRole('button', { name }).querySelector('[data-venue-swatch]');
+    const hall = swatch(/Main Hall/);
+    const gym = swatch(/Gym/);
+    expect(hall.className).toMatch(/bg-/);
+    expect(gym.className).toMatch(/bg-/);
+    expect(hall.className).not.toEqual(gym.className);
+    const sameVenue = within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ })).getByRole('button', { name: /Main Hall/ }).querySelector('[data-venue-swatch]');
+    expect(sameVenue.className).toEqual(hall.className);
   });
 
-  it('lists the same bookings day by day for small screens', () => {
-    renderCalendar();
-    const agenda = within(screen.getByTestId('week-agenda'));
-    expect(agenda.getByText('Computer Society')).toBeInTheDocument();
-    expect(agenda.getByText('Hackathon')).toBeInTheDocument();
-    expect(agenda.getAllByText('Pending')).toHaveLength(2);
-    expect(agenda.getByText('Approved')).toBeInTheDocument();
-    expect(agenda.getAllByText('Nothing booked.')).toHaveLength(5);
+  it('keeps the status pattern on the block and leaves out the venue colour for a single venue', () => {
+    renderWeek({ showVenue: false, slots: [slots[1]] });
+    const block = screen.getByRole('button', { name: /Pending booking/ });
+    expect(block).toHaveClass('border-dashed');
+    expect(block.querySelector('[data-venue-swatch]')).toBeNull();
   });
 
-  it('makes each agenda entry a button that opens the booking details', () => {
-    renderCalendar();
-    const agenda = within(screen.getByTestId('week-agenda'));
-    fireEvent.click(agenda.getAllByRole('button').find((button) => button.textContent.includes('Nursing Council')));
-    expect(within(screen.getByRole('dialog', { name: 'Booking details' })).getByText('Orientation')).toBeInTheDocument();
+  it('widens a day column with its lanes and lets block text wrap so a narrow block keeps its time and the word Conflict', () => {
+    renderWeek({ conflictIds: new Set([2]) });
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    const block = monday.getByRole('button', { name: /Arts Guild/ });
+    expect(block.innerHTML).not.toContain('truncate');
+    expect(within(block).getByText('Conflict')).toBeInTheDocument();
+    const columns = screen.getByTestId('week-grid').querySelectorAll('[style*="grid-template-columns"]');
+    expect(columns[1].style.gridTemplateColumns).toContain('minmax(224px, 2fr)');
+    expect(columns[1].style.gridTemplateColumns).toContain('minmax(112px, 1fr)');
   });
 
   it('hides the venue name once a single venue is chosen', () => {
-    renderCalendar({ venueId: '8', slots: [slots[0]] });
-    expect(within(screen.getByTestId('week-agenda')).queryByText('Main Hall')).not.toBeInTheDocument();
-  });
-
-  it('navigates weeks and returns to the current week', () => {
-    const { onWeekChange } = renderCalendar();
-    expect(screen.getByText('Oct 5 - Oct 11, 2026')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Next week' }));
-    expect(onWeekChange).toHaveBeenLastCalledWith('2026-10-12');
-    fireEvent.click(screen.getByRole('button', { name: 'Previous week' }));
-    expect(onWeekChange).toHaveBeenLastCalledWith('2026-09-28');
-    fireEvent.click(screen.getByRole('button', { name: 'Today' }));
-    expect(onWeekChange).toHaveBeenLastCalledWith('2026-10-12');
-  });
-
-  it('reports the chosen venue', () => {
-    const { onVenueChange } = renderCalendar();
-    fireEvent.change(screen.getByRole('combobox', { name: 'Venue to show' }), { target: { value: '9' } });
-    expect(onVenueChange).toHaveBeenCalledWith('9');
-  });
-
-  it('shows an empty week, a loading state and a retryable error', () => {
-    const { rerender } = render(<VenueWeekCalendar weekStart="2026-10-05" slots={[]} venues={venues} venueId="" loading={false} error={null} onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={vi.fn()} />);
-    expect(screen.getByText('No pending or approved bookings this week.')).toBeInTheDocument();
-
-    rerender(<VenueWeekCalendar weekStart="2026-10-05" slots={[]} venues={venues} venueId="" loading error={null} onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={vi.fn()} />);
-    expect(screen.getByRole('status', { name: 'Loading venue calendar' })).toBeInTheDocument();
-
-    const onRetry = vi.fn();
-    rerender(<VenueWeekCalendar weekStart="2026-10-05" slots={[]} venues={venues} venueId="" loading={false} error="Could not load the venue calendar." onVenueChange={vi.fn()} onWeekChange={vi.fn()} onRetry={onRetry} />);
-    expect(screen.getByText('Could not load the venue calendar.')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'Try again' }));
-    expect(onRetry).toHaveBeenCalled();
+    renderWeek({ showVenue: false, slots: [slots[0]] });
+    expect(screen.queryByText('Main Hall')).not.toBeInTheDocument();
   });
 });
