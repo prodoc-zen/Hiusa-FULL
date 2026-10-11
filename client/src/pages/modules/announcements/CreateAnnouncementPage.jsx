@@ -2,7 +2,7 @@ import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useState } from 'react';
 import { Bot, CheckCircle, ImagePlus, Send } from 'lucide-react';
 import { createAnnouncement, generateAnnouncementDraft, getAnnouncementGenerationQuota } from '../../../services/announcementService';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
 import RichTextEditor from '../../../components/RichText';
 
@@ -43,8 +43,20 @@ function ConfirmModal({ open, title, message, confirmText, onCancel, onConfirm, 
   );
 }
 
+const MANAGE_PATH = '/dashboard/announcements/manage-announcements';
+
+// The server publishes an Admin's announcement at once and holds an Officer's for the Admin to approve.
+function sendsForApproval() {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')?.role === 'SBO_OFFICER';
+  } catch {
+    return false;
+  }
+}
+
 export default function CreateAnnouncementPage() {
   const navigate = useNavigate();
+  const forApproval = sendsForApproval();
   const [title, setTitle] = useState('');
   const [targetRole, setTargetRole] = useState('all');
   const [category, setCategory] = useState('general');
@@ -119,16 +131,21 @@ export default function CreateAnnouncementPage() {
         <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-emerald-100">
           <CheckCircle size={32} className="text-emerald-500" />
         </div>
-        <h2 className="mb-2 text-lg font-extrabold text-[#0F172A]">{lastPublishState ? 'Announcement Posted!' : 'Draft Saved!'}</h2>
+        <h2 className="mb-2 text-lg font-extrabold text-[#0F172A]">{forApproval ? 'Sent to your Admin for approval' : lastPublishState ? 'Announcement Posted!' : 'Draft Saved!'}</h2>
         <p className="mb-6 text-sm text-slate-500">
-          {lastPublishState
-            ? <>Sent to <strong>{AUDIENCE_OPTIONS.find((o) => o.value === targetRole)?.label}</strong>.</>
-            : 'You can publish this draft anytime from Manage Announcements.'}
+          {forApproval
+            ? <>It goes to <strong>{AUDIENCE_OPTIONS.find((o) => o.value === targetRole)?.label}</strong> once the Admin approves it.</>
+            : lastPublishState
+              ? <>Sent to <strong>{AUDIENCE_OPTIONS.find((o) => o.value === targetRole)?.label}</strong>.</>
+              : 'You can publish this draft anytime from Manage Announcements.'}
         </p>
         <div className="flex flex-col gap-2">
+          <Link to={MANAGE_PATH} className="inline-flex items-center justify-center rounded-lg bg-[#0878B7] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0F2F62]">
+            View in Announcements
+          </Link>
           <button
             onClick={() => { setTitle(''); setBody(''); setAiInstructions(''); setAiOutputId(null); setTargetRole('all'); setCategory('general'); setImageFile(null); setIsPinned(false); setIsImportant(false); setPosted(false); setLastPublishState(true); }}
-            className="rounded-lg bg-[#0878B7] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0F2F62]"
+            className="rounded-lg border border-[#DDE7EF] px-6 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-[#F8FBFD]"
           >
             Create Another
           </button>
@@ -225,16 +242,16 @@ export default function CreateAnnouncementPage() {
           </section>
 
           <section className="rounded-lg border border-[#DDE7EF] bg-white p-4 shadow-sm sm:p-5">
-            <h2 className="text-sm font-bold text-[#0F172A]">Ready to publish?</h2>
-            <p className="mt-1 text-xs leading-5 text-slate-500">Title and content are required. You can save a draft without notifying members.</p>
+            <h2 className="text-sm font-bold text-[#0F172A]">{forApproval ? 'Ready to send?' : 'Ready to publish?'}</h2>
+            <p className="mt-1 text-xs leading-5 text-slate-500">{forApproval ? 'Title and content are required. The Admin approves it before members see it.' : 'Title and content are required. You can save a draft without notifying members.'}</p>
             {(!title.trim() || !body.trim()) && <p className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">Complete the title and content to enable these actions.</p>}
             {error && <p role="alert" className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">{error}</p>}
             <div className="mt-4 flex flex-col gap-2.5">
               <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: true })} className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white transition hover:bg-[#0F2F62] disabled:cursor-not-allowed disabled:opacity-50">
                 <Send size={15} />
-                {submitting ? 'Posting...' : 'Publish Now'}
+                {submitting ? (forApproval ? 'Sending...' : 'Posting...') : forApproval ? 'Submit for approval' : 'Publish Now'}
               </button>
-              <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: false })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-50">Save Draft</button>
+              {!forApproval && <button type="button" disabled={submitting || !title.trim() || !body.trim()} onClick={() => setConfirmState({ open: true, isPublished: false })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-4 text-sm font-bold text-[#0878B7] transition hover:bg-[#F8FBFD] disabled:cursor-not-allowed disabled:opacity-50">Save Draft</button>}
             </div>
           </section>
         </aside>
@@ -242,11 +259,13 @@ export default function CreateAnnouncementPage() {
 
       <ConfirmModal
         open={confirmState.open}
-        title={confirmState.isPublished ? 'Publish Announcement' : 'Save Draft'}
-        message={confirmState.isPublished
-          ? 'Are you sure you want to publish this announcement now?'
-          : 'Save this announcement as draft for later publishing?'}
-        confirmText={confirmState.isPublished ? 'Publish Now' : 'Save Draft'}
+        title={forApproval ? 'Submit for approval' : confirmState.isPublished ? 'Publish Announcement' : 'Save Draft'}
+        message={forApproval
+          ? 'The Admin approves it before members see it. You can follow it in Announcements.'
+          : confirmState.isPublished
+            ? 'Are you sure you want to publish this announcement now?'
+            : 'Save this announcement as draft for later publishing?'}
+        confirmText={forApproval ? 'Submit for approval' : confirmState.isPublished ? 'Publish Now' : 'Save Draft'}
         busy={submitting}
         onCancel={() => setConfirmState({ open: false, isPublished: true })}
         onConfirm={async () => {
