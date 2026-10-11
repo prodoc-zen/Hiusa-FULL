@@ -168,7 +168,8 @@ describe('SaoOrganizationOverviewPage', () => {
       renderPage();
       const view = await progress();
 
-      expect(within(stage(view)).getAllByText(/^Skipped:/)).toHaveLength(2);
+      expect(within(stage(view)).getAllByText(/^Skipped:/)).toHaveLength(1);
+      expect(within(stage(view)).getAllByText(/^Stopped:/)).toHaveLength(1);
       expect(view.queryByText(/Active: administrator can sign in/)).not.toBeInTheDocument();
     });
   });
