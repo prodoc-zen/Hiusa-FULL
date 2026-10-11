@@ -9,6 +9,7 @@ import { organizationRegistrationLifecycle } from '../../../lib/lifecycle';
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getAcademicPeriods, getSystemOrganizations } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
 
@@ -138,14 +139,18 @@ export default function DocumentsTab() {
     if (open && !files[organizationId]) loadFiles(organizationId);
   }
 
-  async function openDocument(row) {
+  async function openDocument(row, organizationId) {
     const key = `${row.source}:${row.open_url}`;
     setOpeningKey(key);
     setOpenError(null);
     try {
       await openProtectedFile(row.open_url);
     } catch (err) {
-      setOpenError(getApiErrorMessage(err, 'Could not open this document.'));
+      setOpenError(openFileErrorMessage(err, { registration: row.family === 'registration' }));
+      if (isFileGone(err)) {
+        load();
+        loadFiles(organizationId);
+      }
     } finally {
       setOpeningKey(null);
     }
@@ -199,7 +204,7 @@ export default function DocumentsTab() {
                         variant="secondary"
                         className="h-11! sm:h-9!"
                         leftIcon={ExternalLink}
-                        onClick={() => openDocument(row)}
+                        onClick={() => openDocument(row, organizationId)}
                         disabled={openingKey === key}
                         aria-label={`View ${formatDisplayText(row.item)}`}
                       >
