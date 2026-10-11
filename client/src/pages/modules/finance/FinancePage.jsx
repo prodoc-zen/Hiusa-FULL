@@ -44,6 +44,7 @@ import {
   generateBudgetAdvice,
   getFinancialReports,
   getFinancialReport,
+  getStudentDebts,
   getFinancialSemesters,
   createFinancialSemester,
   generateFinancialReport,
@@ -114,42 +115,59 @@ function currentClearance(clearances) {
   return sorted.find((entry) => !entry.is_complete) || sorted[0] || null;
 }
 
-function accountHolds(invoices, clearances) {
-  const unpaid = invoices.filter((invoice) => Number(invoice.remaining_balance) >= 0.005);
-  const balance = unpaid.reduce((total, invoice) => total + Number(invoice.remaining_balance), 0);
+const plural = (count, noun) => `${count} ${noun}${count === 1 ? '' : 's'}`;
+
+// The balance and the financial clearance come from the server's own rule (GET /student-debts), which also
+// counts reserved orders no invoice covers yet; only the held signatures are read from My clearance.
+function accountHolds(debt, clearances) {
+  const total = Number(debt?.total_debt) || 0;
+  const owing = debt ? debt.clearance_status === 'pending_clearance' : false;
+  const parts = [];
+  if (Number(debt?.unpaid_invoice_count) > 0) parts.push(plural(Number(debt.unpaid_invoice_count), 'unpaid invoice'));
+  if (Number(debt?.pending_order_count) > 0) parts.push(plural(Number(debt.pending_order_count), 'reserved order'));
+  const breakdown = parts.join(' and ');
   const reasons = [];
-  if (unpaid.length > 0) reasons.push(`You owe ${fmt(balance)} on ${unpaid.length} unpaid invoice${unpaid.length === 1 ? '' : 's'}. Pay it to be financially cleared.`);
+  if (owing) reasons.push(`You owe ${fmt(total)}${breakdown ? `: ${breakdown}` : ''}.`);
   const current = clearances ? currentClearance(clearances) : null;
   const held = current && !current.is_complete ? current.signatures.filter((signature) => signature.status === 'held') : [];
   held.forEach((signature) => reasons.push(`${humanizeRole(signature.required_role)} clearance is on hold${signature.remarks ? `: ${signature.remarks}` : '.'}`));
-  return { unpaidCount: unpaid.length, balance, reasons };
+  return { owing, total, breakdown, reasons };
 }
 
 // Sits above the invoice table so the balance and whether the student is cleared show without scrolling,
 // on a phone where the table's own Balance column is a swipe away.
-function AccountSummary({ invoices, clearances }) {
-  const { unpaidCount, balance, reasons } = accountHolds(invoices, clearances);
+function AccountSummary({ debt, clearances }) {
+  const { owing, total, breakdown, reasons } = accountHolds(debt, clearances);
+  const balanceKnown = Boolean(debt);
   const onHold = reasons.length > 0;
-  const Icon = onHold ? PauseCircle : ShieldCheck;
+  const unconfirmed = !onHold && !balanceKnown;
+  const Icon = onHold || unconfirmed ? PauseCircle : ShieldCheck;
 
   return (
     <div role="region" aria-label="Account summary" className="grid gap-4 border-b border-line p-4 sm:grid-cols-2 sm:p-5">
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Outstanding balance</p>
-        <p className={`mt-1 text-2xl font-extrabold tabular-nums ${onHold && unpaidCount > 0 ? 'text-danger-strong' : 'text-ink'}`}>{fmt(balance)}</p>
-        <p className="mt-1 text-xs font-semibold text-ink-muted">{unpaidCount > 0 ? `${unpaidCount} unpaid invoice${unpaidCount === 1 ? '' : 's'}` : 'Nothing owed'}</p>
+        {balanceKnown ? (
+          <>
+            <p className={`mt-1 text-2xl font-extrabold tabular-nums ${owing ? 'text-danger-strong' : 'text-ink'}`}>{fmt(total)}</p>
+            <p className="mt-1 text-xs font-semibold text-ink-muted">{breakdown || 'Nothing owed'}</p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm font-medium text-ink">Your balance could not be loaded. Open the home page to see what you owe.</p>
+        )}
       </div>
       <div>
         <p className="text-xs font-bold uppercase tracking-wide text-ink-muted">Clearance</p>
         <div className="mt-1 flex items-center gap-2">
-          <Icon size={20} className={onHold ? 'text-warning-strong' : 'text-success-strong'} aria-hidden="true" />
-          <StatusBadge status={onHold ? 'held' : 'cleared'} label={onHold ? 'On hold' : 'Cleared'} tone={onHold ? 'warning' : 'success'} />
+          <Icon size={20} className={onHold || unconfirmed ? 'text-warning-strong' : 'text-success-strong'} aria-hidden="true" />
+          {unconfirmed ? (
+            <StatusBadge status="unconfirmed" label="Not confirmed" tone="neutral" />
+          ) : (
+            <StatusBadge status={onHold ? 'held' : 'cleared'} label={onHold ? 'On hold' : 'Cleared'} tone={onHold ? 'warning' : 'success'} />
+          )}
         </div>
-        {onHold ? (
-          <ul className="mt-2 space-y-1 text-sm font-medium text-ink">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
-        ) : (
-          <p className="mt-2 text-sm font-medium text-ink">{clearances ? 'Nothing owed and no clearance signature is on hold.' : 'Nothing owed.'}</p>
-        )}
+        {onHold && <ul className="mt-2 space-y-1 text-sm font-medium text-ink">{reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>}
+        {!onHold && balanceKnown && <p className="mt-2 text-sm font-medium text-ink">{clearances ? 'Nothing owed and no clearance signature is on hold.' : 'Nothing owed.'}</p>}
         {!clearances && <p className="mt-1 text-xs font-semibold text-ink-muted">Your clearance signatures could not be checked. Open My clearance to see them.</p>}
       </div>
     </div>
@@ -346,6 +364,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
   const [selectedReceipt, setSelectedReceipt] = useState(null);
   const [invoices, setInvoices] = useState([]);
   const [clearances, setClearances] = useState(null);
+  const [studentDebt, setStudentDebt] = useState(null);
   const [summary, setSummary] = useState({ total_income: 0, total_expense: 0, net_balance: 0 });
   const [forecasts, setForecasts] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -445,8 +464,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       canViewTransactions ? fetchAllPages((p) => getFinancialReports(p).then((r) => r.data), organizationScope) : Promise.resolve([]),
       currentUserRole === 'ADMIN' ? getFinancialSemesters() : Promise.resolve({ data: [] }),
       currentUserRole === 'STUDENT' ? getMyClearances().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
+      currentUserRole === 'STUDENT' ? getStudentDebts().catch(() => ({ data: null })) : Promise.resolve({ data: null }),
     ])
-      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, reports, semesterRes, clearanceRes]) => {
+      .then(([txRes, sumRes, forecasts, budgetsList, eventsList, receiptRes, invoiceRes, reports, semesterRes, clearanceRes, debtRes]) => {
         const txArr = Array.isArray(txRes.data?.data) ? txRes.data.data : (Array.isArray(txRes.data) ? txRes.data : []);
         setTransactions(txArr);
         if (txRes.data?.current_page !== undefined) {
@@ -466,6 +486,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
         setReports(reports);
         setSemesters(semesterRes.data || []);
         setClearances(Array.isArray(clearanceRes.data) ? clearanceRes.data : null);
+        const debtRows = Array.isArray(debtRes.data) ? debtRes.data : debtRes.data?.data;
+        setStudentDebt(Array.isArray(debtRows) && debtRows.length > 0 ? debtRows[0] : null);
       })
       .catch(() => setError('Failed to load financial data.'))
       .finally(() => setLoading(false));
@@ -1799,7 +1821,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             <h2 className="text-lg font-bold text-[#0F172A]">Statement of Account & Financial Clearance</h2>
             <p className="mt-1 text-sm text-slate-500">Approved payments are reflected in your balance.</p>
           </div>
-          {currentUserRole === 'STUDENT' && !loading && !error && <AccountSummary invoices={invoices} clearances={clearances} />}
+          {currentUserRole === 'STUDENT' && !loading && !error && <AccountSummary debt={studentDebt} clearances={clearances} />}
           <div className="p-4 sm:p-5">
             <DataTable
               columns={invoiceColumns}

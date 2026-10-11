@@ -17,6 +17,7 @@ const financeMocks = vi.hoisted(() => ({
   getTransactionSummary: vi.fn(),
   getPersonalReceipts: vi.fn(),
   getInvoices: vi.fn(),
+  getStudentDebts: vi.fn(),
   getAuditLogs: vi.fn(),
   getForecasts: vi.fn(),
   getBudgets: vi.fn(),
@@ -67,6 +68,7 @@ describe('FinancePage transaction search', () => {
     });
     financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
     financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getStudentDebts.mockResolvedValue({ data: { data: [] } });
     clearanceMocks.getMyClearances.mockResolvedValue({ data: [] });
     financeMocks.getAuditLogs.mockResolvedValue({ data: { data: [] } });
     financeMocks.getForecasts.mockResolvedValue({ data: [] });
@@ -711,6 +713,7 @@ describe('FinancePage statement of account for a student', () => {
     remaining_balance: 500,
     ...overrides,
   });
+  const debts = (overrides) => ({ data: { data: [{ invoice_debt: 0, reserved_order_debt: 0, total_debt: 0, clearance_status: 'financially_cleared', unpaid_invoice_count: 0, pending_order_count: 0, ...overrides }] } });
   const clearance = (signatures, overrides) => ({ clearance_period_id: 3, title: 'Midterm clearance', academic_year: '2026-2027', is_complete: false, signatures, ...overrides });
 
   beforeEach(() => {
@@ -724,18 +727,20 @@ describe('FinancePage statement of account for a student', () => {
     financeMocks.getFinancialSemesters.mockResolvedValue({ data: [] });
     financeMocks.getPersonalReceipts.mockResolvedValue({ data: [] });
     financeMocks.getInvoices.mockResolvedValue({ data: [] });
+    financeMocks.getStudentDebts.mockResolvedValue(debts());
     clearanceMocks.getMyClearances.mockResolvedValue({ data: [] });
   });
 
   it('puts the outstanding balance and an on hold clearance with its reason above the invoices', async () => {
     financeMocks.getInvoices.mockResolvedValue({ data: [invoice(), invoice({ id: 2, description: 'Shirt', amount_due: '250.50', remaining_balance: 250.5 }), invoice({ id: 3, status: 'paid', amount_due: '100.00', amount_paid: 100, remaining_balance: 0 })] });
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ invoice_debt: 750.5, total_debt: 750.5, clearance_status: 'pending_clearance', unpaid_invoice_count: 2 }));
     render(<FinancePage initialTab="invoices" />);
 
     const region = await screen.findByRole('region', { name: 'Account summary' });
     expect(within(region).getByText('₱750.50')).toBeInTheDocument();
     expect(within(region).getByText('2 unpaid invoices')).toBeInTheDocument();
     expect(within(region).getByText('On hold')).toBeInTheDocument();
-    expect(within(region).getByText('You owe ₱750.50 on 2 unpaid invoices. Pay it to be financially cleared.')).toBeInTheDocument();
+    expect(within(region).getByText('You owe ₱750.50: 2 unpaid invoices.')).toBeInTheDocument();
     expect(region.compareDocumentPosition(screen.getAllByText('Organization fee')[0]) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 
@@ -775,12 +780,44 @@ describe('FinancePage statement of account for a student', () => {
 
   it('keeps the balance and says so when the clearance signatures cannot be loaded', async () => {
     financeMocks.getInvoices.mockResolvedValue({ data: [invoice()] });
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ invoice_debt: 500, total_debt: 500, clearance_status: 'pending_clearance', unpaid_invoice_count: 1 }));
     clearanceMocks.getMyClearances.mockRejectedValue(new Error('down'));
     render(<FinancePage initialTab="invoices" />);
 
     const region = await screen.findByRole('region', { name: 'Account summary' });
     expect(within(region).getByText('₱500.00')).toBeInTheDocument();
     expect(within(region).getByText('Your clearance signatures could not be checked. Open My clearance to see them.')).toBeInTheDocument();
+  });
+
+  it('takes the balance from the server rule, so a reserved order with no invoice still puts the account on hold', async () => {
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ reserved_order_debt: 350, total_debt: 350, clearance_status: 'pending_clearance', pending_order_count: 1 }));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('₱350.00')).toBeInTheDocument();
+    expect(within(region).getByText('On hold')).toBeInTheDocument();
+    expect(within(region).queryByText('Cleared')).not.toBeInTheDocument();
+    expect(within(region).getByText('You owe ₱350.00: 1 reserved order.')).toBeInTheDocument();
+    expect(within(region).getByText('1 reserved order')).toBeInTheDocument();
+  });
+
+  it('lists unpaid invoices and reserved orders together in the reason', async () => {
+    financeMocks.getStudentDebts.mockResolvedValue(debts({ invoice_debt: 500, reserved_order_debt: 200, total_debt: 700, clearance_status: 'pending_clearance', unpaid_invoice_count: 1, pending_order_count: 2 }));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('₱700.00')).toBeInTheDocument();
+    expect(within(region).getByText('You owe ₱700.00: 1 unpaid invoice and 2 reserved orders.')).toBeInTheDocument();
+  });
+
+  it('does not claim cleared or a zero balance when the balance cannot be loaded', async () => {
+    financeMocks.getStudentDebts.mockRejectedValue(new Error('down'));
+    render(<FinancePage initialTab="invoices" />);
+
+    const region = await screen.findByRole('region', { name: 'Account summary' });
+    expect(within(region).getByText('Your balance could not be loaded. Open the home page to see what you owe.')).toBeInTheDocument();
+    expect(within(region).queryByText('Cleared')).not.toBeInTheDocument();
+    expect(within(region).queryByText('₱0.00')).not.toBeInTheDocument();
   });
 
   it('lists each invoice as a card for narrow screens as well as a table row', async () => {
@@ -801,5 +838,6 @@ describe('FinancePage statement of account for a student', () => {
     expect((await screen.findAllByText('Organization fee')).length).toBeGreaterThan(0);
     expect(screen.queryByRole('region', { name: 'Account summary' })).not.toBeInTheDocument();
     expect(clearanceMocks.getMyClearances).not.toHaveBeenCalled();
+    expect(financeMocks.getStudentDebts).not.toHaveBeenCalled();
   });
 });

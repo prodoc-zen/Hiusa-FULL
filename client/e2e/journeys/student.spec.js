@@ -80,8 +80,8 @@ async function closeActiveElections(admin) {
 
 // A real ballot through the API: Admin proposes, Department Head approves, a candidate is added, the
 // ballot is finalized and opens because its window has started. The seeded election is never finalized,
-// so no student could vote in it.
-async function seedOpenElection() {
+// so no student could vote in it. Results stay hidden until released unless the caller asks for live totals.
+async function seedOpenElection({ resultsVisible = false } = {}) {
   const admin = await apiAs(PSITS_ADMIN);
   const head = await apiAs(HEAD_CCS);
   await closeActiveElections(admin);
@@ -91,6 +91,7 @@ async function seedOpenElection() {
     start_time: new Date(stamp - 3600e3).toISOString(),
     end_time: new Date(stamp + 2 * 86400e3).toISOString(),
     positions: [{ title: 'Journey President', max_winners: 1 }],
+    results_visible: resultsVisible,
   });
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   const election = created.body;
@@ -183,6 +184,16 @@ for (const viewport of WIDTHS) {
       const card = page.getByRole('article').filter({ hasText: election.title });
       await expect(card.getByText('Voted', { exact: true })).toBeVisible();
       await expect(card.getByText('Available when voting closes')).toBeVisible();
+    });
+
+    test('J2b live totals are offered when the results are marked visible', async ({ page }) => {
+      const election = await seedOpenElection({ resultsVisible: true });
+      await uiLogin(page, STUDENT);
+
+      await page.goto('/dashboard/elections/cast-vote');
+      const card = page.getByRole('article').filter({ hasText: election.title });
+      await expect(card.getByRole('link', { name: 'View live totals' })).toBeVisible();
+      await expect(card.getByText('Available when voting closes')).toHaveCount(0);
     });
 
     test('J3 order and claim (ceiling 5 to place, 1 to check)', async ({ page }, testInfo) => {
