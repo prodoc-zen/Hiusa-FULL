@@ -16,10 +16,12 @@ const mocks = vi.hoisted(() => ({
   getSystemOrganizations: vi.fn(),
 }));
 const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+const toasts = vi.hoisted(() => ({ error: vi.fn(), success: vi.fn() }));
 
 vi.mock('../../../services/complianceService', () => mocks);
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getSystemOrganizations: mocks.getSystemOrganizations }));
 vi.mock('../../../utils/openProtectedFile', () => openMocks);
+vi.mock('../../../lib/notify', () => ({ default: toasts }));
 vi.mock('./EventRequirementsTab', () => ({ default: () => <p>Event requirements content</p> }));
 vi.mock('./FinancialReportsTab', () => ({ default: () => <p>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
@@ -272,6 +274,19 @@ describe('SaoCompliancePage', () => {
 
       await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
       expect(mocks.downloadSubmissionDocument).not.toHaveBeenCalled();
+    });
+
+    it('says the registration was withdrawn when its file is gone, closes the record and refreshes the queue', async () => {
+      const registration = { ...submission, is_registration: true, organization: { id: 21, name: 'Robotics Guild', lifecycle_status: 'pending' }, requirement_type: { id: 5, name: 'Letter of Intent' } };
+      mocks.getSubmissions.mockResolvedValue({ data: { data: [registration], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+      openMocks.openProtectedFile.mockRejectedValue({ response: { status: 404, data: new Blob(['{"message":"No query results for model"}']) } });
+      renderPage('/dashboard/super-admin/compliance?tab=review&record=12');
+      fireEvent.click(await screen.findByRole('button', { name: 'Open document' }));
+
+      await waitFor(() => expect(toasts.error).toHaveBeenCalledWith(expect.stringContaining('This registration was withdrawn')));
+      expect(toasts.error).toHaveBeenCalledTimes(1);
+      await waitFor(() => expect(mocks.getSubmissions.mock.calls.length).toBeGreaterThan(1));
+      expect(screen.getByTestId('search')).not.toHaveTextContent('record=12');
     });
 
     it('sends a pending registration document to the organization review instead of offering a decision', async () => {

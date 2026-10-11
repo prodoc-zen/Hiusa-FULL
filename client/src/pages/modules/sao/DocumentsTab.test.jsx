@@ -183,6 +183,18 @@ describe('DocumentsTab', () => {
     expect(await screen.findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
   });
 
+  it('explains that a withdrawn registration has no files left instead of showing a raw failure, then refreshes', async () => {
+    openMocks.openProtectedFile.mockRejectedValue({ response: { status: 404, data: new Blob(['{"message":"No query results for model"}']) } });
+    await expandFirst();
+    const callsBefore = complianceMocks.getComplianceDocuments.mock.calls.length;
+
+    fireEvent.click(screen.getByRole('button', { name: 'View Letter of Intent' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('This registration was withdrawn');
+    expect(screen.queryByText(/404|Could not open/)).not.toBeInTheDocument();
+    await waitFor(() => expect(complianceMocks.getComplianceDocuments.mock.calls.length).toBeGreaterThan(callsBefore));
+  });
+
   it('shows the empty state', async () => {
     serve({ summaryPage: page([]) });
     renderTab();

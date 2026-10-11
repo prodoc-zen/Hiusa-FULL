@@ -11,6 +11,7 @@ import useRecordParam from '../../../lib/useRecordParam';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
 import { complianceStage, complianceStageText } from './complianceStage';
 
@@ -87,7 +88,12 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
     try {
       await openProtectedFile(`/compliance/submissions/${submission.id}/document`);
     } catch (err) {
-      notify.error(getApiErrorMessage(err, 'Could not open this document.'));
+      notify.error(openFileErrorMessage(err, { registration: Boolean(submission.is_registration) }));
+      if (isFileGone(err)) {
+        setRecordId(null);
+        loadQueue(page);
+        onChanged();
+      }
     } finally {
       setOpeningDocumentId(null);
     }
