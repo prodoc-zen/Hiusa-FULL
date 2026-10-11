@@ -216,13 +216,21 @@ for (const viewport of WIDTHS) {
       await expect(cardFor().getByText('Step 1 of 4: Reserved')).toBeVisible();
       await expect(cardFor().getByText(/pay cash at pickup/i).first()).toBeVisible();
 
-      // The officer half of journey O-F2, through the API.
+      // Journey O-F2 through the API: the officer's Verify & Submit sends this same PATCH and only hands the
+      // payment to the Admin, so the token is released once the Admin approves it too.
       const officer = await apiAs(OFFICER);
       const verified = await officer.patch(`/orders/${placed.id}/status`, { status: 'paid', verified_amount: placed.total_price });
       expect(verified.status, JSON.stringify(verified.body)).toBe(200);
       await page.reload();
+      await expect(cardFor().getByText('Payment verified: waiting for Admin approval').first()).toBeVisible();
+      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/)).toHaveCount(0);
+
+      const admin = await apiAs(PSITS_ADMIN);
+      const approved = await admin.patch(`/orders/${placed.id}/status`, { status: 'paid' });
+      expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+      await page.reload();
       await expect(cardFor().getByText('Paid', { exact: true }).first()).toBeVisible();
-      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/)).toBeVisible();
+      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/).first()).toBeVisible();
     });
 
     test('J4 see what I owe (ceiling 2)', async ({ page }, testInfo) => {
