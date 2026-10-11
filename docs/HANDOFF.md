@@ -58,8 +58,37 @@ For each worktree: `git -C <worktree> log --oneline main..HEAD`, read `git -C <w
 - Students cannot list upcoming elections (the server hides them), so the "Upcoming" chip rarely shows. The elections list has no `has_voted`, so the Vote page fetches each election.
 - `waiting_on` on briefing items is supported by the client but never sent. Fingerprint office hours are not in any payload.
 - The Admin reaches the voters turnout through `manage-elections?record=ID&view=voters` because the `manage-voters` route is Officer only.
-- New SQL is unmeasured on a real database (run EXPLAIN ANALYZE): `ComplianceDocumentService` unions, approval row summaries (`MAX(id) GROUP BY entity_id`), budget `spent_amount` with two NOT EXISTS, event financial summary, the clearance aggregate, `scopedOrganizationIds()`, election status sync, the audit log indexes.
+- New SQL is unmeasured on a real database (run EXPLAIN ANALYZE; `ComplianceDocumentService` is measured, see the next section): approval row summaries (`MAX(id) GROUP BY entity_id`), budget `spent_amount` with two NOT EXISTS, event financial summary, the clearance aggregate, `scopedOrganizationIds()`, election status sync, the audit log indexes.
 - The Department Head with no college assigned has no Department Head account until the SAO creates one; seeders are skipped in production.
+
+## Measured on a real MariaDB (fix round on integrate/sao)
+
+Throwaway MariaDB 10.4.32 started for this round (not 3306, 3307, 3399), `sql_mode` including `ONLY_FULL_GROUP_BY` and `STRICT_TRANS_TABLES`, `max_statement_time` 60 s in the measuring session (no query came near it).
+
+Documents list, `ComplianceDocumentService` (`GET /api/compliance/documents`). Data: 300 organizations (10 percent pending), 102,000 compliance submissions, 60,000 events (half per semester), 60,000 event requirement files, 30,000 SAO approval rows, 60,000 submitted reports with two supporting documents each. Wall time of the service call and slowest single query, SAO (all 300 organizations) and Department Head (40 organizations), measured with `ANALYZE` plans on every query over 150 ms:
+
+| Shape | SAO page 1 (20) | SAO page 20 (100) | Department Head page 20 (100) |
+| --- | --- | --- | --- |
+| no filter | 1.26 s / 342 ms | 1.72 s / 271 ms | 1.16 s / 54 ms |
+| semester filter | 1.14 s / 276 ms | 1.76 s / 292 ms | 1.07 s / 52 ms |
+| family=registration | 0.45 s / 272 ms | 0.58 s / 269 ms | 0.19 s / 46 ms |
+| source=financial_supporting_document | 0.31 s / 181 ms | 0.57 s / 166 ms | 0.33 s / 31 ms |
+| source=event_requirement + semester | 0.26 s / 150 ms | 0.73 s / 167 ms | 0.46 s / 22 ms |
+| group=organization (SAO) | 0.67 s / 293 ms | | |
+| group=organization + semester (SAO) | 0.77 s / 396 ms | | |
+
+Every query ran under `ONLY_FULL_GROUP_BY` without error. The plans are linear scans or index lookups: the grouped compliance count and the compliance row query read the 102,000 submissions once (about 250 to 300 ms), the financial count uses `financial_reports_submission_index` (range, about 30,000 rows with the semester subselect), event files join `events` on its primary key and `event_requirement_files` on its `event_id` index. No index was added.
+
+The finding's quadratic plan (loose scan on `approval_requests` joined to `events` through a block nested loop, 53 s at 20,000 files) did NOT reproduce here, on the same engine version, with six data shapes (semester share 10 to 50 percent, 6,000 to 60,000 files, 30,000 or 90,000 approval rows). It depends on the optimizer statistics of the machine it was seen on. `eventFiles()` was rewritten anyway so no plan can pair two unindexed sides: the two `IN` subselects became an inner join on `events` (semester) and an inner join on a distinct derived table of SAO review ids, every join on an indexed key. On this data the old and new forms cost the same (event shape: 0.32 s old, 0.26 s new at 30,000 files in the semester). The improvement is by construction, not measured. Still to do if the SAO page is slow in production: `ANALYZE` the real tables, and re-run `EXPLAIN ANALYZE` on the shape `source=event_requirement&academic_semester_id=...` as the SAO. Nothing in the app sets a statement timeout (`max_statement_time` is a session setting in MariaDB, `MAX_EXECUTION_TIME` a hint in MySQL), so a bad plan still pins a connection until the database gives up.
+
+Delete guards, two real connections (`scripts/lock-interleave/interleave.php`, see its header for how to run; the four-second hold and a 1.2 s head start are in the script). Each pair runs in both orders and every check passed:
+
+- Event delete against a venue booking for the event: delete first, the booking waits and gets 422; booking first, the delete waits and gets 409.
+- Venue delete against a booking for the venue: booking first, the delete waits and gets 409. Delete first, the booking waited and then answered a 500 (foreign key violation). Fixed: `VenueBookingController::store` now answers 422 when the venue is gone at the lock.
+- Budget delete against a ledger entry and against an approval: `BudgetController::destroy` now checks status and ledger entries on the locked row inside one transaction. Before the fix the same harness showed both reported losses (a delete returned 200 and left the ledger entry with `budget_id` NULL; a budget approved in the gap was deleted). After: 409, the entry and the approved budget stay; a ledger entry inserted after the delete took the lock is refused by the foreign key.
+- Election delete against an election that opens meanwhile: same lock in `ElectionController::destroy`; the open election stays (409), and an open that arrives during the delete changes no row. Votes cast in the gap were not driven through the harness; they take the same shared lock on the election row through their foreign key as bookings do on the event.
+
+SQLite cannot show any of this: `DeleteGuardLockTest`, `BudgetDeleteGuardTest` and `ElectionDeleteGuardTest` pin the shape only.
 
 ## Commands to get back to green
 

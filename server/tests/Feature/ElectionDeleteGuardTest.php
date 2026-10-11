@@ -6,10 +6,11 @@ use App\Models\Election;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-/** An election that is open or closed is kept: the Admin closes it instead of deleting it. */
+/** An election that is open or closed is kept: the Admin closes it instead of deleting it, also when it opens after the guard first read it. */
 class ElectionDeleteGuardTest extends TestCase
 {
     use RefreshDatabase;
@@ -62,5 +63,36 @@ class ElectionDeleteGuardTest extends TestCase
         $this->deleteJson("/api/elections/{$election->id}")->assertOk();
 
         $this->assertModelMissing($election);
+    }
+
+    public function test_an_election_that_opens_after_it_was_read_is_kept(): void
+    {
+        $election = $this->election('upcoming');
+        $this->afterTheElectionIsRead(fn () => DB::table('elections')->where('id', $election->id)->update(['status' => 'active']));
+
+        $this->deleteJson("/api/elections/{$election->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', 'An open election cannot be deleted. Close it instead to keep the results.');
+
+        $this->assertModelExists($election);
+    }
+
+    public function test_an_election_deleted_after_it_was_read_answers_not_found(): void
+    {
+        $election = $this->election('upcoming');
+        $this->afterTheElectionIsRead(fn () => DB::table('elections')->where('id', $election->id)->delete());
+
+        $this->deleteJson("/api/elections/{$election->id}")->assertNotFound();
+    }
+
+    /** The request reads the election twice before its guard (the second read is the controller's), so the change lands after the second. */
+    private function afterTheElectionIsRead(callable $interleave): void
+    {
+        $reads = 0;
+        DB::listen(function ($query) use (&$reads, $interleave) {
+            if (str_starts_with(str_replace(['"', '`'], '', $query->sql), 'select * from elections where organization_id') && ++$reads === 2) {
+                $interleave();
+            }
+        });
     }
 }

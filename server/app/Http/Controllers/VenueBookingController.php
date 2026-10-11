@@ -24,6 +24,8 @@ class VenueBookingController extends Controller
 {
     private const EVENT_GONE = 'event_gone';
 
+    private const VENUE_GONE = 'venue_gone';
+
     public function index(Request $request)
     {
         $filters = $request->validate([
@@ -84,7 +86,9 @@ class VenueBookingController extends Controller
         $offCampus = ($data['venue_type'] ?? 'on_campus') === 'off_campus';
         $booking = DB::transaction(function () use ($data, $organizationId, $request, $offCampus, $start, $end) {
             if (! $offCampus) {
-                Venue::whereKey($data['venue_id'])->lockForUpdate()->first();
+                if (! Venue::whereKey($data['venue_id'])->lockForUpdate()->first()) {
+                    return self::VENUE_GONE;
+                }
                 if ($this->hasApprovedOverlap($data['venue_id'], $start, $end, null, true)) {
                     return null;
                 }
@@ -104,6 +108,9 @@ class VenueBookingController extends Controller
                 'requested_by' => $request->user()->school_id,
             ]);
         });
+        if ($booking === self::VENUE_GONE) {
+            return response()->json(['message' => 'The selected venue is no longer available.'], 422);
+        }
         if ($booking === self::EVENT_GONE) {
             return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
         }

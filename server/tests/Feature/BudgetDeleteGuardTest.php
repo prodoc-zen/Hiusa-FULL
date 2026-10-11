@@ -7,10 +7,15 @@ use App\Models\Organization;
 use App\Models\Transaction;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-/** An approved budget and a budget that carries ledger entries stay on record. */
+/**
+ * An approved budget and a budget that carries ledger entries stay on record, also when the approval lands after the
+ * budget was first read: the guard runs again on the locked row. A ledger entry that lands in that gap needs a second
+ * connection to show, which SQLite cannot give; see docs/HANDOFF.md for the MariaDB run.
+ */
 class BudgetDeleteGuardTest extends TestCase
 {
     use RefreshDatabase;
@@ -68,5 +73,34 @@ class BudgetDeleteGuardTest extends TestCase
             ->assertJsonPath('message', 'Cannot delete a budget that has existing transactions. Remove all transactions first.');
 
         $this->assertModelExists($budget);
+    }
+
+    public function test_an_approval_that_lands_after_the_budget_was_read_still_blocks_the_delete(): void
+    {
+        $budget = $this->budget('pending_department_head');
+        $this->afterTheBudgetIsRead(fn () => DB::table('budgets')->where('id', $budget->id)->update(['submission_status' => 'approved']));
+
+        $this->deleteJson("/api/budgets/{$budget->id}")->assertConflict();
+
+        $this->assertModelExists($budget);
+    }
+
+    public function test_a_budget_deleted_after_it_was_read_answers_not_found(): void
+    {
+        $budget = $this->budget('pending_department_head');
+        $this->afterTheBudgetIsRead(fn () => DB::table('budgets')->where('id', $budget->id)->delete());
+
+        $this->deleteJson("/api/budgets/{$budget->id}")->assertNotFound();
+    }
+
+    private function afterTheBudgetIsRead(callable $interleave): void
+    {
+        $fired = false;
+        DB::listen(function ($query) use (&$fired, $interleave) {
+            if (! $fired && str_starts_with(str_replace(['"', '`'], '', $query->sql), 'select * from budgets where organization_id')) {
+                $fired = true;
+                $interleave();
+            }
+        });
     }
 }
