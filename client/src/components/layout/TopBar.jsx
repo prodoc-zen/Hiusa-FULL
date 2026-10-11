@@ -14,6 +14,7 @@ import { unwrapList } from '../../services/pagination';
 import { getNotificationDestination } from '../../utils/notificationLinks';
 import { notificationIcon } from '../../utils/notificationIcon';
 import notify from '../../lib/notify';
+import { organizationLabel } from '../../utils/collegeIdentity';
 
 const STUDENT_CART_KEY = 'hiusa_student_cart';
 
@@ -98,7 +99,7 @@ export default function TopBar({ onMenuToggle }) {
   const role = user?.role ?? '';
   const roleLabel = ROLE_LABELS[role] || (role ? role : 'Member');
   const [paletteOpen, setPaletteOpen] = useState(false);
-  const organizationName = user?.organization?.name || 'Organization';
+  const organizationName = organizationLabel(user);
   const availableProfiles = accountProfiles.filter((profile) => profile.account_status === 'active' && profile.organization?.is_active);
   const canOrderMerchandise = ['ADMIN', 'SBO_OFFICER', 'STUDENT'].includes(role);
 

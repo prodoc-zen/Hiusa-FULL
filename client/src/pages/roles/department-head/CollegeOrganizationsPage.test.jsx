@@ -5,6 +5,7 @@ import CollegeOrganizationsPage from './CollegeOrganizationsPage';
 
 const mocks = vi.hoisted(() => ({
   getCollegeOrganizations: vi.fn(),
+  getCollegeOverview: vi.fn(),
   getRegistrationRequirements: vi.fn(),
   registerOrganization: vi.fn(),
   resubmitOrganization: vi.fn(),
@@ -70,6 +71,70 @@ describe('CollegeOrganizationsPage', () => {
     vi.clearAllMocks();
     mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations));
     mocks.getRegistrationRequirements.mockResolvedValue({ data: requirements });
+    mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', code: 'COE', logo_url: null, color: '#0B8ED0' }, head: { name: 'Eduardo Ramos' } } });
+  });
+
+  it('opens with a header naming the college and its Department Head', async () => {
+    renderPage();
+
+    const header = await screen.findByRole('region', { name: 'Your college' });
+    expect(await within(header).findByRole('heading', { name: 'College of Engineering' })).toBeInTheDocument();
+    expect(within(header).getByText('Department Head: Eduardo Ramos')).toBeInTheDocument();
+    expect(header.querySelector('img')).toBeNull();
+  });
+
+  it('shows the college logo when it has one', async () => {
+    mocks.getCollegeOverview.mockResolvedValue({ data: { college: { id: 5, name: 'College of Engineering', logo_url: 'https://example.test/coe.png', color: null }, head: { name: 'Eduardo Ramos' } } });
+    renderPage();
+
+    const header = await screen.findByRole('region', { name: 'Your college' });
+    await waitFor(() => expect(header.querySelector('img')).toHaveAttribute('src', 'https://example.test/coe.png'));
+  });
+
+  it('counts Admins, SBO Officers and students per organization', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([
+      organization({ role_counts: { admin: 2, sbo_officer: 5, student: 31 } }),
+      organization({ id: 2, name: 'Chess Club', acronym: 'CHESS', role_counts: { admin: 1, sbo_officer: 0, student: 9 } }),
+    ]));
+    renderPage();
+
+    const table = (await screen.findAllByRole('table'))[0];
+    ['Admins', 'SBO Officers', 'Students'].forEach((name) => expect(within(table).getByRole('columnheader', { name })).toBeInTheDocument());
+    const robotics = within(table).getAllByRole('row').find((row) => within(row).queryByText('Robotics Society'));
+    const chess = within(table).getAllByRole('row').find((row) => within(row).queryByText('Chess Club'));
+    expect(['2', '5', '31'].every((value) => within(robotics).getByText(value))).toBe(true);
+    expect(['1', '0', '9'].every((value) => within(chess).getByText(value))).toBe(true);
+  });
+
+  it('shows leadership and role counts in the read-only organization drawer', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([organization({
+      role_counts: { admin: 1, sbo_officer: 2, student: 40 },
+      leadership: [
+        { name: 'Ada Admin', role: 'ADMIN', position_title: null },
+        { name: 'Pia President', role: 'SBO_OFFICER', position_title: 'President' },
+      ],
+    })]));
+    renderPage();
+    await screen.findAllByText('Robotics Society');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'View checklist for Robotics Society' })[0]);
+
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByRole('heading', { name: 'Leadership' })).toBeInTheDocument();
+    expect(within(drawer).getByText('Ada Admin')).toBeInTheDocument();
+    expect(within(drawer).getByText('SBO Officer, President')).toBeInTheDocument();
+    expect(within(drawer).getByText('Students').previousSibling).toHaveTextContent('40');
+    expect(within(drawer).getByText('SBO Officers').previousSibling).toHaveTextContent('2');
+    expect(within(drawer).queryByRole('textbox')).not.toBeInTheDocument();
+  });
+
+  it('says so when an organization has no Admin or SBO Officer yet', async () => {
+    renderPage();
+    await screen.findAllByText('Chess Club');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'View checklist for Chess Club' })[0]);
+
+    expect(await within(await screen.findByRole('dialog')).findByText('No Admin or SBO Officer is assigned yet.')).toBeInTheDocument();
   });
 
   it('lists the college organizations with a status badge in text and the college name', async () => {
@@ -132,6 +197,7 @@ describe('CollegeOrganizationsPage', () => {
     renderPage();
 
     expect((await screen.findAllByText(/The constitution is missing signatures\./)).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('SAO remarks').length).toBeGreaterThan(0);
     expect(screen.getAllByRole('button', { name: 'Edit and resubmit Drama Guild' }).length).toBeGreaterThan(0);
   });
 

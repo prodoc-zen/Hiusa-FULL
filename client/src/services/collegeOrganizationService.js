@@ -20,3 +20,5 @@ export const resubmitOrganization = (id, fields, files = {}) => {
   data.append('_method', 'PUT');
   return api.post(`/college/organizations/${id}`, data);
 };
+
+export const getCollegeOverview = () => api.get('/college/overview');
