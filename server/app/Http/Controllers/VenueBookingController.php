@@ -51,7 +51,7 @@ class VenueBookingController extends Controller
             ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
             ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)));
 
-        return response()->json($query->orderByDesc('start_time')->paginate($filters['per_page'] ?? 20));
+        return response()->json($query->orderByDesc('start_time')->orderByDesc('id')->paginate($filters['per_page'] ?? 20));
     }
 
     public function store(Request $request)
