@@ -330,6 +330,34 @@ describe('CollegeOrganizationsPage', () => {
     await waitFor(() => expect(mocks.resubmitOrganization).toHaveBeenCalledWith(3, expect.objectContaining({ name: 'Drama Guild' }), {}));
   });
 
+  it('moves from the Returned tab to Pending review once the registration is resubmitted', async () => {
+    mocks.resubmitOrganization.mockResolvedValue({ data: organization({ id: 3, lifecycle_status: 'pending' }) });
+    renderPage('/dashboard/department-head/organizations?status=returned');
+    await screen.findAllByText('Drama Guild');
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator(organizations.map((item) => (item.id === 3 ? organization({ id: 3, name: 'Drama Guild', acronym: 'DRAMA', lifecycle_status: 'pending', registration_requirements: checklist() }) : item))));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit and resubmit Drama Guild' })[0]);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Resubmit to SAO' }));
+
+    await waitFor(() => expect(screen.getByRole('tab', { name: 'Pending review (2)' })).toHaveAttribute('aria-selected', 'true'));
+    expect(screen.getByTestId('location')).toHaveTextContent('?status=pending');
+    const row = screen.getAllByRole('row').find((candidate) => within(candidate).queryByText('Drama Guild'));
+    expect(within(row).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
+  });
+
+  it('stays on the All tab after a resubmission because the row is still listed there', async () => {
+    mocks.resubmitOrganization.mockResolvedValue({ data: organization({ id: 3, lifecycle_status: 'pending' }) });
+    renderPage();
+    await screen.findAllByText('Chess Club');
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit and resubmit Drama Guild' })[0]);
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Resubmit to SAO' }));
+
+    await waitFor(() => expect(mocks.resubmitOrganization).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(screen.getByRole('tab', { name: /^All/ })).toHaveAttribute('aria-selected', 'true');
+  });
+
   it('preselects the status tab from the status query parameter', async () => {
     renderPage('/dashboard/department-head/organizations?status=returned');
     await screen.findAllByText('Drama Guild');
