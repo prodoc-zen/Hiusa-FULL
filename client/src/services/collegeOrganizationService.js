@@ -22,3 +22,4 @@ export const resubmitOrganization = (id, fields, files = {}) => {
 };
 
 export const withdrawOrganization = (id) => api.delete(`/college/organizations/${id}`);
+export const getCollegeOverview = () => api.get('/college/overview');
