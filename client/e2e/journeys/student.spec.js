@@ -80,7 +80,8 @@ async function closeActiveElections(admin) {
 
 // A real ballot through the API: Admin proposes, Department Head approves, a candidate is added, the
 // ballot is finalized and opens because its window has started. The seeded election is never finalized,
-// so no student could vote in it.
+// so no student could vote in it. Settings are what the Admin form creates, including the server default
+// for results_visible.
 async function seedOpenElection() {
   const admin = await apiAs(PSITS_ADMIN);
   const head = await apiAs(HEAD_CCS);
@@ -182,7 +183,9 @@ for (const viewport of WIDTHS) {
       await page.goto('/dashboard/elections/cast-vote');
       const card = page.getByRole('article').filter({ hasText: election.title });
       await expect(card.getByText('Voted', { exact: true })).toBeVisible();
-      await expect(card.getByText('Available when voting closes')).toBeVisible();
+      // Live totals during voting: UseCaseComplianceTest::test_live_standings_and_results_remain_anonymous_during_voting and PAPER M4.7.
+      await expect(card.getByRole('link', { name: 'View live totals' })).toBeVisible();
+      await expect(card.getByText('Available when voting closes')).toHaveCount(0);
     });
 
     test('J3 order and claim (ceiling 5 to place, 1 to check)', async ({ page }, testInfo) => {
@@ -216,13 +219,21 @@ for (const viewport of WIDTHS) {
       await expect(cardFor().getByText('Step 1 of 4: Reserved')).toBeVisible();
       await expect(cardFor().getByText(/pay cash at pickup/i).first()).toBeVisible();
 
-      // The officer half of journey O-F2, through the API.
+      // Journey O-F2 through the API: the officer's Verify & Submit sends this same PATCH and only hands the
+      // payment to the Admin, so the token is released once the Admin approves it too.
       const officer = await apiAs(OFFICER);
       const verified = await officer.patch(`/orders/${placed.id}/status`, { status: 'paid', verified_amount: placed.total_price });
       expect(verified.status, JSON.stringify(verified.body)).toBe(200);
       await page.reload();
+      await expect(cardFor().getByText('Payment verified: waiting for Admin approval').first()).toBeVisible();
+      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/)).toHaveCount(0);
+
+      const admin = await apiAs(PSITS_ADMIN);
+      const approved = await admin.patch(`/orders/${placed.id}/status`, { status: 'paid' });
+      expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+      await page.reload();
       await expect(cardFor().getByText('Paid', { exact: true }).first()).toBeVisible();
-      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/)).toBeVisible();
+      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/).first()).toBeVisible();
     });
 
     test('J4 see what I owe (ceiling 2)', async ({ page }, testInfo) => {

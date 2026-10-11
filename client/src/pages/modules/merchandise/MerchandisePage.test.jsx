@@ -478,6 +478,18 @@ describe("MerchandisePage order stages for the buyer", () => {
     expect(screen.getByText("Out of stock.")).toBeInTheDocument();
   });
 
+  it("tells a buyer an officer verified the payment and that the Admin approves before the token is issued", async () => {
+    orderMocks.getOrders.mockResolvedValue({
+      data: paginatedOrders([buyerOrder({ id: 6, officer_review_status: "approved" })]),
+    });
+    renderAt("/dashboard/merchandise/my-orders", "my-orders");
+
+    expect((await screen.findAllByText("Payment verified: waiting for Admin approval")).length).toBeGreaterThan(0);
+    expect(progress(6)).toHaveAttribute("aria-valuetext", "Step 2 of 4: Payment check");
+    expect(screen.queryByText("Pay cash at pickup, or submit GCash proof")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Show token/)).not.toBeInTheDocument();
+  });
+
   it("tells a buyer there is no online payment instead of offering GCash", async () => {
     merchandiseMocks.getGcashSettings.mockResolvedValue({ data: { gcash_qr_url: null } });
     orderMocks.getOrders.mockResolvedValue({ data: paginatedOrders([buyerOrder({ id: 1 })]) });
