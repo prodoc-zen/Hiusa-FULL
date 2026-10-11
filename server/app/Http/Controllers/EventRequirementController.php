@@ -181,9 +181,11 @@ class EventRequirementController extends Controller
         return $this->showSubmission($request, $event);
     }
 
-    public function download(Request $request, Event $event, EventRequirementFile $file)
+    public function download(Request $request, string $event, string $file)
     {
-        if (! $this->canSeeSubmission($request, $event) || $file->event_id !== $event->id) {
+        $event = ctype_digit($event) ? Event::find($event) : null;
+        $file = ctype_digit($file) ? EventRequirementFile::find($file) : null;
+        if (! $event || ! $file || ! $this->canSeeSubmission($request, $event) || $file->event_id !== $event->id) {
             return response()->json(['message' => 'Event file not found.'], 404);
         }
 
