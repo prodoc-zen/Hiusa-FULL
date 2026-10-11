@@ -90,6 +90,38 @@ describe('VenueBookingPage', () => {
     await waitFor(() => expect(mocks.createVenueBooking).toHaveBeenCalledWith(expect.objectContaining({ event_id: '5', venue_id: 8 })));
   });
 
+  it.each(['ADMIN', 'SBO_OFFICER'])('lets the %s see who holds the venue, hear about a conflict and then book a free slot', async (role) => {
+    localStorage.setItem('user', JSON.stringify({ role }));
+    const day = new Date().toISOString().slice(0, 10);
+    mocks.getVenueAvailability.mockResolvedValue({ data: [
+      { id: 1, start_time: `${day}T01:00:00Z`, end_time: `${day}T03:00:00Z`, status: 'approved', reserved_by: 'Another organization' },
+      { id: 2, start_time: `${day}T05:00:00Z`, end_time: `${day}T06:00:00Z`, status: 'pending', reserved_by: 'Your organization' },
+    ] });
+    mocks.createVenueBooking
+      .mockRejectedValueOnce({ response: { status: 422, data: { message: 'This venue already has a pending or approved booking during that time. Choose another slot.' } } })
+      .mockResolvedValueOnce({ data: { ...BOOKING, id: 41 } });
+    renderAt(`/dashboard/venues?event=5`, <VenueBookingPage />);
+
+    expect(await screen.findByText(/Reserved by Another organization/)).toBeInTheDocument();
+    expect(screen.getByText(/Pending request from Your organization/)).toBeInTheDocument();
+    const dialog = await screen.findByRole('dialog', { name: 'Request a venue booking' });
+    fireEvent.change(within(dialog).getByLabelText(/^Start/), { target: { value: `${day}T09:00` } });
+    fireEvent.change(within(dialog).getByLabelText(/^End/), { target: { value: `${day}T11:00` } });
+    const loadsBefore = mocks.getVenueAvailability.mock.calls.length;
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send request' }));
+
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('already has a pending or approved booking');
+    await waitFor(() => expect(mocks.getVenueAvailability.mock.calls.length).toBeGreaterThan(loadsBefore));
+
+    fireEvent.change(within(dialog).getByLabelText(/^Start/), { target: { value: `${day}T13:00` } });
+    fireEvent.change(within(dialog).getByLabelText(/^End/), { target: { value: `${day}T15:00` } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Send request' }));
+
+    expect(await screen.findByRole('dialog', { name: 'Booking request sent' })).toBeInTheDocument();
+    expect(mocks.createVenueBooking).toHaveBeenCalledTimes(2);
+    expect(mocks.createVenueBooking).toHaveBeenLastCalledWith(expect.objectContaining({ event_id: '5', venue_id: 8 }));
+  });
+
   it('says so when ?event= names an event the organization does not have', async () => {
     renderAt('/dashboard/venues?event=99', <VenueBookingPage />);
     await waitFor(() => expect(mocks.notifyError).toHaveBeenCalledWith('That event is not available for a venue booking.'));
@@ -199,6 +231,7 @@ describe('SaoVenuesPage', () => {
   it('puts New venue in the header and names who sends requests on the empty queue', async () => {
     mocks.getVenueBookings.mockResolvedValue(page([]));
     renderAt('/dashboard/super-admin/venues', <SaoVenuesPage />);
+    fireEvent.click(await screen.findByRole('tab', { name: /Venue catalog/ }));
     expect(await screen.findByRole('button', { name: 'New venue' })).toBeInTheDocument();
     expect(screen.getAllByRole('button', { name: 'New venue' })).toHaveLength(1);
 
@@ -209,7 +242,7 @@ describe('SaoVenuesPage', () => {
 
   it('renders exactly one h1', async () => {
     renderAt('/dashboard/super-admin/venues', <SaoVenuesPage />);
-    await screen.findByRole('button', { name: 'New venue' });
+    await screen.findByRole('tab', { name: /Venue catalog/ });
     expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   });
 });

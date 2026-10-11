@@ -181,13 +181,25 @@ class EventRequirementController extends Controller
         return $this->showSubmission($request, $event);
     }
 
-    public function download(Request $request, Event $event, EventRequirementFile $file)
+    public function download(Request $request, string $event, string $file)
     {
-        if (! $this->canSeeSubmission($request, $event) || $file->event_id !== $event->id) {
+        $event = ctype_digit($event) ? Event::find($event) : null;
+        $file = ctype_digit($file) ? EventRequirementFile::find($file) : null;
+        if (! $event || ! $file || ! $this->canSeeSubmission($request, $event) || $file->event_id !== $event->id) {
             return response()->json(['message' => 'Event file not found.'], 404);
         }
 
-        return Storage::disk('local')->download($file->path, $file->original_name);
+        $disk = Storage::disk('local');
+        if (! $disk->exists($file->path)) {
+            return response()->json(['message' => 'Event file not found.'], 404);
+        }
+
+        $response = response()->file($disk->path($file->path), ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff']);
+        $response->setContentDisposition('inline', $file->original_name, 'event-file-'.$file->id.'.pdf');
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     private function canSeeSubmission(Request $request, Event $event): bool

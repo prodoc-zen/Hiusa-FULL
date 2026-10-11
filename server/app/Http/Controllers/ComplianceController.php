@@ -17,6 +17,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 /**
  * SAO organization compliance and accreditation.
@@ -260,7 +261,7 @@ class ComplianceController extends Controller
         ]);
     }
 
-    public function submissions(Request $request)
+    public function submissions(Request $request, ComplianceDocumentService $documents)
     {
         $filters = $request->validate([
             'organization_id' => ['nullable', 'integer', Rule::exists('organizations', 'id')->where('organization_type', 'STUDENT_ORGANIZATION')],
@@ -269,7 +270,7 @@ class ComplianceController extends Controller
         ]);
 
         $query = OrganizationComplianceSubmission::with([
-            'organization:id,name,acronym',
+            'organization:id,name,acronym,lifecycle_status,submitted_at,reviewed_at',
             'requirementType:id,academic_year,name,deadline_at',
             'submitter:school_id,first_name,last_name',
             'reviewer:school_id,first_name,last_name',
@@ -288,7 +289,14 @@ class ComplianceController extends Controller
         }
         $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
 
-        return response()->json($query->orderByDesc('submitted_at')->paginate($filters['per_page'] ?? 20));
+        $page = $query->orderByDesc('submitted_at')->paginate($filters['per_page'] ?? 20);
+        // Registration files are decided in the organization review, so the queue marks them instead of offering a decision.
+        $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute(
+            'is_registration',
+            $documents->isRegistrationFile($submission->organization, $submission->submitted_at),
+        ));
+
+        return response()->json($page);
     }
 
     public function storeSubmission(Request $request)
@@ -523,6 +531,9 @@ class ComplianceController extends Controller
             'organization_id' => ['nullable', 'integer'],
             'academic_semester_id' => ['nullable', 'integer', Rule::exists('academic_semesters', 'id')],
             'source' => ['nullable', Rule::in(ComplianceDocumentService::SOURCES)],
+            'family' => ['nullable', Rule::in(ComplianceDocumentService::FAMILIES)],
+            'group' => ['nullable', 'in:organization'],
+            'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -532,11 +543,30 @@ class ComplianceController extends Controller
             return response()->json(['message' => 'That organization is outside your scope.'], 403);
         }
 
-        $rows = $documents->rows($organizationId ? [(int) $organizationId] : $scope, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role);
+        $organizationIds = $organizationId ? [(int) $organizationId] : $scope;
+        if ($search = trim($filters['search'] ?? '')) {
+            $like = '%'.addcslashes($search, '\%_').'%';
+            $organizationIds = Organization::whereIn('id', $organizationIds)
+                ->where(fn ($match) => $match->where('name', 'like', $like)->orWhere('acronym', 'like', $like))
+                ->pluck('id')->all();
+        }
+
+        $arguments = [$organizationIds, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role, $filters['family'] ?? null];
         $perPage = $filters['per_page'] ?? 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
+        $options = ['path' => $request->url(), 'query' => $request->query()];
 
-        return response()->json(new LengthAwarePaginator($rows->forPage($page, $perPage)->values(), $rows->count(), $perPage, $page, ['path' => $request->url(), 'query' => $request->query()]));
+        if (($filters['group'] ?? null) === 'organization') {
+            $summaries = $documents->organizationSummaries(...$arguments);
+
+            return response()->json(new LengthAwarePaginator($summaries->forPage($page, $perPage)->values(), $summaries->count(), $perPage, $page, $options));
+        }
+        if ($page * $perPage > ComplianceDocumentService::MAX_WINDOW) {
+            throw ValidationException::withMessages(['page' => 'That page is too deep to load. Narrow the list with a filter or a search.']);
+        }
+        [$rows, $total] = $documents->page(...$arguments, page: $page, perPage: $perPage);
+
+        return response()->json(new LengthAwarePaginator($rows, $total, $perPage, $page, $options));
     }
 
     /** Organizations the caller may read compliance for, or null when it may read every organization. */

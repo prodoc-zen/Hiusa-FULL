@@ -68,6 +68,8 @@ mysql -u <user> -p <database> < scripts/upgrade-checks.sql
 
 Things to look at by eye: the list of colleges (are they the colleges you expect), how many active Department Heads each college has (more than one means two people share the role, which is allowed but unusual), and any organization whose free-text college name did not match a college row (section 10 of the script: fix the name or add the college).
 
+Venue bookings saved before this release may hold times that were sent in UTC and read back as Manila time, so they show hours off. The live server held 4 bookings on 2026-10-12 (1 pending, 1 rejected, 2 withdrawn, none approved). Run `select count(*) from venue_bookings;` to see whether that has changed. Compare the pending one with what the requester typed and correct it by hand if it is 8 hours off. There is no data migration for this; a guess would move real reservations.
+
 ## 7. Smoke test as each role
 
 Use real accounts, not demo ones. Sign in as: the SAO (agency overview loads, Compliance tabs load, the Colleges page lists each college with its Department Head or "No Department Head yet"), a Department Head (Organizations page shows the college's organizations, Approvals lists items from every organization in the college), an organization Admin (home shows the Getting started card, Approvals has two tabs), an officer and a student. Then the specific checks for this release: a student cannot open Cast Vote as a Department Head; an Admin cannot create a user with the Department Head role (the server refuses it with a validation error); open a financial report with supporting documents and confirm the file opens only when signed in (try the same link in a private window: it must ask you to sign in).

@@ -84,7 +84,7 @@ class User extends Authenticatable
         'photo_path',
     ];
 
-    protected $with = ['organization:id,name,slug,college,acronym,parent_organization_id'];
+    protected $with = ['organization:id,name,slug,college,college_id,organization_type,acronym,parent_organization_id'];
 
     protected $appends = ['id', 'photo_url'];
 
@@ -140,10 +140,17 @@ class User extends Authenticatable
         return $this->activeAccountProfile?->id ?? $this->accountProfiles()->where('organization_id', $this->getRawOriginal('organization_id'))->value('id');
     }
 
+    /** The organization columns a member's own account payload carries; reviewer and submitter ids and remarks are not among them. */
+    public const SERIALIZED_ORGANIZATION_COLUMNS = [
+        'id', 'name', 'slug', 'college', 'college_id', 'organization_type', 'acronym', 'parent_organization_id',
+        'is_active', 'logo_url', 'color', 'lifecycle_status',
+    ];
+
     public function activateProfile(AccountProfile $profile): void
     {
         $this->activeAccountProfile = $profile;
-        $this->setRelation('organization', $profile->organization);
+        $profile->organization?->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS);
+        $this->setRelation('organization', $profile->organization?->withoutRelations()->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS));
     }
 
     /** Notification kinds this person chose to hide; always a subset of Notification::MUTABLE_TYPES. */

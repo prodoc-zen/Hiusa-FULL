@@ -5,7 +5,7 @@ export const ROLE_LABELS = {
   STUDENT: 'Student',
 };
 
-const DISPLAY_ACRONYMS = new Map(['HIUSA', 'SAO', 'SBO', 'CCS', 'PSITS', 'CCJE', 'CBA', 'CHTM', 'COE', 'CTE', 'BSIT', 'BSCS', 'BSIS', 'BSCE', 'IT', 'ICT', 'ID', 'AY', 'II', 'III', 'IV', 'GCash', 'CpE', 'BSCpE'].map((word) => [word.toLowerCase(), word]));
+const DISPLAY_ACRONYMS = new Map(['HIUSA', 'SAO', 'SBO', 'CCS', 'PSITS', 'CCJE', 'CBA', 'CHTM', 'COE', 'CTE', 'BS', 'BSIT', 'BSCS', 'BSIS', 'BSCE', 'IT', 'ICT', 'ID', 'AY', 'II', 'III', 'IV', 'GCash', 'CpE', 'BSCpE'].map((word) => [word.toLowerCase(), word]));
 
 export function formatDisplayText(value) {
   if (typeof value !== 'string') return value;
@@ -14,6 +14,7 @@ export function formatDisplayText(value) {
     if (/[@\d]/.test(word) || /^https?:/i.test(word)) return word;
     const canonical = DISPLAY_ACRONYMS.get(word.toLowerCase());
     if (canonical) return canonical;
+    if (word.length === 1 && /\d\s*-\s*$/.test(value.slice(0, index))) return word.toLocaleUpperCase('en-PH');
     if (index > firstWord && ['a', 'an', 'and', 'as', 'at', 'by', 'for', 'from', 'in', 'of', 'on', 'or', 'the', 'to', 'with'].includes(word.toLowerCase())) return word.toLowerCase();
     return word.toLocaleLowerCase('en-PH').replace(/(^|['’])\p{L}/gu, (letter) => letter.toLocaleUpperCase('en-PH'));
   });

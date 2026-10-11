@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { AlertTriangle, Building2, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, Building2, CalendarDays, ClipboardCheck, Plus, Trash2 } from 'lucide-react';
 import {
   Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, IconButton, Input, NextStep, PageHeader,
   Select, StatusBadge, Tabs, Textarea,
@@ -18,7 +18,11 @@ import {
   createVenue, deleteVenue, getVenueAvailability, getVenueBookings, getVenues,
   reviewVenueBooking, updateVenue,
 } from '../../../services/venueService';
-import VenueWeekCalendar, { addDays, todayInManila, weekStartOf } from './VenueWeekCalendar';
+import { rangeParams, todayInManila } from './calendarDates';
+import { ConflictBadge, statusStyle } from './calendarParts';
+import { fetchWindowBookings } from './fetchVenueWindow';
+import VenueCalendar from './VenueCalendar';
+import { conflictingPendingIds, overlaps } from './venueConflicts';
 import { venueStageText } from './venueStage';
 
 const EMPTY_VENUE_FORM = { name: '', location: '', capacity: '', is_active: true };
@@ -39,7 +43,8 @@ function toCalendarSlot(booking) {
     start_time: booking.start_time,
     end_time: booking.end_time,
     status: booking.status,
-    reserved_by: booking.organization?.name || 'Unknown organization',
+    reserved_by: booking.organization?.acronym || booking.organization?.name || 'Unknown organization',
+    organization_name: booking.organization?.name,
     event_title: booking.event?.title,
     venue_name: booking.venue?.name,
   };
@@ -50,7 +55,7 @@ function formatRange(start, end) {
 }
 
 // The Approve and Reject buttons open the review modals, so the callout carries no button of its own.
-function BookingDetail({ booking, onApprove, onReject }) {
+function BookingDetail({ booking, conflict, onApprove, onReject }) {
   const stage = venueBookingLifecycle(booking, 'SUPER_ADMIN');
   const next = { ...toNextStepProps(stage), primary: undefined };
 
@@ -58,6 +63,7 @@ function BookingDetail({ booking, onApprove, onReject }) {
     <div className="flex flex-col gap-4">
       <FlowStepper steps={stage.steps} ariaLabel="Venue booking progress" />
       <NextStep {...next} />
+      {conflict && <div><ConflictBadge /><p className="mt-1 text-sm font-medium text-danger-strong">This request overlaps another booking for the same venue. Check the calendar before approving.</p></div>}
       <dl className="grid gap-3 text-sm">
         <div><dt className="text-xs font-semibold text-ink-muted">Organization</dt><dd className="font-bold text-ink">{booking.organization?.name || 'Unknown'}</dd></div>
         <div><dt className="text-xs font-semibold text-ink-muted">Event</dt><dd className="font-bold text-ink">{booking.event?.title ? formatDisplayText(booking.event.title) : 'Not linked'}</dd></div>
@@ -79,7 +85,7 @@ export default function SaoVenuesPage() {
   const [recordId, setRecordId] = useRecordParam();
   const [pinned, setPinned] = useState(null);
 
-  const [activeTab, setActiveTab] = useState(recordId ? 'bookings' : 'venues');
+  const [activeTab, setActiveTab] = useState(recordId ? 'bookings' : 'calendar');
 
   const [venues, setVenues] = useState({ loading: true, error: null, items: [] });
   const [venueModal, setVenueModal] = useState(null);
@@ -94,15 +100,18 @@ export default function SaoVenuesPage() {
   const [bookingsPage, setBookingsPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState(recordId ? '' : 'pending');
   const [venueFilter, setVenueFilter] = useState('');
-  const queueRef = useRef(null);
   const [reviewState, setReviewState] = useState(null);
-  const [conflicts, setConflicts] = useState({ loading: false, items: [] });
+  const [conflicts, setConflicts] = useState({ loading: false, error: false, items: [] });
   const [rejectRemarks, setRejectRemarks] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
 
-  const [weekStart, setWeekStart] = useState(() => weekStartOf(todayInManila()));
-  const [calendar, setCalendar] = useState({ loading: true, error: null, slots: [], weekStart: null, truncated: null });
+  const [calendarView, setCalendarView] = useState({ view: 'week', anchor: todayInManila() });
+  const [calendar, setCalendar] = useState({ loading: true, error: null, slots: [], loaded: null, truncated: null });
+  const [queueConflictIds, setQueueConflictIds] = useState(() => new Set());
+  const [queueCheck, setQueueCheck] = useState({ failed: false, attempt: 0 });
   const calendarRequest = useRef(0);
+  const calendarConflictIds = useMemo(() => conflictingPendingIds(calendar.slots), [calendar.slots]);
+
 
   const loadVenues = useCallback(() => {
     setVenues((current) => ({ ...current, loading: true, error: null }));
@@ -121,24 +130,47 @@ export default function SaoVenuesPage() {
   const loadCalendar = useCallback(() => {
     const request = ++calendarRequest.current;
     setCalendar((current) => ({ ...current, loading: true, error: null }));
-    const params = { from: `${weekStart}T00:00:00+08:00`, to: `${addDays(weekStart, 6)}T23:59:59+08:00`, venue_id: venueFilter || undefined, per_page: 100 };
-    Promise.all(['pending', 'approved'].map((status) => getVenueBookings({ ...params, status })))
-      .then((responses) => {
+    fetchWindowBookings({ ...rangeParams(calendarView.view, calendarView.anchor), venueId: venueFilter })
+      .then(({ items, truncated }) => {
         if (request !== calendarRequest.current) return;
-        const fetched = responses.flatMap((response) => unwrapList(response.data));
-        const total = responses.reduce((sum, response) => sum + listMeta(response.data).total, 0);
-        const slots = fetched.filter((booking) => booking.venue_id).map(toCalendarSlot);
-        setCalendar({ loading: false, error: null, slots, weekStart, truncated: total > fetched.length ? { shown: fetched.length, total } : null });
+        setCalendar({ loading: false, error: null, slots: items.filter((booking) => booking.venue_id).map(toCalendarSlot), loaded: calendarView, truncated });
       })
       .catch((err) => {
         if (request !== calendarRequest.current) return;
-        setCalendar({ loading: false, error: getApiErrorMessage(err, 'Could not load the venue calendar.'), slots: [], weekStart: null, truncated: null });
+        setCalendar({ loading: false, error: getApiErrorMessage(err, 'Could not load the venue calendar.'), slots: [], loaded: null, truncated: null });
       });
-  }, [weekStart, venueFilter]);
+  }, [calendarView, venueFilter]);
 
   useEffect(() => { if (role === 'SUPER_ADMIN') loadVenues(); }, [loadVenues, role]);
   useEffect(() => { if (role === 'SUPER_ADMIN') loadBookings(bookingsPage); }, [loadBookings, bookingsPage, role]);
-  useEffect(() => { if (role === 'SUPER_ADMIN' && activeTab === 'bookings') loadCalendar(); }, [loadCalendar, activeTab, role]);
+  useEffect(() => { if (role === 'SUPER_ADMIN' && activeTab === 'calendar') loadCalendar(); }, [loadCalendar, activeTab, role]);
+
+  // A queue row is flagged by looking at everything booked around the pending rows on screen, not
+  // only the week the calendar happens to show.
+  useEffect(() => {
+    if (role !== 'SUPER_ADMIN' || activeTab !== 'bookings') return undefined;
+    const pending = bookings.items.filter((booking) => booking.status === 'pending' && booking.venue_id);
+    if (pending.length === 0) {
+      setQueueConflictIds(new Set());
+      setQueueCheck((current) => (current.failed ? { ...current, failed: false } : current));
+      return undefined;
+    }
+    let cancelled = false;
+    const from = new Date(Math.min(...pending.map((booking) => new Date(booking.start_time)))).toISOString();
+    const to = new Date(Math.max(...pending.map((booking) => new Date(booking.end_time)))).toISOString();
+    fetchWindowBookings({ from, to })
+      .then(({ items }) => {
+        if (cancelled) return;
+        setQueueConflictIds(conflictingPendingIds(items));
+        setQueueCheck((current) => (current.failed ? { ...current, failed: false } : current));
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setQueueConflictIds(new Set());
+        setQueueCheck((current) => ({ ...current, failed: true }));
+      });
+    return () => { cancelled = true; };
+  }, [bookings.items, activeTab, role, queueCheck.attempt]);
   useEffect(() => { setBookingsPage(1); }, [statusFilter, venueFilter]);
 
   function openVenueModal(venue = null) {
@@ -233,19 +265,19 @@ export default function SaoVenuesPage() {
   function showInQueue(slot) {
     setStatusFilter(slot.status);
     setVenueFilter(String(slot.venue_id));
-    queueRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+    setActiveTab('bookings');
   }
 
   function openReview(booking, action) {
     setReviewState({ booking, action });
     setRejectRemarks('');
     if (action === 'approve' && booking.venue_id) {
-      setConflicts({ loading: true, items: [] });
+      setConflicts({ loading: true, error: false, items: [] });
       getVenueAvailability(booking.venue_id, { from: booking.start_time, to: booking.end_time })
-        .then((response) => setConflicts({ loading: false, items: (unwrapList(response.data)).filter((slot) => slot.id !== booking.id) }))
-        .catch(() => setConflicts({ loading: false, items: [] }));
+        .then((response) => setConflicts({ loading: false, error: false, items: unwrapList(response.data).filter((slot) => slot.id !== booking.id && overlaps(booking, slot)) }))
+        .catch(() => setConflicts({ loading: false, error: true, items: [] }));
     } else {
-      setConflicts({ loading: false, items: [] });
+      setConflicts({ loading: false, error: false, items: [] });
     }
   }
 
@@ -257,7 +289,6 @@ export default function SaoVenuesPage() {
       notify.success(`Booking for "${reviewState.booking.venue?.name || reviewState.booking.off_campus_location}" approved.`);
       setReviewState(null);
       loadBookings(bookingsPage);
-      loadCalendar();
     } catch (err) {
       notify.error(getApiErrorMessage(err, 'Could not approve this booking.'));
     } finally {
@@ -275,7 +306,6 @@ export default function SaoVenuesPage() {
       setReviewState(null);
       setRejectRemarks('');
       loadBookings(bookingsPage);
-      loadCalendar();
     } catch (err) {
       notify.error(getApiErrorMessage(err, 'Could not reject this booking.'));
     } finally {
@@ -310,6 +340,7 @@ export default function SaoVenuesPage() {
       render: (booking) => (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge status={booking.status} />
+          {queueConflictIds.has(booking.id) && <ConflictBadge />}
           <span className="text-xs font-semibold text-ink-muted-strong">{venueStageText(booking)}</span>
         </div>
       ),
@@ -326,10 +357,32 @@ export default function SaoVenuesPage() {
         value={activeTab}
         onChange={setActiveTab}
         tabs={[
-          { key: 'venues', label: 'Venue catalog', icon: Building2 },
+          { key: 'calendar', label: 'Calendar', icon: CalendarDays },
           { key: 'bookings', label: 'Booking requests', icon: ClipboardCheck },
+          { key: 'venues', label: 'Venue catalog', icon: Building2 },
         ]}
       />
+
+      {activeTab === 'calendar' && (
+        <Card title="Venue calendar" description="Who holds each venue and when. A pending request that overlaps another booking is labelled Conflict.">
+          <VenueCalendar
+            view={calendarView.view}
+            anchor={calendarView.anchor}
+            loaded={calendar.loaded}
+            slots={calendar.slots}
+            venues={venues.items}
+            venueId={venueFilter}
+            conflictIds={calendarConflictIds}
+            onVenueChange={setVenueFilter}
+            onChange={setCalendarView}
+            loading={calendar.loading}
+            error={calendar.error}
+            onRetry={loadCalendar}
+            truncated={calendar.truncated}
+            onShowInQueue={showInQueue}
+          />
+        </Card>
+      )}
 
       {activeTab === 'venues' && (
         <Card title="Venues" description="Capacity, location, and whether an organization can book it.">
@@ -359,7 +412,13 @@ export default function SaoVenuesPage() {
       )}
 
       {activeTab === 'bookings' && (
-        <div ref={queueRef}><Card title="Booking requests" description="Approve or reject requests, with overlapping approved bookings shown before you decide.">
+        <Card title="Booking requests" description="Approve or reject requests. Overlapping bookings are shown before you decide, and clashing requests are labelled Conflict.">
+          {queueCheck.failed && (
+            <div role="alert" className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm font-semibold text-warning-strong">
+              <span className="inline-flex items-center gap-1.5"><AlertTriangle size={16} aria-hidden="true" />Could not check these requests for conflicts. Conflict labels may be missing.</span>
+              <Button variant="ghost" size="sm" className={ROW_ACTION} onClick={() => setQueueCheck((current) => ({ failed: false, attempt: current.attempt + 1 }))}>Retry</Button>
+            </div>
+          )}
           <DataTable
             columns={bookingColumns}
             rows={bookings.items}
@@ -412,30 +471,11 @@ export default function SaoVenuesPage() {
               />
             )}
           />
-        </Card></div>
-      )}
-
-      {activeTab === 'bookings' && (
-        <Card title="Availability calendar" description="Who holds each venue and when. Pending requests are marked so you can spot clashes before deciding.">
-          <VenueWeekCalendar
-            weekStart={weekStart}
-            slots={calendar.slots}
-            venues={venues.items}
-            loadedWeekStart={calendar.weekStart}
-            venueId={venueFilter}
-            onVenueChange={setVenueFilter}
-            onWeekChange={setWeekStart}
-            loading={calendar.loading}
-            error={calendar.error}
-            onRetry={loadCalendar}
-            truncated={calendar.truncated}
-            onShowInQueue={showInQueue}
-          />
         </Card>
       )}
 
       <Drawer open={Boolean(openBooking)} title={openBooking ? (openBooking.venue?.name || openBooking.off_campus_location || 'Venue request') : undefined} description={openBooking ? `Venue request #${openBooking.id}` : undefined} onClose={() => setRecordId(null)}>
-        {openBooking && <BookingDetail booking={openBooking} onApprove={() => openReview(openBooking, 'approve')} onReject={() => openReview(openBooking, 'reject')} />}
+        {openBooking && <BookingDetail booking={openBooking} conflict={queueConflictIds.has(openBooking.id)} onApprove={() => openReview(openBooking, 'approve')} onReject={() => openReview(openBooking, 'reject')} />}
       </Drawer>
 
       <Modal
@@ -471,7 +511,7 @@ export default function SaoVenuesPage() {
       <ConfirmModal
         open={Boolean(deleteTarget)}
         title="Delete this venue?"
-        message="This cannot be undone. Venues with pending or approved bookings cannot be deleted."
+        message="This cannot be undone. A venue that has any booking, even a past or declined one, cannot be deleted. Mark it inactive instead to stop new requests."
         recordName={deleteTarget?.name}
         confirmText="Delete venue"
         variant="danger"
@@ -494,17 +534,19 @@ export default function SaoVenuesPage() {
         )}
       >
         {conflicts.loading ? (
-          <p className="text-sm font-medium text-ink-muted">Checking for overlapping approved bookings...</p>
+          <p className="text-sm font-medium text-ink-muted">Checking for overlapping bookings...</p>
+        ) : conflicts.error ? (
+          <p role="alert" className="inline-flex items-start gap-1.5 text-sm font-semibold text-warning-strong"><AlertTriangle size={16} className="mt-0.5 shrink-0" aria-hidden="true" />Could not check for overlapping bookings. Check the calendar before approving.</p>
         ) : conflicts.items.length > 0 ? (
           <div className="rounded-control border border-warning/30 bg-warning-tint p-3">
-            <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warning-strong"><AlertTriangle size={14} aria-hidden="true" />Overlaps {conflicts.items.length} approved booking{conflicts.items.length === 1 ? '' : 's'}</p>
+            <p className="inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-warning-strong"><AlertTriangle size={14} aria-hidden="true" />Overlaps {conflicts.items.length} other booking{conflicts.items.length === 1 ? '' : 's'} for this venue</p>
             <ul className="mt-2 space-y-1 text-sm font-medium text-warning-strong">
-              {conflicts.items.map((slot) => <li key={slot.id}>{formatRange(slot.start_time, slot.end_time)}</li>)}
+              {conflicts.items.map((slot) => <li key={slot.id}>{statusStyle(slot.status).label}: {slot.reserved_by ? `${slot.reserved_by}, ` : ''}{formatRange(slot.start_time, slot.end_time)}</li>)}
             </ul>
-            <p className="mt-2 text-xs font-medium text-warning-strong">The server will reject this approval if it truly overlaps another approved booking.</p>
+            <p className="mt-2 text-xs font-medium text-warning-strong">The server rejects this approval if it overlaps another approved booking. Back to back bookings do not overlap.</p>
           </div>
         ) : (
-          <p className="text-sm font-medium text-ink-muted">No overlapping approved bookings for this venue and time.</p>
+          <p className="text-sm font-medium text-ink-muted">No overlapping bookings for this venue and time.</p>
         )}
       </Modal>
 

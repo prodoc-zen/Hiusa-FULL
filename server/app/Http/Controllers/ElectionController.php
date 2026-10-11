@@ -12,6 +12,7 @@ use App\Models\Partylist;
 use App\Models\User;
 use App\Models\Vote;
 use Illuminate\Database\UniqueConstraintViolationException;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
@@ -22,6 +23,8 @@ use Illuminate\Validation\ValidationException;
 
 class ElectionController extends Controller
 {
+    private const ELECTION_GONE = 'election_gone';
+
     private function storeElectionImage(Request $request): string
     {
         return Storage::url($request->file('image')->store('elections', 'public'));
@@ -484,27 +487,50 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Election not found'], 404);
         }
 
-        if ($election->status === 'closed') {
-            return response()->json(['message' => 'Closed elections cannot be deleted.'], 409);
-        }
-
-        if ($election->votes()->exists() && ! $request->boolean('confirmed')) {
-            return response()->json([
-                'message' => 'This election already has cast votes. Confirm deletion to permanently remove the election and all associated votes.',
-            ], 409);
-        }
-
-        $oldValues = $this->auditableElectionValues($election);
+        // The checks run on the locked row. A vote, candidate or position takes a shared lock on its election through
+        // the foreign key and opening or closing updates the row, so each either lands before the checks and blocks
+        // the delete, or waits for it; the cascade can no longer take a vote cast in between.
         $electionId = $election->id;
         $imageUrl = $election->image_url;
         $letterPath = $election->informative_letter_path;
+        $oldValues = null;
+        // The approval rows are locked first because a review locks its approval row before the election row.
+        $blocked = DB::transaction(function () use ($electionId, &$oldValues, $election) {
+            ApprovalRequest::where('organization_id', $election->organization_id)
+                ->where('entity_type', 'election')
+                ->where('entity_id', $electionId)
+                ->lockForUpdate()
+                ->get();
+            $locked = Election::whereKey($electionId)->lockForUpdate()->first();
+            if (! $locked) {
+                return self::ELECTION_GONE;
+            }
+            if ($locked->status === 'closed') {
+                return 'Closed elections cannot be deleted.';
+            }
+            if ($locked->status === 'active') {
+                return 'An open election cannot be deleted. Close it instead to keep the results.';
+            }
+            if ($locked->votes()->exists()) {
+                return 'This election already has cast votes and cannot be deleted.';
+            }
 
-        ApprovalRequest::where('organization_id', $election->organization_id)
-            ->where('entity_type', 'election')
-            ->where('entity_id', $election->id)
-            ->delete();
+            $oldValues = $this->auditableElectionValues($locked);
+            ApprovalRequest::where('organization_id', $locked->organization_id)
+                ->where('entity_type', 'election')
+                ->where('entity_id', $locked->id)
+                ->delete();
+            $locked->delete();
 
-        $election->delete();
+            return null;
+        });
+        if ($blocked === self::ELECTION_GONE) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+        if ($blocked) {
+            return response()->json(['message' => $blocked], 409);
+        }
+
         $this->deleteElectionImage($imageUrl);
         if ($letterPath) {
             Storage::disk('local')->delete($letterPath);
@@ -548,12 +574,28 @@ class ElectionController extends Controller
         ]);
 
         try {
-            $position = $election->positions()->create([
-                'title' => trim($data['title']),
-                'max_winners' => $data['max_winners'] ?? 1,
-            ]);
+            $position = DB::transaction(function () use ($election, $data) {
+                $locked = Election::whereKey($election->id)->lockForUpdate()->first();
+                if (! $locked) {
+                    return self::ELECTION_GONE;
+                }
+                if ($response = $this->ballotIsLockedResponse($locked)) {
+                    return $response;
+                }
+
+                return $locked->positions()->create([
+                    'title' => trim($data['title']),
+                    'max_winners' => $data['max_winners'] ?? 1,
+                ]);
+            });
         } catch (UniqueConstraintViolationException) {
             return response()->json(['message' => 'This position already exists in the election.'], 422);
+        }
+        if ($position === self::ELECTION_GONE) {
+            return response()->json(['message' => 'Election not found'], 404);
+        }
+        if ($position instanceof JsonResponse) {
+            return $position;
         }
 
         $this->recordElectionAudit(
@@ -714,21 +756,40 @@ class ElectionController extends Controller
             $imageUrl = Storage::url($path);
         }
 
-        try {
-            $candidate = Candidate::create([
-                'election_id' => $election->id,
-                'user_id' => $data['user_id'],
-                'position_id' => $data['position_id'],
-                'partylist_id' => $data['partylist_id'] ?? null,
-                'platform' => $data['platform'] ?? null,
-                'image_url' => $imageUrl,
-            ]);
-        } catch (UniqueConstraintViolationException) {
+        $discardImage = function () use ($imageUrl) {
             if ($imageUrl && str_starts_with($imageUrl, '/storage/')) {
                 Storage::delete('public/'.ltrim(str_replace('/storage/', '', $imageUrl), '/'));
             }
+        };
+
+        try {
+            $candidate = DB::transaction(function () use ($election, $data, $imageUrl) {
+                $locked = Election::whereKey($election->id)->lockForUpdate()->first();
+                if (! $locked) {
+                    return self::ELECTION_GONE;
+                }
+                if ($response = $this->ballotIsLockedResponse($locked)) {
+                    return $response;
+                }
+
+                return Candidate::create([
+                    'election_id' => $locked->id,
+                    'user_id' => $data['user_id'],
+                    'position_id' => $data['position_id'],
+                    'partylist_id' => $data['partylist_id'] ?? null,
+                    'platform' => $data['platform'] ?? null,
+                    'image_url' => $imageUrl,
+                ]);
+            });
+        } catch (UniqueConstraintViolationException) {
+            $discardImage();
 
             return response()->json(['message' => 'This student is already assigned as a candidate in this election.'], 422);
+        }
+        if ($candidate === self::ELECTION_GONE || $candidate instanceof JsonResponse) {
+            $discardImage();
+
+            return $candidate === self::ELECTION_GONE ? response()->json(['message' => 'Election not found'], 404) : $candidate;
         }
 
         $candidate->load(['user', 'partylist', 'position']);

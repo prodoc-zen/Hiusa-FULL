@@ -22,6 +22,10 @@ use Illuminate\Validation\Rule;
  */
 class VenueBookingController extends Controller
 {
+    private const EVENT_GONE = 'event_gone';
+
+    private const VENUE_GONE = 'venue_gone';
+
     public function index(Request $request)
     {
         $filters = $request->validate([
@@ -48,10 +52,10 @@ class VenueBookingController extends Controller
         $query
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status))
             ->when($filters['venue_id'] ?? null, fn ($q, $id) => $q->where('venue_id', $id))
-            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
-            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)));
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', $this->localTime($from)))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', $this->localTime($to)));
 
-        return response()->json($query->orderByDesc('start_time')->paginate($filters['per_page'] ?? 20));
+        return response()->json($query->orderByDesc('start_time')->orderByDesc('id')->paginate($filters['per_page'] ?? 20));
     }
 
     public function store(Request $request)
@@ -65,8 +69,8 @@ class VenueBookingController extends Controller
             'end_time' => ['required', 'date', 'after:start_time'],
         ]);
 
-        $start = Carbon::parse($data['start_time'])->setTimezone('Asia/Manila');
-        $end = Carbon::parse($data['end_time'])->setTimezone('Asia/Manila');
+        $start = $this->localTime($data['start_time']);
+        $end = $this->localTime($data['end_time']);
         if (! $start->isSameDay($end) || $start->format('H:i') < '05:00' || $end->format('H:i') > '22:00') {
             return response()->json(['message' => 'Choose a time on one day between 5:00 AM and 10:00 PM.'], 422);
         }
@@ -80,12 +84,17 @@ class VenueBookingController extends Controller
         }
 
         $offCampus = ($data['venue_type'] ?? 'on_campus') === 'off_campus';
-        $booking = DB::transaction(function () use ($data, $organizationId, $request, $offCampus) {
+        $booking = DB::transaction(function () use ($data, $organizationId, $request, $offCampus, $start, $end) {
             if (! $offCampus) {
-                Venue::whereKey($data['venue_id'])->lockForUpdate()->first();
-                if ($this->hasApprovedOverlap($data['venue_id'], $data['start_time'], $data['end_time'], null, true)) {
+                if (! Venue::whereKey($data['venue_id'])->lockForUpdate()->first()) {
+                    return self::VENUE_GONE;
+                }
+                if ($this->hasApprovedOverlap($data['venue_id'], $start, $end, null, true)) {
                     return null;
                 }
+            }
+            if (! empty($data['event_id']) && ! Event::whereKey($data['event_id'])->lockForUpdate()->first()) {
+                return self::EVENT_GONE;
             }
 
             return VenueBooking::create([
@@ -93,12 +102,18 @@ class VenueBookingController extends Controller
                 'off_campus_location' => $offCampus ? trim($data['off_campus_location']) : null,
                 'event_id' => $data['event_id'] ?? null,
                 'organization_id' => $organizationId,
-                'start_time' => $data['start_time'],
-                'end_time' => $data['end_time'],
+                'start_time' => $start,
+                'end_time' => $end,
                 'status' => 'pending',
                 'requested_by' => $request->user()->school_id,
             ]);
         });
+        if ($booking === self::VENUE_GONE) {
+            return response()->json(['message' => 'The selected venue is no longer available.'], 422);
+        }
+        if ($booking === self::EVENT_GONE) {
+            return response()->json(['message' => 'Selected event does not belong to this organization.'], 422);
+        }
         if (! $booking) {
             return response()->json(['message' => 'This venue already has a pending or approved booking during that time. Choose another slot.'], 422);
         }
@@ -283,8 +298,8 @@ class VenueBookingController extends Controller
         return VenueBooking::where('venue_id', $venueId)
             ->whereIn('status', $includePending ? ['pending', 'approved'] : ['approved'])
             ->when($excludingBookingId, fn ($q, $id) => $q->whereKeyNot($id))
-            ->where('start_time', '<', Carbon::parse($endTime))
-            ->where('end_time', '>', Carbon::parse($startTime))
+            ->where('start_time', '<', $this->localTime($endTime))
+            ->where('end_time', '>', $this->localTime($startTime))
             ->exists();
     }
 }

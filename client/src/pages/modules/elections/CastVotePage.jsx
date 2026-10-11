@@ -19,6 +19,7 @@ import {
 import Modal from '../../../components/Modal';
 import NextStep from '../../../components/ui/NextStep';
 import { isVotingOpen } from '../../../utils/electionAccess';
+import { resultsLink } from '../../../components/elections/electionFlow';
 import { castVotes } from '../../../services/electionService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -127,6 +128,9 @@ export default function CastVotePage({ election: electionOverride = null, refres
       const candidate = entry.candidates.find((item) => item.id === (voteItem?.candidate_id ?? votes[entry.position.id]));
       return { position: entry.position.title, candidate, name: candidate ? `${candidate.user?.first_name || ''} ${candidate.user?.last_name || ''}`.trim() : 'Not selected' };
     });
+    const resultsSentence = resultsLink(election, currentUser?.role).available
+      ? 'Live totals can be viewed on the Vote page.'
+      : `Results appear there once voting closes${election.end_time ? ` on ${formatVotingDateTime(election.end_time)}` : ''} and they are released.`;
     return (
       <div className="mx-auto max-w-3xl overflow-hidden rounded-lg border border-[#DDE7EF] bg-white shadow-sm">
         <div className="bg-[#0B1831] p-7 text-center text-white sm:p-9"><div className="mx-auto grid h-16 w-16 place-items-center rounded-full border border-emerald-300/30 bg-emerald-500/15 text-emerald-300"><CheckCircle2 size={32} /></div><h2 className="mt-4 text-2xl font-black">Ballot submitted</h2><p className="mt-2 text-sm text-slate-300">Your choices were securely recorded and cannot be changed.</p></div>
@@ -137,7 +141,7 @@ export default function CastVotePage({ election: electionOverride = null, refres
           <NextStep
             className="mt-6"
             title="What happens next"
-            body={`Your receipt stays on the Vote page. Results appear there once voting closes${election.end_time ? ` on ${formatVotingDateTime(election.end_time)}` : ''} and they are released.`}
+            body={`Your receipt stays on the Vote page. ${resultsSentence}`}
             primary={{ label: 'Back to Vote', onClick: () => onReturnToDashboard ? onReturnToDashboard() : navigate('/dashboard/elections/cast-vote') }}
           />
         </div>

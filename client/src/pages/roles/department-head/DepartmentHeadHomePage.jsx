@@ -10,6 +10,7 @@ import { getCollegeOrganizations } from '../../../services/collegeOrganizationSe
 import { fetchAllPages, listMeta, unwrapList } from '../../../services/pagination';
 import { RoleBriefing } from '../../../components/dashboard';
 import { Button, EmptyState } from '../../../components/ui';
+import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 
 function formatDate(d) {
   if (!d) return '-';
@@ -84,7 +85,7 @@ export default function DepartmentHeadHomePage() {
 
   const stat = (val) => loading ? '-' : val;
 
-  const college = data.organizations[0]?.college;
+  const college = headCollegeName(storedUser());
   const organizationCount = (status) => data.organizations.filter((o) => o.lifecycle_status === status).length;
 
   const totalPendingApprovals = pendingApprovalsTotal;

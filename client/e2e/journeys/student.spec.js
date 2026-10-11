@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
-import { HEAD_CCS, OFFICER, PSITS_ADMIN, STUDENT, apiAs, liveEnabled, uiLogin } from '../support/live.js';
+import { HEAD_CCS, OFFICER, PSITS_ADMIN, STUDENT, apiAs, liveEnabled, pdfFile, uiLogin } from '../support/live.js';
 
 test.skip(!liveEnabled, 'Set HIUSA_LIVE_E2E=1 to run against the seeded local Laravel API.');
 
@@ -37,13 +37,13 @@ async function tap(c, locator, what) {
   c.log.push(what);
 }
 
-// A person on a phone must open the drawer first; the drawer tap is a counted tap and is also kept in
-// c.menu so a finding can say how many of the taps were the drawer itself.
+// A person on a phone must open the drawer first. That tap is chrome, not a step, so it is kept in
+// c.menu and never counted toward the ceiling (docs/UX_FLOW.md section 9, Counting rules).
 async function menuTo(page, c, { group, leaf }) {
   const opener = page.getByRole('button', { name: 'Open menu' });
   const onPhone = await opener.isVisible();
   if (onPhone) {
-    await tap(c, opener, 'Open menu');
+    await opener.click();
     c.menu += 1;
   }
   const nav = (onPhone ? page.getByRole('dialog', { name: 'Navigation menu' }) : page.getByRole('complementary').first()).getByRole('navigation');
@@ -80,18 +80,23 @@ async function closeActiveElections(admin) {
 
 // A real ballot through the API: Admin proposes, Department Head approves, a candidate is added, the
 // ballot is finalized and opens because its window has started. The seeded election is never finalized,
-// so no student could vote in it.
+// so no student could vote in it. Settings are what the Admin form creates, including the server default
+// for results_visible. Once the SAO has an active semester the ballot also needs its informative letter
+// (a PDF), so the proposal is sent as the form does, with one attached.
 async function seedOpenElection() {
   const admin = await apiAs(PSITS_ADMIN);
   const head = await apiAs(HEAD_CCS);
   await closeActiveElections(admin);
   const stamp = Date.now();
-  const created = await admin.post('/elections', {
-    title: `Journey ballot ${stamp}`,
-    start_time: new Date(stamp - 3600e3).toISOString(),
-    end_time: new Date(stamp + 2 * 86400e3).toISOString(),
-    positions: [{ title: 'Journey President', max_winners: 1 }],
-  });
+  const proposal = new FormData();
+  proposal.append('title', `Journey ballot ${stamp}`);
+  proposal.append('start_time', new Date(stamp - 3600e3).toISOString());
+  proposal.append('end_time', new Date(stamp + 2 * 86400e3).toISOString());
+  proposal.append('positions[0][title]', 'Journey President');
+  proposal.append('positions[0][max_winners]', '1');
+  const letter = pdfFile('informative-letter.pdf', 'Informative letter');
+  proposal.append('informative_letter', new Blob([letter.buffer], { type: letter.mimeType }), letter.name);
+  const created = await admin.post('/elections', proposal);
   expect(created.status, JSON.stringify(created.body)).toBe(201);
   const election = created.body;
   const approved = await head.patch(`/approval-requests/${election.approval_id}`, { status: 'approved' });
@@ -160,7 +165,7 @@ for (const viewport of WIDTHS) {
       await expect(page.getByText('Register for an upcoming event')).toHaveCount(0);
     });
 
-    test('J2 vote (ceiling 2 from home)', async ({ page }, testInfo) => {
+    test('J2 vote (ceiling 6 from home)', async ({ page }, testInfo) => {
       const election = await seedOpenElection();
       const account = STUDENT;
       await uiLogin(page, account);
@@ -177,15 +182,17 @@ for (const viewport of WIDTHS) {
       await expect(page.getByRole('heading', { name: 'Ballot submitted' })).toBeVisible();
       await expect(page.getByText('Ballot receipt hash')).toBeVisible();
       record(testInfo, c);
-      expect.soft(c.n, c.log.join(' > ')).toBeLessThanOrEqual(2);
+      expect.soft(c.n, c.log.join(' > ')).toBeLessThanOrEqual(6);
 
       await page.goto('/dashboard/elections/cast-vote');
       const card = page.getByRole('article').filter({ hasText: election.title });
       await expect(card.getByText('Voted', { exact: true })).toBeVisible();
-      await expect(card.getByText('Available when voting closes')).toBeVisible();
+      // Live totals during voting: UseCaseComplianceTest::test_live_standings_and_results_remain_anonymous_during_voting and PAPER M4.7.
+      await expect(card.getByRole('link', { name: 'View live totals' })).toBeVisible();
+      await expect(card.getByText('Available when voting closes')).toHaveCount(0);
     });
 
-    test('J3 order and claim (ceiling 5 to place, 1 to check)', async ({ page }, testInfo) => {
+    test('J3 order and claim (ceiling 6 to place, 1 to check)', async ({ page }, testInfo) => {
       const account = who.order;
       const api = await apiAs(account);
       await uiLogin(page, account);
@@ -199,7 +206,7 @@ for (const viewport of WIDTHS) {
       await tap(place, page.getByRole('button', { name: 'Place Reservation' }), 'Place Reservation');
       await expect(page.getByText(/ORD-\d+ reserved/).first()).toBeVisible();
       record(testInfo, place, { phase: 'place' });
-      expect.soft(place.n, place.log.join(' > ')).toBeLessThanOrEqual(5);
+      expect.soft(place.n, place.log.join(' > ')).toBeLessThanOrEqual(6);
 
       const orders = await api.get('/orders');
       const placed = (orders.body.data || []).reduce((latest, order) => (!latest || order.id > latest.id ? order : latest), null);
@@ -216,13 +223,21 @@ for (const viewport of WIDTHS) {
       await expect(cardFor().getByText('Step 1 of 4: Reserved')).toBeVisible();
       await expect(cardFor().getByText(/pay cash at pickup/i).first()).toBeVisible();
 
-      // The officer half of journey O-F2, through the API.
+      // Journey O-F2 through the API: the officer's Verify & Submit sends this same PATCH and only hands the
+      // payment to the Admin, so the token is released once the Admin approves it too.
       const officer = await apiAs(OFFICER);
       const verified = await officer.patch(`/orders/${placed.id}/status`, { status: 'paid', verified_amount: placed.total_price });
       expect(verified.status, JSON.stringify(verified.body)).toBe(200);
       await page.reload();
+      await expect(cardFor().getByText('Payment verified: waiting for Admin approval').first()).toBeVisible();
+      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/)).toHaveCount(0);
+
+      const admin = await apiAs(PSITS_ADMIN);
+      const approved = await admin.patch(`/orders/${placed.id}/status`, { status: 'paid' });
+      expect(approved.status, JSON.stringify(approved.body)).toBe(200);
+      await page.reload();
       await expect(cardFor().getByText('Paid', { exact: true }).first()).toBeVisible();
-      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/)).toBeVisible();
+      await expect(cardFor().getByText(/\b[A-Z0-9]{16}\b/).first()).toBeVisible();
     });
 
     test('J4 see what I owe (ceiling 2)', async ({ page }, testInfo) => {

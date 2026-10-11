@@ -6,18 +6,32 @@ import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
-import { toNextStepProps } from '../../../lib/lifecycle';
+import { organizationRegistrationLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import { listMeta, unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
-import { downloadSubmissionDocument, getSubmissions, reviewSubmission } from '../../../services/complianceService';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
+import { getSubmissions, reviewSubmission } from '../../../services/complianceService';
 import { complianceStage, complianceStageText } from './complianceStage';
 
 const DEFAULT_STATUS = 'submitted';
 const ROW_ACTION = 'h-11! sm:h-9!';
+const BELOW_DRAWER_HEADER = { position: 'bottom-center' };
 
-function documentKind(name) {
-  return /semestral/i.test(name || '') ? 'Semestral report' : 'Renewal document';
+function documentKind(submission) {
+  if (submission.is_registration) return 'Registration document';
+  return /semestral/i.test(submission.requirement_type?.name || '') ? 'Semestral report' : 'Renewal document';
+}
+
+// A registration file is decided with the rest of the registration, so the queue points there instead of offering a decision.
+function registrationReview(submission) {
+  if (!submission.is_registration) return null;
+  const lifecycle = submission.organization?.lifecycle_status;
+  return {
+    href: lifecycle === 'pending' ? organizationRegistrationLifecycle({ id: submission.organization.id, lifecycle_status: 'pending' }, 'SUPER_ADMIN').href : null,
+    text: lifecycle === 'returned' ? 'Registration returned, waiting for the Department Head' : 'Decided in the organization review',
+  };
 }
 
 function stageInput(submission) {
@@ -71,20 +85,16 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
   }, [recordId, openSubmission, queue.loading, queue.error, queue.meta.lastPage, page, setRecordId]);
 
   async function openDocument(submission) {
-    const preview = window.open('', '_blank');
-    if (!preview) {
-      notify.error('Allow pop-ups to open this document.');
-      return;
-    }
     setOpeningDocumentId(submission.id);
     try {
-      const response = await downloadSubmissionDocument(submission.id);
-      const url = URL.createObjectURL(response.data);
-      preview.location.href = url;
-      window.setTimeout(() => URL.revokeObjectURL(url), 60000);
+      await openProtectedFile(`/compliance/submissions/${submission.id}/document`);
     } catch (err) {
-      preview.close();
-      notify.error(getApiErrorMessage(err, 'Could not open this document.'));
+      notify.error(openFileErrorMessage(err, { registration: Boolean(submission.is_registration) }));
+      if (isFileGone(err)) {
+        setRecordId(null);
+        loadQueue(page);
+        onChanged();
+      }
     } finally {
       setOpeningDocumentId(null);
     }
@@ -102,7 +112,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
     try {
       await reviewSubmission(reviewTarget.submission.id, { ...payload, submitted_at: reviewTarget.submission.submitted_at });
       setPinned({ ...reviewTarget.submission, status: payload.status, remarks: payload.remarks ?? reviewTarget.submission.remarks });
-      notify.success(successMessage);
+      notify.success(successMessage, BELOW_DRAWER_HEADER);
       closeReview();
       loadQueue(page);
       onChanged();
@@ -113,7 +123,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
         closeReview();
         loadQueue(page);
       } else {
-        notify.error(message);
+        notify.error(message, BELOW_DRAWER_HEADER);
       }
     } finally {
       setReviewBusy(false);
@@ -150,7 +160,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
       render: (submission) => (
         <div>
           <p>{submission.requirement_type?.name || 'Unknown'}</p>
-          <p className="text-xs font-medium text-ink-muted">{documentKind(submission.requirement_type?.name)}</p>
+          <p className="text-xs font-medium text-ink-muted">{documentKind(submission)}</p>
         </div>
       ),
     },
@@ -162,7 +172,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
       render: (submission) => (
         <div className="flex flex-col items-start gap-1">
           <StatusBadge status={submission.status} />
-          <span className="text-xs font-semibold text-ink-muted-strong">{complianceStageText(stageInput(submission))}</span>
+          <span className="text-xs font-semibold text-ink-muted-strong">{registrationReview(submission)?.text ?? complianceStageText(stageInput(submission))}</span>
         </div>
       ),
     },
@@ -171,7 +181,7 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
   const filtersActive = Boolean(organizationId) || status !== DEFAULT_STATUS;
 
   return (
-    <Card title="Review queue" description="Open a submission's document, then approve it or return it with remarks.">
+    <Card title="Review queue" description="Open a submission's document, then approve it or return it with remarks. Registration documents of a new organization are decided in its organization review.">
       {reviewError && (
         <p role="alert" className="mb-4 rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{reviewError}</p>
       )}
@@ -211,7 +221,10 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
               onClick={() => openDocument(submission)}
               disabled={openingDocumentId === submission.id}
             />
-            {submission.status === 'submitted' && (
+            {registrationReview(submission)?.href && (
+              <Button to={registrationReview(submission).href} size="sm" variant="secondary" className={ROW_ACTION}>Open organization review</Button>
+            )}
+            {submission.status === 'submitted' && !submission.is_registration && (
               <>
                 <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); }}>Return</Button>
                 <Button size="sm" className={ROW_ACTION} onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); }}>Approve</Button>
@@ -253,8 +266,10 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
       >
         {openSubmission && (
           <div className="flex flex-col gap-4">
-            <FlowStepper steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />
-            <NextStep {...toNextStepProps(complianceStage(stageInput(openSubmission), 'SUPER_ADMIN'))} primary={undefined} />
+            {!openSubmission.is_registration && <FlowStepper steps={complianceStage(stageInput(openSubmission)).steps} ariaLabel="Compliance submission progress" />}
+            {registrationReview(openSubmission)
+              ? <p className="text-sm font-medium text-ink">{registrationReview(openSubmission).text}.</p>
+              : <NextStep {...toNextStepProps(complianceStage(stageInput(openSubmission), 'SUPER_ADMIN'))} primary={undefined} />}
             <dl className="grid gap-3 text-sm">
               <div><dt className="text-xs font-semibold text-ink-muted">Submitted</dt><dd className="font-bold text-ink">{manilaDate(openSubmission.submitted_at, 'long')}</dd></div>
               <div><dt className="text-xs font-semibold text-ink-muted">Submitted by</dt><dd className="font-bold text-ink">{openSubmission.submitter ? `${openSubmission.submitter.first_name} ${openSubmission.submitter.last_name}` : 'Unknown'}</dd></div>
@@ -262,7 +277,10 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
             </dl>
             <div className="flex flex-wrap gap-2">
               <Button variant="secondary" leftIcon={ExternalLink} onClick={() => openDocument(openSubmission)} disabled={openingDocumentId === openSubmission.id}>Open document</Button>
-              {openSubmission.status === 'submitted' && (
+              {registrationReview(openSubmission)?.href && (
+                <Button to={registrationReview(openSubmission).href} variant="secondary">Open organization review</Button>
+              )}
+              {openSubmission.status === 'submitted' && !openSubmission.is_registration && (
                 <>
                   <Button variant="secondary" onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'return' }); }}>Return</Button>
                   <Button onClick={() => { setReviewError(null); setReviewTarget({ submission: openSubmission, action: 'approve' }); }}>Approve</Button>

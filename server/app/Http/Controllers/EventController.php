@@ -17,7 +17,9 @@ use App\Models\Task;
 use App\Models\Transaction;
 use App\Models\User;
 use App\Models\Venue;
+use App\Models\VenueBooking;
 use App\Services\EventApprovalChain;
+use App\Services\EventVenueRelease;
 use App\Services\GroqResponsesService;
 use App\Services\TaskDelegationService;
 use Carbon\Carbon;
@@ -30,10 +32,15 @@ use Illuminate\Support\Str;
 
 class EventController extends Controller
 {
+    private const BOOKING_BLOCKER = 'it has a venue booking that is still pending or approved';
+
+    private const EVENT_GONE = 'event_gone';
+
     public function __construct(
         private readonly GroqResponsesService $groq,
         private readonly TaskDelegationService $delegation,
         private readonly EventApprovalChain $approvalChain,
+        private readonly EventVenueRelease $venueRelease,
     ) {}
 
     public function index(Request $request)
@@ -98,6 +105,7 @@ class EventController extends Controller
 
         if ($user->role === 'ADMIN') {
             $this->loadLinkedBudgets($events);
+            $this->attachDeleteBlockers($events->items());
         }
 
         return response()->json($events);
@@ -139,6 +147,7 @@ class EventController extends Controller
 
         if ($request->user()->role === 'ADMIN') {
             $this->loadLinkedBudgets($event);
+            $this->attachDeleteBlockers([$event]);
             $event->attendance_summary = collect(['present', 'late', 'excused', 'absent'])
                 ->mapWithKeys(fn (string $status) => [
                     $status => $event->attendanceRecords()->where('status', $status)->count(),
@@ -445,7 +454,12 @@ class EventController extends Controller
             $data['image_url'] = null;
         }
 
-        $event->update($data);
+        DB::transaction(function () use ($event, $data, $request) {
+            $event->update($data);
+            if (($data['status'] ?? null) === 'cancelled') {
+                $this->venueRelease->release($event, $request);
+            }
+        });
         if (($request->hasFile('image') || $removeImage) && $oldImageUrl) {
             Storage::disk('public')->delete($this->publicStoragePath($oldImageUrl));
         }
@@ -508,20 +522,87 @@ class EventController extends Controller
         }
 
         $imageUrl = $event->image_url;
-        $requirementPaths = EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
-        DB::transaction(function () use ($event) {
-            ApprovalRequest::where('organization_id', $event->organization_id)
+        $requirementPaths = [];
+        // The check runs on the locked row. A booking, file or attendance record takes a shared lock on its
+        // event through the foreign key, so it either lands before the check and blocks the delete, or waits for it.
+        $blocked = DB::transaction(function () use ($event, &$requirementPaths) {
+            $locked = Event::whereKey($event->id)->lockForUpdate()->first();
+            if (! $locked) {
+                return self::EVENT_GONE;
+            }
+            if ($reason = $this->deleteBlockers([$locked])[$locked->id]) {
+                return $reason;
+            }
+
+            $requirementPaths = EventRequirementFile::where('event_id', $locked->id)->pluck('path')->all();
+            ApprovalRequest::where('organization_id', $locked->organization_id)
                 ->where('entity_type', 'event')
-                ->where('entity_id', $event->id)
+                ->where('entity_id', $locked->id)
                 ->delete();
-            $event->delete();
+            $locked->delete();
+
+            return null;
         });
+        if ($blocked === self::EVENT_GONE) {
+            return response()->json(['message' => 'Event not found.'], 404);
+        }
+        if ($blocked) {
+            return response()->json(['message' => $blocked], 409);
+        }
         if ($imageUrl) {
             Storage::disk('public')->delete($this->publicStoragePath($imageUrl));
         }
         Storage::disk('local')->delete($requirementPaths);
 
         return response()->json(['message' => 'Event deleted successfully.']);
+    }
+
+    /** @param  iterable<Event>  $events */
+    private function attachDeleteBlockers(iterable $events): void
+    {
+        $blockers = $this->deleteBlockers($events);
+
+        foreach ($events as $event) {
+            $event->delete_blocked_reason = $blockers[$event->id];
+        }
+    }
+
+    /**
+     * Why each event cannot be deleted, keyed by event id, or null when it can. An event that has
+     * run, collected files or attendance, been reviewed or has a budget is kept on record
+     * and cancelled instead; so is one that still holds a pending or approved venue booking, which cancelling releases. A pending approval request alone does not block, since every proposal has one.
+     *
+     * @param  iterable<Event>  $events
+     * @return array<int, ?string>
+     */
+    private function deleteBlockers(iterable $events): array
+    {
+        $events = collect($events)->values();
+        $ids = $events->pluck('id');
+        $withFiles = EventRequirementFile::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        $reviewed = ApprovalRequest::where('entity_type', 'event')->whereIn('entity_id', $ids)->where('status', '!=', 'pending')->distinct()->pluck('entity_id')->flip();
+        $withAttendance = Attendance::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        $withBudget = Budget::whereIn('event_id', $ids)->distinct()->pluck('event_id')->flip();
+        $withBooking = VenueBooking::whereIn('event_id', $ids)->whereIn('status', EventVenueRelease::ACTIVE_STATUSES)->distinct()->pluck('event_id')->flip();
+
+        return $events->mapWithKeys(function (Event $event) use ($withFiles, $reviewed, $withAttendance, $withBudget, $withBooking) {
+            $reason = match (true) {
+                in_array($event->status, ['ongoing', 'completed'], true) => "it is {$event->status}",
+                $withFiles->has($event->id) => 'it has submitted requirement files',
+                $reviewed->has($event->id) => 'it has already been reviewed in the approval workflow',
+                $withAttendance->has($event->id) => 'it has attendance records',
+                $withBudget->has($event->id) => 'it has a budget',
+                $withBooking->has($event->id) => self::BOOKING_BLOCKER,
+                default => null,
+            };
+            $advice = match (true) {
+                $reason === self::BOOKING_BLOCKER => ' Cancel it instead to release the venue.',
+                $event->status === 'cancelled' => ' It is already cancelled and stays on record.',
+                default => ' Cancel it instead to keep the record.',
+            };
+
+            return [$event->id => $reason === null ? null : "This event cannot be deleted because {$reason}.{$advice}"];
+        })->all();
     }
 
     private function publicStoragePath(string $url): string
@@ -559,7 +640,12 @@ class EventController extends Controller
             return response()->json(['message' => "Event status cannot change from {$event->status} to {$data['status']}."], 422);
         }
 
-        $event->update($data);
+        DB::transaction(function () use ($event, $data, $request) {
+            $event->update($data);
+            if ($data['status'] === 'cancelled') {
+                $this->venueRelease->release($event, $request);
+            }
+        });
 
         return response()->json($event->fresh()->load('creator:school_id,first_name,last_name'));
     }

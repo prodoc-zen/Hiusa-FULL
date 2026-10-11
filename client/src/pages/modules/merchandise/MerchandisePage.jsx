@@ -24,6 +24,7 @@ import {
   Package,
   Pencil,
   Plus,
+  PowerOff,
   Search,
   Settings2,
   SlidersHorizontal,
@@ -1279,15 +1280,15 @@ export default function MerchandisePage({ initialTab }) {
     });
   }
 
-  function confirmDeleteProduct(item) {
+  function confirmDeactivateProduct(item) {
     openConfirm({
-      title: "Delete Product",
-      message: `Delete ${item.name}? This cannot be undone.`,
-      confirmText: "Delete",
+      title: "Deactivate Product",
+      message: `Deactivate ${item.name}? Students will not be able to order it. It stays in the catalog and past orders keep their record. An item with pending or paid orders cannot be deactivated.`,
+      confirmText: "Deactivate",
       action: async () => {
         await deleteItem(item.id);
-        setItems((prev) => prev.filter((row) => row.id !== item.id));
-        setTransactionMessage(`${item.name} was deleted.`);
+        setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, is_active: false } : row)));
+        setTransactionMessage(`${item.name} was deactivated.`);
       },
     });
   }
@@ -1761,6 +1762,17 @@ export default function MerchandisePage({ initialTab }) {
   // detail and the checkout confirmation all read this one function so their stage text cannot differ.
   function buyerStage(order) {
     const flow = orderLifecycle(order, "STUDENT");
+    if (order.status === "pending" && order.officer_review_status === "approved") {
+      const steps = flow.steps.map((step) => ({ ...step, state: step.key === "reserved" ? "done" : step.key === "proof" ? "current" : step.state }));
+      const verified = {
+        ...flow,
+        steps,
+        current: steps.find((step) => step.key === "proof"),
+        actorRole: "ADMIN",
+        nextAction: { tone: "waiting", title: "Payment verified: waiting for Admin approval", body: "An officer verified your payment. Your claim token is issued once the Admin approves it." },
+      };
+      return { flow: verified, props: toNextStepProps(verified) };
+    }
     const props = toNextStepProps(flow);
     if (order.status === "pending" && !order.payment_proof_url && gcashUnavailable) {
       return { flow, props: { ...props, title: "Pay cash at pickup", body: "Online payment is not available. Your items are reserved and the order is confirmed once the payment is checked." } };
@@ -2960,14 +2972,15 @@ export default function MerchandisePage({ initialTab }) {
                         <Pencil size={12} />
                         Edit
                       </button>
-                      <button
+                      {item.is_active && <button
                         type="button"
-                        onClick={() => confirmDeleteProduct(item)}
+                        onClick={() => confirmDeactivateProduct(item)}
                         className="grid h-7 w-7 place-items-center rounded-md border border-red-100 text-red-500 transition hover:bg-red-50"
-                        aria-label={`Delete ${formatDisplayText(item.name)}`}
+                        aria-label={`Deactivate ${formatDisplayText(item.name)}`}
+                        title="Deactivate"
                       >
-                        <Trash2 size={13} />
-                      </button>
+                        <PowerOff size={13} />
+                      </button>}
                     </div>
                   </div>}
                 </article>
