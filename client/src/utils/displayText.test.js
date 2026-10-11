@@ -15,6 +15,16 @@ describe('display text formatting', () => {
     expect(formatDisplayText('Contact Jane@Example.COM https://example.com/ABC AY2026')).toBe('Contact Jane@Example.COM https://example.com/ABC AY2026');
     expect(formatDisplayText(null)).toBeNull();
   });
+  it('keeps the case of a section letter and the BS program abbreviation', () => {
+    expect(formatDisplayText('1-A')).toBe('1-A');
+    expect(formatDisplayText('4-A')).toBe('4-A');
+    expect(formatDisplayText('1-a')).toBe('1-A');
+    expect(formatDisplayText('BS Information Technology')).toBe('BS Information Technology');
+    expect(formatDisplayText('bs information technology')).toBe('BS Information Technology');
+    expect(formatDisplayText('Prepare a plan')).toBe('Prepare a Plan');
+    expect(formatDisplayText('Section for 1-A and 2-B')).toBe('Section for 1-A and 2-B');
+  });
+
   it('uses readable labels for roles and database identifiers', () => {
     expect(humanizeIdentifier('SBO_OFFICER')).toBe('SBO Officer');
     expect(humanizeIdentifier('STATUS_CHANGE')).toBe('Status Change');

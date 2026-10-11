@@ -27,9 +27,10 @@ function flowFor() {
 
 // Opens a sidebar leaf the way a person does: the menu button below the desktop breakpoint, the group
 // row, then the leaf unless the group already landed on it. A leaf that is already listed is tapped directly.
+// The menu-open tap is chrome, not a step, so it is clicked without counting (docs/UX_FLOW.md section 9).
 async function openFromMenu(page, flow, group, leaf) {
   const mobile = page.viewportSize().width < 1024;
-  if (mobile) await flow.tap(page.getByRole('button', { name: 'Open menu' }));
+  if (mobile) await page.getByRole('button', { name: 'Open menu' }).click();
   const sidebar = page.locator('aside');
   const link = sidebar.getByRole('link', { name: leaf, exact: true });
   if (await link.isVisible()) {
