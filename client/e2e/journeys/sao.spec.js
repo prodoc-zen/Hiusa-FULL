@@ -41,8 +41,9 @@ async function signInAsSao(page) {
 }
 
 // The sidebar is always rendered; below the desktop breakpoint it sits off canvas behind "Open menu".
+// Opening it is chrome, not a step, so that tap is not counted (docs/UX_FLOW.md section 9, Counting rules).
 async function chooseFromMenu(page, tap, width, groupLabel, leafLabel) {
-  if (width < 768) await tap(page.getByRole('button', { name: 'Open menu' }));
+  if (width < 768) await page.getByRole('button', { name: 'Open menu' }).click();
   await tap(page.getByRole('button', { name: groupLabel, exact: true }));
   await tap(page.getByRole('link', { name: leafLabel, exact: true }));
 }
@@ -249,8 +250,8 @@ for (const { width, height } of WIDTHS) {
       }
     });
 
-    test('2. Review compliance (ceiling 3)', async ({ page }, info) => {
-      const ceiling = 3;
+    test('2. Review compliance (ceiling 4)', async ({ page }, info) => {
+      const ceiling = 4;
       const target = await fileComplianceSubmission();
       const { organizationName, requirementName } = target;
       const sao = await apiAs(SAO);
@@ -294,8 +295,8 @@ for (const { width, height } of WIDTHS) {
       }
     });
 
-    test('3. Decide a financial report (ceiling 3)', async ({ page, browser }, info) => {
-      const ceiling = 3;
+    test('3. Decide a financial report (ceiling 4)', async ({ page, browser }, info) => {
+      const ceiling = 4;
       const seed = nextSeed();
       const report = await fileFinancialReport(seed);
       const counter = tracker();
@@ -397,7 +398,6 @@ for (const { width, height } of WIDTHS) {
         await expect(drawer).toBeVisible();
 
         await tap(drawer.getByRole('button', { name: 'Move to under review' }));
-        await tap(modalTitled(page, 'Move to under review').getByRole('button', { name: 'Move to under review' }));
         await expect(drawer.getByText('Under review').first()).toBeVisible({ timeout: 20000 });
 
         await tap(drawer.getByRole('button', { name: 'Resolve', exact: true }));

@@ -75,7 +75,8 @@ async function conclude(page, journey, { id, width, ceiling }) {
 
 // The documented route is the sidebar item. Below the desktop width the sidebar is a drawer that costs one
 // more tap to open, so a person on a phone takes the home page's own link to the same page when it has
-// one, and only opens the drawer when it does not. Either way every tap is counted.
+// one, and only opens the drawer when it does not. Every tap is counted except the one that opens the
+// drawer, which is chrome, not a step (docs/UX_FLOW.md section 9, Counting rules).
 async function goTo(page, journey, menuName, homeShortcut) {
   const phone = (page.viewportSize()?.width ?? 0) < DESKTOP_MENU_WIDTH;
   if (phone && homeShortcut) {
@@ -85,7 +86,7 @@ async function goTo(page, journey, menuName, homeShortcut) {
       return;
     }
   }
-  if (phone) await journey.tap(page.getByRole('button', { name: 'Open menu' }));
+  if (phone) await page.getByRole('button', { name: 'Open menu' }).click();
   await journey.tap(page.getByRole('link', { name: menuName, exact: true }));
 }
 

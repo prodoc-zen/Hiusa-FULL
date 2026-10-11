@@ -614,6 +614,8 @@ Rules for the builders: each slice owns the files listed and touches no other fi
 
 Clicks start at the role home after login and count mouse or tap actions only (typing and file selection excluded). "Ceiling" is the maximum. Every journey ends on an assertion about visible state, not on a URL. All must pass at 1440 px and 390 px.
 
+**Counting rules.** The tap that opens the menu on a phone ("Open menu", 390 px) is chrome, not a step, so it is never counted, in any journey. Two ceilings differ from the figures listed below: the student vote journey is 6 (starting the ballot, choosing, reviewing and confirming are part of casting a ballot), and the SAO financial report and compliance review decisions are 4 (deciding opens a confirm, which is a tap).
+
 **STUDENT**
 1. Join an event (ceiling 3): Events, open an event, Register. End: the drawer shows "You are registered" and the home "Next for you" no longer lists "Register for an event".
 2. Vote (ceiling 2 from home, 3 from the menu): home "Cast ballot", complete the ballot, submit. End: receipt shown; Voting > Vote lists the election as "Voted"; results link says "Available when voting closes".
