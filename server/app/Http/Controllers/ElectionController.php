@@ -488,10 +488,12 @@ class ElectionController extends Controller
             return response()->json(['message' => 'Closed elections cannot be deleted.'], 409);
         }
 
-        if ($election->votes()->exists() && ! $request->boolean('confirmed')) {
-            return response()->json([
-                'message' => 'This election already has cast votes. Confirm deletion to permanently remove the election and all associated votes.',
-            ], 409);
+        if ($election->status === 'active') {
+            return response()->json(['message' => 'An open election cannot be deleted. Close it instead to keep the results.'], 409);
+        }
+
+        if ($election->votes()->exists()) {
+            return response()->json(['message' => 'This election already has cast votes and cannot be deleted.'], 409);
         }
 
         $oldValues = $this->auditableElectionValues($election);

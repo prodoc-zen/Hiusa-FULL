@@ -1180,7 +1180,7 @@ class UseCaseComplianceTest extends TestCase
         ]);
     }
 
-    public function test_admin_can_delete_election_after_votes_are_cast(): void
+    public function test_election_with_cast_votes_cannot_be_deleted_even_when_confirmed(): void
     {
         $admin = $this->user('ADMIN');
         $student = $this->user('STUDENT', $admin->organization_id);
@@ -1210,13 +1210,17 @@ class UseCaseComplianceTest extends TestCase
         $this->authenticate($admin);
         $this->deleteJson("/api/elections/{$election->id}")
             ->assertConflict()
-            ->assertJsonPath('message', 'This election already has cast votes. Confirm deletion to permanently remove the election and all associated votes.');
-        $this->deleteJson("/api/elections/{$election->id}?confirmed=1")->assertOk();
+            ->assertJsonPath('message', 'An open election cannot be deleted. Close it instead to keep the results.');
+        $election->update(['status' => 'upcoming']);
+        $this->deleteJson("/api/elections/{$election->id}")
+            ->assertConflict()
+            ->assertJsonPath('message', 'This election already has cast votes and cannot be deleted.');
+        $this->deleteJson("/api/elections/{$election->id}?confirmed=1")->assertConflict();
 
-        $this->assertDatabaseMissing('elections', ['id' => $election->id]);
-        $this->assertDatabaseMissing('election_positions', ['id' => $position->id]);
-        $this->assertDatabaseMissing('candidates', ['id' => $candidate->id]);
-        $this->assertDatabaseMissing('votes', ['vote_hash' => 'locked-delete-test']);
+        $this->assertDatabaseHas('elections', ['id' => $election->id]);
+        $this->assertDatabaseHas('election_positions', ['id' => $position->id]);
+        $this->assertDatabaseHas('candidates', ['id' => $candidate->id]);
+        $this->assertDatabaseHas('votes', ['vote_hash' => 'locked-delete-test']);
     }
 
     public function test_merchandise_payment_requires_officer_submission_and_admin_approval(): void

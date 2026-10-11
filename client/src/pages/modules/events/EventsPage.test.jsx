@@ -14,13 +14,13 @@ const eventMocks = vi.hoisted(() => ({
   confirmEventWorkflow: vi.fn(),
   discardEventWorkflow: vi.fn(),
   deleteEvent: vi.fn(),
+  updateEventStatus: vi.fn(),
 }));
 
 vi.mock('../../../services/eventService', () => ({
   ...eventMocks,
   createEvent: vi.fn(),
   updateEvent: vi.fn(),
-  updateEventStatus: vi.fn(),
   getMyEventRegistrations: vi.fn(() => Promise.resolve({ data: { upcoming: [], past: [] } })),
   getEventRegistrations: vi.fn(() => Promise.resolve({ data: { summary: { capacity: null, registered: 0, attended: 0, cancelled: 0, no_show: 0, remaining: null }, registrations: [], pagination: { current_page: 1, last_page: 1, per_page: 10, total: 0 } } })),
   registerForEvent: vi.fn(),
@@ -322,5 +322,33 @@ describe('EventsPage delete', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
     expect(screen.getByRole('menuitem', { name: 'View event' })).toBeInTheDocument();
     expect(screen.queryByRole('menuitem', { name: 'Delete event' })).not.toBeInTheDocument();
+  });
+
+  it('offers Cancel instead of Delete once the server says the event cannot be deleted', async () => {
+    const blocked = 'This event cannot be deleted because it has attendance records. Cancel it instead to keep the record.';
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [{ ...event, delete_blocked_reason: blocked }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    eventMocks.updateEventStatus.mockResolvedValue({ data: { id: 7, status: 'cancelled' } });
+    renderEvents();
+    const loads = () => eventMocks.getEvents.mock.calls.length;
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    expect(screen.queryByRole('menuitem', { name: 'Delete event' })).not.toBeInTheDocument();
+    const before = loads();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Cancel event' }));
+    const dialog = await screen.findByRole('dialog', { name: 'Cancel this event?' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Cancel event' }));
+
+    await waitFor(() => expect(eventMocks.updateEventStatus).toHaveBeenCalledWith(7, 'cancelled'));
+    await waitFor(() => expect(loads()).toBeGreaterThan(before));
+    expect(eventMocks.deleteEvent).not.toHaveBeenCalled();
+  });
+
+  it('offers neither action for a blocked event that is already cancelled', async () => {
+    eventMocks.getEvents.mockResolvedValue({ data: { data: [{ ...event, status: 'cancelled', delete_blocked_reason: 'This event cannot be deleted because it has attendance records.' }], current_page: 1, last_page: 1, total: 1, per_page: 10 } });
+    renderEvents();
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Actions for Sports Fest 2024' }));
+    expect(screen.getByRole('menuitem', { name: 'View event' })).toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Delete event' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('menuitem', { name: 'Cancel event' })).not.toBeInTheDocument();
   });
 });

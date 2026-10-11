@@ -163,6 +163,12 @@ class BudgetController extends Controller
             return response()->json(['message' => 'Budget not found.'], 404);
         }
 
+        if ($budget->submission_status === 'approved') {
+            return response()->json([
+                'message' => 'Cannot delete an approved budget. It stays on record as the allocation that was approved.',
+            ], 409);
+        }
+
         if ($budget->transactions()->exists()) {
             return response()->json([
                 'message' => 'Cannot delete a budget that has existing transactions. Remove all transactions first.',

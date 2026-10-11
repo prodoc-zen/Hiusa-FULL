@@ -3,10 +3,11 @@ import { useSearchParams } from 'react-router-dom';
 import { CalendarClock, File, Plus } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
+import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getRegistrationRequirements, registerOrganization, resubmitOrganization } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import useRecordParam from '../../../lib/useRecordParam';
@@ -294,6 +295,9 @@ export default function CollegeOrganizationsPage() {
   const [recordId, setRecordId] = useRecordParam();
   const [lastDetails, setLastDetails] = useState(null);
   const [missingRecord, setMissingRecord] = useState(false);
+  const [withdrawTarget, setWithdrawTarget] = useState(null);
+  const [withdrawBusy, setWithdrawBusy] = useState(false);
+  const [withdrawError, setWithdrawError] = useState(null);
 
   function changeTab(key) {
     setSearchParams(key === 'all' ? {} : { status: key }, { replace: true });
@@ -367,6 +371,23 @@ export default function CollegeOrganizationsPage() {
     load();
   }
 
+  async function confirmWithdraw() {
+    setWithdrawBusy(true);
+    setWithdrawError(null);
+    try {
+      await withdrawOrganization(withdrawTarget.id);
+      notify.success(`${withdrawTarget.name} withdrawn.`);
+      setWithdrawTarget(null);
+      setRecordId(null);
+      load();
+    } catch (err) {
+      setWithdrawError(getApiErrorMessage(err, 'Could not withdraw this registration.'));
+      if (err?.response?.status === 409) load();
+    } finally {
+      setWithdrawBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
@@ -394,6 +415,7 @@ export default function CollegeOrganizationsPage() {
               <div className="flex flex-wrap items-center justify-end gap-2">
                 <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
                 {organization.lifecycle_status === 'returned' && <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>}
+                {['pending', 'returned'].includes(organization.lifecycle_status) && <Button variant="danger" size="sm" className="max-sm:h-[42px]" aria-label={`Withdraw ${organization.name}`} onClick={() => { setWithdrawError(null); setWithdrawTarget(organization); }}>Withdraw</Button>}
               </div>
             )}
           />
@@ -409,6 +431,20 @@ export default function CollegeOrganizationsPage() {
           onSaved={handleSaved}
         />
       )}
+
+      <ConfirmModal
+        open={Boolean(withdrawTarget)}
+        title="Withdraw this registration?"
+        message={withdrawTarget?.lifecycle_status === 'pending' ? 'The SAO is told it was withdrawn and its documents are removed. This cannot be undone.' : 'Its documents are removed. This cannot be undone.'}
+        recordName={withdrawTarget?.name}
+        confirmText="Withdraw registration"
+        cancelText="Keep registration"
+        variant="danger"
+        busy={withdrawBusy}
+        error={withdrawError}
+        onCancel={() => setWithdrawTarget(null)}
+        onConfirm={confirmWithdraw}
+      />
 
       <Drawer open={Boolean(detailsTarget)} title={shownDetails?.name} description={shownDetails?.acronym} onClose={() => setRecordId(null)} width="max-w-lg">
         <OrganizationDetails

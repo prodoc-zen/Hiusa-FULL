@@ -145,6 +145,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::get('/college/organizations/requirements', [CollegeOrganizationController::class, 'requirements'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/organizations', [CollegeOrganizationController::class, 'store'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::put('/college/organizations/{organization}', [CollegeOrganizationController::class, 'update'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
+    Route::delete('/college/organizations/{organization}', [CollegeOrganizationController::class, 'destroy'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::patch('/system/organizations/{organization}/review', [OrganizationLifecycleController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations/{organization}/archive', [OrganizationLifecycleController::class, 'archive'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations/{organization}/restore', [OrganizationLifecycleController::class, 'restore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
