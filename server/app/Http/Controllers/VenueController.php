@@ -18,21 +18,31 @@ class VenueController extends Controller
             'to' => ['nullable', 'date', 'after_or_equal:from'],
         ]);
 
+        $isSao = $request->user()->role === 'SUPER_ADMIN';
+
+        // The SAO is the agency, so it sees who holds each slot. Everyone else gets
+        // only whether the slot is theirs, never the other organization or its event.
         $slots = VenueBooking::where('venue_id', $venue->id)
             ->whereIn('status', ['pending', 'approved'])
-            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>=', Carbon::parse($from)))
-            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<=', Carbon::parse($to)))
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>', Carbon::parse($from)))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<', Carbon::parse($to)))
+            ->when($isSao, fn ($q) => $q->with(['organization:id,name,acronym', 'event:id,title']))
             ->orderBy('start_time')
-            ->get(['id', 'organization_id', 'status', 'start_time', 'end_time'])
+            ->get(['id', 'organization_id', 'event_id', 'status', 'start_time', 'end_time'])
             ->map(fn (VenueBooking $booking) => [
                 'id' => $booking->id,
                 'start_time' => $booking->start_time,
                 'end_time' => $booking->end_time,
                 'status' => $booking->status,
-                'reserved_by' => $booking->organization_id === $request->user()->organization_id
-                    ? 'Your organization'
-                    : 'Another organization',
-            ]);
+                'reserved_by' => match (true) {
+                    $isSao => $booking->organization?->name ?? 'Unknown organization',
+                    $booking->organization_id === $request->user()->organization_id => 'Your organization',
+                    default => 'Another organization',
+                },
+            ] + ($isSao ? [
+                'organization' => $booking->organization,
+                'event_title' => $booking->event?->title,
+            ] : []));
 
         return response()->json($slots);
     }
@@ -111,9 +121,8 @@ class VenueController extends Controller
 
     public function destroy(Request $request, Venue $venue)
     {
-        $hasActiveBookings = $venue->bookings()->whereIn('status', ['pending', 'approved'])->exists();
-        if ($hasActiveBookings) {
-            return response()->json(['message' => 'This venue has pending or approved bookings and cannot be deleted.'], 409);
+        if ($venue->bookings()->exists()) {
+            return response()->json(['message' => 'This venue has booking history, so it cannot be deleted. Mark it inactive instead to stop new requests.'], 409);
         }
 
         AuditLog::create([
