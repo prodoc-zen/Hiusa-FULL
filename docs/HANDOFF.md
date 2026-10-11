@@ -60,6 +60,8 @@ For each worktree: `git -C <worktree> log --oneline main..HEAD`, read `git -C <w
 - The Admin reaches the voters turnout through `manage-elections?record=ID&view=voters` because the `manage-voters` route is Officer only.
 - New SQL is unmeasured on a real database (run EXPLAIN ANALYZE; `ComplianceDocumentService` is measured, see the next section): approval row summaries (`MAX(id) GROUP BY entity_id`), budget `spent_amount` with two NOT EXISTS, event financial summary, the clearance aggregate, `scopedOrganizationIds()`, election status sync, the audit log indexes.
 - The Department Head with no college assigned has no Department Head account until the SAO creates one; seeders are skipped in production.
+- Withdrawing a registration deletes the organization, so its earlier `audit_logs` rows lose their `organization_id` (the foreign key nulls them). The rows stay and keep their record id, action and actor; they just no longer filter under that organization. Accepted.
+- The SAO may set a parent organization that belongs to another college. The rule (active, student organization, itself not a child) predates this branch and the SAO works across colleges, so it was left as is.
 
 ## Measured on a real MariaDB (fix round on integrate/sao)
 
@@ -96,8 +98,8 @@ SQLite cannot show any of this: `DeleteGuardLockTest`, `BudgetDeleteGuardTest` a
 ## Commands to get back to green
 
 ```bash
-cd server && vendor/bin/pint --test && php artisan test          # 815 passed, 6 skipped (SQLite)
-cd client && npm ci && npm run lint && npx vitest run && npm run build   # 1725 passed
+cd server && vendor/bin/pint --test && php artisan test          # 905 passed, 6 skipped (SQLite)
+cd client && npm ci && npm run lint && npx vitest run && npm run build   # 1839 passed
 cd ai-service && ./.venv/Scripts/python.exe -m pytest -q tests   # 31 passed
 # full server suite on a real MariaDB (throwaway database, never hiusa_db)
 DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3399 DB_DATABASE=suite_check DB_USERNAME=root DB_PASSWORD=root php artisan test

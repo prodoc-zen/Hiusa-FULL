@@ -740,4 +740,17 @@ class ComplianceDocumentsTest extends TestCase
         $this->getJson('/api/compliance/documents?per_page=100&page=21')->assertUnprocessable();
         $this->getJson('/api/compliance/documents?per_page=100&page=21&group=organization')->assertOk();
     }
+
+    public function test_malformed_query_parameters_are_refused_or_read_as_the_first_page(): void
+    {
+        Sanctum::actingAs($this->director());
+
+        foreach (['per_page=0', 'per_page=101', 'per_page=abc', 'per_page[]=1', 'search[]=x', 'group=evil', 'family=evil', 'source=evil', 'organization_id=abc'] as $query) {
+            $this->getJson("/api/compliance/documents?{$query}")->assertUnprocessable();
+        }
+        foreach (['page=abc', 'page=-5', 'page=99999999999999999999', 'page[]=1'] as $query) {
+            $this->getJson("/api/compliance/documents?{$query}")->assertOk()->assertJsonPath('current_page', 1);
+        }
+        $this->getJson('/api/compliance/documents?search='.urlencode("%_'\"\\;--"))->assertOk();
+    }
 }

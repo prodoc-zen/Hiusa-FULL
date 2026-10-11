@@ -83,6 +83,22 @@ class NotFoundShapeTest extends TestCase
         $this->assertSame($invisible->getContent(), $missingFile->getContent());
     }
 
+    public function test_deleting_another_organizations_event_matches_deleting_one_that_does_not_exist(): void
+    {
+        $mine = Organization::factory()->create();
+        $other = Organization::factory()->create();
+        $admin = User::factory()->admin()->create(['organization_id' => $mine->id]);
+        $foreign = Event::factory()->create(['organization_id' => $other->id, 'created_by' => $admin->school_id, 'status' => 'planning']);
+        Sanctum::actingAs($admin);
+
+        $wrongOwner = $this->deleteJson("/api/events/{$foreign->id}");
+        $missing = $this->deleteJson('/api/events/999999');
+
+        $this->assertSame(404, $wrongOwner->getStatusCode());
+        $this->assertSame($wrongOwner->getContent(), $missing->getContent());
+        $this->assertDatabaseHas('events', ['id' => $foreign->id]);
+    }
+
     public function test_a_missing_route_bound_record_never_names_its_model(): void
     {
         Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->value('id')]));
