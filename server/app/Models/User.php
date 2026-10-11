@@ -140,10 +140,16 @@ class User extends Authenticatable
         return $this->activeAccountProfile?->id ?? $this->accountProfiles()->where('organization_id', $this->getRawOriginal('organization_id'))->value('id');
     }
 
+    /** The organization columns a member's own account payload carries; reviewer and submitter ids and remarks are not among them. */
+    private const SERIALIZED_ORGANIZATION_COLUMNS = [
+        'id', 'name', 'slug', 'college', 'college_id', 'organization_type', 'acronym', 'parent_organization_id',
+        'is_active', 'logo_url', 'color', 'lifecycle_status',
+    ];
+
     public function activateProfile(AccountProfile $profile): void
     {
         $this->activeAccountProfile = $profile;
-        $this->setRelation('organization', $profile->organization);
+        $this->setRelation('organization', $profile->organization?->withoutRelations()->setVisible(self::SERIALIZED_ORGANIZATION_COLUMNS));
     }
 
     /** Notification kinds this person chose to hide; always a subset of Notification::MUTABLE_TYPES. */
