@@ -481,6 +481,37 @@ class ComplianceDocumentsTest extends TestCase
         }
     }
 
+    public function test_event_files_are_filtered_by_joins_and_an_event_with_two_sao_reviews_is_listed_once(): void
+    {
+        Storage::fake('local');
+        $this->periods();
+        $organization = $this->studentOrganization('Coding Club');
+        $admin = $this->submitter($organization);
+        $this->eventWithFile($organization, $admin, 'Resubmitted', ['DEPARTMENT_HEAD' => 'approved', 'SUPER_ADMIN' => 'returned']);
+        ApprovalRequest::create([
+            'organization_id' => $organization->id, 'entity_type' => 'event', 'entity_id' => Event::where('title', 'Resubmitted')->value('id'),
+            'requested_by' => $admin->school_id, 'required_role' => 'SUPER_ADMIN', 'status' => 'pending', 'requested_at' => '2026-09-12 08:00:00',
+        ]);
+        Sanctum::actingAs($this->director());
+        $eventFileSql = [];
+        DB::listen(function ($query) use (&$eventFileSql) {
+            $sql = str_replace(['"', '`'], '', $query->sql);
+            if (str_starts_with($sql, 'select') && str_contains($sql, 'event_requirement_files')) {
+                $eventFileSql[] = $sql;
+            }
+        });
+
+        $this->getJson('/api/compliance/documents?source=event_requirement&academic_semester_id='.$this->first->id)
+            ->assertOk()->assertJsonPath('total', 1)->assertJsonCount(1, 'data');
+        $this->getJson('/api/compliance/documents?group=organization&academic_semester_id='.$this->first->id)
+            ->assertOk()->assertJsonPath('data.0.file_count', 1);
+
+        $this->assertNotEmpty($eventFileSql);
+        foreach ($eventFileSql as $sql) {
+            $this->assertDoesNotMatchRegularExpression('/ in \(select/', $sql, 'event files were filtered by an IN subselect, which a large table plans as a block nested loop');
+        }
+    }
+
     public function test_a_rejected_event_names_who_returned_it(): void
     {
         Storage::fake('local');

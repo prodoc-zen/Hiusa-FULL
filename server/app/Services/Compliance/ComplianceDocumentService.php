@@ -180,7 +180,7 @@ class ComplianceDocumentService
     private function eventCounts(array $organizationIds, ?int $semesterId, ?string $viewerRole): Collection
     {
         return $this->eventFiles($organizationIds, $semesterId, $viewerRole)
-            ->selectRaw('organization_id, count(*) as total, max(created_at) as latest')->groupBy('organization_id')->toBase()->get()
+            ->selectRaw('f.organization_id, count(*) as total, max(f.created_at) as latest')->groupBy('f.organization_id')->toBase()->get()
             ->map(fn (object $row) => $this->countPart($row->organization_id, 'event_requirement', $row->total, $row->latest));
     }
 
@@ -325,18 +325,28 @@ class ComplianceDocumentService
 
     private function eventFiles(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
     {
-        return EventRequirementFile::whereIn('organization_id', $organizationIds)
-            ->when($semesterId, fn ($query) => $query->whereIn('event_id', fn ($events) => $events->from('events')->select('id')->where('academic_semester_id', $semesterId)))
+        // Joins, not IN subselects: with every organization in scope the optimizer turned the two subselects into a
+        // loose scan joined to events through a block nested loop, which is quadratic. Each join below is on an indexed
+        // key, so the cost follows the rows read. The distinct derived table keeps an event with several SAO reviews to one row.
+        return EventRequirementFile::from('event_requirement_files as f')
+            ->whereIn('f.organization_id', $organizationIds)
+            ->when($semesterId, fn ($query) => $query->join('events as e', 'e.id', '=', 'f.event_id')->where('e.academic_semester_id', $semesterId))
             // The SAO can only open an event's files once the Department Head has approved it and an SAO review exists.
-            ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->whereIn('event_id', fn ($rows) => $rows->from('approval_requests')->select('entity_id')->where('entity_type', 'event')->where('required_role', 'SUPER_ADMIN')));
+            ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->joinSub(
+                DB::table('approval_requests')->select('entity_id')->distinct()->where('entity_type', 'event')->where('required_role', 'SUPER_ADMIN'),
+                'sao_review',
+                'sao_review.entity_id',
+                '=',
+                'f.event_id',
+            ));
     }
 
     private function eventRows(array $organizationIds, ?int $semesterId, ?string $viewerRole, bool $withState, int $limit): Collection
     {
         $files = $this->eventFiles($organizationIds, $semesterId, $viewerRole)
             ->with('requirement:id,name')
-            ->orderByDesc('created_at')->orderByDesc('id')->limit($limit)
-            ->get(['id', 'event_id', 'requirement_id', 'organization_id', 'original_name', 'uploaded_by', 'created_at']);
+            ->orderByDesc('f.created_at')->orderByDesc('f.id')->limit($limit)
+            ->get(['f.id', 'f.event_id', 'f.requirement_id', 'f.organization_id', 'f.original_name', 'f.uploaded_by', 'f.created_at']);
         $eventIds = $files->pluck('event_id')->unique();
         $events = Event::whereIn('id', $eventIds)->get(['id', 'title', 'academic_semester_id', 'planning_details', 'approved_at'])->keyBy('id');
         $stages = $withState ? $this->approvalChain->describe($events) : [];
