@@ -134,6 +134,50 @@ describe('grievance lists and details', () => {
     expect(within(drawer).getByText('Decide: resolve or dismiss')).toBeInTheDocument();
   });
 
+  it('moves a grievance to under review in one tap with no confirmation dialog', async () => {
+    mocks.getGrievances.mockResolvedValue(envelope([]));
+    mocks.getGrievance.mockResolvedValue({ data: TO_SAO });
+    mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...TO_SAO, status: 'under_review' } });
+    renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Move to under review' }));
+
+    await waitFor(() => expect(mocks.updateGrievanceStatus).toHaveBeenCalledWith(2, { status: 'under_review', remarks: undefined }));
+    expect(screen.queryByRole('dialog', { name: 'Move to under review' })).not.toBeInTheDocument();
+    expect(await within(drawer).findByText('Decide: resolve or dismiss')).toBeInTheDocument();
+  });
+
+  it('says why a one tap move to under review failed, inside the drawer', async () => {
+    mocks.getGrievances.mockResolvedValue(envelope([]));
+    mocks.getGrievance.mockResolvedValue({ data: TO_SAO });
+    mocks.updateGrievanceStatus.mockRejectedValue({ response: { data: { message: 'This grievance was already decided.' } } });
+    renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Move to under review' }));
+
+    expect(await within(drawer).findByRole('alert')).toHaveTextContent('This grievance was already decided.');
+  });
+
+  it('keeps the confirmation with required remarks for Resolve', async () => {
+    mocks.getGrievances.mockResolvedValue(envelope([]));
+    mocks.getGrievance.mockResolvedValue({ data: { ...TO_SAO, status: 'under_review' } });
+    mocks.updateGrievanceStatus.mockResolvedValue({ data: { ...TO_SAO, status: 'resolved', remarks: 'Fixed.' } });
+    renderAt('/dashboard/super-admin/grievances?record=2', <SaoGrievancesPage />);
+    const drawer = await screen.findByRole('dialog', { name: 'Noisy Lab' });
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Resolve' }));
+    const confirm = await screen.findByRole('dialog', { name: 'Resolve' });
+    expect(mocks.updateGrievanceStatus).not.toHaveBeenCalled();
+    expect(within(confirm).getByRole('button', { name: 'Resolve' })).toBeDisabled();
+
+    fireEvent.change(within(confirm).getByLabelText(/Remarks/), { target: { value: 'Fixed.' } });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Resolve' }));
+
+    await waitFor(() => expect(mocks.updateGrievanceStatus).toHaveBeenCalledWith(2, { status: 'resolved', remarks: 'Fixed.' }));
+  });
+
   it('shows a closed grievance as done with no pending action', async () => {
     mocks.getGrievances.mockResolvedValue(envelope([]));
     mocks.getGrievance.mockResolvedValue({ data: { ...TO_SAO, status: 'resolved', remarks: 'Fixed.' } });
