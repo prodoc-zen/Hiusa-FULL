@@ -478,7 +478,14 @@ export default function TopBar({ onMenuToggle }) {
             </div>
             <div className="hidden min-w-0 max-w-[min(12rem,25vw)] text-left sm:block">
               <p className="truncate text-[13px] font-bold text-[#0F172A]" title={fullName}>{fullName}</p>
-              <p className="max-w-40 truncate text-[11px] font-medium text-slate-600">{organizationName} · {roleLabel}</p>
+              {role === 'DEPARTMENT_HEAD' ? (
+                <div title={`${organizationName} · ${roleLabel}`}>
+                  <p className="break-words text-[11px] font-medium leading-tight text-slate-600">{organizationName}</p>
+                  <p className="text-[11px] font-semibold leading-tight text-[#0878B7]">{roleLabel}</p>
+                </div>
+              ) : (
+                <p className="max-w-40 truncate text-[11px] font-medium text-slate-600" title={`${organizationName} · ${roleLabel}`}>{organizationName} · {roleLabel}</p>
+              )}
             </div>
             <ChevronDown size={14} className={`text-slate-600 transition-transform ${profileOpen ? 'rotate-180' : ''}`} />
           </button>
@@ -488,6 +495,7 @@ export default function TopBar({ onMenuToggle }) {
               <div className="border-b border-[#DDE7EF] px-3 py-3 mb-1.5">
                 <p className="text-sm font-bold text-[#0F172A]">{fullName}</p>
                 <p className="break-all text-xs font-medium text-slate-500">{user?.email || ''}</p>
+                {role === 'DEPARTMENT_HEAD' && <p className="mt-1 text-xs font-semibold text-[#0878B7] sm:hidden">{organizationName} · {roleLabel}</p>}
               </div>
               <section aria-label="Profiles" className="border-b border-[#DDE7EF] px-2 pb-2">
                 <div className="flex items-center justify-between px-1 pb-1">
