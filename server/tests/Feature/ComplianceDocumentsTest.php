@@ -585,4 +585,69 @@ class ComplianceDocumentsTest extends TestCase
         Sanctum::actingAs($this->collegeHead($arts));
         $this->getJson('/api/compliance/documents?group=organization')->assertOk()->assertJsonPath('total', 1)->assertJsonPath('data.0.organization.name', 'Drama Guild');
     }
+
+    public function test_registration_files_stay_registration_documents_after_the_sao_approves_the_organization(): void
+    {
+        $this->periods();
+        Carbon::setTestNow('2026-09-10 12:00:00');
+        $pending = $this->studentOrganization('Robotics Guild', null, 'pending');
+        $pending->forceFill(['submitted_at' => '2026-09-04 09:00:00'])->save();
+        $this->complianceFile($pending, 'Letter of Intent', 'submitted');
+        $this->complianceFile($pending, ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, 'submitted');
+        Sanctum::actingAs($this->director());
+
+        $this->patchJson('/api/system/organizations/'.$pending->id.'/review', ['decision' => 'approve', 'submitted_at' => '2026-09-04 09:00:00'])->assertOk();
+
+        $later = $this->complianceFile($pending, 'List of Members', 'submitted');
+        $later->forceFill(['submitted_at' => '2026-09-20 08:00:00'])->save();
+
+        $families = fn (string $query = '') => collect($this->getJson('/api/compliance/documents?source=compliance&per_page=100'.$query)->assertOk()->json('data'))->pluck('family', 'item');
+        $this->assertSame('active', $pending->fresh()->lifecycle_status);
+        $this->assertEqualsCanonicalizing(['Letter of Intent' => 'registration', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT => 'registration', 'List of Members' => 'semester_renewal'], $families()->all());
+        $this->assertSame(['Letter of Intent', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT], $families('&family=registration')->keys()->sort()->values()->all());
+        $this->assertSame(['List of Members'], $families('&family=semester_renewal')->keys()->all());
+        $this->getJson('/api/compliance/documents?group=organization&family=registration')->assertOk()->assertJsonPath('data.0.file_count', 2);
+        $this->getJson('/api/compliance/documents?group=organization&family=semester_renewal')->assertOk()->assertJsonPath('data.0.file_count', 1);
+
+        $queue = collect($this->getJson('/api/compliance/submissions?status=submitted')->assertOk()->json('data'));
+        $this->assertFalse($queue->firstWhere('id', $later->id)['is_registration']);
+        $approved = collect($this->getJson('/api/compliance/submissions?status=approved')->assertOk()->json('data'));
+        $this->assertCount(2, $approved);
+        $this->assertTrue($approved->every(fn (array $row) => $row['is_registration']));
+        Carbon::setTestNow();
+    }
+
+    public function test_the_organization_summary_counts_exactly_what_the_file_list_shows_for_every_filter(): void
+    {
+        $this->periods();
+        $computing = $this->college('College of Computing');
+        $coding = $this->studentOrganization('Coding Club', $computing);
+        $drama = $this->studentOrganization('Drama Guild');
+        $robotics = $this->studentOrganization('Robotics Guild', null, 'pending');
+        $chess = $this->studentOrganization('Chess Club');
+        $chess->forceFill(['submitted_at' => '2026-09-01 08:00:00', 'reviewed_at' => '2026-09-06 08:00:00'])->save();
+        $this->documentsFor($coding, $this->submitter($coding));
+        $this->complianceFile($drama, 'List of Members', 'submitted');
+        $this->complianceFile($robotics, 'Letter of Intent', 'submitted');
+        $this->complianceFile($chess, 'Letter of Intent', 'approved');
+        $this->complianceFile($chess, ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, 'approved');
+        $this->complianceFile($chess, 'Budget Plan', 'submitted')->forceFill(['submitted_at' => '2026-09-30 08:00:00'])->save();
+        $submitter = $this->submitter($drama);
+        FinancialReport::create([
+            'organization_id' => $drama->id, 'report_type' => 'monthly', 'title' => 'February Financial Report', 'submission_status' => 'pending_sao',
+            'submitted_at' => '2027-02-10 08:00:00', 'department_head_approved_at' => '2027-02-11 08:00:00', 'generated_by' => $submitter->school_id,
+            'supporting_documents' => [['name' => 'receipts.pdf', 'path' => 'p', 'url' => 'x', 'mime_type' => 'application/pdf', 'size' => 10]],
+        ]);
+        $this->eventWithFile($drama, $submitter, 'Spring Fair', ['SUPER_ADMIN' => 'pending'])['event']->forceFill(['academic_semester_id' => $this->second->id])->save();
+        Sanctum::actingAs($this->director());
+
+        foreach (['', '&academic_semester_id='.$this->first->id, '&academic_semester_id='.$this->second->id, '&source=compliance', '&source=event_requirement&academic_semester_id='.$this->second->id,
+            '&source=financial_report', '&source=financial_supporting_document', '&family=registration', '&family=semestral_report', '&family=semester_renewal',
+            '&family=financial_supporting_document&academic_semester_id='.$this->second->id] as $query) {
+            $listed = collect($this->getJson('/api/compliance/documents?per_page=100'.$query)->assertOk()->json('data'))->countBy('organization.name')->sortKeys()->all();
+            $summarised = collect($this->getJson('/api/compliance/documents?group=organization&per_page=100'.$query)->assertOk()->json('data'))->pluck('file_count', 'organization.name')->sortKeys()->all();
+
+            $this->assertSame($listed, $summarised, 'summary differs from the file list for ['.$query.']');
+        }
+    }
 }

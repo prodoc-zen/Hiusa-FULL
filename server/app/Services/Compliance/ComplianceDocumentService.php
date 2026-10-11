@@ -13,7 +13,11 @@ use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\EventApprovalChain;
+use DateTimeInterface;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * One normalized, read-only list of every document an organization has put
@@ -91,27 +95,101 @@ class ComplianceDocumentService
     }
 
     /**
-     * One entry per organization that has at least one file, most recently active first.
+     * One entry per organization that has at least one file, most recently active first. Counted with one
+     * grouped query per source instead of loading the rows, because this is the default landing view.
      *
      * @param  array<int, int>  $organizationIds
      * @return Collection<int, array<string, mixed>>
      */
     public function organizationSummaries(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole = null, ?string $family = null): Collection
     {
-        $rows = $this->collect($organizationIds, $semesterId, $source, $viewerRole, $family, withEventState: false)->filter(fn (array $row) => $row['organization']);
-        $colleges = College::whereIn('id', Organization::whereIn('id', $rows->pluck('organization_id')->unique())->select('college_id'))->pluck('name', 'id');
+        $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
+        $counts = collect();
+        if ($source === null || $source === 'compliance') {
+            $counts = $counts->concat($this->complianceCounts($organizationIds, $semesterId));
+        }
+        if ($source === null || $source === 'event_requirement') {
+            $counts = $counts->concat($this->eventCounts($organizationIds, $semesterId, $viewerRole));
+        }
+        if ($source === null || in_array($source, ['financial_report', 'financial_supporting_document'], true)) {
+            $counts = $counts->concat($this->financialCounts($organizationIds, $semesterId, $source, $viewerRole));
+        }
+        $counts = $counts->when($family, fn (Collection $kept) => $kept->where('family', $family))->where('total', '>', 0);
 
-        return $rows->groupBy('organization_id')->map(function (Collection $files) use ($colleges) {
-            $organization = $files->first()['organization'];
+        $organizations = Organization::whereIn('id', $counts->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id'])->keyBy('id');
+        $colleges = College::whereIn('id', $organizations->pluck('college_id')->filter()->unique())->pluck('name', 'id');
 
-            return [
-                'organization' => [...$organization->only(['id', 'name', 'acronym']), 'college' => $colleges->get($organization->college_id)],
-                'file_count' => $files->count(),
-                'latest_submitted_at' => $files->max(fn (array $row) => $row['submitted_at']?->getTimestamp()),
-            ];
-        })->sort(fn (array $left, array $right) => [$right['latest_submitted_at'] ?? 0, $left['organization']['name']] <=> [$left['latest_submitted_at'] ?? 0, $right['organization']['name']])
+        return $counts->filter(fn (array $count) => $organizations->has($count['organization_id']))
+            ->groupBy('organization_id')
+            ->map(function (Collection $parts) use ($organizations, $colleges) {
+                $organization = $organizations->get($parts->first()['organization_id']);
+
+                return [
+                    'organization' => [...$organization->only(['id', 'name', 'acronym']), 'college' => $colleges->get($organization->college_id)],
+                    'file_count' => $parts->sum('total'),
+                    'latest_submitted_at' => $parts->max(fn (array $part) => $part['latest']?->getTimestamp()),
+                ];
+            })
+            ->sort(fn (array $left, array $right) => [$right['latest_submitted_at'] ?? 0, $left['organization']['name']] <=> [$left['latest_submitted_at'] ?? 0, $right['organization']['name']])
             ->values()
             ->map(fn (array $summary) => [...$summary, 'latest_submitted_at' => $summary['latest_submitted_at'] ? now()->setTimestamp($summary['latest_submitted_at']) : null]);
+    }
+
+    /** SQL twin of settle(): the same registration, semestral and renewal split, so counts match the file list. */
+    private function complianceCounts(array $organizationIds, ?int $semesterId): Collection
+    {
+        return DB::table('organization_compliance_submissions as s')
+            ->join('compliance_requirement_types as t', 't.id', '=', 's.requirement_type_id')
+            ->join('organizations as o', 'o.id', '=', 's.organization_id')
+            ->whereIn('s.organization_id', $organizationIds)
+            ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
+            ->selectRaw(
+                "s.organization_id, case when o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.name = ? then 'semestral_report' else 'semester_renewal' end as family, count(*) as total, max(s.submitted_at) as latest",
+                [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT],
+            )
+            ->groupBy('s.organization_id', 'family')
+            ->get()
+            ->map(fn (object $row) => $this->countPart($row->organization_id, $row->family, $row->total, $row->latest));
+    }
+
+    private function eventCounts(array $organizationIds, ?int $semesterId, ?string $viewerRole): Collection
+    {
+        return $this->eventFiles($organizationIds, $semesterId, $viewerRole)
+            ->selectRaw('organization_id, count(*) as total, max(created_at) as latest')->groupBy('organization_id')->toBase()->get()
+            ->map(fn (object $row) => $this->countPart($row->organization_id, 'event_requirement', $row->total, $row->latest));
+    }
+
+    /** Reports and their supporting documents, with the report's period resolved in SQL the way reportSemesterId() does. */
+    private function financialCounts(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole): Collection
+    {
+        $query = FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
+            ->when($viewerRole === 'SUPER_ADMIN', fn ($filtered) => $filtered->whereNotNull('department_head_approved_at'));
+        $documents = $query->getConnection()->getDriverName() === 'sqlite'
+            ? 'json_array_length(supporting_documents)'
+            : 'json_length(supporting_documents)';
+        $period = 'coalesce((select academic_semester_id from events where events.id = financial_reports.event_id), '
+            .'(select id from academic_semesters where date(starts_on) <= date(financial_reports.submitted_at) and date(ends_on) >= date(financial_reports.submitted_at) order by id limit 1))';
+
+        $totals = $query->when($semesterId, fn ($filtered) => $filtered->whereRaw("{$period} = ?", [$semesterId]))
+            ->selectRaw("organization_id, count(*) as reports, coalesce(sum({$documents}), 0) as documents, max(submitted_at) as latest, max(case when {$documents} > 0 then submitted_at end) as documents_latest")
+            ->groupBy('organization_id')->toBase()->get();
+
+        $counts = collect();
+        foreach ($totals as $row) {
+            if ($source !== 'financial_supporting_document') {
+                $counts->push($this->countPart($row->organization_id, 'financial_report', $row->reports, $row->latest));
+            }
+            if ($source !== 'financial_report') {
+                $counts->push($this->countPart($row->organization_id, 'financial_supporting_document', $row->documents, $row->documents_latest));
+            }
+        }
+
+        return $counts;
+    }
+
+    private function countPart(mixed $organizationId, string $family, mixed $total, ?string $latest): array
+    {
+        return ['organization_id' => (int) $organizationId, 'family' => $family, 'total' => (int) $total, 'latest' => $latest ? Carbon::parse($latest) : null];
     }
 
     private function collect(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, bool $withEventState = true): Collection
@@ -130,13 +208,26 @@ class ComplianceDocumentService
             $rows = $rows->concat($this->financialRows($organizationIds, $semesterId, $semesters, $source, $viewerRole));
         }
 
-        $organizations = Organization::whereIn('id', $rows->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id', 'lifecycle_status'])->keyBy('id');
+        $organizations = Organization::whereIn('id', $rows->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id', 'lifecycle_status', 'submitted_at', 'reviewed_at'])->keyBy('id');
 
         return $rows
             ->map(fn (array $row) => $this->settle($row, $organizations->get($row['organization_id'])))
             ->when($family, fn (Collection $settled) => $settled->where('family', $family))
             ->sortByDesc(fn (array $row) => $row['submitted_at']?->getTimestamp() ?? 0)
             ->values();
+    }
+
+    /**
+     * The one rule for what counts as a registration document, shared by Track documents and the review queue.
+     * A file filed before the SAO approved the registration stays a registration document after the organization turns active.
+     */
+    public function isRegistrationFile(?Organization $organization, ?DateTimeInterface $submittedAt): bool
+    {
+        if (in_array($organization?->lifecycle_status, self::REGISTRATION_LIFECYCLES, true)) {
+            return true;
+        }
+
+        return (bool) ($organization?->submitted_at && $organization->reviewed_at && $submittedAt && Carbon::instance($submittedAt)->lessThanOrEqualTo($organization->reviewed_at));
     }
 
     /** Compliance rows split into registration, semestral and renewal once the organization is known. */
@@ -147,9 +238,8 @@ class ComplianceDocumentService
             return $row;
         }
 
-        $registration = in_array($organization?->lifecycle_status, self::REGISTRATION_LIFECYCLES, true);
         $row['family'] = match (true) {
-            $registration => 'registration',
+            $this->isRegistrationFile($organization, $row['submitted_at']) => 'registration',
             $row['is_semestral'] => 'semestral_report',
             default => 'semester_renewal',
         };
@@ -190,12 +280,17 @@ class ComplianceDocumentService
             });
     }
 
-    private function eventRows(array $organizationIds, ?int $semesterId, ?string $viewerRole, bool $withState): Collection
+    private function eventFiles(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
     {
-        $files = EventRequirementFile::whereIn('organization_id', $organizationIds)
+        return EventRequirementFile::whereIn('organization_id', $organizationIds)
             ->when($semesterId, fn ($query) => $query->whereIn('event_id', fn ($events) => $events->from('events')->select('id')->where('academic_semester_id', $semesterId)))
             // The SAO can only open an event's files once the Department Head has approved it and an SAO review exists.
-            ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->whereIn('event_id', fn ($rows) => $rows->from('approval_requests')->select('entity_id')->where('entity_type', 'event')->where('required_role', 'SUPER_ADMIN')))
+            ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->whereIn('event_id', fn ($rows) => $rows->from('approval_requests')->select('entity_id')->where('entity_type', 'event')->where('required_role', 'SUPER_ADMIN')));
+    }
+
+    private function eventRows(array $organizationIds, ?int $semesterId, ?string $viewerRole, bool $withState): Collection
+    {
+        $files = $this->eventFiles($organizationIds, $semesterId, $viewerRole)
             ->with('requirement:id,name')
             ->orderByDesc('created_at')->orderByDesc('id')
             ->get(['id', 'event_id', 'requirement_id', 'organization_id', 'original_name', 'uploaded_by', 'created_at']);
