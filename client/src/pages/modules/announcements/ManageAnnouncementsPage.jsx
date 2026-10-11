@@ -241,7 +241,7 @@ export default function ManageAnnouncementsPage() {
     const isAdmin = currentRole === 'ADMIN';
     if (stage.key === 'pending') {
       return isAdmin
-        ? { tone: 'action', title: 'An officer is waiting for your approval', body: 'Approve it to publish, or return it with remarks.', actorRole: 'Admin', primary: { label: 'Review this announcement', to: '/dashboard/approvals' } }
+        ? { tone: 'action', title: 'An officer is waiting for your approval', body: 'Approve it to publish, or return it with remarks.', actorRole: 'Admin', primary: { label: 'Review this announcement', to: announcement.approval_id ? `/dashboard/approvals?record=${announcement.approval_id}` : '/dashboard/approvals' } }
         : { tone: 'waiting', title: 'Waiting for Admin approval', body: 'No action needed from you.', actorRole: 'Admin' };
     }
     if (stage.key === 'returned') {

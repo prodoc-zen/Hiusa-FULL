@@ -16,7 +16,7 @@ import {
   venueBookingLifecycle,
 } from './lifecycle';
 
-const STATES = ['done', 'current', 'blocked', 'upcoming', 'skipped'];
+const STATES = ['done', 'current', 'blocked', 'stopped', 'upcoming', 'skipped'];
 const TONES = ['action', 'waiting', 'blocked', 'done'];
 
 function assertShape(result) {
@@ -214,7 +214,7 @@ describe('eventLifecycle', () => {
       { name: 'completed with a report at the SAO', record: { ...base, status: 'completed', financial_report: { id: 8, submission_status: 'pending_sao' } }, viewer: 'ADMIN', current: 'report', tone: 'waiting', title: 'Waiting for SAO approval', actorRole: 'SUPER_ADMIN' },
       { name: 'completed with a returned report', record: { ...base, status: 'completed', financial_report: { id: 8, submission_status: 'rejected' } }, viewer: 'ADMIN', current: 'report', tone: 'action', title: 'Returned: fix and resubmit', actorRole: 'ADMIN', states: { proposal: 'done', requirements: 'skipped', approval: 'done', funding: 'skipped', prepare: 'done', run: 'done', report: 'blocked' } },
       { name: 'completed with an approved report is finished', record: { ...base, status: 'completed', financial_report: { id: 8, submission_status: 'approved' } }, viewer: 'ADMIN', current: null, tone: 'done', title: 'Event complete', actorRole: null, states: { proposal: 'done', requirements: 'skipped', approval: 'done', funding: 'skipped', prepare: 'done', run: 'done', report: 'done' } },
-      { name: 'cancelled', record: { ...base, status: 'cancelled' }, viewer: 'ADMIN', current: null, tone: 'blocked', title: 'Cancelled', actorRole: null, states: { proposal: 'done', requirements: 'skipped', approval: 'skipped', funding: 'skipped', prepare: 'skipped', run: 'skipped', report: 'skipped' } },
+      { name: 'cancelled', record: { ...base, status: 'cancelled' }, viewer: 'ADMIN', current: null, tone: 'blocked', title: 'Cancelled', actorRole: null, states: { proposal: 'done', requirements: 'skipped', approval: 'stopped', funding: 'skipped', prepare: 'skipped', run: 'skipped', report: 'skipped' } },
     ]);
   });
 
@@ -268,7 +268,7 @@ describe('orderLifecycle', () => {
     { name: 'paid without a visible token', record: { id: 6, status: 'paid' }, viewer: 'STUDENT', current: 'paid', tone: 'action', title: 'Show your claim token at the claim desk', actorRole: 'STUDENT' },
     { name: 'paid, an officer releases at the desk', record: { id: 6, status: 'paid' }, viewer: 'SBO_OFFICER', current: 'paid', tone: 'action', title: 'Release at the claim desk', actorRole: 'STUDENT', label: 'Open claim desk', to: '/dashboard/merchandise/claim-tokens' },
     { name: 'claimed', record: { id: 6, status: 'claimed', claimed_at: '2026-10-08T09:00:00+08:00' }, viewer: 'STUDENT', current: null, tone: 'done', title: 'Collected on Oct 8, 2026', actorRole: null, states: { reserved: 'done', proof: 'done', paid: 'done', claimed: 'done' } },
-    { name: 'cancelled with a reason', record: { id: 6, status: 'cancelled', review_remarks: 'Wrong reference number' }, viewer: 'STUDENT', current: null, tone: 'blocked', title: 'Cancelled', actorRole: null, body: 'Cancelled: Wrong reference number', states: { reserved: 'done', proof: 'skipped', paid: 'skipped', claimed: 'skipped' } },
+    { name: 'cancelled with a reason', record: { id: 6, status: 'cancelled', review_remarks: 'Wrong reference number' }, viewer: 'STUDENT', current: null, tone: 'blocked', title: 'Cancelled', actorRole: null, body: 'Cancelled: Wrong reference number', states: { reserved: 'done', proof: 'stopped', paid: 'skipped', claimed: 'skipped' } },
     { name: 'cancelled without a reason', record: { id: 6, status: 'cancelled' }, viewer: 'SBO_OFFICER', current: null, tone: 'blocked', title: 'Cancelled', actorRole: null, body: 'This order was cancelled.' },
   ]);
 });
@@ -289,7 +289,7 @@ describe('organizationRegistrationLifecycle', () => {
     { name: 'active with an administrator, setup unfinished, the head waits', record: { id: 4, lifecycle_status: 'active', administrators_count: 1, setup_steps_done: 0, setup_steps_total: 3 }, viewer: 'DEPARTMENT_HEAD', current: 'first_use', tone: 'waiting', title: 'The administrator is finishing setup', actorRole: 'ADMIN' },
     { name: 'active with an administrator, setup complete', record: { id: 4, lifecycle_status: 'active', administrators_count: 1, setup_steps_done: 3, setup_steps_total: 3 }, viewer: 'ADMIN', current: null, tone: 'done', title: 'Administrator can sign in', actorRole: null },
     { name: 'active with the administrator count missing', record: { id: 4, lifecycle_status: 'active' }, viewer: 'SUPER_ADMIN', current: 'administrator', tone: 'done', title: 'Approved and active', actorRole: null },
-    { name: 'archived', record: { id: 4, lifecycle_status: 'archived' }, viewer: 'SUPER_ADMIN', current: null, tone: 'blocked', title: 'Archived: read only', actorRole: null, states: { registered: 'done', review: 'done', administrator: 'skipped', first_use: 'skipped' } },
+    { name: 'archived', record: { id: 4, lifecycle_status: 'archived' }, viewer: 'SUPER_ADMIN', current: null, tone: 'blocked', title: 'Archived: read only', actorRole: null, states: { registered: 'done', review: 'done', administrator: 'stopped', first_use: 'skipped' } },
   ]);
 
   it('links the SAO to the review drawer while pending and to the organization overview afterwards', () => {
@@ -374,7 +374,7 @@ describe('venueBookingLifecycle', () => {
     { name: 'approved', record: { id: 8, status: 'approved' }, viewer: 'ADMIN', current: null, tone: 'done', title: 'Approved: venue booked', actorRole: null, states: { requested: 'done', review: 'done', approved: 'done' } },
     { name: 'rejected with remarks, the Admin books again', record: { id: 8, status: 'rejected', remarks: 'Room is closed' }, viewer: 'ADMIN', current: 'review', tone: 'action', title: 'Rejected: read the remarks and request again', actorRole: 'ADMIN', body: 'Room is closed', label: 'Book again', to: '/dashboard/venues', states: { requested: 'done', review: 'blocked', approved: 'upcoming' } },
     { name: 'rejected, the SAO sees it as settled', record: { id: 8, status: 'rejected' }, viewer: 'SUPER_ADMIN', current: 'review', tone: 'waiting', title: 'Rejected by the SAO', actorRole: 'ADMIN' },
-    { name: 'withdrawn', record: { id: 8, status: 'withdrawn' }, viewer: 'ADMIN', current: null, tone: 'blocked', title: 'Withdrawn', actorRole: null, states: { requested: 'done', review: 'skipped', approved: 'skipped' } },
+    { name: 'withdrawn', record: { id: 8, status: 'withdrawn' }, viewer: 'ADMIN', current: null, tone: 'blocked', title: 'Withdrawn', actorRole: null, states: { requested: 'done', review: 'stopped', approved: 'skipped' } },
   ]);
 });
 
@@ -448,5 +448,22 @@ describe('clearanceLifecycle', () => {
     expect(result.steps.every((step) => step.state === 'done')).toBe(true);
     expect(result.nextAction).toEqual({ tone: 'done', title: 'You are cleared', body: 'Every signatory has cleared you.' });
     expect(result.actorRole).toBeNull();
+  });
+});
+
+describe('records that ended without finishing', () => {
+  const ended = [
+    ['a cancelled order', orderLifecycle({ id: 1, status: 'cancelled' }, 'STUDENT'), 'Cancelled'],
+    ['a cancelled event', eventLifecycle({ id: 1, status: 'cancelled' }, 'ADMIN'), 'Cancelled'],
+    ['an archived organization', organizationRegistrationLifecycle({ id: 1, lifecycle_status: 'archived' }, 'SUPER_ADMIN'), 'Archived'],
+    ['a withdrawn venue booking', venueBookingLifecycle({ id: 1, status: 'withdrawn' }, 'ADMIN'), 'Withdrawn'],
+  ];
+
+  it.each(ended)('shows exactly one stopped step for %s and no unfinished-looking skipped run', (_name, result, note) => {
+    const stopped = result.steps.filter((step) => step.state === 'stopped');
+    expect(stopped).toHaveLength(1);
+    expect(stopped[0].note).toBe(note);
+    expect(result.steps.some((step) => step.state === 'current')).toBe(false);
+    expect(result.nextAction.tone).toBe('blocked');
   });
 });

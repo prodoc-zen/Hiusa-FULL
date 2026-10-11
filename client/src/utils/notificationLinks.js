@@ -62,11 +62,16 @@ function orderDestination(role, id) {
 }
 
 const DESTINATIONS = {
-  // The notification carries the approval id but not its entity type. The SAO's reports always reach
-  // it and events only sometimes, so it lands on the Financial reports tab.
-  approval_request: (role, id) => {
+  // The notification carries the approval id and, on newer rows, the entity type being approved. Older
+  // rows have no entity type, and the SAO's reports always reach it where events only sometimes do,
+  // so they land on the Financial reports tab.
+  approval_request: (role, id, _notificationType, entityType) => {
     if (Object.hasOwn(APPROVALS, role)) return record(APPROVALS[role], id);
-    return role === 'SUPER_ADMIN' ? '/dashboard/super-admin/compliance?tab=financial' : null;
+    if (role !== 'SUPER_ADMIN') return null;
+    if (!entityType) return '/dashboard/super-admin/compliance?tab=financial';
+    if (entityType === 'event') return '/dashboard/super-admin/compliance?tab=events';
+    if (entityType === 'financial_report') return '/dashboard/super-admin/compliance?tab=financial';
+    return '/dashboard/super-admin/compliance';
   },
 
   organization: (role, id) => {
@@ -144,14 +149,15 @@ const DESTINATIONS = {
  * reference_id, notification_type) or a briefing item (entity_type, entity_id). Returns null when the
  * role has no page for that entity or the type is unknown.
  */
-export function getEntityDestination(entityType, entityId, role, notificationType = null) {
+export function getEntityDestination(entityType, entityId, role, notificationType = null, approvedEntityType = null) {
   const type = normalizeReferenceType(entityType);
   if (!Object.hasOwn(DESTINATIONS, type)) return null;
-  return DESTINATIONS[type](role, entityId, String(notificationType || '').toLowerCase()) ?? null;
+  const approved = approvedEntityType ? normalizeReferenceType(approvedEntityType) : null;
+  return DESTINATIONS[type](role, entityId, String(notificationType || '').toLowerCase(), approved) ?? null;
 }
 
 export function getNotificationDestination(notification, role) {
-  return getEntityDestination(notification?.reference_type, notification?.reference_id, role, notification?.notification_type);
+  return getEntityDestination(notification?.reference_type, notification?.reference_id, role, notification?.notification_type, notification?.entity_type);
 }
 
 // The Department Head has one approvals page. /dashboard/approvals redirects there but drops the
