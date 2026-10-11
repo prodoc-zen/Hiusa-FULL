@@ -27,6 +27,7 @@ function renderPage() {
 describe('DepartmentHeadHomePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Eduardo', last_name: 'Ramos', organization: { id: 9, name: 'College of Engineering', college: 'College of Engineering', college_id: 5, organization_type: 'COLLEGE' } }));
     mocks.getElections.mockResolvedValue([]);
     mocks.getEvents.mockResolvedValue(paginator([]));
     mocks.getAnnouncements.mockResolvedValue({ data: [] });
@@ -103,5 +104,20 @@ describe('DepartmentHeadHomePage', () => {
 
     expect(await screen.findByRole('heading', { name: 'College of Engineering organizations' })).toBeInTheDocument();
     expect(mocks.getCollegeOrganizations).toHaveBeenCalledTimes(2);
+  });
+
+  it('names the head college from the account, not from the first organization row', async () => {
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([{ id: 1, name: 'PSITS', college: 'College of Business Education', lifecycle_status: 'active' }]));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'College of Engineering organizations' })).toBeInTheDocument();
+    expect(screen.queryByRole('heading', { name: /PSITS|Business/ })).not.toBeInTheDocument();
+  });
+
+  it('falls back to a plain heading when the account carries no college', async () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Eduardo', last_name: 'Ramos' }));
+    renderPage();
+
+    expect(await screen.findByRole('heading', { name: 'College organizations' })).toBeInTheDocument();
   });
 });

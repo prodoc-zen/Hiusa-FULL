@@ -141,6 +141,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::post('/system/admins/{user}/password-reset', [SystemAdministrationController::class, 'initiateAdminPasswordReset'])->middleware(['throttle:password', 'role:SUPER_ADMIN', 'org.writable']);
     Route::post('/system/admins/{user}/handover', [SystemAdministrationController::class, 'handoverAdmin'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
     Route::get('/system/organizations/{organization}/members', [SystemAdministrationController::class, 'organizationMembers'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations/requirements', [CollegeOrganizationController::class, 'requirements'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::post('/college/organizations', [CollegeOrganizationController::class, 'store'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);

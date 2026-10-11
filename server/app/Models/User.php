@@ -84,7 +84,7 @@ class User extends Authenticatable
         'photo_path',
     ];
 
-    protected $with = ['organization:id,name,slug,college,acronym,parent_organization_id'];
+    protected $with = ['organization:id,name,slug,college,college_id,organization_type,acronym,parent_organization_id'];
 
     protected $appends = ['id', 'photo_url'];
 

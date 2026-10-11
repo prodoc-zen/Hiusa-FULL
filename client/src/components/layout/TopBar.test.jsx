@@ -76,6 +76,21 @@ describe('TopBar notifications', () => {
     expect(within(header).getByRole('button', { name: 'Account menu for Alex Rivera' })).toBeInTheDocument();
   });
 
+  it('names the college, not a student organization, under a Department Head', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Ramon', last_name: 'Castillo', organization: { id: 9, name: 'College of Computer Studies', college: 'College of Computer Studies', college_id: 1, organization_type: 'COLLEGE' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const account = screen.getByRole('button', { name: 'Account menu for Ramon Castillo' });
+    expect(account).toHaveTextContent('College of Computer Studies · Department Head');
+  });
+
+  it('never shows a student organization as a Department Head organization', () => {
+    localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Ramon', last_name: 'Castillo', organization: { id: 4, name: 'PSITS', college: 'College of Computer Studies', organization_type: 'STUDENT_ORGANIZATION' } }));
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    const account = screen.getByRole('button', { name: 'Account menu for Ramon Castillo' });
+    expect(account).toHaveTextContent('College of Computer Studies · Department Head');
+    expect(account).not.toHaveTextContent('PSITS');
+  });
+
   it('gives a Department Head no merchandise cart', () => {
     localStorage.setItem('user', JSON.stringify({ role: 'DEPARTMENT_HEAD', first_name: 'Dana', last_name: 'Cruz' }));
     render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);

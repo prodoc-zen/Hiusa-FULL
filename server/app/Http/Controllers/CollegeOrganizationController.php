@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\AcademicSemester;
+use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\ComplianceRequirementType;
@@ -46,9 +47,30 @@ class CollegeOrganizationController extends Controller
             ->paginate($filters['per_page'] ?? 50);
 
         $checklists = $this->checklists($page->getCollection()->whereIn('lifecycle_status', ['pending', 'returned'])->pluck('id'));
-        $page->getCollection()->transform(fn (Organization $organization) => $this->row($organization, $checklists));
+        $scoped = array_values(array_intersect($page->getCollection()->pluck('id')->all(), $request->user()->scopedOrganizationIds()));
+        $roleCounts = $this->roleCounts($scoped);
+        $leadership = $this->leadership($scoped);
+        $page->getCollection()->transform(fn (Organization $organization) => $this->row($organization, $checklists, [
+            'role_counts' => [
+                'admin' => (int) ($roleCounts[$organization->id]['ADMIN'] ?? 0),
+                'sbo_officer' => (int) ($roleCounts[$organization->id]['SBO_OFFICER'] ?? 0),
+                'student' => (int) ($roleCounts[$organization->id]['STUDENT'] ?? 0),
+            ],
+            'leadership' => $leadership->get($organization->id, []),
+        ]));
 
         return response()->json($page);
+    }
+
+    public function overview(Request $request)
+    {
+        $user = $request->user();
+        $college = $this->college($user);
+
+        return response()->json([
+            'college' => $college->only(['id', 'name', 'code', 'logo_url', 'color']),
+            'head' => ['name' => trim("{$user->first_name} {$user->last_name}")],
+        ]);
     }
 
     public function requirements(Request $request)
@@ -213,13 +235,55 @@ class CollegeOrganizationController extends Controller
         return $this->row($organization, $this->checklists(collect([$organization->id])));
     }
 
-    private function row(Organization $organization, Collection $checklists): array
+    /** Active role totals for every listed organization in one grouped query. */
+    private function roleCounts(array $organizationIds): Collection
+    {
+        if ($organizationIds === []) {
+            return collect();
+        }
+
+        return AccountProfile::whereIn('organization_id', $organizationIds)
+            ->where('account_status', 'active')
+            ->whereIn('role', ['ADMIN', 'SBO_OFFICER', 'STUDENT'])
+            ->selectRaw('organization_id, role, count(*) as total')
+            ->groupBy('organization_id', 'role')
+            ->get()
+            ->groupBy('organization_id')
+            ->map(fn (Collection $rows) => $rows->pluck('total', 'role'));
+    }
+
+    /** The active Admins and SBO Officers of every listed organization, names and positions only. */
+    private function leadership(array $organizationIds): Collection
+    {
+        if ($organizationIds === []) {
+            return collect();
+        }
+
+        return AccountProfile::query()
+            ->join('users', 'users.school_id', '=', 'account_profiles.user_school_id')
+            ->whereIn('account_profiles.organization_id', $organizationIds)
+            ->where('account_profiles.account_status', 'active')
+            ->whereIn('account_profiles.role', ['ADMIN', 'SBO_OFFICER'])
+            ->orderBy('account_profiles.role')
+            ->orderBy('users.last_name')
+            ->orderBy('users.first_name')
+            ->get(['account_profiles.organization_id', 'account_profiles.role', 'account_profiles.position_title', 'users.first_name', 'users.last_name'])
+            ->groupBy('organization_id')
+            ->map(fn (Collection $rows) => $rows->map(fn ($row) => [
+                'name' => trim("{$row->first_name} {$row->last_name}"),
+                'role' => $row->role,
+                'position_title' => $row->position_title,
+            ])->values()->all());
+    }
+
+    private function row(Organization $organization, Collection $checklists, array $extra = []): array
     {
         return [
             ...$organization->only(['id', 'name', 'acronym', 'slug', 'description', 'color', 'logo_url', 'college', 'college_id', 'lifecycle_status', 'is_active', 'review_remarks', 'submitted_at', 'reviewed_at', 'archived_at']),
             'members_count' => $organization->members_count,
             'administrators_count' => $organization->administrators_count,
             'registration_requirements' => $checklists->get($organization->id),
+            ...$extra,
         ];
     }
 
