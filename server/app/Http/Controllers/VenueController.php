@@ -6,7 +6,6 @@ use App\Models\AuditLog;
 use App\Models\Venue;
 use App\Models\VenueBooking;
 use Illuminate\Http\Request;
-use Illuminate\Support\Carbon;
 
 /** SAO's venue catalog. Booking requests live in VenueBookingController. */
 class VenueController extends Controller
@@ -24,8 +23,8 @@ class VenueController extends Controller
         // only whether the slot is theirs, never the other organization or its event.
         $slots = VenueBooking::where('venue_id', $venue->id)
             ->whereIn('status', ['pending', 'approved'])
-            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>', Carbon::parse($from)))
-            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<', Carbon::parse($to)))
+            ->when($filters['from'] ?? null, fn ($q, $from) => $q->where('end_time', '>', $this->localTime($from)))
+            ->when($filters['to'] ?? null, fn ($q, $to) => $q->where('start_time', '<', $this->localTime($to)))
             ->when($isSao, fn ($q) => $q->with(['organization:id,name,acronym', 'event:id,title']))
             ->orderBy('start_time')
             ->get(['id', 'organization_id', 'event_id', 'status', 'start_time', 'end_time'])
