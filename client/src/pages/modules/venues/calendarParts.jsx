@@ -8,6 +8,15 @@ export const STATUS_STYLES = {
   pending: { label: 'Pending', icon: Clock3, block: 'border-dashed border-warning bg-warning-tint text-warning-strong', row: 'border-warning/50' },
 };
 
+// Palette colours that are not status colours, so a venue never reads as approved, pending or a clash.
+const VENUE_COLORS = ['bg-brand-600', 'bg-accent', 'bg-navy-800', 'bg-ink-soft', 'bg-ink-muted'];
+
+export function venueColor(venueId) {
+  const key = Number(venueId);
+  const index = Number.isInteger(key) ? key : [...String(venueId)].reduce((sum, char) => sum + char.charCodeAt(0), 0);
+  return VENUE_COLORS[Math.abs(index) % VENUE_COLORS.length];
+}
+
 export function statusStyle(status) {
   return STATUS_STYLES[status] || STATUS_STYLES.pending;
 }

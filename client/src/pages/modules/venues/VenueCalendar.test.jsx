@@ -62,6 +62,19 @@ describe('VenueCalendar', () => {
     expect(screen.getByText('October 2026')).toBeInTheDocument();
   });
 
+  it('lists a colour legend entry per venue in the week view, only while every venue is shown', () => {
+    renderCalendar();
+    const legend = within(screen.getByRole('list', { name: 'Venue colours' }));
+    expect(legend.getByText('Main Hall')).toBeInTheDocument();
+    expect(legend.getByText('Gym')).toBeInTheDocument();
+    expect(legend.queryByText('Old Annex')).not.toBeInTheDocument();
+  });
+
+  it('drops the venue legend once one venue is chosen', () => {
+    renderCalendar({ venueId: '8' });
+    expect(screen.queryByRole('list', { name: 'Venue colours' })).not.toBeInTheDocument();
+  });
+
   it('reports the chosen venue', () => {
     const { onVenueChange } = renderCalendar();
     fireEvent.change(screen.getByRole('combobox', { name: 'Venue to show' }), { target: { value: '9' } });

@@ -107,6 +107,37 @@ describe('VenueWeekCalendar', () => {
     expect(region).toHaveAttribute('tabindex', '0');
   });
 
+  it('gives each venue its own colour so two venues at the same hour are told apart', () => {
+    renderWeek();
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    const swatch = (name) => monday.getByRole('button', { name }).querySelector('[data-venue-swatch]');
+    const hall = swatch(/Main Hall/);
+    const gym = swatch(/Gym/);
+    expect(hall.className).toMatch(/bg-/);
+    expect(gym.className).toMatch(/bg-/);
+    expect(hall.className).not.toEqual(gym.className);
+    const sameVenue = within(screen.getByRole('group', { name: /Bookings on Wednesday, October 7/ })).getByRole('button', { name: /Main Hall/ }).querySelector('[data-venue-swatch]');
+    expect(sameVenue.className).toEqual(hall.className);
+  });
+
+  it('keeps the status pattern on the block and leaves out the venue colour for a single venue', () => {
+    renderWeek({ showVenue: false, slots: [slots[1]] });
+    const block = screen.getByRole('button', { name: /Pending booking/ });
+    expect(block).toHaveClass('border-dashed');
+    expect(block.querySelector('[data-venue-swatch]')).toBeNull();
+  });
+
+  it('widens a day column with its lanes and lets block text wrap so a narrow block keeps its time and the word Conflict', () => {
+    renderWeek({ conflictIds: new Set([2]) });
+    const monday = within(screen.getByRole('group', { name: /Bookings on Monday, October 5/ }));
+    const block = monday.getByRole('button', { name: /Arts Guild/ });
+    expect(block.innerHTML).not.toContain('truncate');
+    expect(within(block).getByText('Conflict')).toBeInTheDocument();
+    const columns = screen.getByTestId('week-grid').querySelectorAll('[style*="grid-template-columns"]');
+    expect(columns[1].style.gridTemplateColumns).toContain('minmax(224px, 2fr)');
+    expect(columns[1].style.gridTemplateColumns).toContain('minmax(112px, 1fr)');
+  });
+
   it('hides the venue name once a single venue is chosen', () => {
     renderWeek({ showVenue: false, slots: [slots[0]] });
     expect(screen.queryByText('Main Hall')).not.toBeInTheDocument();
