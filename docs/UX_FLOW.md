@@ -473,7 +473,7 @@ Who sees which occupant. `GET /venues/{venue}/availability` is the one endpoint 
 
 The booking list (`GET /venue-bookings`) already returns only the caller's own organization to Admin and Officer, and every organization to the SAO. Student and Department Head cannot reach either endpoint.
 
-Stored times. Booking times are Manila wall-clock time. Before the server read an incoming instant as Manila, a request sent as UTC was saved as its UTC wall clock, eight hours early. The migration `2026_10_11_000001_shift_utc_venue_bookings_to_manila` moves those rows forward eight hours once; it selects only rows that have a `booking_requested` audit row (written by the API alone) and were created before it ran, so seeded rows are untouched. Run it on a copy of the live database first and count the affected rows beforehand (`venue_bookings` rows whose id appears in `audit_logs` with action `booking_requested`).
+Stored times. Booking times are Manila wall-clock time. The server reads an instant sent in UTC as the same Manila moment when it stores a booking, checks overlap and filters by date. Rows saved before that fix are not rewritten automatically: a booking requested while the client sent UTC may have been stored eight hours early, and an operator checks such rows by hand.
 
 ### 4.10 Clearance
 
@@ -618,8 +618,8 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 
 **STUDENT**
 1. Join an event (ceiling 3): Events, open an event, Register. End: the drawer shows "You are registered" and the home "Next for you" no longer lists "Register for an event".
-2. Vote (ceiling 2 from home, 3 from the menu): home "Cast ballot", complete the ballot, submit. End: receipt shown; Voting > Vote lists the election as "Voted"; results link says "Available when voting closes".
-3. Order and claim (ceiling 5 to place, 1 to check): Store > Shop, add, cart, checkout (cash), then My orders. End: stepper at "Reserved: pay cash at pickup". After an officer verifies (journey O-F2), My orders shows "Paid" and the token.
+2. Vote (ceiling 2 from home, 3 from the menu): home "Cast ballot", complete the ballot, submit. End: receipt shown; Voting > Vote lists the election as "Voted" with a "View live totals" link (live totals are shown while voting is open by product default).
+3. Order and claim (ceiling 5 to place, 1 to check): Store > Shop, add, cart, checkout (cash), then My orders. End: stepper at "Step 1 of 4: Reserved" with "pay cash at pickup". After an officer verifies (journey O-F2), My orders shows "Payment verified: waiting for Admin approval" and no token; after the Admin approves, it shows "Paid" and the token.
 4. See what I owe (ceiling 2): My payments > Statement of account. End: balance and clearance status visible without scrolling.
 5. File a grievance and check clearance (ceiling 4 and 2): Support > My grievances > File a grievance > submit; Support > My clearance. End: grievance row says "Waiting for <Admin or SAO> to review"; clearance shows one step per signatory.
 
@@ -649,7 +649,7 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 4. See who needs attention (ceiling 2): Organizations > Agency overview. End: organizations needing action are listed first.
 5. Answer a grievance (ceiling 4): Reviews > Grievances, open, set Under review, then Resolved. End: student's My grievances shows Resolved.
 
-**Accepted deviations.** These journeys measure above the ceiling listed for them on a live stack, and each extra tap is deliberate. The journey specs carry the accepted ceiling; every end-state assertion is unchanged.
+**Accepted deviations.** These journeys measure above the ceiling listed for them on a live stack, and each extra tap is deliberate. The journey specs carry the accepted ceiling. Two end states differ from the first version of this section, both in STUDENT journeys: STUDENT 2 shows a "View live totals" link after voting, because live totals are shown while voting is open by product default, and STUDENT 3 stops at "Payment verified: waiting for Admin approval" after an officer verifies, because the order awaits Admin approval, and "Paid" with the token appears only after the Admin approves. Every other end-state assertion is unchanged.
 
 | Journey | Widths | Listed ceiling | Measured and accepted | Why the extra taps stay |
 |---|---|---|---|---|
@@ -658,6 +658,7 @@ Clicks start at the role home after login and count mouse or tap actions only (t
 | SBO_OFFICER 4, announcement | 1440 / 390 | 4 | 5 at 1440, 6 at 390 | Submit for approval opens a confirm that names who approves it, because it changes approval state: members see nothing until the Admin approves. One more tap opens the sent row in Announcements. On a phone the Updates group opens first and does not navigate, so Announcements is one more tap. |
 | STUDENT 3, order | 1440 and 390 | 5 | 6 (Store, Shop, Add to Cart, My Cart, Review and Continue, Place Reservation) | The cart is reviewed before Place Reservation, which commits stock and a payment at pickup. |
 | SUPER_ADMIN 5, grievance | 1440 and 390 | 4 | 6 (Reviews, Grievances, open, Move to under review, Resolve, Resolve) | Resolving opens a confirm that requires the remarks the student reads, so the answer is written before it is sent. Under review is its own recorded status, tapped before Resolve. |
+| All 390 px journeys | 390 | as listed for each journey | as listed; the Open menu tap is chrome and is not counted, which is a raise of one tap for every phone journey | The drawer is the only way to reach a section on a phone, and counting it would make every phone journey exceed its desktop twin by one. |
 
 **Live run order.** On one freshly seeded database the journey specs run student, officer, admin, dept-head, sao. The Admin check-in journey completes every other ongoing event so the one it creates is preselected, and the Department Head and SAO specs open a new semester, which hides the seeded events from the student and officer journeys. The Department Head no-semester journey also needs a database where no semester has been opened yet.
 
