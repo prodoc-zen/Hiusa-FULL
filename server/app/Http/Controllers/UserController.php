@@ -55,7 +55,7 @@ class UserController extends Controller
             ->join('account_profiles as membership', 'membership.user_school_id', '=', 'users.school_id')
             ->where('membership.organization_id', $request->user()->organization_id)
             ->select('users.*')
-            ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization')])
+            ->with(['accountProfiles' => fn ($profiles) => $profiles->where('organization_id', $request->user()->organization_id)->with('organization:'.implode(',', User::SERIALIZED_ORGANIZATION_COLUMNS))])
             ->withExists(['fingerprints as fingerprint_enrolled']);
 
         // SBO Officers use this directory only to select Students for attendance
