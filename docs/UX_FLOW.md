@@ -445,9 +445,33 @@ Shown in: Tasks board cards and the officer My tasks list; event drawer prepare 
 | Lifecycle | Stages and status values | Who acts | Next-action text |
 |---|---|---|---|
 | Grievance | `submitted` then `under_review` then `resolved` or `dismissed`; `addressed_to` organization or sao | Admin (organization) or SAO; Student files | "Waiting for <Admin or SAO> to review" |
-| Venue booking | `pending` then `approved` or `rejected`; `withdrawn` by Admin | SAO | "Waiting for SAO approval" |
+| Venue booking | `pending` then `approved` or `rejected`; `withdrawn` by the requesting organization (Admin or Officer) | SAO decides; Admin or Officer requests, books again after a rejection and may withdraw | Pending: "Waiting for SAO approval" (SAO sees "Review the booking: approve it or return it with remarks", recorded as `rejected`); rejected: "Rejected: read the remarks and request again"; withdrawn: "Withdrawn" |
 
 Shown in: Student My grievances rows, Admin and SAO grievance drawers; Venue booking list and the event Prepare step.
+
+#### SAO venue calendar
+
+The SAO opens Venues on a calendar, the way a shared calendar works, because the decision it makes is "can this venue take this request" and the answer is a picture of who already holds the venue and when.
+
+| Part | Rule |
+|---|---|
+| Tabs | Calendar (the default), Booking requests, Venue catalog. A `?record=` link opens Booking requests |
+| Purpose line | "See who has each venue and when, and decide booking requests with conflicts in view." |
+| Views | Day, Week and Month, each with previous, next, Today and a date jump. Day is one lane per venue on a shared time axis and stacks the venues as lists at 390 px. Week is seven day columns that scroll inside their own box. Month shows booking chips with "+N more", which opens that day |
+| Each booking shows | Organization acronym (full name in the details), event title, venue and time range. Approved is solid green, Pending is dashed amber, both with the word in the label |
+| Completeness | The calendar asks the server for exactly the visible window (`from` and `to`) and walks every page for both statuses, so no booking is dropped. If the page ceiling were ever reached the calendar says "Showing the first N of M" instead of staying quiet |
+| Conflict | A pending request that strictly overlaps another pending or approved booking for the same venue carries a "Conflict" label (text and icon, never colour alone) in the queue, the request drawer, the calendar and the booking details. A booking that ends exactly when another starts is not a conflict; the server uses the same strict rule when it approves |
+| Approve dialog | Lists every other booking that overlaps the request, with its status, organization and time, before the SAO confirms. The server still refuses an approval that overlaps an approved booking |
+| Venue catalog | A venue with any booking, including rejected and withdrawn ones, cannot be deleted (409, the message points to marking it inactive). Marking it inactive stops new requests and keeps the history |
+
+Who sees which occupant. `GET /venues/{venue}/availability` is the one endpoint every booking role reads, and it anonymises by role:
+
+| Role | `reserved_by` | Extra fields |
+|---|---|---|
+| SUPER_ADMIN (the SAO is the agency, so it is exempt) | The occupant organization's name, for every organization | `organization` (id, name, acronym) and `event_title` |
+| ADMIN, SBO_OFFICER | "Your organization" or "Another organization" | None. Another organization's name, id and event are never returned |
+
+The booking list (`GET /venue-bookings`) already returns only the caller's own organization to Admin and Officer, and every organization to the SAO. Student and Department Head cannot reach either endpoint.
 
 ### 4.10 Clearance
 
