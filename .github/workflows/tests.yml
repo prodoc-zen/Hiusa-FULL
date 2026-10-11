@@ -270,6 +270,15 @@ jobs:
             sed -i 's/^DB_PASSWORD=.*/DB_PASSWORD=root/' .env
             sed -i "s#^HIUSA_AI_SERVICE_KEY=.*#HIUSA_AI_SERVICE_KEY=${AI_KEY}#" .env
             sed -i 's/^HIUSA_AI_SERVICE_ENABLED=.*/HIUSA_AI_SERVICE_ENABLED=true/' .env
+            # Playwright opens the app at http://127.0.0.1:5173 (client/playwright.config.js), and
+            # config/cors.php allows only FRONTEND_URL, FRONTEND_URLS and FRONTEND_ORIGIN_PATTERNS (the last
+            # two are empty here). The .env.example value is
+            # http://localhost:5173, a different origin, so every browser request would be blocked.
+            sed -i 's#^FRONTEND_URL=.*#FRONTEND_URL=http://127.0.0.1:5173#' .env
+            # Production limits reads to 120 a minute per user. visual-live walks the SAO
+            # compliance tabs faster than that and its console check fails on the 429s, so the
+            # test stack raises the limit. This is test-stack config, not a product change.
+            sed -i 's/^RATE_LIMIT_READ_PER_MINUTE=.*/RATE_LIMIT_READ_PER_MINUTE=600/' .env
             # The DB service is usually healthy by now, but wait to be certain.
             for i in $(seq 1 30); do php artisan migrate:status >/dev/null 2>&1 && break; sleep 2; done
             php artisan migrate:fresh --seed --force )
@@ -294,12 +303,26 @@ jobs:
           for i in $(seq 1 30); do curl -sf http://127.0.0.1:8001/health >/dev/null && break; sleep 2; done
           curl -sf http://127.0.0.1:8000/api/organizations >/dev/null || { echo '::error::Laravel API did not come up'; cat /tmp/laravel.log; exit 1; }
           curl -sf http://127.0.0.1:8001/health >/dev/null || { echo '::error::AI service did not come up'; cat /tmp/ai.log; exit 1; }
-          npx playwright test --project=chromium
+          # The five journey specs are stateful (docs/UX_FLOW.md section 9, Live run order):
+          # they must run student, officer, admin, dept-head, sao on one freshly seeded
+          # database. Playwright runs the files it is given in alphabetical order whatever
+          # order they are listed in, so each journey is its own invocation.
+          for spec in student officer admin dept-head sao; do
+            npx playwright test --project=chromium "e2e/journeys/${spec}.spec.js"
+          done
+          # The journeys leave the database changed (events completed, a semester opened),
+          # so reseed before the page-level specs, which expect the seeded state. The
+          # pattern matches only the spec files directly under e2e/, not e2e/journeys/.
+          ( cd ../server && php artisan migrate:fresh --seed --force && php artisan cache:clear )
+          npx playwright test --project=chromium 'e2e/[^/]+\.spec\.js$'
 
       - name: Upload Playwright report on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
           name: playwright-report
-          path: client/playwright-report
+          path: |
+            client/playwright-report
+            client/test-results
+          if-no-files-found: ignore
           retention-days: 7
