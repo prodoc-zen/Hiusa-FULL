@@ -13,6 +13,8 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -150,6 +152,20 @@ class CollegeOrganizationWithdrawTest extends TestCase
                 $this->assertDatabaseHas('organizations', ['id' => $organization->id]);
             }
         }
+    }
+
+    public function test_the_record_scan_is_limited_to_the_connections_own_schema(): void
+    {
+        $id = $this->register();
+        $schema = DB::connection()->getSchemaBuilder();
+        $tables = $schema->getTables();
+        Schema::partialMock()->shouldReceive('getCurrentSchemaListing')->andReturn(['hiusa_app']);
+        Schema::shouldReceive('getColumnListing')->andReturnUsing(fn (string $table) => $schema->getColumnListing($table));
+        Schema::shouldReceive('getTables')->once()->with(['hiusa_app'])->andReturn($tables);
+
+        $this->deleteJson("/api/college/organizations/{$id}")->assertOk();
+
+        $this->assertDatabaseMissing('organizations', ['id' => $id]);
     }
 
     public function test_only_a_department_head_can_use_the_withdraw_route(): void
