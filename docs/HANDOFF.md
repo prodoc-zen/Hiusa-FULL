@@ -1,97 +1,125 @@
-# Handoff: HIUSA agency hierarchy, 2026-10-10 (Asia/Manila)
+# Handoff: HIUSA UX logic flow release, 2026-10-10 (Asia/Manila)
+
+## Read this first
+
+1. The forced password change is merged, but the fix that makes it safe is NOT on main yet. A security review found that imported students still get the guessable password `<last 4 digits of school_id>-uclm`, so anyone who knows a school ID can sign in first, choose a new password and lock the student out. The fix (random temporary passwords shown once to the Admin, a command that flags accounts still on defaults, plus eight smaller fixes) is in a builder worktree, branch `worktree-agent-aa0da06cf3b8b528f`. Do not deploy this release until that branch is merged and its tests pass.
+2. Three builders were still running when this handoff was written. If their session is gone, finish their work from the worktrees (see "In flight").
+3. The local XAMPP MariaDB on port 3307 does not start (a crashed system table after an unclean shutdown). See "Local environment".
 
 ## State in one line
 
-Local `main` holds the whole restructure and nothing is pushed. Server 659 passed and 6 skipped on SQLite; on MariaDB 658 passed and 1 failed (`ComplianceSemesterMigrationTest`, which also fails on the commit before this work). Client 701 passed, lint clean. Python 31 passed. Live Playwright against the real stack: route sweep 8 passed (every page of all five roles, zero uncaught errors), hierarchy scenario 15 of 15 as each role, layout checks pass (no horizontal scroll, Poppins, tap targets 42px or more on mobile).
+`main` equals `origin/main` at `c90d7e4`. Server 815 passed, 6 skipped on SQLite. Full server suite on a real MariaDB: 794 passed, 2 failed, and those 2 (ComplianceSemesterMigrationTest, PersonalAttendanceSummaryTest) fail identically on the commit before this work. Client 1725 passed, lint clean, build clean. Python 31 passed (not rerun this session). CI on GitHub: every job green except the end-to-end job, which is being repaired.
 
-## What was built (tasks 1 to 12 of the previous handoff)
+## What was done this session
 
-1. Dev database backed up and migrated. Dumps are in the session scratchpad: `devdb_before_hierarchy.sql`, `devdb_before_hierarchy_migrate.sql`, `devdb_before_e2e.sql`, `devdb_with_e2e_data.sql`. The dev database is back to the clean state (no browser-test data, no active academic semester) with every migration applied.
-2. Hierarchy: SAO is the agency, colleges are a fixed seeded list (`CollegeSeeder`), each college has a home organization of type COLLEGE, student organizations carry `college_id`. A Department Head belongs to the home organization and acts on every student organization in the college through `User::scopedOrganizationIds()`.
-3. The SAO can no longer create, rename or delete colleges, and can no longer create organizations. Colleges are view only plus a logo.
-4. A Department Head registers an organization with the ten registration PDFs of the current semester; the SAO approves or returns it with remarks; a returned one is edited and resubmitted. Review is guarded against stale state.
-5. Archive and restore: archived organizations are read only and their members cannot sign in. Only the SAO restores. SAO writes are guarded by `org.writable`, and approval and venue reviews refuse archived organizations.
-6. Delete buttons: events, budgets, manual transactions, tasks (edit too), academic semesters, draft SAO announcements, clearance periods, a student's own unreviewed grievance, compliance requirement types. Collections, remittances, cash advances, invoices and venue bookings keep their cancel, waive or withdraw flows.
-7. One Compliance home with tabs Accreditation, Requirements, Review queue, Event requirements, Financial reports, Track documents (`?tab=`). The semestral report is the requirement "Semestral Accomplishment Report", seeded per semester next to the ten renewal items.
-8. Track documents lists, per organization and semester, renewal and semestral files, event requirement files, financial reports and their supporting documents; every file opens from the list.
-9. SAO Venues has a week availability calendar with details, keyboard access and an agenda below the lg breakpoint.
-10. Received Reports is folded into the Compliance "Financial reports" tab.
-11. Evaluation module wording reconciled in the addendum and inventory (retired; SO1 and SO4 are assessed outside the app). The unverified `docs/USER_GUIDE.md` draft was moved out of the repo to the scratchpad as `USER_GUIDE.draft.md`.
-12. Independent reviews ran: security review of the hierarchy work, UI/UX review, and two reviews of the previous session's work (finance, non-finance). Their findings are fixed except the items under "Open decisions".
+CI was red before this work and the server tests never ran in CI: the Pint style gate failed first. Fixed Pint, cleared three dependency advisories (Laravel 12.62 to 12.69, league/commonmark, league/flysystem), and the CI jobs now pass: Laravel (style, audit, tests), Client, AI service, and the migrations on MySQL 8.4 and MariaDB 10.4. The end-to-end job (Playwright against a live stack) was already red and is being repaired.
 
-Also new: an agency overview page, an organization overview page (read only "inside the organization" view), a college summary on the Department Head home, and `docs/PAPER_SCOPE_ADDENDUM.md` section 2.4 plus use cases HIER-01 to HIER-11.
+The dean's main complaint was that the UX logic flow is not there. The diagnosis and the design are in `docs/UX_FLOW.md` (35 logic breaks with evidence, target menus per role, ten lifecycle steppers, page anatomy, journeys with click ceilings). It is implemented:
+- Shared components: `FlowStepper`, `NextStep`, an upgraded `PageHeader`, `lib/lifecycle.js` (eleven lifecycles verified against the server code), `lib/useRecordParam.js`, `lib/pageMeta.js`.
+- Menus rebuilt per role in process order with plain labels; every page has one header, a purpose line and a breadcrumb; old routes redirect.
+- Every process shows where you are and what is next: events, budgets, financial reports, elections, merchandise orders, tasks, announcements, approvals, organization registration, compliance renewal, grievances, venue booking, clearance. Rows, details and notifications deep link to the exact record (`?record=`).
+- Each role's first screen shows the next three setup steps; the SAO has a review inbox.
+- Event approval chain decided and built: the Department Head always approves the proposal, then the SAO clears it when SAO requirements apply (paper addendum decision j).
+- Elections: a rejected election shows the reason and can be resubmitted; voting opens automatically at the start time (`elections:sync-statuses`, every minute).
+- The open decisions from the previous handoff, taken on recommendation: the SAO creates Department Heads on the Colleges page; ledger rows say if they are system generated or locked by a submitted report; the approvals list filters on the server; the Admin can no longer edit entries inside a submitted report.
 
-## Security findings that were fixed
+Security: three review rounds and fixes (Department Head escalation, archived organizations read only, login throttle and timing, report snapshot drift, CSV formula injection, notification enumeration, financial documents moved to a private disk). Forced password change added (see warning above).
 
-- High: a student-organization Admin could create a Department Head (`POST /api/users` role DEPARTMENT_HEAD), which gave college-wide read and approval power. Now `scopedOrganizationIds()` widens only for COLLEGE organizations, no Admin route can assign or promote a head, and the exploit request returns 422.
-- Financial report supporting documents were on a public link; they are now private behind an authorized route, and `php artisan financial-reports:secure-documents` moves old files (it moved 0 on the dev database).
-- Department Heads no longer vote or buy merchandise (enforced on the server, not only in the UI).
+For testing and deployment:
+- `docs/MEMBER_TESTING.md`: accounts, scripted journeys per role with click limits, what to report.
+- `scripts/serve-lan.ps1`: serves a copy from this laptop to people on the same network (hardened: subnet-only firewall rule, database bound to localhost, debug off, stops only its own processes).
+- `docs/UPGRADE_2026-10.md` and `scripts/upgrade-checks.sql`: the runbook and read-only checks for upgrading the live Lightsail server. Rehearsed on a MariaDB copy of real-shaped data: all five migrations apply, the checks come back clean, rollback and re-apply work.
 
-## The very next action
+## In flight at handoff time
 
-Nothing is mandatory. If the work is accepted: review `git log --oneline 44c8054..HEAD`, then push. Before a production deploy run `php artisan migrate`, `php artisan financial-reports:secure-documents`, and after the SAO activates a semester `php artisan compliance:seed-semestral-report` if that semester predates the change.
+1. Client polish builder, worktree `.claude/worktrees/agent-a7af6e6c38126ccaf`, branch `worktree-agent-a7af6e6c38126ccaf` (4 commits, 2 files uncommitted). Scope: student home shows the owed balance and clearance state; notification links use the new `entity_type`; announcement review link opens the exact approval; order and approval `?record=` use the new single-record endpoints; cancelled and other negative terminal states no longer read "Complete" in the stepper; Settings keeps the session after a password change.
+2. Security round 3, worktree `.claude/worktrees/agent-aa0da06cf3b8b528f`, branch `worktree-agent-aa0da06cf3b8b528f` (1 commit, 6 files uncommitted). Scope: random temporary passwords per imported student returned once with a CSV download (the HIGH fix); `users:flag-default-passwords` command (run it after the migration, add to the upgrade runbook section 5); login throttle keyed on the integer school ID; failure counter on the current password; a small password denylist; sign-out on the forced change page; cache cleared after reset; election sync no longer writes on every read; and an approval chain integrity fix (an Admin editing an event after the head approved it must reopen the head's approval).
+3. End-to-end repair and journey specs, an agent editing `client/e2e/*` DIRECTLY IN THE MAIN WORKING TREE (uncommitted: ai-decision-support-live, events-live, finance-live, financial-accounts, route-smoke and more, plus new `client/e2e/journeys/*`). It runs a throwaway SQLite stack on ports 8000 and 5173 (database under the session scratchpad `e2e/`). Do not run `git checkout .` or `git stash` in the main tree while it works. If the session is gone, check `git status client/e2e`, run the suite against a fresh seeded stack (replicate the CI job in `.github/workflows/tests.yml`), fix what fails, commit by exact paths.
 
-## Open decisions for Jade (each with a recommendation)
+For each worktree: `git -C <worktree> log --oneline main..HEAD`, read `git -C <worktree> status`, confirm each file is complete (agents die mid-edit on rate limits), run the CI gates there, then merge with `git merge --no-ff` and push.
 
-1. How is a Department Head created in a real deployment? After the security fix, no route creates one: only `DepartmentHeadSeeder` (skipped in production) and the migration. Recommendation: an SAO-only endpoint `POST /system/colleges/{college}/department-head` with a button on the Colleges page; the rule is SAO actor and COLLEGE home organization only.
-2. The Delete button shows on every ledger row for the Admin, and the server refuses system-generated rows with a clear 409. Recommendation: expose `is_system_generated` on transaction rows so the button can be hidden.
-3. The event panel excludes cash advances from Income and Spent, while `/transactions/summary` still includes them (the audit lists this as by design). Decide whether the ledger summary should match.
-4. Ledger entries inside an SAO-approved financial report can still be edited or deleted; the report keeps its snapshot. Recommendation: refuse edits to entries listed in a submitted or approved report's `source_transaction_ids`.
-5. The approvals API has no server-side organization filter; the Department Head page filters in the browser. Fine at college scale, add a server filter if lists grow.
-6. Two finance decisions waiting on the team from before (blocking budgets beyond ledger funds; editing financial semesters) are untouched.
+## Local environment
 
-## Small leftovers
+- Local XAMPP MariaDB (port 3307) will not start: `mysql.db` is marked crashed after an unclean shutdown. I removed the stale Aria log files (a full copy of the data folder is in the previous session scratchpad as `xampp_mysql_data_backup_20261010`) and the next error was the crashed system table. The repair is `aria_chk -r` on `C:\xampp\mysql\data\mysql\*.MAI` with mysqld stopped. The automatic permission check blocked me from running it, so Jade decides: run it by hand, or restore the data folder from the backup and start fresh from a dump (`devdb_before_e2e.sql`, then `php artisan migrate`). The HIUSA data itself is also in the dumps in the scratchpad (`devdb_before_e2e.sql`, `devdb_with_e2e_data.sql`).
+- A throwaway MariaDB is running on port 3399 (data folder `scratchpad/maria_rehearsal/data`, databases `rehearsal` and `suite_check`, user root, password root). It was used to rehearse the upgrade and to run the full suite on a real MariaDB. Stop it when done (Task Manager, `mysqld.exe` listening on 3399). Port 3306 is a different server; never touch it.
+- The dev database could not be restored by me; the Department Head, SAO and demo accounts live in it. Fresh seeds use different SAO and Admin logins (see README demo accounts).
 
-- The row-actions menu trigger is 40px and the menu closes on any scroll (`TableRowActions.jsx`).
-- Inventory rows FIN-05, FIN-10, SAOX-09, DASH-03, DASH-05 still describe older flows; `docs/api/dashboard-briefing.md` does not list the new `type_total` key and still mentions removed `POST /system/organizations` (also `docs/api-contract-audit.md`).
-- Activating a semester hides demo tasks and events that have no semester from the default "Active period" views (demo data only).
-- The new SQL is not measured on MariaDB: run EXPLAIN ANALYZE on `ComplianceDocumentService` (three source queries, each ORDER BY newest LIMIT 500), the event financial summary (`transactions` by `event_id` with two NOT EXISTS), the `scopedOrganizationIds()` lookup, the agency overview aggregates and the new `audit_logs` indexes.
-- Two FinancePage export tests can time out in a full parallel client run; they pass alone (`npx vitest run src/pages/modules/finance`).
+## Open decisions for Jade
+
+1. Menu wording: run the card sort in `docs/MEMBER_TESTING.md` with 5 student leaders before freezing labels ("Records", "Events and tasks", "Store", "Updates").
+2. Backfill `notifications.entity_type` for older approval notices? A one-off update from `approval_requests`; new notices already carry it. Without it older SAO notices use the fallback link.
+3. Imported students: confirm the temporary password handout (Admin downloads a one-time CSV and gives each student theirs) is acceptable; the alternative is an emailed reset link, which needs mail configured.
+4. Whether and when to deploy to the live Lightsail server, and who runs it (needs SSH). The live server has real data (four organizations) and runs an older version.
+5. Two finance items from before are untouched: blocking budgets beyond ledger funds, and editing or removing financial semesters.
+
+## Known gaps (none blocks release)
+
+- The server has no single-record endpoints for venue bookings, compliance submissions, clearance signatures and clearance periods, so `?record=` there scans pages. The clearance roster payload lacks `remarks` per held signature.
+- Students cannot list upcoming elections (the server hides them), so the "Upcoming" chip rarely shows. The elections list has no `has_voted`, so the Vote page fetches each election.
+- `waiting_on` on briefing items is supported by the client but never sent. Fingerprint office hours are not in any payload.
+- The Admin reaches the voters turnout through `manage-elections?record=ID&view=voters` because the `manage-voters` route is Officer only.
+- New SQL is unmeasured on a real database (run EXPLAIN ANALYZE): `ComplianceDocumentService` unions, approval row summaries (`MAX(id) GROUP BY entity_id`), budget `spent_amount` with two NOT EXISTS, event financial summary, the clearance aggregate, `scopedOrganizationIds()`, election status sync, the audit log indexes.
+- The Department Head with no college assigned has no Department Head account until the SAO creates one; seeders are skipped in production.
 
 ## Commands to get back to green
 
 ```bash
-cd client && npm install && npx eslint src && npx vitest run     # 701 passed
-cd server && php artisan test                                    # 659 passed, 6 skipped
+cd server && vendor/bin/pint --test && php artisan test          # 815 passed, 6 skipped (SQLite)
+cd client && npm ci && npm run lint && npx vitest run && npm run build   # 1725 passed
 cd ai-service && ./.venv/Scripts/python.exe -m pytest -q tests   # 31 passed
-# live browser specs (stack must be up: MariaDB 3307, API 8000, Vite 5173)
-cd client && HIUSA_LIVE_E2E=1 npx playwright test e2e/route-smoke.spec.js --project=chromium
-cd client && HIUSA_LIVE_E2E=1 npx playwright test e2e/visual-live.spec.js --project=chromium
-cd client && HIUSA_E2E_SUFFIX=5 HIUSA_E2E_ADMIN_ID=910095 HIUSA_LIVE_E2E=1 npx playwright test e2e/hierarchy-live.spec.js --project=chromium
+# full server suite on a real MariaDB (throwaway database, never hiusa_db)
+DB_CONNECTION=mysql DB_HOST=127.0.0.1 DB_PORT=3399 DB_DATABASE=suite_check DB_USERNAME=root DB_PASSWORD=root php artisan test
 ```
 
-The hierarchy spec writes real rows to the dev database (organizations, an administrator, an academic semester); use a new suffix and admin id each run, and restore the dump afterwards.
+CI gates (all must pass): `vendor/bin/pint --test`, `composer audit`, `php artisan test`, `npm run lint` (eslint over the whole client), `npm run test:unit`, `npm run build`, `bash -n` on the deploy scripts plus `node --test scripts/check-membership-routes.test.mjs`, the migration jobs, pytest, and the Playwright live-stack job.
 
 ## Decisions already made, do not relitigate
 
-- Budget approval is single stage by the Department Head; the SAO has no ledger access.
-- SBO Officers and Department Heads read finance but never write it; only the Admin writes.
-- Finance dates leave the API in Manila time with an offset; the client reads the first ten characters.
-- Cash advances stay in the ledger but are not income or expense in reports and forecasts.
-- Task delegation weights are role 0.35, workload 0.30, performance 0.20, recency 0.15, with one keyword map (`TaskDelegationService::POSITION_RELEVANCE_MAP`) equal to the Python map.
-- Department Heads oversee elections but do not vote; voters are Admin, SBO Officer and Student.
-- Archived organizations are read only and the SAO can restore them.
+- The SAO is the agency; colleges are a fixed list; a Department Head belongs to a college home organization and acts on its organizations; only the SAO creates heads. Organization lifecycle pending, returned, active, archived; archived is read only and the SAO restores it.
+- Department Heads approve first (events, budgets, elections, financial reports); the SAO clears events that need SAO requirements. Heads do not vote or buy merchandise.
+- Budget approval is single stage by the Department Head; SBO Officers and Department Heads read finance and never write; cash advances are not income or expense in reports.
+- Task delegation weights role 0.35, workload 0.30, performance 0.20, recency 0.15, one keyword map equal to the Python map.
+- Menu: "Finance" for managers, "My payments" for students; the groups follow the process order in `docs/UX_FLOW.md` section 3.
 - The Evaluation module stays removed; SO1 and SO4 are assessed outside the app.
 
 ## Gotchas found the hard way
 
-- The Agent tool's worktrees sometimes start on an old commit. Tell builders to run `git log` and `git merge --ff-only main` before starting.
-- Agents die on the spend limit (HTTP 429), mid edit. After any failure check `git status` in their worktree, resume them with SendMessage (they keep context) and tell them to re-read the half-written files first.
-- SQLite hides MariaDB bugs: a migration `down()` that drops an index a foreign key relies on, SQLite-only `PRAGMA` statements in tests, and SQL text matching. Run the full suite on a throwaway MariaDB database (`DB_CONNECTION=mysql DB_PORT=3307 DB_DATABASE=<throwaway>`) after any migration change.
-- Multipart `PUT` is not parsed by PHP: the client posts with `_method=PUT`.
-- Never chain verification and `git commit` with `;`. Use `&&`, or the commit goes through on a red test.
-- Writing Python or JS edit scripts through bash heredocs breaks on backslashes; use the Write tool for the script file, or an escape-free pattern.
-- Dev database is XAMPP MariaDB on 3307; 3306 is a different server. Start services detached through WMI (`Invoke-CimMethod Win32_Process Create`) or they die with the tool call.
-- The collaborator's commits have author "unknown"; mine have "Jadehaerys".
+- Rate limits hit in bursts and kill every running agent mid-edit. After any failure check `git status` in each worktree, resume with SendMessage (they keep their context), and tell them to re-read half-written files first. The limit sometimes clears long before the time it states: probe with a one-word agent before assuming.
+- The Agent tool's worktrees sometimes start on an old commit: tell builders to `git merge --ff-only main` first. `git merge --no-ff -q -m` with exact paths only; never `git add -A`.
+- `*.sql` is gitignored (database dumps stay out); `scripts/upgrade-checks.sql` has an explicit exception. A `git add` that includes an ignored path aborts the whole add.
+- SQLite hides MariaDB bugs (index and foreign-key ordering, `PRAGMA` in tests, quoting in SQL text matched by tests). Run the full suite on a real MariaDB after migration or query changes.
+- Pint is a CI gate and failed silently for weeks: run `vendor/bin/pint --test` before every push.
+- Windows: long-lived processes must be started with `Invoke-CimMethod Win32_Process Create` (or they die with the tool call); heredocs with backslashes break (use the Write tool for script files); `;` chains run the next command even when a test failed (use `&&` before a commit); the `.gitattributes` setting makes LF in the repo and CRLF in the working copy, so "LF will be replaced by CRLF" warnings are normal.
+- Never use `/tmp`; use the session scratchpad. The automatic permission classifier blocks in-place repairs of the local database; do not try to route around it.
+- Commits carry only `Co-Authored-By: John Carlo Borgueta <johncarloborgueta@gmail.com>` (CLAUDE.md overrides the harness trailer).
+- The collaborator's commits have author "unknown", Jade's "Jadehaerys".
 
 ## Masterprompt for the next session
 
 ```text
-You are continuing work on HIUSA (React client in client/, Laravel API in server/, FastAPI AI service in ai-service/). Opus orchestrates and talks to me; Sonnet builders (builder-lean when no browser is needed) write code; reviewers may be Opus. Answer permission prompts; never bypass them. Agents die silently on the spend limit: after any failure check git status in the worktree and resume with SendMessage.
+You are continuing work on HIUSA, a school organization management system (React client in client/, Laravel API in server/, FastAPI AI service in ai-service/). Opus orchestrates and talks to me; Sonnet builder agents (builder-lean when no browser is needed) write code and run the suites; reviewers may be Opus. Answer permission prompts; never bypass them. Agents die silently on rate limits: after any failure check git status in the agent's worktree and resume it with SendMessage.
 
-Read first: docs/HANDOFF.md, CLAUDE.md (rules and established patterns, including College hierarchy, Organization lifecycle and Protected files), docs/PAPER_SCOPE_ADDENDUM.md section 2.4, docs/USE_CASE_INVENTORY.md (HIER-01 to HIER-11).
+Read first, in this order: docs/HANDOFF.md (state, in-flight work, warnings), CLAUDE.md (rules and established patterns), docs/UX_FLOW.md (the UX design that was implemented), docs/PAPER_SCOPE_ADDENDUM.md section 2.4 and decision (j), docs/UPGRADE_2026-10.md, docs/MEMBER_TESTING.md.
 
-State: main holds the agency hierarchy work, nothing pushed, suites green (see HANDOFF "Commands to get back to green"). Open decisions are listed in HANDOFF; ask me before building any of them, starting with how a Department Head is created in a real deployment.
+Objective: finish and ship the UX logic flow release. The dean's main complaint was that the UX logic flow is not there; it has been redesigned and built (menus per role in process order, a stepper and next step on every process, deep links, first-use setup cards). What is left is merging the last work, proving it in a browser, and getting it in front of members.
 
-Never: bare git commit or git add -A (commit by exact paths); AI co-author lines (only Co-Authored-By: John Carlo Borgueta <johncarloborgueta@gmail.com>); the Artifact tool; em dashes; a done-claim without a check that can fail; touching MariaDB on port 3306.
+In scope, in this order:
+1. Pick up the three in-flight builders from docs/HANDOFF.md "In flight": security round 3 (branch worktree-agent-aa0da06cf3b8b528f, merge FIRST: it fixes the HIGH default-password takeover, do not deploy without it), client polish (worktree-agent-a7af6e6c38126ccaf), and the end-to-end repair (edits client/e2e in the main working tree, do not discard those changes). Verify each is complete, run the gates, merge, push.
+2. Make CI fully green on GitHub, including the Playwright live-stack job, with the new journey specs in client/e2e/journeys.
+3. Run the journeys at 1440 and 390 pixels against a freshly seeded stack, fix what a person would get lost on, and record findings.
+4. Add the temporary-password step and users:flag-default-passwords to docs/UPGRADE_2026-10.md, then run the upgrade rehearsal again on a MariaDB copy (throwaway instance on port 3399, never hiusa_db or port 3306).
+5. Local XAMPP MariaDB (port 3307) is broken (crashed mysql.db): ask me before repairing it (aria_chk -r on C:\xampp\mysql\data\mysql\*.MAI with mysqld stopped) or restoring from the backup in the scratchpad.
+6. Help me get members testing: scripts/serve-lan.ps1 for the local network, docs/MEMBER_TESTING.md for the script, and a deployment plan for the live Lightsail server (I run the SSH steps; I decide when).
+
+Out of scope unless I say so: blocking budgets beyond ledger funds and editing financial semesters (two finance decisions waiting on the team), re-adding the Evaluation module, and any change to the decisions listed in HANDOFF.md "Decisions already made".
+
+State: main equals origin/main at c90d7e4. Server 815 passed (SQLite), 794 plus 2 known failures on MariaDB; client 1725 passed; CI green except the end-to-end job.
+
+Phases: recon inline with exact greps before reading trees. Plan mode for anything that touches authorization or the data model. Build in slices on disjoint files with Sonnet builders, each with a test that fails before and passes after; each worktree needs its own composer install and npm install, a sqlite :memory: .env, and `git merge --ff-only main` first. Gates before every merge and push: vendor/bin/pint --test, php artisan test, npm run lint, npx vitest run, npm run build, ClientRouteAllowlistTest; after migration or query changes also the full suite on a real MariaDB. Security review (security-architect agent) on anything touching authentication, approvals or data scoping; UI review on UI changes; browser check as each role.
+
+Tokens: read files with line ranges, brief subagents with the answer, read agent results from their final report only.
+
+Done means: all in-flight work merged and pushed; CI green on GitHub including Playwright; every journey in docs/UX_FLOW.md section 9 passes within its click ceiling at both widths, or its failure is a recorded finding; the upgrade runbook includes and has rehearsed the new commands; members can test (local network or a hosted copy) with the guide.
+
+Never: bare git commit or git add -A (commit by exact paths); AI co-author lines (CLAUDE.md requires only Co-Authored-By: John Carlo Borgueta <johncarloborgueta@gmail.com>); the Artifact tool; em dashes; a done-claim without a check that can fail; touching MariaDB on port 3306 or the local hiusa_db without my say-so; deploying to the live server.
 ```
