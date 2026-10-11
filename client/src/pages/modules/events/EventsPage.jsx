@@ -2,7 +2,7 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useRef, useState } from 'react';
-import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Ban,
   Calendar,
@@ -664,15 +664,17 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         },
       };
 
+      let created = null;
       if (editingEventId) {
         await updateEvent(editingEventId, payload);
       } else {
-        await createEvent(payload);
+        created = (await createEvent(payload))?.data;
       }
       setShowForm(false);
       setEditingEventId(null);
       setForm(emptyEventForm());
       load();
+      if (created?.id) openEventDetails(created);
     } catch (err) {
       setFormError(getApiErrorMessage(err, `We could not ${editingEventId ? 'update' : 'create'} this event. Please try again.`));
     } finally {
@@ -921,6 +923,10 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = `attendance-${event?.id || 'event'}-${new Date().toISOString().slice(0, 10)}.csv`; link.click(); URL.revokeObjectURL(url);
   };
+  const startDistance = (event) => {
+    const start = new Date(event.start_time).getTime();
+    return Number.isFinite(start) ? Math.abs(start - currentTime) : Infinity;
+  };
   const attendanceEvents = events.filter((event) => {
     if (canManageAttendance) {
       return ['approved', 'ongoing'].includes(event.status);
@@ -928,7 +934,8 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     const start = new Date(event.start_time).getTime();
     const end = new Date(event.end_time).getTime();
     return ['approved', 'ongoing'].includes(event.status) && Number.isFinite(start) && Number.isFinite(end) && currentTime >= start && currentTime <= end;
-  });
+  }).sort((a, b) => (Number(b.status === 'ongoing') - Number(a.status === 'ongoing')) || startDistance(a) - startDistance(b));
+  const ongoingAttendanceEvents = attendanceEvents.filter((event) => event.status === 'ongoing');
   const preselectedEventId = searchParams.get('event');
   const preselectedRef = useRef(null);
   useEffect(() => {
@@ -942,6 +949,15 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
     else selectPlanningEvent(String(match.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, attendanceEvents, events, loading, preselectedEventId]);
+
+  const autoPickedRef = useRef(false);
+  useEffect(() => {
+    if (autoPickedRef.current || activeTab !== 'attendance' || !canManageAttendance || viewingHistory || loading || preselectedEventId) return;
+    if (ongoingAttendanceEvents.length !== 1) return;
+    autoPickedRef.current = true;
+    handleSelectAttEvent(ongoingAttendanceEvents[0].id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, canManageAttendance, viewingHistory, loading, preselectedEventId, ongoingAttendanceEvents.length]);
 
   const attendanceEvent = attendanceData?.event ?? attendanceEvents.find((event) => String(event.id) === String(selectedAttEventId));
   const attendanceCount = Number(attendanceData?.count ?? attendanceData?.records?.length ?? 0);
@@ -1465,6 +1481,7 @@ export default function EventsPage({ initialTab = 'events', startEventRequest = 
         <section aria-label="Event check-in" className="space-y-4">
           {currentUserRole === 'STUDENT' && <PersonalAttendanceSummary />}
           <p className="text-sm font-semibold text-slate-600">{attendanceEvents.length} events open for check-in</p>
+          {!loading && canManageAttendance && ongoingAttendanceEvents.length === 0 && <p role="status" className="text-sm text-slate-600">No event is ongoing right now. <Link to={currentUserRole === 'ADMIN' ? '/dashboard/events/manage-events' : '/dashboard/events/activity-calendar'} className="font-bold text-[#0878B7] underline underline-offset-2 hover:text-[#0F2F62]">Go to Events</Link></p>}
           {loading ? (
             <div className="space-y-2 rounded-lg border border-[#DDE7EF] bg-white p-5">
               {[1, 2, 3].map((i) => <div key={i} className="h-12 animate-pulse rounded-lg bg-slate-100" />)}
