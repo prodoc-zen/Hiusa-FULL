@@ -5,9 +5,10 @@ import EventSubmissionPanel from './EventSubmissionPanel';
 const mocks = vi.hoisted(() => ({
   getEventSubmission: vi.fn(),
   submitEventRequirements: vi.fn(),
-  downloadEventRequirementFile: vi.fn(),
 }));
+const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../services/eventService', () => mocks);
+vi.mock('../../utils/openProtectedFile', () => openMocks);
 
 const requirements = [
   { id: 1, name: 'Event Proposal', description: '', is_optional: false },
@@ -61,28 +62,24 @@ describe('EventSubmissionPanel', () => {
     expect(screen.getByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
   });
 
-  it('downloads an uploaded file through the blob link pattern', async () => {
+  it('opens an uploaded file in a new tab through the shared helper instead of downloading it', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'pending_sao' } });
-    mocks.downloadEventRequirementFile.mockResolvedValue({ data: new Blob(['pdf']) });
-    URL.createObjectURL = vi.fn(() => 'blob:proposal');
-    URL.revokeObjectURL = vi.fn();
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+    openMocks.openProtectedFile.mockResolvedValue();
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
+    expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole('button', { name: 'View' }));
 
-    await waitFor(() => expect(mocks.downloadEventRequirementFile).toHaveBeenCalledWith(9, 5));
-    await waitFor(() => expect(click).toHaveBeenCalled());
-    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:proposal');
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/events/9/submission/files/5'));
   });
 
-  it('shows a download error', async () => {
+  it('shows why a file could not be opened', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'pending_sao' } });
-    mocks.downloadEventRequirementFile.mockRejectedValue({ response: { status: 404, data: { message: 'File not found.' } } });
+    openMocks.openProtectedFile.mockRejectedValue({ userMessage: 'Allow pop-ups to open this file.' });
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Download' }));
-    expect(await screen.findByRole('alert')).toHaveTextContent('File not found.');
+    fireEvent.click(await screen.findByRole('button', { name: 'View' }));
+    expect(await screen.findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
   });
 
   it('shows the empty state when SAO has listed no requirements', async () => {

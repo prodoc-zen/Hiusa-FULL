@@ -13,10 +13,13 @@ const mocks = vi.hoisted(() => ({
   reviewSubmission: vi.fn(),
   downloadSubmissionDocument: vi.fn(),
   getAcademicYears: vi.fn(),
+  getSystemOrganizations: vi.fn(),
 }));
+const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 
 vi.mock('../../../services/complianceService', () => mocks);
-vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears }));
+vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: mocks.getAcademicYears, getSystemOrganizations: mocks.getSystemOrganizations }));
+vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('./EventRequirementsTab', () => ({ default: () => <p>Event requirements content</p> }));
 vi.mock('./FinancialReportsTab', () => ({ default: () => <p>Financial reports content</p> }));
 vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p> }));
@@ -60,6 +63,8 @@ describe('SaoCompliancePage', () => {
     mocks.getRequirementTypes.mockResolvedValue({ data: { data: [requirementType] } });
     mocks.getSubmissions.mockResolvedValue({ data: { data: [submission], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
     mocks.getAcademicYears.mockResolvedValue([{ id: 1, label: '2026-2027', is_current: true }]);
+    mocks.getSystemOrganizations.mockResolvedValue({ data: [], current_page: 1, last_page: 1 });
+    openMocks.openProtectedFile.mockResolvedValue();
     mocks.reviewSubmission.mockResolvedValue({ data: {} });
     mocks.deleteRequirementType.mockResolvedValue({ status: 204 });
   });
@@ -259,6 +264,59 @@ describe('SaoCompliancePage', () => {
     it('names the organization on the open-document button', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
       expect((await screen.findAllByRole('button', { name: 'Open Semestral Accomplishment Report for Computing Society' })).length).toBeGreaterThan(0);
+    });
+
+    it('opens a submission document in a new tab through the shared helper', async () => {
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Open Semestral Accomplishment Report for Computing Society' }))[0]);
+
+      await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
+      expect(mocks.downloadSubmissionDocument).not.toHaveBeenCalled();
+    });
+
+    it('sends a pending registration document to the organization review instead of offering a decision', async () => {
+      mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, is_registration: true, organization: { id: 21, name: 'Robotics Guild', lifecycle_status: 'pending' }, requirement_type: { id: 5, name: 'Letter of Intent' } }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+
+      expect((await screen.findAllByText('Registration document')).length).toBeGreaterThan(0);
+      expect((await screen.findAllByText('Decided in the organization review')).length).toBeGreaterThan(0);
+      expect(screen.getAllByRole('link', { name: 'Open organization review' })[0]).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=21');
+      expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
+    });
+
+    it('says a returned registration waits for the Department Head and offers no link', async () => {
+      mocks.getSubmissions.mockResolvedValue({ data: { data: [{ ...submission, is_registration: true, organization: { id: 22, name: 'Chess Club', lifecycle_status: 'returned' }, requirement_type: { id: 5, name: 'Letter of Intent' } }], current_page: 1, last_page: 1, per_page: 20, total: 1 } });
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+
+      expect((await screen.findAllByText('Registration returned, waiting for the Department Head')).length).toBeGreaterThan(0);
+      expect(screen.queryByRole('link', { name: 'Open organization review' })).not.toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
+    });
+
+    it('lets the queue be filtered to an organization still waiting for registration approval', async () => {
+      mocks.getSystemOrganizations.mockImplementation((params) => Promise.resolve({
+        data: params.lifecycle_status === 'pending' ? [{ id: 21, name: 'Robotics Guild' }] : [],
+        current_page: 1,
+        last_page: 1,
+      }));
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+
+      expect(await screen.findByRole('option', { name: 'Robotics Guild (registration)' })).toBeInTheDocument();
+      expect(mocks.getSystemOrganizations).toHaveBeenCalledWith(expect.objectContaining({ lifecycle_status: 'pending' }));
+    });
+
+    it('also lets the queue be filtered to an organization whose registration was returned', async () => {
+      mocks.getSystemOrganizations.mockImplementation((params) => Promise.resolve({
+        data: { pending: [{ id: 21, name: 'Robotics Guild' }], returned: [{ id: 22, name: 'Chess Club' }] }[params.lifecycle_status] ?? [],
+        current_page: 1,
+        last_page: 1,
+      }));
+      renderPage('/dashboard/super-admin/compliance?tab=review');
+
+      expect(await screen.findByRole('option', { name: 'Chess Club (registration)' })).toBeInTheDocument();
+      expect(screen.getByRole('option', { name: 'Robotics Guild (registration)' })).toBeInTheDocument();
+      expect(mocks.getSystemOrganizations).toHaveBeenCalledWith(expect.objectContaining({ lifecycle_status: 'returned' }));
     });
 
     it('requires remarks to return a submission, with a field error instead of a disabled button', async () => {

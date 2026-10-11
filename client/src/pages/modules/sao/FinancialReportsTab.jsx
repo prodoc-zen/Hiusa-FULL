@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Check, Download, Eye, FileText, RefreshCw, X } from 'lucide-react';
+import { Check, Download, ExternalLink, Eye, FileText, RefreshCw, X } from 'lucide-react';
 import ConfirmModal from '../../../components/ConfirmModal';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
@@ -69,7 +69,7 @@ export default function FinancialReportsTab() {
       setMeta(reportResponse.data);
       setPendingApprovals(new Map((approvalResponse.data.data || []).map((approval) => [Number(approval.entity_id), approval])));
     } catch (error) {
-      setLoadError(getApiErrorMessage(error, 'Unable to load received financial reports.'));
+      setLoadError(getApiErrorMessage(error, 'Unable to load financial reports.'));
     } finally {
       setLoading(false);
     }
@@ -148,6 +148,7 @@ export default function FinancialReportsTab() {
 
   return (
     <div className="space-y-5">
+      <p className="text-sm font-medium text-slate-600">Reports organizations submitted for SAO review. Decide each one here.</p>
       {loadError && (
         <div role="alert" className="flex flex-col gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-700 sm:flex-row sm:items-center sm:justify-between">
           <p className="font-semibold">{loadError}</p>
@@ -165,7 +166,7 @@ export default function FinancialReportsTab() {
           activeFilters={activeFilters}
           onClear={clearFilters}
           resultCount={meta.total || 0}
-          resultLabel={meta.total === 1 ? 'received report' : 'received reports'}
+          resultLabel={meta.total === 1 ? 'financial report' : 'financial reports'}
           secondaryClassName="grid gap-3 sm:grid-cols-3"
         >
           <select aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
@@ -178,7 +179,7 @@ export default function FinancialReportsTab() {
             <option value="income_statement">Income statements</option>
           </select>
           <select aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
-            <option value="">All received statuses</option>
+            <option value="">All statuses</option>
             <option value="pending_sao">Awaiting SAO review</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
@@ -192,7 +193,7 @@ export default function FinancialReportsTab() {
           <p className="mt-1 text-xs text-slate-500">Only reports that completed Department Head review appear here.</p>
         </div>
         {loading ? (
-          <p className="p-8 text-center text-sm text-slate-500">Loading received reports...</p>
+          <p className="p-8 text-center text-sm text-slate-500">Loading financial reports...</p>
         ) : reports.length ? (
           <div className="divide-y divide-[#DDE7EF]">
             {reports.map((report) => {
@@ -215,11 +216,11 @@ export default function FinancialReportsTab() {
           </div>
         ) : (
           <div className="p-8 text-center">
-            <p className="font-semibold text-[#0F172A]">No received reports found.</p>
+            <p className="font-semibold text-[#0F172A]">No financial reports found.</p>
             <p className="mt-1 text-sm text-slate-500">Only reports approved by a Department Head appear here. A notification about a report deadline does not mean a report has been submitted.</p>
           </div>
         )}
-        <PaginationControls currentPage={meta.current_page || 1} totalItems={meta.total || 0} pageSize={meta.per_page || 20} onPageChange={load} label="received reports" />
+        <PaginationControls currentPage={meta.current_page || 1} totalItems={meta.total || 0} pageSize={meta.per_page || 20} onPageChange={load} label="financial reports" />
       </section>
 
       <Modal
@@ -245,7 +246,7 @@ export default function FinancialReportsTab() {
             </div>
             <div className="rounded-lg border border-[#DDE7EF] p-4">
               <h3 className="text-sm font-bold text-[#0F172A]">Supporting documents</h3>
-              {(detail.report.supporting_documents || []).map((document) => <button key={document.index} type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-[#0878B7]"><Download size={14} />{document.name}</button>)}
+              {(detail.report.supporting_documents || []).map((document) => <button key={document.index} type="button" onClick={() => openDocument(document)} className="mt-2 flex min-h-11 items-center gap-2 text-left text-sm font-bold text-[#0878B7]"><ExternalLink size={14} />{document.name}</button>)}
               {!(detail.report.supporting_documents || []).length && <p className="mt-2 text-sm text-slate-500">No supporting documents were attached.</p>}
             </div>
           </div>

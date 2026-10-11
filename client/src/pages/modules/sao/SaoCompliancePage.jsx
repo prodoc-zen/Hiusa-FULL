@@ -4,6 +4,8 @@ import { CalendarCheck, Check, ClipboardList, FolderSearch, ShieldCheck, Wallet 
 import { Card, EmptyState, PageHeader, Tabs } from '../../../components/ui';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getComplianceStatus } from '../../../services/complianceService';
+import { fetchAllPages } from '../../../services/pagination';
+import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import AccreditationTab from './AccreditationTab';
 import DocumentsTab from './DocumentsTab';
 import EventRequirementsTab from './EventRequirementsTab';
@@ -40,6 +42,7 @@ export default function SaoCompliancePage() {
   const activeTab = TABS.some((tab) => tab.key === requestedTab) ? requestedTab : (hasRecord ? 'review' : DEFAULT_TAB);
 
   const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, organizations: [] });
+  const [pendingRegistrations, setPendingRegistrations] = useState([]);
   const [reviewFilters, setReviewFilters] = useState(hasRecord ? { organizationId: '', status: '' } : DEFAULT_REVIEW_FILTERS);
 
   const loadOverview = useCallback(() => {
@@ -57,6 +60,14 @@ export default function SaoCompliancePage() {
   }, []);
 
   useEffect(() => { if (role === 'SUPER_ADMIN') loadOverview(); }, [loadOverview, role]);
+
+  // New and returned organizations are not accredited yet, so the accreditation overview skips them, but their registration files are in the queue.
+  useEffect(() => {
+    if (role !== 'SUPER_ADMIN') return;
+    Promise.all(['pending', 'returned'].map((lifecycleStatus) => fetchAllPages((params) => getSystemOrganizations({ ...params, lifecycle_status: lifecycleStatus }))))
+      .then(([pending, returned]) => setPendingRegistrations([...pending, ...returned].map((organization) => ({ organization_id: organization.id, organization_name: `${organization.name} (registration)` }))))
+      .catch(() => setPendingRegistrations([]));
+  }, [role]);
 
   const changeTab = useCallback((key) => setSearchParams({ tab: key }), [setSearchParams]);
 
@@ -96,7 +107,7 @@ export default function SaoCompliancePage() {
         )}
         {activeTab === 'review' && (
           <ReviewQueueTab
-            organizations={overview.organizations}
+            organizations={[...overview.organizations, ...pendingRegistrations]}
             filters={reviewFilters}
             onFiltersChange={setReviewFilters}
             onChanged={loadOverview}
