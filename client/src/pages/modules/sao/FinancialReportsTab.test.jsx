@@ -41,7 +41,14 @@ describe('FinancialReportsTab', () => {
     approvalMocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
   });
 
-  it('loads only the received report inbox and applies report filters', async () => {
+  it('states what the tab is for and never calls the reports received', async () => {
+    render(<FinancialReportsTab />);
+
+    expect(await screen.findByText('Reports organizations submitted for SAO review. Decide each one here.')).toBeInTheDocument();
+    expect(screen.queryByText(/received/i)).not.toBeInTheDocument();
+  });
+
+  it('loads only the financial reports inbox and applies report filters', async () => {
     render(<FinancialReportsTab />);
 
     expect(await screen.findByText('September Income Statement')).toBeInTheDocument();
@@ -58,7 +65,7 @@ describe('FinancialReportsTab', () => {
     expect(approvalMocks.getApprovalRequests).toHaveBeenCalledWith({ status: 'pending', entity_type: 'financial_report', per_page: 100 });
   });
 
-  it('reviews a received report without exposing other financial operations', async () => {
+  it('reviews a financial report without exposing other financial operations', async () => {
     render(<FinancialReportsTab />);
     await screen.findByText('September Income Statement');
 
@@ -115,14 +122,14 @@ describe('FinancialReportsTab', () => {
   it('shows the empty inbox message', async () => {
     financeMocks.getFinancialReports.mockResolvedValue({ data: { data: [], current_page: 1, per_page: 20, total: 0 } });
     render(<FinancialReportsTab />);
-    expect(await screen.findByText('No received reports found.')).toBeInTheDocument();
+    expect(await screen.findByText('No financial reports found.')).toBeInTheDocument();
   });
 
   it('shows a load error and retries', async () => {
     financeMocks.getFinancialReports.mockRejectedValueOnce(new Error('offline'));
     render(<FinancialReportsTab />);
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load received financial reports.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Unable to load financial reports.');
     fireEvent.click(screen.getByRole('button', { name: /Retry/ }));
     expect(await screen.findByText('September Income Statement')).toBeInTheDocument();
   });

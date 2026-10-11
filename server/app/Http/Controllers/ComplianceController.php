@@ -269,7 +269,7 @@ class ComplianceController extends Controller
         ]);
 
         $query = OrganizationComplianceSubmission::with([
-            'organization:id,name,acronym',
+            'organization:id,name,acronym,lifecycle_status',
             'requirementType:id,academic_year,name,deadline_at',
             'submitter:school_id,first_name,last_name',
             'reviewer:school_id,first_name,last_name',
@@ -288,7 +288,14 @@ class ComplianceController extends Controller
         }
         $query->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
 
-        return response()->json($query->orderByDesc('submitted_at')->paginate($filters['per_page'] ?? 20));
+        $page = $query->orderByDesc('submitted_at')->paginate($filters['per_page'] ?? 20);
+        // Registration files are decided in the organization review, so the queue marks them instead of offering a decision.
+        $page->getCollection()->each(fn (OrganizationComplianceSubmission $submission) => $submission->setAttribute(
+            'is_registration',
+            in_array($submission->organization?->lifecycle_status, ComplianceDocumentService::REGISTRATION_LIFECYCLES, true),
+        ));
+
+        return response()->json($page);
     }
 
     public function storeSubmission(Request $request)
@@ -523,6 +530,9 @@ class ComplianceController extends Controller
             'organization_id' => ['nullable', 'integer'],
             'academic_semester_id' => ['nullable', 'integer', Rule::exists('academic_semesters', 'id')],
             'source' => ['nullable', Rule::in(ComplianceDocumentService::SOURCES)],
+            'family' => ['nullable', Rule::in(ComplianceDocumentService::FAMILIES)],
+            'group' => ['nullable', 'in:organization'],
+            'search' => ['nullable', 'string', 'max:100'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
@@ -532,7 +542,16 @@ class ComplianceController extends Controller
             return response()->json(['message' => 'That organization is outside your scope.'], 403);
         }
 
-        $rows = $documents->rows($organizationId ? [(int) $organizationId] : $scope, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role);
+        $organizationIds = $organizationId ? [(int) $organizationId] : $scope;
+        if ($search = trim($filters['search'] ?? '')) {
+            $like = '%'.addcslashes($search, '\%_').'%';
+            $organizationIds = Organization::whereIn('id', $organizationIds)
+                ->where(fn ($match) => $match->where('name', 'like', $like)->orWhere('acronym', 'like', $like))
+                ->pluck('id')->all();
+        }
+
+        $arguments = [$organizationIds, $filters['academic_semester_id'] ?? null, $filters['source'] ?? null, $request->user()->role, $filters['family'] ?? null];
+        $rows = ($filters['group'] ?? null) === 'organization' ? $documents->organizationSummaries(...$arguments) : $documents->rows(...$arguments);
         $perPage = $filters['per_page'] ?? 20;
         $page = LengthAwarePaginator::resolveCurrentPage();
 
