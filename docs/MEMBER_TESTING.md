@@ -58,7 +58,7 @@ Checked by signing in to a freshly seeded copy through the sign-in API on 11 Oct
 | Role | School ID | Password | Notes |
 |---|---|---|---|
 | SAO | 990001 | `Admin@123456` | The only SAO account. 930027 does not exist here and `Demo@12345` is rejected for 990001. On the public link this password is replaced by a per-run one that the operator prints (see "Testing from anywhere"), and 990001 keeps that password on later LAN runs until `-Reset`. |
-| Department Head, College of Computer Studies | 940001 | `Demo@12345` | Also 940002 (Business), 940003 (Teacher Education), 940004 (Health Sciences), 940005 (Engineering). One head per college. |
+| Department Head, College of Computer Studies | 940001 | `Demo@12345` | Also 940002 (Business Education), 940003 (Teacher Education), 940004 (Health Sciences), 940005 (Engineering). On the staging server at https://13.228.227.182 four more colleges were added with `colleges:sync` and each has a head: 940006 (Criminal Justice Education), 940007 (Hospitality, Tourism and Customs Administration), 940008 (Maritime Education), 940009 (Nursing). One head per college. |
 | Admin of PSITS-CCS | 900001 | `Demo@12345` | President. 900002 (Vice President, Internal) and 900003 (Secretary) are also Admins. 920011 is the Admin (President) of JPIA-CBE. |
 | Adviser (an Admin of one organization, assigned by the SAO) | 990002 | `Admin@123456` | PSITS-CCS. 990012 is JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE. `Demo@12345` is rejected for these. An adviser has the same role and menu as an Admin. |
 | SBO Officer | 900004 | `Demo@12345` | Treasurer of PSITS-CCS. 900005 (Auditor), 900006 (Public Information Officer), 900007 (Business Manager). |

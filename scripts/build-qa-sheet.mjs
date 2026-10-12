@@ -251,7 +251,7 @@ function addHowToUse(wb) {
   });
   const accounts = [
     ['SAO', '990001', 'The only SAO account on the test copy. Runs the university side.'],
-    ['Department Head', '940001 to 940005', '940001 College of Computer Studies, 940002 Business, 940003 Teacher Education, 940004 Health Sciences, 940005 Engineering. One head per college.'],
+    ['Department Head', '940001 to 940009', '940001 College of Computer Studies, 940002 Business Education, 940003 Teacher Education, 940004 Health Sciences, 940005 Engineering, 940006 Criminal Justice Education, 940007 Hospitality, Tourism and Customs Administration, 940008 Maritime Education, 940009 Nursing. One head per college; pick the college you were assigned.'],
     ['Admin (Organization Admin)', '900001 to 900003, 920011', '900001 President, 900002 Vice President Internal, 900003 Secretary (all PSITS-CCS). 920011 is the President of JPIA-CBE.'],
     ['Adviser', '990002, 990012, 990022, 990032, 990042', 'An Admin assigned by the SAO. 990002 PSITS-CCS, 990012 JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE. Same menu as an Admin.'],
     ['SBO Officer', '900004 to 900007', '900004 Treasurer, 900005 Auditor, 900006 Public Information Officer, 900007 Business Manager (all PSITS-CCS).'],
