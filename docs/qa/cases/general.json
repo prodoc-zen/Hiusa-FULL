@@ -1,0 +1,2412 @@
+[
+  {
+    "id": "GEN-001",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Open the link and see the sign-in page",
+    "preconditions": "The test copy is running and you have its link.",
+    "steps": [
+      "1. Open the test link in a desktop browser.",
+      "2. Wait for the page to finish loading.",
+      "3. Look at the left side and the right side of the page."
+    ],
+    "expected": "The page \"Sign in to HIUSA\" shows. A dark blue panel with the HIUSA logo is on the left. The form is on the right with School ID / ID Number, Password, Forgot password? and a Sign in button. No error text shows.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-002",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Sign in as a Student and reach the student home",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type 2100142 in School ID / ID Number.",
+      "3. Type the demo password in Password.",
+      "4. Choose Sign in."
+    ],
+    "expected": "You land on the student home page at /dashboard/student. The sidebar shows the Student menu and your name is at the top right.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-003",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "A wrong password shows a clear message",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Use a spare account, not one other testers are using.",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type 2400093 in School ID / ID Number.",
+      "3. Type a password you know is wrong.",
+      "4. Choose Sign in."
+    ],
+    "expected": "A red message appears above the Forgot password? link: \"The provided credentials are incorrect.\" You stay on the sign-in page and are not signed in.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-004",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Each of the five roles lands on its own home",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You have one account for each role: SAO 990001, Department Head 940001, Admin 900001, SBO Officer 900004, Student 2100142.",
+    "steps": [
+      "1. Sign in as the SAO and note the page you land on, then sign out.",
+      "2. Sign in as the Department Head, note the page, then sign out.",
+      "3. Sign in as the Admin, note the page, then sign out.",
+      "4. Sign in as the SBO Officer, note the page, then sign out.",
+      "5. Sign in as the Student and note the page."
+    ],
+    "expected": "The addresses end in /dashboard/super-admin (SAO), /dashboard/department-head, /dashboard/admin, /dashboard/officer and /dashboard/student. Each home page opens without an error message.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-005",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Open three menu pages without an error",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. In the sidebar, choose Events.",
+      "2. Choose Store, then Shop (or the first page it opens).",
+      "3. Choose Updates, then Announcements."
+    ],
+    "expected": "Each page opens with a title and content (or a friendly empty message). No page shows a blank white screen, a red error box, or words such as \"Something went wrong\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-006",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Reload a page deep inside the app and stay signed in",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. Open the Statement of account page from the sidebar.",
+      "2. Press F5 to reload the page.",
+      "3. Wait for the page to load again."
+    ],
+    "expected": "The same page opens again. You are still signed in. You are not sent to the sign-in page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-007",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "A page that belongs to another role sends you back home",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. In the address bar, replace the page address with the test link followed by /dashboard/admin.",
+      "2. Press Enter.",
+      "3. Wait for the page to load."
+    ],
+    "expected": "You end up on the student home (/dashboard/student). No \"403\" or \"Forbidden\" page shows.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-008",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "The bell opens and closes",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. Look at the bell icon at the top right.",
+      "2. Choose the bell.",
+      "3. Read the panel that opens.",
+      "4. Click anywhere outside the panel."
+    ],
+    "expected": "A panel titled \"Notifications\" opens under the bell. It lists notifications or says \"No notifications yet\". Clicking outside closes it.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-009",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Go to page search finds a page",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
+    "steps": [
+      "1. Choose Go to page at the top bar (or press Ctrl and K together).",
+      "2. Type \"audit\".",
+      "3. Press Enter on the first result."
+    ],
+    "expected": "A search box titled \"Search pages\" opens. The Audit log page appears in the list and opens when you press Enter.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-010",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Phone: sign in and open the menu drawer",
+    "preconditions": "The test copy is running and you have its link. Use a real phone, or a desktop browser window narrower than 640 px. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the test link on the phone.",
+      "2. Sign in as the Student 2100142.",
+      "3. Tap the menu icon (three lines) at the top left.",
+      "4. Tap one page in the menu."
+    ],
+    "expected": "The sign-in page is one column with the dark HIUSA panel on top. After sign-in the menu opens as a drawer from the left over a dimmed page. Tapping a page opens it and the drawer closes. The page does not scroll sideways.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-011",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "Sign out and return to the sign-in page",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. Choose Logout at the bottom of the sidebar.",
+      "2. In the \"Log Out\" box, choose Log Out.",
+      "3. Press the browser Back button."
+    ],
+    "expected": "The box says \"You will need to sign in again to access your dashboard.\" After you confirm, the sign-in page opens. Pressing Back does not show the dashboard. You are sent to the sign-in page again.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-012",
+    "role": "All roles",
+    "module": "Smoke test",
+    "title": "An address that does not exist does not show an error page",
+    "preconditions": "The test copy is running and you have its link.",
+    "steps": [
+      "1. While signed out, open the test link followed by /this-page-does-not-exist.",
+      "2. Sign in as the Student 2100142.",
+      "3. Open the test link followed by /dashboard/this-page-does-not-exist."
+    ],
+    "expected": "While signed out you land on the sign-in page. While signed in you land on your own home page. No blank page and no technical error text show.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-013",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Sign-in page layout on a laptop",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Browser window is wider than 1024 px.",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Look at the left panel.",
+      "3. Look at the right panel and look for tabs or a role picker.",
+      "4. Press Tab once and watch where the highlight goes."
+    ],
+    "expected": "The left panel is dark blue with the HIUSA logo, the heading \"One accountable platform for your student organization.\" and a short list of areas. The right panel is white and about 370 px wide. It shows \"Sign in to HIUSA\", the line \"Use your school ID to open your organization workspace.\", the two labelled fields, Forgot password? and a blue Sign in button. There are no role tabs or role picker: one form signs in every role and the app picks the home page by the account role. Text does not overlap any decoration. The first Tab puts the highlight on the School ID field.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-014",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "School ID field takes digits only (max 8) and an email cannot be used",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Click School ID / ID Number and type \"abc123xyz\".",
+      "3. Clear the field and type \"123456789012\".",
+      "4. Clear the field and type \"student@example.com\".",
+      "5. Choose Sign in."
+    ],
+    "expected": "Letters never appear: the first try shows only 123. The second keeps only the first 8 digits (12345678). The email attempt leaves only digits (or nothing), so no email text stays in the field, and Sign in is refused with a red message such as \"The school id field is required.\" Sign-in uses the School ID only. On a phone the number keypad opens.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-015",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Submitting an empty form shows a message",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Leave both fields empty.",
+      "3. Choose Sign in.",
+      "4. Type only a School ID and choose Sign in again."
+    ],
+    "expected": "A red message appears and you stay on the page. It asks for the missing School ID or password (for example \"The school id field is required.\"). The page does not crash and there is no raw technical text. VERIFY: the exact wording of the message.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-016",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Wrong password message",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Use a spare student account such as 2400067.",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type a real School ID such as 2400067.",
+      "3. Type a wrong password.",
+      "4. Choose Sign in.",
+      "5. Repeat with School ID 12345678 (an account that should not exist) and any password."
+    ],
+    "expected": "A red message shows: \"The provided credentials are incorrect.\" You are not signed in and the address stays /login. The message is exactly the same for the School ID that does not exist, so the page never tells which IDs are real.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-017",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Show password, Caps Lock hint and the Enter key",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the sign-in page and type a few characters in Password.",
+      "2. Choose the eye button (named \"Show password\"), then choose it again (now \"Hide password\").",
+      "3. Turn Caps Lock on and type in the Password field.",
+      "4. Fill in the Student School ID 2100142 and its password and press Enter instead of choosing the button."
+    ],
+    "expected": "The characters show as plain text after the first choice and turn back into dots after the second. With Caps Lock on, the hint \"Caps Lock is on.\" appears under the field. Enter signs in. While the request runs the button shows a loading state and cannot be pressed twice.",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-018",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Five wrong passwords lock the account for 15 minutes",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Use a spare account that no one else is testing with, for example 2400093. The lock lasts 15 minutes. Wait about a minute between attempts if you want to see the lock message instead of the rate-limit message.",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type 2400093 and a wrong password. Choose Sign in. Do this five times in total, waiting a little between tries.",
+      "3. Try a sixth time with a wrong password.",
+      "4. Try again with the CORRECT password.",
+      "5. Now sign in with a different account, for example the Student 2100142."
+    ],
+    "expected": "After the fifth wrong try, the sixth try is refused with \"Too many failed sign in attempts for this account. Please wait before trying again.\" The correct password is also refused during the lock. After 15 minutes the correct password works again. If you tried very fast, you may instead see \"Too many requests. Please wait before trying again.\" (the limit is 5 tries a minute per School ID and 10 a minute per device). The other account signs in normally, because the lock applies to one School ID only. VERIFY: which of the two messages shows at your speed.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-019",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "A signed-in person who opens the sign-in page goes to the dashboard",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. In the address bar, open the test link followed by /login.",
+      "2. Then open the test link followed by /recover-account.",
+      "3. Then open the test link followed by /reset-password."
+    ],
+    "expected": "Each time you are sent to your dashboard (the student home). The sign-in, recover and reset pages never show to a signed-in person.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-020",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "A signed-out person who opens a dashboard address goes to sign-in",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the test link followed by /dashboard/student.",
+      "2. Open the test link followed by /dashboard/admin.",
+      "3. Open the test link followed by /dashboard/profile.",
+      "4. Open the test link followed by /change-password."
+    ],
+    "expected": "Each address sends you to the sign-in page. No dashboard content flashes on screen first.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-021",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "A bad or expired sign-in token sends you back to sign-in",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. A tester who knows browser DevTools does this step. Real sign-ins last 7 days.",
+    "steps": [
+      "1. Open DevTools (F12) and go to Application, then Local Storage, then the test site.",
+      "2. Change the value of \"auth_token\" to some wrong text such as \"abc\".",
+      "3. Reload the page.",
+      "4. Wait for the page to react."
+    ],
+    "expected": "The app sends you to the sign-in page. There is no error text, no blank page and no stack trace. Both stored items (auth_token and user) are gone. Signing in again works.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-022",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Signing out from the top bar menu and from the sidebar",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
+    "steps": [
+      "1. Choose your name at the top right to open the account menu.",
+      "2. Choose Logout, then Cancel in the box.",
+      "3. Choose Logout again and confirm with Log Out.",
+      "4. Sign in again and use Logout at the bottom of the sidebar."
+    ],
+    "expected": "Cancel keeps you signed in. Confirming signs you out and shows the sign-in page. The sidebar Logout works the same way. Pressing Back after sign-out does not show a dashboard page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-023",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Switching accounts in the same browser leaves nothing of the first account",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Sign in as the Admin 900001 and look at the sidebar.",
+      "2. Sign out.",
+      "3. Sign in as the Student 2100142.",
+      "4. Look at the sidebar, the name at the top right and the home page."
+    ],
+    "expected": "The Student sees only Student menu items and the Student name. No Admin menu items, name or numbers from the Admin session remain.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-024",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "A disabled account cannot sign in",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). An Admin has disabled a throwaway student account (People page, Disable).",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type the School ID of the disabled student.",
+      "3. Type the correct password.",
+      "4. Choose Sign in."
+    ],
+    "expected": "A red message shows: \"This account is not active. Please contact an administrator.\" You are not signed in.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-025",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Forced password change screen appears after sign-in",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). An account that must change its password: a student made by the class list import (use its temporary password), or an Admin or Department Head the SAO just created. Seeded demo accounts are not forced.",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Sign in with the new account and its temporary password.",
+      "3. Read the screen that opens."
+    ],
+    "expected": "The page at /change-password shows \"Choose a new password\" with the line \"Your account was created with a default password. Set your own before you continue.\" It has Current password, New password and Confirm new password and a Save new password button. The dashboard is not shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-026",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Nothing else opens until the new password is set",
+    "preconditions": "The test copy is running and you have its link. You are on the forced \"Choose a new password\" screen from the previous case.",
+    "steps": [
+      "1. In the address bar, open the test link followed by /dashboard/student (or your own role home).",
+      "2. Open the test link followed by /dashboard/profile.",
+      "3. Open the test link followed by /dashboard/announcements.",
+      "4. Look at the address after each try."
+    ],
+    "expected": "Every address brings you back to /change-password. No other page opens and no menu is usable until the password is saved.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-027",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "New password form checks each field",
+    "preconditions": "The test copy is running and you have its link. You are on the \"Choose a new password\" screen.",
+    "steps": [
+      "1. Choose Save new password with all fields empty.",
+      "2. Fill Current password, then type a 5-character new password and choose Save.",
+      "3. Type a valid new password but a different Confirm new password, then choose Save.",
+      "4. Type a wrong Current password with a valid new password and confirmation, then choose Save."
+    ],
+    "expected": "Each try shows a message under the field and the cursor jumps to the first field with a problem: \"Enter your current password.\", \"Use at least 8 characters.\", \"The confirmation does not match.\", and a message that the current password is incorrect. Nothing is saved.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-028",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Saving a new password works and the old one stops working",
+    "preconditions": "The test copy is running and you have its link. A forced-change throwaway account. Do not use a shared demo account. You must remember the new password yourself; do not write it in this sheet.",
+    "steps": [
+      "1. Enter the temporary password as Current password.",
+      "2. Enter a new password of at least 8 characters, different from the temporary one, in both new fields.",
+      "3. Choose Save new password.",
+      "4. Sign out, then sign in with the temporary password.",
+      "5. Sign in with the new password."
+    ],
+    "expected": "After saving you land on your dashboard home. Signing in with the temporary password is refused. Signing in with the new password works and does not ask for a change again.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-029",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Forgot password request is accepted but no email arrives in the test copy",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Email is switched off in the test copy, so reset emails are only written to the server log.",
+    "steps": [
+      "1. On the sign-in page choose Forgot password? and read the page.",
+      "2. Type the Student School ID 2100142 and the email address on that account, then choose Send reset link.",
+      "3. Wait five minutes and check that inbox and its spam folder.",
+      "4. Go back and try School ID 12345678 with the email nobody@example.com."
+    ],
+    "expected": "The \"Reset your password\" page has School ID / ID number and Email address fields, a Send reset link button and Back to login. After sending, the page changes to \"Check your email\" and says the instructions were sent to the address you typed. No email arrives, because email is off in the test copy. This is expected. The unknown account shows the very same \"Check your email\" screen, so the page never says whether an account exists. Send another email and Back to login both work. To get a password reset, ask the SAO.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-030",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "Forgot password checks an empty or badly typed form",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the Reset your password page.",
+      "2. Choose Send reset link with both fields empty.",
+      "3. Type a School ID and the text \"not-an-email\" as the email.",
+      "4. Choose Send reset link again."
+    ],
+    "expected": "A red message shows and no \"Check your email\" screen appears. VERIFY: the wording. A message that mentions \"organization id\" would be a wording problem to report because students do not know that term.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-031",
+    "role": "All roles",
+    "module": "Sign-in",
+    "title": "A reset link that is missing parts or has a bad token",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. Open the test link followed by /reset-password with nothing after it.",
+      "2. Read the page.",
+      "3. Then open the test link followed by /reset-password?organization_id=1&email=a@b.com&token=wrong.",
+      "4. Choose Request a new link."
+    ],
+    "expected": "The first page shows \"This reset link isn't valid\" with \"This reset link is missing information it needs. Request a new one below.\" The second shows the same title with \"Password reset token is invalid or expired.\" or the plain default text. Request a new link opens the Reset your password page.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-032",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "Student opens pages of other roles by address",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142.",
+    "steps": [
+      "1. Open the test link followed by /dashboard/admin.",
+      "2. Open /dashboard/officer, /dashboard/admin/users and /dashboard/events/check-in.",
+      "3. Open /dashboard/finance/financial-ledger and /dashboard/merchandise/manage-orders.",
+      "4. Open /dashboard/super-admin/agency and /dashboard/super-admin/organizations.",
+      "5. Open /dashboard/department-head/organizations and /dashboard/department-head/approvals."
+    ],
+    "expected": "Every address ends on the student home (/dashboard/student). No page content of the other role flashes and no 403 page shows.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-033",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "SBO Officer opens pages of other roles by address",
+    "preconditions": "The test copy is running and you have its link. Signed in as the SBO Officer demo account 900004.",
+    "steps": [
+      "1. Open /dashboard/admin, /dashboard/admin/positions and /dashboard/admin/programs-sections.",
+      "2. Open /dashboard/audit-logs, /dashboard/approvals and /dashboard/compliance.",
+      "3. Open /dashboard/events/manage-events, /dashboard/finance/collections, /dashboard/merchandise/manage-inventory and /dashboard/tasks/task-board.",
+      "4. Open /dashboard/student, /dashboard/my-grievances and /dashboard/my-clearance.",
+      "5. Open /dashboard/super-admin/compliance and /dashboard/department-head/approvals."
+    ],
+    "expected": "Every address ends on the officer home (/dashboard/officer).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-034",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "Admin opens pages of other roles by address",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
+    "steps": [
+      "1. Open /dashboard/super-admin, /dashboard/super-admin/admins and /dashboard/super-admin/academic-years.",
+      "2. Open /dashboard/department-head and /dashboard/department-head/organizations.",
+      "3. Open /dashboard/officer, /dashboard/elections/manage-voters and /dashboard/tasks/assigned-tasks.",
+      "4. Open /dashboard/student, /dashboard/my-grievances and /dashboard/my-clearance."
+    ],
+    "expected": "Every address ends on the Admin home (/dashboard/admin).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-035",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "Department Head opens pages of other roles by address, and is turned away from voting and the store",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Department Head demo account 940001.",
+    "steps": [
+      "1. Open /dashboard/admin, /dashboard/officer and /dashboard/admin/users.",
+      "2. Open /dashboard/student, /dashboard/my-clearance and /dashboard/super-admin/organizations.",
+      "3. Open /dashboard/elections/cast-vote and /elections/1/vote.",
+      "4. Open /dashboard/merchandise/order-merchandise, /dashboard/merchandise/my-orders and /dashboard/merchandise/manage-orders."
+    ],
+    "expected": "Every address ends on the Department Head home (/dashboard/department-head). The sidebar for this role has no Vote or Store items.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-036",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "SAO opens organization-level pages by address",
+    "preconditions": "The test copy is running and you have its link. Signed in as the SAO account 990001.",
+    "steps": [
+      "1. Open /dashboard/admin and /dashboard/officer.",
+      "2. Open /dashboard/student and /dashboard/department-head.",
+      "3. Open /dashboard/events/check-in, /dashboard/finance/financial-ledger and /dashboard/approvals.",
+      "4. Open /dashboard/elections/election-results and /dashboard/announcements/view-announcements."
+    ],
+    "expected": "Every address ends on the SAO home (/dashboard/super-admin). Only Study objectives and Profile are shared pages that open for the SAO.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-037",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "Menu pages with no role index land on the right first page",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You will try several roles one after another.",
+    "steps": [
+      "1. As the Admin, open /dashboard/events, /dashboard/finance and /dashboard/tasks. Note where each lands.",
+      "2. As the Student, open /dashboard/events, /dashboard/finance and /dashboard/merchandise.",
+      "3. As the SBO Officer, open /dashboard/events and /dashboard/elections.",
+      "4. As the Department Head, open /dashboard/finance and /dashboard/elections."
+    ],
+    "expected": "Admin: events/manage-events, finance/financial-ledger, tasks/task-board. Student: events/activity-calendar, finance/personal-receipts, merchandise/order-merchandise. SBO Officer: events/check-in and elections/manage-candidates. Department Head: finance/financial-ledger and elections/election-results. None ends on an error.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-038",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "Old addresses forward to the new pages",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You will try several roles one after another.",
+    "steps": [
+      "1. As any signed-in role, open /dashboard/settings and /dashboard/organization.",
+      "2. As the Admin, open /dashboard/events/activity-calendar and /dashboard/tasks/create-task.",
+      "3. As the Student, open /dashboard/merchandise/claim-tokens.",
+      "4. As the Department Head, open /dashboard/approvals.",
+      "5. As the SAO, open /dashboard/super-admin/financial-reports."
+    ],
+    "expected": "Settings and Organization go to /dashboard/profile. The Admin calendar goes to manage-events with the calendar view, and create-task goes to the task board with the new-task form. The Student goes to My orders. The Department Head goes to /dashboard/department-head/approvals. The SAO goes to Compliance on the financial tab.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-039",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "The voting booth address is only for Admin, Officer and Student",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). An election that is open for voting.",
+    "steps": [
+      "1. As the Student, open the Vote page and start voting so the address shows /elections/<number>/vote.",
+      "2. Copy that address and sign out.",
+      "3. Sign in as the Department Head and paste the address.",
+      "4. Sign in as the SAO and paste the address."
+    ],
+    "expected": "The Student sees the voting booth. The Department Head and the SAO are sent to their own home page.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-040",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "The sidebar shows only the pages the role may open",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You will compare two roles.",
+    "steps": [
+      "1. Sign in as the Student and write down every sidebar item.",
+      "2. Sign in as the Admin and write down every sidebar item.",
+      "3. Compare the two lists with the role lists in section 4 of the member testing guide."
+    ],
+    "expected": "Each role sees only its own items. The Student has no Finance ledger, no Approvals and no Members group. The Admin has no SAO items. No item opens a page that bounces you back home.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-041",
+    "role": "All roles",
+    "module": "Access control",
+    "title": "Another organization's record cannot be opened by changing the number in the address",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. You know the address of a record of another organization (ask the demo owner, for example an event or task of JPIA-CBE).",
+    "steps": [
+      "1. Open the Events page (manage-events) and note the address pattern with ?record=<number>.",
+      "2. Replace the number with the number of an event that belongs to another organization.",
+      "3. Press Enter."
+    ],
+    "expected": "The record does not open and no data of the other organization shows. You see a not-found or empty result, never the other organization's details. VERIFY: the exact message.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-042",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Phone: sign-in page is one column",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Phone, or a browser window narrower than 640 px.",
+    "steps": [
+      "1. Open the sign-in page on the phone in portrait.",
+      "2. Look at the top part.",
+      "3. Scroll down to the form.",
+      "4. Try to drag the page sideways."
+    ],
+    "expected": "The dark panel with the logo and the line \"One AI-assisted workspace for your student organization.\" is stacked above the white form. The page does not move sideways. Fields and the Sign in button are easy to tap.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-043",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Phone: dashboard pages have no sideways scroll",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). Phone width 390 px. Test with the Student and the Admin.",
+    "steps": [
+      "1. Sign in on the phone.",
+      "2. Open the home page and scroll to the bottom.",
+      "3. Open two list pages such as Events and Statement of account (Student) or People and Ledger (Admin).",
+      "4. Try to drag each page sideways."
+    ],
+    "expected": "Cards are in one column. The page body never scrolls sideways. A wide table scrolls inside its own box only. Content padding is small (about 14 px) and text is readable without zoom.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-044",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Phone: the menu drawer opens, closes and keeps the page still",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Phone.",
+    "steps": [
+      "1. Tap the menu icon (named \"Open menu\").",
+      "2. Try to scroll the page behind the drawer.",
+      "3. Tap the dimmed area to close.",
+      "4. Open the menu again, tap the X (named \"Close menu\").",
+      "5. Open it again and tap a page."
+    ],
+    "expected": "The drawer slides in from the left over a dimmed page and the page behind does not scroll. The dimmed area and the X both close it. Tapping a page opens that page and closes the drawer.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-045",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Phone: touch targets are big enough and top bar panels fit",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Phone.",
+    "steps": [
+      "1. Look at the top bar buttons: menu, Go to page, cart, bell and your name. Tap each one with your thumb.",
+      "2. On a form page, tap the main button and one text field.",
+      "3. Tap the bell and check the panel is inside the screen on both sides and below the top bar.",
+      "4. Tap your name at the top right and scroll inside the panel if it is long."
+    ],
+    "expected": "Buttons and fields are about 42 px or taller. You hit each one on the first try. Panels open just below the top bar with a small margin left and right, nothing is cut off, a long panel scrolls inside itself, and only one panel is open at a time.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-046",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Phone: forms and dialogs can be completed",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Phone.",
+    "steps": [
+      "1. Open Updates, then Announcements, then choose to create one.",
+      "2. Tap the Title field so the keyboard opens.",
+      "3. Scroll down to the buttons.",
+      "4. Open any confirmation box, for example choose Logout."
+    ],
+    "expected": "You can reach the Save or Publish button while the keyboard is open. The confirmation box is almost full width with a small margin and its buttons are easy to tap.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-047",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Tablet width: menu is a drawer and cards use two columns",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Tablet, or a window about 800 px wide.",
+    "steps": [
+      "1. Sign in at about 800 px wide.",
+      "2. Look for a sidebar.",
+      "3. Open the menu icon.",
+      "4. Open the home page and look at the cards."
+    ],
+    "expected": "Below 1024 px the sidebar is hidden behind the menu icon and opens as a drawer. The cards use two columns where there is room. Nothing is cut off at the right edge.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-048",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Laptop: fixed sidebar and top bar",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Laptop, window wider than 1024 px.",
+    "steps": [
+      "1. Sign in on the laptop.",
+      "2. Look at the left side of the page.",
+      "3. Scroll a long page.",
+      "4. Look at the top bar."
+    ],
+    "expected": "A dark blue sidebar about 260 px wide stays fixed on the left. The white top bar (about 64 to 72 px high) shows the search button, bell and your name. There is no menu icon. Only the page content scrolls.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-049",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Laptop: sidebar collapses to a narrow rail and remembers it",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Laptop.",
+    "steps": [
+      "1. Choose the Collapse sidebar button next to the logo.",
+      "2. Hover over an icon and read its name.",
+      "3. Choose a group icon such as Finance and read the small menu that opens.",
+      "4. Reload the page.",
+      "5. Choose Expand sidebar."
+    ],
+    "expected": "The sidebar shrinks to a rail of icons (about 72 px). Icons have names on hover and for screen readers. A group opens a small list of its pages beside the rail. After reload the rail stays narrow. Expand sidebar restores the full width.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-050",
+    "role": "All roles",
+    "module": "Responsive",
+    "title": "Look and feel: HIUSA logo, Poppins font and colours",
+    "preconditions": "The test copy is running and you have its link. The device is online (the font comes from the internet). Compare colours with the Design System table in CLAUDE.md.",
+    "steps": [
+      "1. On the sign-in page find the logo in the dark panel. Sign in and find it at the top of the sidebar (laptop) or beside the menu icon (phone).",
+      "2. Look at the letters of a page title and a table. Optional: in DevTools read the Computed font-family of a text element.",
+      "3. Look at the sidebar, the page background and the main buttons.",
+      "4. Look at green, amber and red status badges and at a delete or logout action."
+    ],
+    "expected": "The logo is sharp, not stretched and not cut off. All text is Poppins (a rounded geometric style), not Arial or the plain system font; offline devices show a fallback font, which is expected. The sidebar is deep navy, the page background is a very light blue, main buttons are blue with white text. Paid or approved is green, pending is amber, failed or delete is red. No random extra colours. VERIFY: the exact blue on buttons, because some screens use a slightly darker blue than the guide value.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-051",
+    "role": "All roles",
+    "module": "Browser support",
+    "title": "Chrome and Edge (desktop)",
+    "preconditions": "The test copy is running and you have its link. Latest Chrome and latest Edge on Windows.",
+    "steps": [
+      "1. In Chrome, sign in as the Student and open Events, Store and Announcements.",
+      "2. Open the bell and the account menu.",
+      "3. Repeat the same steps in Edge."
+    ],
+    "expected": "Both browsers show the same layout and colours, and every step works the same way. Report only differences you can see on the screen.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-052",
+    "role": "All roles",
+    "module": "Browser support",
+    "title": "Firefox (desktop)",
+    "preconditions": "The test copy is running and you have its link. Latest Firefox.",
+    "steps": [
+      "1. Open the sign-in page in Firefox and sign in as the Student.",
+      "2. Open three pages and the bell.",
+      "3. Open the menu on a narrow window.",
+      "4. Fill and submit one form, for example a grievance draft or profile edit."
+    ],
+    "expected": "Pages look and work like in Chrome. Date pickers, dropdowns and the focus rings work. Nothing is cut off.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-053",
+    "role": "All roles",
+    "module": "Browser support",
+    "title": "Safari (Mac or iPhone) and Chrome on Android",
+    "preconditions": "The test copy is running and you have its link. Safari on a Mac or an iPhone, and Chrome on an Android phone.",
+    "steps": [
+      "1. Open the sign-in page in Safari and sign in as the Student.",
+      "2. Open the menu drawer (iPhone) or the sidebar (Mac) and a page with a date field and one with a file upload.",
+      "3. Repeat on the Android phone in Chrome and rotate the phone once."
+    ],
+    "expected": "The page is not cut off by the browser bars. The drawer, date fields and file choosers work (the file picker offers the camera or gallery on phones). Text is sharp and Poppins loads. There is no sideways scroll.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-054",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "The unread badge shows the number of new notifications",
+    "preconditions": "The test copy is running and you have its link. An account with unread notifications. Ask another role to do an action that notifies you (for example, the Admin approves something or posts an announcement).",
+    "steps": [
+      "1. Sign in as the account that should be notified.",
+      "2. Look at the bell badge.",
+      "3. Open the panel and read the \"N new\" tag next to the title.",
+      "4. Compare the two numbers with the highlighted rows."
+    ],
+    "expected": "The bell shows a number badge. The panel shows the same number in the tag \"N new\". Unread rows have a blue bar on the left and a light blue background. Read rows look grey. If there are more than 9, the badge shows 9+.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-055",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "The panel lists the five latest notifications",
+    "preconditions": "The test copy is running and you have its link. An account with more than five notifications.",
+    "steps": [
+      "1. Open the bell panel.",
+      "2. Count the rows.",
+      "3. Read the title, the message and the time on one row (for example \"5m ago\").",
+      "4. Scroll inside the panel."
+    ],
+    "expected": "At most five notifications show, newest first. Each row has an icon, a bold title, up to two lines of message and a time like \"just now\", \"5m ago\", \"3h ago\" or \"2d ago\".",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-056",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "Clicking a notification opens the right page and marks it read",
+    "preconditions": "The test copy is running and you have its link. A notification that points to something, for example a new announcement, an approval, an order update or a task. Test with the matching role.",
+    "steps": [
+      "1. Open the bell panel and note the badge number.",
+      "2. Choose one unread notification.",
+      "3. Check which page opens.",
+      "4. Open the bell again."
+    ],
+    "expected": "The panel closes and the page about that item opens (for example Announcements for an announcement, Approvals for an approval, My orders for an order). The row now looks read and the badge number is one lower.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-057",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "A notification with no page shows its details in the panel",
+    "preconditions": "The test copy is running and you have its link. A notification that has no link for your role (for example a general message).",
+    "steps": [
+      "1. Open the bell panel.",
+      "2. Choose that notification.",
+      "3. Read the detail view.",
+      "4. Choose Back to notifications."
+    ],
+    "expected": "The panel stays open and shows the full title, the full message and the time. If a related page exists, the button \"Open related record\" shows; otherwise no button shows. Back to notifications returns to the list. You are never sent to a page you cannot open.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-058",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "Mark all as read",
+    "preconditions": "The test copy is running and you have its link. An account with at least two unread notifications.",
+    "steps": [
+      "1. Open the bell panel.",
+      "2. Choose Mark all as read.",
+      "3. Look at the badge, the tag and the rows.",
+      "4. Reload the page."
+    ],
+    "expected": "A message \"All notifications marked as read.\" appears. The badge and the \"N new\" tag disappear, the button disappears and all rows look read. After reload they are still read.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-059",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "A new notification shows up after the next page load",
+    "preconditions": "The test copy is running and you have its link. Two roles signed in on two browsers. Role A will do something that notifies role B.",
+    "steps": [
+      "1. As role B, note the bell badge.",
+      "2. As role A, do an action that notifies role B (post an announcement or approve a request).",
+      "3. As role B, open another page or reload.",
+      "4. Look at the badge."
+    ],
+    "expected": "After reload the badge goes up and the new notification is at the top of the list. VERIFY: whether the badge updates by itself without a reload. If it does not, report it as wording or behaviour to confirm.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-060",
+    "role": "All roles",
+    "module": "Notifications",
+    "title": "The bell works with the keyboard",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop.",
+    "steps": [
+      "1. Press Tab until the bell has a visible outline.",
+      "2. Press Enter.",
+      "3. Press Tab to move into the list and press Enter on a row.",
+      "4. Reopen the bell and press Tab to Mark all as read."
+    ],
+    "expected": "The bell opens with Enter. Rows and Mark all as read can be reached with Tab and used with Enter. The bell is announced as \"Notifications\".",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-061",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Keyboard use: Tab order and visible focus outline",
+    "preconditions": "The test copy is running and you have its link. Laptop. Do not use the mouse for the first step.",
+    "steps": [
+      "1. On the sign-in page press Tab to reach School ID, Password, Show password, Forgot password? and Sign in, then press Enter to sign in.",
+      "2. Press Tab repeatedly across the top bar.",
+      "3. Keep pressing Tab through the sidebar items.",
+      "4. Keep pressing Tab through the buttons, links and fields of one page. Note any item where you cannot see where the focus is."
+    ],
+    "expected": "The highlight moves in a sensible order and you can sign in without the mouse. Every button, link, field and menu item shows a clear outline or ring when it has focus. You never lose track of where you are.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-062",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Every field has a visible label",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
+    "steps": [
+      "1. Open the sign-in page (signed out) and the Change password form in Profile.",
+      "2. Open one create form such as Create announcement.",
+      "3. Look at each field and see if a label is shown above it, not only a grey hint inside."
+    ],
+    "expected": "Every field has its label above it (\"School ID / ID Number\", \"Password\", \"Current password\", \"Title\" and so on). Hint text inside the field is extra, not the only label.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-063",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Icon-only buttons have names",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. A screen reader (NVDA on Windows, VoiceOver on Mac or iPhone) or the browser Accessibility panel.",
+    "steps": [
+      "1. Move to each icon button: menu, Go to page, Cart, Notifications, account menu, Show password, Collapse sidebar.",
+      "2. Listen to or read the name for each.",
+      "3. Hover a collapsed sidebar icon and read its tooltip."
+    ],
+    "expected": "Each icon button has a name that says what it does, for example \"Open menu\", \"Go to page\", \"Cart\", \"Notifications\", \"Account menu for <your name>\", \"Show password\", \"Collapse sidebar\". No button is read as just \"button\".",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-064",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Status is shown as text, not only as colour",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. A page with status badges such as Events or Approvals.",
+    "steps": [
+      "1. Open the page with status badges.",
+      "2. Turn on a grayscale filter (Windows: Settings, Accessibility, Colour filters, Grayscale).",
+      "3. Read every status.",
+      "4. Turn the filter off."
+    ],
+    "expected": "Every status is written as a word (for example Paid, Pending, Approved, Rejected, Claimed). You can tell them apart with no colour.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-065",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Text contrast is strong enough",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. A contrast checker such as the one in browser DevTools, or the WebAIM Contrast Checker.",
+    "steps": [
+      "1. Check body text on white and on the light blue page background.",
+      "2. Check the grey helper text and the small time text in the bell list.",
+      "3. Check white text on the blue buttons and on the navy sidebar.",
+      "4. Check red error text on its pink box."
+    ],
+    "expected": "Normal text reaches at least 4.5 to 1. Large text reaches at least 3 to 1. VERIFY: the small grey time text in the bell panel (for example \"5m ago\") may look very light and below this level. Report it with the measured value if so.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-066",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Dialogs keep the keyboard inside and close with Escape",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop.",
+    "steps": [
+      "1. Choose Logout so the \"Log Out\" box opens.",
+      "2. Press Tab several times and watch where the focus goes.",
+      "3. Press Escape.",
+      "4. Notice where the focus is now."
+    ],
+    "expected": "Focus stays inside the box while it is open. Escape closes it and nothing is lost. Focus returns to a sensible place, not the top of the page.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-067",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Errors are announced and easy to find",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser).",
+    "steps": [
+      "1. On the sign-in page submit a wrong password.",
+      "2. Look at where the error appears and listen with a screen reader if you have one.",
+      "3. On the Change password form (Profile) submit an empty form."
+    ],
+    "expected": "The sign-in error appears in a red box in the form and is read out by a screen reader (it has the alert role). On the Change password form the cursor jumps to the first field with a problem and each message sits under its field.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-068",
+    "role": "All roles",
+    "module": "Accessibility",
+    "title": "Go to page search works with the keyboard",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Laptop.",
+    "steps": [
+      "1. Press Ctrl and K.",
+      "2. Type \"task\".",
+      "3. Use the Down arrow to move through results.",
+      "4. Press Enter on one, then reopen and press Escape.",
+      "5. Type \"zzzz\" and read the result."
+    ],
+    "expected": "The box \"Search pages\" opens with the cursor in it. Arrow keys move through the list. Enter opens the page. Escape closes the box. For no match it says: No pages match \"zzzz\".",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-069",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Slow network shows loading placeholders, not a blank screen",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop. In DevTools set Network throttling to Slow 3G.",
+    "steps": [
+      "1. Set throttling to Slow 3G.",
+      "2. Open a page that has not been opened yet, for example Statement of account.",
+      "3. Watch the screen while it loads.",
+      "4. Set throttling back to No throttling."
+    ],
+    "expected": "Grey pulsing blocks (a loading skeleton) show while the page loads, with the sidebar and top bar already in place. The screen is never blank white. The page fills in when data arrives. A screen reader hears \"Loading page\".",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-070",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Offline: sign-in does not crash",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). Laptop. In DevTools set Network to Offline.",
+    "steps": [
+      "1. Set Network to Offline.",
+      "2. Fill in a correct School ID and password.",
+      "3. Choose Sign in.",
+      "4. Set Network to Online and try again."
+    ],
+    "expected": "You stay on the sign-in page with a red message and no crash. VERIFY: the message may say \"That school ID and password did not match...\" even though the real problem is no connection. If so, report it as misleading wording. Signing in works after going online.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-071",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Offline: a dashboard page shows a plain message and Try again",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop.",
+    "steps": [
+      "1. On the student home, set Network to Offline.",
+      "2. Reload a page that needs data, or choose another menu item.",
+      "3. Read the message.",
+      "4. Set Network to Online and choose Try again."
+    ],
+    "expected": "A plain message shows (not code, not a stack trace) and a Try again button where the page offers one. After going online the data loads. The sidebar and top bar stay usable.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-072",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Server problem shows a plain message, not technical text",
+    "preconditions": "The test copy is running and you have its link. Only on a LAN or development copy where the demo owner can make the server fail on purpose. Do not do this on the public link.",
+    "steps": [
+      "1. Ask the demo owner to make the server return an error.",
+      "2. Open a page and trigger the action that fails.",
+      "3. Read the message or toast."
+    ],
+    "expected": "A plain sentence shows such as \"Something went wrong. Please try again.\" or, for a stopped service, \"This service is temporarily unavailable. Please wait a moment and try again.\" It never shows SQL words, file paths, \"Stack trace\" or \"vendor\".",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-073",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Too many requests are met with a calm message and recover",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop.",
+    "steps": [
+      "1. Press F5 fast and many times in a row (about 40 times within 30 seconds), on a data-heavy page.",
+      "2. Watch for a message or toast.",
+      "3. Stop and wait one minute.",
+      "4. Reload the page."
+    ],
+    "expected": "If the limit is reached, a plain message appears, such as \"Too many requests. Please try again in N seconds.\" or \"Too many requests. Please wait a moment and try again.\" After a minute the page works again. VERIFY: whether you can reach the limit this way, since it allows 120 reads a minute.",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-074",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Empty list and no matching result messages",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
+    "steps": [
+      "1. Open a list page such as People, Events or Orders.",
+      "2. Type a search text that matches nothing, such as \"zzzzqq\".",
+      "3. Read the result.",
+      "4. Choose Clear filters (if shown).",
+      "5. Open the bell on an account with no notifications."
+    ],
+    "expected": "A friendly message shows, for example No results for \"zzzzqq\" with a Clear filters button. An empty first-use list says what is missing and offers one button to start. The bell says \"No notifications yet\". The cart says \"Cart is empty\". Nothing shows a blank gap.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-075",
+    "role": "All roles",
+    "module": "Errors",
+    "title": "Session ends cleanly when the sign-in is no longer valid",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop. DevTools Application tab is open.",
+    "steps": [
+      "1. Open Statement of account.",
+      "2. In Local Storage change auth_token to wrong text.",
+      "3. Choose another menu item (do not reload)."
+    ],
+    "expected": "The next request is refused and the app sends you to the sign-in page. No error box, no half-loaded page. After signing in again you can work as normal.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-076",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "Protected documents need a sign-in",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Department Head demo account 940001. A registration with uploaded documents exists (or any page with an Open document link).",
+    "steps": [
+      "1. Open Organizations and a registration, then choose Open on a document. It opens in a new tab.",
+      "2. Copy that tab's address.",
+      "3. Open a private window and paste the address.",
+      "4. Optional: ask the demo owner for the API address of one document and paste it in the private window."
+    ],
+    "expected": "The document opens in a new tab for you. In the private window the pasted address does not show the document (the blob link only works in the original browser tab). The API address shows only a short message such as {\"message\":\"Unauthenticated.\"}, with no file, stack trace or file path. No document content is shown to a person who is not signed in. VERIFY: the API address format with the demo owner.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-077",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "Image upload size limits (5 MB and 2 MB)",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Four image files: about 4 MB, 6 MB, 1.5 MB and 3 MB (.jpg or .png).",
+    "steps": [
+      "1. Open Create announcement (5 MB limit). Choose the 4 MB image and save.",
+      "2. Edit again, choose the 6 MB image and save. Read the message.",
+      "3. Open a page that takes a candidate or member photo (2 MB limit). Choose the 1.5 MB image and save.",
+      "4. Choose the 3 MB image and save. Read the message."
+    ],
+    "expected": "The 4 MB and 1.5 MB images are accepted. The 6 MB and 3 MB images are refused with a plain message about size and nothing is saved (the old photo stays). VERIFY: the exact wording, which may be a raw rule such as \"must not be greater than 5120 kilobytes\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-078",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "Document upload: PDF only and 10 MB limit",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Department Head demo account 940001. Four files: a normal PDF under 10 MB, a PDF over 10 MB, a .docx or .png, and a harmless text file renamed from notes.txt to notes.pdf. Registration documents accept PDF only.",
+    "steps": [
+      "1. Open Organizations and choose Register an organization.",
+      "2. Add the normal PDF to a requirement.",
+      "3. Add the large PDF, the .docx and the renamed file to three other requirements.",
+      "4. Submit and read the messages."
+    ],
+    "expected": "The normal PDF is accepted. The large PDF, the .docx and the renamed file are refused with a message that names the requirement and the problem (size, or \"must be a file of type: pdf\"). The renamed file is refused because its real content is not a PDF. Nothing is saved with a refused file.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-079",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "No raw errors or stack traces appear anywhere",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001.",
+    "steps": [
+      "1. Submit three forms with missing or wrong data (empty required field, a letter in a number field, an impossible date).",
+      "2. Open a page using a wrong number in the address, such as ?record=999999.",
+      "3. Read every message shown."
+    ],
+    "expected": "All messages are in plain sentences. The words SQLSTATE, Exception, Stack trace, vendor, .php, \"Undefined\" or any file path never appear.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-080",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "HTML typed into a text field is shown as plain text",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Use throwaway titles and delete them afterwards.",
+    "steps": [
+      "1. Open Create announcement.",
+      "2. Type <b>x</b> in the Title and <i>y</i> in the body, then save as a draft.",
+      "3. Open the saved announcement in the list and in the Feed.",
+      "4. Do the same in a task title and an event name."
+    ],
+    "expected": "The text shows exactly as typed: <b>x</b>, with the angle brackets, not as bold x. The same is true everywhere it appears (list, feed, bell, emails). Note: **text** in an announcement body is meant to show as bold; that is not a problem.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-081",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "Script text typed into a field does nothing",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Use throwaway data.",
+    "steps": [
+      "1. Type <script>alert(1)</script> in an announcement title and a task title, then save.",
+      "2. Type <img src=x onerror=alert(1)> in a grievance or profile text field, then save.",
+      "3. Type <script>alert(1)</script> in a search box.",
+      "4. Open the saved items and reload the pages."
+    ],
+    "expected": "No pop-up appears at any point. The text shows as plain characters. Search shows no results or shows the text safely.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-082",
+    "role": "All roles",
+    "module": "Data safety",
+    "title": "Double click on a save button does not make two records",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Unique throwaway titles such as DOUBLE TEST 1 and DOUBLE TEST 2.",
+    "steps": [
+      "1. Open Create announcement, fill the Title (DOUBLE TEST 1) and body.",
+      "2. Double click the Save draft button quickly. Open Manage announcements and search DOUBLE TEST 1.",
+      "3. Set Network throttling to Slow 3G. Open the new task form and fill the title DOUBLE TEST 2.",
+      "4. Choose Save three times at once, wait, then search DOUBLE TEST 2 in the task list."
+    ],
+    "expected": "Only one announcement and only one task exist. While saving, the button is disabled or shows a loading state. No \"already exists\" error shows for the extra clicks and nothing breaks.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-083",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Announcement draft helper is present and needs a title first",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. The AI helpers are switched OFF on the public copy; the case checks the screen only.",
+    "steps": [
+      "1. Open Updates, then Announcements, then create a new announcement.",
+      "2. Find the box \"Instructions for AI draft (optional)\", the Generate Draft button and the drafts-left line.",
+      "3. Leave the Title empty and choose Generate Draft."
+    ],
+    "expected": "The box, a Generate Draft button and a line such as \"20 of 20 drafts left today\" show. The usual Title and body fields work without the AI. With an empty title the message \"Enter a title before generating a draft.\" appears and the drafts-left number does not go down.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-084",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Announcement draft when the AI service is not available",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. The AI helper is off (as on the public copy).",
+    "steps": [
+      "1. Type a Title such as \"Intramurals schedule\".",
+      "2. Choose Generate Draft.",
+      "3. Read the message.",
+      "4. Type your own text in the body and save as a draft."
+    ],
+    "expected": "A plain message shows: \"AI service is temporarily unavailable. Unable to generate the announcement draft.\" The page keeps working. You can still write the body by hand and save it.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-085",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Announcement draft when the AI service is available",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. A LAN or development copy where the AI helper is turned on.",
+    "steps": [
+      "1. Type a Title and add facts in Instructions for AI draft (date, venue, who must attend).",
+      "2. Choose Generate Draft.",
+      "3. Wait while it says \"Generating draft...\".",
+      "4. Read the text that fills the body.",
+      "5. Edit it and save as a draft."
+    ],
+    "expected": "A short announcement appears in the body in plain text with no stars or markdown symbols. It uses only the facts you gave and marks missing details as not specified. You can edit it. The line about drafts left today goes down by one.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-086",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Task delegation shows a recommended officer",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. At least two SBO officers exist (the fresh seed has four).",
+    "steps": [
+      "1. Open Events and tasks, then Tasks and start a new task (or open AI delegation).",
+      "2. Type a task title and choose a category.",
+      "3. Choose the button that evaluates officers.",
+      "4. Read the ranking."
+    ],
+    "expected": "A ranked list of officers shows, with one marked \"Recommended\". Reasons, the eligibility rules and a small badge for the engine used (\"Python AI service\" or \"Local fallback engine\") are shown. The helper does not assign the task by itself: you still choose the officer and create the task.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-087",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Task delegation still works when AI is off",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. The AI service is off (as on the public copy).",
+    "steps": [
+      "1. Open AI delegation or the new task form.",
+      "2. Type a task title and ask for the recommendation.",
+      "3. Read the result and the engine badge."
+    ],
+    "expected": "A recommendation still appears, built by the built-in rules. The badge says \"Local fallback engine\". There is no error message and no long wait.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-088",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Forecast: only the Admin can generate one",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Then the SBO Officer and the Department Head. The ledger has several months of data.",
+    "steps": [
+      "1. As the Admin open Finance, then Forecast.",
+      "2. Choose Generate forecast.",
+      "3. Wait for the chart.",
+      "4. Sign in as the Officer and then as the Department Head and open the same page."
+    ],
+    "expected": "The Admin sees the button and a message \"OLS forecast generated from the available transaction history.\" A forecast chart and figures appear. The Officer and the Department Head can read forecasts but do not see the Generate forecast button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-089",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Forecast with too little history gives a helpful message",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. An organization with very few ledger entries.",
+    "steps": [
+      "1. Open Finance, then Forecast.",
+      "2. Read the empty-state text.",
+      "3. Choose Generate forecast.",
+      "4. Read the message."
+    ],
+    "expected": "The page explains that a forecast needs a few months of ledger history. If the request is refused, a plain message such as \"Failed to generate the forecast.\" (or a clearer reason from the server) shows. No technical text.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-090",
+    "role": "All roles",
+    "module": "AI helpers",
+    "title": "Forecast text when the AI explanation is unavailable",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. The AI helper is off (as on the public copy). The ledger has enough history.",
+    "steps": [
+      "1. Open Finance, then Forecast and choose Generate forecast.",
+      "2. Look at the forecast card.",
+      "3. Read any amber note."
+    ],
+    "expected": "The forecast numbers and chart still appear. An amber note says the AI explanation was unavailable and that the forecast and risk calculations still completed. Nothing blocks the page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-091",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "The top bar shows who you are and where",
+    "preconditions": "The test copy is running and you have its link. Demo accounts and their passwords are in section 2 of the member testing guide (the SAO password comes from the person running the demo). You will sign in as several roles.",
+    "steps": [
+      "1. Sign in as the Admin 900001 and read the name area at the top right.",
+      "2. Sign in as the Department Head 940001 and read it again.",
+      "3. Sign in as the Student and read it again.",
+      "4. Look at the bottom of the sidebar for your name and role."
+    ],
+    "expected": "The Admin line reads like \"PSITS-CCS · Organization Admin\". The Department Head line shows the college name and \"Department Head\". The Student line shows the organization and Student. The sidebar bottom shows your name and role too.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-092",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "The school year and semester chip",
+    "preconditions": "The test copy is running and you have its link. Signed in as the SAO account 990001. A fresh seed with no active semester, then one the SAO activates.",
+    "steps": [
+      "1. Before a semester is active, look at the top bar of any role.",
+      "2. As the SAO, open Academic years, add a semester and choose Set as active.",
+      "3. Reload any page and look at the top bar."
+    ],
+    "expected": "Before: no chip. After: a small chip such as \"AY 2026-2027 · 1st Semester\" shows in the top bar for every role.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "GEN-093",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "A Department Head sees only their own college",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Department Head demo account 940001. Another college has organizations too (the fresh seed has five colleges).",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Read every organization listed and its college.",
+      "3. Compare with the Business college organization JPIA-CBE."
+    ],
+    "expected": "Only organizations that belong to the Department Head's own college (Computer Studies) are listed. Organizations of other colleges are not shown anywhere, not even in search.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-094",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "An organization Admin sees only their own organization's data",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Another organization has data (JPIA-CBE has its own Admin 920011).",
+    "steps": [
+      "1. Open People, Events and Ledger.",
+      "2. Look for any person, event or amount that belongs to JPIA-CBE.",
+      "3. Use the search box on People to look for a JPIA-CBE student such as 2400118 or 2400133."
+    ],
+    "expected": "Only PSITS-CCS data shows. No JPIA-CBE person, event or ledger entry appears in lists, search or counts.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-095",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "The SAO sees every college and organization",
+    "preconditions": "The test copy is running and you have its link. Signed in as the SAO account 990001.",
+    "steps": [
+      "1. Open Organizations, then Colleges.",
+      "2. Read the college list.",
+      "3. Open Registrations and organizations and read the list.",
+      "4. Open one organization."
+    ],
+    "expected": "The SAO sees all colleges with their organizations, with counts and states (Active, Pending, Returned, Archived). Organizations can be opened from the list.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-096",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "Members of an archived organization cannot sign in",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). The SAO has archived a throwaway organization that has an Admin or a student account (ask the demo owner).",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type the School ID of a member of the archived organization.",
+      "3. Type the correct password.",
+      "4. Choose Sign in."
+    ],
+    "expected": "A red message shows: \"Your organization has been archived by the Student Affairs Office and is read only. Contact the Student Affairs Office to restore it.\" You are not signed in.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-097",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "Members of a pending or returned organization cannot sign in",
+    "preconditions": "The test copy is running and you have its link. You are signed out (no one is signed in on this browser). A throwaway organization that is waiting for SAO review, and one that the SAO returned.",
+    "steps": [
+      "1. Sign in with a member of the pending organization.",
+      "2. Read the message.",
+      "3. Sign in with a member of the returned organization.",
+      "4. Read the message."
+    ],
+    "expected": "Pending: \"Your organization is still waiting for approval by the Student Affairs Office.\" Returned: \"Your organization registration was returned by the Student Affairs Office. Contact your Department Head.\" Neither person is signed in.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-098",
+    "role": "All roles",
+    "module": "Hierarchy",
+    "title": "An archived organization is read only for the SAO",
+    "preconditions": "The test copy is running and you have its link. Signed in as the SAO account 990001. An archived organization exists.",
+    "steps": [
+      "1. Open Organizations, Registrations and organizations.",
+      "2. Open the archived organization.",
+      "3. Try to change something (add an Administrator or edit a detail).",
+      "4. Read the message."
+    ],
+    "expected": "The change is refused with the message \"Archived organizations are read only.\" The data stays as it was. Restoring the organization (SAO action) makes changes possible again.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-099",
+    "role": "All roles",
+    "module": "Print and export",
+    "title": "Study objectives page prints cleanly",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Student demo account 2100142. Laptop and a printer or Save as PDF.",
+    "steps": [
+      "1. Open Study objectives from the bottom of the sidebar.",
+      "2. Choose Print.",
+      "3. Look at the print preview.",
+      "4. Save as PDF."
+    ],
+    "expected": "The preview shows the page content without the sidebar, top bar and buttons. Text is not cut at the edges. The saved PDF is readable.",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-100",
+    "role": "All roles",
+    "module": "Print and export",
+    "title": "Financial report downloads (PDF and Excel)",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. A financial report exists (generate one in Finance, Financial reports).",
+    "steps": [
+      "1. Open Finance, then Financial reports.",
+      "2. Choose the PDF download for a report and open the file.",
+      "3. Choose Export Excel for a report type and open the file in Excel.",
+      "4. Compare the figures in both files with the screen."
+    ],
+    "expected": "A PDF named like financial-report-<number>.pdf downloads and opens. It shows the organization name, the period and the same totals as the screen. The Excel file opens without a repair warning, has column headings and rows that match the screen. A plain message shows if a file cannot be made.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-101",
+    "role": "All roles",
+    "module": "Print and export",
+    "title": "Orders CSV export",
+    "preconditions": "The test copy is running and you have its link. Signed in as the SBO Officer demo account 900004. Orders exist.",
+    "steps": [
+      "1. Open Store, then Orders.",
+      "2. Choose Export CSV.",
+      "3. Watch the button text.",
+      "4. Open the file in Excel or Notepad."
+    ],
+    "expected": "The button reads \"Exporting...\" while it works. A .csv file downloads with a header row and one line per order. Names with commas stay in one cell.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-102",
+    "role": "All roles",
+    "module": "Print and export",
+    "title": "Exports contain all matching rows, not just the visible page",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. More than one page of people or tasks (fresh seed has 35 accounts).",
+    "steps": [
+      "1. Open People and filter the list to a role or search term.",
+      "2. Note the total count shown.",
+      "3. Choose Export.",
+      "4. Count the data rows in the file."
+    ],
+    "expected": "The file has as many rows as the filtered total, not only the rows on the current page. The export button is disabled when the list has no rows.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-103",
+    "role": "All roles",
+    "module": "Print and export",
+    "title": "Exported files do not run formulas",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Create a throwaway item whose name starts with =, +, - or @ (for example a task titled =1+1).",
+    "steps": [
+      "1. Save a task or item named =1+1.",
+      "2. Export the list that contains it.",
+      "3. Open the file in Excel."
+    ],
+    "expected": "The cell shows the text =1+1 (it begins with a small quote mark that the system adds), not the number 2. Excel does not run it as a formula.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-104",
+    "role": "All roles",
+    "module": "Print and export",
+    "title": "Temporary passwords file after a class list import",
+    "preconditions": "The test copy is running and you have its link. Signed in as the Admin demo account 900001. Use a small test class list with one new student. Treat the downloaded file as private.",
+    "steps": [
+      "1. Open Members, then Programs and sections, then Import class list.",
+      "2. Download the template, add one new student, upload it and import.",
+      "3. Download the temporary passwords file shown after the import.",
+      "4. Close the page and look for the passwords again."
+    ],
+    "expected": "A file named hiusa-temporary-passwords.csv downloads and lists each new student with a temporary password. The passwords are shown only once. After you leave the page they cannot be read again. Delete the file after the test.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "GEN-105",
+    "role": "All roles",
+    "module": "Semesters",
+    "title": "After a semester is closed, an old event cannot be edited",
+    "preconditions": "The test copy is running and you have its link. Round 2. The 1st semester was active and Admin 900001 made an event in it (\"QA Old Event\"). The SAO has now closed the 1st semester and activated the 2nd (SAO-100). Sign in as Admin 900001.",
+    "steps": [
+      "1. Open Events and tasks > Events. In \"Academic period\" choose the closed semester (the option ends with \"completed\").",
+      "2. Read the line above the list. Look for the buttons \"New event\", \"Delete event\" and \"Cancel event\".",
+      "3. Open the row menu of \"QA Old Event\" and choose \"Edit event\".",
+      "4. Change the title and select \"Save Changes\". Read the red message.",
+      "5. Close the form. Choose \"Active period\" in the same drop down and look for \"QA Old Event\"."
+    ],
+    "expected": "The page says \"Viewing completed semester records. New events use only the active period.\" \"New event\", \"Delete event\" and \"Cancel event\" are not offered. Saving the edit is refused with \"Historical semester events are read only.\" and the title stays the same. Changing the status of the old event (Ongoing or Completed) is refused the same way. In the active period the old event is not listed. The event is still readable in the old period. VERIFY: where the red message shows (in the form or as a toast).",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-100 and ADM-062"
+  },
+  {
+    "id": "GEN-106",
+    "role": "All roles",
+    "module": "Semesters",
+    "title": "After a semester is closed, old tasks can be read but not changed",
+    "preconditions": "The test copy is running and you have its link. Round 2. Admin 900001 made a task for Officer 900004 in the 1st semester. The SAO has closed the 1st semester and activated the 2nd.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Events and tasks > Tasks. In \"Academic period\" choose the closed semester.",
+      "2. Read the note under the title. Look for \"New task\". Open the row menu of the old task.",
+      "3. Sign out. Sign in as Officer 900004. Open Events and tasks > My tasks and choose the closed semester in \"Academic period\", if it is offered.",
+      "4. Look at the old task for \"Start task\" and \"Complete task\". Open \"View details\"."
+    ],
+    "expected": "The Admin sees \"Completed semester tasks are available for viewing only.\" There is no \"New task\", and the row menu has no \"Edit task\", \"Delete task\" or \"Reopen task\". The officer sees the task in the old period with its details and history but no Start or Complete button. The system itself also refuses a forced change with \"Historical semester tasks are read only.\" (409), but a normal user cannot reach that message from the screen: ask a technical teammate to send it. VERIFY: that the officer sees the Academic period drop down.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-100 and ADM-086"
+  },
+  {
+    "id": "GEN-107",
+    "role": "All roles",
+    "module": "Semesters",
+    "title": "After a semester is closed, an old election is read only and students cannot vote in it",
+    "preconditions": "The test copy is running and you have its link. Round 2. An election was made in the 1st semester (it may be finished or still open). The SAO has closed the 1st semester and activated the 2nd.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Voting > Elections. Choose the closed semester in \"Academic period\".",
+      "2. Read the note above the cards. Look at the old election card for Edit, Delete, Open voting and Close.",
+      "3. Select \"Open election\" and try to add a position or a candidate.",
+      "4. Sign out. Sign in as Student 2100142. Open Voting > Vote and look for the old election."
+    ],
+    "expected": "The note reads \"Completed semester elections are available for viewing only.\" The card only has \"Open election\" (and the letter download); there is no Edit, Delete, Open voting or Close button. Inside the election, a forced change is refused with \"Historical semester elections are read only.\" The student does not see the old election to vote in. A vote that is sent to it anyway is refused with the same text. VERIFY: whether the election workspace still shows the add buttons, and whether the Vote page lists an old open election.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-100 and ADM-152"
+  },
+  {
+    "id": "GEN-108",
+    "role": "All roles",
+    "module": "Semesters",
+    "title": "Check-in on an event of a closed semester is refused",
+    "preconditions": "The test copy is running and you have its link. Round 2. Officer 900004 has the Check-in page open on an event of the 1st semester. The SAO is ready, on another device, to close that semester and activate the next (SAO-100). Student 2100142 is a member who is not yet checked in.",
+    "steps": [
+      "1. As the officer, open Events and tasks > Check-in and open the event. Do not close the page.",
+      "2. The SAO closes the 1st semester and activates the 2nd.",
+      "3. In the same page (no reload) type 2100142 in \"Member\", pick the result and click \"Confirm Check-In\".",
+      "4. Read the message. Then reload the page and look in the \"Event queue\"."
+    ],
+    "expected": "The check-in is refused with \"Historical semester events are read only.\" and no attendance record is added. After the reload the old event is not in the \"Event queue\", because the queue lists only events of the active period. Seeded events that never had a semester are not affected. This is the other side of the guard EnsureCurrentEventSemester (see SBO-091). VERIFY: where the message shows.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-100 and SBO-091"
+  },
+  {
+    "id": "GEN-109",
+    "role": "All roles",
+    "module": "Semesters",
+    "title": "After a semester is closed, a pending approval for an old event or election cannot be decided",
+    "preconditions": "The test copy is running and you have its link. Round 2. Admin 900001 proposed an event and an election in the 1st semester. Department Head 940001 has not decided them. The SAO has closed the 1st semester and activated the 2nd.",
+    "steps": [
+      "1. Sign in as Department Head 940001. Open Approvals and find the event request. Select Review.",
+      "2. Select Approve and confirm. Read the message.",
+      "3. Do the same for the election request (set Request type to Election).",
+      "4. Sign out. Sign in as Admin 900001. Open Approvals > Submitted by me and read both requests."
+    ],
+    "expected": "The event approval is refused with \"Historical semester event approvals are read only.\" The election approval is refused with \"Historical semester election approvals are read only.\" Both requests stay Pending and nobody can decide them. The Admin proposes new ones in the new semester. VERIFY: whether the old requests still show in the Department Head's list, and where the message shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-100, DH-041 and DH-046"
+  },
+  {
+    "id": "GEN-110",
+    "role": "All roles",
+    "module": "Scheduler",
+    "title": "An election opens and closes by itself at its voting window",
+    "preconditions": "The test copy is running and you have its link. The host laptop runs the scheduler (php artisan schedule:run or schedule:work) in the background. If you see nothing after waiting the time written in the case, report the case as Blocked and write the time you waited. The host can also run the single job by hand. Admin 900001 has an election that Department Head 940001 approved and the Admin finalized (see ADM-166). The voting window starts about 3 minutes from now and ends about 8 minutes from now. Only elections that were approved and finalized open by themselves.",
+    "steps": [
+      "1. As Admin, open Voting > Elections. Read the status of the election (Upcoming). Do not select Open voting.",
+      "2. Wait until the start time has passed by 1 to 2 minutes. Reload the page.",
+      "3. As Student 2100142, open Voting > Vote and read the card.",
+      "4. Wait until the end time has passed by 1 to 2 minutes. Reload both pages."
+    ],
+    "expected": "Before the start the card says Upcoming. One to two minutes after the start the Admin card shows Live (Voting open) and the student card shows the Open badge with \"Vote in this election\", with nobody pressing a button. One to two minutes after the end the status is Closed on both pages and the student can no longer vote. The job runs every minute. If the status did not change after 2 minutes, report Blocked.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after ADM-166"
+  },
+  {
+    "id": "GEN-111",
+    "role": "All roles",
+    "module": "Scheduler",
+    "title": "An approved event sends a reminder notification within 24 hours of its start",
+    "preconditions": "The test copy is running and you have its link. The host laptop runs the scheduler (php artisan schedule:run or schedule:work) in the background. If you see nothing after waiting the time written in the case, report the case as Blocked and write the time you waited. The host can also run the single job by hand. The reminder job runs once an hour, so wait for the next full hour plus a few minutes, or ask the host to run \"events:send-reminders\". An approved event starts within the next 24 hours (status Approved, not Ongoing). Student 2100142 is an active member and has not muted \"Events and reminders\" in Profile.",
+    "steps": [
+      "1. As Admin, open the event and check that it is Approved and starts within 24 hours.",
+      "2. Wait until the next full hour has passed by a few minutes (or the host runs the job).",
+      "3. As Student 2100142, reload and open the bell.",
+      "4. Open the notification \"Event Reminder: <event title>\".",
+      "5. Wait for one more hour or run the job again. Open the bell again and count the reminders for this event."
+    ],
+    "expected": "The bell lists \"Event Reminder: <event title>\" with the text \"<title> starts <date and time> at <venue>.\" Members of the organization get it (the student, the officers and the Admins). After the next hourly run there is still only one reminder for this event per person. A student who muted \"Events and reminders\" does not see it. An event that is not Approved, or that starts later than 24 hours from now, gets no reminder.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-062 and STU-029"
+  },
+  {
+    "id": "GEN-112",
+    "role": "All roles",
+    "module": "Scheduler",
+    "title": "A registered student who is never checked in becomes a No-show after the event ends",
+    "preconditions": "The test copy is running and you have its link. The host laptop runs the scheduler (php artisan schedule:run or schedule:work) in the background. If you see nothing after waiting the time written in the case, report the case as Blocked and write the time you waited. The host can also run the single job by hand. The no-show job runs once an hour, so wait for the next full hour after the event ends plus a few minutes, or ask the host to run \"events:mark-no-shows\". Use an approved event that starts in a few minutes and ends in about 30 minutes. Student 2400019 registered and will not be checked in. Student 2100142 registered and will be checked in.",
+    "steps": [
+      "1. As Student 2400019, open the event and read the badge. It says Registered.",
+      "2. As an officer, check in Student 2100142 only (Events and tasks, Check-in).",
+      "3. Wait until the event has ended and the next full hour has passed by a few minutes (or the host runs the job).",
+      "4. As Student 2400019, reopen the event and read the badge and the message.",
+      "5. As Student 2100142, reopen the event. As Admin, open the event and read the counts under \"Registrations\"."
+    ],
+    "expected": "Student 2400019 now shows the badge No-show and the line \"You registered but no check-in was recorded for this event.\" The step \"Check in at the event\" says \"No check-in recorded\". Student 2100142 still shows Attended. The Admin's \"Registrations\" counts show Attended 1 and No-show 1. A registration that was cancelled stays Cancelled.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-029 and SBO-018"
+  },
+  {
+    "id": "GEN-113",
+    "role": "All roles",
+    "module": "Scheduler",
+    "title": "An SAO notice published for later goes out at its time and then expires",
+    "preconditions": "The test copy is running and you have its link. The host laptop runs the scheduler (php artisan schedule:run or schedule:work) in the background. If you see nothing after waiting the time written in the case, report the case as Blocked and write the time you waited. The host can also run the single job by hand. Signed in as SAO 990001 (use the SAO password the demo owner gave you). SAO-090 only checks that the form saves. This case checks the publish time. Student 2100142 is ready on another device.",
+    "steps": [
+      "1. Select Create official notice. Type a Title and text, keep the audience \"All HIUSA users\", set Schedule (optional) about 3 minutes from now and Expires about 8 minutes from now.",
+      "2. Tick Confirm publish and select Publish official notice. Read the card.",
+      "3. As Student 2100142, open the bell and Updates > Announcements. Look for the notice.",
+      "4. Wait until the Schedule time has passed by 1 to 2 minutes. Reload the SAO page and the student page.",
+      "5. Wait until the Expires time has passed by 1 to 2 minutes. Reload the student feed."
+    ],
+    "expected": "Right after saving the card shows SCHEDULED and the student sees nothing. One to two minutes after the Schedule time the card shows PUBLISHED, and the student has the notification \"SAO Official: <title>\" and sees the notice in the feed. After the Expires time the notice is no longer shown in the student feed. If the card stays SCHEDULED 2 minutes after its time, report Blocked. VERIFY: the exact card label after it expires.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after SAO-090"
+  },
+  {
+    "id": "GEN-114",
+    "role": "All roles",
+    "module": "Scheduler",
+    "title": "A late task changes to Overdue after the daily job",
+    "preconditions": "The test copy is running and you have its link. The host laptop runs the scheduler (php artisan schedule:run or schedule:work) in the background. If you see nothing after waiting the time written in the case, report the case as Blocked and write the time you waited. The host can also run the single job by hand. The overdue job runs once a day at 00:05, so this case needs a night, or the host runs \"tasks:mark-overdue\" by hand. Admin 900001 made a task for Officer 900004 with a deadline a few minutes ahead. Nobody completes it.",
+    "steps": [
+      "1. As Admin, create the task (Events and tasks > Tasks, New task) and note its status. It starts as Pending.",
+      "2. Wait until the deadline has passed. Reload the Tasks board and read the status and the \"Overdue\" count.",
+      "3. After 00:05 the next day, or after the host runs the job, reload the board again.",
+      "4. As Officer 900004, open Events and tasks > My tasks and read the task. Look for \"Complete task\".",
+      "5. Complete the task and reload the board."
+    ],
+    "expected": "Before the job the task may still read Pending or In progress (VERIFY: the screen may mark it late by itself). After the job it reads Overdue and the \"Overdue\" count goes up by one. The officer sees it as Overdue and can still complete it. A completed task is not changed to Overdue by the job.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-086 and ADM-092"
+  },
+  {
+    "id": "GEN-115",
+    "role": "All roles",
+    "module": "Account menu",
+    "title": "A person with two profiles switches profile and sees only the new profile",
+    "preconditions": "The test copy is running and you have its link. The seed has no account with two profiles, because each college has only one organization. To make one: the Department Head of a college registers a second organization, the SAO approves it and creates its Admin (chain GEN-120), then that Admin adds Student 2100142 with \"Add existing user\" in Members > People (ADM-040). VERIFY: whether the seed lets you do this. If you cannot make a second profile, report Blocked.",
+    "steps": [
+      "1. Sign in as Student 2100142. Open the account menu in the top bar (your name).",
+      "2. Read the section \"Profiles\". Note the current profile and the other one.",
+      "3. Click the other profile. Wait for the page to reload.",
+      "4. Read the dashboard, the menu and the organization name. Open Events.",
+      "5. Open the account menu again and switch back to the first profile."
+    ],
+    "expected": "The section \"Profiles\" lists both profiles and the hint \"Switch profile\". The current one is marked. After the click the page reloads on the home page of the new profile's role. The menu, the events and the data belong only to the new organization, and nothing of the first one shows. Switching back restores the first view. A person with only one profile sees \"This is your only active profile.\" VERIFY: every step on a copy where a second profile can be made.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-040"
+  },
+  {
+    "id": "GEN-116",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Event from proposal to report with the seeded data (Round 1)",
+    "preconditions": "The test copy is running and you have its link. Round 1: the SAO has NOT added or activated a semester yet, so the seeded data is still in the lists. You need four to six people or one person who signs out and in. Accounts: Admin 900001, Department Head 940001, SAO 990001 (the SAO password the demo owner gave you), Officer 900004, Student 2100142. The password for the others comes from the tester sheet. Use a venue type that the SAO checks (an on-campus SAO venue). If the event window says \"SAO has not listed any file requirements.\", skip steps 7 to 9. Pick a start date a few days ahead so the student can still register.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Events and tasks > Events, select \"New event\", fill a title (for example \"QA Chain Event\"), dates, an on-campus venue, and select \"Submit proposal\".",
+      "2. Read the stepper in the event window. It should say it waits for the Department Head.",
+      "3. Sign out. Sign in as Department Head 940001. Open Approvals, select Review on the event, select Approve and confirm.",
+      "4. Read the sentence at the top of the panel.",
+      "5. Sign out. Sign in as Admin 900001. Open the event with \"View event\".",
+      "6. In \"SAO event requirements\" choose one PDF for each item and select \"Submit event files to SAO\".",
+      "7. Sign out. Sign in as SAO 990001. Open Reviews > Compliance > Event requirements and find the event under \"Events waiting for SAO\".",
+      "8. Select Approve and then \"Approve event\". Read the message.",
+      "9. Sign out. Sign in as Student 2100142. Open the bell and read the notification \"Event Approved: QA Chain Event\". Open Events and find the event.",
+      "10. Open the event and select \"Register for this event\". Read the badge.",
+      "11. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event, type 2100142 in \"Member\", pick the result and select \"Confirm Check-In\".",
+      "12. Sign out. Sign in as Student 2100142. Open the event and read the badge and the three steps.",
+      "13. Sign out. Sign in as Admin 900001. Open the event, select \"Mark Ongoing\" and then \"Mark Completed\".",
+      "14. Select \"Prepare event report\", fill the four signatory names and select \"Generate Financial Report\". Read the new row in the list."
+    ],
+    "expected": "Each hand-off shows the right next step: the event waits for the Department Head, then for the organization's SAO files, then for the SAO, then is Approved. The student gets \"Event Approved: QA Chain Event\", sees the event and the message \"You are registered\". After the officer check-in, the student sees Attended and \"Your attendance at this event is on record.\" with the three steps done. The Admin can mark the event Completed and a draft report appears with the stage \"Step 1 of 4: Draft\". Nobody had to ask \"where is it now?\". In Round 1 the new event has no semester, so nothing here is blocked by a closed semester. VERIFY: whether the SAO step applies to your venue.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)",
+    "depends": "Run after ADM-062, DH-041, ADM-069, SAO-059, STU-029, SBO-018, STU-036 and ADM-140"
+  },
+  {
+    "id": "GEN-117",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Event from proposal to report inside an active semester (Round 2)",
+    "preconditions": "The test copy is running and you have its link. Round 2: the SAO has added and activated a semester whose dates cover your test dates (SAO-096 and SAO-098). The seeded events are gone from the lists in this round. Accounts: Admin 900001, Department Head 940001, SAO 990001 (the SAO password the demo owner gave you), Officer 900004, Student 2100142. The password for the others comes from the tester sheet. If the event window says \"SAO has not listed any file requirements.\", skip steps 6 to 8. Pick a start date a few days ahead, inside the semester.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Events and tasks > Events, select \"New event\", fill the title (for example \"QA Semester Event\"), dates inside the semester, an on-campus venue, and select \"Submit proposal\".",
+      "2. Try one more proposal with dates a year later and read the refusal. Cancel it.",
+      "3. Sign out. Sign in as Department Head 940001. Open Approvals, select Review on the event, select Approve and confirm.",
+      "4. Sign out. Sign in as Student 2100142. Open Events and check that only the new event shows (the seeded events are gone).",
+      "5. Sign out. Sign in as Admin 900001. Open the event and, in \"SAO event requirements\", choose one PDF per item and select \"Submit event files to SAO\".",
+      "6. Sign out. Sign in as SAO 990001. Open Reviews > Compliance > Event requirements, select Approve on the event and then \"Approve event\".",
+      "7. Sign out. Sign in as Student 2100142. Read the bell notification \"Event Approved: QA Semester Event\". Open the event and select \"Register for this event\".",
+      "8. Sign out. Sign in as Officer 900004. Open Events and tasks > Check-in, open the event and check in 2100142 with \"Confirm Check-In\". Read the message.",
+      "9. Sign out. Sign in as Student 2100142. Open the event and read the badge.",
+      "10. Sign out. Sign in as Admin 900001. Open the event, select \"Mark Ongoing\", then \"Mark Completed\".",
+      "11. Select \"Prepare event report\", fill the signatory names and select \"Generate Financial Report\"."
+    ],
+    "expected": "The dates outside the semester are refused with \"Event dates must fall within the active academic semester.\" The Department Head, SAO, student, officer and Admin each see the event in the right state. The officer's check-in works with \"Check-in recorded.\" and no message about a historical semester, because the event belongs to the active semester. The student sees Attended. The Admin can complete the event and a draft report appears with the stage \"Step 1 of 4: Draft\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-098, ADM-064, DH-041, ADM-069, SAO-059, SBO-091, STU-102 and ADM-140"
+  },
+  {
+    "id": "GEN-118",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Election from proposal to results, all inside an active semester",
+    "preconditions": "The test copy is running and you have its link. Round 2: the SAO has activated a semester. Accounts: Admin 900001, Department Head 940001, Student 2100142. The password comes from the tester sheet. Have a small PDF ready for the informative letter. The MEMBER_TESTING guide says nobody has tried a student voting in an election made this way, so every unexpected result is a finding.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Voting > Elections and select \"Create election\".",
+      "2. Choose the PDF in \"Informative letter (PDF) *\". Type the \"Election title *\" (for example \"QA Chain Election\"). Set \"Voting starts *\" about 3 minutes from now and \"Voting ends *\" a day later, inside the semester. Type one position of your own (for example Chairperson). Select \"Submit for approval\".",
+      "3. Sign out. Sign in as Department Head 940001. Open Approvals, set Request type to Election, select Review, Approve and confirm.",
+      "4. Sign out. Sign in as Admin 900001. Open the election. In the step \"Party lists\" select \"Register New Party\" and register one party.",
+      "5. In the step \"Candidates\" select \"Add Candidate\", search a different student (for example 2100217), choose the position and the party list, and add the candidate.",
+      "6. Select \"Finalize ballot\". Read the page.",
+      "7. Wait until the start time has passed by 1 to 2 minutes. Reload. If the status is still Upcoming after 2 minutes, select \"Open voting\" and write that down.",
+      "8. Sign out. Sign in as Student 2100142. Open Voting > Vote. Select \"Vote in this election\", \"Start my ballot\", choose the candidate, \"Review ballot\", \"Submit final ballot\" and \"Confirm and submit\".",
+      "9. Sign out. Sign in as Admin 900001. Open the election, open the step \"Voters\" and read Not Yet Voted. Select \"Close\".",
+      "10. Open Voting > Results and read the title and the winner.",
+      "11. Sign out. Sign in as Department Head 940001. Open Election results and read the same result. Look for a vote button.",
+      "12. Sign out. Sign in as Student 2100142. Open Voting > Results and read the result."
+    ],
+    "expected": "The election is Pending Approval after step 2 and Approved after step 3. The page after \"Finalize ballot\" says \"Position setup is locked for this election.\" The election turns Live (Voting open) by itself at its start time. The student gets a \"Ballot submitted\" page with a receipt hash, and the Vote page then shows Voted. The Voters step shows one person fewer under Not Yet Voted. After \"Close\" the toast reads \"Election closed.\" and Results shows \"Official final results\" with the same winner for the Admin, the Department Head and the student. No page shows who voted for whom. The Department Head has no vote button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-098, ADM-152, DH-046, ADM-161, ADM-163, ADM-166, ADM-168, STU-101 and DH-078"
+  },
+  {
+    "id": "GEN-119",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Order a sized product, pay by GCash, claim it, and check stock, receipt and ledger",
+    "preconditions": "The test copy is running and you have its link. Accounts: Admin 900001, Officer 900004, Student 2300312. The password comes from the tester sheet. The Admin has uploaded the GCash QR code (ADM-181) and a product with sizes, for example \"QA Shirt\" with S stock 5 and M stock 10 at 100.00 each (ADM-176). Have a small picture for the payment proof. Write down the starting stock and the number of ledger entries.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Store > Inventory and write down the stock of \"QA Shirt\": S and M. Open Finance > Ledger and write down the number of Merchandise income entries.",
+      "2. Sign out. Sign in as Student 2300312. Open Store, Shop. On \"QA Shirt\" leave \"Select variant\" and tap \"Add to Cart\". Read the message.",
+      "3. Choose size M and tap \"Add to Cart\". Open the cart and read the line of the product.",
+      "4. Tap \"Review & Continue\", set Payment Method to GCash, type a 13-digit \"GCash Reference\", choose a picture in \"Payment Proof\" and tap \"Place Reservation\". Write down the order number.",
+      "5. Sign out. Sign in as Officer 900004. Open Store > Orders, find the order, select \"Verify\", check \"Amount verified\" and select \"Verify & Submit\".",
+      "6. Sign out. Sign in as Admin 900001. Open Store > Orders and select \"Approve payment\" on the order, then confirm.",
+      "7. Open Store > Inventory and read the stock of size S and size M again.",
+      "8. Sign out. Sign in as Student 2300312. Open Store, My orders. Read the status and the 16-character claim token.",
+      "9. Open My payments, Receipts and find the receipt for the order.",
+      "10. Sign out. Sign in as Officer 900004. Open Store > Claim desk, type the token in \"16-character claim token\", select \"Claim\", check the student and the items, and select \"Confirm Claim / Release\".",
+      "11. Sign out. Sign in as Student 2300312. Open My orders and read the status.",
+      "12. Sign out. Sign in as Admin 900001. Open Store > Inventory and compare stock. Open Finance > Ledger and find the entry \"Merchandise order ORD-<number>\"."
+    ],
+    "expected": "The first Add to Cart says \"Select a variant for QA Shirt.\" After the officer verifies, the order waits for the Admin and has no token yet. After the Admin approves it is Paid, shows a 16-character token and \"Payment confirmed! Show your token again to collect your item.\" After the claim the order is Claimed and the officer's register lists it. Stock of size M is lower by 1 and size S did not change. The student has a receipt, and the ledger has one new income entry named \"Merchandise order ORD-<number>\" in the category Merchandise for the order total (the receipt reference is MERCH-ORD-<number>). The three numbers agree. VERIFY: whether the stock drops when the order is placed or when the Admin approves it (the code takes it at approval).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-176, ADM-181, STU-105, SBO-062, ADM-184, SBO-068, STU-061 and STU-062"
+  },
+  {
+    "id": "GEN-120",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "A new organization: registration, SAO approval, first Admin, first student",
+    "preconditions": "The test copy is running and you have its link. Round 2: the SAO has activated a semester (the Department Head cannot register before that). Accounts: Department Head 940001, SAO 990001 (the SAO password the demo owner gave you). Have ten small PDF files ready. Use a new organization name and a new School ID for the Admin (for example 9100123) and for the student (for example 2999001). Choose passwords of at least 8 characters and tell them to the next person. Do not write them in this sheet.",
+    "steps": [
+      "1. Sign in as Department Head 940001. Open Organizations, select \"Register an organization\", type a new name and acronym, choose a PDF in every file box and select \"Submit for review\".",
+      "2. Read the new row. It should say \"Pending review: waiting for SAO review\".",
+      "3. Sign out. Sign in as SAO 990001. Open Registrations and organizations, select Review on the new organization, select Approve and read the message.",
+      "4. Select \"Provision administrator\". Fill the School ID, names, a new email and the same password twice. Select \"Create Admin User\".",
+      "5. Sign out. Sign in as the new Admin with that School ID and password. Read the screen.",
+      "6. Choose a new password (Current, New, Confirm new password) and select \"Save new password\". Read the Dashboard and its \"Getting started\" card.",
+      "7. Select the step \"Set up your officer positions\" and add one position. Return to the Dashboard and read the progress.",
+      "8. Open Members > Programs and sections and add one program. Open Members > People, select \"New User\" and create a Student with a School ID, a program, year and section and a password.",
+      "9. Sign out. Sign in as the new student with the School ID and the password you set. Read the screen.",
+      "10. Choose a new password and select \"Save new password\". Read the student home."
+    ],
+    "expected": "The Department Head's row reads Pending review. The SAO sees \"<name> approved and activated.\" The new Admin must choose a new password before any page opens (\"Choose a new password\"), then reaches the Admin Dashboard with a \"Getting started\" card. The step for officer positions is ticked and the progress moves up after the position is added. A new student cannot be made before a program exists. The new student must also choose a new password first, then reaches the student home with the new organization's data only (empty).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-098, DH-021, SAO-022, SAO-034, ADM-007, ADM-052, ADM-019, ADM-039 and STU-017"
+  },
+  {
+    "id": "GEN-121",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Clearance: signatures and a debt together decide Cleared",
+    "preconditions": "The test copy is running and you have its link. Accounts: SAO 990001 (the SAO password the demo owner gave you), Admin 900001, Officer 900004, Student 2200055. The password for the others comes from the tester sheet. The student has no invoices at the start. The case checks that a debt blocks Cleared on Statement of account even when signatures are done.",
+    "steps": [
+      "1. Sign in as SAO 990001. Open Reviews > Clearances and select \"New clearance period\". Type a Title, pick a Deadline and choose the roles \"Student Affairs Office (SAO)\", \"Organization president\" and \"Organization treasurer\". Select \"Open this period\".",
+      "2. Sign out. Sign in as Admin 900001. Open Records > Clearance signing. Find Student 2200055 on the president line. Select \"Clear\" and \"Confirm clear\".",
+      "3. Sign out. Sign in as Officer 900004. Open Clearance signing, find 2200055 on the treasurer line and clear it.",
+      "4. Sign out. Sign in as Admin 900001. Open Finance > Student accounts, select \"Add student charge\" for School ID 2200055, Amount due 150, Description \"QA fee\" and select \"Add charge\".",
+      "5. Sign out. Sign in as Student 2200055. Open My payments, Statement of account. Read \"Outstanding balance\" and \"Clearance\".",
+      "6. Open Support, My clearance and read \"Signatures cleared\".",
+      "7. Sign out. Sign in as Admin 900001. Open Finance > Student accounts, \"View account\" for 2200055, \"Record payment\" for the exact balance.",
+      "8. Sign out. Sign in as Student 2200055. Reload Statement of account and read both boxes again.",
+      "9. Reload My clearance and read \"Signatures cleared\".",
+      "10. Sign out. Sign in as SAO 990001. Open Reviews > Clearances, open the period, find 2200055, select \"Clear\" on the SAO line and \"Confirm clear\".",
+      "11. Sign out. Sign in as Student 2200055. Read My clearance.",
+      "12. Read Statement of account again."
+    ],
+    "expected": "After step 5 the balance is 150.00 with \"1 unpaid invoice\" and Clearance shows On hold with \"You owe 150.00: 1 unpaid invoice.\" It is not Cleared, and My clearance shows \"2 of 3\". After the payment the balance is 0.00 with \"Nothing owed\" and Clearance shows Cleared, while My clearance still shows \"2 of 3\" and waits on the SAO (VERIFY: report if this mix confuses you). After the SAO signs, My clearance says \"Your clearance is complete!\" and \"3 of 3\", and Statement of account shows Cleared. The student gets a notification each time a signature is cleared.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after SAO-079, ADM-211, SBO-087, ADM-133, ADM-135, SAO-082 and STU-107"
+  },
+  {
+    "id": "GEN-122",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Semester rollover: what each role sees after the SAO closes the semester",
+    "preconditions": "The test copy is running and you have its link. Round 2: the 1st Semester is active and a 2nd Semester exists as upcoming in the same year. In the 1st semester Admin 900001 made: an approved event (\"QA Old Event\"), a task for Officer 900004, a finalized election, and a second event that Department Head 940001 has not approved. Student 2100142 is registered for the approved event. Accounts: SAO 990001 (the SAO password the demo owner gave you). The password for the others comes from the tester sheet.",
+    "steps": [
+      "1. Sign in as SAO 990001. Open Setup and records > Academic years.",
+      "2. Select \"Close semester\" on the 1st Semester, then \"Set as active\" on the 2nd Semester.",
+      "3. Sign out. Sign in as Admin 900001. Open Events and tasks > Events, choose the closed semester in \"Academic period\", edit \"QA Old Event\" and select \"Save Changes\". Read the message.",
+      "4. Open Events and tasks > Tasks with the same period. Read the note and the row menu of the old task.",
+      "5. Open Voting > Elections with the same period. Read the note and the buttons on the old election card.",
+      "6. Switch the period back to \"Active period\" and check that the old items are gone.",
+      "7. Propose a new event inside the 2nd semester.",
+      "8. Sign out. Sign in as Department Head 940001. Open Approvals and try to approve the old unapproved event. Read the message.",
+      "9. Sign out. Sign in as Officer 900004. Open My tasks with the closed period and look for Start and Complete.",
+      "10. Open Check-in and look for the old event.",
+      "11. Sign out. Sign in as Student 2100142. Open Events and look for the old event.",
+      "12. Open Voting > Vote and look for the old election."
+    ],
+    "expected": "The SAO closes the semester and activates the next one. The Admin's edit of the old event is refused with \"Historical semester events are read only.\" The Tasks page says \"Completed semester tasks are available for viewing only.\" and offers no edit or delete. The Elections page says \"Completed semester elections are available for viewing only.\" with no edit, delete, open or close button. The new event is accepted. The Department Head's approve is refused with \"Historical semester event approvals are read only.\" The officer cannot start or complete the old task and the old event is not in the check-in queue. The student sees only items of the new semester. Records of the old semester stay readable.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after SAO-100, GEN-105, GEN-106, GEN-107, GEN-108 and GEN-109"
+  },
+  {
+    "id": "GEN-123",
+    "role": "All roles",
+    "module": "End-to-end journeys",
+    "title": "Financial report: Admin, Department Head, SAO, then Approved and locked",
+    "preconditions": "The test copy is running and you have its link. Accounts: Admin 900001, Department Head 940001, SAO 990001 (the SAO password the demo owner gave you). The password for the others comes from the tester sheet. A financial semester exists and the ledger has entries. Prepare a small PDF as a supporting file.",
+    "steps": [
+      "1. Sign in as Admin 900001. Open Finance > Financial reports. Under \"Prepare a report\" choose \"Financial Report\", keep \"Covered period\" on Semester, type the four signatory names and select \"Generate Financial Report\".",
+      "2. In the list select \"View details\" on the draft and choose the PDF under \"Supporting files\".",
+      "3. Select \"Submit for review\" and read the stage.",
+      "4. Open Finance > Ledger and try \"Edit transaction\" on an entry that is in the report. Read the note.",
+      "5. Sign out. Sign in as Department Head 940001. Open Approvals, set Request type to Financial Report and select Review on the report.",
+      "6. Select Approve and confirm. Read the panel.",
+      "7. Sign out. Sign in as SAO 990001. Open Reviews > Compliance > Financial reports and select View on the report.",
+      "8. Select Approve and then \"Approve report\". Read the message.",
+      "9. Sign out. Sign in as Admin 900001. Open Finance > Financial reports and read the status. Open \"View details\" and look for \"Submit for review\".",
+      "10. Open Finance > Ledger and try again to edit or delete an entry that is in the report."
+    ],
+    "expected": "After step 2 the stage is \"Waiting for Department Head approval\" and the ledger entries in the report are locked already (the note names the report). The Department Head's approval moves the report to the SAO. The SAO sees \"Financial report approved.\" The Admin sees the report as Approved, with no \"Submit for review\" button, and the entries stay locked. An entry outside the report can still be edited.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-138, ADM-142, ADM-127, DH-045, SAO-062 and ADM-237"
+  },
+  {
+    "id": "GEN-124",
+    "role": "All roles",
+    "module": "Usability protocol",
+    "title": "SAO journeys: count the clicks against the limits",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does the journey, one watches and writes. The watcher does not help. Sign in as SAO 990001 (the SAO password the demo owner gave you). Journey 1 needs a registration from a Department Head and an active semester (Round 2), and journey 5 needs a grievance addressed to the SAO. Start each journey at the home page after signing in. Typing and choosing a file do not count as clicks.",
+    "steps": [
+      "1. Journey 1, approve a registration and give it an administrator: limit 5 clicks. End: the organization is Active with one administrator.",
+      "2. Journey 2, review compliance: limit 3 clicks. End: the submission shows its new status.",
+      "3. Journey 3, decide a financial report: limit 3 clicks. End: the report shows Approved.",
+      "4. Journey 4, see who needs attention: limit 2 clicks. End: organizations that need action are listed first.",
+      "5. Journey 5, answer a grievance: limit 4 clicks. End: the student's My grievances shows Resolved.",
+      "6. For each journey write the clicks you counted, whether the end state was reached, and any moment the person stopped and asked \"where do I go now\"."
+    ],
+    "expected": "Every journey reaches its end state within the limit and the person never asks where to go. A journey that needs more clicks, or where the person gets lost, is a finding: write it as \"SAO, journey and step, what you did, what you expected, what happened\" and mark it blocked, lost, wording or looks wrong (MEMBER_TESTING sections 4 and 7). Send blocked findings first.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time",
+    "depends": "Run with SAO-022, SAO-055, SAO-062, SAO-075 and SAO-014"
+  },
+  {
+    "id": "GEN-125",
+    "role": "All roles",
+    "module": "Usability protocol",
+    "title": "Department Head journeys: count the clicks against the limits",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Department Head 940001 (password given to you separately). Journey 1 needs an active semester (Round 2). Journey 3 needs a registration that the SAO returned. Start each journey at the home page after signing in.",
+    "steps": [
+      "1. Journey 1, register an organization: limit 3 clicks. End: the row reads Pending review and its status says \"Pending review: waiting for SAO review\".",
+      "2. Journey 2, approve an item: limit 4 clicks (Approvals, open an item, Approve, confirm). End: the item shows Approved and links to the event, budget or report.",
+      "3. Journey 3, follow up a returned registration: limit 3 clicks from home. End: the row reads \"Waiting for SAO review\" again.",
+      "4. Journey 4, act from a notification: limit 2 clicks (the bell, then the notification). End: you land on the exact item.",
+      "5. For each journey write the clicks you counted, whether the end state was reached, and any moment the person asked \"where do I go now\"."
+    ],
+    "expected": "Every journey reaches its end state within the limit. Anything above the limit, or any moment of being lost, is a finding in the form \"Role, journey and step, what you did, what you expected, what happened, screenshot if any\" marked blocked, lost, wording or looks wrong.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time",
+    "depends": "Run with DH-021, DH-041, DH-030 and DH-059"
+  },
+  {
+    "id": "GEN-126",
+    "role": "All roles",
+    "module": "Usability protocol",
+    "title": "Admin journeys: count the clicks against the limits",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Admin 900001 (password from the tester sheet). Journey 1 needs an active semester if you want the full flow (Round 2). Start each journey at the home page after signing in.",
+    "steps": [
+      "1. Journey 1, propose an event: limit 4 clicks, plus 1 for the SAO files if the SAO needs them. End: the event shows its stepper and says who it waits for.",
+      "2. Journey 2, fund it: limit 3 clicks from the event (propose a budget from the event page). End: the event shows the budget waiting for the Department Head.",
+      "3. Journey 3, track what you submitted: limit 3 clicks (Approvals, Submitted by me). End: the row stage text equals the event page text.",
+      "4. Journey 4, run and report: 3 clicks for check-in (Events and tasks, Check-in), 3 clicks for the report from the finished event. End: the report shows as a draft to review and submit.",
+      "5. Journey 5, set up the organization: 3 clicks per step with the Getting started card (positions, members, first event).",
+      "6. For each journey write the clicks, whether the end state was reached, and any moment of being lost."
+    ],
+    "expected": "Every journey reaches its end state within the limit. The Admin never has to ask anyone where an event is. Any extra click, wrong turn or confusing word is a finding (blocked, lost, wording or looks wrong).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time",
+    "depends": "Run with ADM-062, ADM-226, ADM-108, ADM-094 and ADM-140"
+  },
+  {
+    "id": "GEN-127",
+    "role": "All roles",
+    "module": "Usability protocol",
+    "title": "Officer journeys: count the clicks against the limits",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Officer 900004 (password the demo owner gave you). Journeys 1 and 3 use the seeded data (Round 1). Journey 2 needs a student order. Start each journey at the home page after signing in.",
+    "steps": [
+      "1. Journey 1, check someone in: limit 4 clicks (Events and tasks, Check-in). End: the attendance count goes up.",
+      "2. Journey 2, verify a payment and release an order: limit 6 clicks (Store, Orders, verify, then Store, Claim desk). End: the order shows Claimed.",
+      "3. Journey 3, update my task: limit 3 clicks. End: the card shows the new stage.",
+      "4. Journey 4, send an announcement for approval: limit 4 clicks. End: the row says \"Waiting for Admin approval\".",
+      "5. For each journey write the clicks, whether the end state was reached, and any moment of being lost."
+    ],
+    "expected": "Every journey reaches its end state within the limit. Anything above the limit, or any moment of being lost, is a finding marked blocked, lost, wording or looks wrong.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Round 1 (before the SAO opens a semester)",
+    "depends": "Run with SBO-018, SBO-062, SBO-068, SBO-031 and SBO-077"
+  },
+  {
+    "id": "GEN-128",
+    "role": "All roles",
+    "module": "Usability protocol",
+    "title": "Student journeys: count the clicks against the limits",
+    "preconditions": "The test copy is running and you have its link. Work in pairs: one person does, one watches and writes. The watcher does not help. Sign in as Student 2100142 (password from the tester sheet). Journeys 1 and 2 use the seeded event and election (Round 1). Start each journey at the home page after signing in. Typing and choosing a file do not count as clicks.",
+    "steps": [
+      "1. Journey 1, join an event: limit 3 clicks. End: the event says \"You are registered\".",
+      "2. Journey 2, vote: limit 2 clicks from home (in the menu, clicking Voting opens the Vote page), then the ballot steps. End: a receipt, and the Vote page lists the election as Voted.",
+      "3. Journey 3, order and claim: limit 5 clicks to order. End: My orders shows the order with the next step. After an officer verifies it, it shows Paid and the claim token.",
+      "4. Journey 4, see what you owe: limit 2 clicks (My payments, Statement of account). End: balance and clearance status are visible without scrolling.",
+      "5. Journey 5, file a grievance and check clearance: 4 clicks and 2 clicks. End: the grievance reads \"Waiting for Admin to review\" (or \"Waiting for SAO to review\" when addressed to the SAO).",
+      "6. For each journey write the clicks, whether the end state was reached, and any moment of being lost."
+    ],
+    "expected": "Every journey reaches its end state within the limit and the person never asks \"where do I go now\". Anything above the limit, or any moment of being lost, is a finding marked blocked, lost, wording or looks wrong. Example finding line: \"Student, journey 1 step 2, I tapped the event card, I expected a Join button, I saw only details\".",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Round 1 (before the SAO opens a semester)",
+    "depends": "Run with STU-029, STU-041, STU-055, STU-066 and STU-079"
+  },
+  {
+    "id": "GEN-129",
+    "role": "All roles",
+    "module": "Usability protocol",
+    "title": "Lost and wording findings for every role, and the menu label card sort",
+    "preconditions": "The test copy is running and you have its link. Do this after the five role cases above. One tester per role (SAO, Department Head, Admin, Officer, Student) writes findings. Five student leaders who have not seen the menu do the card sort (10 minutes).",
+    "steps": [
+      "1. Each tester answers these five questions for their role: Where did I not know what to do next? Which word did I not understand and what did I think it meant? Where did I click and get another result than I expected? Which page did I want but could not find in the menu? Did two screens disagree about the same thing, for example a status?",
+      "2. Write one line per finding: Role, journey and step, what you did, what you expected, what happened, screenshot if any.",
+      "3. Mark each line: blocked (could not finish), lost (finished but confused), wording (misleading text) or looks wrong (layout or visual).",
+      "4. Card sort: give five student leaders one card for each page name (without the groups). Ask them to group the cards and give each group a name. Compare their groups and names with the menu groups Records, Events and tasks, Store and Updates.",
+      "5. List every difference between their groups and the menu as a finding. Send blocked findings first."
+    ],
+    "expected": "Each role has a list of findings in the one-line shape, each marked blocked, lost, wording or looks wrong, with blocked ones sent first. The card sort gives a list of differences between the leaders' groups and names and the menu. A role with no findings says \"no lost moments, no confusing words\" in writing.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time",
+    "depends": "Run after GEN-124, GEN-125, GEN-126, GEN-127 and GEN-128"
+  }
+]

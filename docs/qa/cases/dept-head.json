@@ -1,0 +1,1726 @@
+[
+  {
+    "id": "DH-001",
+    "role": "Department Head",
+    "module": "Sign in",
+    "title": "Department Head signs in and lands on the Department Head dashboard",
+    "preconditions": "Account 940001 exists. The password is given to you separately.",
+    "steps": [
+      "1. Open the HIUSA address in a browser.",
+      "2. Type 940001 in School ID / ID Number.",
+      "3. Type the password you were given.",
+      "4. Select Sign in."
+    ],
+    "expected": "You land on the Department Head Dashboard (the address ends with /dashboard/department-head). The top bar shows your name, your college and the label Department Head. The menu is the Department Head menu.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-002",
+    "role": "Department Head",
+    "module": "Sign in",
+    "title": "Wrong password is refused with a clear message",
+    "preconditions": "Account 940001 exists. Use a different account than the one your teammates are using, because five wrong tries lock an account for 15 minutes.",
+    "steps": [
+      "1. Open the HIUSA address.",
+      "2. Type 940001 in School ID / ID Number.",
+      "3. Type a wrong password.",
+      "4. Select Sign in."
+    ],
+    "expected": "You stay on the Sign in page. A message says: That school ID and password did not match. Check both and try again, or reset your password. No dashboard opens.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-003",
+    "role": "Department Head",
+    "module": "Menu",
+    "title": "Sidebar shows exactly the Department Head menu",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Look at the left menu after sign in.",
+      "2. Read the top rows in order.",
+      "3. Find the heading College view (read only) and read what is under it.",
+      "4. Select Finance and read its sub items.",
+      "5. Look at the bottom of the menu."
+    ],
+    "expected": "The menu reads: Dashboard, Approvals, Organizations. Under the heading College view (read only): Finance (Budgets, Ledger, Financial reports, Forecast), Calendar, Election results, Announcements. At the bottom: Profile and Study objectives. There is NO Members, Events and tasks, Voting, Store, Updates, Records or My activity group. Selecting Finance opens Budgets.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-004",
+    "role": "Department Head",
+    "module": "Menu",
+    "title": "Phone: the menu opens from Open menu and every Department Head page can be reached",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Use a phone or a browser window narrower than 1024 pixels.",
+    "steps": [
+      "1. Look at the top left of the screen.",
+      "2. Tap Open menu.",
+      "3. Tap Organizations.",
+      "4. Tap Open menu again and tap Approvals.",
+      "5. Tap Open menu again and tap Close menu."
+    ],
+    "expected": "The menu slides in as a drawer. Each tap opens the right page and the drawer closes. Close menu hides the drawer. Nothing is cut off at the sides and no page scrolls sideways.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-005",
+    "role": "Department Head",
+    "module": "Account menu",
+    "title": "Top bar shows who you are and the account menu has only your profile and Logout",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Look at the top right of the screen.",
+      "2. Read your name, your college name and the label Department Head.",
+      "3. Select the account button (its name starts with Account menu for).",
+      "4. Read the Profiles section.",
+      "5. Look at the buttons under it."
+    ],
+    "expected": "Your name, college and Department Head are shown. The Profiles section lists one profile with the word Current and says: This is your only active profile. Other profiles appear here when an organization adds you. The buttons are View Profile and Logout. VERIFY: the exact college text shown in the top bar (it comes from the college home organization).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-006",
+    "role": "Department Head",
+    "module": "Account menu",
+    "title": "Logout asks first, then returns to Sign in",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select the account button in the top bar.",
+      "2. Select Logout.",
+      "3. Read the question that appears.",
+      "4. Confirm the logout.",
+      "5. Press the browser Back button."
+    ],
+    "expected": "A confirmation appears before you are signed out. After you confirm, the Sign in page shows. Back should not show private pages again; you are asked to sign in. VERIFY: the exact words on the confirmation and what Back shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-007",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Dashboard shows the college, the approvals and the oversight snapshot",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Dashboard in the menu.",
+      "2. Read the greeting at the top.",
+      "3. Find the box titled College of Computer Studies organizations.",
+      "4. Find the box titled Oversight snapshot.",
+      "5. Scroll down to Upcoming Events, Pending Approvals by Type and Recent Announcements."
+    ],
+    "expected": "The page loads without an error. The college box says: Every student organization you oversee, by registration status. The Oversight snapshot has four tiles: Active Elections, Closed Elections, Upcoming Events, Pending Approvals. The lower boxes are Upcoming Events, Pending Approvals by Type and Recent Announcements. A box with nothing in it shows a short plain message, not a blank gap.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-008",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Organization status tiles show counts and open the matching list",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. PSITS-CCS is Active. Register one more organization (see the Organizations cases) so there is also a Pending review row.",
+    "steps": [
+      "1. Open Dashboard.",
+      "2. In the college box read the four tiles: Returned, Pending review, Active, Archived.",
+      "3. Select the Pending review tile.",
+      "4. Look at the address and the tab that is selected.",
+      "5. Go back to Dashboard and select Manage organizations."
+    ],
+    "expected": "Each tile shows a number that matches the rows in Organizations. The Pending review tile opens Organizations with the Pending review tab selected (the address ends with ?status=pending). Manage organizations opens Organizations with All selected. A Returned tile with a number above 0 is red and says Action needed.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-009",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Approvals banner counts the items waiting for the head and opens Approvals",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head.",
+    "steps": [
+      "1. Open Dashboard.",
+      "2. Find the yellow banner that says N item awaiting your approval.",
+      "3. Compare N with the Pending Approvals tile in Oversight snapshot.",
+      "4. Select the banner."
+    ],
+    "expected": "The banner reads, for example, 1 item awaiting your approval (or items for more than one), with the line: Events, elections, and first-stage financial reports need your sign-off. The number matches the Pending Approvals tile. Selecting the banner opens Approvals. When nothing is pending the banner is not shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-010",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Election card and Upcoming Events box, including the empty messages",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Dashboard.",
+      "2. Find the election card. It says either Active Election or No Active Election.",
+      "3. If an election is active, select View Results.",
+      "4. Go back to Dashboard and read the Upcoming Events box.",
+      "5. Select View all in the Upcoming Events box."
+    ],
+    "expected": "With no running election the card says No Active Election and: No elections are currently running. With one running it shows the title, dates, a LIVE tag, View Details and View Results (View Results opens Election results). Upcoming Events lists up to four events with date, place and status, or says No upcoming events. View all opens the events list of your college.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-011",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Pending Approvals by Type and Recent Announcements boxes",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head.",
+    "steps": [
+      "1. Open Dashboard.",
+      "2. Find the box Pending Approvals by Type.",
+      "3. Select one request listed in it.",
+      "4. Go back to Dashboard and find the box Recent Announcements.",
+      "5. Select View all in that box."
+    ],
+    "expected": "Pending Approvals by Type lists up to three waiting requests and a bar per type with a count and a percent. Selecting a request opens Approvals. With nothing waiting it says: Nothing awaiting your review. Recent Announcements shows up to three published announcements, or No announcements yet. View all opens Announcements.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-012",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Getting started card: registration is blocked until the SAO opens a semester",
+    "preconditions": "A fresh seed where the SAO has NOT activated a semester yet. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Dashboard.",
+      "2. Find the card Getting started.",
+      "3. Read the step Register your first student organization.",
+      "4. Look for a button on that step.",
+      "5. Read the other two steps: Follow your registration and Review approvals."
+    ],
+    "expected": "The register step shows the note Waiting for the SAO to open the semester and has NO button. The other steps are listed: Follow your registration and Review approvals (its button is Open approvals). VERIFY: the card only shows while the steps are not all done and it has not been hidden.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-013",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "A returned registration leads the Needs attention list",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. The SAO has returned a registration with remarks (see the returned registration case).",
+    "steps": [
+      "1. Open Dashboard.",
+      "2. Find the box Needs attention.",
+      "3. Find the row Registration returned: and the organization name.",
+      "4. Read the detail line under it.",
+      "5. Select the row, or select Edit and resubmit in the Getting started card."
+    ],
+    "expected": "Registration rows come first in the list. The row shows the SAO remarks (cut to 160 characters) or, when there are none: The SAO returned this registration. Edit it and submit it again. Selecting it opens Organizations on the Returned tab.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-014",
+    "role": "Department Head",
+    "module": "Dashboard",
+    "title": "Phone: the dashboard fits the screen",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Use a phone.",
+    "steps": [
+      "1. Open Dashboard on a phone.",
+      "2. Scroll from top to bottom.",
+      "3. Tap the Returned, Pending review, Active and Archived tiles one by one.",
+      "4. Tap Open menu and then Approvals."
+    ],
+    "expected": "Tiles stack in one or two columns. Text is readable and nothing is cut off. Tiles are big enough to tap. The page does not scroll sideways.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-015",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Organizations page layout and the status tabs",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Organizations in the menu.",
+      "2. Read the line under the page title.",
+      "3. Look at the card Your college.",
+      "4. Look at the tabs above the table.",
+      "5. Read the table column names."
+    ],
+    "expected": "The line says: Student organizations registered under your college. Register new ones and follow their SAO review. The card shows the college name and Department Head: your name. The tabs read All (n), Returned (n), Pending review (n), Active (n), Archived (n). Columns: Organization, Status, Admins, SBO Officers, Students, Submitted. The button Register an organization is at the top right.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-016",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Status tabs filter the list and the address remembers the tab",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. At least two organizations with different statuses.",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Select the Active tab.",
+      "3. Look at the address bar.",
+      "4. Select the Pending review tab.",
+      "5. Select All.",
+      "6. Refresh the page while on Pending review."
+    ],
+    "expected": "Each tab shows only organizations with that status and the number in the tab matches the rows. The address changes to ?status=active or ?status=pending and All removes it. After a refresh the same tab stays selected.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-017",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Empty tab shows a clear message",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. A tab that has zero organizations, for example Archived (0).",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Select a tab whose count is 0, for example Archived.",
+      "3. Read the message in the table area."
+    ],
+    "expected": "The table shows: No archived organizations (the status name matches the tab), with the text Choose another status to see the rest of your college. No error and no blank screen.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-018",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "View checklist of an active organization",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. PSITS-CCS is Active on the fresh seed.",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Find the row PSITS-CCS.",
+      "3. Select View checklist.",
+      "4. Read the panel that slides in: status, progress steps, Leadership, the Admins, SBO Officers and Students counts.",
+      "5. Read the Requirement checklist.",
+      "6. Select Close."
+    ],
+    "expected": "A side panel titled with the organization name opens. It shows the Active status, the registration progress steps, the Leadership names (or: No Admin or SBO Officer is assigned yet.), three counts, and the Requirement checklist (or: No registration documents are on file.). Close shuts the panel and the address loses ?record=.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-019",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form opens with one file box for each requirement",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Select Register an organization.",
+      "3. Read the form title and the text under it.",
+      "4. Scroll to Registration requirements and count the file boxes.",
+      "5. Read the line under Registration requirements."
+    ],
+    "expected": "A form titled Register an organization opens. It says: The SAO reviews every registration. Attach all required documents as PDF files. There is one file box per requirement (ten on the fresh seed), each marked required. The line reads Academic year 2026-2027, semester 1 (the real year and number) and PDF only, up to 10 MB each.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-020",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "No active semester: the register form explains why it cannot be sent",
+    "preconditions": "A fresh seed where the SAO has NOT activated a semester yet. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Select Register an organization.",
+      "3. Read the yellow message.",
+      "4. Look for a Submit for review button.",
+      "5. Select Close."
+    ],
+    "expected": "The yellow message says: No registration requirements are open. The SAO must activate a semester first. There are no fields and NO Submit for review button. Only Close is offered.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-021",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register an organization with all documents",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have ten small PDF files ready on the device (any PDF under 10 MB). Use a new name that no organization has.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. Type a new Organization name.",
+      "3. Type a new Acronym.",
+      "4. Optional: fill Description and Color (for example #0B8ED0).",
+      "5. Choose one PDF in every file box.",
+      "6. Select Submit for review."
+    ],
+    "expected": "The form closes. A message says: Organization submitted to the SAO for review. The new row appears with the status Pending review and the line Pending review: waiting for SAO review. The Pending review tab count goes up by one. The SAO gets a notification New organization registration.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-022",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form: blank name, acronym and files are refused",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. Leave everything empty.",
+      "3. Select Submit for review.",
+      "4. Read each red message.",
+      "5. Note which field has the cursor."
+    ],
+    "expected": "Nothing is sent. Messages: Enter the organization name. Enter the acronym. And under every file box: Attach a PDF for this requirement. The cursor moves to the first field with a problem.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-023",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form: one missing document is named",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. Type a new name and a new acronym.",
+      "3. Choose a PDF in all file boxes except the last one.",
+      "4. Select Submit for review.",
+      "5. Read the messages."
+    ],
+    "expected": "Only the last file box shows Attach a PDF for this requirement. The nine boxes with a file show no error. The form stays open and your typed text is kept.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-024",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form: only PDF files are accepted",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have a picture or a Word file ready.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. In the first file box choose a picture (.jpg) or a Word file.",
+      "3. Read the message under that box.",
+      "4. Choose a real PDF in the same box."
+    ],
+    "expected": "The message under the box says: Only PDF files are accepted. The wrong file is not kept. After you choose a PDF the message goes away and the file name shows as Selected: with its size.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-025",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form: a file over 10 MB is refused",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Have a PDF larger than 10 MB ready.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. In one file box choose the PDF larger than 10 MB.",
+      "3. Read the message.",
+      "4. Choose a PDF under 10 MB in the same box."
+    ],
+    "expected": "The message says: This file is larger than 10 MB. Choose a smaller file. The large file is not kept. A smaller PDF is accepted. Largest file that should pass: just under 10 MB.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-026",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form: a wrong color code is refused",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. Fill name, acronym and all ten PDFs.",
+      "3. In Color type blue.",
+      "4. Select Submit for review.",
+      "5. Change Color to #0B8ED0 and select Submit for review again."
+    ],
+    "expected": "The first try shows: Use a color like #0B8ED0. and nothing is sent. With #0B8ED0 (or an empty Color) it is accepted. The small colored square next to Color follows what you type when the code is valid.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-027",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Register form: a name or acronym that already exists is refused",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. PSITS-CCS already exists.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. Type the name of an existing organization (copy it from the list).",
+      "3. Type a new acronym and choose all ten PDFs.",
+      "4. Select Submit for review.",
+      "5. Change the name to a new one and the acronym to PSITS-CCS.",
+      "6. Select Submit for review."
+    ],
+    "expected": "The form stays open and nothing is saved. Under Organization name you see a message that the name is already taken. Under Acronym you see a message that the acronym is already taken. VERIFY: the exact server wording (expected: The name has already been taken. and The acronym has already been taken.). A very similar name may instead say: An organization with a similar name already exists.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-028",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Cancel the register form: nothing is saved",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Organizations and select Register an organization.",
+      "2. Type a name and choose one PDF.",
+      "3. Click on the dark area outside the form.",
+      "4. Select Cancel.",
+      "5. Look at the list."
+    ],
+    "expected": "Clicking outside the form does NOT close it. Cancel closes it. No new row is in the list and no notice is sent to the SAO.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-029",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "SAO returns a registration: the head sees the remarks",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Pending review registration. The SAO (Organizations > Registrations and organizations) returns it with the remarks: Replace the constitution with the signed copy.",
+    "steps": [
+      "1. Open the bell in the top bar.",
+      "2. Find the notice Organization registration returned.",
+      "3. Select it and read it.",
+      "4. Open Organizations and select the Returned tab.",
+      "5. Read the row."
+    ],
+    "expected": "The notice says the organization was returned and repeats the remarks. The row has the red status Returned, the line Returned: edit and resubmit and a red box SAO remarks with the SAO text. The row has three buttons: View checklist, Edit and resubmit, Withdraw.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-030",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Edit and resubmit a returned registration",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Returned registration.",
+    "steps": [
+      "1. Open Organizations and select the Returned tab.",
+      "2. Select Edit and resubmit on the returned row.",
+      "3. Read the form title and the red SAO remarks box.",
+      "4. Change the Description.",
+      "5. Select Resubmit to SAO."
+    ],
+    "expected": "The form title is Edit and resubmit and the organization name. It says: Change the details and replace only the documents the SAO returned. Resubmitting sends it back to the SAO for review. The SAO remarks show at the top. After Resubmit to SAO a message says: Registration resubmitted to the SAO. The row now shows Pending review: waiting for SAO review and the SAO gets a notice Organization registration resubmitted.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-031",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Resubmit with one replaced document",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Returned registration.",
+    "steps": [
+      "1. Open Organizations, Returned tab, then Edit and resubmit.",
+      "2. Find the file box you want to change. Read Current file: under it.",
+      "3. Choose a different PDF in that one box only.",
+      "4. Leave all other boxes empty.",
+      "5. Select Resubmit to SAO.",
+      "6. Open View checklist on the row."
+    ],
+    "expected": "The other documents are not required again (the boxes are not marked required). The row goes back to Pending review. In View checklist the replaced requirement shows the new file name and the status Submitted. The unchanged documents keep their old file names.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-032",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Resubmit form: a blank name or a wrong file is refused",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Returned registration.",
+    "steps": [
+      "1. Open Organizations, Returned tab, then Edit and resubmit.",
+      "2. Clear the Organization name.",
+      "3. Choose a picture file in one file box.",
+      "4. Select Resubmit to SAO.",
+      "5. Read the messages."
+    ],
+    "expected": "Messages: Enter the organization name. and Only PDF files are accepted. Nothing is sent and the row stays Returned.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-033",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Buttons shown on each row depend on the status",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. One Pending review row and PSITS-CCS (Active).",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Look at the buttons on the Pending review row.",
+      "3. Look at the buttons on the Active row PSITS-CCS.",
+      "4. Look at the buttons on a Returned row if you have one."
+    ],
+    "expected": "Pending review row: View checklist and Withdraw. There is NO Edit and resubmit. Active row: View checklist only (no Withdraw, no Edit). Returned row: View checklist, Edit and resubmit and Withdraw. The head cannot change an active organization.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-034",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Withdraw a pending registration",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Pending review registration that nobody uses yet.",
+    "steps": [
+      "1. Open Organizations and select Withdraw on the Pending review row.",
+      "2. Read the question and the warning.",
+      "3. Select Keep registration.",
+      "4. Select Withdraw again and then Withdraw registration.",
+      "5. Look at the list."
+    ],
+    "expected": "The question is Withdraw this registration? with the organization name and the warning: The SAO is told it was withdrawn and its documents are removed. This cannot be undone. Keep registration closes it and the row stays. Withdraw registration removes the row and shows: <name> withdrawn. The SAO gets a notice Organization registration withdrawn.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-035",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "SAO approves: the head sees Active and the next step",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has a Pending review registration. The SAO approves it and has NOT yet created its administrator.",
+    "steps": [
+      "1. Open the bell and read the notice Organization registration approved.",
+      "2. Open Organizations and select the Active tab.",
+      "3. Find the new organization.",
+      "4. Read the status line under its name.",
+      "5. Open Dashboard and look at Needs attention."
+    ],
+    "expected": "The notice says the organization was approved and is now active. The row shows Active and the line Approved: waiting for an administrator. Admins shows 0. Dashboard Needs attention shows Organization approved: waiting for an administrator. After the SAO creates the administrator, the row reads Active: administrator can sign in and Admins shows 1.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-036",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Archived organization is read only",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The SAO has archived an organization of this college (Organizations > open it > Archive).",
+    "steps": [
+      "1. Open Organizations and select the Archived tab.",
+      "2. Find the archived row.",
+      "3. Read the text under its name.",
+      "4. Look at the buttons on the row.",
+      "5. Select View checklist."
+    ],
+    "expected": "The row looks grey and says Archived by the SAO. Read only. The only button is View checklist. The side panel also says Archived by the SAO. Read only. The head cannot restore, edit or withdraw it.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-037",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Head cannot create an administrator or assign roles",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. An Active organization with 0 Admins (just approved by the SAO).",
+    "steps": [
+      "1. Open Organizations.",
+      "2. Select View checklist on the organization with 0 Admins.",
+      "3. Read the next step box.",
+      "4. Look for any button that creates an administrator or changes a role."
+    ],
+    "expected": "The box says Approved: waiting for an administrator (and that the SAO assigns it). There is NO Create administrator, Add user or role button anywhere on the page. Only the SAO can provision an administrator.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-038",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Another college head sees only their own college",
+    "preconditions": "Two registrations exist: one by the CCS head (940001) and PSITS-CCS. Sign in as 940002 (College of Business).",
+    "steps": [
+      "1. Sign in as 940002.",
+      "2. Open Organizations.",
+      "3. Read the college name in the Your college card.",
+      "4. Look for PSITS-CCS and for the organization the CCS head registered.",
+      "5. Copy the address of the CCS head Organizations page with ?record= and an id of a CCS organization, and open it in 940002."
+    ],
+    "expected": "Only organizations of the Business college show (for example JPIA-CBE). PSITS-CCS and the CCS registration are not listed. Opening a CCS organization by address shows a red message: That organization is not in your college, so there is nothing to open. VERIFY: the exact Business college name shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-039",
+    "role": "Department Head",
+    "module": "Organizations",
+    "title": "Phone: list, register form and panels are usable",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Use a phone.",
+    "steps": [
+      "1. Open Organizations on the phone.",
+      "2. Scroll the list. Rows appear as cards.",
+      "3. Tap Register an organization and scroll the whole form.",
+      "4. Choose a PDF in one box.",
+      "5. Tap Cancel.",
+      "6. Tap View checklist on PSITS-CCS."
+    ],
+    "expected": "Cards show name, status and counts. The form scrolls inside its window, the buttons Cancel and Submit for review stay reachable, and file boxes work. The side panel fits the screen. Nothing is cut off and the page does not scroll sideways.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-040",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Approvals page layout and filters",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head.",
+    "steps": [
+      "1. Select Approvals in the menu.",
+      "2. Read the two buttons Pending (n) and All History.",
+      "3. Read the filter row: Search requests, Request type, Organization, Requested from, Requested to, Sort order.",
+      "4. Read the line under the filters.",
+      "5. Look at one request row."
+    ],
+    "expected": "Pending (n) is selected. The count line reads N matching requests and M awaiting action. Buttons Reset and Export CSV are there. Each row shows the title, a type tag (Event, Budget, Election, Financial Report), the organization name, a status badge, who requested it and when, a small progress stepper, a line saying whose turn it is (for the head it should read as waiting for the Department Head), and the button Review. VERIFY: the exact stage wording.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-041",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Approve an event proposal",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Select Review on the event row.",
+      "3. Read the panel: progress steps, next step, details and History.",
+      "4. Select Approve in the panel.",
+      "5. In the window Approve request, type an optional remark and select Approve.",
+      "6. Look at the panel again."
+    ],
+    "expected": "A window titled Approve with the event title opens, with Remarks (optional). After Approve a message says: Request approved. The panel now reads Approved (or a longer sentence about the SAO, see the next case), the buttons Approve and Reject are gone, and a link Open event shows. History shows Approved by with your name. The Admin gets a notice about the decision.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-042",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Event that needs SAO files: what the head sees after approving",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. The event needs SAO files (an on-campus or other venue type that the SAO requires, with an active semester).",
+    "steps": [
+      "1. Open Approvals and select Review on the event.",
+      "2. Select Approve and confirm.",
+      "3. Read the sentence at the top of the panel.",
+      "4. Open All History and find the same request.",
+      "5. Look for any Approve or Reject button."
+    ],
+    "expected": "The panel says: Approved. Waiting for the organization to submit the SAO event files (before files are uploaded) or Approved. Now with the SAO for requirements review (after). The head has no button to do the SAO step. The head approves first, then the SAO decides. VERIFY: whether your event needs SAO files depends on its venue type.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "DH-043",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Rejecting needs a reason",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals and select Review on a pending request.",
+      "2. Select Reject.",
+      "3. Look at the Reject button in the window while Remarks is empty.",
+      "4. Type Budget not yet finalized. in Remarks.",
+      "5. Select Reject.",
+      "6. Read the panel."
+    ],
+    "expected": "The window title starts with Reject and the label says Remarks (required). With Remarks empty the Reject button is greyed out and cannot be selected. After typing, Reject works. A message says: Request rejected. The panel says: Rejected. Returned to the organization for changes, and History shows your remarks. The Admin is told.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-044",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Approve a budget",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Admin 900001 has proposed a budget (Finance > Budgets, Propose budget) for PSITS-CCS. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Set Request type to Budget.",
+      "3. Select Review on the budget row.",
+      "4. Select Approve and confirm.",
+      "5. Select Open budget in the panel."
+    ],
+    "expected": "The request becomes Approved and Open budget leads to Finance > Budgets with the budget open. On the default setup this is the last step, so the budget shows Approved. VERIFY: if the SAO second step is switched on, the budget says Waiting for SAO approval instead.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-045",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Approve a financial report: it then goes to the SAO",
+    "preconditions": "Admin 900001 has generated and submitted a financial report (Finance > Financial reports). Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Set Request type to Financial Report.",
+      "3. Select Review on the report row.",
+      "4. Look at the panel: Download submitted report, Required signatories, Supporting documents.",
+      "5. Select Approve and confirm.",
+      "6. Read the sentence at the top of the panel."
+    ],
+    "expected": "The panel offers Download submitted report and lists the signatories and documents. After Approve the report moves on to the SAO (first stage only: the head cannot give final approval). The panel shows the report as Approved by you and Open report leads to Finance > Financial reports. VERIFY: the exact sentence after approval for a report.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-046",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Approve an election proposal",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. Admin 900001 has proposed an election (it waits for the Department Head). Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Set Request type to Election.",
+      "3. Select Review on the election row.",
+      "4. Select Approve and confirm.",
+      "5. Select Open election."
+    ],
+    "expected": "The request becomes Approved. Open election leads to Election results (the head cannot open the election workspace). The Admin can now build the ballot. VERIFY: Election results may say results are not available yet because voting has not started.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-047",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Head cannot decide a request that waits for the SAO",
+    "preconditions": "A request the head already approved that now waits for the SAO (for example a financial report or an event with SAO files). Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Select All History.",
+      "3. Find the request you approved earlier.",
+      "4. Select Details.",
+      "5. Look for Approve and Reject buttons."
+    ],
+    "expected": "The button on the row says Details, not Review. The panel shows the waiting stage (Waiting for SAO approval) and has NO Approve or Reject. The head cannot approve the SAO step. A request the head sent cannot be decided by the head either.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-048",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Search requests by requester name or school ID",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Type the first name of the Admin who sent the request in Search requests.",
+      "3. Wait a moment and read the list.",
+      "4. Type a word that matches nobody, for example zzzz.",
+      "5. Select Clear filters in the empty message."
+    ],
+    "expected": "The matching request stays. After zzzz the list says: No requests match these filters, with Try a different type, date range or search. Clear filters brings the rows back. The search looks at requester name, school ID, remarks and type, NOT at the request title. VERIFY: typing a title word may show nothing.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-049",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Filter by request type",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. At least one pending event and one pending budget or report.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Open Request type.",
+      "3. Read the options.",
+      "4. Choose Event.",
+      "5. Choose Budget.",
+      "6. Choose All request types."
+    ],
+    "expected": "Options: All request types, Event, Budget, Election, Announcement, Payment, Financial Report. Each choice shows only that type and the count line updates. If a type has no pending rows the message No requests match these filters shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-050",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Organization filter lists only organizations of the head college",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Open the Organization filter.",
+      "3. Read every option.",
+      "4. Choose PSITS-CCS (or the full name of it).",
+      "5. Choose All organizations."
+    ],
+    "expected": "The options are All organizations and only organizations of the College of Computer Studies (PSITS-CCS and any the head registered). JPIA-CBE, FES-CTE, NSC-CHS and EIG-COE do NOT appear. Choosing one organization narrows the rows and the count.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-051",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Date filters, including a range that ends before it starts",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Set Requested from to a date in the past and Requested to to today.",
+      "3. Read the list.",
+      "4. Set Requested to to a date earlier than Requested from.",
+      "5. Read the page.",
+      "6. Select Reset."
+    ],
+    "expected": "A valid range shows the requests sent in that range. An end date before the start date does not show a list; the page shows an error message such as Failed to load approval requests. VERIFY: exact wording for a bad range. Reset clears every filter.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-052",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "All History shows decided requests and their remarks",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. The head has approved or rejected at least one request.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Select All History.",
+      "3. Find a request you rejected.",
+      "4. Read the remarks line under it.",
+      "5. Select Pending (n) to go back."
+    ],
+    "expected": "All History lists pending and decided requests with badges Approved or Rejected. A rejected row shows Remarks: and your reason. Pending (n) still shows the count of waiting requests.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-053",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Empty states: Nothing to review and No approval history yet",
+    "preconditions": "Sign in as a head whose college has no pending requests and no decided requests. VERIFY: reachable on 940003, 940004 or 940005 on a fresh seed if their organizations sent nothing; otherwise decide every pending request first.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Read the message under Pending.",
+      "3. Select All History.",
+      "4. Read the message."
+    ],
+    "expected": "Pending says: Nothing to review. Events, budgets, elections and financial reports from the organizations in your college appear here for your decision. The organization Admin sends them. All History with no decisions says: No approval history yet. Requests you approve or reject are listed here afterwards. Export CSV is greyed out.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-054",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Export CSV downloads the filtered list",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. At least one request in the list.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. Choose a filter, for example Request type Event.",
+      "3. Select Export CSV.",
+      "4. Open the downloaded file."
+    ],
+    "expected": "A file named approval-register-YYYY-MM-DD.csv (today date) downloads. It has a header row (Request ID, Organization, Type, Title, Status, Requester ID, Requester and more) and only the rows in the filtered list. When the count line shows 0 matching requests the Export CSV button is greyed out.",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-055",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "A request that does not exist opens a safe message",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Approvals.",
+      "2. In the address bar add ?record=999999 at the end and press Enter.",
+      "3. Read the panel.",
+      "4. Select the close button."
+    ],
+    "expected": "A panel opens with: This request is not available to you, and Only the Department Head or Admin it was sent to, and the organization that sent it, can open it. It may also have been removed. No technical error shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-056",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "A request of another college cannot be opened",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as 940002 (Business). Have the id of a CCS request from 940001 (the panel shows Request #id).",
+    "steps": [
+      "1. As 940001 open a request in Approvals and note the number after Request #.",
+      "2. Sign out and sign in as 940002.",
+      "3. Open Approvals.",
+      "4. Add ?record= and that number to the address and press Enter.",
+      "5. Read the panel."
+    ],
+    "expected": "The panel says: This request is not available to you. The CCS request is not in the 940002 list either. The head of another college cannot read or decide it.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-057",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Two people decide the same request: the second one is refused",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Open the same account in two browser tabs.",
+    "steps": [
+      "1. In tab 1 open Approvals and Review the request.",
+      "2. In tab 2 open Approvals and Review the same request.",
+      "3. In tab 1 Approve it and confirm.",
+      "4. In tab 2 select Approve and confirm."
+    ],
+    "expected": "The second try is refused and the request is not changed twice. An error message shows such as Failed to submit review. Please try again. After a refresh the request shows Approved. VERIFY: the exact wording (the server says: This request has already been reviewed.).",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-058",
+    "role": "Department Head",
+    "module": "Approvals",
+    "title": "Phone: review and approve on a small screen",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Use a phone.",
+    "steps": [
+      "1. Open Approvals on the phone.",
+      "2. Scroll the filter area.",
+      "3. Tap Review on a request.",
+      "4. Scroll the panel to the buttons.",
+      "5. Tap Approve and then Approve in the window."
+    ],
+    "expected": "Filters stack in one column. The panel and the decision window scroll and the buttons Reject and Approve can be reached and tapped. After approving the message Request approved. shows. No sideways scrolling.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-059",
+    "role": "Department Head",
+    "module": "Top bar > Notifications",
+    "title": "A notification about an event approval opens that approval",
+    "preconditions": "A semester is active. Admin 900001 (PSITS-CCS) has proposed an event with dates inside the semester, so it waits for the Department Head. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select the bell in the top bar.",
+      "2. Find the notice about the event you were asked to approve.",
+      "3. Select the notice.",
+      "4. Read the panel that opens."
+    ],
+    "expected": "Approvals opens with the panel for that exact request (Request #id) and the Approve button is there. Two taps from the home page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-060",
+    "role": "Department Head",
+    "module": "Top bar > Notifications",
+    "title": "A notification about a financial report opens that report approval",
+    "preconditions": "Admin 900001 has submitted a financial report. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select the bell.",
+      "2. Select the notice that names the report.",
+      "3. Read the panel."
+    ],
+    "expected": "Approvals opens with that report open and the button Download submitted report is visible.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-061",
+    "role": "Department Head",
+    "module": "Top bar > Notifications",
+    "title": "A notification about an organization opens that organization",
+    "preconditions": "The SAO has activated a semester first (SAO: Setup and records > Academic years > Add semester, then Set as active). A fresh seed has no semester. The SAO has returned a registration of this college.",
+    "steps": [
+      "1. Select the bell.",
+      "2. Select the notice Organization registration returned.",
+      "3. Read the panel."
+    ],
+    "expected": "Organizations opens with the side panel of that organization. It says Returned: edit and resubmit and has the button Edit and resubmit.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-062",
+    "role": "Department Head",
+    "module": "Top bar > Notifications",
+    "title": "Mark all as read and the empty message",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. At least one unread notification. For the empty message, use an account with none.",
+    "steps": [
+      "1. Select the bell and read the number badge.",
+      "2. Select Mark all as read.",
+      "3. Look at the badge and the notices.",
+      "4. On an account with no notices, select the bell."
+    ],
+    "expected": "The badge number disappears and the unread blue marks go. An account with no notices shows a bell icon and: No notifications yet.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-063",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Budgets",
+    "title": "Budgets is view only for the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Finance in the menu. It opens Budgets.",
+      "2. Read the grey note at the top.",
+      "3. Look at the top right of the page for action buttons.",
+      "4. Look for the Organization drop down.",
+      "5. Open one budget if the list has one."
+    ],
+    "expected": "The note says: View only. You can review and export these records; the organization admin records and changes them. There is NO Propose budget, Edit, Delete or Generate advice button. The Organization drop down starts on All organizations. The budget opens for reading only.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-064",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Budgets",
+    "title": "Organization drop down narrows Finance to one organization of the college",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Finance > Budgets.",
+      "2. Open the Organization drop down and read the options.",
+      "3. Choose PSITS-CCS.",
+      "4. Note the rows and the Ledger net balance.",
+      "5. Choose All organizations."
+    ],
+    "expected": "The options are All organizations and only organizations of the head college. Choosing one organization shows only its budgets and its net balance. The note Ledger net balance updates.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-065",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Budgets",
+    "title": "No budgets: the empty message tells who can add them",
+    "preconditions": "A head whose college has no budgets. VERIFY: for example 940004 or 940005 on a fresh seed.",
+    "steps": [
+      "1. Sign in as that head.",
+      "2. Open Finance > Budgets.",
+      "3. Read the message."
+    ],
+    "expected": "The page says: No budgets to show yet. Only the organization Admin proposes budgets. They appear here, with their approval stage, once the Admin proposes one. There is no button to add one.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-066",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Ledger",
+    "title": "Ledger shows income and expenses without edit buttons",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Finance > Ledger.",
+      "2. Read the four tiles: Income, Expenses, Net balance, Ledger entries.",
+      "3. Read the table columns.",
+      "4. Look for Record transaction, Edit transaction and Delete transaction."
+    ],
+    "expected": "The tiles show money amounts. The columns include Date, Description, Source, Payer / Recorder, Category, Type, Amount. There is NO Record transaction, Edit transaction or Delete transaction button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-067",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Ledger",
+    "title": "Ledger search and filters, and the empty results message",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Finance > Ledger.",
+      "2. Type a word in Search transactions and press Enter.",
+      "3. Open Filter by transaction type and choose Income.",
+      "4. Select Apply.",
+      "5. Type a word that matches nothing and press Enter.",
+      "6. Select Clear filters."
+    ],
+    "expected": "Search and the type filter narrow the rows and the tiles. A search with no match says: No matching transactions, with Try a different search or clear the filters. Clear filters brings the list back. Other filters: Filter by academic semester, Filter by event, Filter from date, Filter to date.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-068",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Ledger",
+    "title": "No transactions: the empty message",
+    "preconditions": "A head whose college has no ledger entries. VERIFY: reachable on a fresh seed only for colleges without seeded transactions.",
+    "steps": [
+      "1. Sign in as that head.",
+      "2. Open Finance > Ledger.",
+      "3. Read the message."
+    ],
+    "expected": "The page says: No transactions to show yet. Only the organization Admin records transactions. Verified collections, cash advances, paid charges and orders post here by themselves. No add button.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-069",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Financial reports",
+    "title": "Financial reports: review saved reports, no way to create one",
+    "preconditions": "Admin 900001 has saved at least one financial report. Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Finance > Financial reports.",
+      "2. Look for a section that generates a report.",
+      "3. Read the list Financial reports and its stage text.",
+      "4. Use Search report history and Filter reports by status.",
+      "5. Select Export Excel on Full Transaction Log."
+    ],
+    "expected": "There is NO report generator. The list shows each saved report with its approval stage (waiting for the Department Head, the SAO, approved or returned). The filters narrow the list. Export Excel downloads a file. The two cards Full Transaction Log and Category Breakdown offer Export Excel and Print / Save PDF.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-070",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Financial reports",
+    "title": "No saved reports: the empty message",
+    "preconditions": "A head whose college has no saved reports. VERIFY: fresh seed.",
+    "steps": [
+      "1. Sign in as that head.",
+      "2. Open Finance > Financial reports.",
+      "3. Scroll to the Financial reports box.",
+      "4. Read the message."
+    ],
+    "expected": "The box says: No saved reports to show yet. Only the organization Admin prepares financial reports. They appear here, with their approval stage, once saved.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-071",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Forecast",
+    "title": "Forecast: read only and the empty message",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Finance > Forecast.",
+      "2. Look at the top right for a Generate forecast button.",
+      "3. Read the list or the empty message."
+    ],
+    "expected": "There is NO Generate forecast and no delete button. With no forecast the page says: No forecasts to show yet. Only the organization Admin generates forecasts. They appear here once one is generated.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-072",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance",
+    "title": "Finance pages that belong to the Admin or the student are closed to the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/finance/collections in the address bar and press Enter.",
+      "2. Type /dashboard/finance/student-accounts and press Enter.",
+      "3. Type /dashboard/finance/personal-receipts and press Enter.",
+      "4. Type /dashboard/finance/statement-of-account and press Enter."
+    ],
+    "expected": "Each address sends you back to the Department Head Dashboard. No page for collections, student accounts, receipts or statement of account is shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-073",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance",
+    "title": "Finance of another college is not visible",
+    "preconditions": "Sign in as 940002 (College of Business). PSITS-CCS has seeded finance data.",
+    "steps": [
+      "1. Open Finance > Budgets.",
+      "2. Open the Organization drop down.",
+      "3. Look for PSITS-CCS.",
+      "4. Open Finance > Ledger and read the rows."
+    ],
+    "expected": "Only Business college organizations (for example JPIA-CBE) are in the drop down. Budgets and ledger rows of PSITS-CCS are not shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-074",
+    "role": "Department Head",
+    "module": "College view (read only) > Calendar",
+    "title": "Calendar shows the events of the college and has no create button",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Calendar in the menu.",
+      "2. Read the four tiles: Total Events, Upcoming, Completed, Total Tasks.",
+      "3. Look at the top right for a New event button.",
+      "4. Select Calendar view in the List and Calendar switch.",
+      "5. Select List view again."
+    ],
+    "expected": "Tiles show numbers. There is NO New event button and no Edit event or Delete event in the row menu. The switch changes between List and Calendar. The list columns include Event, Organizer, Schedule, Venue, Attendance, Tasks, Status.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-075",
+    "role": "Department Head",
+    "module": "College view (read only) > Calendar",
+    "title": "Calendar search, filters and empty messages",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Calendar and make sure List is selected.",
+      "2. Type a word in Search events.",
+      "3. Change Status to Approved.",
+      "4. Change Sort by to Title.",
+      "5. Type a word that matches nothing.",
+      "6. Select Clear filters."
+    ],
+    "expected": "Search, Event date, Status and Sort by narrow the list. No match says: No events match these filters, with Change the search, date or status, or clear the filters to see every event in this period. A college with no events says: No events from your college yet, with the button Open approvals.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-076",
+    "role": "Department Head",
+    "module": "College view (read only) > Calendar",
+    "title": "Open an event for reading only",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. At least one event in the list.",
+    "steps": [
+      "1. Open Calendar.",
+      "2. Select View details (phone) or open the row menu and select View event (laptop).",
+      "3. Read the event details.",
+      "4. Look for Edit, Approve, Check in and Cancel buttons.",
+      "5. Select Close event details."
+    ],
+    "expected": "The event details open for reading: progress stage, dates, venue, tasks and attendance numbers. There is NO Edit, Cancel, Delete or check-in control. Close event details shuts it. VERIFY: whether the head can also see SAO event files in this view.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-077",
+    "role": "Department Head",
+    "module": "College view (read only) > Calendar",
+    "title": "Calendar shows only events of the head college",
+    "preconditions": "Sign in as 940002 (Business). PSITS-CCS has seeded events.",
+    "steps": [
+      "1. Open Calendar.",
+      "2. Read the event titles and the Organizer column.",
+      "3. Look for events of PSITS-CCS."
+    ],
+    "expected": "Only events of Business college organizations show (or the empty message). Events of PSITS-CCS are not shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-078",
+    "role": "Department Head",
+    "module": "College view (read only) > Election results",
+    "title": "Election results are read only and the head cannot vote",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Election results in the menu.",
+      "2. Read the page.",
+      "3. If more than one election is listed, choose another under Available results.",
+      "4. Look for a Vote or Cast vote button."
+    ],
+    "expected": "You see the results of an election of your college: Official final results or Live vote totals, with Ballots, Selections, Positions and Candidates tiles. If none is available the page says: Election results are not available yet. There is no voting button. VERIFY: with no election at all, what the page shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-079",
+    "role": "Department Head",
+    "module": "College view (read only) > Election results",
+    "title": "Voting and the election workspace are refused to the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/elections/cast-vote in the address bar and press Enter.",
+      "2. Type /dashboard/elections and press Enter.",
+      "3. Type /dashboard/elections/manage-elections and press Enter.",
+      "4. Type /dashboard/elections/manage-candidates and press Enter."
+    ],
+    "expected": "The first two addresses end on Election results. The last two send you back to the Department Head Dashboard. At no point do you see a ballot, Vote button or candidate editor.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-080",
+    "role": "Department Head",
+    "module": "College view (read only) > Announcements",
+    "title": "Announcements feed: read, search and filter",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. At least one published announcement of an organization of this college or of the SAO.",
+    "steps": [
+      "1. Select Announcements in the menu.",
+      "2. Type a word in Search announcements.",
+      "3. Open Announcement category and choose one category.",
+      "4. Choose All categories.",
+      "5. Type a word that matches nothing.",
+      "6. Select Clear filters."
+    ],
+    "expected": "Announcements show as cards. Search and category narrow the list. No match says: No announcements match, with Try a different search or category. With none at all the page says: No announcements yet. Your officers post them here. There is no button to write an announcement.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-081",
+    "role": "Department Head",
+    "module": "College view (read only) > Announcements",
+    "title": "Writing announcements is closed to the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/announcements/manage-announcements in the address bar and press Enter.",
+      "2. Type /dashboard/announcements/create-announcement and press Enter.",
+      "3. Type /dashboard/approval-requests/new and press Enter."
+    ],
+    "expected": "Each address sends you back to the Department Head Dashboard. The head cannot create or manage announcements and cannot send a new request.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-082",
+    "role": "Department Head",
+    "module": "Access limits",
+    "title": "Store, shopping and orders are refused to the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Look at the top bar for a shopping cart.",
+      "2. Type /dashboard/merchandise/order-merchandise in the address bar and press Enter.",
+      "3. Type /dashboard/merchandise/my-orders and press Enter.",
+      "4. Type /dashboard/merchandise/manage-orders and press Enter.",
+      "5. Type /dashboard/merchandise/manage-inventory and press Enter."
+    ],
+    "expected": "There is no cart in the top bar. Every address sends you back to the Department Head Dashboard. The head cannot buy or manage merchandise.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-083",
+    "role": "Department Head",
+    "module": "Access limits",
+    "title": "Admin, officer and task pages are refused to the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/admin and press Enter.",
+      "2. Type /dashboard/admin/users and press Enter.",
+      "3. Type /dashboard/admin/positions and press Enter.",
+      "4. Type /dashboard/events/manage-events and press Enter.",
+      "5. Type /dashboard/tasks/task-board and press Enter."
+    ],
+    "expected": "Every address sends you back to the Department Head Dashboard. The head cannot manage people, assign roles, edit events or use the task board.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-084",
+    "role": "Department Head",
+    "module": "Access limits",
+    "title": "SAO pages are refused: no creating colleges, no approving own SAO step",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/super-admin and press Enter.",
+      "2. Type /dashboard/super-admin/colleges and press Enter.",
+      "3. Type /dashboard/super-admin/organizations and press Enter.",
+      "4. Type /dashboard/super-admin/admins and press Enter.",
+      "5. Type /dashboard/super-admin/academic-years and press Enter."
+    ],
+    "expected": "Every address sends you back to the Department Head Dashboard. The head cannot add colleges or Department Heads, review registrations, create administrators or open a semester. Only the SAO can.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-085",
+    "role": "Department Head",
+    "module": "Access limits",
+    "title": "Records pages (compliance, venues, grievances, clearances, audit log) are refused",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/compliance and press Enter.",
+      "2. Type /dashboard/venues and press Enter.",
+      "3. Type /dashboard/grievances and press Enter.",
+      "4. Type /dashboard/clearances and press Enter.",
+      "5. Type /dashboard/audit-logs and press Enter."
+    ],
+    "expected": "Every address sends you back to the Department Head Dashboard.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-086",
+    "role": "Department Head",
+    "module": "Access limits",
+    "title": "Unknown address, old Approvals address and signed out visit",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Type /dashboard/nothing-here and press Enter.",
+      "2. Type /dashboard/approvals and press Enter.",
+      "3. Sign out.",
+      "4. Type /dashboard/department-head/approvals in the address bar and press Enter."
+    ],
+    "expected": "The unknown address sends you to the Dashboard while signed in. /dashboard/approvals sends you to /dashboard/department-head/approvals. After signing out, the Approvals address sends you to the Sign in page. No data shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-087",
+    "role": "Department Head",
+    "module": "Profile",
+    "title": "Update the mobile number and save",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Profile at the bottom of the menu.",
+      "2. Read the box Personal information.",
+      "3. Type a mobile number in Mobile number (optional).",
+      "4. Select Save profile.",
+      "5. Refresh the page."
+    ],
+    "expected": "Save profile is greyed out until you change something. After saving a message says: Profile changes saved. The number is still there after a refresh. Discard changes undoes edits you have not saved.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-088",
+    "role": "Department Head",
+    "module": "Profile",
+    "title": "Profile needs a first name, last name and email",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Open Profile.",
+      "2. Clear First name.",
+      "3. Select Save profile.",
+      "4. Read the message.",
+      "5. Select Discard changes."
+    ],
+    "expected": "Nothing is saved. The red message says: First name, last name, and email are required. Discard changes restores the old name.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-089",
+    "role": "Department Head",
+    "module": "Profile",
+    "title": "Password change: empty, short and mismatching entries are refused",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately. Do not finish a real password change on a shared account unless the team agreed.",
+    "steps": [
+      "1. Open Profile and find Password & security.",
+      "2. Select the save button with all three boxes empty.",
+      "3. Fill the three boxes with a new password of only 5 characters and select save.",
+      "4. Fill a new password of 8 or more characters and a different Confirm new password and select save.",
+      "5. Read each message."
+    ],
+    "expected": "Messages in order: Current password, new password, and confirmation are required. New password must be at least 8 characters. New passwords do not match. No password is changed.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-090",
+    "role": "Department Head",
+    "module": "Study objectives",
+    "title": "Study objectives page opens for the head",
+    "preconditions": "Sign in as Department Head 940001 (College of Computer Studies, home of PSITS-CCS). The password is given to you separately.",
+    "steps": [
+      "1. Select Study objectives at the bottom of the menu.",
+      "2. Read the page.",
+      "3. Select Dashboard."
+    ],
+    "expected": "The page opens without an error and shows the study objectives with evidence for the head college. VERIFY: what the head sees on this page (it is scoped to the head college).",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "DH-091",
+    "role": "Department Head",
+    "module": "Study objectives",
+    "title": "Study objectives evidence links open pages the head may see",
+    "preconditions": "Sign in as Department Head 940001. The password is given to you separately. Some activity exists in the college.",
+    "steps": [
+      "1. Scroll to the bottom of the left menu and select Study objectives.",
+      "2. Select a tile with an arrow, for example \"Events completed\" or \"Transactions recorded in the ledger\".",
+      "3. Go back and select \"Expense forecasts generated (OLS regression)\" or \"Votes cast\".",
+      "4. Go back and select a tile such as \"Orders placed\" or \"Check-ins recorded manually\".",
+      "5. Write down which tiles are links and the page each one opened."
+    ],
+    "expected": "Linked tiles open pages of the college view: Calendar, Budgets, Ledger, Forecast, Election results. They never end in a redirect to the Dashboard. Tiles about orders, check-ins, tasks and announcements have no arrow, because the head has no page for them. VERIFY: the exact linked tiles (from the server route list: Forecast, Budgets, Ledger, Calendar, Elections and Election results).",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time",
+    "depends": ""
+  },
+  {
+    "id": "DH-092",
+    "role": "Department Head",
+    "module": "College view (read only) > Finance > Forecast",
+    "title": "A forecast that the Admin generated is shown read only to the head",
+    "preconditions": "Sign in as Department Head 940001. The password is given to you separately. Admin 900001 of PSITS-CCS has generated a forecast (ADM-147), so the page is not empty.",
+    "steps": [
+      "1. Open Finance > Forecast under College view.",
+      "2. Read the forecast card: its title, Income, Balance, Safe spend, Risk and the engine badge.",
+      "3. Look at the top of the page for \"Generate forecast\" and at the card for a delete button.",
+      "4. Use the Organization drop down to choose PSITS-CCS and then All organizations."
+    ],
+    "expected": "The card \"Forecast for <period>\" shows the figures, the risk and the chart. There is no \"Generate forecast\" button and no delete button anywhere, only the Admin has them. The Organization drop down narrows the page to one organization of the college (VERIFY that it also narrows the forecast cards). The \"No forecasts to show yet\" message does not show while a forecast exists.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time",
+    "depends": "Run after ADM-147"
+  }
+]

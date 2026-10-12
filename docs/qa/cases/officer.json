@@ -1,0 +1,1776 @@
+[
+  {
+    "id": "SBO-001",
+    "role": "SBO Officer",
+    "module": "Sign in",
+    "title": "Officer signs in and lands on the Dashboard",
+    "preconditions": "Nobody is signed in on this browser. Use account 900004 (Treasurer). On a fresh seed no password change is asked (docs/MEMBER_TESTING.md section 2).",
+    "steps": [
+      "1. Open the HIUSA address you were given.",
+      "2. Type 900004 in the box \"School ID / ID Number\".",
+      "3. Type the password in the box \"Password\".",
+      "4. Click \"Sign in\".",
+      "5. Read the page and the top bar."
+    ],
+    "expected": "You land on the officer Dashboard (the address ends in /dashboard/officer). The top bar shows your name and your organization with \"SBO Officer\". The side menu is the officer menu. No password change screen appears.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-002",
+    "role": "SBO Officer",
+    "module": "Sign in",
+    "title": "A wrong password is refused with a clear message",
+    "preconditions": "Signed out. Use a real officer School ID such as 900004. Do this only once or twice: five wrong tries lock the account for 15 minutes and other testers may share it (docs/MEMBER_TESTING.md section 8).",
+    "steps": [
+      "1. Type 900004 in \"School ID / ID Number\".",
+      "2. Type a wrong password in \"Password\".",
+      "3. Click \"Sign in\".",
+      "4. Read the red message under the boxes.",
+      "5. Now type the correct password and click \"Sign in\" again."
+    ],
+    "expected": "The message reads: \"That school ID and password did not match. Check both and try again, or reset your password.\" You stay on the sign-in page and nothing about the account is revealed. The correct password then signs you in.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-003",
+    "role": "SBO Officer",
+    "module": "Sign in",
+    "title": "Signing in with empty boxes does not sign you in",
+    "preconditions": "Signed out, on the sign-in page.",
+    "steps": [
+      "1. Leave both boxes empty and click \"Sign in\".",
+      "2. Type only 900004 in \"School ID / ID Number\" and click \"Sign in\".",
+      "3. Clear it, type only a password and click \"Sign in\".",
+      "4. Read the message each time."
+    ],
+    "expected": "You are never signed in. A red message appears each time and you stay on the sign-in page. VERIFY: the wording. The page may say \"Enter your school ID and password to continue.\" or repeat a field message from the server.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-004",
+    "role": "SBO Officer",
+    "module": "Menu and navigation",
+    "title": "The officer menu has exactly the pages an officer may use",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Use a laptop screen so the full side menu shows.",
+    "steps": [
+      "1. Sign in as 900004 and look at the left menu from top to bottom.",
+      "2. Write down every group and page name you see.",
+      "3. Click each group name once and note which page opens first.",
+      "4. Look at the bottom of the menu and click \"Study objectives\".",
+      "5. Click \"Profile\" at the bottom of the menu."
+    ],
+    "expected": "The menu shows: Dashboard. Events and tasks (Check-in, Calendar, Venue booking, My tasks, AI delegation). Finance (view only) (Budgets, Ledger, Financial reports, Forecast). Members and fingerprints. Voting (Candidates, Voters, Results). Store (Orders, Claim desk). Updates (Announcements, Feed). Clearance signing. My activity (Vote, Shop, My orders, My receipts, Statement of account). Small headings Manage, Community, Records and Me sit above the groups. A group opens its first page (Events and tasks opens Check-in, Finance (view only) opens Budgets, Voting opens Candidates, Store opens Orders, Updates opens Announcements, My activity opens Vote). Profile and Study objectives both open. There is no Approvals, People, Officer positions, Events, Planning, Tasks, Inventory, Collections and advances, Student accounts, Compliance, Grievances or Audit log.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-005",
+    "role": "SBO Officer",
+    "module": "Menu and navigation",
+    "title": "All four officer positions get the same menu and the same powers",
+    "preconditions": "Accounts 900004, 900005, 900006 and 900007 are all available. Sign out between accounts. This is a fresh seed (docs/MEMBER_TESTING.md section 2).",
+    "steps": [
+      "1. Sign in as 900004 (Treasurer) and copy down the side menu.",
+      "2. Log out and sign in as 900005 (Auditor). Compare the menu.",
+      "3. Log out and sign in as 900006 (Public Information Officer). Compare the menu.",
+      "4. Log out and sign in as 900007 (Business Manager). Compare the menu.",
+      "5. On each account open Store > Orders and Updates > Announcements and look for buttons."
+    ],
+    "expected": "The menu and the pages are identical for all four. Every position can verify payments, release orders, check people in, update its own tasks and send announcements for approval. The position changes only the title shown under the name (see the Profile case) and which tasks the system suggests for the officer (see the AI delegation cases). No page is hidden or locked because of the position.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-006",
+    "role": "SBO Officer",
+    "module": "Profile",
+    "title": "Each officer position is shown on the Profile page",
+    "preconditions": "Accounts 900004 to 900007 are available (docs/MEMBER_TESTING.md section 2).",
+    "steps": [
+      "1. Sign in as 900004 and click \"Profile\" at the bottom of the menu.",
+      "2. Read the dark card on the left: name, role and the line under it.",
+      "3. Read School ID, Organization and Email address on the same card.",
+      "4. Log out and repeat for 900005, 900006 and 900007."
+    ],
+    "expected": "The role badge says \"SBO Officer\" for all four. The line under it is the position: 900004 Treasurer, 900005 Auditor, 900006 Public Information Officer, 900007 Business Manager. School ID and organization (PSITS-CCS) are correct.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-007",
+    "role": "SBO Officer",
+    "module": "Access control",
+    "title": "Typing the address of an Admin-only page sends the officer back to the Dashboard",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Use the same site address you signed in on. Only change the part after the site address.",
+    "steps": [
+      "1. Replace the page address with each of these and press Enter, one at a time: /dashboard/admin, /dashboard/approvals, /dashboard/admin/positions, /dashboard/admin/programs-sections, /dashboard/audit-logs.",
+      "2. Then try these: /dashboard/events/manage-events, /dashboard/events/event-planner, /dashboard/tasks/task-board, /dashboard/compliance, /dashboard/grievances.",
+      "3. Then try these: /dashboard/finance/collections, /dashboard/finance/student-accounts, /dashboard/merchandise/manage-inventory.",
+      "4. Then try these: /dashboard/elections/manage-elections, /dashboard/elections/manage-partylists, /dashboard/approval-requests/new/budget, /dashboard/approval-requests/new/event.",
+      "5. After each address, write down which page you ended on."
+    ],
+    "expected": "Every address sends you back to your own Dashboard (/dashboard/officer). No Admin page shows data or buttons, not even for a moment. There is no error page, you are simply returned to the Dashboard.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-008",
+    "role": "SBO Officer",
+    "module": "Access control",
+    "title": "Pages of the SAO, Department Head and Student are closed to the officer",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Replace the page address with /dashboard/super-admin and press Enter.",
+      "2. Try /dashboard/super-admin/organizations and /dashboard/super-admin/academic-years.",
+      "3. Try /dashboard/department-head and /dashboard/department-head/approvals.",
+      "4. Try /dashboard/student, /dashboard/my-grievances and /dashboard/my-clearance.",
+      "5. Write down where you end up each time."
+    ],
+    "expected": "Each address returns you to the officer Dashboard. None of these pages opens for an officer.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-009",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "An officer cannot approve their own announcement",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. At least one announcement written by this officer is \"Waiting for Admin approval\" (send one with the case \"Officer sends an announcement for approval\" first).",
+    "steps": [
+      "1. Look through the whole left menu for an Approvals item.",
+      "2. Open Updates > Announcements and click the title of your waiting announcement to open its panel.",
+      "3. Click the three dots (Announcement actions) on its row and read the choices.",
+      "4. Replace the page address with /dashboard/approvals and press Enter."
+    ],
+    "expected": "There is no Approvals item in the menu. The row shows the chip \"Waiting for Admin approval\". The panel says \"Waiting for Admin approval. No action needed from you.\" The actions are only \"View full record\", \"Edit announcement\" and \"Delete announcement\". There is no \"Approve & publish\" or \"Publish announcement\". The Approvals address returns you to the Dashboard.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-010",
+    "role": "SBO Officer",
+    "module": "Access control",
+    "title": "Unknown addresses and signed-out visits",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Replace the page address with /dashboard/not-a-page and press Enter.",
+      "2. Open the account menu (your name, top right) and choose \"Logout\", then confirm \"Log Out\".",
+      "3. Now type /dashboard/officer in the address bar and press Enter.",
+      "4. Sign in again. Then type /login in the address bar and press Enter."
+    ],
+    "expected": "The unknown address takes you to your Dashboard. After logout, the officer page address sends you to the sign-in page and shows no data. VERIFY: when already signed in, /login should send you to your Dashboard instead of showing the sign-in form.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-011",
+    "role": "SBO Officer",
+    "module": "Menu and navigation",
+    "title": "Open and use the side menu on a phone",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Use a phone or a browser window narrower than 1024 pixels.",
+    "steps": [
+      "1. Sign in on the phone.",
+      "2. Tap the \"Open menu\" button at the top left.",
+      "3. Tap \"Events and tasks\", then tap \"Check-in\".",
+      "4. Check that the menu closes and the Check-in page opens.",
+      "5. Scroll down the page and try to scroll sideways.",
+      "6. Tap \"Open menu\" again and tap \"Close menu\"."
+    ],
+    "expected": "The menu slides open, the pages open from it, and \"Close menu\" hides it. The page fits the screen with no sideways scrolling. All buttons are big enough to tap without zooming.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-012",
+    "role": "SBO Officer",
+    "module": "Menu and navigation",
+    "title": "Go to page search shows only officer pages",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Click \"Go to page\" in the top bar (or press Ctrl and K).",
+      "2. Type check and press Enter on \"Check-in\".",
+      "3. Open \"Go to page\" again and type inventory.",
+      "4. Clear it and type new ann.",
+      "5. Press Escape to close it."
+    ],
+    "expected": "\"Check-in\" is found and opens. For inventory the list says: No pages match \"inventory\". \"New announcement\" is found and opens the announcement form. Admin pages never appear in the list.",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-013",
+    "role": "SBO Officer",
+    "module": "Menu and navigation",
+    "title": "Logging out asks to confirm and ends the session",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Click your name (top right, \"Account menu for ...\").",
+      "2. Click \"Logout\".",
+      "3. In the box \"Log Out\" click \"Cancel\" and check you are still signed in.",
+      "4. Open the account menu again, click \"Logout\", then click \"Log Out\".",
+      "5. Press the browser Back button."
+    ],
+    "expected": "The box says \"You will need to sign in again to access your dashboard.\" Cancel keeps you signed in. Confirming returns you to the sign-in page. VERIFY: after Back, the dashboard must not show data and you are sent to sign in.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-014",
+    "role": "SBO Officer",
+    "module": "Dashboard",
+    "title": "Dashboard shows the work snapshot, urgent tasks and task chart",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). At least one task is assigned to this officer (ask the Admin 900001 to assign one in Tasks if there is none).",
+    "steps": [
+      "1. Click \"Dashboard\" in the menu.",
+      "2. Read the four cards under \"Operations snapshot\".",
+      "3. Read the table \"Urgent Tasks\" (Task, Assignee, Deadline, Status).",
+      "4. Read the bars under \"Task Status Distribution\".",
+      "5. Click \"View all\" at the top right of \"Urgent Tasks\"."
+    ],
+    "expected": "The cards are \"Open Tasks\" (pending and in progress), \"Upcoming Events\", \"Completed Tasks\" and \"Pending Orders\". \"Urgent Tasks\" lists at most 4 open tasks, nearest deadline first. Each bar shows a count and a percent. \"View all\" opens My tasks. The \"Open Tasks\" number equals Pending plus In Progress on My tasks. Only tasks assigned to you are counted.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-015",
+    "role": "SBO Officer",
+    "module": "Dashboard",
+    "title": "Quick Actions buttons go to the right pages",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. On the Dashboard find the box \"Quick Actions\".",
+      "2. Click \"My tasks\" and note the page. Go back to the Dashboard.",
+      "3. Click \"Check-in\", then go back. Click \"My Receipts\", then go back.",
+      "4. Click \"New announcement\"."
+    ],
+    "expected": "\"My tasks\" opens My tasks. \"Check-in\" opens Check-in. \"My Receipts\" opens My receipts under My activity. \"New announcement\" opens the New announcement form. No button leads to a closed page.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-016",
+    "role": "SBO Officer",
+    "module": "Dashboard",
+    "title": "Items in Your work queue open the exact record",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. There is something that needs the officer, for example a new order waiting for payment checks or a task due soon.",
+    "steps": [
+      "1. On the Dashboard find the box \"Your work queue\".",
+      "2. Click the first item in it.",
+      "3. Check the page you land on, then go back to the Dashboard.",
+      "4. Scroll to \"What HIUSA noticed\" if it is shown and click one insight link."
+    ],
+    "expected": "Each item opens a page the officer is allowed to use and shows the related record (for example the order in Store > Orders, or the task in My tasks). No link bounces you back to the Dashboard. VERIFY: the items depend on the data, so write down what you saw if the box is empty.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-017",
+    "role": "SBO Officer",
+    "module": "Dashboard",
+    "title": "Dashboard for an officer with nothing assigned",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 2, after the SAO has activated a semester, because the seeded events, tasks and election no longer show (docs/MEMBER_TESTING.md section 3). This officer has no tasks, no events and no pending orders.",
+    "steps": [
+      "1. Open the Dashboard.",
+      "2. Read the section \"Work queue\".",
+      "3. Click \"Open My tasks\"."
+    ],
+    "expected": "Instead of a wall of zeros the page says \"No work has been assigned to you yet\" with the help text \"Tasks, orders to verify and events show up here once your Admin assigns them. Start by opening My tasks.\" and a button \"Open My tasks\". The Quick Actions box is still shown. VERIFY: the first-run view only shows when every count is zero.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SBO-018",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Check someone in by hand",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). One event is \"Ongoing\" or \"Approved\" (ask the Admin 900001 to set one). Student 2100142 is not yet checked in to it. This is officer journey 1 in docs/MEMBER_TESTING.md section 4 (4 clicks).",
+    "steps": [
+      "1. Open Events and tasks > Check-in.",
+      "2. If you see an \"Event queue\", click the event (button \"Open attendance for ...\"). A single ongoing event opens by itself.",
+      "3. Write down the number under \"Attendance records\".",
+      "4. In the box \"Manual check-in\" type 2100142 into \"Member\".",
+      "5. Click the matching result (it shows the name and \"2100142 · Student\").",
+      "6. Leave \"Attendance status\" on Present and click \"Confirm Check-In\"."
+    ],
+    "expected": "A green message says \"Check-in recorded.\" The Member box is emptied. \"Attendance records\" goes up by 1. The student appears in the attendance log with status Present and method Manual. A mistyped ID is never recorded because you must pick the result and then confirm.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-019",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Confirm Check-In waits for a chosen member and saves Late and Excused",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An open event is on screen in Check-in. Two students who are not yet checked in, for example 2100217 and 2200055.",
+    "steps": [
+      "1. Look at the button \"Confirm Check-In\" while the Member box is empty.",
+      "2. Type 2100217 but do not click the result. Look at the button again.",
+      "3. Click the result, set \"Attendance status\" to Late and click \"Confirm Check-In\".",
+      "4. Check in 2200055 with the status Excused.",
+      "5. Read the cards at the top (\"Late\") and the attendance log."
+    ],
+    "expected": "The button is greyed out until a result is clicked. Typing alone is not enough. Both check-ins save with \"Check-in recorded.\" The log shows Late and Excused chips. The \"Late\" card goes up by 1 for the Late record. The choices in the list are Present, Late, Excused and Absent.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-020",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Checking in the same member twice is refused",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An open event is on screen in Check-in. Student 2100142 is already in the attendance log of that event.",
+    "steps": [
+      "1. Type 2100142 in \"Member\" and click the result.",
+      "2. Click \"Confirm Check-In\".",
+      "3. Read the red message.",
+      "4. Look at the number under \"Attendance records\" and the attendance log."
+    ],
+    "expected": "A red message such as \"This member is already checked in for this event.\" appears. The count does not change and the student has one row only. VERIFY: the exact words of the message.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-021",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Member search finds only members of your own organization",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An open event is on screen in Check-in. Student 2400118 belongs to another organization (FES-CTE).",
+    "steps": [
+      "1. Type zzzz in \"Member\".",
+      "2. Clear the box and type 2400118.",
+      "3. Clear the box and type a few letters of a PSITS-CCS student name."
+    ],
+    "expected": "For zzzz and for 2400118 the page says \"No matching members found.\" and the button stays greyed out. A PSITS-CCS student name shows matching results. Nobody from another organization can be checked in.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-022",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Check-in lists only approved and ongoing events",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run once in round 1 and once in round 2 (docs/MEMBER_TESTING.md section 3).",
+    "steps": [
+      "1. Open Events and tasks > Check-in.",
+      "2. Read the line \"N events open for check-in\".",
+      "3. Compare the \"Event queue\" with the events in Events and tasks > Calendar and note their statuses.",
+      "4. In round 2 read the page when no event is listed.",
+      "5. If no event is ongoing, click the link \"Go to Events\" in the grey line."
+    ],
+    "expected": "Only events with status Approved or Ongoing are listed. Ongoing ones come first with a green dot. Planning, completed and cancelled events are missing. When none is ongoing the page says \"No event is ongoing right now.\" with \"Go to Events\", which opens Calendar. When none is listed at all it says \"No events ready for check-in\" and \"Approved and ongoing events will appear here.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-023",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Search, filter and export the attendance log",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An event with at least 3 attendance records of different statuses is open in Check-in.",
+    "steps": [
+      "1. Type part of one student name in \"Search attendance\".",
+      "2. Clear it and set \"Filter attendance status\" to Late.",
+      "3. Set it back to \"All statuses\" and click \"Export CSV\".",
+      "4. Type nonsense letters in \"Search attendance\".",
+      "5. Click \"Refresh live data\" at the top of the event."
+    ],
+    "expected": "The list narrows and the pill shows how many are \"matching\". A file named attendance-<event id>-<date>.csv downloads with columns such as School ID, Name, Status, Method, Check In and Recorded By. Nonsense shows \"No attendance records match the filters.\" Refresh reloads the numbers.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-024",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Fingerprint check-in card when the reader is missing, and when it is present",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An open event is on screen in Check-in. Most test copies have no fingerprint reader. If you have a DigitalPersona reader and enrolled students, run steps 6 to 8 too.",
+    "steps": [
+      "1. Find the card \"Fingerprint check-in / checkout\".",
+      "2. Read the coloured status line inside it.",
+      "3. Click the small refresh icon (Retry fingerprint reader).",
+      "4. Try to click \"Scan Fingerprint\".",
+      "5. Then use \"Manual check-in\" for a student to confirm it still works.",
+      "6. With a reader: click \"Scan Fingerprint\" and place one finger.",
+      "7. Read the window \"Confirm Fingerprint Check-In\" and click \"Confirm Check-In\".",
+      "8. Try \"No, Scan Again\" on another scan."
+    ],
+    "expected": "Without a reader the line says \"Reader unavailable\" with \"Connect the reader and make sure HID Authentication Device Client is running.\", and \"Scan Fingerprint\" is greyed out. Manual check-in still works. With a reader the line says \"DigitalPersona reader ready\"; a match opens a window that names the student; confirming adds a record with method Biometric; \"No, Scan Again\" cancels without a record. VERIFY: the reader steps (no hardware seen when this case was written).",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-025",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Check someone in from a phone",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). Use a phone. An open event exists. Student 2200134 is not yet checked in.",
+    "steps": [
+      "1. Open Events and tasks > Check-in from the menu.",
+      "2. Tap the event under \"Event queue\".",
+      "3. Type 2200134 in \"Member\" and tap the result.",
+      "4. Tap \"Confirm Check-In\".",
+      "5. Scroll to the attendance log and read the first card.",
+      "6. Tap \"All Events\" to go back to the list."
+    ],
+    "expected": "On a phone the list and the event are shown one at a time. After step 4 you see \"Check-in recorded.\" The log shows a card with the name, a status chip, the check-in time and the method. \"All Events\" returns to the queue. Nothing runs off the screen.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-026",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Calendar",
+    "title": "Browse events in list and calendar view with filters",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3).",
+    "steps": [
+      "1. Open Events and tasks > Calendar.",
+      "2. Read the four cards (Total Events, Upcoming, Completed, Total Tasks).",
+      "3. Type part of an event title in \"Search events\".",
+      "4. Change \"Status\" and \"Sort by\", then clear the filters.",
+      "5. Click \"Calendar view\" (button with the calendar icon), then \"List view\".",
+      "6. Click \"View details\" on one event."
+    ],
+    "expected": "The page title is Calendar. The list can be searched, filtered by date and status, and sorted. When nothing matches it says \"No events match these filters\" with a way to clear. The calendar view shows a month grid; clicking an event opens its details. If the \"Academic period\" box is set to a closed semester the page says \"Viewing completed semester records. New events use only the active period.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-027",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Calendar",
+    "title": "An officer cannot propose, edit or delete events",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3).",
+    "steps": [
+      "1. Open Events and tasks > Calendar.",
+      "2. Look for the buttons \"New event\", \"Edit event\", \"Delete event\" and \"Cancel event\".",
+      "3. Open \"View details\" of an event and look for edit controls.",
+      "4. Replace the page address with /dashboard/events/manage-events and press Enter."
+    ],
+    "expected": "None of those buttons exist for the officer and there is no Budget column. The event details are read only. The manage-events address returns you to the Dashboard. If the list is empty the page says \"No events yet\" and \"Only your organization's Admin can propose events. Approved events appear here with their tasks and check-in.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-028",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Venue booking",
+    "title": "Request an on-campus venue",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The SAO has added at least one venue (VERIFY: check that the seed has venues; the list says \"No venues available yet\" if not).",
+    "steps": [
+      "1. Open Events and tasks > Venue booking.",
+      "2. In \"Find a venue\" choose a \"Venue\" and a \"From\" and \"To\" date and read the availability list.",
+      "3. Click \"Request a venue\".",
+      "4. Choose \"On campus\", pick a \"Venue\", set \"Start\" and \"End\" on one day between 5:00 AM and 10:00 PM.",
+      "5. Optionally pick an event in \"Link to an event\".",
+      "6. Click \"Send request\"."
+    ],
+    "expected": "A box \"Booking request sent\" shows \"Venue request #n\" with status Pending and the text \"SAO will review this request. This is your booking reference, not an approval.\" After \"Done\" the request is listed under \"My organization's requests\" with status Pending. The SAO decides it later under Reviews > Venues.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-029",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Venue booking",
+    "title": "Venue request rejects missing or impossible times",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The window \"Request a venue booking\" is open.",
+    "steps": [
+      "1. Click \"Send request\" with every box empty.",
+      "2. Choose a venue, set \"End\" earlier than \"Start\" and click \"Send request\".",
+      "3. Set \"Start\" and \"End\" on two different days and click \"Send request\".",
+      "4. Set \"Start\" to 4:00 AM and \"End\" to 6:00 AM on the same day and click \"Send request\".",
+      "5. Set \"Start\" to 9:00 PM and \"End\" to 11:00 PM on the same day and click \"Send request\".",
+      "6. Switch \"Venue type\" to \"Off campus\", leave \"Off-campus location\" empty and click \"Send request\"."
+    ],
+    "expected": "Messages appear in red and nothing is sent: \"Choose an on-campus venue or enter an off-campus location and both times.\" then \"The end time must be after the start time.\" then \"Choose a time on one day between 5:00 AM and 10:00 PM.\" A time that clashes with an approved booking is refused by the system (VERIFY: its wording).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-030",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Venue booking",
+    "title": "Withdraw a pending venue request",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. One request of this organization is Pending.",
+    "steps": [
+      "1. Find the pending request under \"My organization's requests\".",
+      "2. Click \"Withdraw\".",
+      "3. In \"Withdraw this booking request?\" click \"Cancel\" first and check nothing changed.",
+      "4. Click \"Withdraw\" again and then \"Withdraw request\"."
+    ],
+    "expected": "The message says \"Booking request withdrawn.\" The status changes to Withdrawn and the Withdraw button disappears. The box said \"SAO will be notified. You will need to submit a new request if you still need this venue.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-031",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Start my task",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). A task assigned to this officer is Pending (ask the Admin 900001 to create one with Tasks > New task). This is officer journey 3 in docs/MEMBER_TESTING.md section 4 (3 clicks).",
+    "steps": [
+      "1. Open Events and tasks > My tasks.",
+      "2. Write down the cards \"Pending\" and \"In Progress\" at the top.",
+      "3. Find the task and click \"Start\" in its Action column (on a phone: the card button \"Start\").",
+      "4. Read the status and the progress line of the task."
+    ],
+    "expected": "The task status becomes \"In progress\" and the small stage bar moves forward. The \"Start\" button is replaced by \"Complete\". The top cards change: Pending goes down by 1 and In Progress goes up by 1. The progress is at least 1 percent.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-032",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Complete my task after a confirmation",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A task assigned to this officer is \"In progress\".",
+    "steps": [
+      "1. Open Events and tasks > My tasks.",
+      "2. Click \"Complete\" on the in-progress task.",
+      "3. In the window \"Confirm Task Completion\" click \"Cancel\" and check the task did not change.",
+      "4. Click \"Complete\" again, then \"Confirm Completion\".",
+      "5. Read the task row and the top cards."
+    ],
+    "expected": "The window says: Mark \"<task title>\" as completed? Progress will be saved at 100% and the Admin will be notified. After confirming, the task shows Completed with 100 percent, \"Completed\" goes up by 1 and the buttons \"Start\" and \"Complete\" are gone. The Admin gets a notification (check this on 900001 if you can).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-033",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Add a progress update and read the history",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A task assigned to this officer is Pending or \"In progress\".",
+    "steps": [
+      "1. Open Events and tasks > My tasks and click \"View task\" in the row menu (on a phone \"View details\").",
+      "2. In \"Add Progress Update\" set \"Progress (%)\" to 40.",
+      "3. Type a short text in \"Update note\", for example \"Poster draft done\".",
+      "4. Click \"Save Progress Update\".",
+      "5. Scroll to \"Progress History\"."
+    ],
+    "expected": "The button \"Save Progress Update\" becomes available only after a note is typed. After saving, the progress shows 40% and \"Progress History\" has a new line with the status, 40%, the time, your note and \"By <your name>\". The same task row shows 40% complete.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-034",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Progress update needs a note and a sensible percent",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The task detail window of one of your open tasks is open (\"Add Progress Update\").",
+    "steps": [
+      "1. Leave \"Update note\" empty and look at \"Save Progress Update\".",
+      "2. Type a note with only spaces.",
+      "3. Type a real note and set \"Progress (%)\" to 150, then click \"Save Progress Update\".",
+      "4. Set \"Progress (%)\" to -5 and save again."
+    ],
+    "expected": "With an empty or spaces-only note the button is greyed out. The percent field stops at 99 in the arrows. A percent above 100 or below 0 is refused and the task keeps its old progress. VERIFY: the exact error text and whether the task list stays usable after the error.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-035",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Task details window shows the stage, details and who set it",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. At least one task is assigned to this officer, ideally one linked to an event.",
+    "steps": [
+      "1. Open Events and tasks > My tasks and open \"View task\" on a task.",
+      "2. Read the title, the due date and the stage bar.",
+      "3. Read the box \"Description\", the box \"Related Event\" (if any) and the grey details (Assigned officer, Priority, Category, Required position, Progress, Academic period).",
+      "4. Close it with the X (\"Close task details\")."
+    ],
+    "expected": "The window shows the stage steps, a short \"what next\" message, the details above and \"Progress History\". The assigned officer is you. For a completed task the \"Add Progress Update\" box is not offered. There is no \"Reopen task\" button.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-036",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "The officer sees only their own tasks and cannot manage tasks",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). Another officer also has a task. Admin 900001 can see all tasks.",
+    "steps": [
+      "1. Open Events and tasks > My tasks and read the task list.",
+      "2. Look for the buttons \"New task\", \"Edit\", \"Delete\" and \"Reopen\", and for the switch \"Board / Progress\".",
+      "3. Look at the filters row for an assignee filter.",
+      "4. Replace the page address with /dashboard/tasks/task-board and press Enter."
+    ],
+    "expected": "Only tasks assigned to you are listed, never another officer's. There is no \"New task\", \"Edit\", \"Delete\", \"Reopen\", no Board/Progress switch and no assignee filter. The task-board address returns you to the Dashboard. A completed task cannot be reopened by an officer.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-037",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Search and filter tasks",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. You have at least 3 tasks with different statuses (Admin 900001 can add them).",
+    "steps": [
+      "1. Open Events and tasks > My tasks.",
+      "2. Type part of a title in \"Search tasks, assignees, or events\".",
+      "3. Set \"Filter tasks by status\" to In progress, then \"Filter tasks by priority\" to High.",
+      "4. Pick a date in \"Filter tasks by deadline\".",
+      "5. Click the clear option shown with the active filters.",
+      "6. Change \"Academic period\" to a closed one if the list has one."
+    ],
+    "expected": "The list and the count (\"N tasks\") follow each filter. Chips show the active filters. When nothing matches the page says \"No tasks match these filters\" and a clear button restores the list. A closed period shows the note \"Completed semester tasks are available for viewing only.\" and the Start and Complete buttons are gone. Search only narrows the page on screen.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-038",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "My tasks when nothing is assigned",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 2, after the SAO has activated a semester, because the seeded events, tasks and election no longer show (docs/MEMBER_TESTING.md section 3). This officer has no tasks.",
+    "steps": [
+      "1. Open Events and tasks > My tasks.",
+      "2. Read the cards at the top of the page.",
+      "3. Read the middle of the page."
+    ],
+    "expected": "The page says \"Nothing assigned to you yet\" and \"Your Admin delegates tasks here.\" The cards at the top show 0. There is no \"Create your first task\" button because only the Admin creates tasks.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SBO-039",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "A task that waits for another task cannot be started",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A task that depends on another unfinished task is assigned to this officer. These come from a confirmed event plan (VERIFY: the seed may not have one; ask the Admin 900001 to confirm an AI event plan from Events and tasks > Planning).",
+    "steps": [
+      "1. Open Events and tasks > My tasks and find the task marked Blocked.",
+      "2. Check whether a \"Start\" button is offered.",
+      "3. Open \"View task\" and read the message near the stage bar.",
+      "4. Finish the task it depends on (as the officer who owns it), then return to this task."
+    ],
+    "expected": "The blocked task shows \"Blocked\" and \"Blocked by <title>\" and has no Start button. The detail window says the task must wait (\"Finish that task first.\"). Once the other task is completed the Start button appears.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-040",
+    "role": "SBO Officer",
+    "module": "Events and tasks > My tasks",
+    "title": "Update a task from a phone",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Use a phone. A Pending task is assigned to this officer.",
+    "steps": [
+      "1. Open Events and tasks > My tasks.",
+      "2. Read the task card (title, status, progress bar, deadline).",
+      "3. Tap \"Start\" on the card.",
+      "4. Tap \"View details\" and add a progress note.",
+      "5. Tap \"Complete\" on the card and confirm."
+    ],
+    "expected": "Tasks show as cards, not a wide table. The buttons \"View details\", \"Start\" and \"Complete\" are easy to tap. The status moves Pending, In progress, Completed. No sideways scrolling.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-041",
+    "role": "SBO Officer",
+    "module": "Events and tasks > AI delegation",
+    "title": "AI delegation page for an officer is read only",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3).",
+    "steps": [
+      "1. Open Events and tasks > AI delegation.",
+      "2. Read \"AI Task Suggestions\".",
+      "3. Read the box \"How AI Delegation Works\".",
+      "4. Look for any button that creates or assigns a task."
+    ],
+    "expected": "The page lists suggestions for tasks assigned to you (\"Recommended: <name>\" with Role, Workload, Performance and Recency scores). With no scored task it says \"Create a task to generate an eligible officer recommendation and score breakdown.\" The right box lists how filtering and scoring work. There are no create or assign buttons. VERIFY: what the page shows for an officer with no tasks.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-042",
+    "role": "SBO Officer",
+    "module": "Events and tasks > AI delegation",
+    "title": "The officer position decides who the system recommends for a task",
+    "preconditions": "Two browsers or one private window. Admin 900001 and officers 900004 to 900007. Each officer has fewer than 5 open tasks (an officer with 5 or more open tasks is not eligible; VERIFY the limit in your copy).",
+    "steps": [
+      "1. As Admin 900001 open Events and tasks > Tasks and click \"New task\".",
+      "2. Type the title \"Prepare budget report\" and choose the Finance category, then click \"Review officer recommendation\". Write down who is \"Recommended\".",
+      "3. Repeat with the title \"Design poster and promote on social media\" and the Publicity category.",
+      "4. Repeat with the title \"Set up venue equipment\" and the Logistics category.",
+      "5. Create the logistics task for the recommended officer and sign in as that officer.",
+      "6. Open Events and tasks > My tasks."
+    ],
+    "expected": "Finance work is recommended first to the Treasurer (900004) or Auditor (900005). Publicity work goes to the Public Information Officer (900006). Logistics work goes to the Business Manager (900007). The best officer is tagged \"Recommended\" and the position fit is shown as a primary or related match. The created task appears in that officer's My tasks. VERIFY: scores depend on workload and history, so a different officer may rank first on a copy with many tasks.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-043",
+    "role": "SBO Officer",
+    "module": "Finance (view only) > Budgets",
+    "title": "Budgets are readable but cannot be changed",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Finance (view only) > Budgets.",
+      "2. Read the grey note at the top.",
+      "3. Look for the buttons \"Propose budget\", \"Edit\" and \"Delete\".",
+      "4. Open \"View details\" on a budget if one is listed."
+    ],
+    "expected": "The note says \"View only. You can review and export these records; the organization admin records and changes them.\" A box shows \"Ledger net balance\". There are no buttons to propose, edit or delete. If nothing is listed the page says \"No budgets to show yet\" and \"Only the organization Admin proposes budgets. They appear here, with their approval stage, once the Admin proposes one.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-044",
+    "role": "SBO Officer",
+    "module": "Finance (view only) > Ledger",
+    "title": "Ledger is read only with search and filters",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Finance (view only) > Ledger.",
+      "2. Read the cards Income, Expenses, Net balance and Ledger entries.",
+      "3. Type a word in \"Search transactions...\" and press Enter.",
+      "4. Set \"Filter by transaction type\" to Expense and click \"Apply\".",
+      "5. Set \"Filter from date\" and \"Filter to date\" and click \"Apply\".",
+      "6. Look for \"Record transaction\", \"Edit transaction\" and \"Delete transaction\"."
+    ],
+    "expected": "Totals and the list follow the filters. When nothing matches the page says \"No matching transactions\" with a clear option. There is no way to record, edit or delete a transaction. With an empty ledger the page says \"No transactions to show yet\". VERIFY: the view-only note mentions export, check whether this page offers an export button.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-045",
+    "role": "SBO Officer",
+    "module": "Finance (view only) > Financial reports",
+    "title": "Financial reports can be viewed, exported and printed but not prepared",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. At least one saved financial report exists (the Admin prepares it). If not, check only the empty state.",
+    "steps": [
+      "1. Open Finance (view only) > Financial reports.",
+      "2. Look for the panel \"Prepare a report\".",
+      "3. Type a word in \"Search reports\" and use \"Filter reports by status\".",
+      "4. Click \"View details\" on a report.",
+      "5. Click \"Export Excel\", then \"Download PDF\", then \"Preview / print\"."
+    ],
+    "expected": "There is no \"Prepare a report\" panel. Each saved report shows its type, a status such as draft or pending, and a stage bar. The three buttons produce a file or a print preview. With no reports the page says \"No saved reports to show yet\" and \"Only the organization Admin prepares financial reports.\"",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-046",
+    "role": "SBO Officer",
+    "module": "Finance (view only) > Forecast",
+    "title": "Forecast is read only",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Finance (view only) > Forecast.",
+      "2. Read the top of the page and the note.",
+      "3. Look for the button \"Generate forecast\"."
+    ],
+    "expected": "The note \"View only...\" is shown. There is no \"Generate forecast\" button. With no data the page says \"No forecasts to show yet\" and \"Only the organization Admin generates forecasts. They appear here once one is generated.\" If a forecast exists a chart is shown.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-047",
+    "role": "SBO Officer",
+    "module": "My activity > My receipts",
+    "title": "My receipts and Statement of account show the officer's own records",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. This officer bought something from the Shop that was approved (see the case \"Officer buys from the Shop\"), or has no purchases.",
+    "steps": [
+      "1. Open My activity > My receipts.",
+      "2. If a receipt card is shown click \"View Receipt\", then \"Print receipt\".",
+      "3. Open My activity > Statement of account.",
+      "4. Read the heading and the table."
+    ],
+    "expected": "My receipts is titled \"Personal Receipts\". With none it says \"No receipts yet\" and \"A receipt appears here after a payment you made is verified by the organization.\" The Statement of account page is titled \"Statement of Account & Financial Clearance\" and says \"No invoices have been issued to you.\" when there are none. Only your own records show, never those of other members.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-048",
+    "role": "SBO Officer",
+    "module": "Members and fingerprints",
+    "title": "The member directory lists students only and can be searched",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Click \"Members and fingerprints\" in the menu.",
+      "2. Read the two cards at the top (\"Students\" and \"Fingerprint directory\").",
+      "3. Open the filter \"All roles\" and read its choices.",
+      "4. Type a student name in the search box \"Search name, school ID, program, or email\".",
+      "5. Use \"Filter by program\", \"Filter by year level\" and \"Filter by section\", then \"Sort users\".",
+      "6. Clear the filters."
+    ],
+    "expected": "The page is titled \"Members and fingerprints\". The card \"Fingerprint directory\" says \"Attendance use only\". The role filter offers only \"All roles\" and \"Student\". Admins, officers and the Department Head are never listed. Search and filters narrow the table and the count; a column shows who has \"Fingerprint enrolled\". When nothing matches the page says \"No users found.\"",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-049",
+    "role": "SBO Officer",
+    "module": "Members and fingerprints",
+    "title": "The officer cannot create, edit, import or delete accounts",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Members and fingerprints from the menu.",
+      "2. Look at the top right of the first box for buttons \"New User\", \"Import\", \"Export\" and \"Add existing user\".",
+      "3. Open the row menu (three dots or the action icons) of one student.",
+      "4. Write down every action offered."
+    ],
+    "expected": "None of \"New User\", \"Import\", \"Export\" or \"Add existing user\" is shown. The row actions are only \"View profile\", \"Enroll fingerprint\" (or \"Re-enroll fingerprint\") and \"Verify identity (1:N)\". There is no Edit user, Deactivate account or Delete profile. Account administration stays with the Admin.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-050",
+    "role": "SBO Officer",
+    "module": "Members and fingerprints",
+    "title": "View a student profile",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Members and fingerprints.",
+      "2. Choose \"View profile\" for student 2100142.",
+      "3. Read the window \"User Profile\".",
+      "4. Close the window."
+    ],
+    "expected": "The window shows the student name, School ID, program, year, section, email and fingerprint state. Money owed is not shown to an officer. Closing returns to the list.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-051",
+    "role": "SBO Officer",
+    "module": "Members and fingerprints",
+    "title": "Fingerprint enrollment needs a reader and the member's consent",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Most test copies have no fingerprint reader.",
+    "steps": [
+      "1. Open Members and fingerprints and choose \"Enroll fingerprint\" for student 2100142.",
+      "2. Read the window \"Enroll Fingerprint\" and the status line.",
+      "3. Look at the main button and the box \"Capture progress\".",
+      "4. Tick the box \"I confirm the user consented to biometric enrollment...\" and look at the button again.",
+      "5. Close the window, then choose \"Verify identity (1:N)\" on the same row and read it."
+    ],
+    "expected": "Without a reader the status says \"Reader unavailable\" and the start button stays greyed out even with the consent box ticked. Capture progress shows 0 / 4. With a reader and consent the button becomes available. \"Verify Fingerprint Identity\" explains that one scan is checked against every enrolled user of the organization. VERIFY: the exact label of the start button on a copy with a reader.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-052",
+    "role": "SBO Officer",
+    "module": "Voting > Candidates",
+    "title": "Open an election and see its candidates",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). One election exists (the seeded one).",
+    "steps": [
+      "1. Open Voting > Candidates.",
+      "2. Read the election card (status, Positions, Candidates, Votes, the line starting \"Next:\").",
+      "3. Type part of the title in the search box, then use \"Filter elections by status\".",
+      "4. Click \"Open election\".",
+      "5. Read \"N candidates registered for <election>\" and click a position button to filter."
+    ],
+    "expected": "The card shows the election status and a stage bar. After \"Open election\" the election page lists candidates with name, position and party (\"Independent\" if none). Position buttons narrow the list. \"View candidate details\" shows the platform. There are no buttons to create, edit or delete an election.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-053",
+    "role": "SBO Officer",
+    "module": "Voting > Candidates",
+    "title": "Add a candidate",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). The election is not closed and no vote has been cast yet. The ballot has at least one position.",
+    "steps": [
+      "1. Open Voting > Candidates and open the election.",
+      "2. Click \"Add Candidate\".",
+      "3. Type a student name in \"Student *\" and choose the student.",
+      "4. Choose a position in \"Position *\" and keep \"Party List\" on Independent.",
+      "5. Type a short text in \"Platform Statement\".",
+      "6. Click \"Add Candidate\" in the window."
+    ],
+    "expected": "The window closes and a new card appears with the student, the position and the party \"Independent\". The count \"candidates registered\" goes up by 1. The same student is no longer offered in the list for this election.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-054",
+    "role": "SBO Officer",
+    "module": "Voting > Candidates",
+    "title": "Candidate form checks the required fields and the photo",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The window \"Add Candidate\" is open. Have one PDF and one picture larger than 2 MB ready.",
+    "steps": [
+      "1. Look at the button \"Add Candidate\" with nothing chosen.",
+      "2. Choose only a student and look at the button again.",
+      "3. Choose a position too.",
+      "4. Under \"Candidate Photo\" choose the PDF file.",
+      "5. Choose the picture larger than 2 MB."
+    ],
+    "expected": "The button is greyed out until both \"Student *\" and \"Position *\" are chosen. The PDF is refused with \"Candidate photo must be a JPEG, PNG, or WebP image.\" The big picture is refused with \"Candidate photo must be 2 MB or smaller.\" A student who is already a candidate cannot be picked again.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-055",
+    "role": "SBO Officer",
+    "module": "Voting > Candidates",
+    "title": "Edit and remove a candidate, and what happens when the ballot is locked",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). An election with one candidate. Later, an election that is closed or already has votes.",
+    "steps": [
+      "1. On a candidate card click \"Edit\".",
+      "2. Change the party list or platform and click \"Save Changes\".",
+      "3. Click \"Remove\" on a candidate.",
+      "4. In \"Remove Candidate\" read the question and click \"Remove\".",
+      "5. Open an election that is closed or has votes and look at the cards."
+    ],
+    "expected": "Saving shows the new details. Removal asks \"Are you sure you want to remove this candidate from the election?\" and then the card disappears. In a closed election or one with votes there is no \"Add Candidate\", \"Edit\" or \"Remove\", and a yellow note says \"Candidate setup is locked because votes have already been cast.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-056",
+    "role": "SBO Officer",
+    "module": "Voting > Voters",
+    "title": "Check voter turnout without seeing any ballot",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3).",
+    "steps": [
+      "1. Open Voting > Voters and open the election if asked.",
+      "2. Read the cards Total Voters, Voted, Not Yet Voted and Election Status.",
+      "3. Type a student name in \"Search by name or school ID...\".",
+      "4. Click the buttons \"Voted\", \"Not Yet\" and \"All\".",
+      "5. If there is more than one page use the page buttons at the bottom."
+    ],
+    "expected": "The cards show totals and the turnout percent. The table shows Name, School ID, Role, Email and \"Vote Status\" (Voted or Not Yet). It never shows who a person voted for. Search and the buttons only apply to the page on screen. An empty election says \"No eligible voters are registered in this organization yet.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-057",
+    "role": "SBO Officer",
+    "module": "Voting > Results",
+    "title": "Read election results",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run this in round 1, before the SAO activates a semester, so the seeded events and tasks still show (docs/MEMBER_TESTING.md section 3). An election with at least one vote (live totals) or a closed election (final results).",
+    "steps": [
+      "1. Open Voting > Results.",
+      "2. If several results are offered, click one under \"Available results\".",
+      "3. Read the winners and the vote counts per position.",
+      "4. Click a position button to filter."
+    ],
+    "expected": "Totals are shown per position with \"Votes cast\", marked live or final depending on the election. Results can only be read, never changed. VERIFY: whether results show while voting is still open (live totals) depends on the election status.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-058",
+    "role": "SBO Officer",
+    "module": "Voting > Candidates",
+    "title": "The officer cannot create elections or manage party lists",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Run once in round 1 and once in round 2 (docs/MEMBER_TESTING.md section 3).",
+    "steps": [
+      "1. Open Voting > Candidates and look for \"Create your first election\", \"Edit\", \"Delete\", \"Open voting\" and \"Close\".",
+      "2. Replace the page address with /dashboard/elections/manage-elections and press Enter.",
+      "3. Try /dashboard/elections/manage-partylists and /dashboard/approval-requests/new/election.",
+      "4. In round 2 read the page when no election is shown."
+    ],
+    "expected": "None of those buttons is shown to an officer. Both Admin addresses return you to the Dashboard. When no election is shown the page says \"No elections yet\" and \"Only the Admin creates elections. It appears here once the Department Head approves it.\" This is what an officer sees in round 2 when the seeded election has left the list.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Round 1 (before the SAO opens a semester)"
+  },
+  {
+    "id": "SBO-059",
+    "role": "SBO Officer",
+    "module": "My activity > Vote",
+    "title": "An officer can vote once like any member",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An election is Live (voting open). The Admin 900001 must open it first (Voting > Elections) and the ballot must be finalized. Untested with the seed: VERIFY that one is open.",
+    "steps": [
+      "1. Open My activity > Vote.",
+      "2. Find the election and click \"Vote in this election\".",
+      "3. Choose your candidates and go through review.",
+      "4. Confirm the ballot.",
+      "5. Return to My activity > Vote and read the election card."
+    ],
+    "expected": "A ballot receipt is shown. The Vote page lists the election as Voted with \"Your ballot receipt\" and the receipt code. The card no longer offers \"Vote in this election\". A second vote is not possible.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-060",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Orders queue shows the summary and status tabs",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. At least one order exists (a student placed one in Store > Shop).",
+    "steps": [
+      "1. Open Store > Orders.",
+      "2. Read the four cards under \"Order summary\".",
+      "3. Click the tabs \"All orders\", \"Pending review\", \"Ready for pickup\", \"Claimed\" and \"Cancelled\" one by one.",
+      "4. Read the line \"N orders\" next to \"Order queue\".",
+      "5. Read the chips on one order (\"Officer: ...\" and \"Admin: ...\")."
+    ],
+    "expected": "The cards are \"Pending review\", \"Ready for pickup\", \"Claimed\" and \"Collected\". Each tab shows only orders of that status and the count matches the card. Orders show ORD-n, the buyer, item, total and payment mode. Review chips show Officer and Admin steps. On the Dashboard the card \"Pending Orders\" shows the pending number (VERIFY: it matches \"Pending review\").",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-061",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Search, filter, sort and export orders",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Several orders exist.",
+    "steps": [
+      "1. Type ORD- and an order number in \"Search order, student, item, reference...\".",
+      "2. Clear it and type a student name.",
+      "3. Choose an item in \"Merchandise item\" and a choice in \"Sort orders\".",
+      "4. Click \"More filters\", pick a program or \"Payment method\", then click \"Clear all filters\".",
+      "5. Click \"Export CSV\"."
+    ],
+    "expected": "Each filter narrows the list. When nothing matches the page says \"No orders match these filters.\" with a way to clear. The export downloads a CSV of the filtered orders. With no orders at all the page says \"No orders yet.\" and \"Orders appear here when students check out from the Shop.\"",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-062",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Verify a cash payment",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Student 2100142 placed a cash order in Store > Shop (add, cart, checkout with cash) and it is Pending. This is officer journey 2 in docs/MEMBER_TESTING.md section 4 (6 clicks).",
+    "steps": [
+      "1. Open Store > Orders and find the new order ORD-n.",
+      "2. Click \"Verify\" on its card (or the row menu \"Actions for Order n\" > \"Verify & submit\").",
+      "3. In the window \"Verify Payment Amount\" read the receipt and check the box \"Amount verified\" holds the order total.",
+      "4. Click \"Verify & Submit\".",
+      "5. Read the order again."
+    ],
+    "expected": "A message says \"Order ORD-n submitted for Admin approval.\" The order shows \"Verified: waiting for Admin approval\", the chip \"Officer: Approved\" and \"Admin: Pending\", and the note \"Token unlocks after Admin approval\". No claim token is shown yet. The student's My orders shows \"Payment verified: waiting for Admin approval\" with no token.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-063",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Payment amount must match the order total",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A Pending order is open in the window \"Verify Payment Amount\".",
+    "steps": [
+      "1. Clear the box \"Amount verified\" and click \"Verify & Submit\".",
+      "2. Type 0 and click \"Verify & Submit\".",
+      "3. Type an amount lower than the order total and click \"Verify & Submit\".",
+      "4. Close the window and read the order status."
+    ],
+    "expected": "The messages are \"Enter the verified payment amount.\" for empty and 0, and \"The verified payment amount must exactly match the order total.\" for a wrong amount. The order stays Pending and Officer review stays Pending.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-064",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "A payment already verified cannot be verified or rejected again by the officer",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An order you already verified is still waiting for the Admin (\"Verified: waiting for Admin approval\").",
+    "steps": [
+      "1. Open Store > Orders and find that order.",
+      "2. Click \"Verify\" again and click \"Verify & Submit\".",
+      "3. Read the message.",
+      "4. Close the window, click \"Reject\", type a reason and click \"Reject Payment\".",
+      "5. Read the message."
+    ],
+    "expected": "Verifying again is refused with \"This payment has already been submitted for admin approval.\" Rejecting is refused with \"Review this payment from the Approvals module.\" The order does not change. VERIFY: the Verify and Reject buttons may still be shown on the card even though the system refuses them.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-065",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Reject a payment with a reason",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A new Pending order that nobody has verified yet.",
+    "steps": [
+      "1. Open Store > Orders and click \"Reject\" on the order (or the row menu \"Reject order\").",
+      "2. Read the window \"Reject Payment\" and look at the red button with the box empty.",
+      "3. Type a reason in \"Rejection reason\".",
+      "4. Click \"Reject Payment\".",
+      "5. Read the order and then check the buyer's My orders."
+    ],
+    "expected": "The red button is greyed out until a reason is typed. After rejecting, a message says \"Order ORD-n marked as Cancelled.\" and the order shows Cancelled with \"Order cancelled\". The buyer sees it cancelled with the reason. VERIFY: the item stock goes back up after a rejection.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-066",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "A GCash order without a payment proof cannot be verified",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The Admin has uploaded a GCash QR (without it students cannot choose GCash). A student placed a GCash order and has not sent a proof.",
+    "steps": [
+      "1. Open Store > Orders and find the GCash order.",
+      "2. Click \"Verify\".",
+      "3. Read the red line in the window and look at the button \"Verify & Submit\".",
+      "4. Ask the student to send the 13-digit reference and proof from My orders, then try again.",
+      "5. Click \"View proof\" in the receipt if it is shown."
+    ],
+    "expected": "Before the proof: the window says \"No payment proof is attached.\" and \"Verify & Submit\" is greyed out. After the student sends the reference and picture, the button works and the proof can be opened. VERIFY: the proof link name.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-067",
+    "role": "SBO Officer",
+    "module": "Store > Claim desk",
+    "title": "The claim token only exists after the Admin approves the payment",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An order you verified is waiting for the Admin. Admin 900001 is available in another browser.",
+    "steps": [
+      "1. Open Store > Orders and read the verified order. Note there is no token.",
+      "2. Open Store > Claim desk and set the register to \"Waiting to be claimed\". Check the order is not there.",
+      "3. As Admin 900001 approve the payment (Approvals, or Store > Orders > Approve).",
+      "4. As the officer reload Store > Orders and read the order again.",
+      "5. Open Store > Claim desk again."
+    ],
+    "expected": "Before approval: \"Token unlocks after Admin approval\" and the order is not in the claim desk register. After approval: the order shows \"Ready for pickup\" with a 16-character token, and the claim desk register lists it as \"Waiting to be claimed\". The student sees \"Paid\" and the token in My orders.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-068",
+    "role": "SBO Officer",
+    "module": "Store > Claim desk",
+    "title": "Release an order with its claim token",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An order is \"Ready for pickup\" and its student has the 16-character token (shown in the student's My orders). This finishes officer journey 2 in docs/MEMBER_TESTING.md section 4.",
+    "steps": [
+      "1. Open Store > Claim desk.",
+      "2. Type or paste the token in \"16-character claim token\".",
+      "3. Click \"Claim\".",
+      "4. In \"Verify purchaser and release\" check the student ID and the items against the student standing in front of you.",
+      "5. Click \"Confirm Claim / Release\".",
+      "6. Check the order in Store > Orders."
+    ],
+    "expected": "A message says \"Order claimed for <first name>.\" The token box is cleared. The register under \"Claimed\" lists the order and the order shows Claimed with the stage bar complete and \"Released by <your name>\". The student's My orders shows Claimed.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-069",
+    "role": "SBO Officer",
+    "module": "Store > Claim desk",
+    "title": "The token box cleans up what you type and rejects short or wrong tokens",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. You are on Store > Claim desk. You know one valid token and have made up another 16-letter token.",
+    "steps": [
+      "1. Type a token in small letters with spaces and dashes in it.",
+      "2. Type 10 characters only and click \"Claim\".",
+      "3. Type 16 made-up letters and numbers and click \"Claim\".",
+      "4. Read the message after each try."
+    ],
+    "expected": "The box turns letters into capitals, drops spaces and symbols and stops at 16 characters. A short token shows \"Token must be 16 letters/numbers.\" A made-up token shows \"Invalid claim token.\" No order is released.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-070",
+    "role": "SBO Officer",
+    "module": "Store > Claim desk",
+    "title": "A token that was already used is refused",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An order was already released with token T (case \"Release an order with its claim token\").",
+    "steps": [
+      "1. Open Store > Claim desk.",
+      "2. Type the same token T in \"16-character claim token\".",
+      "3. Click \"Claim\".",
+      "4. Read the message and then check the order in Store > Orders."
+    ],
+    "expected": "The message says \"This token has already been used.\" No second release window opens and the order still shows one release (same time and officer).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-071",
+    "role": "SBO Officer",
+    "module": "Store > Claim desk",
+    "title": "The claim desk register and its empty states",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Store > Claim desk and read \"Claim desk register\".",
+      "2. Set \"Filter claim tokens by status\" to \"Waiting to be claimed\", then to \"Claimed\".",
+      "3. Click \"Review order\" on a row.",
+      "4. If a list is empty read the message and click \"Open orders\" if it is offered."
+    ],
+    "expected": "Waiting orders show a token and the label \"Waiting to be claimed\". Released orders show \"Claimed\". \"Review order\" opens the order details. Empty lists say \"Nothing is waiting at the claim desk.\" (with \"Orders appear here once their payment is verified and the buyer has a claim token.\") and \"No orders have been claimed yet.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-072",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "The officer can look at the GCash QR but not change it",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Open Store > Orders.",
+      "2. Click the button \"View GCash QR\" above the order list.",
+      "3. Look for any button that changes or uploads the QR."
+    ],
+    "expected": "The button for an officer reads \"View GCash QR\" (the Admin sees \"Payment settings\"). The window shows the QR and the GCash details for reading only. There is no upload or save. VERIFY: what the window shows when no QR was uploaded.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-073",
+    "role": "SBO Officer",
+    "module": "My activity > Shop",
+    "title": "Merchandise stock is visible in the Shop",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Items exist in the Store. The Admin can set one item to a very low stock and one to zero.",
+    "steps": [
+      "1. Open My activity > Shop.",
+      "2. Read the badge on each product (\"N in stock\", \"LOW STOCK\" or \"OUT OF STOCK\").",
+      "3. Type a word in \"Search product, category, or description\".",
+      "4. On a product with sizes open \"Select variant\" and read the choices.",
+      "5. Try the quantity box of a product that is out of stock."
+    ],
+    "expected": "Every product shows its stock. An out of stock product has a greyed picture and its quantity box and buttons are disabled. A variant list shows the size and how many are available. After an order is placed the stock number goes down by the quantity ordered (VERIFY on your copy). An officer can only look at stock here; changing stock is not possible.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-074",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Inventory and stock changes are closed to the officer",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Look through the Store group in the menu for an Inventory page.",
+      "2. Replace the page address with /dashboard/merchandise/manage-inventory and press Enter.",
+      "3. Try /dashboard/merchandise/gcash-payment.",
+      "4. Look in Store > Orders and Store > Shop for buttons that add products or change stock."
+    ],
+    "expected": "The Store group only has Orders and Claim desk. Both addresses return you to the Dashboard. There is no button to add a product, add stock, edit a product or set it inactive.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-075",
+    "role": "SBO Officer",
+    "module": "My activity > Shop",
+    "title": "Officer buys from the Shop",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. An in-stock item exists.",
+    "steps": [
+      "1. Open My activity > Shop and click \"Add to cart\" on an item.",
+      "2. Click the Cart icon in the top bar and click \"Open Cart\".",
+      "3. Check out with Cash.",
+      "4. Open My activity > My orders and read the order.",
+      "5. Open Store > Orders and find the same order."
+    ],
+    "expected": "My orders shows the order from the buyer side with the next step (for cash: \"Pay cash at pickup\"). The same order also appears in Store > Orders under your own name with role SBO OFFICER. VERIFY: write down whether the system lets you verify your own order or not.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-076",
+    "role": "SBO Officer",
+    "module": "Store > Orders",
+    "title": "Verify a payment from a phone",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Use a phone. A Pending cash order exists.",
+    "steps": [
+      "1. Open Store > Orders on the phone.",
+      "2. Read an order card (ORD number, buyer, item, total).",
+      "3. Tap \"Review\" and close it.",
+      "4. Tap \"Verify\" and read the window.",
+      "5. Tap \"Verify & Submit\"."
+    ],
+    "expected": "Orders show as cards with large buttons \"Review\", \"Verify\" and \"Reject\". The verify window fits the screen and can be scrolled. After submitting you see \"Order ORD-n submitted for Admin approval.\"",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-077",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Officer sends an announcement for approval",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. This is officer journey 4 in docs/MEMBER_TESTING.md section 4 (4 clicks).",
+    "steps": [
+      "1. Open Updates > Announcements and click \"New announcement\".",
+      "2. Type a \"Title\".",
+      "3. Type the \"Content\".",
+      "4. Leave \"Audience\" on \"All Members\" and \"Category\" on \"General\".",
+      "5. Click \"Submit for approval\".",
+      "6. In the box \"Submit for approval\" click \"Submit for approval\" again.",
+      "7. Click \"View in Announcements\"."
+    ],
+    "expected": "The page says \"Sent to your Admin for approval\" and \"It goes to All Members once the Admin approves it.\" There is no \"Publish Now\" or \"Save Draft\" button for an officer. In the list the row shows the yellow chip \"Waiting for Admin approval\". The header shows \"Needs Admin approval\". Students cannot see it in the Feed yet.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-078",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Announcement form needs a title and content and limits the title",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The form \"New announcement\" is open.",
+    "steps": [
+      "1. Look at the button \"Submit for approval\" with both fields empty and read the yellow note.",
+      "2. Type a title but leave the content empty.",
+      "3. Type only spaces in both fields.",
+      "4. Paste a title longer than 255 characters.",
+      "5. Under \"Poster or image\" pick a picture larger than 5 MB and submit."
+    ],
+    "expected": "The yellow note says \"Complete the title and content to enable these actions.\" and the button is greyed out. Spaces only do not count. The title stops at 255 characters. The big picture is refused by the system (VERIFY: its message) and nothing is sent.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-079",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Announcements list: summary, search, filters and export",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Several announcements exist, written by officers and by the Admin.",
+    "steps": [
+      "1. Open Updates > Announcements and read the four numbers (Matching records, Published, Waiting for approval, Recorded views).",
+      "2. Type a word in \"Search title, content, or author\".",
+      "3. Change the Category, Audience and publication state filters and the Sort choice.",
+      "4. Set \"Created from\" and \"Created to\".",
+      "5. Click \"Export CSV\".",
+      "6. Clear the filters."
+    ],
+    "expected": "The header says \"Post updates for your organization. Each one goes to the Admin for approval before it is published.\" The numbers and the list follow the filters. A file announcements-<date>.csv downloads. When nothing matches the page says \"No announcements match these filters\". With none at all it says \"No announcements yet\" and \"Write your first announcement. It goes to the Admin for approval before it is published.\"",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-080",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "An officer cannot change or publish someone else's announcement",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A published announcement written by the Admin exists, and one written by another officer.",
+    "steps": [
+      "1. Open Updates > Announcements and find an announcement written by the Admin.",
+      "2. Click its three dots (Announcement actions).",
+      "3. Click its title to open the panel and read the message.",
+      "4. Do the same on an announcement written by another officer."
+    ],
+    "expected": "For announcements of other people the only action is \"View full record\". The panel says \"Only its author or the Admin can change it.\" There is no Edit, Delete, Publish or Unpublish.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-081",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Admin returns an announcement and the officer sends it again",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Admin 900001 is available in another browser. An announcement of this officer is \"Waiting for Admin approval\".",
+    "steps": [
+      "1. As Admin 900001 open Approvals, open the officer's announcement and return it with remarks.",
+      "2. As the officer click the bell and read the notification, then click \"Open related record\".",
+      "3. Open the announcement panel in Updates > Announcements and read the message.",
+      "4. Click \"Edit announcement\", change the content and click \"Save Record\".",
+      "5. Read the chip on the row. Then as the Admin approve it and check Updates > Feed as the officer."
+    ],
+    "expected": "The chip becomes red \"Returned\" and the panel says \"Returned by the Admin\" with the Admin's remarks and \"Edit it to send it for approval again.\" After saving the chip is \"Waiting for Admin approval\" again. After the Admin approves it the chip is \"Published\" and it appears in the Feed.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-082",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Editing a published announcement sends it back for approval, deleting removes it",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. One announcement written by this officer is already \"Published\".",
+    "steps": [
+      "1. Click the three dots on your published announcement and choose \"Edit announcement\".",
+      "2. Change the title and click \"Save Record\".",
+      "3. Read the chip on the row and look for it in Updates > Feed.",
+      "4. Click the three dots again and choose \"Delete announcement\".",
+      "5. In the box \"Delete announcement\" click \"Delete\"."
+    ],
+    "expected": "After editing, the chip becomes \"Waiting for Admin approval\" and it is hidden from the Feed until the Admin approves it again (VERIFY the hiding). After delete a message says \"Announcement deleted.\" and the row is gone. The Admin's approval request for it is gone too.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-083",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Edit form offers an audience that the create form does not",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. One announcement written by this officer exists.",
+    "steps": [
+      "1. Choose \"Edit announcement\" on your announcement.",
+      "2. Open the audience choice and read the list.",
+      "3. Choose \"Super Admin\" and click \"Save Record\".",
+      "4. Read the message."
+    ],
+    "expected": "The list in the edit form is longer than the create form, which only has All Members, Officers Only, Students Only, Admins Only and Department Heads Only. Saving \"Super Admin\" must be refused with an error message and the announcement keeps its old audience. VERIFY: this is read from the code and was not seen on screen.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-084",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "Generate a draft with AI",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The form \"New announcement\" is open. AI drafting is switched off on a public test copy (docs/MEMBER_TESTING.md section 1), so run the success steps on a LAN copy.",
+    "steps": [
+      "1. Look at the button \"Generate Draft\" while the Title is empty.",
+      "2. Type a Title.",
+      "3. Type facts in \"Instructions for AI draft (optional)\", for example a date and a place.",
+      "4. Click \"Generate Draft\".",
+      "5. Read the Content box and the counter at the top right of the AI box."
+    ],
+    "expected": "The button is greyed out without a title. The counter reads \"N of 20 drafts left today\". On success the Content fills with text you can edit and the counter goes down by 1. When the AI is off the page shows \"AI service is temporarily unavailable. Unable to generate the announcement draft.\" and you can still type your own text. At 0 left the button says \"Daily limit reached\".",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-085",
+    "role": "SBO Officer",
+    "module": "Updates > Feed",
+    "title": "The Feed shows only published announcements for officers",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. A published announcement for All Members exists, and one published for \"Students Only\".",
+    "steps": [
+      "1. Open Updates > Feed.",
+      "2. Read the posts: organization name, date, title, text.",
+      "3. Click \"Like\" on a post and click again.",
+      "4. Type a word in \"Search announcements\" and choose a value in \"Announcement category\".",
+      "5. Look for the \"Students Only\" post."
+    ],
+    "expected": "The Feed lists only published and approved posts meant for All Members or for officers. Waiting and returned posts do not show. A post meant for Students Only does not show in the officer's Feed. \"Like\" turns into \"Liked\" with the count. With no match the page says \"No announcements match\"; with none at all \"No announcements yet\" and \"Your officers post them here.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-086",
+    "role": "SBO Officer",
+    "module": "Updates > Announcements",
+    "title": "The New request page only offers announcements",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you.",
+    "steps": [
+      "1. Click \"Go to page\" and type new request, then choose \"New request\".",
+      "2. Read the request types shown.",
+      "3. Click \"Continue to request form\".",
+      "4. Replace the page address with /dashboard/approval-requests/new/event and press Enter."
+    ],
+    "expected": "Only one type is offered: \"Announcement\" with the text \"Approved by the Admin before it is published.\" The button opens the New announcement form. The event address returns you to the Dashboard. Budget, Event and Election are not available to officers.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-087",
+    "role": "SBO Officer",
+    "module": "Clearance signing",
+    "title": "Sign student clearances for the organization",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The SAO has opened a clearance period (SAO: Reviews > Clearances). Without one only the empty state shows.",
+    "steps": [
+      "1. Open Clearance signing and read the list or the empty message.",
+      "2. On a pending row click \"Clear\", read the window and click \"Confirm clear\".",
+      "3. On another pending row click \"Hold\", leave \"Reason\" empty and look at the button.",
+      "4. Type a reason (for example Unpaid organization dues) and click \"Hold this signature\".",
+      "5. Click \"Select all pending\" and then the button \"Clear N selected\" and confirm."
+    ],
+    "expected": "With no period the page says \"Nothing waiting on your signature\" and \"The SAO opens a clearance period each semester...\". Clearing shows \"Signature cleared.\" Holding needs a reason and shows \"Signature put on hold.\" A held row offers \"Clear hold\" and shows \"Reason: ...\". The bulk window is \"Clear selected signatures\". Only your organization's students are listed; the SAO signature is never shown. The student sees the result in My clearance.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-088",
+    "role": "SBO Officer",
+    "module": "Top bar > Notifications",
+    "title": "Notifications bell, reading and opening the related record",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. There is at least one unread notification (for example after a student placed an order, or the Admin assigned a task).",
+    "steps": [
+      "1. Click the bell icon \"Notifications\" in the top bar.",
+      "2. Read the title \"Notifications\" and the number \"N new\".",
+      "3. Click one notification.",
+      "4. Click \"Open related record\".",
+      "5. Reopen the bell and click \"Mark all as read\"."
+    ],
+    "expected": "The panel lists the latest notifications, unread ones highlighted. Opening one shows the full text with \"Back to notifications\". \"Open related record\" lands on the exact item (an order opens Store > Orders, a task opens My tasks, a decision on an announcement opens Updates > Announcements). \"Mark all as read\" removes the \"new\" badge. With none, the panel says \"No notifications yet\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-089",
+    "role": "SBO Officer",
+    "module": "Profile",
+    "title": "Edit personal information and notification choices",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Write down your current mobile number and email so you can put them back after the test.",
+    "steps": [
+      "1. Open Profile.",
+      "2. Change \"Mobile number (optional)\" and look at \"Save profile\" and \"Discard changes\".",
+      "3. Click \"Save profile\".",
+      "4. Clear \"First name\" and click \"Save profile\".",
+      "5. Type letters in \"Mobile number (optional)\" and click \"Save profile\".",
+      "6. Switch one choice under \"Notifications\" (for example \"Merchandise orders\") off and on.",
+      "7. Open the account menu in the top bar (your name) and read the section \"Profiles\"."
+    ],
+    "expected": "The buttons stay greyed out until something changes. Saving shows \"Profile changes saved.\" An empty name shows \"First name, last name, and email are required.\" Letters in the mobile number are refused by the system (VERIFY: its message). Each notification switch shows a message such as \"Merchandise orders hidden from your notifications\". The Profile page also lists \"Your recent activity\". The \"Profiles\" section of the account menu shows your organization and says \"This is your only active profile.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-090",
+    "role": "SBO Officer",
+    "module": "Profile",
+    "title": "Change my password and the rules it must follow",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Warning: all testers may share this account. Change it only if the demo owner agrees, and change it back straight away to the password you were given.",
+    "steps": [
+      "1. Open Profile and find \"Password & security\".",
+      "2. Click \"Update password\" with every box empty.",
+      "3. Fill \"Current password\" with a wrong password, a valid \"New password\" twice, and click \"Update password\".",
+      "4. Use a new password shorter than 8 characters, then two different passwords in \"New password\" and \"Confirm new password\".",
+      "5. Click the eye icon next to a box (\"Show new password\").",
+      "6. Do a correct change and then change it back."
+    ],
+    "expected": "Messages: \"Current password, new password, and confirmation are required.\" then \"Current password is incorrect.\" then \"New password must be at least 8 characters.\" then \"New passwords do not match.\" The two checks \"At least 8 characters\" and \"New passwords match\" turn green when true. The eye shows and hides the typed text. A correct change shows \"Password updated. Your other devices were signed out.\" and you stay signed in here. Other browsers are logged out.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SBO-091",
+    "role": "SBO Officer",
+    "module": "Events and tasks > Check-in",
+    "title": "Check a member in on an event that was created in the active semester",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Round 2: the SAO has activated a semester. Admin 900001 proposed a new event with dates inside that semester, Department Head 940001 approved it (and the SAO cleared the event files if they were needed), so the event is Approved or Ongoing. Student 2100142 is not yet checked in to it. The seeded events are gone from the lists in this round.",
+    "steps": [
+      "1. Open Events and tasks > Check-in.",
+      "2. In the \"Event queue\" click the new event (button \"Open attendance for ...\"). A single ongoing event opens by itself.",
+      "3. Write down the number under \"Attendance records\".",
+      "4. In the box \"Manual check-in\" type 2100142 into \"Member\" and click the matching result.",
+      "5. Leave \"Attendance status\" on Present and click \"Confirm Check-In\".",
+      "6. Read the message and the number under \"Attendance records\" again."
+    ],
+    "expected": "A green message says \"Check-in recorded.\" and the number goes up by 1. The student shows in the log as Present, method Manual. The message \"Historical semester events are read only.\" does NOT appear, because the event belongs to the semester that is active now. This is the branch behind the server check EnsureCurrentEventSemester: an event of the active semester passes, an event of a closed semester is refused (see GEN-108). Only events of the active semester are in the queue in this round.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after ADM-062 and DH-041 (and after ADM-069 and SAO-059 when SAO files apply)"
+  },
+  {
+    "id": "SBO-092",
+    "role": "SBO Officer",
+    "module": "Study objectives",
+    "title": "Study objectives evidence links open pages an officer may see",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Some activity exists (events, orders, an election), so the counts are not all zero.",
+    "steps": [
+      "1. Scroll to the bottom of the left menu and click \"Study objectives\".",
+      "2. Find an evidence tile that has an arrow on its right (for example \"Check-ins recorded manually\" or \"Orders placed\") and click it.",
+      "3. Go back and click a tile that has no arrow (for example \"Notifications delivered\").",
+      "4. Go back and click a tile about tasks or AI event plans (for example \"AI event plans generated\").",
+      "5. Write down every tile that opened a page and the page it opened."
+    ],
+    "expected": "A tile with an arrow is a link. It opens a page that is in the officer menu, for example Check-in, Orders, Claim desk, Calendar, Results, Ledger, Budgets, Forecast or AI delegation, and it never ends on a \"not allowed\" redirect to the Dashboard. A tile without an arrow is plain text and does nothing when clicked. Tiles whose page an officer may not open (\"AI event plans generated\" and \"Tasks delegated with a recorded ranking\") have no arrow. VERIFY: the exact tiles that carry an arrow for an officer (from the server route list: Check-in, Calendar, AI delegation, Budgets, Ledger, Forecast, My receipts, Elections and Results, Orders, Claim desk, Announcements).",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time",
+    "depends": ""
+  },
+  {
+    "id": "SBO-093",
+    "role": "SBO Officer",
+    "module": "Members and fingerprints",
+    "title": "Remove a fingerprint enrollment after the confirm window (needs the reader)",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. Hardware: this needs the fingerprint reader and a student who is already enrolled (enroll one first, see SBO-051 and ADM-042). Without a reader the Remove button never shows because nobody can be enrolled: report the case as Blocked.",
+    "steps": [
+      "1. Open Members and fingerprints and find the enrolled student. A small fingerprint icon (\"Fingerprint enrolled\") sits in the row.",
+      "2. Open the row menu and choose \"Re-enroll fingerprint\".",
+      "3. In the window \"Re-enroll Fingerprint\" click \"Remove\".",
+      "4. Read the window \"Remove Fingerprint Enrollment\" and click Cancel.",
+      "5. Click \"Remove\" again and then click \"Remove Fingerprint\".",
+      "6. Read the message, then check the row and its menu."
+    ],
+    "expected": "The confirm window names the student with the School ID and says \"The encrypted fingerprint template will be removed. Attendance identification will stop working for this Student until they enroll again.\" Cancel closes it and the enrollment stays. After \"Remove Fingerprint\" a message says \"Fingerprint enrollment removed.\" The fingerprint icon leaves the row and the menu goes back to \"Enroll fingerprint\". A fingerprint scan at Check-in no longer finds this student.",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after SBO-051 (needs an enrolled student and the reader)"
+  },
+  {
+    "id": "SBO-094",
+    "role": "SBO Officer",
+    "module": "My activity > My orders",
+    "title": "The officer sees only their own orders in My orders and can cancel an unpaid one",
+    "preconditions": "Signed in as an SBO Officer of PSITS-CCS (900004 Treasurer, 900005 Auditor, 900006 Public Information Officer or 900007 Business Manager). Use the password the demo owner gave you. The officer has placed at least one cash order from My activity > Shop and it is still Pending with no payment proof.",
+    "steps": [
+      "1. Open My activity > My orders.",
+      "2. Find the order card \"ORD-<number>\" and read the status and the stage line.",
+      "3. Click \"Cancel Order\".",
+      "4. Read the window \"Cancel this order?\" and click \"Cancel Order\" to confirm.",
+      "5. Read the card again, then open Store > Orders and find the same order."
+    ],
+    "expected": "My orders lists only orders placed by this officer, not the orders of students. The stage line says what to do next. After the confirm the order shows Cancelled with a message such as \"This order was cancelled and its stock was returned.\" Store > Orders shows the same order as Cancelled. With no orders the page says \"No orders yet.\" and \"Browse the shop to place your first order.\" The Cancel button is not offered after a payment proof was sent.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after SBO-075"
+  }
+]
