@@ -9,7 +9,27 @@ Pick one. Ask the person running the demo which one applies.
 - Same Wi-Fi or router as the demo laptop: open the address the demo laptop prints, for example `http://192.168.1.2:5173`. The laptop owner starts it with `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1` from the repository root (run it once as Administrator so Windows opens ports 5173 and 8000 for the local subnet). It serves a throwaway database that it creates and seeds on its first run (a separate MariaDB on 127.0.0.1 port 3317, never the development database), so use the fresh seed table in section 2. The first run takes a minute or two; later runs reuse the same data, and `-Reset` wipes it and seeds again. If the laptop is on more than one network, the script prints which address to use and the `-HostIp` option for the other one.
 - A hosted copy: use the address the team gives you. Demo accounts only exist on a copy that was seeded for testing (the seeders create no accounts when the app runs with `APP_ENV=production`). Use the fresh seed table in section 2 for a copy seeded from the repository. Never test with demo passwords on a server that holds real student data.
 
+- Anywhere with internet (members in different places): open the public `https://...trycloudflare.com` link the demo laptop owner sends you. See "Testing from anywhere (public link)" below.
+
 Use a desktop browser first, then repeat the first journey of your role on a phone.
+
+### Testing from anywhere (public link)
+
+For members who are not on the same Wi-Fi. One https link works on phones and laptops, over mobile data or any Wi-Fi.
+
+Operator (the demo laptop owner):
+
+1. Once only: `cloudflared` must be installed (`winget install --id Cloudflare.cloudflared -e`, or put `cloudflared.exe` in `C:\Users\JM\tools\cloudflared`). No Cloudflare account is needed.
+2. From the repository root run `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Public` (add `-Reset` for a clean seed). It builds the client, starts the throwaway database and the API (both reachable from this laptop only), opens a free Cloudflare quick tunnel and prints the public link in a box. The first run takes a few minutes.
+3. The script prints the link and, in the same box, `SAO 990001 password for this run: ...`. The SAO account gets a new random password on every start, because the link is public and the SAO has full power over the data. It is shown on the operator's console only and saved nowhere. Give it only to the person who plays the SAO, and never put it in a chat group or a document. The documented `Admin@123456` does not work for 990001 on a public copy. After a public run, 990001 keeps that password on later LAN runs until `-Reset`.
+4. Send the link to the members. The link changes every time the tunnel starts, so send the new one after each restart. Activating a semester (section 3) is needed on every fresh seed: ask the SAO player to do it first, or do it yourself with the SAO password before sending the link.
+5. Keep the laptop awake and online while members test. When the test ends, run `powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop`; the link stops working and the build is removed. If a start fails part way, the script stops everything it started before it shows the error.
+
+Members: open the link, sign in with a fresh seed account from section 2 (the public link serves the fresh seed; the SAO uses the per-run password above, every other account keeps the documented one), and follow sections 3 and 4. Quick tunnels are for testing: they have no uptime guarantee, so if the link stops answering, ask the operator for a new one.
+
+Mail and the AI helpers are switched off in the public copy: password reset emails do not arrive (the message is only written to the server log) and AI drafting is off. Test those on a LAN copy or the development setup instead.
+
+Anyone who has the link can open the app and try the demo accounts, so share it only with the team, treat all data as throwaway and never put real student data in it. The documented demo passwords (such as `Demo@12345`) are public knowledge, so anyone holding the link can use every account except the SAO one. Uploaded files are saved on the operator's disk.
 
 ## 2. Demo accounts
 
@@ -33,7 +53,7 @@ Checked by signing in to a freshly seeded copy through the sign-in API on 11 Oct
 
 | Role | School ID | Password | Notes |
 |---|---|---|---|
-| SAO | 990001 | `Admin@123456` | The only SAO account. 930027 does not exist here and `Demo@12345` is rejected for 990001. |
+| SAO | 990001 | `Admin@123456` | The only SAO account. 930027 does not exist here and `Demo@12345` is rejected for 990001. On the public link this password is replaced by a per-run one that the operator prints (see "Testing from anywhere"), and 990001 keeps that password on later LAN runs until `-Reset`. |
 | Department Head, College of Computer Studies | 940001 | `Demo@12345` | Also 940002 (Business), 940003 (Teacher Education), 940004 (Health Sciences), 940005 (Engineering). One head per college. |
 | Admin of PSITS-CCS | 900001 | `Demo@12345` | President. 900002 (Vice President, Internal) and 900003 (Secretary) are also Admins. 920011 is the Admin (President) of JPIA-CBE. |
 | Adviser (an Admin of one organization, assigned by the SAO) | 990002 | `Admin@123456` | PSITS-CCS. 990012 is JPIA-CBE, 990022 FES-CTE, 990032 NSC-CHS, 990042 EIG-COE. `Demo@12345` is rejected for these. An adviser has the same role and menu as an Admin. |
