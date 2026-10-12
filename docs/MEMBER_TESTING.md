@@ -27,7 +27,9 @@ Operator (the demo laptop owner):
 
 Members: open the link, sign in with a fresh seed account from section 2 (the public link serves the fresh seed; the SAO uses the per-run password above, every other account keeps the documented one), and follow sections 3 and 4. Quick tunnels are for testing: they have no uptime guarantee, so if the link stops answering, ask the operator for a new one.
 
-Mail and the AI helpers are switched off in the public copy: password reset emails do not arrive (the message is only written to the server log) and AI drafting is off. Test those on a LAN copy or the development setup instead.
+Mail and the AI helpers are switched off in the public copy by default: password reset emails do not arrive (the message is only written to the server log) and AI drafting is off. Mail stays off in every public copy, because the script forces the log mailer.
+
+To let members try the AI helpers, the operator adds `-EnableAi` (`scripts\serve-lan.ps1 -Public -EnableAi`, optionally with `-Reset`). That turns on Groq-written text (announcement drafts, event plans, budget advice, forecasts, task recommendations and financial report summaries) and starts the local Python AI engine (task delegation advice, forecasts, budget advice, grievance classification; reachable from this laptop only). All of it uses the operator's Groq key from `server/.env`, so every generation a tester starts uses up the operator's quota. Announcement drafts, event plans, budget advice and forecasts are limited to about 5 a minute per user; task recommendations and report summaries are limited only by the general write limit. The box printed at the end says "AI helpers: ON" when it is active. The other documented demo passwords stay public knowledge in this mode too.
 
 Anyone who has the link can open the app and try the demo accounts, so share it only with the team, treat all data as throwaway and never put real student data in it. The documented demo passwords (such as `Demo@12345`) are public knowledge, so anyone holding the link can use every account except the SAO one. Uploaded files are saved on the operator's disk.
 

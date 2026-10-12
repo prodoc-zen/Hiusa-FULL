@@ -52,6 +52,14 @@
   every start that is printed to this console only, never stored. After a
   public run, 990001 keeps that password on later LAN runs until -Reset.
   Ctrl+C before the link is printed also stops everything it had started.
+  -EnableAi (only with -Public) switches the AI helpers on in the public copy.
+  The API then reads the Groq key from server/.env itself (it is never passed
+  on a command line or to the tunnel or the preview server), so testers use up
+  the operator's Groq quota. The local Python AI engine (ai-service, port 8001,
+  127.0.0.1 only) is started with a fresh random key shared with the API for
+  this run only, and is stopped by -Stop, by a failed start and by Ctrl+C.
+  Mail stays off either way (this script forces the log mailer). Without -EnableAi
+  the Groq key, the AI engine and mail are all neutralised.
   -TunnelWaitSeconds (default 60) is how long to wait for the tunnel to print
   its link before the start is given up and cleaned up.
 
@@ -77,6 +85,7 @@ param(
   [switch]$Reset,
   [switch]$AllowPublicNetwork,
   [switch]$Public,
+  [switch]$EnableAi,
   [string]$HostIp,
   [int]$ApiPort = 8000,
   [int]$WebPort = 5173,
@@ -107,6 +116,12 @@ $publicConfig = Join-Path $publicDir 'cloudflared.yml'
 $publicApiLog = Join-Path $publicDir 'api.log'
 $publicApiErrLog = Join-Path $publicDir 'api-error.log'
 $cloudflaredFolder = 'C:\Users\JM\tools\cloudflared'
+# -EnableAi: the local Python AI engine (server/.env points HIUSA_AI_SERVICE_URL at port 8001).
+$aiDir = Join-Path $root 'ai-service'
+$aiPython = Join-Path $aiDir '.venv\Scripts\python.exe'
+$aiPort = 8001
+$publicAiLog = Join-Path $publicDir 'ai.log'
+$publicAiErrLog = Join-Path $publicDir 'ai-error.log'
 
 # Ports that belong to the development databases. This script never uses them.
 $protectedDbPorts = @(3306, 3307, 3399)
@@ -184,6 +199,7 @@ function Test-OwnedProcess($Proc) {
   $cmdLine = [string]$Proc.CommandLine
   switch ([string]$Proc.Name) {
     'php.exe' { return ($cmdLine -like '*artisan*serve*--no-reload*') }
+    'python.exe' { return ($cmdLine -like '*run.py*' -and $cmdLine -like "*$aiDir*") }
     'cmd.exe' { return ($cmdLine -like '*npm run*') }
     'node.exe' { return ($cmdLine -like "*$root*") }
     'cloudflared.exe' { return ($cmdLine -like "*$publicConfig*") }
@@ -192,7 +208,7 @@ function Test-OwnedProcess($Proc) {
 }
 
 # The kinds of process this script starts, by image name.
-$ownedNames = @('php.exe', 'cmd.exe', 'node.exe', 'cloudflared.exe')
+$ownedNames = @('php.exe', 'cmd.exe', 'node.exe', 'cloudflared.exe', 'python.exe')
 
 # Process ids that are ours by name but whose command line Windows would not
 # show (started from an Administrator console, read from a normal one).
@@ -248,7 +264,7 @@ function Stop-OwnProcesses {
 # always be cleaned up by Stop-OwnProcesses.
 function Write-PidFile {
   $lines = @()
-  foreach ($p in @($script:api, $script:web, $script:tunnel)) { if ($p) { $lines += "$($p.Id)" } }
+  foreach ($p in @($script:api, $script:ai, $script:web, $script:tunnel)) { if ($p) { $lines += "$($p.Id)" } }
   if ($script:db) { $lines += "db=$($script:db.Id),$DbPort" }
   Set-Content -Path $pidFile -Value $lines
 }
@@ -290,8 +306,13 @@ function Remove-PublicBuild {
 # Process state of a -Public start, so Write-PidFile and the cleanup see it.
 $db = $null
 $api = $null
+$ai = $null
 $web = $null
 $tunnel = $null
+
+if ($EnableAi -and -not $Public) {
+  throw '-EnableAi only works together with -Public (it switches the AI helpers on in the public copy).'
+}
 
 if ($Stop) {
   $clean = Stop-OwnProcesses
@@ -323,6 +344,17 @@ Remove-PublicBuild
 foreach ($port in @($ApiPort, $WebPort, $DbPort)) {
   if (Test-Port $port) {
     throw "Port $port is already in use by a process this script did not start. Close it first, or pass a different -ApiPort, -WebPort or -DbPort."
+  }
+}
+if ($EnableAi) {
+  if (@($ApiPort, $WebPort, $DbPort) -contains $aiPort) {
+    throw "-EnableAi needs port $aiPort for the AI engine; pick other -ApiPort, -WebPort and -DbPort values."
+  }
+  if (Test-Port $aiPort) {
+    throw "Port $aiPort (the local AI engine) is already in use by a process this script did not start. Close it first: server/.env points the API at 127.0.0.1:$aiPort."
+  }
+  if (-not (Test-Path $aiPython)) {
+    throw "The AI engine's Python was not found at $aiPython. Create the ai-service virtual environment first (see ai-service/README.md)."
   }
 }
 
@@ -391,6 +423,19 @@ function Restore-Env([hashtable]$Saved) {
   foreach ($name in $Saved.Keys) { [Environment]::SetEnvironmentVariable($name, $Saved[$name], 'Process') }
 }
 
+# Takes the secrets out of this process's environment and returns them, so a
+# child started next (build, preview server, tunnel, AI engine) cannot inherit
+# them. Put them back with Restore-Env. The caller's own Groq key is included:
+# the API reads the real one from server/.env itself.
+function Hide-Secrets {
+  $held = @{}
+  foreach ($name in @('DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'APP_KEY', 'MYSQL_PWD', 'GROQ_API_KEY')) {
+    $held[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+    [Environment]::SetEnvironmentVariable($name, $null, 'Process')
+  }
+  return $held
+}
+
 # Letters and digits, drawn without modulo bias.
 function New-RandomPassword([int]$Length = 24) {
   $alphabet = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'
@@ -413,7 +458,8 @@ if ($Public) {
   $publicEnvNames = @(
     'DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'APP_DEBUG', 'APP_KEY', 'MYSQL_PWD',
     'VITE_API_URL', 'HIUSA_PUBLIC', 'HIUSA_API_TARGET', 'APP_URL', 'FRONTEND_URL', 'TRUSTED_PROXIES', 'HIUSA_SAO_PW',
-    'MAIL_MAILER', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'HIUSA_AI_SERVICE_ENABLED', 'HIUSA_AI_SERVICE_KEY', 'GROQ_API_KEY', 'GROQ_API_URL',
+    'MAIL_MAILER', 'MAIL_USERNAME', 'MAIL_PASSWORD', 'HIUSA_AI_SERVICE_ENABLED', 'HIUSA_AI_SERVICE_KEY', 'HIUSA_AI_SERVICE_URL', 'HIUSA_AI_SERVICE_AUTH_DISABLED',
+    'HIUSA_AI_HOST', 'HIUSA_AI_PORT', 'HIUSA_AI_RELOAD', 'GROQ_API_KEY', 'GROQ_API_URL',
     'FINGERPRINT_MATCHER_DRIVER', 'FINGERPRINT_MATCHER_KEY', 'RESEND_API_KEY', 'POSTMARK_API_KEY', 'AWS_ACCESS_KEY_ID',
     'AWS_SECRET_ACCESS_KEY', 'SLACK_BOT_USER_OAUTH_TOKEN', 'LOG_SLACK_WEBHOOK_URL', 'LOG_CHANNEL'
   )
@@ -505,11 +551,7 @@ try {
 
     # The build, the preview server and the tunnel never need the database password
     # or the application key, so they do not get them. They are put back for the API.
-    $held = @{}
-    foreach ($name in @('DB_CONNECTION', 'DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD', 'APP_KEY', 'MYSQL_PWD')) {
-      $held[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
-      [Environment]::SetEnvironmentVariable($name, $null, 'Process')
-    }
+    $held = Hide-Secrets
     try {
       $env:VITE_API_URL = '/api'
       Write-Host 'Building the client for the public link (this takes a minute)...'
@@ -561,12 +603,50 @@ try {
     $env:MAIL_MAILER = 'log'
     $env:MAIL_USERNAME = 'disabled-for-public-demo'
     $env:MAIL_PASSWORD = 'disabled-for-public-demo'
-    $env:HIUSA_AI_SERVICE_ENABLED = 'false'
-    # '(null)' reads as null in Laravel's env(), and the Groq client makes no call
-    # without a key; the dead address is a second barrier.
-    $env:HIUSA_AI_SERVICE_KEY = '(null)'
-    $env:GROQ_API_KEY = '(null)'
-    $env:GROQ_API_URL = 'http://127.0.0.1:9/disabled'
+    if ($EnableAi) {
+      # AI helpers on. The Groq key and address are deliberately NOT set here: the
+      # API reads them from server/.env itself, so the key is never on a command
+      # line, in a log, or in the environment of any other process. The local AI
+      # engine gets a fresh key for this run, shared with the API only.
+      $aiKey = New-RandomPassword 32
+      $env:HIUSA_AI_SERVICE_ENABLED = 'true'
+      $env:HIUSA_AI_SERVICE_KEY = $aiKey
+      $env:HIUSA_AI_SERVICE_URL = "http://127.0.0.1:${aiPort}"
+      $env:HIUSA_AI_SERVICE_AUTH_DISABLED = 'false'
+      $env:HIUSA_AI_HOST = '127.0.0.1'
+      $env:HIUSA_AI_PORT = "$aiPort"
+      $env:HIUSA_AI_RELOAD = 'false'
+
+      # Process variables win over ai-service/.env (python-dotenv does not override
+      # them). The engine reads only the service key, the auth opt-out and the task
+      # weights, and never gets the database password, the app key or the Groq key.
+      $heldAi = Hide-Secrets
+      try {
+        $ai = Start-Process -FilePath $aiPython -ArgumentList 'run.py' -WorkingDirectory $aiDir -WindowStyle Hidden -PassThru `
+          -RedirectStandardOutput $publicAiLog -RedirectStandardError $publicAiErrLog
+        Write-PidFile
+      } finally {
+        Restore-Env $heldAi
+      }
+      $aiUp = $false
+      for ($i = 0; $i -lt 30 -and -not $aiUp -and -not $ai.HasExited; $i++) {
+        try {
+          $aiUp = ((Invoke-WebRequest -Uri "http://127.0.0.1:${aiPort}/health" -UseBasicParsing -TimeoutSec 3).StatusCode -eq 200)
+        } catch {
+          Start-Sleep -Seconds 1
+        }
+      }
+      if (-not $aiUp) {
+        throw "The local AI engine did not answer on 127.0.0.1:$aiPort within 30 seconds. Its logs are $publicAiLog and $publicAiErrLog."
+      }
+    } else {
+      $env:HIUSA_AI_SERVICE_ENABLED = 'false'
+      # '(null)' reads as null in Laravel's env(), and the Groq client makes no call
+      # without a key; the dead address is a second barrier.
+      $env:HIUSA_AI_SERVICE_KEY = '(null)'
+      $env:GROQ_API_KEY = '(null)'
+      $env:GROQ_API_URL = 'http://127.0.0.1:9/disabled'
+    }
     $env:FINGERPRINT_MATCHER_DRIVER = 'unavailable'
     $env:FINGERPRINT_MATCHER_KEY = '(null)'
     $env:RESEND_API_KEY = 'disabled-for-public-demo'
@@ -642,7 +722,12 @@ try {
     $announced = $true
     Write-Host 'The link changes every time this is started. Anyone who has it can open the app and try the demo accounts: throwaway seeded data only, no real student data.'
     Write-Warning 'The other demo passwords in docs/MEMBER_TESTING.md (Demo@12345 for the Admin, Department Head, officer and student accounts) are public knowledge: anyone holding the link can use them. Share the link only with the team.'
-    Write-Host 'Mail is switched off in this copy (password reset emails do not arrive) and the AI helpers are off.'
+    if ($EnableAi) {
+      Write-Host 'AI helpers: ON (Groq text and the local AI engine). Mail: off.'
+      Write-Host "Groq writes announcement drafts, event plans, budget advice, forecasts, task recommendations and financial report summaries with the Groq key in server/.env, so testers use up that quota. Password reset emails do not arrive (this script forces the log mailer)."
+    } else {
+      Write-Host 'Mail is switched off in this copy (password reset emails do not arrive) and the AI helpers are off.'
+    }
     Write-Host "Reminder: the data is the throwaway database $dbName on 127.0.0.1:$DbPort (not the development database). Uploaded files land on this computer's disk. Quick tunnels have no uptime guarantee."
     Write-Host 'Test accounts and journeys: docs/MEMBER_TESTING.md (use the fresh seed table)'
     Write-Host 'Wipe and reseed with: powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Reset -Public'
