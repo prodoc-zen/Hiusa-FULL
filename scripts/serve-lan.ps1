@@ -17,6 +17,13 @@
   (C:\xampp\mysql\bin) and runs `php artisan migrate:fresh --seed`, so the
   fresh seed accounts in docs/MEMBER_TESTING.md exist. Later runs reuse that
   database and keep what testers entered; pass -Reset to wipe and reseed it.
+  Both modes also run Laravel's scheduler (`php artisan schedule:work`, hidden,
+  log in .lan-db\scheduler.log, or public-build\scheduler.log with -Public), so
+  elections open and close by their window, event reminders and no-shows,
+  overdue tasks and scheduled SAO notices work on the test copy. It uses the same
+  database as the API and has the AI helpers switched off (none of its jobs need
+  them). -Stop stops it with the rest; in -Public a failed start or Ctrl+C
+  before the link is printed does too.
   The API gets its connection settings (DB_HOST, DB_PORT, DB_DATABASE, ...) as
   process environment variables, so server/.env is never edited and the
   development database (XAMPP on 3306 or 3307, hiusa_db) is never touched.
@@ -198,7 +205,7 @@ function Get-Cloudflared {
 function Test-OwnedProcess($Proc) {
   $cmdLine = [string]$Proc.CommandLine
   switch ([string]$Proc.Name) {
-    'php.exe' { return ($cmdLine -like '*artisan*serve*--no-reload*') }
+    'php.exe' { return ($cmdLine -like '*artisan*serve*--no-reload*' -or ($cmdLine -like '*artisan*' -and $cmdLine -like '*schedule:work*')) }
     'python.exe' { return ($cmdLine -like '*run.py*' -and $cmdLine -like "*$aiDir*") }
     'cmd.exe' { return ($cmdLine -like '*npm run*') }
     'node.exe' { return ($cmdLine -like "*$root*") }
@@ -260,11 +267,38 @@ function Stop-OwnProcesses {
   return $true
 }
 
+# Starts Laravel's scheduler (server/routes/console.php: elections open and close
+# by their window, event reminders and no-shows, overdue tasks, scheduled SAO
+# notices, cache pruning), which nothing else runs on a test copy. It gets the
+# same database settings as the API. None of the scheduled jobs call Groq or the
+# AI engine, so those are switched off for it in every mode (and put back after
+# the start, so the API keeps its own values). Its output goes to a log next to
+# the other logs of the mode: public-build in -Public, .lan-db otherwise.
+function Start-Scheduler {
+  $logDir = if ($Public) { $publicDir } else { $dbDir }
+  $schedulerOut = Join-Path $logDir 'scheduler.log'
+  $schedulerErr = Join-Path $logDir 'scheduler-error.log'
+  $names = @('HIUSA_AI_SERVICE_ENABLED', 'HIUSA_AI_SERVICE_KEY', 'GROQ_API_KEY', 'GROQ_API_URL')
+  $saved = @{}
+  foreach ($name in $names) { $saved[$name] = [Environment]::GetEnvironmentVariable($name, 'Process') }
+  $env:HIUSA_AI_SERVICE_ENABLED = 'false'
+  $env:HIUSA_AI_SERVICE_KEY = '(null)'
+  $env:GROQ_API_KEY = '(null)'
+  $env:GROQ_API_URL = 'http://127.0.0.1:9/disabled'
+  try {
+    return Start-Process -FilePath $php -ArgumentList 'artisan', 'schedule:work' `
+      -WorkingDirectory (Join-Path $root 'server') -WindowStyle Hidden -PassThru `
+      -RedirectStandardOutput $schedulerOut -RedirectStandardError $schedulerErr
+  } finally {
+    Restore-Env $saved
+  }
+}
+
 # Rewrites .lan-pids from the processes started so far, so a failed start can
 # always be cleaned up by Stop-OwnProcesses.
 function Write-PidFile {
   $lines = @()
-  foreach ($p in @($script:api, $script:ai, $script:web, $script:tunnel)) { if ($p) { $lines += "$($p.Id)" } }
+  foreach ($p in @($script:scheduler, $script:api, $script:ai, $script:web, $script:tunnel)) { if ($p) { $lines += "$($p.Id)" } }
   if ($script:db) { $lines += "db=$($script:db.Id),$DbPort" }
   Set-Content -Path $pidFile -Value $lines
 }
@@ -306,6 +340,7 @@ function Remove-PublicBuild {
 # Process state of a -Public start, so Write-PidFile and the cleanup see it.
 $db = $null
 $api = $null
+$scheduler = $null
 $ai = $null
 $web = $null
 $tunnel = $null
@@ -697,6 +732,19 @@ try {
     Write-Warning 'The API or the client did not come up in 60 seconds. Check the two minimized windows for errors.'
   }
 
+  # The scheduler starts last, once the API is up, and is recorded for -Stop and for cleanup.
+  $scheduler = Start-Scheduler
+  Write-PidFile
+  Start-Sleep -Seconds 2
+  $schedulerLine = 'Scheduler: running (elections open and close on their own, reminders and scheduled notices work)'
+  if ($scheduler.HasExited) {
+    $schedulerLogDir = if ($Public) { $publicDir } else { $dbDir }
+    $schedulerErrPath = Join-Path $schedulerLogDir 'scheduler-error.log'
+    if ($Public) { throw "The scheduler stopped right after it started. See $schedulerErrPath." }
+    Write-Warning "The scheduler stopped right after it started, so elections will not open on their own and reminders will not run. See $schedulerErrPath."
+    $schedulerLine = 'Scheduler: NOT running (see the warning above)'
+  }
+
   Write-Host ''
   if ($Public) {
     # Quick tunnel names can take a few seconds to resolve; check from here before announcing it.
@@ -729,6 +777,7 @@ try {
       Write-Host 'Mail is switched off in this copy (password reset emails do not arrive) and the AI helpers are off.'
     }
     Write-Host "Reminder: the data is the throwaway database $dbName on 127.0.0.1:$DbPort (not the development database). Uploaded files land on this computer's disk. Quick tunnels have no uptime guarantee."
+    Write-Host $schedulerLine
     Write-Host 'Test accounts and journeys: docs/MEMBER_TESTING.md (use the fresh seed table)'
     Write-Host 'Wipe and reseed with: powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Reset -Public'
     Write-Host 'STOP the public link when the test ends: powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop'
@@ -739,6 +788,7 @@ try {
     }
     Write-Host $firewall
     Write-Host "Reminder: plain HTTP, demo passwords, throwaway seeded database $dbName on 127.0.0.1:$DbPort (not the development database). Trusted network only."
+    Write-Host $schedulerLine
     Write-Host 'Test accounts and journeys: docs/MEMBER_TESTING.md (use the fresh seed table)'
     Write-Host 'Wipe and reseed with: powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Reset'
     Write-Host 'Stop with: powershell -ExecutionPolicy Bypass -File scripts\serve-lan.ps1 -Stop'
