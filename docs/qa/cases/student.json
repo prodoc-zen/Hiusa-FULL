@@ -1,0 +1,2038 @@
+[
+  {
+    "id": "STU-001",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Sign in with School ID and password",
+    "preconditions": "A fresh seeded copy is running. Use Student 2100142 (PSITS-CCS) and the demo password from the tester guide (docs/MEMBER_TESTING.md section 2). You are signed out.",
+    "steps": [
+      "1. Open the HIUSA address you were given.",
+      "2. Check that the page says \"Sign in to HIUSA\".",
+      "3. Type 2100142 in the box \"School ID / ID Number\".",
+      "4. Type the password in the box \"Password\".",
+      "5. Tap or click \"Sign in\"."
+    ],
+    "expected": "You land on the student home (address ends in /dashboard/student). You see \"Next for you\", \"Organization feed\" and a side panel with \"Coming up\" and \"Your account\". The side menu shows student items only.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-002",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "School ID box accepts digits only and stops at 8 digits",
+    "preconditions": "Signed out, on the sign-in page.",
+    "steps": [
+      "1. Click the \"School ID / ID Number\" box.",
+      "2. Type the letters abc and then the digits 123.",
+      "3. Check what is in the box.",
+      "4. Clear the box and type 123456789 (nine digits).",
+      "5. Check how many digits stay in the box."
+    ],
+    "expected": "Letters never appear in the box. Only 123 stays after step 2. After step 4 only the first 8 digits (12345678) stay.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-003",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "An email address cannot be used to sign in",
+    "preconditions": "Signed out. Student 2100142 has an email on the account, but sign-in only accepts the School ID.",
+    "steps": [
+      "1. Click the \"School ID / ID Number\" box.",
+      "2. Type any email address, for example someone@example.com.",
+      "3. Type a password in the \"Password\" box.",
+      "4. Tap or click \"Sign in\".",
+      "5. Read the message under the boxes."
+    ],
+    "expected": "You are not signed in. The letters and symbols of the email are not kept in the box, so a message asks for the School ID (the exact wording comes from the server, for example that the school id field is required). The page does not crash. VERIFY: exact wording of the message.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-004",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Wrong password shows a clear message and no one is signed in",
+    "preconditions": "Signed out. Use a spare student such as 2300163 (not 2100142, so other testers are not locked out).",
+    "steps": [
+      "1. Type 2300163 in the School ID box.",
+      "2. Type a wrong password.",
+      "3. Tap or click \"Sign in\".",
+      "4. Read the red message.",
+      "5. Check the address bar."
+    ],
+    "expected": "A red message appears: \"The provided credentials are incorrect.\" You stay on the sign-in page. No student page opens.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-005",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Lockout after 5 wrong passwords for 15 minutes",
+    "preconditions": "Use a spare student that nobody else is using, for example 2400067. Warn the other testers. The lock lasts 15 minutes and also blocks the correct password. Do this near the end of your session.",
+    "steps": [
+      "1. Type 2400067 in the School ID box.",
+      "2. Enter a wrong password and tap \"Sign in\". Repeat until you have failed 5 times.",
+      "3. On the next try, enter the correct password (the demo password).",
+      "4. Read the red message.",
+      "5. Wait 15 minutes without trying again.",
+      "6. Try the correct password once more."
+    ],
+    "expected": "After 5 wrong tries the account is locked. The next attempt, even with the right password, is refused with a message such as \"Too many failed sign in attempts for this account. Please wait before trying again.\" After 15 minutes the correct password signs in. VERIFY: if you type the wrong passwords very fast, a general \"Too many requests. Please wait before trying again.\" can appear first. Write down which message you saw.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-006",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Sign in has no role picker; a student always lands on the student home",
+    "preconditions": "Signed out. Student 2100142.",
+    "steps": [
+      "1. In the address bar, type the address of the site followed by /dashboard/admin and press Enter.",
+      "2. Check that you are sent to the sign-in page.",
+      "3. Look for any box or button that lets you choose a role. Note what you find.",
+      "4. Sign in as Student 2100142.",
+      "5. Check the address bar and the page."
+    ],
+    "expected": "Step 2: you are sent to the sign-in page. Step 3: there is no role choice, only School ID and password. Step 5: you land on the student home (/dashboard/student), not on the admin page you tried first.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-007",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Signed-out visitor is sent to sign-in for every student page",
+    "preconditions": "Signed out (log out first if needed, or use a private window).",
+    "steps": [
+      "1. Type the site address followed by /dashboard/student and press Enter.",
+      "2. Type the site address followed by /dashboard/merchandise/my-orders and press Enter.",
+      "3. Type the site address followed by /elections/1/vote and press Enter.",
+      "4. Type the site address followed by /some-page-that-does-not-exist and press Enter."
+    ],
+    "expected": "Every address ends on the sign-in page. No student data is shown at any point.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-008",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "An unknown address sends a signed-in student home, not to an error page",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. In the address bar, type the site address followed by /dashboard/not-a-real-page and press Enter.",
+      "2. Check where you land.",
+      "3. Type the site address followed by /dashboard and press Enter.",
+      "4. Check where you land."
+    ],
+    "expected": "You end on the student home (/dashboard/student). No blank page, no 404 page and no error page appears.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-009",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Forgot password page opens and asks for School ID and email",
+    "preconditions": "Signed out. On the public test link, reset emails are not sent, so only check the screens.",
+    "steps": [
+      "1. On the sign-in page, tap or click \"Forgot password?\".",
+      "2. Check that the page says \"Reset your password\".",
+      "3. Type 2100142 in \"School ID / ID number\".",
+      "4. Type the email shown on that account in \"Email address\".",
+      "5. Tap or click \"Send reset link\".",
+      "6. Read the next screen.",
+      "7. Tap or click \"Back to login\"."
+    ],
+    "expected": "A screen says \"Check your email\" and shows the email you typed, with a \"Send another email\" button. The same screen appears even for an email that does not match, so nobody can learn which emails exist. On the public link the email itself does not arrive (known limit). \"Back to login\" returns to sign-in.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-010",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Log out asks for confirmation and ends the session",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Open the account menu at the top right (your name).",
+      "2. Tap or click \"Logout\".",
+      "3. Read the window that opens.",
+      "4. Choose \"Log Out\".",
+      "5. Press the browser Back button.",
+      "6. Try to open the site address followed by /dashboard/student."
+    ],
+    "expected": "The window says \"Log Out\" and \"You will need to sign in again to access your dashboard.\" After confirming you are on the sign-in page. Back and the direct address do not show any student page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-011",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Changing the password on one device signs the other device out",
+    "preconditions": "Student 2300163 (spare). You have a phone and a laptop, or two different browsers. Tell nobody else to use this account.",
+    "steps": [
+      "1. Sign in as 2300163 on the phone.",
+      "2. Sign in as 2300163 on the laptop.",
+      "3. On the laptop, open Profile, then \"Password & security\", and change the password (see the Profile cases for the exact steps).",
+      "4. Go back to the phone and tap any menu item, for example Events."
+    ],
+    "expected": "The phone is sent back to the sign-in page. The laptop stays signed in and shows \"Password updated. Your other devices were signed out.\" Write the new password down in your private notes and tell the demo owner. VERIFY: the phone may need one more tap before it notices.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-012",
+    "role": "Student",
+    "module": "Sign in",
+    "title": "Sign-in page fits a phone screen",
+    "preconditions": "A phone, or a laptop browser made about 390 pixels wide. Signed out.",
+    "steps": [
+      "1. Open the sign-in page on the phone.",
+      "2. Check that you can see both boxes and the \"Sign in\" button without moving the page sideways.",
+      "3. Tap the School ID box and look at the keyboard that opens.",
+      "4. Tap the \"Password\" box and type a few characters.",
+      "5. Check the button used to show or hide the password, if there is one."
+    ],
+    "expected": "There is no sideways scroll. The School ID box opens a number keyboard. The \"Sign in\" button is easy to tap with a thumb. VERIFY: whether a show/hide password button exists and is large enough to tap.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-013",
+    "role": "Student",
+    "module": "Sign in > Forced password change",
+    "title": "Imported student is asked to choose a new password at first sign-in",
+    "preconditions": "Sequence: an Admin (900001) first imports a class list with a new student (Members, Programs and sections, Import class list) and downloads the temporary passwords file. Use the new student School ID and the temporary password from that file. Seeded demo students are NOT forced to change their password.",
+    "steps": [
+      "1. Open the sign-in page.",
+      "2. Type the new student School ID.",
+      "3. Type the temporary password from the downloaded file.",
+      "4. Tap or click \"Sign in\".",
+      "5. Read the page that opens."
+    ],
+    "expected": "You do not see the student home. The page says \"Choose a new password\" and \"Your account was created with a default password. Set your own before you continue.\" It has three boxes: \"Current password\", \"New password\" (hint: Use at least 8 characters.) and \"Confirm new password\", and a \"Save new password\" button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-014",
+    "role": "Student",
+    "module": "Sign in > Forced password change",
+    "title": "Nothing else opens until the password is changed",
+    "preconditions": "You are on the \"Choose a new password\" page after signing in as an imported student. Do not save a new password yet.",
+    "steps": [
+      "1. In the address bar, type the site address followed by /dashboard/student and press Enter.",
+      "2. Check where you land.",
+      "3. Type the site address followed by /dashboard/merchandise/order-merchandise and press Enter.",
+      "4. Check where you land.",
+      "5. Press the browser Back button twice.",
+      "6. Check where you land."
+    ],
+    "expected": "Every time you end on \"Choose a new password\". No student page, menu or data can be opened.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-015",
+    "role": "Student",
+    "module": "Sign in > Forced password change",
+    "title": "Change password form checks each box",
+    "preconditions": "You are on the \"Choose a new password\" page as an imported student.",
+    "steps": [
+      "1. Leave all three boxes empty and tap \"Save new password\".",
+      "2. Read the messages under the boxes.",
+      "3. Type the temporary password in \"Current password\". Type abc in \"New password\" and in \"Confirm new password\".",
+      "4. Tap \"Save new password\" and read the message.",
+      "5. Type a new password of 8 or more characters in \"New password\" and a different one in \"Confirm new password\".",
+      "6. Tap \"Save new password\" and read the message."
+    ],
+    "expected": "Step 2: \"Enter your current password.\", \"Use at least 8 characters.\" and \"The confirmation does not match.\" are shown (the page puts your cursor in the first box with a problem). Step 4: \"Use at least 8 characters.\". Step 6: \"The confirmation does not match.\". Nothing is saved.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-016",
+    "role": "Student",
+    "module": "Sign in > Forced password change",
+    "title": "Wrong current password is refused",
+    "preconditions": "You are on the \"Choose a new password\" page as an imported student.",
+    "steps": [
+      "1. Type a wrong password in \"Current password\".",
+      "2. Type a good new password (8 or more characters) in both other boxes.",
+      "3. Tap \"Save new password\".",
+      "4. Read the message."
+    ],
+    "expected": "The password is not changed. A message appears under the \"Current password\" box (the server wording mentions the current password). You can try again. VERIFY: exact wording.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-017",
+    "role": "Student",
+    "module": "Sign in > Forced password change",
+    "title": "Saving a new password opens the student home and retires the temporary one",
+    "preconditions": "You are on the \"Choose a new password\" page as an imported student.",
+    "steps": [
+      "1. Type the temporary password in \"Current password\".",
+      "2. Type a new password of 8 or more characters in \"New password\" and again in \"Confirm new password\".",
+      "3. Tap \"Save new password\".",
+      "4. Check the page that opens.",
+      "5. Log out, then try to sign in with the temporary password.",
+      "6. Sign in with the new password."
+    ],
+    "expected": "Step 4: you land on the student home. Step 5: the temporary password is refused. Step 6: the new password signs in and goes straight to the student home with no change-password screen.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-018",
+    "role": "Student",
+    "module": "Sign in > Forced password change",
+    "title": "Forced password change works on a phone",
+    "preconditions": "Same imported student, new temporary password (or a second imported student). A phone.",
+    "steps": [
+      "1. Sign in on the phone with the temporary password.",
+      "2. Check that all three boxes and the \"Save new password\" button are visible without sideways scroll.",
+      "3. Fill the three boxes and tap \"Save new password\".",
+      "4. Check the page that opens."
+    ],
+    "expected": "The form fits the screen and the buttons are easy to tap. After saving you land on the student home.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-019",
+    "role": "Student",
+    "module": "Dashboard > Home",
+    "title": "Student home shows the feed, shortcuts and account lines",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Sign in and wait for the home page to finish loading.",
+      "2. Find the \"Next for you\" checklist.",
+      "3. Find the \"Organization feed\" heading with the line \"Updates from your organization and the university.\"",
+      "4. Find the side panel with \"Coming up\" and \"Your account\".",
+      "5. Read the two links under \"Your account\"."
+    ],
+    "expected": "All four areas are there. \"Your account\" has \"Statement of account\" (with a line such as \"You owe ...\" or \"Nothing owed\") and \"My clearance\" (with a line such as \"Clearance: Cleared\", \"Clearance: N signatures pending\", \"On hold: see My clearance\" or \"No clearance period\").",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-020",
+    "role": "Student",
+    "module": "Dashboard > Home",
+    "title": "Next for you checklist ticks when you act",
+    "preconditions": "Student 2100142 or another seeded student who has not registered for any event yet. Do the Events registration case first.",
+    "steps": [
+      "1. Open the home page and find \"Next for you\".",
+      "2. Look for the step \"Register for an upcoming event\".",
+      "3. Register for an event (see the Events cases).",
+      "4. Open the home page again."
+    ],
+    "expected": "Before registering, the step \"Register for an upcoming event\" is listed as not done. After registering, it is gone or marked done. Other steps (\"Add your contact number\", \"Enroll your fingerprint\") stay until done. The fingerprint step has no link because it is done in person with the officers.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-021",
+    "role": "Student",
+    "module": "Dashboard > Home",
+    "title": "Active election card on the home page leads to the ballot",
+    "preconditions": "Sequence: an election is open for voting (Admin created it, Department Head approved it, Admin finalized it, and its time window has started). Student has not voted yet.",
+    "steps": [
+      "1. Open the student home.",
+      "2. Find the card \"Active election\" in the side panel.",
+      "3. Tap or click \"Enter secure voting\".",
+      "4. Check the page that opens."
+    ],
+    "expected": "The card shows the election title and the line \"Review the candidates and cast your ballot before voting closes.\" The button opens the Secure Voting ballot page for that election with a \"Start my ballot\" button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-022",
+    "role": "Student",
+    "module": "Dashboard > Home",
+    "title": "Account shortcuts open Statement of account and My clearance",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. On the student home, tap or click \"Statement of account\" under \"Your account\".",
+      "2. Check the page title and then press Back.",
+      "3. Tap or click \"My clearance\" under \"Your account\".",
+      "4. Check the page title."
+    ],
+    "expected": "The first link opens the Statement of account page. The second opens the My clearance page. Each row is at least about 56 pixels tall so it is easy to tap.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-023",
+    "role": "Student",
+    "module": "Dashboard > Home",
+    "title": "Home on a phone has no sideways scroll and shortcuts come first",
+    "preconditions": "A phone (or browser about 390 pixels wide). Student 2100142.",
+    "steps": [
+      "1. Sign in on the phone.",
+      "2. Look at the top of the home page below the top bar.",
+      "3. Scroll down slowly to the end of the first screen of the feed.",
+      "4. Try to drag the page left and right."
+    ],
+    "expected": "The side panel (\"Active election\", \"Coming up\", \"Your account\") appears above the feed on a phone. The page never moves sideways. Pictures in the feed stay inside the screen.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-024",
+    "role": "Student",
+    "module": "Menu",
+    "title": "Laptop menu lists only student items",
+    "preconditions": "Laptop browser, wide window. Signed in as Student 2100142.",
+    "steps": [
+      "1. Look at the left side menu.",
+      "2. Click each group that has an arrow to open it: My payments, Voting, Store, Support.",
+      "3. Write down every label you see, including the two links at the bottom."
+    ],
+    "expected": "You see: Dashboard; My payments (Statement of account, Receipts); Events; Voting (Vote, Results); Store (Shop, My orders); Announcements (under Updates); Support (My clearance, My grievances); and at the bottom Profile and Study objectives. You do NOT see People, Finance, Ledger, Inventory, Orders, Claim desk, Check-in, Tasks, Approvals, Candidates, Voters, Compliance, Grievances, Clearance signing or Audit log. VERIFY: whether Events and Announcements show as a single link or as a group with one child.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-025",
+    "role": "Student",
+    "module": "Menu",
+    "title": "Phone menu drawer opens, scrolls and closes",
+    "preconditions": "A phone (or browser about 390 pixels wide). Signed in as Student 2100142.",
+    "steps": [
+      "1. Tap the menu button (three lines) at the top left. Its name is \"Open menu\".",
+      "2. Check that a menu panel slides in over the page.",
+      "3. Tap a group such as \"Store\" and then \"Shop\".",
+      "4. Check that the Shop page opens and the menu closes.",
+      "5. Open the menu again and tap \"Close menu\" (the X)."
+    ],
+    "expected": "The panel opens, the group opens to show its pages, tapping a page goes there and closes the panel, and the X closes it without going anywhere. The page behind does not scroll sideways.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-026",
+    "role": "Student",
+    "module": "Menu",
+    "title": "Phone menu items are easy to tap",
+    "preconditions": "A phone. Signed in as Student 2100142.",
+    "steps": [
+      "1. Open the menu with \"Open menu\".",
+      "2. Try to tap each group and each page name with your thumb.",
+      "3. Note any item you tapped wrongly or had to tap twice.",
+      "4. Check that the \"Logout\" button at the bottom of the menu is reachable."
+    ],
+    "expected": "Every menu row can be tapped the first time with a thumb (rows should be about 44 pixels tall or more). Logout is reachable by scrolling inside the menu. Report any row that is too small. VERIFY: the top-left menu button itself is about 40 pixels, slightly under 44.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-027",
+    "role": "Student",
+    "module": "Menu",
+    "title": "Go to page search finds only student pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Click \"Go to page\" in the top bar (or press Ctrl and K).",
+      "2. Type shop and look at the results.",
+      "3. Clear the box, type inventory and look at the results.",
+      "4. Clear the box, type audit and look at the results.",
+      "5. Choose a result such as \"Shop\" and press Enter."
+    ],
+    "expected": "\"Shop\" is found and opens the Shop page. \"Inventory\" and \"Audit\" find nothing, because a student has no such pages. The search never lists a page the student cannot open.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-028",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Events list shows only approved, ongoing or completed events",
+    "preconditions": "Before the SAO opens a semester (see section 3 of the tester guide), the seeded events are visible. Student 2100142.",
+    "steps": [
+      "1. Open Events from the menu.",
+      "2. Look at the list. The default view is the list.",
+      "3. Open the \"Status\" filter and note which statuses are offered.",
+      "4. Look through the list for any event marked Planning or Cancelled."
+    ],
+    "expected": "You see events such as \"Sports Fest 2024\". Events that are still being planned or are waiting for approval do not appear in the list for a student. VERIFY: the Status filter may still list Planning and Cancelled as choices, but choosing them should show nothing.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-029",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Join an event and see \"You are registered\"",
+    "preconditions": "Before the SAO opens a semester. A student who has not registered yet (try 2400093, 2400067, 2300247, 2400019 or 2300312). An approved event that has not started.",
+    "steps": [
+      "1. Open Events from the menu.",
+      "2. Click an event, for example \"Sports Fest 2024\".",
+      "3. In the window that opens, find the section \"Event registration\".",
+      "4. Tap or click \"Register for this event\".",
+      "5. Read the message and the steps."
+    ],
+    "expected": "A short message \"You are registered\" appears. The window shows \"You are registered\" with a Registered badge, the line \"You registered on <date>. Organizers will expect you at check-in.\", a \"Cancel registration\" button and three steps: Register (done), Check in at the event (current), Attendance on record (not yet). Total clicks from the home page: about 3.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-030",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Cancel a registration and register again",
+    "preconditions": "The student is registered for an upcoming event (previous case).",
+    "steps": [
+      "1. Open Events and click the event you registered for.",
+      "2. Tap or click \"Cancel registration\".",
+      "3. Read the message and the status.",
+      "4. Tap or click \"Register for this event\" again.",
+      "5. Read the message and the status."
+    ],
+    "expected": "Cancelling shows \"Registration cancelled\" and the status Cancelled with the line \"You cancelled earlier. You can register again while spots remain.\" Registering again works and shows \"You are registered\". You can never register twice at the same time: while registered, only \"Cancel registration\" is offered.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-031",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Registration is closed once the event has started",
+    "preconditions": "An approved event whose start time has already passed (ongoing or completed). Student 2100142 has not registered for it.",
+    "steps": [
+      "1. Open Events and click the event that has already started.",
+      "2. Look at the section \"Event registration\".",
+      "3. Look for a \"Register for this event\" button."
+    ],
+    "expected": "There is no Register button. The text says \"Registration closed when this event started.\" The first step Register shows as blocked or closed.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-032",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Full event refuses new registrations",
+    "preconditions": "Sequence: an Admin sets a very small expected participants number (for example 1) on an approved upcoming event, and one student registers. Then use a second student.",
+    "steps": [
+      "1. Student A registers for the small event.",
+      "2. Sign in as Student B on another browser.",
+      "3. Open Events and click the same event.",
+      "4. Tap or click \"Register for this event\".",
+      "5. Read the message."
+    ],
+    "expected": "Student B is refused with a message: \"This event has reached its registration capacity. Please check back in case a spot opens up.\" Student B is not registered. If Student A cancels, Student B can register.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-033",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Draft or planning events are hidden from students",
+    "preconditions": "Sequence: an Admin (900001) creates a new event but does not get it approved, so it stays in planning. Student 2100142.",
+    "steps": [
+      "1. As the Admin, create an event with a clear name such as \"QA hidden draft\" and leave it unapproved.",
+      "2. As Student 2100142, open Events (list view).",
+      "3. Search for \"QA hidden draft\" in the \"Search events\" box.",
+      "4. Switch to the calendar view and look for the same date.",
+      "5. Check \"Coming up\" on the student home."
+    ],
+    "expected": "The draft event appears nowhere: not in the list, not in the calendar and not in \"Coming up\". It appears for the student only after the Department Head approves it.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-034",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "List filters: search, date, status and sort",
+    "preconditions": "Student 2100142 with at least two events visible.",
+    "steps": [
+      "1. Open Events in list view.",
+      "2. Type part of an event title in \"Search events\".",
+      "3. Clear the search and pick a date in \"Event date\".",
+      "4. Clear the date and open \"Sort by\". Try Soonest, Latest date, Newest created and Title.",
+      "5. Use the clear option to remove all filters."
+    ],
+    "expected": "The list narrows and reorders for each choice and the count of events updates. Clearing filters brings the full list back.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-035",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Events on a phone: list, calendar agenda and details window",
+    "preconditions": "A phone (or browser about 390 pixels wide). Student 2100142.",
+    "steps": [
+      "1. Open the menu, then tap \"Events\".",
+      "2. Scroll the list and tap an event.",
+      "3. In the details window, scroll to \"Register for this event\" and tap it.",
+      "4. Close the window.",
+      "5. Tap \"Calendar view\" and check how the events are shown."
+    ],
+    "expected": "The list and the details window fit the screen with no sideways scroll. The Register button is easy to tap. The calendar shows an agenda (a list by day) on a narrow screen instead of a tiny grid. The List and Calendar switch keeps its icons even though the words are hidden.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-036",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Student cannot check themselves in; officer check-in turns the status to Attended",
+    "preconditions": "Sequence: Student 2100142 is registered for an event that is ongoing. Officer 900004 (or Admin 900001) is on another device on Events and tasks, Check-in.",
+    "steps": [
+      "1. As the student, open the event and read the \"Event registration\" section.",
+      "2. Look for any button that lets you check in yourself.",
+      "3. As the officer, check this student in on the Check-in page.",
+      "4. As the student, close and reopen the event.",
+      "5. Read the status and the three steps."
+    ],
+    "expected": "The student has no self check-in button. After the officer checks the student in, the status is Attended with the message \"Your attendance at this event is on record.\" and all three steps are done. If the event ends without a check-in the status becomes No-show (\"You registered but no check-in was recorded for this event.\").",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-037",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "Opening staff event pages sends the student home",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/events/manage-events and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/events/check-in and press Enter.",
+      "4. Check the page.",
+      "5. Type the site address followed by /dashboard/events/event-planner and press Enter.",
+      "6. Check the page."
+    ],
+    "expected": "Each time you end on the student home (/dashboard/student). No error page (403) and no Create event or Check-in screen appears.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-038",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "After the SAO opens a semester the seeded events leave the list",
+    "preconditions": "Sequence: the SAO (990001) activates a semester (tester guide section 3). Student 2100142 had 3 events before this.",
+    "steps": [
+      "1. Before the SAO acts, note the events in Events and in \"Coming up\".",
+      "2. The SAO adds a semester and chooses \"Set as active\".",
+      "3. Reload Events as the student.",
+      "4. Reload the student home."
+    ],
+    "expected": "The seeded events, which belong to no semester, no longer show for the student. The list shows an empty-list message and \"Coming up\" says \"No upcoming events yet.\" This is expected, not a bug. New events the Admin creates inside the semester appear after approval.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-039",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Vote page with no open election",
+    "preconditions": "No election is open for voting (fresh seed: the seeded election is not finalized, so a student cannot vote in it). Student 2100142.",
+    "steps": [
+      "1. Open the menu and tap \"Voting\".",
+      "2. Tap \"Vote\".",
+      "3. Read the page."
+    ],
+    "expected": "You see \"No election is open for voting\" and \"Elections appear here when the Admin opens one. Check back during the election period.\" There is no Vote button. VERIFY: if the seeded election card appears, it should read Upcoming and show \"The ballot is still being built. Voting opens after the Admin finalizes it.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-040",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Open election appears as a card with a Vote button",
+    "preconditions": "Sequence: Admin 900001 creates an election, Department Head 940001 approves it, Admin adds a party list and a candidate for each position, then finalizes the ballot, and the start time has passed. Student 2100142 has not voted. VERIFY: whether a student can vote in an election made this way (the tester guide says it was not tried).",
+    "steps": [
+      "1. Open Voting, then Vote.",
+      "2. Read the election card.",
+      "3. Look at the badge, the dates, the time range and the room line.",
+      "4. Find the button on the card."
+    ],
+    "expected": "One card shows the election title, an \"Open\" badge, the date, the time range with minutes, and \"Online ballot\" (or the room). The button reads \"Vote in this election\". A line \"Results:\" shows whether results can be seen.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-041",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Cast a full ballot and get a receipt",
+    "preconditions": "An election is open and the student has not voted. Student 2100142.",
+    "steps": [
+      "1. Open Voting, Vote and tap \"Vote in this election\".",
+      "2. Read the overview page \"Official ballot\" and tap \"Start my ballot\".",
+      "3. On each position, tap one candidate card, then tap \"Next position\".",
+      "4. On the last position tap \"Review ballot\".",
+      "5. Check the list on \"Review your ballot\", then tap \"Submit final ballot\".",
+      "6. In the window \"Submit your final ballot?\" tap \"Confirm and submit\"."
+    ],
+    "expected": "The page \"Ballot submitted\" appears with \"Your choices were securely recorded and cannot be changed.\" and a \"Ballot receipt hash\". \"Your selections\" lists your choices. Total clicks from the home page: 6. Tapping \"Back to Vote\" returns to the Vote page where the card shows Voted.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-042",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "A choice is required for every position",
+    "preconditions": "An election is open and the student has not voted.",
+    "steps": [
+      "1. Start the ballot with \"Start my ballot\".",
+      "2. On the first position, tap \"Next position\" without choosing a candidate.",
+      "3. Read the message.",
+      "4. Choose a candidate and move on. Skip choosing on the next position and use the position list to jump to the review step if possible.",
+      "5. On the review page, read the warning."
+    ],
+    "expected": "Step 3: \"Select a candidate before continuing.\" appears and you cannot move on. On the review page a position with no choice shows \"Not selected\" and the warning \"Complete all positions before final submission.\" The \"Submit final ballot\" button stays disabled until every position has a choice.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-043",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Leaving the ballot asks first and records nothing",
+    "preconditions": "An election is open and the student has not voted.",
+    "steps": [
+      "1. Start the ballot and choose a candidate for the first position.",
+      "2. Tap \"Exit ballot\" at the top right.",
+      "3. Read the window \"Leave secure voting?\".",
+      "4. Tap \"Continue voting\" and check your choice is still there.",
+      "5. Tap \"Exit ballot\" again and tap \"Leave voting\".",
+      "6. Check the Vote page."
+    ],
+    "expected": "The window says only a submitted ballot is recorded and that unsubmitted choices cannot be recovered. \"Continue voting\" keeps you in. \"Leave voting\" goes back to the Vote page, which still shows Open and you can start again.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-044",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Second vote is refused with a friendly message",
+    "preconditions": "The student has already voted in the open election (previous case).",
+    "steps": [
+      "1. Open Voting, then Vote.",
+      "2. Check the badge on the election card.",
+      "3. Open the ballot address again: type the site address followed by /elections/ and the election number and /vote. The number is in the address bar when you first opened the ballot.",
+      "4. Read the page that opens."
+    ],
+    "expected": "The card shows Voted and \"Your ballot receipt\" with the same code. The ballot address shows \"Vote already recorded\" and \"Each voter can submit one ballot for this election.\" with the receipt and a \"Back to elections\" button. It is never an error page and no second ballot is created.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-045",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Voting twice from two tabs at the same time",
+    "preconditions": "An election is open. Student 2100217 has not voted. Two browser tabs signed in as the same student.",
+    "steps": [
+      "1. In tab 1 and tab 2 open the ballot for the same election and choose the same candidates.",
+      "2. In tab 1 submit the final ballot and note the receipt.",
+      "3. In tab 2 submit the final ballot.",
+      "4. Read the result in tab 2.",
+      "5. Open Voting, Vote and count the receipts."
+    ],
+    "expected": "Tab 1 shows the receipt. Tab 2 shows \"Vote already recorded\" (no error page, no crash). The student has exactly one ballot receipt.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-046",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Voting after the election closed",
+    "preconditions": "Sequence: an election that has ended (Admin closed it or the end time passed). Student has not voted.",
+    "steps": [
+      "1. Open Voting, Vote and read the election card.",
+      "2. Look for a Vote button.",
+      "3. If you have the ballot address from earlier, open it again: the site address followed by /elections/ and the number and /vote.",
+      "4. Read the page."
+    ],
+    "expected": "The card shows Closed and the text \"Voting has ended for this election.\" with no vote button. The old ballot address does not let you vote. It shows \"No election is currently open.\" with \"This election is not currently accepting ballots.\" or, if results are not released, \"Unable to open this ballot\" with a message that students can only open active elections or visible results. VERIFY: which of these two pages appears.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-047",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Election that has not opened yet cannot be voted in",
+    "preconditions": "An election that is approved but its start time is in the future, or whose ballot is not finalized.",
+    "steps": [
+      "1. Open Voting, Vote.",
+      "2. Read the text on the election card.",
+      "3. Look for a Vote button."
+    ],
+    "expected": "The card shows Upcoming. With a finalized ballot it says \"Voting opens <date and time>. Come back then to cast your ballot.\" Without a finalized ballot it says \"The ballot is still being built. Voting opens after the Admin finalizes it.\" There is no vote button.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-048",
+    "role": "Student",
+    "module": "Voting > Results",
+    "title": "Live totals while voting is open and results are released",
+    "preconditions": "An election is open and results are released (the default). The student has voted.",
+    "steps": [
+      "1. Open Voting, Vote and find the line \"Results:\" on the election card.",
+      "2. Tap \"View live totals\".",
+      "3. Read the top of the Results page.",
+      "4. Look for any list of who voted for whom."
+    ],
+    "expected": "The Results page shows \"Live vote totals\" and \"Voting in progress\" with counts for ballots, selections, positions and candidates, plus candidate totals. Winners are not declared yet. No student names of voters are shown.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-049",
+    "role": "Student",
+    "module": "Voting > Results",
+    "title": "Results hidden until released",
+    "preconditions": "Sequence: an election is closed but the Admin has not released the results (or an open election with live totals switched off). VERIFY: the exact setting name on the Admin side.",
+    "steps": [
+      "1. Open Voting, Vote and read the \"Results:\" line on the card.",
+      "2. Open Voting, Results from the menu.",
+      "3. Read the page."
+    ],
+    "expected": "The card says \"Available when the Admin releases the results\" (closed election) or \"Available when voting closes\" (open election). The Results page says \"Election results are not available yet.\" with the line \"Vote totals appear once the finalized ballot opens. Winners are declared after closing.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-050",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Voting on a phone: ballot is easy to complete with a thumb",
+    "preconditions": "A phone (or browser about 390 pixels wide). An election is open. Student 2100217 has not voted.",
+    "steps": [
+      "1. On the phone open Voting, Vote and tap \"Vote in this election\".",
+      "2. Tap \"Start my ballot\".",
+      "3. Tap a candidate card, then \"Next position\". Check how the position list at the top behaves.",
+      "4. Open \"Review your ballot\" and check the two buttons at the bottom.",
+      "5. Submit the ballot and read the receipt."
+    ],
+    "expected": "Candidate cards and buttons are large and easy to tap. The buttons stack one under the other. Only the strip of position tabs scrolls sideways; the page itself does not. The receipt code wraps and stays fully readable.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-051",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Student cannot open staff voting pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/elections/manage-elections and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/elections/manage-voters and press Enter.",
+      "4. Check the page.",
+      "5. Type the site address followed by /dashboard/elections/manage-candidates and press Enter.",
+      "6. Check the page.",
+      "7. Type the site address followed by /dashboard/elections/manage-partylists and press Enter."
+    ],
+    "expected": "Each address ends on the student home. A student never sees the voters list, candidate management or party list management.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-052",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Browse the shop: search, category and sort",
+    "preconditions": "Signed in as Student 2100142. The shop has several items (for example \"HIUSA Tote Bag\").",
+    "steps": [
+      "1. Open Store, then Shop.",
+      "2. Type part of an item name in the box \"Search product, category, or description\".",
+      "3. Clear it and open \"Filter merchandise category\". Pick a category.",
+      "4. Open \"Sort merchandise\" and try \"Available first\", \"Most stock\", \"Price: low to high\" and \"Price: high to low\".",
+      "5. Read the line about total units available."
+    ],
+    "expected": "The list narrows and reorders for each choice. The line shows the total units available across the products. If a search finds nothing a \"no results\" message with a way to clear filters appears.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-053",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Add to cart and see the cart in the top bar",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Open Store, Shop.",
+      "2. On the \"HIUSA Tote Bag\" card choose a quantity and tap \"Add to Cart\".",
+      "3. Look at the cart icon in the top bar.",
+      "4. Tap the cart icon.",
+      "5. Tap \"Open Cart\"."
+    ],
+    "expected": "A message such as \"1 x HIUSA Tote Bag added to cart.\" appears. The cart icon shows a number badge. The panel \"Your Cart\" lists the item, quantity and price with the total. \"Open Cart\" opens the cart on the Shop page. An empty cart shows \"Cart is empty\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-054",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Quantity above the stock is refused",
+    "preconditions": "Signed in as a student. An item with a small stock, for example 3 units.",
+    "steps": [
+      "1. Open Store, Shop and find the item.",
+      "2. Type a quantity higher than the stock, for example 50.",
+      "3. Tap \"Add to Cart\".",
+      "4. Read the message.",
+      "5. Type 0 and tap \"Add to Cart\".",
+      "6. Read the message."
+    ],
+    "expected": "Step 4: \"Only N unit(s) available for <item>.\" and the cart does not change. Step 6: \"Please enter a valid quantity greater than 0.\" Nothing is added in either case.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-055",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Place a cash reservation",
+    "preconditions": "Signed in as Student 2300312 (or 2400019). An item in stock.",
+    "steps": [
+      "1. Open Store, Shop.",
+      "2. Tap \"Add to Cart\" on \"HIUSA Tote Bag\".",
+      "3. Tap \"My Cart\".",
+      "4. Tap \"Review & Continue\".",
+      "5. Check that Payment Method says \"Cash on pickup\".",
+      "6. Tap \"Place Reservation\"."
+    ],
+    "expected": "A message \"ORD-<number> reserved.\" appears and you land on My orders. The order shows \"Step 1 of 4: Reserved\" and the text \"Pay cash at pickup, or submit GCash proof\". Total clicks to place the order: 5 or 6.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-056",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Not enough stock at checkout: order is refused",
+    "preconditions": "Sequence: an item with stock 1 (ask the Admin to set it). Student A and Student B are signed in on two devices.",
+    "steps": [
+      "1. Student A adds the 1 unit to the cart but does not check out yet.",
+      "2. Student B adds the same 1 unit and places the reservation. It should succeed.",
+      "3. Student A taps \"My Cart\", \"Review & Continue\" and \"Place Reservation\".",
+      "4. Read the message.",
+      "5. Open Store, My orders as Student A."
+    ],
+    "expected": "Student A is refused with \"Insufficient stock. Only N unit(s) available.\" (N may be 0) or a message that the item is no longer available. No order is created for Student A. The page does not crash.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-057",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "GCash checkout needs a 13-digit reference and a proof picture",
+    "preconditions": "The Admin has uploaded the official GCash QR code (otherwise GCash is not offered). Signed in as a student with one item in the cart.",
+    "steps": [
+      "1. Tap \"My Cart\" and \"Review & Continue\".",
+      "2. Set Payment Method to \"GCash (single order only)\".",
+      "3. Read the QR text, then type only 5 digits in \"GCash Reference\".",
+      "4. Tap \"Place Reservation\" without a picture.",
+      "5. Read the message.",
+      "6. Type 13 digits and choose a JPG or PNG picture in \"Payment Proof\", then place the reservation."
+    ],
+    "expected": "With a short reference or no picture: \"GCash checkout requires a 13-digit reference number and an uploaded payment proof.\" With both, the order is placed and My orders says \"Payment proof submitted and awaiting officer verification.\" With more than one cart item, the GCash choice is disabled and the page explains to checkout one product at a time.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-058",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "My orders lists orders with status and next step",
+    "preconditions": "The student has at least one order (previous cases).",
+    "steps": [
+      "1. Open Store, then My orders.",
+      "2. Find the order card \"ORD-<number>\".",
+      "3. Read the status badge, the quantity, the total and the date.",
+      "4. Read the stage line, for example \"Step 1 of 4: Reserved\".",
+      "5. Tap \"View details\"."
+    ],
+    "expected": "The card shows Pending, Paid, CLAIMED or Cancelled. The stage line tells what to do next. \"View details\" opens the order details. With no orders you see \"No orders yet.\" and \"Browse the shop to place your first order.\" with a \"Browse the shop\" button.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-059",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "Cancel an unpaid order",
+    "preconditions": "A pending order with no payment proof, placed by this student.",
+    "steps": [
+      "1. Open Store, My orders.",
+      "2. Find the pending order.",
+      "3. Tap \"Cancel Order\".",
+      "4. Read the window \"Cancel this order?\" and confirm with \"Cancel Order\".",
+      "5. Read the order card again."
+    ],
+    "expected": "The order shows Cancelled with a message such as \"This order was cancelled and its stock was returned.\" The Cancel button is not offered when payment proof was already sent.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-060",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "Send GCash proof later from My orders",
+    "preconditions": "The Admin uploaded a GCash QR code. A pending cash reservation by this student.",
+    "steps": [
+      "1. Open Store, My orders.",
+      "2. On the pending order tap \"Submit GCash Proof\".",
+      "3. Without filling anything tap the submit button of the window \"Submit GCash Payment\".",
+      "4. Read the message.",
+      "5. Type a 13-digit reference, choose a picture and submit."
+    ],
+    "expected": "Step 4: \"Enter the 13-digit GCash reference and attach the payment proof.\" After a good submission the order says \"Payment proof submitted and awaiting officer verification.\" and the button changes to \"Replace Proof\". A message says the proof was submitted for verification.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-061",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "Claim token appears only after payment is verified and approved",
+    "preconditions": "Sequence: Student 2300312 has a pending order. Officer 900004 verifies the payment (Store, Orders). Then Admin 900001 approves it.",
+    "steps": [
+      "1. As the student open Store, My orders and note the order stage.",
+      "2. The officer verifies the payment.",
+      "3. Reload My orders as the student.",
+      "4. Look for a claim code on the order.",
+      "5. The Admin approves the payment.",
+      "6. Reload My orders and look at the order again."
+    ],
+    "expected": "After the officer step the order says \"Payment verified: waiting for Admin approval\" and shows NO claim code. After the Admin approves, the order is Paid, shows a 16-character claim token and the text \"Payment confirmed! Show your token again to collect your item.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-062",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "Order shows Claimed after the officer releases it",
+    "preconditions": "Sequence: the order is Paid with a token. Officer 900004 opens Store, Claim desk and validates the token.",
+    "steps": [
+      "1. As the student, write down the token on the order.",
+      "2. The officer enters the token in the Claim desk and confirms the release.",
+      "3. Reload My orders as the student.",
+      "4. Read the order card.",
+      "5. The officer tries the same token again."
+    ],
+    "expected": "The order shows CLAIMED and \"Item successfully claimed on <date>.\" The officer's second try is refused with \"This token has already been used.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-063",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "Student cannot open the Claim desk, Inventory or Orders pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/merchandise/claim-tokens and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/merchandise/manage-orders and press Enter.",
+      "4. Check the page.",
+      "5. Type the site address followed by /dashboard/merchandise/manage-inventory and press Enter.",
+      "6. Check the page."
+    ],
+    "expected": "The Claim desk address sends the student to My orders (/dashboard/merchandise/my-orders). The other two addresses send the student to the student home. No staff screen and no 403 page appears.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-064",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Shop and checkout on a phone",
+    "preconditions": "A phone (or browser about 390 pixels wide). Student 2300312. An item in stock.",
+    "steps": [
+      "1. Open the menu, tap \"Store\", then \"Shop\".",
+      "2. Scroll the product cards and tap \"Add to Cart\" on one.",
+      "3. Tap the cart icon in the top bar and check the panel width.",
+      "4. Open the cart and tap \"Review & Continue\".",
+      "5. Scroll the checkout window to the bottom and find \"Place Reservation\"."
+    ],
+    "expected": "Product cards stack in one column. The cart panel fits the screen with a margin on both sides. The checkout window scrolls and its buttons are large enough to tap. The page does not move sideways.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-065",
+    "role": "Student",
+    "module": "Store > My orders",
+    "title": "Order cards and claim token are readable on a phone",
+    "preconditions": "A phone. A student with a Paid order that has a token.",
+    "steps": [
+      "1. Open Store, My orders on the phone.",
+      "2. Find the Paid order.",
+      "3. Read the claim token and the stage line.",
+      "4. Try to drag the page sideways."
+    ],
+    "expected": "The token (16 letters and numbers) is fully visible and not cut off. The card text wraps. The page does not scroll sideways.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-066",
+    "role": "Student",
+    "module": "My payments > Statement of account",
+    "title": "See what I owe: balance and clearance without scrolling",
+    "preconditions": "Sequence: Student 2200055 owes money (the Admin has issued an invoice, for example \"Organization fee\" of 500.00 from Finance, Student accounts). Laptop browser.",
+    "steps": [
+      "1. Sign in as Student 2200055.",
+      "2. Open My payments, then Statement of account.",
+      "3. Without scrolling, find \"Outstanding balance\".",
+      "4. Without scrolling, find \"Clearance\" and its badge.",
+      "5. Read the invoice table below."
+    ],
+    "expected": "Within 2 clicks from the home page, \"Outstanding balance\" shows the amount (for example 500.00) with a line such as \"1 unpaid invoice\", and \"Clearance\" shows \"On hold\" with a reason like \"You owe ...\". The table shows Description, Reference, Due date, Status, Amount due, Paid and Balance.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-067",
+    "role": "Student",
+    "module": "My payments > Statement of account",
+    "title": "Statement of account on a phone shows balance and clearance first",
+    "preconditions": "A phone (or browser about 390 pixels wide). Student 2200298 owes money (issue an invoice first if needed).",
+    "steps": [
+      "1. Sign in as Student 2200298 on the phone.",
+      "2. Open the menu, tap \"My payments\", then \"Statement of account\".",
+      "3. Without scrolling, find the balance amount.",
+      "4. Without scrolling, find the clearance status.",
+      "5. Swipe the invoice table sideways if it is wider than the screen."
+    ],
+    "expected": "The balance and the clearance status are visible on the first screen without scrolling. Only the invoice table may swipe sideways inside its own box. The whole page does not move sideways.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-068",
+    "role": "Student",
+    "module": "My payments > Statement of account",
+    "title": "Student who owes nothing is shown as cleared",
+    "preconditions": "A student with no invoices and no reserved orders, for example 2300163. No clearance signature on hold.",
+    "steps": [
+      "1. Sign in as the student.",
+      "2. Open My payments, Statement of account.",
+      "3. Read \"Outstanding balance\" and \"Clearance\".",
+      "4. Read the table."
+    ],
+    "expected": "\"Outstanding balance\" shows 0.00 with \"Nothing owed\". \"Clearance\" shows a green \"Cleared\" badge with \"Nothing owed and no clearance signature is on hold.\" The table says \"No invoices have been issued to you.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-069",
+    "role": "Student",
+    "module": "My payments > Statement of account",
+    "title": "Paying updates the balance",
+    "preconditions": "Sequence: Student 2200055 owes 500.00. Admin 900001 records a payment for this student (Finance, Student accounts).",
+    "steps": [
+      "1. As the student, note the balance on Statement of account.",
+      "2. The Admin records and approves a full payment.",
+      "3. Reload Statement of account as the student.",
+      "4. Open My payments, Receipts."
+    ],
+    "expected": "The balance drops to 0.00 (or by the amount paid), the \"Paid\" column shows the payment, and the clearance moves to Cleared when nothing else is owed. Receipts shows a receipt for the payment. VERIFY: when the receipt appears (after the payment is verified).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-070",
+    "role": "Student",
+    "module": "My payments > Receipts",
+    "title": "Receipts page: empty state and viewing a receipt",
+    "preconditions": "Signed in as a student with no receipts, then one with a receipt (after a verified payment).",
+    "steps": [
+      "1. Open My payments, then Receipts.",
+      "2. Read the page when there is no receipt.",
+      "3. Sign in as a student with a receipt and open Receipts.",
+      "4. Tap \"View Receipt\" on one card.",
+      "5. Look for \"Print receipt\" and, if present, \"Open receipt file\".",
+      "6. Close the window."
+    ],
+    "expected": "No receipts: \"No receipts yet\" and \"A receipt appears here after a payment you made is verified by the organization.\" With a receipt: a card with the description, date, receipt number and amount. The window shows the receipt with \"Close\" and \"Print receipt\".",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-071",
+    "role": "Student",
+    "module": "My payments > Receipts",
+    "title": "Receipts on a phone",
+    "preconditions": "A phone. A student with at least one receipt.",
+    "steps": [
+      "1. Open the menu, tap \"My payments\", then \"Receipts\".",
+      "2. Scroll the cards.",
+      "3. Tap \"View Receipt\" on one card.",
+      "4. Close the window with \"Close\"."
+    ],
+    "expected": "Cards stack in one column. \"View Receipt\" is at least about 44 pixels tall. The receipt window fits the screen and scrolls if long. No sideways scroll.",
+    "priority": "Low",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-072",
+    "role": "Student",
+    "module": "My payments > Statement of account",
+    "title": "Student cannot open finance management pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/finance/financial-ledger and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/finance/student-accounts and press Enter.",
+      "4. Check the page.",
+      "5. Type the site address followed by /dashboard/finance/collections and press Enter, then /dashboard/finance/budget-allocation.",
+      "6. Check the page."
+    ],
+    "expected": "Every address ends on the student home. A student never sees other students' balances, the ledger, collections or budgets. The student sees only their own statement and receipts.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-073",
+    "role": "Student",
+    "module": "Updates > Announcements",
+    "title": "Announcements feed shows published posts",
+    "preconditions": "Sequence: the Admin or an officer posts an announcement for All or for Students and it is published (an officer post needs Admin approval first). Student 2100142.",
+    "steps": [
+      "1. Open Announcements from the menu (under Updates).",
+      "2. Read the first post: organization name, date, title, text and any picture.",
+      "3. Tap \"Like\" on a post.",
+      "4. Tap it again."
+    ],
+    "expected": "The post appears with the organization name (or Student Affairs Office for the SAO). \"Like\" changes to \"Liked\" and the count goes up by one. Tapping again takes the like back and the count goes down by one.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-074",
+    "role": "Student",
+    "module": "Updates > Announcements",
+    "title": "Draft, waiting, scheduled and expired announcements are hidden",
+    "preconditions": "Sequence: the Admin 900001 creates (a) a draft not published, (b) a post scheduled for tomorrow, (c) a post that expired, and an officer 900004 creates (d) a post that still waits for Admin approval. Use clear titles such as \"QA draft\".",
+    "steps": [
+      "1. As the Admin and officer, create the four posts.",
+      "2. As Student 2100142 open Announcements.",
+      "3. Search for \"QA\".",
+      "4. Reload the page and check again."
+    ],
+    "expected": "None of the four posts shows for the student. Only published, approved posts that have started and not expired are visible. Approving or publishing one makes it appear.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-075",
+    "role": "Student",
+    "module": "Updates > Announcements",
+    "title": "Announcements on a phone",
+    "preconditions": "A phone. At least one announcement with a picture.",
+    "steps": [
+      "1. Open the menu and tap \"Announcements\".",
+      "2. Scroll through the posts.",
+      "3. Tap \"Like\" on a post.",
+      "4. Try to drag the page sideways."
+    ],
+    "expected": "The picture fits the screen width. The \"Like\" button is at least about 44 pixels tall and works with one tap. No sideways scroll.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-076",
+    "role": "Student",
+    "module": "Updates > Announcements",
+    "title": "Student cannot open announcement management pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/announcements/manage-announcements and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/announcements/create-announcement and press Enter.",
+      "4. Check the page."
+    ],
+    "expected": "Both addresses end on the student home. No Create announcement form is shown.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-077",
+    "role": "Student",
+    "module": "Top bar > Notifications",
+    "title": "Notifications bell: list, detail and open related record",
+    "preconditions": "The student has at least one notification (for example after a grievance update or a new announcement). Student 2100142.",
+    "steps": [
+      "1. Look at the bell icon in the top bar for a number.",
+      "2. Tap the bell.",
+      "3. Read the panel heading and the list.",
+      "4. Tap one notification.",
+      "5. Tap \"Open related record\" if it is shown."
+    ],
+    "expected": "The panel \"Notifications\" shows an \"N new\" label and the latest 10 notifications, unread ones highlighted. Tapping one shows its full text with \"Back to notifications\". \"Open related record\" takes you to the right student page. With none, the panel says \"No notifications yet\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-078",
+    "role": "Student",
+    "module": "Top bar > Notifications",
+    "title": "Notification panel fits a phone screen",
+    "preconditions": "A phone (or browser about 390 pixels wide). The student has notifications.",
+    "steps": [
+      "1. Tap the bell.",
+      "2. Check the panel edges against the screen edges.",
+      "3. Scroll inside the panel.",
+      "4. Tap a notification, then \"Back to notifications\".",
+      "5. Tap outside the panel or the bell again."
+    ],
+    "expected": "The panel fits between the screen edges with a small margin and scrolls inside itself. Rows are large enough to tap. Tapping the bell again closes it.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-079",
+    "role": "Student",
+    "module": "Support > My grievances",
+    "title": "File a grievance to my organization",
+    "preconditions": "Signed in as Student 2200451 (laptop) or 2300078 (phone). The AI helpers are off on the public copy, so the classification may use simple rules.",
+    "steps": [
+      "1. Open Support, then My grievances.",
+      "2. Check that the tab \"File a grievance\" is open.",
+      "3. Type a short title in \"What's this about?\".",
+      "4. Type a description in \"Tell us what happened\".",
+      "5. Leave \"My organization\" selected under \"Who should this go to?\".",
+      "6. Tap \"File this grievance\"."
+    ],
+    "expected": "A message \"Your grievance was filed. Thank you for speaking up.\" appears and the tab \"My grievances (1)\" opens. The card shows your title, \"Addressed to <organization> · Filed <time>\", the badge Submitted and the line \"Waiting for Admin to review\". Total clicks from the home page: about 4.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-080",
+    "role": "Student",
+    "module": "Support > My grievances",
+    "title": "File a grievance to the Student Affairs Office",
+    "preconditions": "Signed in as a student (for example 2300078).",
+    "steps": [
+      "1. Open Support, My grievances, tab \"File a grievance\".",
+      "2. Fill the title and description.",
+      "3. Under \"Who should this go to?\" choose \"Student Affairs Office\".",
+      "4. Read the text that replaces the anonymous checkbox.",
+      "5. Tap \"File this grievance\"."
+    ],
+    "expected": "The text says that reports filed directly with the Student Affairs Office are handled by SAO staff only and anonymity toward the organization does not apply. After filing, the card says \"Addressed to Student Affairs Office\" and \"Waiting for SAO to review\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-081",
+    "role": "Student",
+    "module": "Support > My grievances",
+    "title": "Track a grievance until the answer arrives",
+    "preconditions": "Sequence: a student filed a grievance to the SAO (previous case). The SAO 990001 opens Reviews, Grievances and moves it to under review, then resolves it with remarks. On the public link ask the SAO player for the run password.",
+    "steps": [
+      "1. As the student, open Support, My grievances and note the stage text.",
+      "2. The SAO marks the grievance under review.",
+      "3. Reload the student page and read the badge and the stage text.",
+      "4. The SAO resolves it and writes remarks.",
+      "5. Reload the student page and read the card.",
+      "6. Tap the bell and read the notification."
+    ],
+    "expected": "After step 3: badge Under review and text \"Under review by SAO\". After step 5: badge Resolved, the stepper is complete and a box \"Response\" shows the SAO remarks. A notification says the grievance is now resolved. The \"Delete\" icon is no longer offered.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-082",
+    "role": "Student",
+    "module": "Support > My grievances",
+    "title": "Delete a grievance only while it is still Submitted",
+    "preconditions": "A student with one grievance in the Submitted state and one that was already reviewed.",
+    "steps": [
+      "1. Open Support, My grievances, tab \"My grievances\".",
+      "2. Find the Submitted grievance and its trash icon.",
+      "3. Tap the trash icon.",
+      "4. Read the window \"Delete this grievance?\" and confirm with \"Delete grievance\".",
+      "5. Look at the reviewed grievance for a trash icon."
+    ],
+    "expected": "The Submitted grievance can be deleted after the confirmation (\"Your grievance was deleted.\"). The reviewed grievance has no trash icon. The window warns that a reviewed grievance cannot be deleted.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-083",
+    "role": "Student",
+    "module": "Support > My grievances",
+    "title": "Grievances on a phone",
+    "preconditions": "A phone (or browser about 390 pixels wide). Student 2300078.",
+    "steps": [
+      "1. Open the menu, tap \"Support\", then \"My grievances\".",
+      "2. Check that both tabs are visible.",
+      "3. Tap the options \"My organization\" and \"Student Affairs Office\".",
+      "4. Type in the \"Tell us what happened\" box and check the toolbar.",
+      "5. Scroll down and tap \"File this grievance\"."
+    ],
+    "expected": "Tabs and the two options are easy to tap. The text box fits the screen. The \"File this grievance\" button is full size and reachable. No sideways scroll.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-084",
+    "role": "Student",
+    "module": "Support > My grievances",
+    "title": "Student cannot open the organization grievance review pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/grievances and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/super-admin/grievances and press Enter.",
+      "4. Check the page."
+    ],
+    "expected": "Both addresses end on the student home. A student can only see their own grievances on My grievances.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-085",
+    "role": "Student",
+    "module": "Support > My clearance",
+    "title": "Clearance checklist with signatures",
+    "preconditions": "Sequence: the SAO has opened a clearance period for the term (Reviews, Clearances). Student 2100142.",
+    "steps": [
+      "1. Open Support, then My clearance.",
+      "2. Read the title of the period, the academic year and the deadline.",
+      "3. Read the progress bar \"Signatures cleared\".",
+      "4. Read each signature row and its badge."
+    ],
+    "expected": "The page shows the period name and year, a stepper \"Clearance signatures\", the count such as \"0 of 4\" and one row per signer (for example Student Affairs Office (SAO), Organization adviser, Organization treasurer, Organization president). Waiting rows say \"Waiting on <who>\". Total clicks from the home page: 2.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-086",
+    "role": "Student",
+    "module": "Support > My clearance",
+    "title": "No clearance period yet",
+    "preconditions": "No clearance period is open (fresh seed). Student 2100142.",
+    "steps": [
+      "1. Open the menu and tap \"Support\".",
+      "2. Tap \"My clearance\".",
+      "3. Read the page."
+    ],
+    "expected": "The page says \"No clearance period yet\" and explains that the Student Affairs Office opens a clearance period each semester. The home page says \"No clearance period\" on the \"My clearance\" line.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-087",
+    "role": "Student",
+    "module": "Support > My clearance",
+    "title": "A signature on hold explains who to see",
+    "preconditions": "Sequence: a signer (officer 900004, Admin 900001 or the SAO) puts this student on hold with a remark, for example \"Unpaid fee\".",
+    "steps": [
+      "1. As the signer, hold the clearance for Student 2200055 with a remark.",
+      "2. As the student, open Support, My clearance.",
+      "3. Read the row with the hold.",
+      "4. Open My payments, Statement of account.",
+      "5. Read the Clearance box."
+    ],
+    "expected": "The row shows an On hold badge, the remark and \"Please see <the Student Affairs Office or your organization's ...>.\". The Statement of account page also shows \"On hold\" with the same reason. Home says \"On hold: see My clearance\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-088",
+    "role": "Student",
+    "module": "Support > My clearance",
+    "title": "My clearance on a phone",
+    "preconditions": "A phone. A student with an open clearance period.",
+    "steps": [
+      "1. Open the menu, tap \"Support\", then \"My clearance\".",
+      "2. Read the signature rows.",
+      "3. Try to drag the page sideways."
+    ],
+    "expected": "Rows wrap neatly with badges and notes. The progress stepper fits the width. No sideways scroll.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-089",
+    "role": "Student",
+    "module": "Support > My clearance",
+    "title": "Student cannot open clearance signing pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/clearances and press Enter.",
+      "2. Check the page.",
+      "3. Type the site address followed by /dashboard/super-admin/clearances and press Enter.",
+      "4. Check the page."
+    ],
+    "expected": "Both addresses end on the student home. A student cannot sign clearances or see other students' clearances.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-090",
+    "role": "Student",
+    "module": "Profile",
+    "title": "Profile page shows my details",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Open Profile at the bottom of the menu (or the account menu, then \"View Profile\").",
+      "2. Read the left card: name, role, School ID, Organization and Email address.",
+      "3. Read the right side sections."
+    ],
+    "expected": "The card shows your full name, \"Student\", School ID 2100142, your organization (PSITS-CCS) and your email. The right side has \"Personal information\", \"Password & security\", \"Notifications\" and \"Your recent activity\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-091",
+    "role": "Student",
+    "module": "Profile",
+    "title": "Edit and save my profile",
+    "preconditions": "Signed in as a spare student such as 2300163.",
+    "steps": [
+      "1. Open Profile.",
+      "2. Check that \"Save profile\" is disabled before you change anything.",
+      "3. Type a mobile number such as 0917 123 4567 in \"Mobile number (optional)\".",
+      "4. Tap \"Save profile\".",
+      "5. Reload the page.",
+      "6. Change the number again and tap \"Discard changes\"."
+    ],
+    "expected": "\"Save profile\" only works after a change. A message \"Profile changes saved.\" appears and the number is still there after reload. \"Discard changes\" puts the saved value back. The home checklist step \"Add your contact number\" is done after a number is saved.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-092",
+    "role": "Student",
+    "module": "Profile",
+    "title": "Change password from Profile",
+    "preconditions": "Signed in as a spare student such as 2300163. Remember to tell the demo owner the new password afterwards.",
+    "steps": [
+      "1. Open Profile and go to \"Password & security\".",
+      "2. Tap \"Update password\" with all boxes empty and read the message.",
+      "3. Fill \"Current password\" correctly, type abc in \"New password\" and \"Confirm new password\", and tap \"Update password\".",
+      "4. Type a good new password in \"New password\" and a different one in \"Confirm new password\", then tap \"Update password\".",
+      "5. Type the same good password in both and tap \"Update password\"."
+    ],
+    "expected": "Step 2: \"Current password, new password, and confirmation are required.\" Step 3: \"New password must be at least 8 characters.\" Step 4: \"New passwords do not match.\" Step 5: \"Password updated. Your other devices were signed out.\" The two helper lines \"At least 8 characters\" and \"New passwords match\" turn green while you type.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-093",
+    "role": "Student",
+    "module": "Profile",
+    "title": "Profile on a phone",
+    "preconditions": "A phone (or browser about 390 pixels wide). Signed in as a spare student.",
+    "steps": [
+      "1. Open the menu and tap \"Profile\".",
+      "2. Scroll from the top card to \"Password & security\".",
+      "3. Tap into \"Current password\" and check that the keyboard does not hide the \"Update password\" button when you scroll.",
+      "4. Try to drag the page sideways."
+    ],
+    "expected": "Everything is in one column. Buttons are full size and reachable. No sideways scroll.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-094",
+    "role": "Student",
+    "module": "Access",
+    "title": "Student cannot open other role home pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/admin and press Enter.",
+      "2. Check the address bar and the page.",
+      "3. Repeat with /dashboard/officer, then /dashboard/department-head, then /dashboard/super-admin.",
+      "4. Press the browser Back button once and check the page."
+    ],
+    "expected": "Each time you are sent to the student home and the address bar shows /dashboard/student. You do NOT see a 403 page, a blank page or the other role's home. Back does not open a staff page either.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-095",
+    "role": "Student",
+    "module": "Access",
+    "title": "Student cannot open member, approval and audit pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/admin/users and press Enter.",
+      "2. Check the page.",
+      "3. Type /dashboard/admin/positions, then /dashboard/admin/programs-sections, then /dashboard/audit-logs, one at a time.",
+      "4. Type /dashboard/approvals and then /dashboard/approval-requests/new."
+    ],
+    "expected": "Every address ends on the student home. A student sees no list of members, no officer positions, no audit log and no approval screens.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-096",
+    "role": "Student",
+    "module": "Access",
+    "title": "Student cannot open task, venue and compliance pages",
+    "preconditions": "Signed in as Student 2100142.",
+    "steps": [
+      "1. Type the site address followed by /dashboard/tasks/task-board and press Enter.",
+      "2. Check the page.",
+      "3. Type /dashboard/tasks/assigned-tasks, then /dashboard/venues, then /dashboard/compliance, one at a time.",
+      "4. Type /dashboard/super-admin/compliance and /dashboard/department-head/approvals."
+    ],
+    "expected": "Every address ends on the student home with no error page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-097",
+    "role": "Student",
+    "module": "Access",
+    "title": "Student sees only own organization data",
+    "preconditions": "Fresh seed. Student 2400118 belongs to FES-CTE and Student 2400133 to EIG-COE. Student 2100142 belongs to PSITS-CCS.",
+    "steps": [
+      "1. Sign in as Student 2400118 and open Events, Voting (Vote), Store (Shop) and Announcements.",
+      "2. Write down what you see in each.",
+      "3. Sign in as Student 2100142 and open the same four pages.",
+      "4. Compare the two lists."
+    ],
+    "expected": "Student 2400118 sees only FES-CTE items (events, election, shop products, announcements), not the PSITS-CCS ones such as \"Sports Fest 2024\" or \"HIUSA Tote Bag\", and cannot vote in a PSITS-CCS election. VERIFY: FES-CTE may have little or no data, so empty lists are expected. University announcements from the SAO may be visible to everyone.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-098",
+    "role": "Student",
+    "module": "Access",
+    "title": "Student cannot see another student's orders, balance or receipts",
+    "preconditions": "Student 2200055 owes money and Student 2300312 has an order. Two browsers.",
+    "steps": [
+      "1. Sign in as Student 2300312 and open Store, My orders. Note the order number.",
+      "2. Sign in as Student 2200055 on another browser and open Store, My orders.",
+      "3. Look for the order number of the first student.",
+      "4. Open My payments, Statement of account as Student 2300312 and note the balance."
+    ],
+    "expected": "Student 2200055 never sees the other student's order. Each student sees only their own orders, invoices and receipts.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-099",
+    "role": "Student",
+    "module": "Access",
+    "title": "Pages stay usable on a narrow phone screen",
+    "preconditions": "A phone (or browser about 390 pixels wide). Student 2100142.",
+    "steps": [
+      "1. Open each of these pages in turn: Home, Events, Vote, Shop, My orders, Statement of account, Receipts, Announcements, My clearance, My grievances, Profile.",
+      "2. On each page, try to drag the page sideways.",
+      "3. Write down any page that moves sideways or has text cut off."
+    ],
+    "expected": "No page moves sideways as a whole. Tables may swipe sideways only inside their own box. No text or button is cut off at the edge.",
+    "priority": "High",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-100",
+    "role": "Student",
+    "module": "Access",
+    "title": "Touch targets on a phone are big enough",
+    "preconditions": "A phone. Student 2100142.",
+    "steps": [
+      "1. On the home page, try the buttons in the top bar: menu, \"Go to page\", cart, bell and account.",
+      "2. On Shop, try \"Add to Cart\" and the quantity box.",
+      "3. On My grievances, try the two tabs and the two options under \"Who should this go to?\".",
+      "4. Write down every button you missed or had to tap twice."
+    ],
+    "expected": "Buttons can be tapped on the first try and are about 44 pixels tall or more. Report any smaller button with the page name. VERIFY: the top-left menu button is about 40 pixels.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "STU-101",
+    "role": "Student",
+    "module": "Voting > Vote",
+    "title": "Vote in an election that was built inside the active semester",
+    "preconditions": "Round 2: the SAO has activated a semester. Sequence: Admin 900001 creates an election inside the semester, Department Head 940001 approves it, Admin adds a party list and one candidate for every position, then finalizes the ballot, and voting has opened. Student 2100142 has not voted. The MEMBER_TESTING guide says nobody has tried this path yet.",
+    "steps": [
+      "1. Open Voting, then Vote.",
+      "2. Find the election card. Read the badge and the button.",
+      "3. Tap \"Vote in this election\", then \"Start my ballot\".",
+      "4. On each position tap one candidate and tap \"Next position\". On the last one tap \"Review ballot\".",
+      "5. Tap \"Submit final ballot\" and then \"Confirm and submit\".",
+      "6. Tap \"Back to Vote\" and read the card. Then open Voting, Results."
+    ],
+    "expected": "The card shows an \"Open\" badge and the button \"Vote in this election\". The page \"Ballot submitted\" shows a \"Ballot receipt hash\". The Vote page then shows the election as Voted. Results shows \"Live vote totals\" without any voter names. No message about a closed semester appears. VERIFY: nobody has run this path before. If the card is missing, the button is greyed or the vote is refused, write down the exact words and the time, and report it as Blocked.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after ADM-152, DH-046, ADM-161, ADM-163 and ADM-166"
+  },
+  {
+    "id": "STU-102",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "An event cleared by the Admin, the Department Head and the SAO shows up with a notification",
+    "preconditions": "Round 2: the SAO has activated a semester. Sequence: Admin 900001 proposes an event inside the semester, Department Head 940001 approves it, Admin sends the SAO files and the SAO approves the event. Keep Student 2100142 signed in on a second device or window before the last approval. If the event needs no SAO files, the head's approval is the last one.",
+    "steps": [
+      "1. As the student, open Events and look for the new event title.",
+      "2. The last approver approves the event.",
+      "3. Reload the page. Click the bell at the top.",
+      "4. Click the notification \"Event Approved: <event title>\".",
+      "5. Open Events again and switch to the Calendar view. Find the event on its date."
+    ],
+    "expected": "Before the last approval the event is not in the list. After it, the bell shows one new notification \"Event Approved: <event title>\" with the text \"A new approved event is now available in the activity calendar.\" Clicking it opens the event. The event is in the Events list with the status Approved and in the Calendar view on the right day. The Admin who proposed it does not get this notice. VERIFY: the exact page the notification opens.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)",
+    "depends": "Run after ADM-062 and DH-041 (and after ADM-069 and SAO-059 when SAO files apply)"
+  },
+  {
+    "id": "STU-103",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "A student who already attended cannot register again or cancel",
+    "preconditions": "Student 2100142 registered for an approved event that has not started (see STU-029). Officer 900004 will check this student in on another device. Open the event window on two tabs before the check-in.",
+    "steps": [
+      "1. In tab 1 and tab 2 open the event. Both show \"You are registered\" and a \"Cancel registration\" button.",
+      "2. The officer checks Student 2100142 in (Events and tasks, Check-in).",
+      "3. In tab 1 reload the event. Read the status, the message and the buttons.",
+      "4. In tab 2 (not reloaded) click \"Cancel registration\".",
+      "5. Read the red message."
+    ],
+    "expected": "After the reload, tab 1 shows the badge Attended, the line \"Your attendance at this event is on record.\" and no \"Register for this event\" and no \"Cancel registration\" button. In tab 2 the click is refused with a red message such as \"You have already attended this event and cannot cancel your registration.\" The student stays Attended. The message \"You have already attended this event.\" belongs to a second Register request and can only be seen by a technical teammate sending it. VERIFY: the exact wording shown on the screen.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time",
+    "depends": "Run after STU-029 and SBO-018"
+  },
+  {
+    "id": "STU-104",
+    "role": "Student",
+    "module": "Events > Events",
+    "title": "My attendance summary lists the check-ins the officer recorded",
+    "preconditions": "Student 2100142 has been checked in to at least one event as Present and, if possible, one as Late (officer 900004 can choose the status). The code puts the \"My attendance\" panel on the Check-in tab, and the router only lets Admin and Officer open that page.",
+    "steps": [
+      "1. Open Events from the menu.",
+      "2. Look for a panel called \"My attendance\" on the page.",
+      "3. If you cannot find it, try the page address /dashboard/events/check-in and note where it sends you.",
+      "4. If you found it, read the tiles \"Events attended\", \"Missed events\" and \"Attendance rate\".",
+      "5. Read each record: event name, date and the status badge."
+    ],
+    "expected": "Expected by design: a panel \"My attendance\" with the text \"Based on recorded attendance only. Excused records are excluded from the rate.\" Tiles show Events attended (Present plus Late), Missed events (Absent) and Attendance rate. Each record shows a badge Present, Late, Excused or Absent. A student who never got checked in does not get a record here: that student sees the badge No-show on the event window instead. VERIFY: a student probably cannot reach this panel at all, because the Check-in address is limited to Admin and Officer. If it cannot be found anywhere on the student pages, report it as Blocked (\"My attendance panel not reachable for students\").",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after STU-103"
+  },
+  {
+    "id": "STU-105",
+    "role": "Student",
+    "module": "Store > Shop",
+    "title": "Order a product with sizes and see the message when no size is chosen",
+    "preconditions": "Signed in as Student 2100142. The Admin has added a product with sizes, for example \"QA Shirt\" with S and M, each with its own stock (see ADM-176). Use Student 2300312 if 2100142 has orders in the way.",
+    "steps": [
+      "1. Open Store, Shop and find the card of the product with sizes.",
+      "2. Read the box \"Size / variant\". Open it and read the options.",
+      "3. Leave \"Select variant\" and tap \"Add to Cart\". Read the message.",
+      "4. Choose one size, keep quantity 1 and tap \"Add to Cart\".",
+      "5. Open the cart. Read the line of the product.",
+      "6. Tap \"Review & Continue\", keep Cash on pickup and tap \"Place Reservation\".",
+      "7. Open My orders and read the order."
+    ],
+    "expected": "The size list shows each size with its stock, for example \"M, 10 available\", and a size with no stock is greyed out. With no size chosen the screen stops you with \"Select a variant for <product name>.\" and the cart does not change. After you choose a size, a message like \"1 x QA Shirt added to cart.\" appears and the cart line shows the size name before the price. The order is placed and My orders shows the order with the size you chose. The server message \"Select a valid variant for this product.\" only appears if a request skips the screen, so a technical teammate has to send it.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after ADM-176"
+  },
+  {
+    "id": "STU-106",
+    "role": "Student",
+    "module": "Profile",
+    "title": "Mute one kind of notification, trigger it, then turn it back on",
+    "preconditions": "Signed in as Student 2100142. Admin 900001 is ready to publish an announcement on another device. Open the bell first and write down the unread number.",
+    "steps": [
+      "1. Open Profile and find the section \"Notifications\".",
+      "2. Switch \"Announcements\" off. Read the message.",
+      "3. The Admin publishes an announcement (Updates, Announcements, New announcement, Publish Now).",
+      "4. Reload the page. Read the bell number and open the bell.",
+      "5. Open Updates > Announcements and look for the same announcement.",
+      "6. Back in Profile switch \"Announcements\" on again. Reload and open the bell."
+    ],
+    "expected": "Step 2 shows \"Announcements hidden from your notifications\". While it is off, the bell does not show \"New Announcement: <title>\" and the unread number does not go up, but the announcement is still in the Announcements feed. After you switch it on again, the bell shows the notice again (it was only hidden). The four switches are Announcements, Events and reminders, Elections and Merchandise orders. Approvals, tasks, account and payment notices cannot be switched off. VERIFY: that the notice made during the mute shows again after you turn the switch on.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run with ADM-194"
+  },
+  {
+    "id": "STU-107",
+    "role": "Student",
+    "module": "Support > My clearance",
+    "title": "A debt blocks Cleared; paying it and the signatures give Cleared",
+    "preconditions": "The SAO opened a clearance period (SAO-079) and the Admin and Officer already signed for Student 2200055 (ADM-211 and SBO-087). Admin 900001 adds a charge of 150.00 to 2200055 (ADM-133) before step 1. Sign in as Student 2200055.",
+    "steps": [
+      "1. Open My payments, Statement of account.",
+      "2. Read \"Outstanding balance\" and \"Clearance\".",
+      "3. Open Support, My clearance and read \"Signatures cleared\".",
+      "4. The Admin records a full payment on the invoice (Finance, Student accounts, View account, Record payment).",
+      "5. Reload Statement of account and read both boxes again.",
+      "6. The SAO clears its own signature for this student (Reviews, Clearances).",
+      "7. Reload My clearance and Statement of account."
+    ],
+    "expected": "With the debt, \"Outstanding balance\" shows 150.00 and \"1 unpaid invoice\", and \"Clearance\" shows On hold with the text \"You owe 150.00: 1 unpaid invoice.\" It does not show Cleared. After the payment the balance shows 0.00 with \"Nothing owed\" and the Clearance box turns to a green Cleared with \"Nothing owed and no clearance signature is on hold.\" My clearance still says \"2 of 3\" until the SAO signs. After the SAO signs, My clearance says \"Your clearance is complete!\" and Statement of account stays Cleared. VERIFY: Statement of account may show Cleared before the SAO signs, because it only checks debt and held signatures. Write down if this confuses you.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time",
+    "depends": "Run after SAO-079, ADM-211, SBO-087, ADM-133 and ADM-135"
+  },
+  {
+    "id": "STU-108",
+    "role": "Student",
+    "module": "Study objectives",
+    "title": "Study objectives evidence links open pages a student may see",
+    "preconditions": "Signed in as Student 2100142. Some activity exists, so the counts are not all zero.",
+    "steps": [
+      "1. Scroll to the bottom of the menu and tap \"Study objectives\".",
+      "2. Tap an evidence tile with an arrow, for example \"Digital receipts issued\" or \"Events completed\".",
+      "3. Go back and tap a tile with an arrow about votes or orders, for example \"Votes cast\" or \"Orders claimed with a token\".",
+      "4. Go back and tap a tile with no arrow, for example \"Transactions recorded in the ledger\".",
+      "5. Write down each tile and the page it opened."
+    ],
+    "expected": "A tile with an arrow opens a student page: My payments > Receipts, Events, Voting or Results, or My orders. You never land on a \"not allowed\" redirect. A tile with no arrow is plain text and does nothing. Tiles that point to staff pages (\"Check-ins recorded manually\", \"Orders placed\", \"Transactions recorded in the ledger\") have no arrow for a student. VERIFY: the exact tiles with an arrow for a student (from the server route list: Receipts, Events, Elections and Results, Claim tokens).",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time",
+    "depends": ""
+  }
+]

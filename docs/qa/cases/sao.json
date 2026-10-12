@@ -1,0 +1,2214 @@
+[
+  {
+    "id": "SAO-001",
+    "role": "SAO",
+    "module": "Sign in and menu",
+    "title": "SAO signs in and reaches the SAO Dashboard",
+    "preconditions": "SAO account 990001 exists. The SAO password is given to you separately. You are signed out.",
+    "steps": [
+      "1. Open the HIUSA sign in page.",
+      "2. Type 990001 in School ID.",
+      "3. Type the SAO password in Password.",
+      "4. Select Sign in.",
+      "5. Look at the page that opens and at the left menu."
+    ],
+    "expected": "You land on the SAO Dashboard (the address ends with /dashboard/super-admin). The left menu shows Dashboard, then the groups Organizations, Reviews, Updates and Setup and records, and Profile and Study objectives at the bottom. VERIFY: if a Change password screen appears first, set a new password and tell the demo owner, then continue.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-002",
+    "role": "SAO",
+    "module": "Sign in and menu",
+    "title": "Sign in with a wrong password is refused",
+    "preconditions": "SAO account 990001 exists. You are signed out.",
+    "steps": [
+      "1. Open the HIUSA sign in page.",
+      "2. Type 990001 in School ID.",
+      "3. Type a wrong password in Password.",
+      "4. Select Sign in.",
+      "5. Read the message on the screen."
+    ],
+    "expected": "You stay on the sign in page and a red message says the sign in failed. No Dashboard opens. Do this only once or twice: five wrong passwords lock the account for 15 minutes for everyone who shares it. VERIFY: the exact wording of the message.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-003",
+    "role": "SAO",
+    "module": "Sign in and menu",
+    "title": "The SAO menu shows the right groups and pages and nothing from other roles",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Look at the left menu from top to bottom.",
+      "2. Select the group name Organizations and read the items under it.",
+      "3. Select the group name Reviews and read the items under it.",
+      "4. Select the group name Updates and read the items under it.",
+      "5. Select the group name Setup and records and read the items under it.",
+      "6. Look for any menu item named Approvals, Finance, Events, Voting or Store."
+    ],
+    "expected": "The menu reads: Dashboard; Organizations (Agency overview, Registrations and organizations, Administrators, Colleges); Reviews (Compliance, Venues, Grievances, Clearances); Updates (University announcements, Notifications); Setup and records (Academic years, Audit trail); then Profile and Study objectives. Selecting a group opens its first page. The page you are on is highlighted. There is no Approvals, Finance, Events, Voting or Store item.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-004",
+    "role": "SAO",
+    "module": "Sign in and menu",
+    "title": "On a phone the menu opens from the Open menu button",
+    "preconditions": "Signed in as SAO 990001. Use a phone or a browser window narrower than 768 pixels.",
+    "steps": [
+      "1. Look at the top left of the screen for the Open menu button and select it.",
+      "2. Select the group Reviews.",
+      "3. Select Grievances.",
+      "4. Read the page title.",
+      "5. Open the menu again and select Dashboard."
+    ],
+    "expected": "The menu slides in over the page. Choosing Grievances opens the Grievances page with its title. Choosing Dashboard returns to the Dashboard. The page does not scroll sideways. VERIFY: the menu closes by itself after you choose a page.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-005",
+    "role": "SAO",
+    "module": "Sign in and menu",
+    "title": "Log out asks for confirmation and ends the session",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select your name button at the top right (Account menu).",
+      "2. Select Logout.",
+      "3. Read the Log Out box, then select Cancel.",
+      "4. Select Account menu and Logout again.",
+      "5. Select Log Out in the box.",
+      "6. Press the browser Back button."
+    ],
+    "expected": "The box titled Log Out says \"You will need to sign in again to access your dashboard.\" Cancel keeps you signed in. Log Out takes you to the sign in page. Pressing Back does not show SAO data; you are asked to sign in. VERIFY: what Back shows.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-006",
+    "role": "SAO",
+    "module": "Access control",
+    "title": "The SAO is sent home when it opens pages that belong to other roles",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Click the address bar and replace the end of the address with /dashboard/admin, then press Enter.",
+      "2. Note which page opens.",
+      "3. Replace the address end with /dashboard/department-head/approvals and press Enter.",
+      "4. Replace the address end with /dashboard/finance/budget-allocation and press Enter.",
+      "5. Replace the address end with /dashboard/events/manage-events and press Enter."
+    ],
+    "expected": "Every time the SAO is sent back to the SAO Dashboard. No page of another role is shown and no error page appears.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-007",
+    "role": "SAO",
+    "module": "Access control",
+    "title": "Old SAO addresses forward to the Compliance tabs",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Replace the address end with /dashboard/super-admin/approvals and press Enter.",
+      "2. Note the page and the selected tab.",
+      "3. Replace the address end with /dashboard/super-admin/financial-reports and press Enter.",
+      "4. Replace the address end with /dashboard/super-admin/event-requirements and press Enter.",
+      "5. Note the page and the selected tab."
+    ],
+    "expected": "The first two addresses open Reviews > Compliance with the Financial reports tab selected (address ends with ?tab=financial). The third opens Compliance with the Event requirements tab selected (?tab=events).",
+    "priority": "Low",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-008",
+    "role": "SAO",
+    "module": "Access control",
+    "title": "A visitor who is not signed in cannot open SAO pages",
+    "preconditions": "You are signed out (log out first if needed).",
+    "steps": [
+      "1. Open the HIUSA address followed by /dashboard/super-admin.",
+      "2. Note which page opens.",
+      "3. Open the address followed by /dashboard/super-admin/admins.",
+      "4. Note which page opens."
+    ],
+    "expected": "Both addresses show the sign in page. No SAO data is visible.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-009",
+    "role": "SAO",
+    "module": "Access control",
+    "title": "Admin, Department Head and Student cannot open SAO pages",
+    "preconditions": "Accounts: Admin 900001, Department Head 940001, Student 2100142. Passwords are given separately.",
+    "steps": [
+      "1. Sign in as Admin 900001.",
+      "2. Replace the address end with /dashboard/super-admin/admins and press Enter, then note the page.",
+      "3. Log out. Sign in as Department Head 940001.",
+      "4. Replace the address end with /dashboard/super-admin/organizations and press Enter, then note the page.",
+      "5. Log out. Sign in as Student 2100142.",
+      "6. Replace the address end with /dashboard/super-admin/audit-logs and press Enter, then note the page."
+    ],
+    "expected": "Each person is sent back to their own home page (Admin dashboard, Department Head dashboard, Student dashboard). None of them sees an SAO page or SAO data.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-010",
+    "role": "SAO",
+    "module": "Access control",
+    "title": "The SAO has no way to create an organization or a college",
+    "preconditions": "Signed in as SAO 990001. The server also answers \"405 Method Not Allowed\" to any request that tries to create one; automated tests pin that.",
+    "steps": [
+      "1. Open Organizations > Registrations and organizations and look at all four tabs for a New, Create, Add or Register button.",
+      "2. Open Organizations > Agency overview and look for the same buttons.",
+      "3. Open Organizations > Colleges and look for a New, Add, Create, Edit or Delete college button.",
+      "4. Count the college cards.",
+      "5. Read the buttons on one college card."
+    ],
+    "expected": "There is no button to create an organization or a college anywhere. Organizations only offer Review, Open, Provision administrator, Restore and the actions menu (Edit organization, Add existing user, Manage user profiles, Archive organization). A college card only offers Manage, Assign Department Head, View organizations and Upload logo. A fresh seed shows 5 college cards. Department Heads register organizations.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-011",
+    "role": "SAO",
+    "module": "Dashboard",
+    "title": "The Dashboard Review inbox lists what waits for the SAO",
+    "preconditions": "Signed in as SAO 990001. At least one registration or compliance submission is waiting (a Department Head 940001 has registered an organization, see Academic years first: A semester must be active first (Setup and records > Academic years, Set as active).).",
+    "steps": [
+      "1. Open Dashboard from the menu.",
+      "2. Find the card titled Review inbox.",
+      "3. Read each line and its number.",
+      "4. Select the line Registrations awaiting review.",
+      "5. Read the page that opens."
+    ],
+    "expected": "Review inbox lists the queues that have work, for example Registrations awaiting review, Compliance submissions awaiting review, Financial reports to approve, Event files to approve and Venue bookings awaiting review, each with a count and a link. Registrations awaiting review opens Organizations > Registrations and organizations on the Pending review tab. VERIFY: whether a queue with zero items is hidden or shown as 0.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-012",
+    "role": "SAO",
+    "module": "Dashboard",
+    "title": "The University operations numbers and the Organization filter agree with the real data",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Dashboard and find the card University operations.",
+      "2. Read the five numbers: Registered organizations, Active organizations, Inactive organizations, Financial reports to review, Unread Notifications.",
+      "3. Open Organizations > Agency overview and compare the Organizations and Pending reviews tiles.",
+      "4. Return to Dashboard and open the Organization filter at the top right.",
+      "5. Choose one organization from the list.",
+      "6. Read the numbers again, then choose All organizations."
+    ],
+    "expected": "The numbers match the Agency overview. Filter options read \"All organizations\" and then \"ACRONYM: Name\" for each organization. After choosing one organization the numbers describe only that organization (Registered organizations shows 1). Choosing All organizations restores the totals.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-013",
+    "role": "SAO",
+    "module": "Dashboard",
+    "title": "The SAO actions panel and Recent notifications lead to the right pages",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. On the Dashboard find the panel SAO actions.",
+      "2. Select Registrations and organizations, read the page, then go back.",
+      "3. Do the same for Administrators, Colleges and Department Heads, Compliance and financial reports, University announcements and Notifications.",
+      "4. Scroll to Recent notifications and read it.",
+      "5. Select View all."
+    ],
+    "expected": "The six links open Registrations and organizations, Administrators, Colleges, Compliance, University announcements and Notifications. Recent notifications shows titles and messages, or the sentence \"No new notifications. Organization notices will appear here when they need your attention.\" View all opens the Notifications page.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-014",
+    "role": "SAO",
+    "module": "Organizations > Agency overview",
+    "title": "The four tiles show totals and open the matching lists",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Organizations > Agency overview.",
+      "2. Read the tiles: Pending reviews, Organizations, Colleges, Archived.",
+      "3. Select Pending reviews, read the page, go back.",
+      "4. Select Organizations, read the page, go back.",
+      "5. Select Colleges, read the page, go back.",
+      "6. Select Archived and read the page."
+    ],
+    "expected": "Pending reviews opens Registrations and organizations on the Pending review tab. Organizations opens the Active tab. Colleges opens the Colleges page. Archived opens the Archived tab. The numbers on the tiles match the tab counts.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-015",
+    "role": "SAO",
+    "module": "Organizations > Agency overview",
+    "title": "Colleges with work to do come first and each college summarises its organizations",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active). Department Head 940001 has registered a new organization that is still Pending review.",
+    "steps": [
+      "1. Open Organizations > Agency overview.",
+      "2. Read the summary line of each college header.",
+      "3. Check which college is listed first.",
+      "4. Select the arrow button on a college header to close it, then open it again.",
+      "5. Find the pending organization inside its college."
+    ],
+    "expected": "Each college header reads like \"1 organization · 1 pending · 0 active · 0 returned · 0 archived\" (plus \"n awaiting administrator\" when an approved organization has no administrator). Colleges that need review are listed first and start open; quiet colleges come later. Inside a college the pending registration sits above organizations with \"Nothing waiting\". The arrow button opens and closes the list.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-016",
+    "role": "SAO",
+    "module": "Organizations > Agency overview",
+    "title": "Each organization row offers only the actions that fit its status",
+    "preconditions": "Signed in as SAO 990001. One Pending, one Active organization with no administrator, and one Archived organization exist (use the registration journey to create them).",
+    "steps": [
+      "1. Open Organizations > Agency overview and find a Pending row.",
+      "2. Select Review on it, read the drawer, then close it.",
+      "3. Find an Active row with no administrator and select Provision administrator.",
+      "4. Go back and select Open on any row.",
+      "5. Find an Archived row and read its badge."
+    ],
+    "expected": "Review appears only on Pending rows and opens the Review registration drawer. Provision administrator appears only on Active rows with no administrator and opens the Create administrator form for that organization. Open appears on every row and shows the Organization overview. The column Needs attention reads \"Nothing waiting\" or for example \"1 approval, 2 documents\". Archived rows show the badge \"Archived, read only\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-017",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "The four tabs show counts and open on the right default",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Organizations > Registrations and organizations.",
+      "2. Read the four tab names and the number in brackets on each.",
+      "3. Select each tab in turn.",
+      "4. Read one card: name, code, college, status badge, members and admins.",
+      "5. Look at the address bar after each tab."
+    ],
+    "expected": "Tabs read Pending review (n), Active (n), Returned (n) and Archived (n). The page opens on the first tab that has items in the order Pending, Returned, Active, Archived. The address shows ?status=pending, active, returned or archived. Cards are grouped under a college heading. A card shows the name, \"ACRONYM · College\", a status badge, and \"N members · N admins\". Pending cards also show \"Submitted <date>\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-018",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Search narrows the list and each tab has its own empty message",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. On the Active tab type PSITS in Search organizations.",
+      "2. Clear it and type the name of a college, for example Business.",
+      "3. Clear it and type zzzz.",
+      "4. Read the empty message, then clear the search.",
+      "5. Open a tab that has no items (Pending review, Returned or Archived) and read its message."
+    ],
+    "expected": "The placeholder reads \"Name, code, or college\". After a short pause the list shows only matching organizations (name, code or college). Searching zzzz shows \"No active student organizations match this view.\" with \"Try a different search term.\" Empty tabs say: Pending \"No organizations are waiting for review.\"; Returned \"No organizations are returned to their Department Head.\"; Archived \"No archived organizations.\" each with a short hint line.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-019",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "The Review registration drawer shows the registration and its ten documents",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active). Department Head 940001 has registered an organization with all ten files.",
+    "steps": [
+      "1. Open the Pending review tab.",
+      "2. Select Review on the new organization.",
+      "3. Read the drawer titled Review registration.",
+      "4. Scroll to Registration documents.",
+      "5. Select Open on the first document."
+    ],
+    "expected": "The drawer shows the registration steps, Organization (name and code), College, Description, Submitted date and Submitted by. Registration documents lists 10 files, each with an Open button; Open shows the PDF in a new tab. The footer has Return and Approve, and a box Remarks (required to return). Approve stays greyed out while the details load.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-020",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Return without remarks is refused",
+    "preconditions": "Signed in as SAO 990001. A Pending registration exists.",
+    "steps": [
+      "1. Open Review on a pending organization.",
+      "2. Leave Remarks empty.",
+      "3. Select Return.",
+      "4. Read the message under the Remarks box.",
+      "5. Close the drawer and look at the organization."
+    ],
+    "expected": "The message \"Add remarks explaining what the Department Head needs to fix.\" appears under Remarks and nothing is saved. The organization is still in Pending review.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-021",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Return a registration with remarks and the Department Head sees it",
+    "preconditions": "Signed in as SAO 990001. A Pending registration from Department Head 940001 exists.",
+    "steps": [
+      "1. Open Review on the pending organization.",
+      "2. Type \"Missing charter signature\" in Remarks.",
+      "3. Select Return and read the green message.",
+      "4. Open the Returned tab and read the card.",
+      "5. Log out and sign in as Department Head 940001.",
+      "6. Open Organizations and find the row."
+    ],
+    "expected": "The green message reads \"<Organization name> returned to its Department Head.\" The drawer closes and the Pending count goes down by one. On the Returned tab the card shows \"Returned with remarks\" and your text. The Department Head sees the row as Returned with the SAO remarks and the button Edit and resubmit.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-022",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Approve a registration and move on to give it an administrator",
+    "preconditions": "Signed in as SAO 990001. A Pending registration exists.",
+    "steps": [
+      "1. Open Review on the pending organization.",
+      "2. Select Approve and read the green message.",
+      "3. Read the next step shown in the drawer.",
+      "4. Select Provision administrator.",
+      "5. Read the Create administrator form.",
+      "6. Open the Active tab and find the organization."
+    ],
+    "expected": "The message reads \"<Organization name> approved and activated.\" The drawer stays open and says \"Provision an administrator\" with the text that the organization cannot sign in until it has one. Provision administrator opens Organizations > Administrators with the Create administrator form and the organization locked. On the Active tab the card shows Active and \"0 admins\". The Pending count drops by one.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-023",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "A registration that was already decided cannot be decided again",
+    "preconditions": "Signed in as SAO 990001. Two browser windows. A Pending registration exists.",
+    "steps": [
+      "1. In window A and window B, open Review on the same pending organization.",
+      "2. In window A select Approve.",
+      "3. In window B type some remarks and select Return (or select Approve).",
+      "4. Read the red message in window B.",
+      "5. Look at the Pending review tab in window B."
+    ],
+    "expected": "Window B shows the red message \"Only a pending registration can be reviewed.\" The drawer closes and the lists refresh. The organization stays Active; the second decision is not applied.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-024",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Edit an active organization",
+    "preconditions": "Signed in as SAO 990001. Use an organization that is safe to change (not PSITS-CCS), for example one made in the registration journey.",
+    "steps": [
+      "1. Open the Active tab and find the organization card.",
+      "2. Select the actions menu (Organization actions) and choose Edit organization.",
+      "3. Change the Description and pick a new Organization color.",
+      "4. Select Save organization.",
+      "5. Read the green message and the card."
+    ],
+    "expected": "The dialog Edit organization has Organization name, Organization code, Main organization, College (read only), Organization color, Organization logo (optional) and Description. After saving, \"Organization updated.\" appears and the card shows the new description and colour stripe.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-025",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Edit organization refuses empty and duplicate values",
+    "preconditions": "Signed in as SAO 990001. At least two active organizations exist.",
+    "steps": [
+      "1. Open Edit organization on an active organization.",
+      "2. Clear Organization name and select Save organization.",
+      "3. Type the name back. Change Organization code to the code of another organization.",
+      "4. Select Save organization and read the red message.",
+      "5. Set Organization name to the exact name of another organization and save again.",
+      "6. Cancel and look at the card."
+    ],
+    "expected": "An empty name is stopped by the browser (\"Please fill out this field\") and nothing is sent. A duplicate code or name shows a red message such as \"The acronym has already been taken.\" or \"The name has already been taken.\" and the dialog stays open. After Cancel the card is unchanged. VERIFY: exact wording of the duplicate messages.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-026",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Add an existing user to an organization and manage its user profiles",
+    "preconditions": "Signed in as SAO 990001. A user from the same college who belongs to another organization exists (if none, only the empty result can be tested).",
+    "steps": [
+      "1. On the Active tab open the actions menu of an organization and choose Add existing user.",
+      "2. Read the note under the organization name and type a School ID in Search existing users.",
+      "3. Choose the user, pick a Role in destination organization, and select Add user.",
+      "4. Open the actions menu again and choose Manage user profiles.",
+      "5. Search for a School ID. Select Delete profile on a throwaway profile only, then read the confirmation box and cancel."
+    ],
+    "expected": "The note reads \"College: <name>. Only eligible users from this college who are not already members are listed.\" With no match it says \"No eligible users found in this college.\" Roles offered: Student, SBO Officer, Department Head, Admin. A successful add shows \"User added to the organization.\" Manage user profiles lists \"Name · School ID\", \"Organization · role · status\" and \"Primary profile\" or \"Additional profile\". Delete profile asks you to type the School ID to confirm; a profile that cannot be removed shows a reason and its button is greyed. With no match: \"No profiles found in the organizations you manage.\"",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-027",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "Archive an active organization",
+    "preconditions": "Signed in as SAO 990001. Use a throwaway organization (not PSITS-CCS), because its members cannot sign in while it is archived.",
+    "steps": [
+      "1. On the Active tab open the actions menu of the throwaway organization.",
+      "2. Choose Archive organization.",
+      "3. Read the dialog and type a short Reason (optional).",
+      "4. Select Archive organization.",
+      "5. Read the green message.",
+      "6. Open the Archived tab and read the note at the top."
+    ],
+    "expected": "The dialog says \"<Name> becomes read-only and its members can no longer sign in. You can restore it later.\" After confirming, \"<Name> archived.\" appears. The organization leaves the Active tab and shows on the Archived tab with the note \"Archived organizations are read-only. Restore to make changes.\" and the badge \"Archived, read only\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-028",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "An archived organization is read only everywhere until it is restored",
+    "preconditions": "Signed in as SAO 990001. An archived organization with an administrator exists.",
+    "steps": [
+      "1. On the Archived tab read the buttons on the card.",
+      "2. Try to sign in as the organization administrator in another window.",
+      "3. Sign in as Department Head 940001 and look at the row on Organizations.",
+      "4. As SAO select Restore on the card and confirm Restore organization.",
+      "5. Read the green message and the Active tab.",
+      "6. Sign in as the organization administrator again."
+    ],
+    "expected": "The card has only Open and Restore (no Review, Edit or Archive). The administrator cannot sign in and sees a clear message (VERIFY wording). The Department Head sees the row as Archived, Read only, with only View checklist. After restoring, \"<Name> restored.\" appears, the organization is back on Active, and the administrator can sign in.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-029",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations",
+    "title": "On a phone the organization lists turn into cards and nothing is cut off",
+    "preconditions": "Signed in as SAO 990001. Use a phone or a window narrower than 768 pixels.",
+    "steps": [
+      "1. Open Organizations > Agency overview.",
+      "2. Scroll to a college and read a row.",
+      "3. Open Registrations and organizations and open Review on a card.",
+      "4. Scroll the drawer to the bottom buttons.",
+      "5. Open Reviews > Compliance and read the Accreditation tab."
+    ],
+    "expected": "Rows appear as readable cards, every button is large enough to tap, the Return and Approve buttons are reachable at the bottom of the drawer, and the page never scrolls sideways.",
+    "priority": "Medium",
+    "device": "Phone",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-030",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations > Open (Organization overview)",
+    "title": "The overview page shows one organization at a glance",
+    "preconditions": "Signed in as SAO 990001. Use PSITS-CCS.",
+    "steps": [
+      "1. Open Organizations > Agency overview and select Open on PSITS-CCS.",
+      "2. Read the heading, status and the registration steps.",
+      "3. Scroll through Leadership, Members by role, Events, Approved budgets, Compliance and Pending approvals.",
+      "4. Select Open the review queue, then go back.",
+      "5. Select Open on a document in Latest documents.",
+      "6. Select View all documents and then Back to agency overview."
+    ],
+    "expected": "The page shows the name, \"ACRONYM · College\", a status badge and steps Registered, SAO review, Administrator, First use. Leadership lists people with positions and status. Members by role shows Students, SBO officers, Admins and Total. Events shows Upcoming and Recent (\"None.\" when empty). Approved budgets shows Allocated, Spent, Income, Remaining and \"N approved budgets. Only approved budgets are counted.\" Compliance shows the accreditation badge and Documents awaiting review. Pending approvals says how many requests wait. Open the review queue opens Compliance, Review queue tab; View all documents opens the Track documents tab; a document opens in a new tab; with none: \"No documents have been submitted.\"",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-031",
+    "role": "SAO",
+    "module": "Organizations > Registrations and organizations > Open (Organization overview)",
+    "title": "An organization that does not exist shows an error with a way back",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Replace the address end with /dashboard/super-admin/organizations/999999 and press Enter.",
+      "2. Read the message.",
+      "3. Select Back to agency overview."
+    ],
+    "expected": "The page shows \"Organization unavailable\" with an error description and a Retry button. The link Back to agency overview returns to the Agency overview. VERIFY: description wording.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-032",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "The administrator list and its three summary tiles",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Organizations > Administrators.",
+      "2. Read the three tiles: Total Admins, Active Accounts, Organizations Covered.",
+      "3. Read the table columns and one row.",
+      "4. Look for the grey group headings between rows.",
+      "5. Find School IDs 900001, 920011, 990002 and 990032 in the table."
+    ],
+    "expected": "Tiles show counts. The table columns are Administrator (name, then \"email · School ID\"), Organization (the code), Position (\"Organization Admin\" when none is set), Status and Action (a menu). Group headings read \"Main organizations\" and \"Sub organizations\". The seeded Admins and Advisers appear as active.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-033",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Search and filter the administrator list",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Type 920011 in the search box (placeholder \"Search name, School ID, email, or position\").",
+      "2. Clear it. Choose one organization in \"Filter by organization\".",
+      "3. Set \"Filter by account status\" to Inactive.",
+      "4. Read the result.",
+      "5. Set the status back to All statuses and choose All organizations."
+    ],
+    "expected": "Each filter narrows the table. When nothing matches the table is replaced by \"No administrator accounts match this view.\" with \"Change the filters or create a new Admin user.\" Clearing the filters brings the rows back. Status options are All statuses, Active, Inactive and Disabled.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-034",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Create an administrator who must change the password at first sign in",
+    "preconditions": "Signed in as SAO 990001. An Active organization exists (for example one just approved).",
+    "steps": [
+      "1. Select New Admin User.",
+      "2. Fill School ID (an unused number up to 8 digits, for example 9100123), First name, Last name and a new Email address.",
+      "3. Optionally fill Contact number and Position title (for example President).",
+      "4. Choose the Assigned organization.",
+      "5. Type the same Password and Confirm password (8 or more characters).",
+      "6. Select Create Admin User.",
+      "7. Read the green message and find the new row.",
+      "8. Sign in as the new administrator."
+    ],
+    "expected": "The dialog closes and the green message reads \"New Admin user created with the password set by SAO.\" The new administrator appears with status active. A box says \"Done: <name> can sign in\" with the button Open organization. The new administrator signs in with that password and must choose a new one before anything else opens, then reaches the Admin dashboard.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-035",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "The create form refuses missing, mismatched and bad values",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select New Admin User and select Create Admin User with an empty form.",
+      "2. Fill every required field but type a different Confirm password. Select Create Admin User.",
+      "3. Make the passwords match but only 5 characters long and select Create Admin User.",
+      "4. Type abc (no @) in Email address and select Create Admin User.",
+      "5. Type 0 in School ID, then 100000000, and select Create Admin User each time.",
+      "6. Use an existing School ID such as 900001 and select Create Admin User.",
+      "7. Use a new School ID but an existing email and select Create Admin User."
+    ],
+    "expected": "The browser stops an empty form and highlights the first empty field. Different passwords show the red message \"Password confirmation does not match.\" A 5 character password, an email without @ and a School ID outside 1 to 99999999 are stopped by the browser. An existing School ID or email shows a red message such as \"The school id has already been taken.\" or \"The email has already been taken.\" (VERIFY wording). The dialog stays open and no account is created.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-036",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Only active organizations can be chosen, and a provisioning link locks the choice",
+    "preconditions": "Signed in as SAO 990001. A Pending organization and an Active organization with no administrator exist.",
+    "steps": [
+      "1. Select New Admin User and open the Assigned organization list.",
+      "2. Check that Pending, Returned and Archived organizations are not listed.",
+      "3. Close the form. On Registrations and organizations select Provision administrator on the Active organization.",
+      "4. Check the Assigned organization field and the text under it.",
+      "5. Replace the address with /dashboard/super-admin/admins?organization=<id of the Pending organization>&create=1 and press Enter.",
+      "6. Read the red message."
+    ],
+    "expected": "The list offers only active organizations as \"ACRONYM: Name\". With Provision administrator the field is greyed and says \"Locked to the organization you are provisioning.\" For a pending organization the page says \"<Name> is not active yet. Approve its registration before assigning an administrator.\" and no form opens.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-037",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Edit an administrator",
+    "preconditions": "Signed in as SAO 990001. Use Admin 900002 or an administrator you created.",
+    "steps": [
+      "1. Open the Action menu of the row and choose Edit administrator.",
+      "2. Check that School ID cannot be changed and that there is no password field.",
+      "3. Change Position title.",
+      "4. Select Save Changes.",
+      "5. Read the green message and the row."
+    ],
+    "expected": "The dialog is titled Edit Admin User and shows the School ID as plain text. There is no password field (the SAO cannot set an administrator password). After saving, \"Administrator account updated successfully.\" appears and the Position column shows the new title.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-038",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "The last active administrator of an organization cannot be switched off",
+    "preconditions": "Signed in as SAO 990001. Organization NSC-CHS has only one Admin, Adviser 990032.",
+    "steps": [
+      "1. Find School ID 990032 and open Edit administrator.",
+      "2. Set Account status to Disabled.",
+      "3. Select Save Changes and read the red message.",
+      "4. Set Account status back to Active, then choose a different Assigned organization.",
+      "5. Select Save Changes and read the message again."
+    ],
+    "expected": "Both attempts show the red message \"Add another active administrator before transferring or deactivating this organization's last active administrator.\" The account stays active and in its organization.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-039",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Send a password reset link to an administrator",
+    "preconditions": "Signed in as SAO 990001. Mail is switched off on the public copy, so no email arrives there.",
+    "steps": [
+      "1. Open the Action menu of an active administrator and choose Reset access.",
+      "2. Read the box titled Initiate password reset.",
+      "3. Select Send reset link.",
+      "4. Read the green message.",
+      "5. Open the Action menu of an inactive administrator and look at Reset access and Hand over role."
+    ],
+    "expected": "The box says a secure reset link will be sent to the administrator's registered email and the current password is not shown. After Send reset link the green message reads \"Password reset instructions were sent to the administrator email address.\" (VERIFY wording; on the public copy the mail is only written to the server log). For an inactive administrator Reset access and Hand over role are greyed out.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-040",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Hand over the administrator role to an existing member",
+    "preconditions": "Signed in as SAO 990001. Use a throwaway organization with an active Admin and a student or officer whose primary organization is the same one.",
+    "steps": [
+      "1. Open the Action menu of the Admin and choose Hand over role.",
+      "2. Read the drawer titled Hand over administrator role.",
+      "3. Type the member name in Find a member and pick the member.",
+      "4. Select Hand over.",
+      "5. Read the message that appears.",
+      "6. Sign in as the successor, then try to sign in as the old Admin."
+    ],
+    "expected": "The drawer explains that the successor takes the position and the old account is deactivated, not deleted. The message reads \"<Successor> now holds <position>\" with \"<Old Admin>'s account is inactive; their records stay in <Organization>'s history.\" The old Admin shows inactive and cannot sign in. The successor now sees the Admin menu.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-041",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Hand over to a new account and the checks on that form",
+    "preconditions": "Signed in as SAO 990001. Use a throwaway organization with an active Admin.",
+    "steps": [
+      "1. Open Hand over role and choose the tab New account.",
+      "2. Check that Hand over is greyed out while fields are empty.",
+      "3. Fill School ID, First name, Last name, Email, Initial password and Confirm password, but type a different confirmation.",
+      "4. Select Hand over and read the red message.",
+      "5. Fix the confirmation. Use an existing School ID and select Hand over.",
+      "6. Use a new School ID and select Hand over.",
+      "7. Switch to Existing member, search for zzzz and read the text."
+    ],
+    "expected": "Hand over stays greyed out until every field except Contact number is filled. A wrong confirmation or an existing School ID shows a red message in the drawer (VERIFY wording) and nothing changes. A valid form hands the role over and the new account must change its password at first sign in. The member search with no match says \"No matching members. Check the spelling, or create a new account for the successor.\"",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-042",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Delete an administrator account",
+    "preconditions": "Signed in as SAO 990001. Use an administrator you created with no records.",
+    "steps": [
+      "1. Open the Action menu of that administrator and choose Delete administrator.",
+      "2. Read the box.",
+      "3. Select Cancel and check the row is still there.",
+      "4. Repeat and select Delete administrator.",
+      "5. Read the green message.",
+      "6. Try the same on an administrator with records such as 900001 and read the result."
+    ],
+    "expected": "The box says \"This removes the administrator profile. Accounts with linked records cannot be deleted.\" Cancel keeps the row. A confirmed delete shows \"Administrator account removed.\" and the row disappears. An administrator with linked records is refused with a red message (VERIFY wording) and stays in the list.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-043",
+    "role": "SAO",
+    "module": "Organizations > Administrators",
+    "title": "Administrators of an archived organization cannot be changed",
+    "preconditions": "Signed in as SAO 990001. An archived organization that still has an administrator exists.",
+    "steps": [
+      "1. On Administrators find the administrator of the archived organization.",
+      "2. Open Edit administrator and change Position title.",
+      "3. Select Save Changes and read the red message.",
+      "4. Select New Admin User and open the Assigned organization list."
+    ],
+    "expected": "The save is refused with a red message such as \"Archived organizations are read only.\" (VERIFY wording) and nothing changes. The archived organization is not offered in the Assigned organization list.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-044",
+    "role": "SAO",
+    "module": "Organizations > Colleges",
+    "title": "The college list, its search and the View organizations link",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Organizations > Colleges.",
+      "2. Read one card: name, code, organization count, Department Head and buttons.",
+      "3. Type Computer in Search colleges (placeholder \"College name or code\").",
+      "4. Type zzzz and read the message.",
+      "5. Clear the search and select View organizations on one card."
+    ],
+    "expected": "A fresh seed shows 5 colleges. Each card shows the name, the code, \"N organization(s) · Active\", the Department Head name with a status badge and email, and the buttons Manage, Assign Department Head (only when the head is not active), View organizations and Upload logo. A search with no match shows \"No colleges found\" and \"No colleges match your search.\" View organizations opens the Active tab of Registrations and organizations with the college name already in the search box.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-045",
+    "role": "SAO",
+    "module": "Organizations > Colleges",
+    "title": "Assign a Department Head to a college without an active head",
+    "preconditions": "Signed in as SAO 990001. Use the Engineering college. First open Manage on its head 940005 and choose Deactivate (never deactivate 940001).",
+    "steps": [
+      "1. On the Engineering card select Assign Department Head.",
+      "2. Read the dialog description.",
+      "3. Fill School ID (unused, up to 8 digits), First name, Last name, Email, Password and Confirm password.",
+      "4. Select Assign Department Head.",
+      "5. Read the green message and the card.",
+      "6. Sign in as the new Department Head."
+    ],
+    "expected": "The dialog is titled Assign Department Head and says \"<College>. This account acts on every student organization in the college.\" The green message reads \"<First> <Last> is now the Department Head of <College>.\" The card shows the new head with an Active badge. The new head must set a new password at first sign in. A college with an active head shows only Manage, no Assign button.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-046",
+    "role": "SAO",
+    "module": "Organizations > Colleges",
+    "title": "Assign Department Head refuses missing and bad values",
+    "preconditions": "Signed in as SAO 990001. A college without an active head exists.",
+    "steps": [
+      "1. Open Assign Department Head and select Assign Department Head with every field empty.",
+      "2. Type abc in School ID, then 123456789, and select Assign Department Head.",
+      "3. Type abc in Email and a 5 character Password, and a different Confirm password.",
+      "4. Select Assign Department Head and read every message.",
+      "5. Use the existing School ID 940001 with valid other values and select Assign Department Head."
+    ],
+    "expected": "Messages appear under the fields: \"Enter the School ID.\", \"Enter the first name.\", \"Enter the last name.\", \"Enter the email address.\", \"Enter an initial password.\", \"Enter the password again.\"; \"Use a School ID of up to 8 digits.\"; \"Enter a valid email address.\"; \"Use at least 8 characters.\"; \"The password confirmation does not match.\" The first wrong field gets the cursor. An existing School ID or email is refused by the server under the field (VERIFY wording). Nothing is created.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-047",
+    "role": "SAO",
+    "module": "Organizations > Colleges",
+    "title": "Edit a Department Head and send a password reset",
+    "preconditions": "Signed in as SAO 990001. Use the Business college head 940002 or another head you can change.",
+    "steps": [
+      "1. Select Manage on the card.",
+      "2. Check that Save changes is greyed out and the School ID cannot be edited.",
+      "3. Change the Last name and select Save changes.",
+      "4. Reopen Manage, clear First name and type abc in Email, then select Save changes.",
+      "5. Select Send password reset, then Send reset link.",
+      "6. Read the green message."
+    ],
+    "expected": "The dialog is titled Manage Department Head. Save changes is greyed until something changes. A good change shows \"Department Head details updated.\" and the card shows it. Empty or bad values show \"Enter the first name.\" and \"Enter a valid email address.\" A duplicate email is refused under the field. The reset box is titled Send password reset and ends with \"Password reset instructions were sent to the Department Head email address.\" (VERIFY wording; no mail arrives on the public copy).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-048",
+    "role": "SAO",
+    "module": "Organizations > Colleges",
+    "title": "Deactivate and reactivate a Department Head",
+    "preconditions": "Signed in as SAO 990001. Use Department Head 940005 (Engineering). Do not use 940001.",
+    "steps": [
+      "1. Select Manage on the Engineering card and then Deactivate.",
+      "2. Read the box titled Deactivate Department Head and select Deactivate.",
+      "3. Read the green message and the badge on the card.",
+      "4. In another window try to sign in as 940005.",
+      "5. Select Manage again and check Send password reset.",
+      "6. Select Reactivate and confirm."
+    ],
+    "expected": "The box says they can no longer sign in and any open session ends. The message reads \"<Name> was deactivated and can no longer sign in.\" The badge turns Inactive, the Assign Department Head button appears, and Send password reset is greyed out. The sign in is refused. After Reactivate the message reads \"<Name> was reactivated.\" and the head signs in again.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-049",
+    "role": "SAO",
+    "module": "Organizations > Colleges",
+    "title": "Upload a college logo",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Upload logo on one college card and choose a PNG smaller than 2 MB.",
+      "2. Read the green message and the card.",
+      "3. Select Upload logo again and choose a PDF file.",
+      "4. Read the result.",
+      "5. Select Upload logo again and choose an image larger than 2 MB."
+    ],
+    "expected": "A good image shows \"Logo updated for <College>.\" and the logo appears on the card. A wrong file type or an image over 2 MB shows a red message and the old logo stays. VERIFY: the exact message.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-050",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "The six Compliance tabs open and show their content",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Reviews > Compliance.",
+      "2. Read the six tab names.",
+      "3. Select each tab in turn.",
+      "4. After each tab read the address bar.",
+      "5. Look for an error banner on every tab."
+    ],
+    "expected": "Tabs read Accreditation (opens first), Requirements, Review queue (with a number in brackets when submissions wait), Event requirements, Financial reports, Track documents. The address ends with ?tab=accreditation, requirements, review, events, financial or documents. Each tab shows its own content and no error banner.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-051",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Accreditation tab ranks organizations by what needs attention",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "steps": [
+      "1. Open the Accreditation tab.",
+      "2. Read the card title and the academic year line.",
+      "3. Read the columns for the first rows.",
+      "4. Find a row whose Next action says Review N submission(s) and select it.",
+      "5. Read the Review queue that opens."
+    ],
+    "expected": "The card is \"Organization accreditation\" with \"Academic year 2026-2027\". Columns are Organization, Accreditation (badge Accredited, Pending review, Incomplete or Returned plus progress steps), Requirements met (for example 3/11), Overdue (red when above 0) and Next action (Review N submissions, Awaiting submission, Waiting on the organization, All caught up, or No active requirements). Organizations with overdue items come first. The button opens the Review queue filtered to that organization with Awaiting review selected. With no data the empty text is \"No organizations to track yet\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-052",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Add a requirement and see the checks on the form",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "steps": [
+      "1. Open the Requirements tab and select New requirement.",
+      "2. Select Add requirement with the form empty (clear the Academic year first if it is prefilled).",
+      "3. Read the messages.",
+      "4. Fill Name (for example QA Test Report), Deadline (a future date) and Academic year.",
+      "5. Select Add requirement.",
+      "6. Read the green message and find the row.",
+      "7. Sign in as Admin 900001 and open Records > Compliance."
+    ],
+    "expected": "The empty form shows \"Choose the academic year this requirement applies to.\", \"Set the deadline for organizations.\" and \"Enter a name for this requirement.\" and the cursor goes to the first one. A good form shows \"Requirement added. Every active organization has been notified.\" and the row appears in the Requirement catalog (columns Requirement, Academic year, Deadline, Description). Admin 900001 sees a notification \"New compliance requirement\" and the new requirement in Compliance.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-053",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Edit, switch off and delete a requirement",
+    "preconditions": "Signed in as SAO 990001. Use the QA Test Report requirement from the previous case.",
+    "steps": [
+      "1. On the Requirements tab select Edit on the row, change the Name and select Save changes.",
+      "2. Switch the toggle named \"<name> active\" off and read the box.",
+      "3. Select Mark inactive and read the message.",
+      "4. Switch it on again and read the message.",
+      "5. Select Delete, read the box and select Delete requirement.",
+      "6. Try Delete on a requirement that already has submissions."
+    ],
+    "expected": "Save shows \"Requirement updated.\" The box \"Mark this requirement inactive?\" says organizations will no longer need to submit it; after confirming the message reads \"<name> marked inactive.\" and switching on shows \"<name> marked active.\" with no box. Delete shows \"Delete this requirement?\" and then \"<name> deleted.\" A requirement with submissions is refused with \"This requirement already has submissions. Deactivate it to preserve those records.\" A requirement of a completed semester cannot be edited (\"Completed semester requirements are read only.\" VERIFY).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-054",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Review queue filters, count and empty states",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open the Review queue tab and read the count above the table.",
+      "2. Open \"Filter by status\" and try Awaiting review, Approved, Returned and All statuses.",
+      "3. Open \"Filter by organization\" and choose one organization.",
+      "4. Choose a combination that has no rows and read the message.",
+      "5. Select Clear filters."
+    ],
+    "expected": "The default status is Awaiting review. The count reads \"N submissions\" or \"1 submission\". Columns are Organization, Requirement (with Registration document, Renewal document or Semestral report), Submitted, Submitted by, Status. A filter with no rows shows \"No submissions match these filters\" with \"Try a different status or organization, or clear the filters.\" Clear filters returns to Awaiting review. With nothing at all the page says \"Nothing to review\". The organization list also holds registrations written as \"<Name> (registration)\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-055",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Approve a compliance submission",
+    "preconditions": "Signed in as SAO 990001. Admin 900001 has uploaded one requirement on Records > Compliance (PDF file).",
+    "steps": [
+      "1. Open the Review queue tab and find the submission.",
+      "2. Select the open icon on the row to read the file.",
+      "3. Select the organization name in the row to open the drawer.",
+      "4. Select Approve.",
+      "5. Read the box and select Approve.",
+      "6. Read the message, then open the Accreditation tab."
+    ],
+    "expected": "The file opens in a new tab. The drawer shows the steps and \"Submitted by\". The box \"Approve this submission?\" says the organization will be notified and the document will be locked. The message reads Approved \"<requirement>\" for <organization>. The drawer status becomes Approved and Approve and Return disappear. On Accreditation the Requirements met value for that organization goes up by 1. Admin 900001 sees it as Approved and cannot upload again.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-056",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Return a compliance submission needs remarks",
+    "preconditions": "Signed in as SAO 990001. A submission is waiting in the Review queue.",
+    "steps": [
+      "1. Open the submission drawer and select Return.",
+      "2. Select Return to organization with the Remarks box empty.",
+      "3. Read the message.",
+      "4. Type what must be fixed in Remarks.",
+      "5. Select Return to organization.",
+      "6. Read the message and the drawer."
+    ],
+    "expected": "The box is titled Return this submission (\"A remark is required so the organization knows what to fix.\"). The empty box shows \"Write what the organization needs to correct before returning this submission.\" A good return shows \"Submission returned to the organization with your remarks.\" The status becomes Returned and the drawer shows \"SAO remarks\". Admin 900001 sees the remark and can upload a new file.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-057",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Registration documents are not decided in the Review queue",
+    "preconditions": "Signed in as SAO 990001. A Pending registration exists.",
+    "steps": [
+      "1. Open the Review queue tab.",
+      "2. Set Filter by status to All statuses and choose \"<Organization> (registration)\" in Filter by organization.",
+      "3. Read the Status text of a row.",
+      "4. Check the row for Approve and Return buttons.",
+      "5. Select Open organization review."
+    ],
+    "expected": "Registration documents show the text \"Decided in the organization review\" (or \"Registration returned, waiting for the Department Head\" for a returned one). There are no Approve or Return buttons. Open organization review opens the Review registration drawer in Registrations and organizations. A second SAO window that approves the same submission first causes \"Only a pending submission can be reviewed.\" in the first window (VERIFY).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-058",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Event requirements checklist: add, edit and remove a file requirement",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "steps": [
+      "1. Open the Event requirements tab and read the card Submission checklist.",
+      "2. Select Add requirement with File name empty and read the message.",
+      "3. Type QA sample letter, choose Venue type On campus and select Add requirement.",
+      "4. Select the pencil on the new row, change the name and select Save changes.",
+      "5. Select Remove on the row and read the box.",
+      "6. Select Remove requirement."
+    ],
+    "expected": "The checklist shows rows with \"PDF · On campus · Required\" and the count \"N active\". The empty form shows \"Enter the name of the file organizations must submit.\" Adding shows \"Requirement added.\" Editing shows \"Requirement updated.\" Removing asks \"Remove this requirement?\" and then shows \"Requirement removed.\" A requirement that already has submitted files is refused with a red message and must be marked inactive instead. The option \"Only if applicable\" shows the row as \"If applicable\".",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-059",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Approve an event that waits for the SAO",
+    "preconditions": "Signed in as SAO 990001. Admin 900001 proposed an event and uploaded all required files, and Department Head 940001 approved it first.",
+    "steps": [
+      "1. Open the Event requirements tab and scroll to Events waiting for SAO.",
+      "2. Select View files on the event and read the file list.",
+      "3. Select Hide files.",
+      "4. Select Approve.",
+      "5. Read the box and select Approve event.",
+      "6. Read the message."
+    ],
+    "expected": "The card shows the event title and \"Event #id · requester\". View files lists the uploaded files. The box \"Approve this event?\" says the organization will be notified. The message reads \"Event approved.\" and the row leaves the list. With nothing waiting the card says \"No event submissions are waiting for review.\" Before the Department Head approves, the SAO cannot decide: \"The Department Head must approve this event before the SAO can decide it.\" (VERIFY where it shows).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-060",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Reject an event needs remarks",
+    "preconditions": "Signed in as SAO 990001. An event waits for the SAO as in the previous case.",
+    "steps": [
+      "1. Under Events waiting for SAO select Reject.",
+      "2. Select Reject event with Remarks for rejection empty.",
+      "3. Read the message.",
+      "4. Type why the event is rejected.",
+      "5. Select Reject event.",
+      "6. Read the message."
+    ],
+    "expected": "The box is titled Reject this event. The empty box shows \"Write why this event is rejected so the organization can respond.\" A good rejection shows \"Event rejected.\" and the organization sees the remarks on the event.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-061",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Financial reports tab: search, filters and empty state",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open the Financial reports tab and read the line under the tabs.",
+      "2. Type part of a report title in \"Search report titles\".",
+      "3. Choose an organization, then a Document type, then a Report status.",
+      "4. Read the result count and the filter chips.",
+      "5. Choose filters that match nothing and read the message.",
+      "6. Select Clear."
+    ],
+    "expected": "The tab says \"Reports organizations submitted for SAO review. Decide each one here.\" The Report inbox says only reports that completed Department Head review appear here. Options: Document type (All document types, Financial reports, Income statements); Report status (All statuses, Awaiting SAO review, Approved, Rejected). The count reads \"N financial reports\". Status shows as \"pending sao\", \"approved\" or \"rejected\". No match shows \"No financial reports found.\" Clear restores the list.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-062",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Approve a financial report",
+    "preconditions": "Signed in as SAO 990001. Admin 900001 generated and submitted a financial report and Department Head 940001 approved it first.",
+    "steps": [
+      "1. Open the Financial reports tab and find the report with the amber status.",
+      "2. Select View and read the window.",
+      "3. Select Download PDF.",
+      "4. Select Approve.",
+      "5. Read the box and select Approve report.",
+      "6. Read the message and the row."
+    ],
+    "expected": "The window shows the summary text, Required signatories and Supporting documents (each opens as a file). Download PDF shows \"PDF downloaded.\" The box \"Approve financial report\" asks to confirm the report is ready for final acceptance. The message reads \"Financial report approved.\" and the row shows approved. Admin 900001 sees the report as Approved on Finance > Financial reports.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-063",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Reject a financial report needs a reason",
+    "preconditions": "Signed in as SAO 990001. A financial report is waiting for the SAO.",
+    "steps": [
+      "1. Open the report with View and select Reject.",
+      "2. Look at the Reject report button while Rejection reason is empty.",
+      "3. Type what must be corrected.",
+      "4. Select Reject report.",
+      "5. Read the message and the row."
+    ],
+    "expected": "The box is titled Reject financial report (\"State what the organization must correct before resubmitting.\"). Reject report is greyed out until a reason is typed. The message reads \"Financial report rejected.\" and the row shows rejected. The organization sees the reason.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-064",
+    "role": "SAO",
+    "module": "Reviews > Compliance",
+    "title": "Track documents: find any file an organization submitted",
+    "preconditions": "Signed in as SAO 990001. Organizations have submitted files.",
+    "steps": [
+      "1. Open the Track documents tab.",
+      "2. Type an organization code in Search organizations.",
+      "3. Choose a Semester and a Document type.",
+      "4. Select an organization row to open it.",
+      "5. Select View on a file.",
+      "6. Select Clear filters."
+    ],
+    "expected": "Rows read \"CODE - Name\", the college, \"N files\" and \"Latest <date>\". An open row groups files under Event requirements, Semestral report, Semester renewal, Financial reports, Financial report supporting documents and Registration documents, each with a status badge and, for events, \"With the Department Head\" or \"With the SAO\". View opens the file in a new tab. \"Showing x of y files\" and Load more files appear for long lists. No match shows \"No documents match these filters\". With no files at all: \"No documents submitted yet.\" Lists show 20 organizations per page.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-065",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Venues page has three tabs and a working calendar",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Reviews > Venues.",
+      "2. Read the three tabs: Calendar, Booking requests, Venue catalog.",
+      "3. On the Calendar select Next, then Previous, then Today.",
+      "4. Open \"Venue to show\" and choose one venue.",
+      "5. Switch the calendar view if the page offers a Day, Week or Month choice."
+    ],
+    "expected": "Calendar is selected first. The card says \"Who holds each venue and when. A pending request that overlaps another booking is labelled Conflict.\" Next and Previous move the period, Today comes back, and the Venue to show list narrows the calendar. On a phone the calendar does not scroll sideways. VERIFY: the names of the view buttons.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-066",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Add a venue and see the form checks",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open the Venue catalog tab and select New venue.",
+      "2. Select Add venue with the form empty.",
+      "3. Read the red message.",
+      "4. Type Name QA Hall, Location \"Building A, Ground Floor\" and Capacity -1, then select Add venue.",
+      "5. Change Capacity to 50 and select Add venue.",
+      "6. Read the message and find the row."
+    ],
+    "expected": "The empty form and a negative capacity show \"Complete the name, location, and a valid capacity before saving.\" A good form shows \"Venue added to the catalog.\" and the row appears with Venue, Location, Capacity and an Active status switch. With no venues at all the tab says \"No venues added yet\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-067",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Edit, switch off and delete a venue",
+    "preconditions": "Signed in as SAO 990001. Use the QA Hall venue.",
+    "steps": [
+      "1. On the Venue catalog tab select Edit on QA Hall, change the Capacity and select Save changes.",
+      "2. Select the Active switch of QA Hall.",
+      "3. Read the message.",
+      "4. Select the trash button named \"Delete QA Hall\", read the box and select Cancel.",
+      "5. Select the trash button again and select Delete venue.",
+      "6. Try Delete on a venue that has any booking."
+    ],
+    "expected": "Saving shows \"Venue updated.\" The switch shows \"QA Hall\" marked inactive. and an inactive venue is no longer offered when an organization books (check with Admin 900001, VERIFY). The delete box says it cannot be undone. A confirmed delete shows \"QA Hall\" deleted. A venue with any booking, even a past or declined one, is refused: \"This venue has booking history, so it cannot be deleted. Mark it inactive instead to stop new requests.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-068",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Booking requests queue: default view, filters and empty states",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open the Booking requests tab.",
+      "2. Read the status filter and the count (for example \"2 requests\").",
+      "3. Try each status: Awaiting decision, Approved, Rejected, Withdrawn, All statuses.",
+      "4. Choose one venue in \"Filter by venue\".",
+      "5. Choose filters with no result and read the message, then select Clear filters."
+    ],
+    "expected": "The default is Awaiting decision. Columns are Organization, Venue, Event, Requested time, Status (with a stage line). With nothing waiting the page says \"Nothing to review\" and \"Organization admins and officers request venues from Venue booking. Each request appears here for your decision.\" A filter with no result shows \"No booking requests match these filters\". Clear filters returns to Awaiting decision.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-069",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Approve a booking request and see overlaps first",
+    "preconditions": "Signed in as SAO 990001. Admin 900001 requested a venue on Venue booking.",
+    "steps": [
+      "1. On Booking requests find the pending row.",
+      "2. Select the organization name to open the drawer, then read it.",
+      "3. Select Approve.",
+      "4. Read the box titled Approve this booking?.",
+      "5. Select Approve in the box.",
+      "6. Read the message, then open the Calendar tab."
+    ],
+    "expected": "The drawer shows the booking steps, Organization, Event and Requested time. The box first says \"Checking for overlapping bookings...\" and then \"No overlapping bookings for this venue and time.\" or lists \"Overlaps N other booking(s) for this venue\". The message reads Booking for \"<venue>\" approved., the row leaves Awaiting decision, shows under Approved and appears on the calendar. Admin 900001 sees it approved. Back to back bookings do not overlap.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-070",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Reject a booking request needs remarks",
+    "preconditions": "Signed in as SAO 990001. A booking request is pending.",
+    "steps": [
+      "1. Select Reject on the pending row.",
+      "2. Read the box titled Reject this booking.",
+      "3. Check that Reject booking is greyed out while Remarks is empty.",
+      "4. Type the reason in Remarks.",
+      "5. Select Reject booking.",
+      "6. Read the message."
+    ],
+    "expected": "The box says \"A remark is required so the organization knows why.\" The button is greyed until a reason is typed. The message reads Booking for \"<venue>\" rejected. and the organization sees the remark.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-071",
+    "role": "SAO",
+    "module": "Reviews > Venues",
+    "title": "Two requests for the same time are flagged as a Conflict",
+    "preconditions": "Signed in as SAO 990001. Two organizations (for example Admin 900001 and Admin 920011) each requested the same venue for overlapping times.",
+    "steps": [
+      "1. Open the Booking requests tab.",
+      "2. Look at the Status of both rows.",
+      "3. Approve the first request.",
+      "4. Select Approve on the second request and read the box.",
+      "5. Select Approve in the box.",
+      "6. Read the message."
+    ],
+    "expected": "Both rows carry the label Conflict. The second Approve box warns \"Overlaps 1 other booking for this venue\" and says the server refuses an approval that overlaps an approved booking. The approval is refused with a message such as \"Another booking for this venue was approved for an overlapping time in the meantime.\" (VERIFY wording) and the request stays pending.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-072",
+    "role": "SAO",
+    "module": "Reviews > Grievances",
+    "title": "Grievance tiles and filters",
+    "preconditions": "Signed in as SAO 990001. Some grievances exist (a Student files one on Support > My grievances).",
+    "steps": [
+      "1. Open Reviews > Grievances.",
+      "2. Read the eight tiles: Submitted, Under review, Resolved, Dismissed, Critical, High, Medium, Low.",
+      "3. Select the Submitted tile, then select it again.",
+      "4. Use the four filters: Addressed to, Status, Urgency, Category.",
+      "5. Sort the table by selecting the Urgency and Filed headers.",
+      "6. Select Clear filters."
+    ],
+    "expected": "Selecting a tile highlights it and filters the table; selecting it again clears it. Addressed to offers \"Organization + SAO\", \"Addressed to organizations\" and \"Addressed to SAO\". Category offers Safety & Security, Financial Integrity, Facilities & Maintenance, Academic / Faculty and General. The count reads \"N grievances\". The default order is by urgency, Critical first. No match shows \"No grievances match these filters\"; with no data at all: \"Nothing to review\" with \"Students file grievances from My grievances, addressed to their organization or to the SAO. Each one appears here, sorted by urgency.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-073",
+    "role": "SAO",
+    "module": "Reviews > Grievances",
+    "title": "Open a grievance addressed to the SAO",
+    "preconditions": "Signed in as SAO 990001. Student 2100142 filed a grievance addressed to the SAO (Support > My grievances).",
+    "steps": [
+      "1. On Grievances select the grievance title.",
+      "2. Read the badges at the top of the drawer.",
+      "3. Read the steps and the line under them.",
+      "4. Read the filer, Addressed to, Description and Filed date.",
+      "5. Read the buttons under Update status."
+    ],
+    "expected": "The drawer shows status, \"<urgency> urgency\" and category badges, the progress steps with a \"waiting for SAO\" line, the filer's name, Addressed to \"Student Affairs Office\", the Description and the Filed date. For a grievance filed anonymously toward the organization the SAO still sees the name with the note \"Filed anonymously toward the organization. Handle with added discretion.\" Buttons: Move to under review, Resolve, Dismiss.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-074",
+    "role": "SAO",
+    "module": "Reviews > Grievances",
+    "title": "Move a grievance to under review",
+    "preconditions": "Signed in as SAO 990001. A grievance with status Submitted exists.",
+    "steps": [
+      "1. Open the grievance drawer.",
+      "2. Select Move to under review.",
+      "3. Read the green message.",
+      "4. Look at the status badge and at the buttons.",
+      "5. Sign in as the student who filed it and open Support > My grievances."
+    ],
+    "expected": "No remarks are needed. The message reads \"Grievance updated. The student has been notified.\" The status becomes Under review and only Resolve and Dismiss remain (it cannot go back to Submitted). The student sees the new status.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-075",
+    "role": "SAO",
+    "module": "Reviews > Grievances",
+    "title": "Resolve a grievance with remarks",
+    "preconditions": "Signed in as SAO 990001. A grievance with status Submitted or Under review exists.",
+    "steps": [
+      "1. Open the grievance drawer and select Resolve.",
+      "2. Read the box.",
+      "3. Check that the Resolve button in the box is greyed out while Remarks is empty.",
+      "4. Type the outcome in Remarks.",
+      "5. Select Resolve in the box.",
+      "6. Read the drawer, then sign in as the student and open My grievances."
+    ],
+    "expected": "The box says \"These remarks are shared with the student who filed this grievance.\" Resolve is greyed until remarks are typed. The message reads \"Grievance updated. The student has been notified.\" The drawer shows Resolved, the Remarks box and \"This grievance is closed and cannot be reopened.\" The student sees Resolved and the remarks.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-076",
+    "role": "SAO",
+    "module": "Reviews > Grievances",
+    "title": "Dismiss a grievance and confirm it stays closed",
+    "preconditions": "Signed in as SAO 990001. A grievance with status Submitted exists.",
+    "steps": [
+      "1. Open the grievance drawer and select Dismiss.",
+      "2. Check that the red Dismiss button is greyed out while Remarks is empty.",
+      "3. Type the reason and select Dismiss in the box.",
+      "4. Read the drawer.",
+      "5. Close and open the same grievance again."
+    ],
+    "expected": "After dismissing, the status is Dismissed with the remarks and the line \"This grievance is closed and cannot be reopened.\" There are no Update status buttons, also after reopening.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-077",
+    "role": "SAO",
+    "module": "Reviews > Grievances",
+    "title": "A grievance addressed to an organization can also be decided by the SAO",
+    "preconditions": "Signed in as SAO 990001. A student filed a grievance addressed to their organization.",
+    "steps": [
+      "1. Set \"Filter by addressed to\" to Addressed to organizations.",
+      "2. Open the grievance.",
+      "3. Read Addressed to and the steps.",
+      "4. Select Move to under review."
+    ],
+    "expected": "The row subtitle shows the category and the organization name, and the drawer says Addressed to \"<Organization name>\". The steps show that the Admin's turn comes first (VERIFY wording). The SAO may still move it to Under review and the student is notified.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-078",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "Clearances page without any period",
+    "preconditions": "Signed in as SAO 990001. No clearance period exists yet (skip if one exists).",
+    "steps": [
+      "1. Open Reviews > Clearances.",
+      "2. Read the empty message.",
+      "3. Select New clearance period in the message.",
+      "4. Select Cancel."
+    ],
+    "expected": "The page says \"No clearance periods yet\" with \"Open a clearance period to generate a pending signature line for every active student, for each role you require.\" and a New clearance period button. VERIFY: whether the fresh seed already has a period.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-079",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "Open a clearance period for every student",
+    "preconditions": "Signed in as SAO 990001. Student accounts exist.",
+    "steps": [
+      "1. Select New clearance period.",
+      "2. Type the Title \"QA Clearance 1st Sem\" and check that Academic year is filled (for example 2026-2027).",
+      "3. Pick a Deadline date.",
+      "4. Select the roles \"Student Affairs Office (SAO)\" and \"Organization adviser\".",
+      "5. Type \"Org Secretary\" in the extra role box and select Add.",
+      "6. Select Open this period.",
+      "7. Read the message and the new card.",
+      "8. Sign in as Student 2100142 and open Support > My clearance."
+    ],
+    "expected": "The button reads Open this period and is greyed out until Title, Academic year and at least one role are set. The message reads \"Clearance period opened. Every active student now has a signature line waiting.\" The card shows the title, \"2026-2027 · Deadline <date>\", a badge per role and a meter \"Students fully cleared\". The student gets the notification \"New clearance period opened\" and sees the lines.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-080",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "New clearance period form checks",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open New clearance period and look at the Open this period button.",
+      "2. Clear the Academic year field.",
+      "3. Select a role, then select the x on its chip.",
+      "4. Type a long text (more than 20 characters) in Academic year, add a Title and one role, and select Open this period.",
+      "5. Read the message."
+    ],
+    "expected": "The button is greyed out without a Title, an Academic year or a role. The chip x removes a role (button named \"Remove <role>\"). The extra role box accepts at most 10 roles in total. An Academic year over 20 characters is refused by the server with a red message under the field (VERIFY wording) and no period is created.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-081",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "View the students of a period and search them",
+    "preconditions": "Signed in as SAO 990001. A clearance period exists.",
+    "steps": [
+      "1. Select View students on a period card.",
+      "2. Read the drawer heading.",
+      "3. Type 2100142 in \"Search by name or school ID...\".",
+      "4. Type zzzz and read the message.",
+      "5. Clear the search and read one student card."
+    ],
+    "expected": "The drawer shows the title and \"2026-2027 · SAO signature line\". Each student card shows the name, School ID, progress steps, a stage line and one row per required role; \"All cleared\" appears when everything is signed. No match shows \"No students in this period\" with \"No student in this period matches this search.\" Pages hold 20 students.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-082",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "Clear the SAO signature of a student",
+    "preconditions": "Signed in as SAO 990001. A clearance period exists and Student 2100142 has a pending SAO line.",
+    "steps": [
+      "1. In the drawer find Student 2100142 and the row \"Student Affairs Office (SAO)\".",
+      "2. Select Clear.",
+      "3. Read the box and select Confirm clear.",
+      "4. Read the message and the row.",
+      "5. Sign in as Student 2100142 and open Support > My clearance."
+    ],
+    "expected": "The box is titled \"Clear Student Affairs Office (SAO)\" (\"The student will be notified that this line is cleared.\") and shows \"Signing as the Student Affairs Office (SAO) signatory for this student.\" The message reads \"Signature cleared.\" The row shows cleared with no buttons. The student sees the line cleared and a notification \"Your clearance was updated\".",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-083",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "Hold a signature with a reason and clear the hold later",
+    "preconditions": "Signed in as SAO 990001. A student with a pending SAO line exists.",
+    "steps": [
+      "1. Select Hold on the SAO row.",
+      "2. Check that Hold this signature is greyed out while Reason is empty.",
+      "3. Type \"Unpaid organization dues\" and select Hold this signature.",
+      "4. Read the message and the row.",
+      "5. Select Clear hold and confirm."
+    ],
+    "expected": "The box reads \"Hold Student Affairs Office (SAO)\" and \"The student will see this reason and who to follow up with.\" The message reads \"Signature put on hold.\" The row shows held with \"Reason: Unpaid organization dues\" and a Clear hold button. After clearing, the row shows cleared. The student sees the reason while it is held.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-084",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "The SAO can only sign its own line",
+    "preconditions": "Signed in as SAO 990001. A period that also requires \"Organization adviser\" exists.",
+    "steps": [
+      "1. Open View students on that period.",
+      "2. Look at the row for Organization adviser on a student.",
+      "3. Look at the row for Student Affairs Office (SAO) on the same student.",
+      "4. Open the same SAO row in a second window, clear it there, then select Clear in the first window and confirm."
+    ],
+    "expected": "Rows of other roles show only a status badge, with no Clear or Hold button. Only the SAO row has buttons. A line that was already cleared in the other window is refused with \"This clearance line has already been cleared.\" (VERIFY where it shows).",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-085",
+    "role": "SAO",
+    "module": "Reviews > Clearances",
+    "title": "Delete a clearance period",
+    "preconditions": "Signed in as SAO 990001. One unsigned period (use the QA period) and one period with a signed line exist.",
+    "steps": [
+      "1. Select the trash button named \"Delete QA Clearance 1st Sem\".",
+      "2. Read the box, select Cancel, and check the card remains.",
+      "3. Select the trash button again and select Delete period.",
+      "4. Read the message.",
+      "5. Select the trash button on a period with a cleared or held line and select Delete period."
+    ],
+    "expected": "The box says the period and its unsigned rows are removed and this cannot be undone. A confirmed delete shows \"QA Clearance 1st Sem\" deleted. A period that already has signed entries is refused with \"This clearance period already has signed entries and cannot be deleted.\" and stays.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-086",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "Announcements page when nothing was written yet",
+    "preconditions": "Signed in as SAO 990001. No official announcement exists yet (skip if one exists).",
+    "steps": [
+      "1. Open Updates > University announcements.",
+      "2. Read the empty message.",
+      "3. Select Create official notice.",
+      "4. Read the top of the dialog, then select Cancel."
+    ],
+    "expected": "The page says \"No official announcements yet\" with \"Official notices reach every user, organization, or college you choose. Publish one here.\" and a button Create official notice. The dialog says \"Create official SAO announcement\" and \"Written manually by the SAO Director. AI drafting is not available here.\"",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-087",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "Save a draft, edit it and delete it",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Create official notice.",
+      "2. Type a Title and an Announcement text, leave Confirm publish unticked and select Save draft.",
+      "3. Read the card.",
+      "4. Select Edit draft, change the Title and select Save draft.",
+      "5. Select Delete draft on the card.",
+      "6. Read the box and select Delete draft."
+    ],
+    "expected": "The card shows \"Student Affairs Office · Official\", the title, the label DRAFT, the first lines of the text and \"N recipients · all users\". Edit draft keeps it a draft. The box \"Delete this draft?\" says it will never be sent and cannot be undone. After deleting, \"Draft deleted.\" appears and the card is gone.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-088",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "Publish an official notice to all users",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Create official notice and type a Title and an Announcement text.",
+      "2. Keep Audience scope on \"All HIUSA users\".",
+      "3. Tick Confirm publish and note that the button text changes.",
+      "4. Select Publish official notice.",
+      "5. Read the card.",
+      "6. Sign in as Student 2100142 and open the bell or Updates."
+    ],
+    "expected": "With Confirm publish ticked the button reads Publish official notice (otherwise Save draft). The card shows PUBLISHED and the number of recipients. The student receives a notification titled \"SAO Official: <title>\". The published card has no Edit draft and no Delete draft.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-089",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "Choose the audience of a notice",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Create official notice.",
+      "2. Open Audience scope and read all five choices.",
+      "3. Choose \"Selected organizations\" and tick only PSITS-CCS.",
+      "4. In Optional role filter tick STUDENT only.",
+      "5. Tick Confirm publish and select Publish official notice.",
+      "6. Check that Student 2100142 got the notice and Student 2400118 did not."
+    ],
+    "expected": "Choices are All HIUSA users, All organizations, Selected organizations, All departments, Selected departments. Selected organizations shows a checkbox per organization code; Selected departments shows the college names. Role filter offers STUDENT, SBO OFFICER, DEPARTMENT HEAD, ADMIN. The recipient count on the card matches the audience. Only matching accounts get the notification.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-090",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "Notice form checks and schedule rules",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Create official notice and select Save draft with Title empty.",
+      "2. Choose \"Selected organizations\", tick none, tick Confirm publish and select Publish official notice.",
+      "3. Choose \"Selected departments\", tick none and select Publish official notice.",
+      "4. Set Schedule (optional) to a date in the past and save.",
+      "5. Set Schedule to tomorrow and Expires to today and save.",
+      "6. Set Schedule to tomorrow and Expires to the day after and save as a draft."
+    ],
+    "expected": "An empty Title is stopped by the browser. The server answers \"Choose at least one organization.\" and \"Choose at least one department.\" (the red message may show on the page behind the dialog; VERIFY where). A past schedule is refused (VERIFY wording). \"Expiration must be after the scheduled publish date.\" appears for the second case. A valid scheduled notice is saved and the card shows SCHEDULED when published with a future date.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-091",
+    "role": "SAO",
+    "module": "Updates > University announcements",
+    "title": "A published notice can only be archived",
+    "preconditions": "Signed in as SAO 990001. A published notice exists.",
+    "steps": [
+      "1. Find a card labelled PUBLISHED.",
+      "2. Check for Edit draft and Delete draft buttons.",
+      "3. Select Archive on the card.",
+      "4. Read the card.",
+      "5. Sign in as Student 2100142 and open the Announcements feed."
+    ],
+    "expected": "A published card has no Edit draft or Delete draft, only Archive. After archiving the card loses the Archive button and students no longer see the notice in the feed (VERIFY the label after archiving). The server also answers \"Published announcements cannot be deleted. Archive them instead.\" to a delete request.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-092",
+    "role": "SAO",
+    "module": "Updates > Notifications",
+    "title": "The Notifications page lists, opens and clears notices",
+    "preconditions": "Signed in as SAO 990001. A Department Head has registered an organization or an Admin has submitted a file, so notices exist.",
+    "steps": [
+      "1. Open Updates > Notifications.",
+      "2. Read one unread row (blue left bar) and one read row.",
+      "3. Select an unread row.",
+      "4. Read the page it opens, then go back.",
+      "5. Select Mark all as read."
+    ],
+    "expected": "Each row shows an icon, a title, a message and the date. Selecting a row marks it read and opens the related page when there is one (an arrow icon shows it). Mark all as read clears the blue bars and is greyed out when nothing is unread. With no notices: \"No SAO notifications yet\" with \"Registrations, submissions, and requests that need the SAO are announced here as organizations send them.\"",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-093",
+    "role": "SAO",
+    "module": "Updates > Notifications",
+    "title": "The bell at the top shows new notices and opens the related record",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Look at the bell at the top right and read the number badge.",
+      "2. Select the bell.",
+      "3. Select one notice and read its detail.",
+      "4. Select Open related record.",
+      "5. Select the bell again and choose Mark all as read."
+    ],
+    "expected": "The badge shows the unread count (9+ when more than nine). The panel says \"Notifications\" with \"N new\". A notice shows its full text with Back to notifications and Open related record. Mark all as read shows \"All notifications marked as read.\" and the badge disappears. An empty panel says \"No notifications yet\".",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-094",
+    "role": "SAO",
+    "module": "Updates > Notifications",
+    "title": "Other roles create SAO notices that lead to the right page",
+    "preconditions": "Signed in as SAO 990001. A semester must be active first (Setup and records > Academic years, Set as active).",
+    "steps": [
+      "1. Sign in as Department Head 940001 and register a new organization with the ten files.",
+      "2. Sign in as Admin 900001 and upload one compliance requirement on Records > Compliance.",
+      "3. Sign in as the SAO and open the bell.",
+      "4. Select the registration notice and note where it lands.",
+      "5. Select the compliance notice and note where it lands."
+    ],
+    "expected": "Each action produces a notice for the SAO. The registration notice leads to the Pending review registration or its drawer. The compliance notice leads to the Review queue on Reviews > Compliance. VERIFY: the exact destination of each notice and that it lands on the exact item.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-095",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "The Academic years page on a fresh seed",
+    "preconditions": "Signed in as SAO 990001. Fresh seed: one current academic year and no semester.",
+    "steps": [
+      "1. Open Setup and records > Academic years.",
+      "2. Read the card \"<year> is the current year\" and its three links.",
+      "3. Read the Calendar table.",
+      "4. Read the Semesters card.",
+      "5. Select the first link in the card."
+    ],
+    "expected": "The first card reads \"2026-2027 is the current year\" with the dates and \"At the start of each year\": \"Publish this year's accreditation requirements\" (opens Compliance), \"Hand over administrator roles after elections\" (opens Administrators), \"Open a clearance period for the semester\" (opens Clearances). The Calendar table shows the year, its dates and the Current badge. Semesters shows \"AY 2026-2027\" with \"No semesters added.\" and the button Add semester. With no year the page says \"No academic year set\" and offers Add academic year (VERIFY on an empty database).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-096",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Add the first semester (the first setup step)",
+    "preconditions": "Signed in as SAO 990001. Fresh seed with no semester yet.",
+    "steps": [
+      "1. In Semesters select Add semester under AY 2026-2027.",
+      "2. Keep 1st Semester selected.",
+      "3. Pick Starts on 2026-08-03 and Ends on 2026-12-18 (or any dates inside the year that cover today).",
+      "4. Check that the Add semester button was greyed out until both dates were set.",
+      "5. Select Add semester.",
+      "6. Read the message and the new row."
+    ],
+    "expected": "The message reads \"Semester added\". The row shows \"1st Semester\", the dates and the word upcoming, with the buttons Set as active and a trash button. Adding the semester also creates the semester requirements for Compliance > Requirements and Event requirements (VERIFY counts: 11 compliance requirements and 18 event file requirements). Nothing changes for Department Heads yet.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-097",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Semester dates are checked",
+    "preconditions": "Signed in as SAO 990001. A 1st Semester already exists in the year.",
+    "steps": [
+      "1. Select Add semester for the same year.",
+      "2. Choose 1st Semester again, pick any dates and select Add semester.",
+      "3. Choose 2nd Semester with dates before the academic year starts and select Add semester.",
+      "4. Choose 2nd Semester with dates that overlap the 1st Semester and select Add semester.",
+      "5. Choose 2nd Semester with Ends on earlier than Starts on and select Add semester."
+    ],
+    "expected": "Red messages appear under the fields: \"This semester already exists for the academic year.\"; \"Semester dates must fall within the academic year.\"; \"Semester dates cannot overlap.\"; and a message that the end date must be after the start date (VERIFY wording). The Add semester button only shows while the year has fewer than 2 semesters.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-098",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Set a semester as active and see the effect everywhere",
+    "preconditions": "Signed in as SAO 990001. A semester in upcoming status exists. Department Head 940001 and Student 2100142 exist.",
+    "steps": [
+      "1. Select Set as active on the semester.",
+      "2. Read the message and the row.",
+      "3. Look at the top bar next to the page title.",
+      "4. Sign in as Department Head 940001 and open Organizations.",
+      "5. Check the Register an organization form for its required files.",
+      "6. Sign in as Student 2100142 and open Events."
+    ],
+    "expected": "The message reads \"Academic semester activated\". The row shows active and the button Close semester. The top bar shows \"AY 2026-2027 · 1st Semester\". Department Head 940001 can now register an organization and sees ten required files. Seeded events, tasks and the seeded election belong to no semester, so they disappear from lists once a semester is active (the student sees fewer events).",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-099",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "A Department Head cannot register before a semester is active",
+    "preconditions": "Signed in as SAO 990001. Fresh seed with no active semester. Department Head 940001.",
+    "steps": [
+      "1. Sign in as Department Head 940001 and open Organizations.",
+      "2. Try Register an organization and read what the form offers.",
+      "3. If the form lets you submit, fill it with ten files and submit.",
+      "4. Read the message.",
+      "5. Sign in as SAO, set a semester active, then repeat as Department Head."
+    ],
+    "expected": "Before activation the Department Head has no registration requirements and the server refuses with \"No registration requirements are open. The SAO must activate a semester first.\" After the SAO sets a semester as active the form lists the ten files and registration works.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SAO-100",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Close a semester and activate the next one",
+    "preconditions": "Signed in as SAO 990001. An active 1st Semester and an upcoming 2nd Semester exist in the same year.",
+    "steps": [
+      "1. Select Close semester on the active semester.",
+      "2. Read the message and the row.",
+      "3. Check the completed semester for a Set as active button.",
+      "4. Select Set as active on the 2nd Semester.",
+      "5. Read the rows."
+    ],
+    "expected": "Closing shows \"Academic semester completed\" and the row reads completed with no Set as active button (a completed semester cannot be reopened: \"A completed semester cannot be reopened.\"). Activating the 2nd Semester makes it active and completes any other active semester. Activating a semester in a new year while the current year still has an unfinished semester is refused with \"Complete both semesters in the current academic year before starting a new year.\"",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SAO-101",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Delete a semester",
+    "preconditions": "Signed in as SAO 990001. An upcoming 2nd Semester with nothing attached, an active semester, and a semester that has events exist (if you cannot set this up, test only the first two).",
+    "steps": [
+      "1. Select the trash button named \"Delete 2nd semester of AY 2026-2027\", read the box and select Cancel.",
+      "2. Select the trash button again and select Delete semester.",
+      "3. Read the message.",
+      "4. Look for a trash button on the active semester.",
+      "5. Select the trash button on the semester that has events and select Delete semester."
+    ],
+    "expected": "The box says it cannot be undone and that a semester with events, tasks or requirements attached cannot be deleted. A clean semester is removed with \"Semester removed\". The active semester has no trash button. A semester with attached data is refused with \"This semester cannot be deleted because of: events.\" followed by a bullet list of reasons.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Negative",
+    "round": "Round 2 (after the SAO activates a semester)"
+  },
+  {
+    "id": "SAO-102",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Add an academic year",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Add academic year.",
+      "2. Pick Starts on 2027-08-02 and check that Label fills in \"2027-2028\".",
+      "3. Pick Ends on 2028-05-26.",
+      "4. Check that the Add academic year button was greyed out until all three fields were filled.",
+      "5. Select Add academic year.",
+      "6. Read the message and the Calendar table."
+    ],
+    "expected": "The message reads \"2027-2028 added to the calendar\" and the year appears in the Calendar table as Not current. (Only the very first year ever added becomes current: then the message reads \"<label> is now the current academic year\".) The Semesters card gets an \"AY 2027-2028\" block.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-103",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Academic year form refuses bad labels and dates",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Add academic year and type Label 27-28 with valid dates, then select Add academic year.",
+      "2. Change Label to 2027-2029 and select Add academic year.",
+      "3. Use a Label not yet used but dates that overlap the current year and select Add academic year.",
+      "4. Set Ends on earlier than Starts on and select Add academic year.",
+      "5. Use the label of an existing year and select Add academic year."
+    ],
+    "expected": "Red messages appear under the fields: \"Use the form 2026-2027.\"; \"Use two consecutive years, like 2026-2027.\"; \"These dates overlap 2026-2027.\" (or the year name that overlaps); a message that the end date must be after the start date; and a message that the label has already been used (VERIFY wording). Nothing is added.",
+    "priority": "High",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-104",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Edit an academic year; rename and shrink are limited",
+    "preconditions": "Signed in as SAO 990001. The current year has a semester and has requirements.",
+    "steps": [
+      "1. Select Edit on the current year.",
+      "2. Change Ends on so that it is earlier than the end of its semester and select Save changes.",
+      "3. Read the message.",
+      "4. Change the Label and select Save changes.",
+      "5. Read the message."
+    ],
+    "expected": "The dialog is titled \"Edit 2026-2027\". Shrinking the dates is refused with \"Academic year dates must still contain its semesters.\" A new label is refused with \"<label> already labels requirements or clearance periods, so its name stays.\" Valid date changes save with \"<label> updated\".",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-105",
+    "role": "SAO",
+    "module": "Setup and records > Academic years",
+    "title": "Make a year current, remove a year and close a year",
+    "preconditions": "Signed in as SAO 990001. A second academic year (2027-2028) exists. The current year has both semesters completed for the Close year step.",
+    "steps": [
+      "1. Select Make current on the second year.",
+      "2. Read the box titled \"Make this the current year\" and select Make current.",
+      "3. Read the message. If a semester is active, read the red message instead.",
+      "4. Select the trash button named \"Remove 2027-2028\" (only non-current years have one) and select Remove year.",
+      "5. On a current year whose two semesters are completed select Close year and confirm."
+    ],
+    "expected": "The box says accreditation will count this year's requirements. The message reads \"<label> is now the current academic year\", or while a semester is active it is refused with \"Activate a semester in this year to change the active academic period.\" A year in use is refused with \"<label> already has accreditation requirements or clearance periods, so it stays on the calendar.\" An unused year shows \"<label> removed\". Close year shows \"AY <label> completed\" and the year then reads Completed and cannot be reopened.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-106",
+    "role": "SAO",
+    "module": "Setup and records > Audit trail",
+    "title": "The audit trail lists activity and each record has details",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Setup and records > Audit trail.",
+      "2. Read the table columns and the entry count.",
+      "3. Open the Audit actions menu of a row and choose View details.",
+      "4. Read the dialog.",
+      "5. Select the close button named \"Close audit details\"."
+    ],
+    "expected": "Columns are Time, Actor, Role, Organization, Module, Action, Affected record, Record ID, Details. The count reads \"N entries\" and the newest entry is first. The dialog reads \"Audit record LOG-<id>\" with Actor, Actor role / position, Actor academic profile, Affected record, Record type, Record ID, IP address, Timestamp, and a Before / after changes table (Field, Before, After) or the text \"No field-level change payload was recorded for this action.\"",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-107",
+    "role": "SAO",
+    "module": "Setup and records > Audit trail",
+    "title": "Audit filters, search and the empty result",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open the Module list and read its options.",
+      "2. Choose a Module and an Action category, then read the entries.",
+      "3. Choose an Actor role and set From and To dates.",
+      "4. Open Sort audit logs and choose Oldest first.",
+      "5. Type zzzz in the search box (placeholder \"Search actor, action, module, or record ID\").",
+      "6. Select Clear."
+    ],
+    "expected": "The Module list for the SAO leaves out the money modules (no Financial Ledger, Transactions, Collections, Remittances, Cash Advances, Invoices, Budgets or Orders) and includes for example Colleges, Compliance, Clearances, Grievances and System Administration. Action category offers Create, Update, Delete, Approve, Reject, Payment, Collection, Remittance, Attendance, Status Change. Chips show the active filters. No match shows \"No audit activity matches these filters\" with \"Try a wider date range or another module.\" Clear restores the list.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-108",
+    "role": "SAO",
+    "module": "Setup and records > Audit trail",
+    "title": "Audit trail pages through long lists",
+    "preconditions": "Signed in as SAO 990001. More than 10 entries exist.",
+    "steps": [
+      "1. Scroll to the bottom of the table.",
+      "2. Read the line \"Showing 1-10 of N\".",
+      "3. Select Next page of audit records.",
+      "4. Read the line again.",
+      "5. Select Previous page of audit records."
+    ],
+    "expected": "Ten entries show per page. The line changes to \"Showing 11-20 of N\" and back. Previous is disabled on the first page and Next on the last.",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Usability",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-109",
+    "role": "SAO",
+    "module": "Setup and records > Audit trail",
+    "title": "Export the audit trail to a CSV file",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Choose a Module so that the list has some entries.",
+      "2. Select Export CSV.",
+      "3. Read the message.",
+      "4. Open the downloaded file audit-log-<number>.csv.",
+      "5. Choose filters that match nothing and look at the Export CSV button."
+    ],
+    "expected": "The button shows \"Exporting...\" and then a message \"Audit log exported.\" with \"Every entry matching your filters, not just this page.\" The file holds every matching entry. With zero matching entries the button is greyed out.",
+    "priority": "Medium",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-110",
+    "role": "SAO",
+    "module": "Setup and records > Audit trail",
+    "title": "SAO decisions are written to the audit trail",
+    "preconditions": "Signed in as SAO 990001. You have just approved or returned a registration, created an administrator or activated a semester.",
+    "steps": [
+      "1. Open Setup and records > Audit trail.",
+      "2. Set Module to System Administration.",
+      "3. Find the newest entries.",
+      "4. Open View details on the entry for your action.",
+      "5. Check Actor and Actor role."
+    ],
+    "expected": "There is one entry per action with Actor \"SAO ...\" and role SAO, for example \"SAO approved an organization registration.\", \"SAO returned an organization registration.\", \"SAO created an organization Admin account.\" or \"SAO archived a student organization.\" The Organization column names the organization. VERIFY: wording of the semester entries.",
+    "priority": "High",
+    "device": "Laptop",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-111",
+    "role": "SAO",
+    "module": "Profile",
+    "title": "The SAO profile page shows the account and saves changes",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Open Profile at the bottom of the menu.",
+      "2. Read the left card: name, role badge, School ID, Organization, Email address.",
+      "3. Check that Save profile is greyed out.",
+      "4. Type a Mobile number (optional) such as 0917 123 4567.",
+      "5. Select Save profile.",
+      "6. Change it back and select Discard changes where needed."
+    ],
+    "expected": "The card shows the role badge SAO, School ID 990001 and the email. Save profile and Discard changes are greyed out until something changes. A saved change shows a confirmation message (VERIFY wording) and the new value stays after reloading. An email that is not valid is refused with a red message.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-112",
+    "role": "SAO",
+    "module": "Profile",
+    "title": "Password change form checks",
+    "preconditions": "Signed in as SAO 990001. Do not complete a successful change on the shared public copy unless the demo owner agrees.",
+    "steps": [
+      "1. Scroll to Password & security.",
+      "2. Select Update password with all three boxes empty.",
+      "3. Type any Current password and a New password of 5 characters, then select Update password.",
+      "4. Type a New password of 8 or more characters and a different Confirm new password, then select Update password.",
+      "5. Type the same value in both new boxes and look for the green line.",
+      "6. Type a wrong Current password and select Update password."
+    ],
+    "expected": "Messages: \"Current password, new password, and confirmation are required.\"; \"New password must be at least 8 characters.\"; \"New passwords do not match.\" When both new boxes match, the green line \"New passwords match\" shows. A wrong current password is refused by the server with a red message (VERIFY wording) and the password is not changed.",
+    "priority": "Medium",
+    "device": "Any",
+    "type": "Validation",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-113",
+    "role": "SAO",
+    "module": "Study objectives",
+    "title": "The Study objectives page opens for the SAO",
+    "preconditions": "Signed in as SAO 990001.",
+    "steps": [
+      "1. Select Study objectives at the bottom of the menu.",
+      "2. Read the page.",
+      "3. Use the menu to go back to Dashboard."
+    ],
+    "expected": "The page opens without an error and without redirecting the SAO away. VERIFY: what the page contains (it is shared by all roles).",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Functional",
+    "round": "Any time"
+  },
+  {
+    "id": "SAO-114",
+    "role": "SAO",
+    "module": "Study objectives",
+    "title": "Study objectives evidence links open pages the SAO may see",
+    "preconditions": "Signed in as SAO 990001. Some activity exists in the system.",
+    "steps": [
+      "1. Scroll to the bottom of the left menu and select Study objectives.",
+      "2. Find \"Financial reports approved\" and select it, if it has an arrow.",
+      "3. Go back and select \"Announcements published\", if it has an arrow.",
+      "4. Go back and select a tile such as \"Orders placed\" or \"Check-ins recorded manually\".",
+      "5. Write down which tiles are links and which are plain text."
+    ],
+    "expected": "\"Financial reports approved\" opens Reviews > Compliance and \"Announcements published\" opens University announcements. Tiles about events, orders, tasks and elections are plain text with no arrow, because the SAO menu has no page for them. No tile sends the SAO to a \"not allowed\" redirect. VERIFY: these two are the only linked tiles for the SAO (from the server route list).",
+    "priority": "Low",
+    "device": "Any",
+    "type": "Access",
+    "round": "Any time",
+    "depends": ""
+  }
+]
