@@ -51,6 +51,13 @@ describe('EventSubmissionPanel', () => {
     expect(screen.queryByRole('button', { name: 'Submit event files to SAO' })).not.toBeInTheDocument();
   });
 
+  it('allows the admin to upload SAO files after Department Head approval', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [], approval_status: 'approved', approval_stage: 'awaiting_requirements' } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    expect(await screen.findByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+    expect(screen.getAllByText('Not submitted').length).toBeGreaterThan(0);
+  });
+
   it('shows the upload error and keeps the form', async () => {
     mocks.submitEventRequirements.mockRejectedValue({ response: { status: 422, data: { message: 'The file must be a PDF.' } } });
     render(<EventSubmissionPanel eventId={9} role="ADMIN" />);

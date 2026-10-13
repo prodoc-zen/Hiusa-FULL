@@ -155,6 +155,9 @@ class EventApprovalChainTest extends TestCase
         $this->assertNull($this->saoRow($eventId));
         $payload = $this->payload($eventId);
         $this->assertSame('awaiting_requirements', $payload['approval_stage']);
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/events/'.$eventId.'/submission')->assertOk()
+            ->assertJsonPath('approval_stage', 'awaiting_requirements');
         $this->assertNull($payload['approval_required_role']);
         $this->assertTrue($payload['requirements_required']);
         $this->assertFalse($payload['requirements_submitted']);

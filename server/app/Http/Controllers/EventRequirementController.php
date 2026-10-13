@@ -111,6 +111,7 @@ class EventRequirementController extends Controller
             'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions')
                 ->where('event_id', $event->id)->orderBy('requirement_id')->get(),
             'approval_status' => $approval['approval_status'],
+            'approval_stage' => $approval['approval_stage'],
             'approval_remarks' => $approval['approval_remarks'],
         ]);
     }
