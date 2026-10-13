@@ -53,7 +53,9 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
   const requirements = submission?.requirements || [];
   const uploaded = submission?.files || [];
   const byRequirement = new Map(uploaded.map((file) => [file.requirement_id, file]));
-  const maySubmit = role === 'ADMIN' && requirements.length > 0 && (!submission?.approval_status || submission.approval_status === 'rejected');
+  const maySubmit = role === 'ADMIN' && requirements.length > 0 && (
+    !submission?.approval_status || submission.approval_status === 'rejected' || submission.approval_stage === 'awaiting_requirements'
+  );
 
   return (
     <section className="rounded-lg border border-[#DDE7EF] bg-white p-4">
