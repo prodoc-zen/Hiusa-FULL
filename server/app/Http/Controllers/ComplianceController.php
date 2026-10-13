@@ -245,6 +245,9 @@ class ComplianceController extends Controller
                     'deadline_at' => $type->deadline_at,
                     'status' => $submission->status ?? 'not_submitted',
                     'submission_id' => $submission->id ?? null,
+                    'file_name' => $submission->file_original_name ?? null,
+                    'submitted_at' => $submission->submitted_at ?? null,
+                    'remarks' => $submission->remarks ?? null,
                 ];
             });
 

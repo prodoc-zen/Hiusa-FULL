@@ -34,15 +34,6 @@ export const createElection = async (payload) => {
   const requestPayload = payload.imageFile || payload.informativeLetterFile ? toElectionFormData(payload) : payload;
   return unwrap(await api.post('/elections', requestPayload));
 };
-export const downloadElectionLetter = async (id) => {
-  const response = await api.get(`/elections/${id}/informative-letter`, { responseType: 'blob' });
-  const url = URL.createObjectURL(response.data);
-  const link = document.createElement('a');
-  link.href = url;
-  link.download = `election-${id}-informative-letter.pdf`;
-  link.click();
-  window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
-};
 export const updateElection = async (id, payload) => {
   if (payload.imageFile || payload.remove_image) {
     return unwrap(await api.post(`/elections/${id}`, toElectionFormData(payload, 'PUT')));

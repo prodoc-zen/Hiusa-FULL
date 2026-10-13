@@ -1,10 +1,12 @@
-import { formatDisplayText } from '../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { ExternalLink, FileText } from 'lucide-react';
+import { Eye, FileText } from 'lucide-react';
 import { getEventSubmission, submitEventRequirements } from '../../services/eventService';
 import { getApiErrorMessage } from '../../utils/apiError';
 import { openProtectedFile } from '../../utils/openProtectedFile';
+import { formatDisplayText } from '../../utils/displayText';
 import { RichTextBody } from '../RichText';
+import { DataTable, StatusBadge } from '../ui';
+import TableRowActions from '../TableRowActions';
 
 export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
   const [submission, setSubmission] = useState(null);
@@ -50,14 +52,36 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
   if (!submission && !error) return <p className="text-xs text-slate-500">Loading event requirements…</p>;
   const requirements = submission?.requirements || [];
   const uploaded = submission?.files || [];
+  const byRequirement = new Map(uploaded.map((file) => [file.requirement_id, file]));
   const maySubmit = role === 'ADMIN' && requirements.length > 0 && (!submission?.approval_status || submission.approval_status === 'rejected');
 
-  return <section className="rounded-lg border border-[#DDE7EF] bg-white p-4">
-    <div className="flex items-center gap-2 text-[#0F2F62]"><FileText size={17} /><h3 className="text-sm font-bold">SAO event requirements</h3></div>
-    {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
-    {!requirements.length && !uploaded.length && <p className="mt-2 text-xs text-slate-500">SAO has not listed any file requirements.</p>}
-    {uploaded.length > 0 && <div className="mt-3 space-y-2">{uploaded.map((file) => <div key={file.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#DDE7EF] px-3 py-2"><span className="text-xs"><strong>{file.requirement?.name}</strong> · {file.original_name}</span><button type="button" onClick={() => view(file)} className="inline-flex min-h-11 items-center gap-1 text-xs font-bold text-[#0878B7]"><ExternalLink size={14} />View</button></div>)}</div>}
-    {maySubmit && <form onSubmit={submit} className="mt-3 space-y-3"><p className="text-xs text-slate-600">Upload a PDF for each required item. The Department Head can view the submission.</p>{requirements.map((requirement) => <label key={requirement.id} className="block text-xs font-semibold text-[#0F172A]">{formatDisplayText(requirement.name)} <span className="font-normal text-slate-500">(PDF{requirement.is_optional ? ', if applicable' : ''})</span>{requirement.description && <RichTextBody as="span" value={requirement.description} className="mt-1 block font-normal text-slate-600" />}<input required={!requirement.is_optional} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 py-2 text-xs" /></label>)}<button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{busy ? 'Submitting…' : 'Submit event files to SAO'}</button></form>}
-    {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-[#0F2F62]">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
-  </section>;
+  return (
+    <section className="rounded-lg border border-[#DDE7EF] bg-white p-4">
+      <div className="flex items-center gap-2 text-[#0F2F62]"><FileText size={17} aria-hidden="true" /><h3 className="text-sm font-bold">SAO event requirements</h3></div>
+      {error && <p role="alert" className="mt-2 rounded-lg bg-red-50 p-2 text-xs text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
+      {!requirements.length && !uploaded.length && <p className="mt-2 text-xs text-slate-500">SAO has not listed any file requirements.</p>}
+      {requirements.length > 0 && <div className="mt-3"><DataTable
+        caption="Event requirement submissions"
+        stickyHeader={false}
+        rows={requirements}
+        rowKey={(item) => item.id}
+        columns={[
+          { key: 'name', header: 'Requirement', render: (item) => <div><strong>{formatDisplayText(item.name)}</strong>{item.description && <RichTextBody value={item.description} className="mt-1 text-xs text-slate-600" />}</div> },
+          { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{byRequirement.get(item.id)?.original_name || 'No file'}</span> },
+          { key: 'status', header: 'Status', render: (item) => <StatusBadge label={byRequirement.has(item.id) ? 'Submitted' : 'Not submitted'} tone={byRequirement.has(item.id) ? 'info' : 'neutral'} /> },
+        ]}
+        actions={(item) => byRequirement.has(item.id) && <TableRowActions subject={formatDisplayText(item.name)} actions={[{ label: 'View file', icon: Eye, onClick: () => view(byRequirement.get(item.id)) }]} />}
+      /></div>}
+      {submission?.approval_status === 'rejected' && submission.approval_remarks && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><strong>Why this was returned:</strong> {submission.approval_remarks}</p>}
+      {maySubmit && <form onSubmit={submit} className="mt-3 space-y-3">
+        <p className="text-xs text-slate-600">{uploaded.length ? 'Replace only the files that need changes. Existing files stay on record.' : 'Upload a PDF for each required item.'} The Department Head can view the submission.</p>
+        {requirements.map((requirement) => <label key={requirement.id} className="block text-xs font-semibold text-[#0F172A]">
+          {formatDisplayText(requirement.name)} <span className="font-normal text-slate-500">(PDF{requirement.is_optional ? ', if applicable' : ''})</span>
+          <input required={!requirement.is_optional && !byRequirement.has(requirement.id)} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 py-2 text-xs" />
+        </label>)}
+        <button disabled={busy} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-xs font-bold text-white disabled:opacity-50">{busy ? 'Submitting…' : 'Submit event files to SAO'}</button>
+      </form>}
+      {submission?.approval_status && <p className="mt-3 text-xs font-semibold text-[#0F2F62]">Review: {submission.approval_status.replaceAll('_', ' ')}</p>}
+    </section>
+  );
 }

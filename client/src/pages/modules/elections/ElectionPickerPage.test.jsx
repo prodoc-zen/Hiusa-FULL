@@ -10,6 +10,8 @@ const electionMocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../../../services/electionService', () => electionMocks);
+const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../services/systemAdministrationService', () => ({
   getAcademicPeriods: vi.fn().mockResolvedValue([
     { id: 1, number: 1, status: 'completed', academic_year: { label: '2026-2027' } },
@@ -31,6 +33,7 @@ const upcoming = {
 describe('ElectionPickerPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    openMocks.openProtectedFile.mockResolvedValue();
     localStorage.setItem('user', JSON.stringify({ role: 'ADMIN' }));
     electionMocks.getElections.mockResolvedValue([upcoming]);
   });
@@ -85,6 +88,13 @@ describe('ElectionPickerPage', () => {
     expect(within(card).getByText('Next: Returned: edit and resubmit')).toBeInTheDocument();
     expect(within(card).getByRole('button', { name: /Edit and resubmit/ })).toBeInTheDocument();
     expect(within(card).queryByText('In review')).not.toBeInTheDocument();
+  });
+
+  it('opens the submitted informative letter after a rejection', async () => {
+    electionMocks.getElections.mockResolvedValue([{ ...upcoming, status: 'pending_approval', approval_status: 'rejected', approval_remarks: 'Revise the letter.', has_informative_letter: true }]);
+    render(<ElectionPickerPage onSelect={vi.fn()} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'View informative letter' }));
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/elections/7/informative-letter'));
   });
 
   it('keeps a pending election that has no approval fields as in review', async () => {

@@ -37,7 +37,8 @@ class ElectionInformativeLetterTest extends TestCase
         $this->assertTrue($response->json('has_informative_letter'));
         $this->assertArrayNotHasKey('informative_letter_path', $response->json());
         Storage::disk('local')->assertExists($election->informative_letter_path);
-        $this->get("/api/elections/{$id}/informative-letter")->assertOk();
+        $this->get("/api/elections/{$id}/informative-letter")->assertOk()
+            ->assertHeader('content-disposition', 'inline; filename=election-informative-letter.pdf');
 
         Sanctum::actingAs($student);
         $this->get("/api/elections/{$id}/informative-letter")->assertForbidden();

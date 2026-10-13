@@ -135,6 +135,27 @@ class ComplianceLifecycleTest extends TestCase
         $this->assertSame(['Active Club'], collect($response->json('organizations'))->pluck('organization_name')->all());
     }
 
+    public function test_status_includes_missing_and_returned_files_for_the_review_table(): void
+    {
+        $organization = $this->studentOrganization('Coding Club');
+        $fileType = $this->requirementType('Constitution');
+        $missingType = $this->requirementType('Officer Roster');
+        $submission = $this->submission($organization, $fileType, 'returned');
+        $submission->update(['remarks' => 'Signature missing.']);
+        Sanctum::actingAs($this->director());
+
+        $requirements = collect($this->getJson('/api/compliance/status?academic_year=2026-2027')
+            ->assertOk()->json('organizations.0.requirements'));
+        $file = $requirements->firstWhere('requirement_type_id', $fileType->id);
+        $missing = $requirements->firstWhere('requirement_type_id', $missingType->id);
+
+        $this->assertSame([$submission->id, 'doc.pdf', 'returned', 'Signature missing.'],
+            [$file['submission_id'], $file['file_name'], $file['status'], $file['remarks']]);
+        $this->assertNotNull($file['submitted_at']);
+        $this->assertSame([null, null, null, 'not_submitted'],
+            [$missing['submission_id'], $missing['file_name'], $missing['submitted_at'], $missing['status']]);
+    }
+
     public function test_head_reads_status_submissions_and_documents_for_its_college_only(): void
     {
         Storage::fake('local');

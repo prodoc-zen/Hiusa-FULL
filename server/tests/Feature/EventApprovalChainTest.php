@@ -6,6 +6,7 @@ use App\Models\ApprovalRequest;
 use App\Models\Budget;
 use App\Models\Event;
 use App\Models\EventRequirement;
+use App\Models\EventRequirementFile;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\User;
@@ -313,6 +314,31 @@ class EventApprovalChainTest extends TestCase
         $this->upload($eventId, $requirement)->assertOk();
 
         $this->upload($eventId, $requirement)->assertStatus(409);
+    }
+
+    public function test_returned_event_can_replace_one_file_and_keep_the_other_for_review(): void
+    {
+        $proposal = $this->requirement();
+        $permit = $this->requirement(['name' => 'Venue permit', 'sort_order' => 2]);
+        $eventId = $this->propose();
+        $this->decide($this->head, $this->headRow($eventId))->assertOk();
+        $this->upload($eventId, $proposal, $permit)->assertOk();
+        $before = EventRequirementFile::where('event_id', $eventId)->get()->keyBy('requirement_id');
+        $this->decide($this->director, $this->saoRow($eventId), 'rejected', 'Replace the proposal.')->assertOk();
+
+        Sanctum::actingAs($this->admin);
+        $this->getJson('/api/events/'.$eventId.'/submission')->assertOk()
+            ->assertJsonPath('approval_remarks', 'Replace the proposal.');
+        $this->post('/api/events/'.$eventId.'/submission', [
+            'documents' => [$proposal->id => UploadedFile::fake()->create('revised.pdf', 20, 'application/pdf')],
+        ])->assertOk();
+
+        $after = EventRequirementFile::where('event_id', $eventId)->get()->keyBy('requirement_id');
+        $this->assertCount(2, $after);
+        $this->assertNotSame($before[$proposal->id]->id, $after[$proposal->id]->id);
+        $this->assertSame($before[$permit->id]->id, $after[$permit->id]->id);
+        $this->assertTrue(Storage::disk('local')->exists($after[$permit->id]->path));
+        $this->assertSame('pending', $this->saoRow($eventId)->status);
     }
 
     public function test_editing_an_approved_event_restarts_the_chain_at_the_head(): void

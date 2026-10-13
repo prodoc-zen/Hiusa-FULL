@@ -103,12 +103,15 @@ class EventRequirementController extends Controller
             return response()->json(['message' => 'Event submission not found.'], 404);
         }
 
+        $approval = $this->approvalChain->describe([$event])[$event->id];
+
         return response()->json([
             'event' => $event->only(['id', 'title', 'organization_id', 'status']),
             'requirements' => EventRequirement::activeForEvent($event)->orderBy('sort_order')->orderBy('id')->get(),
             'files' => EventRequirementFile::with('requirement:id,name,allowed_extensions')
                 ->where('event_id', $event->id)->orderBy('requirement_id')->get(),
-            'approval_status' => $this->approvalChain->describe([$event])[$event->id]['approval_status'],
+            'approval_status' => $approval['approval_status'],
+            'approval_remarks' => $approval['approval_remarks'],
         ]);
     }
 
@@ -123,14 +126,17 @@ class EventRequirementController extends Controller
             return response()->json(['message' => 'This event has already been submitted.'], 409);
         }
 
-        $request->validate(['documents' => ['required', 'array'], 'documents.*' => ['required', 'file', 'max:10240']]);
+        $request->validate(['documents' => ['sometimes', 'array'], 'documents.*' => ['required', 'file', 'max:10240']]);
         $requirements = EventRequirement::activeForEvent($event)->get();
         if ($requirements->isEmpty()) {
             return response()->json(['message' => 'SAO has not configured any event requirements.'], 422);
         }
 
         $documents = $request->file('documents', []);
-        if (array_diff($requirements->where('is_optional', false)->pluck('id')->all(), array_map('intval', array_keys($documents)))
+        $existing = EventRequirementFile::where('event_id', $event->id)->get()->keyBy('requirement_id');
+        $availableIds = array_unique(array_merge($existing->keys()->all(), array_map('intval', array_keys($documents))));
+        if (! array_intersect($availableIds, $requirements->pluck('id')->all())
+            || array_diff($requirements->where('is_optional', false)->pluck('id')->all(), $availableIds)
             || array_diff(array_map('intval', array_keys($documents)), $requirements->pluck('id')->all())) {
             return response()->json(['message' => 'Upload a PDF for every required SAO item.'], 422);
         }
@@ -145,10 +151,9 @@ class EventRequirementController extends Controller
         }
 
         $storedPaths = [];
-        $oldPaths = EventRequirementFile::where('event_id', $event->id)->pluck('path')->all();
+        $oldPaths = [];
         try {
-            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, &$storedPaths) {
-                EventRequirementFile::where('event_id', $event->id)->delete();
+            DB::transaction(function () use ($request, $event, $requirements, $documents, $head, $sao, $existing, &$storedPaths, &$oldPaths) {
                 foreach ($requirements as $requirement) {
                     if (! isset($documents[$requirement->id])) {
                         continue;
@@ -156,6 +161,10 @@ class EventRequirementController extends Controller
                     $file = $documents[$requirement->id];
                     $path = $file->store('event-requirements/'.$event->organization_id.'/'.$event->id, 'local');
                     $storedPaths[] = $path;
+                    if ($old = $existing->get($requirement->id)) {
+                        $oldPaths[] = $old->path;
+                        $old->delete();
+                    }
                     EventRequirementFile::create([
                         'event_id' => $event->id,
                         'requirement_id' => $requirement->id,
@@ -166,9 +175,9 @@ class EventRequirementController extends Controller
                     ]);
                 }
 
-                if (! $head && ! $sao) {
+                if (! $head || $head->status === 'rejected') {
                     $this->approvalChain->submitToHead($event, $request->user()->school_id);
-                } elseif (! $head || $head->status === 'approved') {
+                } elseif ($head->status === 'approved') {
                     $this->approvalChain->openSaoReview($event, $request->user()->school_id);
                 }
             });
