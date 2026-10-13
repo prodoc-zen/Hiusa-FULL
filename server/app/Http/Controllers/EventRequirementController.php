@@ -49,6 +49,67 @@ class EventRequirementController extends Controller
         return response()->json($requirement->fresh());
     }
 
+    public function uploadTemplate(Request $request, EventRequirement $requirement)
+    {
+        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
+        $request->validate(['template' => ['required', 'file', 'mimes:pdf', 'extensions:pdf', 'max:10240']]);
+
+        $file = $request->file('template');
+        $path = $file->store('event-requirement-templates/'.$requirement->id, 'local');
+        if (! $path) {
+            return response()->json(['message' => 'Could not save the sample template.'], 500);
+        }
+        $previousPath = $requirement->template_path;
+        try {
+            $requirement->update([
+                'template_path' => $path,
+                'template_original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+            ]);
+        } catch (\Throwable $error) {
+            Storage::disk('local')->delete($path);
+            throw $error;
+        }
+        if ($previousPath) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        return response()->json($requirement->fresh());
+    }
+
+    public function removeTemplate(EventRequirement $requirement)
+    {
+        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
+        $path = $requirement->template_path;
+        $requirement->update(['template_path' => null, 'template_original_name' => null]);
+        if ($path) {
+            Storage::disk('local')->delete($path);
+        }
+
+        return response()->json($requirement->fresh());
+    }
+
+    public function template(Request $request, EventRequirement $requirement)
+    {
+        if ($request->user()->role !== 'SUPER_ADMIN' && ! $requirement->is_active) {
+            return response()->json(['message' => 'Sample template not found.'], 404);
+        }
+        $disk = Storage::disk('local');
+        if (! $requirement->template_path || ! $disk->exists($requirement->template_path)) {
+            return response()->json(['message' => 'Sample template not found.'], 404);
+        }
+
+        $response = response()->file($disk->path($requirement->template_path), ['Content-Type' => 'application/pdf', 'X-Content-Type-Options' => 'nosniff']);
+        $response->setContentDisposition('inline', $requirement->template_original_name ?: 'event-template-'.$requirement->id.'.pdf', 'event-template-'.$requirement->id.'.pdf');
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
+    }
+
     public function reorder(Request $request)
     {
         $data = $request->validate([
@@ -79,7 +140,11 @@ class EventRequirementController extends Controller
             return response()->json(['message' => 'This requirement has submitted files. Deactivate it to preserve those records.'], 409);
         }
 
+        $templatePath = $requirement->template_path;
         $requirement->delete();
+        if ($templatePath) {
+            Storage::disk('local')->delete($templatePath);
+        }
 
         return response()->noContent();
     }
@@ -147,7 +212,7 @@ class EventRequirementController extends Controller
                 continue;
             }
             Validator::make(['file' => $documents[$requirement->id]], [
-                'file' => ['required', 'file', 'max:10240', 'mimes:pdf'],
+                'file' => ['required', 'file', 'max:10240', 'mimes:pdf', 'extensions:pdf'],
             ])->validate();
         }
 

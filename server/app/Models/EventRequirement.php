@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Model;
 class EventRequirement extends Model
 {
     protected $guarded = [];
+    protected $hidden = ['template_path'];
 
     protected function casts(): array
     {

@@ -1,18 +1,23 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import EventRequirementsTab from './EventRequirementsTab';
 
 const mocks = vi.hoisted(() => ({
   getEventRequirements: vi.fn(), createEventRequirement: vi.fn(), updateEventRequirement: vi.fn(),
   reorderEventRequirements: vi.fn(), deleteEventRequirement: vi.fn(), getApprovalRequests: vi.fn(), reviewApprovalRequest: vi.fn(),
+  uploadEventRequirementTemplate: vi.fn(), removeEventRequirementTemplate: vi.fn(),
 }));
+const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 vi.mock('../../../services/eventService', () => ({
   getEventRequirements: mocks.getEventRequirements, createEventRequirement: mocks.createEventRequirement,
   updateEventRequirement: mocks.updateEventRequirement, reorderEventRequirements: mocks.reorderEventRequirements,
   deleteEventRequirement: mocks.deleteEventRequirement,
+  uploadEventRequirementTemplate: mocks.uploadEventRequirementTemplate,
+  removeEventRequirementTemplate: mocks.removeEventRequirementTemplate,
 }));
 vi.mock('../../../services/approvalService', () => ({ getApprovalRequests: mocks.getApprovalRequests, reviewApprovalRequest: mocks.reviewApprovalRequest }));
 vi.mock('../../../components/events/EventSubmissionPanel', () => ({ default: () => <div>Submission files</div> }));
+vi.mock('../../../utils/openProtectedFile', () => openMocks);
 
 describe('EventRequirementsTab', () => {
   beforeEach(() => {
@@ -22,6 +27,9 @@ describe('EventRequirementsTab', () => {
       { id: 2, name: 'Budget', description: '', allowed_extensions: ['xlsx'], is_active: true },
     ] });
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [] } });
+    mocks.uploadEventRequirementTemplate.mockResolvedValue({ data: {} });
+    mocks.removeEventRequirementTemplate.mockResolvedValue({ data: {} });
+    openMocks.openProtectedFile.mockResolvedValue();
   });
 
   it('shows instructions without reorder controls', async () => {
@@ -40,6 +48,41 @@ describe('EventRequirementsTab', () => {
     await waitFor(() => expect(mocks.createEventRequirement).toHaveBeenCalledWith(expect.objectContaining({
       name: 'Permit', description: 'Signed by adviser', allowed_extensions: ['pdf'],
     })));
+  });
+
+  it('lets SAO attach a PDF sample and open it from the requirement list', async () => {
+    mocks.createEventRequirement.mockResolvedValue({ data: { id: 3 } });
+    mocks.getEventRequirements.mockResolvedValueOnce({ data: [] }).mockResolvedValue({ data: [{ id: 3, name: 'Proposal', allowed_extensions: ['pdf'], template_original_name: 'sample.pdf', is_active: true }] });
+    render(<EventRequirementsTab />);
+    await screen.findByText('No files required yet');
+    fireEvent.change(screen.getByPlaceholderText('Event proposal'), { target: { value: 'Proposal' } });
+    const file = new File(['%PDF-1.4'], 'sample.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText('Sample template (PDF)'), { target: { files: [file] } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
+    await waitFor(() => expect(mocks.uploadEventRequirementTemplate).toHaveBeenCalledWith(3, file));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View sample' }))[0]);
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/event-requirements/3/template'));
+  });
+
+  it('rejects a non-PDF sample before creating a requirement', async () => {
+    render(<EventRequirementsTab />);
+    await screen.findAllByText('Proposal');
+    fireEvent.change(screen.getByPlaceholderText('Event proposal'), { target: { value: 'Another proposal' } });
+    fireEvent.change(screen.getByLabelText('Sample template (PDF)'), { target: { files: [new File(['png'], 'sample.png', { type: 'image/png' })] } });
+    expect(screen.getByText('Choose a PDF sample template.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
+    expect(mocks.createEventRequirement).not.toHaveBeenCalled();
+  });
+
+  it('confirms removal of an existing sample without removing the requirement', async () => {
+    mocks.getEventRequirements.mockResolvedValue({ data: [{ id: 1, name: 'Proposal', description: '', allowed_extensions: ['pdf'], venue_type: 'all', is_optional: false, template_original_name: 'sample.pdf', is_active: true }] });
+    render(<EventRequirementsTab />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Edit Proposal' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Remove sample' }));
+    expect(mocks.removeEventRequirementTemplate).not.toHaveBeenCalled();
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Remove sample' }));
+    await waitFor(() => expect(mocks.removeEventRequirementTemplate).toHaveBeenCalledWith(1));
+    expect(mocks.deleteEventRequirement).not.toHaveBeenCalled();
   });
 
   it('lists events waiting for SAO and approves one after confirming', async () => {

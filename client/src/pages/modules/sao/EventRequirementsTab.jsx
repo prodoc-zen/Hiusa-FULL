@@ -5,12 +5,13 @@ import { Check, FileText, Pencil, Trash2, X } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, Field, IconButton, Input, Select, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { createEventRequirement, deleteEventRequirement, getEventRequirements, updateEventRequirement } from '../../../services/eventService';
+import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement, uploadEventRequirementTemplate } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 
 const empty = { name: '', description: '', allowed_extensions: ['pdf'], venue_type: 'all', is_optional: false, is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -25,6 +26,10 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
   const [editingId, setEditingId] = useState(null);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [removeTarget, setRemoveTarget] = useState(null);
+  const [removeTemplateTarget, setRemoveTemplateTarget] = useState(null);
+  const [templateFile, setTemplateFile] = useState(null);
+  const [templateError, setTemplateError] = useState(null);
+  const templateInputRef = useRef(null);
   const [decision, setDecision] = useState(null);
   const [decisionRemarks, setDecisionRemarks] = useState('');
   const [remarksError, setRemarksError] = useState(null);
@@ -58,6 +63,33 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
     setEditingId(null);
     setForm(empty);
     setNameError(null);
+    setTemplateFile(null);
+    setTemplateError(null);
+    if (templateInputRef.current) templateInputRef.current.value = '';
+  }
+
+  function chooseTemplate(file) {
+    setTemplateError(null);
+    if (!file) { setTemplateFile(null); return; }
+    if (!file.name.toLowerCase().endsWith('.pdf') || (file.type && file.type !== 'application/pdf')) {
+      setTemplateFile(null);
+      setTemplateError('Choose a PDF sample template.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      setTemplateFile(null);
+      setTemplateError('The sample template must be 10 MB or smaller.');
+      return;
+    }
+    setTemplateFile(file);
+  }
+
+  async function viewTemplate(requirement) {
+    try {
+      await openProtectedFile(`/event-requirements/${requirement.id}/template`);
+    } catch (cause) {
+      notify.error(getApiErrorMessage(cause, 'Could not open the sample template.'));
+    }
   }
 
   async function save(event) {
@@ -67,12 +99,22 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
       nameRef.current?.focus();
       return;
     }
+    if (templateError) return;
     setBusy(true);
     setSaving(true);
     setActionError('');
     try {
-      if (editingId) await updateEventRequirement(editingId, form);
-      else await createEventRequirement(form);
+      const response = editingId ? await updateEventRequirement(editingId, form) : await createEventRequirement(form);
+      if (templateFile) {
+        try {
+          await uploadEventRequirementTemplate(response.data.id, templateFile);
+        } catch (cause) {
+          setEditingId(response.data.id);
+          setActionError(`Requirement saved, but the sample template was not uploaded. ${getApiErrorMessage(cause, 'Try saving it again.')}`);
+          await load();
+          return;
+        }
+      }
       notify.success(editingId ? 'Requirement updated.' : 'Requirement added.');
       resetForm();
       await load();
@@ -97,6 +139,23 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
     } catch (cause) {
       setRemoveTarget(null);
       setActionError(getApiErrorMessage(cause, 'Could not remove the requirement.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function confirmRemoveTemplate() {
+    const requirement = removeTemplateTarget;
+    setBusy(true);
+    setActionError('');
+    try {
+      await removeEventRequirementTemplate(requirement.id);
+      setRemoveTemplateTarget(null);
+      notify.success('Sample template removed.');
+      await load();
+    } catch (cause) {
+      setRemoveTemplateTarget(null);
+      setActionError(getApiErrorMessage(cause, 'Could not remove the sample template.'));
     } finally {
       setBusy(false);
     }
@@ -157,7 +216,11 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
       header: 'Details',
       render: (requirement) => `PDF · ${VENUE_TYPE_LABEL[requirement.venue_type] || 'All venues'} · ${requirement.is_active ? (requirement.is_optional ? 'If applicable' : 'Required') : 'Inactive'}`,
     },
+    { key: 'template', header: 'Sample template', render: (requirement) => requirement.template_original_name
+      ? <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => viewTemplate(requirement)}>View sample</Button>
+      : <span className="text-ink-muted">None</span> },
   ];
+  const editingRequirement = requirements.find((item) => item.id === editingId);
 
   return (
     <div className="space-y-5">
@@ -193,6 +256,9 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
                     setNameError(null);
                     setEditingId(requirement.id);
                     setForm({ name: requirement.name, description: requirement.description || '', allowed_extensions: ['pdf'], venue_type: requirement.venue_type || 'all', is_optional: requirement.is_optional, is_active: requirement.is_active });
+                    setTemplateFile(null);
+                    setTemplateError(null);
+                    if (templateInputRef.current) templateInputRef.current.value = '';
                   }}
                 />
                 <IconButton
@@ -241,6 +307,16 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
                 <RichTextEditor maxLength={500} rows={3} value={form.description} onChange={(description) => setForm({ ...form, description })} />
               </Field>
               <p className="text-xs font-semibold text-ink-muted">Accepted file type: PDF</p>
+              <Field label="Sample template (PDF)" hint="Optional. Organizations can view this beside the upload field, including after a file is returned." error={templateError}>
+                <input ref={templateInputRef} type="file" accept=".pdf,application/pdf" onChange={(event) => chooseTemplate(event.target.files?.[0])} className="block min-h-11 w-full rounded-control border border-line bg-surface p-2 text-sm text-ink" />
+              </Field>
+              {editingRequirement?.template_original_name && (
+                <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+                  <span className="break-all">Current: {editingRequirement.template_original_name}</span>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => viewTemplate(editingRequirement)}>View sample</Button>
+                  <Button type="button" size="sm" variant="secondary" onClick={() => setRemoveTemplateTarget(editingRequirement)}>Remove sample</Button>
+                </div>
+              )}
               <label className="flex min-h-11 items-center gap-2 text-sm font-semibold text-ink">
                 <input type="checkbox" className="h-4 w-4 accent-brand-700" checked={form.is_optional} onChange={(event) => setForm({ ...form, is_optional: event.target.checked })} />
                 Only if applicable
@@ -293,6 +369,17 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
         busy={busy}
         onCancel={() => setRemoveTarget(null)}
         onConfirm={confirmRemove}
+      />
+
+      <ConfirmModal
+        open={Boolean(removeTemplateTarget)}
+        title="Remove this sample template?"
+        message="Organizations will no longer see the sample for this requirement. Submitted files are unaffected."
+        recordName={removeTemplateTarget ? formatDisplayText(removeTemplateTarget.name) : ''}
+        confirmText="Remove sample"
+        busy={busy}
+        onCancel={() => setRemoveTemplateTarget(null)}
+        onConfirm={confirmRemoveTemplate}
       />
 
       <ConfirmModal
