@@ -532,7 +532,7 @@ export default function MerchandisePage({ initialTab }) {
   const [showPaymentSettings, setShowPaymentSettings] = useState(false);
   const [paymentSettingsBusy, setPaymentSettingsBusy] = useState(false);
   const [orderQueueView, setOrderQueueView] = useState('auto');
-  const [tokenStatusFilter, setTokenStatusFilter] = useState('paid');
+  const [tokenStatusFilter, setTokenStatusFilter] = useState('claimable');
   const [analyticsModal, setAnalyticsModal] = useState({
     open: false,
     title: "",
@@ -1112,6 +1112,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function openPaymentVerification(order) {
+    setOrderDetails(null);
     setVerificationModal({
       open: true,
       order,
@@ -1122,6 +1123,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function openOrderRejection(order) {
+    setOrderDetails(null);
     setRejectionModal({
       open: true,
       order,
@@ -1219,6 +1221,7 @@ export default function MerchandisePage({ initialTab }) {
   function confirmDeleteProduct(item) {
     openConfirm({
       title: "Delete Product",
+      danger: true,
       message: `Delete ${item.name}? This cannot be undone.`,
       confirmText: "Delete",
       action: async () => {
@@ -1567,7 +1570,7 @@ export default function MerchandisePage({ initialTab }) {
     : orders.filter((o) => ["pending", "paid"].includes(o.status)).length;
   const lowStock = items.filter((i) => i.is_low_stock).length;
   const topSellers = [...(orderSummary?.breakdown || [])].sort((left, right) => Number(right.quantity) - Number(left.quantity)).slice(0, 5);
-  const tokenOrders = orders.filter((o) => o.status === tokenStatusFilter);
+  const tokenOrders = orders.filter((o) => tokenStatusFilter === 'claimable' ? ['paid', 'claimed'].includes(o.status) : o.status === tokenStatusFilter);
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
   );
@@ -2743,10 +2746,11 @@ export default function MerchandisePage({ initialTab }) {
                       <button
                         type="button"
                         onClick={() => confirmDeleteProduct(item)}
-                        className="grid h-7 w-7 place-items-center rounded-md border border-red-100 text-red-500 transition hover:bg-red-50"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-100 px-3 text-xs font-bold text-red-700 transition hover:bg-red-50"
                         aria-label={`Delete ${formatDisplayText(item.name)}`}
                       >
                         <Trash2 size={13} />
+                        Delete
                       </button>
                     </div>
                   </div>}
@@ -3226,8 +3230,8 @@ export default function MerchandisePage({ initialTab }) {
                         <td className="px-4 py-4">
                           <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
                             { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
-                            o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' }) },
-                            o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => setRejectionModal({ open: true, order: o, remarks: '', busy: false, error: '' }) },
+                            o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => openPaymentVerification(o) },
+                            o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => openOrderRejection(o) },
                           ]} />
                         </td>
                       </tr>
@@ -3520,6 +3524,10 @@ export default function MerchandisePage({ initialTab }) {
               </button>
             </div>
             <div className="mt-5"><ReceiptDocument order={orderDetails} onViewProof={handleViewPaymentProof} /></div>
+            {isFulfillmentRole && orderDetails.status === 'pending' && <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-4">
+              <button type="button" onClick={() => openOrderRejection(orderDetails)} className="min-h-11 rounded-lg border border-red-200 px-4 text-sm font-bold text-red-700">Reject order</button>
+              <button type="button" onClick={() => openPaymentVerification(orderDetails)} className="min-h-11 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white">{role === 'ADMIN' ? 'Approve payment' : 'Verify payment'}</button>
+            </div>}
             <section className="mt-5 border-t border-[#DDE7EF] pt-5">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">
@@ -3648,7 +3656,7 @@ export default function MerchandisePage({ initialTab }) {
                 Review pending and claimed tokens.
               </p>
               </div>
-              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select></div>
+              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="claimable">All claim tokens</option><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select></div>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">

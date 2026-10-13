@@ -113,7 +113,7 @@ export default function OrganizationCompliancePage() {
         title="Organization compliance"
         description={state.academicYear ? `What your organization must submit for the ${state.academicYear} academic year.` : 'What your organization must submit for accreditation.'}
         meta={!state.loading && !state.error && state.requirements.length > 0 && (
-          <div className="w-full max-w-xs">
+          <div className="w-full">
             <ProgressMeter label="Requirements met" value={approvedCount} max={state.requirements.length} valueLabel={`${approvedCount}/${state.requirements.length}`} />
           </div>
         )}

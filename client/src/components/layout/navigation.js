@@ -136,6 +136,7 @@ export const NAV_STRUCTURE = [
     roles: ['ADMIN', 'DEPARTMENT_HEAD'],
   },
   { id: 'submit-request', label: 'Submit Request', icon: FilePlus2, path: '/dashboard/approval-requests/new', roles: ['ADMIN', 'SBO_OFFICER'] },
+  { id: 'endorse-organizations', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications', roles: ['DEPARTMENT_HEAD'] },
   { id: 'audit-logs', label: 'General Audit Log', icon: History, path: '/dashboard/audit-logs', roles: ['ADMIN'] },
   {
     id: 'governance',
@@ -165,7 +166,7 @@ export const SUPER_ADMIN_NAV = [
     icon: ShieldCheck,
     roles: ['SUPER_ADMIN'],
     children: [
-      { id: 'sao-admins', label: 'Administrators', path: '/dashboard/super-admin/admins', roles: ['SUPER_ADMIN'] },
+      { id: 'sao-applications', label: 'Organization applications', path: '/dashboard/organization-applications', roles: ['SUPER_ADMIN'] },
       { id: 'sao-organizations', label: 'Organizations', path: '/dashboard/super-admin/organizations', roles: ['SUPER_ADMIN'] },
       { id: 'sao-colleges', label: 'Colleges', path: '/dashboard/super-admin/colleges', roles: ['SUPER_ADMIN'], icon: Building2 },
       { id: 'sao-academic-years', label: 'Academic Years', path: '/dashboard/super-admin/academic-years', roles: ['SUPER_ADMIN'] },

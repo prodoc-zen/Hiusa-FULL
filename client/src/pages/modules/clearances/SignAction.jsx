@@ -1,9 +1,10 @@
 import { useState } from 'react';
+import { CircleCheck, PauseCircle } from 'lucide-react';
 import { Button, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import { clearanceStatusTone } from './clearanceLabels';
 
-export default function SignAction({ signatureId, status, remarks, roleLabel, onSign, size = 'sm' }) {
+export default function SignAction({ signatureId, status, remarks, roleLabel, onSign, size = 'sm', showStatus = true }) {
   const [mode, setMode] = useState(null);
   const [remarksDraft, setRemarksDraft] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -21,7 +22,8 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
     setError('');
     try {
       await onSign(mode === 'hold' ? 'held' : 'cleared', mode === 'hold' ? remarksDraft.trim() : undefined);
-      close();
+      setMode(null);
+      setRemarksDraft('');
     } catch (err) {
       setError(err.response?.data?.message || 'Could not save this signature. Please try again.');
     } finally {
@@ -30,15 +32,15 @@ export default function SignAction({ signatureId, status, remarks, roleLabel, on
   }
 
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <StatusBadge status={status} tone={clearanceStatusTone(status)} />
+    <div className="flex flex-col items-start gap-2">
+      {showStatus && <StatusBadge status={status} tone={clearanceStatusTone(status)} />}
       {status !== 'cleared' && (
-        <div className="flex gap-1.5">
-          <Button size={size} variant="primary" onClick={() => setMode('clear')}>{status === 'held' ? 'Clear hold' : 'Clear'}</Button>
-          {status === 'pending' && <Button size={size} variant="secondary" onClick={() => setMode('hold')}>Hold</Button>}
+        <div className="flex flex-col gap-1.5">
+          <Button size={size} variant="secondary" leftIcon={CircleCheck} className="border-green-200 text-green-800 hover:bg-green-50" onClick={() => setMode('clear')}>{status === 'held' ? 'Clear hold' : 'Clear'}</Button>
+          {status === 'pending' && <Button size={size} variant="secondary" leftIcon={PauseCircle} className="border-amber-200 text-amber-800 hover:bg-amber-50" onClick={() => setMode('hold')}>Hold</Button>}
         </div>
       )}
-      {status === 'held' && remarks && <p className="basis-full text-xs font-medium text-ink-muted">Reason: {remarks}</p>}
+      {showStatus && status === 'held' && remarks && <p className="text-xs font-medium text-ink-muted">Reason: {remarks}</p>}
 
       <Modal
         open={Boolean(mode)}

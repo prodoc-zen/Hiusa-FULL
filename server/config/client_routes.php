@@ -27,7 +27,6 @@
  * one role's pending pages can never leak into a live href for a role
  * that has no client route for them at all.
  */
-
 $pendingClient = [];
 
 return [
@@ -36,7 +35,7 @@ return [
         '/dashboard/super-admin/organizations',
         '/dashboard/super-admin/colleges',
         '/dashboard/super-admin/event-requirements',
-        '/dashboard/super-admin/admins',
+        '/dashboard/organization-applications',
         '/dashboard/super-admin/announcements',
         '/dashboard/super-admin/notifications',
         '/dashboard/super-admin/financial-reports',
@@ -46,7 +45,6 @@ return [
         '/dashboard/super-admin/clearances',
         '/dashboard/super-admin/audit-logs',
         '/dashboard/super-admin/academic-years',
-        '/dashboard/objectives',
         '/dashboard/profile',
     ],
 
@@ -92,7 +90,6 @@ return [
         '/dashboard/venues',
         '/dashboard/grievances',
         '/dashboard/clearances',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/manage-elections',
@@ -126,7 +123,6 @@ return [
         '/dashboard/tasks/ai-delegation',
         '/dashboard/venues',
         '/dashboard/clearances',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/manage-candidates',
@@ -136,6 +132,7 @@ return [
     ],
 
     'DEPARTMENT_HEAD' => [
+        '/dashboard/organization-applications',
         '/dashboard/department-head',
         '/dashboard/department-head/approvals',
         '/dashboard/approvals',
@@ -148,7 +145,6 @@ return [
         '/dashboard/merchandise/claim-tokens',
         '/dashboard/merchandise/order-merchandise',
         '/dashboard/merchandise/my-orders',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/cast-vote',
@@ -166,7 +162,6 @@ return [
         '/dashboard/merchandise/my-orders',
         '/dashboard/my-grievances',
         '/dashboard/my-clearance',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/cast-vote',

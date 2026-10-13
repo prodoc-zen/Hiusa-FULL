@@ -34,7 +34,7 @@ const ACTIONS = {
  * what needs this person now, the study's six areas, and what the AI noticed
  * (with the "Why?" disclosure). Composed above each home page's own content.
  */
-export default function RoleBriefing() {
+export default function RoleBriefing({ introduction }) {
   const [state, setState] = useState({ loading: true, error: null, data: null });
 
   const load = useCallback(() => {
@@ -63,6 +63,7 @@ export default function RoleBriefing() {
   return (
     <div className="space-y-4">
       <BriefingHeader user={user} summary={summary} actions={ACTIONS[role] || []} />
+      {introduction}
       <details className="group overflow-hidden rounded-card border border-line bg-surface">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
           <span>Organization indicators</span>
@@ -85,7 +86,7 @@ export default function RoleBriefing() {
             </div>
           </section>
         )}
-      {role === 'SUPER_ADMIN' && Array.isArray(organizations) && <OrganizationsHealthTable organizations={organizations} />}
+      {role === 'SUPER_ADMIN' && Array.isArray(organizations) && <section className="overflow-hidden rounded-lg border border-line bg-surface p-3 sm:p-5"><OrganizationsHealthTable organizations={organizations} /></section>}
     </div>
   );
 }

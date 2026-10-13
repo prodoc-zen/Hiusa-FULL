@@ -19,7 +19,7 @@ export const uploadSystemCollegeLogo = (id, file) => {
   data.append('logo', file);
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
-export const deleteSystemCollege = (id) => unwrap(api.delete(`/system/colleges/${id}`));
+export const deleteSystemCollege = (id, transferToCollegeId) => unwrap(api.delete(`/system/colleges/${id}`, { data: { transfer_to_college_id: transferToCollegeId || null } }));
 export const getAcademicYears = () => unwrap(api.get('/system/academic-years'));
 export const getAcademicPeriods = () => unwrap(api.get('/academic-periods'));
 export const getActiveAcademicPeriod = () => unwrap(api.get('/academic-periods/active'));
@@ -39,6 +39,15 @@ export const initiateSystemAdminPasswordReset = (id) => unwrap(api.post(`/system
 export const handoverSystemAdmin = (id, payload) => unwrap(api.post(`/system/admins/${id}/handover`, payload));
 export const getSystemOrganizationMembers = (organizationId, params) => unwrap(api.get(`/system/organizations/${organizationId}/members`, { params }));
 export const getGlobalAnnouncements = (params) => unwrap(api.get('/system/announcements', { params }));
-export const createGlobalAnnouncement = (payload) => unwrap(api.post('/system/announcements', payload));
-export const updateGlobalAnnouncement = (id, payload) => unwrap(api.put(`/system/announcements/${id}`, payload));
+function announcementUpload(payload, updating = false) {
+  const { image, ...fields } = payload;
+  if (!image) return payload;
+  const data = new FormData();
+  data.append('payload', JSON.stringify(fields));
+  data.append('image', image);
+  if (updating) data.append('_method', 'PUT');
+  return data;
+}
+export const createGlobalAnnouncement = (payload) => unwrap(api.post('/system/announcements', announcementUpload(payload)));
+export const updateGlobalAnnouncement = (id, payload) => unwrap(payload.image ? api.post(`/system/announcements/${id}`, announcementUpload(payload, true)) : api.put(`/system/announcements/${id}`, payload));
 export const archiveGlobalAnnouncement = (id) => unwrap(api.patch(`/system/announcements/${id}/archive`));

@@ -115,7 +115,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertDatabaseHas('audit_logs', ['organization_id' => $created['id'], 'user_id' => $director->school_id, 'actor_role' => 'SUPER_ADMIN', 'action' => 'organization_deactivated']);
     }
 
-    public function test_sao_sets_initial_admin_password_and_can_later_initiate_secure_reset(): void
+    public function test_sao_cannot_create_admins_but_can_initiate_secure_recovery(): void
     {
         Mail::fake();
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
@@ -123,7 +123,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         Sanctum::actingAs($director);
 
-        $response = $this->postJson('/api/system/admins', [
+        $this->postJson('/api/system/admins', [
             'organization_id' => $organization->id,
             'school_id' => 78001122,
             'first_name' => 'Org',
@@ -132,12 +132,10 @@ class SaoDirectorAdministrationTest extends TestCase
             'position_title' => 'Adviser',
             'password' => 'Initial-Admin-Password-123!',
             'password_confirmation' => 'Initial-Admin-Password-123!',
-        ])->assertCreated()
-            ->assertJsonPath('role', 'ADMIN')
-            ->assertJsonPath('position_title', 'Adviser')
-            ->assertJsonMissing(['password_hash', 'password']);
+        ])->assertForbidden();
 
-        $admin = User::findOrFail($response->json('school_id'));
+        $this->assertDatabaseMissing('users', ['school_id' => 78001122]);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id, 'password_hash' => 'Initial-Admin-Password-123!']);
         $initialHash = $admin->password_hash;
         $this->assertTrue(Hash::check('Initial-Admin-Password-123!', $initialHash));
         Mail::assertNothingOutgoing();
@@ -160,7 +158,7 @@ class SaoDirectorAdministrationTest extends TestCase
         $this->assertFalse(Hash::check('SAO-must-not-set-this', $admin->fresh()->password_hash));
     }
 
-    public function test_sao_admin_creation_requires_a_confirmed_password(): void
+    public function test_sao_admin_creation_is_forbidden_regardless_of_password(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
         $organization = Organization::factory()->create();
@@ -177,15 +175,13 @@ class SaoDirectorAdministrationTest extends TestCase
         ];
 
         $this->postJson('/api/system/admins', $payload)
-            ->assertUnprocessable()
-            ->assertJsonValidationErrors(['password']);
+            ->assertForbidden();
 
         $this->postJson('/api/system/admins', [
             ...$payload,
             'password' => 'Initial-Admin-Password-123!',
             'password_confirmation' => 'different-password',
-        ])->assertUnprocessable()
-            ->assertJsonValidationErrors(['password']);
+        ])->assertForbidden();
 
         $this->assertDatabaseMissing('users', ['school_id' => 78001123]);
     }

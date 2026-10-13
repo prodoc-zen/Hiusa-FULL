@@ -86,6 +86,7 @@ export default function SaoCompliancePage() {
   const [reviewTarget, setReviewTarget] = useState(null);
   const [reviewRemarks, setReviewRemarks] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [progressOrganization, setProgressOrganization] = useState(null);
 
   const loadOverview = useCallback(() => {
     setOverview((current) => ({ ...current, loading: true, error: null }));
@@ -245,7 +246,7 @@ export default function SaoCompliancePage() {
   }
 
   const overviewColumns = [
-    { key: 'organization_name', header: 'Organization', render: (org) => <span className="font-bold text-ink">{org.organization_name}</span> },
+    { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" onClick={() => setProgressOrganization(org)} className="text-left font-bold text-brand-700 hover:underline">{org.organization_name}</button> },
     {
       key: 'accreditation_status',
       header: 'Accreditation',
@@ -255,7 +256,7 @@ export default function SaoCompliancePage() {
       key: 'progress',
       header: 'Requirements met',
       render: (org) => (
-        <div className="min-w-[140px]">
+        <div className="min-w-[220px]">
           <ProgressMeter value={orgApprovedCount(org)} max={org.requirements.length || 1} valueLabel={`${orgApprovedCount(org)}/${org.requirements.length}`} />
         </div>
       ),
@@ -287,8 +288,7 @@ export default function SaoCompliancePage() {
             </Button>
           );
         }
-        if (org.accreditation_status === 'incomplete') return <span className="text-sm font-medium text-ink-muted">Awaiting submission</span>;
-        if (org.accreditation_status === 'returned') return <span className="text-sm font-medium text-ink-muted">Waiting on the organization</span>;
+        if (org.requirements.length) return <Button size="sm" variant="secondary" onClick={() => setProgressOrganization(org)}>View all requirements</Button>;
         if (org.accreditation_status === 'accredited') {
           return <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-success-strong"><Check size={14} aria-hidden="true" />All caught up</span>;
         }
@@ -330,6 +330,9 @@ export default function SaoCompliancePage() {
           { key: 'queue', label: 'Review queue', icon: Check },
         ]}
       />
+      <Modal open={Boolean(progressOrganization)} title={progressOrganization?.organization_name || 'Requirement progress'} onClose={() => setProgressOrganization(null)} maxWidth="max-w-2xl">
+        <ul className="divide-y divide-line">{progressOrganization?.requirements.map((requirement) => <li key={requirement.requirement_type_id} className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="text-sm font-bold text-ink">{requirement.requirement_name}</p><p className="mt-1 text-xs text-ink-muted">Due {manilaDate(requirement.deadline_at, 'long')}</p></div><StatusBadge status={requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} />{requirement.submission_id && <Button size="sm" variant="secondary" onClick={() => openDocument({ id: requirement.submission_id })} disabled={openingDocumentId === requirement.submission_id}>Open document</Button>}</li>)}</ul>
+      </Modal>
 
       {activeTab === 'overview' && (
         <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>

@@ -1,19 +1,18 @@
 <?php
 
-use App\Http\Controllers\AcademicStructureController;
-use App\Http\Controllers\AdminDashboardController;
-use App\Http\Controllers\ObjectivesOverviewController;
-use App\Http\Controllers\ClassListImportController;
-use App\Http\Controllers\AccountProfileController;
-use App\Http\Controllers\AcademicYearController;
 use App\Http\Controllers\AcademicSemesterController;
+use App\Http\Controllers\AcademicStructureController;
+use App\Http\Controllers\AcademicYearController;
+use App\Http\Controllers\AccountProfileController;
+use App\Http\Controllers\AdminDashboardController;
 use App\Http\Controllers\AnnouncementController;
 use App\Http\Controllers\ApprovalRequestController;
 use App\Http\Controllers\BudgetController;
-use App\Http\Controllers\CollegeController;
-use App\Http\Controllers\DashboardBriefingController;
+use App\Http\Controllers\ClassListImportController;
 use App\Http\Controllers\ClearanceController;
+use App\Http\Controllers\CollegeController;
 use App\Http\Controllers\ComplianceController;
+use App\Http\Controllers\DashboardBriefingController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventRequirementController;
@@ -28,7 +27,9 @@ use App\Http\Controllers\GrievanceController;
 use App\Http\Controllers\MerchandiseController;
 use App\Http\Controllers\MyActivityController;
 use App\Http\Controllers\NotificationController;
+use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrganizationApplicationController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\SboPositionController;
 use App\Http\Controllers\StudentFeedController;
@@ -39,8 +40,8 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\UserPhotoController;
 use App\Http\Controllers\VenueBookingController;
 use App\Http\Controllers\VenueController;
-use App\Http\Middleware\EnsureCurrentEventSemester;
 use App\Http\Middleware\EnsureCurrentElectionSemester;
+use App\Http\Middleware\EnsureCurrentEventSemester;
 use App\Http\Middleware\EnsureCurrentTaskSemester;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Route;
@@ -55,6 +56,9 @@ Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])
 Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:password');
 Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:password');
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
+Route::get('/organization-applications/colleges', [OrganizationApplicationController::class, 'colleges'])->middleware('throttle:public');
+Route::post('/organization-applications', [OrganizationApplicationController::class, 'store'])->middleware('throttle:registration');
+Route::get('/organization-applications/{application}/verify', [OrganizationApplicationController::class, 'verify'])->middleware(['signed', 'throttle:public'])->name('organization-applications.verify');
 
 Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
@@ -114,6 +118,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // SAO Director: separate global administration endpoints, intentionally
     // distinct from all organization operation and AI-generation routes.
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/organization-applications', [OrganizationApplicationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::patch('/organization-applications/{application}/review', [OrganizationApplicationController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/system/organizations', [SystemAdministrationController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations', [SystemAdministrationController::class, 'storeOrganization'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/organizations/{organization}', [SystemAdministrationController::class, 'updateOrganization'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -323,9 +329,10 @@ Route::middleware(['auth:sanctum', 'account.profile', 'cache.api'])->group(funct
     // never accepted from input. See GrievanceController docblock for the
     // anonymity rule.
     Route::get('/grievances', [GrievanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
-    Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->withTrashed()->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
+    Route::delete('/grievances/{grievance}', [GrievanceController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
 
     // Digital clearances: SUPER_ADMIN defines a period's required signatory
     // roles. The "sao" role is university-wide and signed only by

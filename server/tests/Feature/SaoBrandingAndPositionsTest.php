@@ -38,15 +38,17 @@ class SaoBrandingAndPositionsTest extends TestCase
         $this->withHeader('Accept', 'application/json')->post('/api/system/colleges/'.$college->id.'/logo', ['logo' => UploadedFile::fake()->create('bad.pdf', 10, 'application/pdf')])->assertUnprocessable();
     }
 
-    public function test_sao_administrator_title_is_visible_in_organization_positions(): void
+    public function test_organization_admin_appoints_another_admin_and_adviser_positions_remain_protected(): void
     {
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
         $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
         $organization = Organization::factory()->create();
-        Sanctum::actingAs($director);
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $organization->id]));
 
-        $this->postJson('/api/system/admins', [
+        SboPosition::firstOrCreate(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => 'President'], ['is_active' => true]);
+        $this->postJson('/api/users', [
             'organization_id' => $organization->id,
+            'role' => 'ADMIN',
             'school_id' => 87654321,
             'first_name' => 'Alex',
             'last_name' => 'Rivera',

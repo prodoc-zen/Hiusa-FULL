@@ -352,7 +352,7 @@ describe("MerchandisePage fulfillment experience", () => {
     expect(views.getByRole("button", { name: "All orders" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("loads only paid orders in the token validation queue", async () => {
+  it("loads all paid and claimed orders in the token validation queue", async () => {
     render(
       <MemoryRouter>
         <MerchandisePage initialTab="tokens" />
@@ -363,7 +363,7 @@ describe("MerchandisePage fulfillment experience", () => {
     expect(await screen.findByText("CLAIMTOKEN123456")).toBeInTheDocument();
     await waitFor(() =>
       expect(orderMocks.getOrders).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "paid", sort: "oldest" }),
+        expect.objectContaining({ status: "claimable", sort: "oldest" }),
       ),
     );
   });
@@ -387,13 +387,16 @@ describe("MerchandisePage fulfillment experience", () => {
     response.data.data = [pendingOrder];
     orderMocks.getOrders.mockResolvedValue(response);
     render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
-    fireEvent.click((await screen.findAllByRole("button", { name: /^Approve/ }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: 'Review', exact: true }))[0]);
+    const reviewDialog = screen.getByRole('dialog', { name: 'Merchandise order details' });
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: 'Approve payment' }));
     expect(orderMocks.updateOrderStatus).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
     expect(dialog).toHaveTextContent("Rafael Aquino");
     expect(dialog).toHaveTextContent("BS Information Technology");
     expect(dialog).toHaveTextContent("250.00");
     expect(dialog).toHaveTextContent("ORD-28");
+    expect(screen.queryByRole('dialog', { name: 'Merchandise order details' })).not.toBeInTheDocument();
   });
 
   it("shows inventory top sellers from paid sales and requires a stock note", async () => {

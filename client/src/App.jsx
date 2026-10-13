@@ -6,6 +6,9 @@ import ProtectedRoute from './ProtectedRoute';
 import LoggedInRoute from './LoggedInRoute';
 
 const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
+const LandingPage = lazy(() => import('./pages/auth/LandingPage'));
+const RegisterOrganizationPage = lazy(() => import('./pages/auth/RegisterOrganizationPage'));
+const OrganizationApplicationsPage = lazy(() => import('./pages/modules/sao/OrganizationApplicationsPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
 const DashboardPage = lazy(() => import('./pages/roles/officer/DashboardPage'));
@@ -15,7 +18,6 @@ const SuperAdminFinancialReportsPage = lazy(() => import('./pages/roles/super-ad
 const SystemOrganizationsPage = lazy(() => import('./pages/roles/super-admin/SystemOrganizationsPage'));
 const SystemCollegesPage = lazy(() => import('./pages/roles/super-admin/SystemCollegesPage'));
 const SaoEventRequirementsPage = lazy(() => import('./pages/roles/super-admin/SaoEventRequirementsPage'));
-const SystemAdminsPage = lazy(() => import('./pages/roles/super-admin/SystemAdminsPage'));
 const GlobalAnnouncementsPage = lazy(() => import('./pages/roles/super-admin/GlobalAnnouncementsPage'));
 const SaoNotificationsPage = lazy(() => import('./pages/roles/super-admin/SaoNotificationsPage'));
 const DepartmentHeadHomePage = lazy(() => import('./pages/roles/department-head/DepartmentHeadHomePage'));
@@ -55,7 +57,6 @@ const OrganizationGrievancesPage = lazy(() => import('./pages/modules/grievances
 const StudentGrievancesPage = lazy(() => import('./pages/modules/grievances/StudentGrievancesPage'));
 const SignatoryClearancesPage = lazy(() => import('./pages/modules/clearances/SignatoryClearancesPage'));
 const StudentClearancePage = lazy(() => import('./pages/modules/clearances/StudentClearancePage'));
-const StudyObjectivesPage = lazy(() => import('./pages/modules/objectives/StudyObjectivesPage'));
 const UiKitPage = import.meta.env.DEV ? lazy(() => import('./pages/dev/UiKitPage')) : null;
 
 function getStoredRole() {
@@ -181,7 +182,8 @@ function App() {
     <Suspense fallback={<RouteLoadingFallback />}>
       <Routes>
       {/* Authentication */}
-      <Route path="/" element={<Navigate to="/login" replace />} />
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/register-organization" element={<RegisterOrganizationPage />} />
       {UiKitPage && <Route path="/dev/ui-kit" element={<UiKitPage />} />}
       <Route element={<LoggedInRoute />}>
         <Route path="/login" element={<LoginPage />} />
@@ -205,7 +207,8 @@ function App() {
           <Route path="super-admin/audit-logs" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GeneralAuditLogPage /></ProtectedRoute>} />
           <Route path="super-admin/academic-years" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><AcademicYearsPage /></ProtectedRoute>} />
           <Route path="super-admin/event-requirements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoEventRequirementsPage /></ProtectedRoute>} />
-          <Route path="super-admin/admins" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SystemAdminsPage /></ProtectedRoute>} />
+          <Route path="super-admin/admins" element={<Navigate to="/dashboard/super-admin/organizations" replace />} />
+          <Route path="organization-applications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "DEPARTMENT_HEAD"]}><OrganizationApplicationsPage /></ProtectedRoute>} />
           <Route path="super-admin/announcements" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><GlobalAnnouncementsPage /></ProtectedRoute>} />
           <Route path="super-admin/notifications" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN"]}><SaoNotificationsPage /></ProtectedRoute>} />
           <Route path="admin" element={<ProtectedRoute allowedRoles={["ADMIN"]}><AdminHomePage /></ProtectedRoute>} />
@@ -282,7 +285,7 @@ function App() {
           <Route path="my-grievances" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentGrievancesPage /></ProtectedRoute>} />
           <Route path="clearances" element={<ProtectedRoute allowedRoles={["ADMIN", "SBO_OFFICER"]}><SignatoryClearancesPage /></ProtectedRoute>} />
           <Route path="my-clearance" element={<ProtectedRoute allowedRoles={["STUDENT"]}><StudentClearancePage /></ProtectedRoute>} />
-          <Route path="objectives" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "DEPARTMENT_HEAD", "STUDENT"]}><StudyObjectivesPage /></ProtectedRoute>} />
+          <Route path="objectives" element={<Navigate to="/dashboard" replace />} />
           <Route path="profile" element={<ProtectedRoute allowedRoles={["SUPER_ADMIN", "ADMIN", "SBO_OFFICER", "STUDENT", "DEPARTMENT_HEAD"]}><SettingsPage /></ProtectedRoute>} />
           <Route path="organization" element={<Navigate to="/dashboard/profile" replace />} />
           <Route path="settings" element={<Navigate to="/dashboard/profile" replace />} />

@@ -8,6 +8,7 @@ use App\Models\Notification;
 use App\Models\User;
 use App\Services\HiusaAiService;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * Confidential grievances. A STUDENT files one addressed either to their own
@@ -52,7 +53,7 @@ class GrievanceController extends Controller
 
         $query = Grievance::with(['organization:id,name,acronym', 'submitter:school_id,first_name,last_name']);
         $query = match ($request->user()->role) {
-            'STUDENT' => $query->where('submitted_by', $request->user()->school_id),
+            'STUDENT' => $query->withTrashed()->where('submitted_by', $request->user()->school_id),
             'ADMIN' => $query->where('organization_id', $request->user()->organization_id),
             default => $query,
         };
@@ -227,6 +228,19 @@ class GrievanceController extends Controller
             'ADMIN' => $grievance->organization_id === $user->organization_id,
             default => true,
         };
+    }
+
+    public function destroy(Request $request, Grievance $grievance)
+    {
+        abort_unless($this->canTransition($grievance, $request->user()), 404);
+        DB::transaction(function () use ($request, $grievance) {
+            $grievance = Grievance::whereKey($grievance->id)->lockForUpdate()->firstOrFail();
+            abort_unless(in_array($grievance->status, ['resolved', 'dismissed'], true), 409, 'Resolve or dismiss the grievance with remarks before deleting it from the review register.');
+            AuditLog::create(['organization_id' => null, 'user_id' => null, 'actor_role' => $request->user()->role, 'module' => 'grievances', 'action' => 'closed_grievance_deleted', 'record_type' => Grievance::class, 'record_id' => $grievance->id, 'new_values' => ['status' => $grievance->status], 'ip_address' => $request->ip(), 'created_at' => now()]);
+            $grievance->delete();
+        });
+
+        return response()->noContent();
     }
 
     /**

@@ -110,7 +110,7 @@ class ExistingOrganizationMembershipTest extends TestCase
         }
     }
 
-    public function test_sao_can_assign_one_existing_admin_to_multiple_suborganizations_and_switch_scopes(): void
+    public function test_organization_admin_can_assign_one_existing_admin_to_suborganizations_and_switch_scopes(): void
     {
         $main = $this->organization();
         $children = [
@@ -124,6 +124,9 @@ class ExistingOrganizationMembershipTest extends TestCase
         Sanctum::actingAs($sao);
         $profiles = [];
 
+        $this->postJson('/api/account-profiles/invite', ['organization_id' => $children[0]->id, 'school_id' => $admin->school_id, 'role' => 'ADMIN'])->assertUnprocessable()->assertJsonValidationErrors('role');
+        Sanctum::actingAs($admin);
+
         foreach ($children as $child) {
             $this->getJson('/api/account-profiles/candidates?'.http_build_query(['organization_id' => $child->id, 'search' => $admin->school_id]))
                 ->assertOk()->assertJsonPath('data.0.school_id', $admin->school_id);
@@ -135,6 +138,7 @@ class ExistingOrganizationMembershipTest extends TestCase
         $this->assertSame($main->id, $admin->fresh()->organization_id);
         $this->assertSame('ADMIN', $admin->fresh()->role);
         $this->assertSame($password, $admin->fresh()->getRawOriginal('password_hash'));
+        Sanctum::actingAs($sao);
         $rows = collect($this->getJson('/api/system/organizations?per_page=100')->assertOk()->json('data'));
         foreach ($children as $child) {
             $this->assertSame(1, $rows->firstWhere('id', $child->id)['administrators_count']);
@@ -155,18 +159,18 @@ class ExistingOrganizationMembershipTest extends TestCase
         }
     }
 
-    public function test_only_sao_can_assign_admin_membership_and_college_eligibility_still_applies(): void
+    public function test_only_organization_admins_assign_admin_membership_and_college_eligibility_still_applies(): void
     {
         $main = $this->organization();
         $child = $this->organization(['parent_organization_id' => $main->id]);
         $student = User::factory()->student()->create(['organization_id' => $main->id]);
         $foreignAdmin = User::factory()->admin()->create(['organization_id' => $this->organization(['college' => 'College of Business'])->id]);
-        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $main->id]));
+        Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]));
         $this->postJson('/api/account-profiles/invite', ['organization_id' => $child->id, 'school_id' => $student->school_id, 'role' => 'ADMIN'])
             ->assertUnprocessable()->assertJsonValidationErrors('role');
         $this->assertDatabaseMissing('account_profiles', ['organization_id' => $child->id, 'user_school_id' => $student->school_id]);
 
-        Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]));
+        Sanctum::actingAs(User::factory()->admin()->create(['organization_id' => $main->id]));
         $this->postJson('/api/account-profiles/invite', ['organization_id' => $child->id, 'school_id' => $foreignAdmin->school_id, 'role' => 'ADMIN'])
             ->assertUnprocessable()->assertJsonValidationErrors('school_id');
         $this->assertDatabaseMissing('account_profiles', ['organization_id' => $child->id, 'user_school_id' => $foreignAdmin->school_id]);

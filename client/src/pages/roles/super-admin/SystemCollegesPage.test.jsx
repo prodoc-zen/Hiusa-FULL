@@ -35,4 +35,17 @@ describe('SystemCollegesPage', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Save changes' }));
     await waitFor(() => expect(mocks.updateSystemCollege).toHaveBeenCalledWith(3, expect.objectContaining({ name: 'College of Fine Arts' })));
   });
+
+  it('allows deleting an assigned college and offers transfer before confirmation', async () => {
+    mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', is_active: true, organizations_count: 2 }, { id: 4, name: 'College of Science', is_active: true, organizations_count: 0 }]);
+    mocks.deleteSystemCollege.mockResolvedValue({});
+    render(<SystemCollegesPage />);
+    await screen.findByText('College of Arts');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Delete', exact: true })[0]);
+    const dialog = screen.getByRole('dialog');
+    expect(dialog).toHaveTextContent('become inactive');
+    fireEvent.change(within(dialog).getByLabelText('Transfer to another college (optional)'), { target: { value: '4' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Delete college' }));
+    await waitFor(() => expect(mocks.deleteSystemCollege).toHaveBeenCalledWith(3, '4'));
+  });
 });

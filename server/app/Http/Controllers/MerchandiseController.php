@@ -4,9 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\Merchandise;
-use App\Models\MerchandiseVariant;
-use Illuminate\Http\Request;
 use Illuminate\Http\Exceptions\HttpResponseException;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
@@ -17,6 +16,7 @@ class MerchandiseController extends Controller
     private function storeMerchandiseImage(Request $request): string
     {
         $file = $request->file('image');
+
         return $this->storeImageFile($file);
     }
 
@@ -185,24 +185,27 @@ class MerchandiseController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $item = Merchandise::where('organization_id', $request->user()->organization_id)->find($id);
+        return DB::transaction(function () use ($request, $id) {
+            $item = Merchandise::where('organization_id', $request->user()->organization_id)->lockForUpdate()->find($id);
 
-        if (! $item) {
-            return response()->json(['message' => 'Item not found.'], 404);
-        }
+            if (! $item) {
+                return response()->json(['message' => 'Item not found.'], 404);
+            }
 
-        $blockedStatuses = ['pending', 'paid'];
-        if ($item->orders()->whereIn('status', $blockedStatuses)->exists()) {
-            return response()->json([
-                'message' => 'Cannot delete an item with pending or paid orders.',
-            ], 409);
-        }
+            $blockedStatuses = ['pending', 'paid'];
+            if ($item->orders()->whereIn('status', $blockedStatuses)->exists()) {
+                return response()->json([
+                    'message' => 'Cannot delete an item with pending or paid orders.',
+                ], 409);
+            }
 
-        $oldValues = $this->auditableMerchandiseValues($item);
-        $item->update(['is_active' => false]);
-        $this->recordMerchandiseAudit($request, 'deactivated', $item, $oldValues, $this->auditableMerchandiseValues($item));
+            $oldValues = $this->auditableMerchandiseValues($item);
+            $item->update(['is_active' => false]);
+            $this->recordMerchandiseAudit($request, 'deleted', $item, $oldValues, $this->auditableMerchandiseValues($item));
+            $item->delete();
 
-        return response()->json(['message' => 'Item deactivated successfully.']);
+            return response()->json(['message' => 'Item deleted. Existing order records are preserved.']);
+        });
     }
 
     public function adjustStock(Request $request, $id)

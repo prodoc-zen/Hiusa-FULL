@@ -26,6 +26,7 @@
 - **Generate Announcement Draft:** `POST /announcements/generate-draft` sends only supplied title/audience/category/details to Groq, records structured context and output, and returns a retryable error instead of placeholder copy when Groq fails.
 - **Accept Generated Draft:** saving the editable announcement links the versioned AI output to the new announcement and marks it accepted.
 - **Create Announcement:** Admin and SBO Officer use organization announcements. SAO uses the separate official-announcement endpoints and page, with no AI generation or organization approval step.
+- **SAO Photos:** official announcements accept a JPEG, PNG, or WebP photo up to 5 MB. The editor previews the photo and the notice displays it. Multipart requests carry nested audience fields in a validated JSON `payload`; updates use `POST` with `_method=PUT` so PHP receives the uploaded file.
 - **Edit Announcement:** manage announcements now opens existing details, updates content, and saves the record.
 - **Content Formatting:** organization and official SAO announcement editors offer bold and alternate post fonts with a live preview. Formatting is stored as plain-text markers and rendered as React text, so existing posts and API fields remain compatible.
 - **Submit Announcement for Approval:** SBO Officer announcements create an Admin approval request.
