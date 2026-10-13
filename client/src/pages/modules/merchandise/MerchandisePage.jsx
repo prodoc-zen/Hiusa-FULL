@@ -24,7 +24,6 @@ import {
   Package,
   Pencil,
   Plus,
-  PowerOff,
   Search,
   Settings2,
   SlidersHorizontal,
@@ -540,7 +539,7 @@ export default function MerchandisePage({ initialTab }) {
   const [showPaymentSettings, setShowPaymentSettings] = useState(false);
   const [paymentSettingsBusy, setPaymentSettingsBusy] = useState(false);
   const [orderQueueView, setOrderQueueView] = useState('auto');
-  const [tokenStatusFilter, setTokenStatusFilter] = useState('paid');
+  const [tokenStatusFilter, setTokenStatusFilter] = useState('claimable');
   const [analyticsModal, setAnalyticsModal] = useState({
     open: false,
     title: "",
@@ -1175,6 +1174,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function openPaymentVerification(order) {
+    setOrderDetails(null);
     setVerificationModal({
       open: true,
       order,
@@ -1185,6 +1185,7 @@ export default function MerchandisePage({ initialTab }) {
   }
 
   function openOrderRejection(order) {
+    setOrderDetails(null);
     setRejectionModal({
       open: true,
       order,
@@ -1280,15 +1281,16 @@ export default function MerchandisePage({ initialTab }) {
     });
   }
 
-  function confirmDeactivateProduct(item) {
+  function confirmDeleteProduct(item) {
     openConfirm({
-      title: "Deactivate Product",
-      message: `Deactivate ${item.name}? Students will not be able to order it. It stays in the catalog and past orders keep their record. An item with pending or paid orders cannot be deactivated.`,
-      confirmText: "Deactivate",
+      title: "Delete Product",
+      danger: true,
+      message: `Delete ${item.name}? This cannot be undone.`,
+      confirmText: "Delete",
       action: async () => {
         await deleteItem(item.id);
-        setItems((prev) => prev.map((row) => (row.id === item.id ? { ...row, is_active: false } : row)));
-        setTransactionMessage(`${item.name} was deactivated.`);
+        setItems((prev) => prev.filter((row) => row.id !== item.id));
+        setTransactionMessage(`${item.name} was deleted.`);
       },
     });
   }
@@ -1637,7 +1639,7 @@ export default function MerchandisePage({ initialTab }) {
     : orders.filter((o) => ["pending", "paid"].includes(o.status)).length;
   const lowStock = items.filter((i) => i.is_low_stock).length;
   const topSellers = [...(orderSummary?.breakdown || [])].sort((left, right) => Number(right.quantity) - Number(left.quantity)).slice(0, 5);
-  const tokenOrders = orders.filter((o) => o.status === tokenStatusFilter);
+  const tokenOrders = orders.filter((o) => tokenStatusFilter === 'claimable' ? ['paid', 'claimed'].includes(o.status) : o.status === tokenStatusFilter);
   const availableItems = items.filter(
     (i) => i.is_active && i.stock_quantity > 0,
   );
@@ -2974,12 +2976,12 @@ export default function MerchandisePage({ initialTab }) {
                       </button>
                       {item.is_active && <button
                         type="button"
-                        onClick={() => confirmDeactivateProduct(item)}
-                        className="grid h-7 w-7 place-items-center rounded-md border border-red-100 text-red-500 transition hover:bg-red-50"
-                        aria-label={`Deactivate ${formatDisplayText(item.name)}`}
-                        title="Deactivate"
+                        onClick={() => confirmDeleteProduct(item)}
+                        className="inline-flex min-h-11 items-center gap-2 rounded-md border border-red-100 px-3 text-xs font-bold text-red-700 transition hover:bg-red-50"
+                        aria-label={`Delete ${formatDisplayText(item.name)}`}
                       >
-                        <PowerOff size={13} />
+                        <Trash2 size={13} />
+                        Delete
                       </button>}
                     </div>
                   </div>}
@@ -3472,8 +3474,8 @@ export default function MerchandisePage({ initialTab }) {
                           <TableRowActions subject={`Order ${o.id}`} label="Order actions" actions={[
                             { label: 'Review order', icon: Search, onClick: () => openOrderDetails(o) },
                             o.status === 'paid' && { label: 'Release at claim desk', icon: Ticket, onClick: () => navigate('/dashboard/merchandise/claim-tokens') },
-                            o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => setVerificationModal({ open: true, order: o, amount: String(o.total_price), busy: false, error: '' }) },
-                            o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => setRejectionModal({ open: true, order: o, remarks: '', busy: false, error: '' }) },
+                            o.status === 'pending' && { label: role === 'ADMIN' ? 'Approve directly' : 'Verify & submit', icon: ArrowRight, onClick: () => openPaymentVerification(o) },
+                            o.status === 'pending' && { label: 'Reject order', icon: X, danger: true, onClick: () => openOrderRejection(o) },
                           ]} />
                         </td>
                       </tr>
@@ -3770,6 +3772,9 @@ export default function MerchandisePage({ initialTab }) {
               <NextStep {...staffNextStepProps(orderDetails, role, staffOrderFlow(orderDetails, role), () => openPaymentVerification(orderDetails))} />
             </div>
             <div className="mt-5"><ReceiptDocument order={orderDetails} onViewProof={handleViewPaymentProof} /></div>
+            {isFulfillmentRole && orderDetails.status === 'pending' && <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-[#DDE7EF] pt-4">
+              <button type="button" onClick={() => openOrderRejection(orderDetails)} className="min-h-11 rounded-lg border border-red-200 px-4 text-sm font-bold text-red-700">Reject order</button>
+            </div>}
             <section className="mt-5 border-t border-[#DDE7EF] pt-5">
               <div>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-[#0878B7]">
@@ -3898,7 +3903,7 @@ export default function MerchandisePage({ initialTab }) {
                 Orders waiting to be claimed and orders already released.
               </p>
               </div>
-              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="paid">Waiting to be claimed</option><option value="claimed">Claimed</option></select></div>
+              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="claimable">All claim tokens</option><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select></div>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -3910,10 +3915,10 @@ export default function MerchandisePage({ initialTab }) {
                 ))}
               </div>
             ) : tokenOrders.length === 0 ? (
-              tokenStatusFilter === "paid" ? (
+              tokenStatusFilter !== "claimed" ? (
                 <EmptyState
                   icon={Ticket}
-                  title="Nothing is waiting at the claim desk."
+                  title={tokenStatusFilter === 'claimable' ? 'No claim tokens yet.' : 'Nothing is waiting at the claim desk.'}
                   description="Orders appear here once their payment is verified and the buyer has a claim token."
                   action={<Button variant="secondary" to="/dashboard/merchandise/manage-orders">Open orders</Button>}
                 />

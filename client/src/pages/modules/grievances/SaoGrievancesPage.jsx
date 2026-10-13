@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, EmptyState, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { MessageSquareWarning } from 'lucide-react';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
@@ -165,6 +165,7 @@ export default function SaoGrievancesPage() {
         <DataTable
           columns={columns}
           rows={sortedRows}
+          actions={(row) => <Button size="sm" variant="secondary" onClick={() => open(row)}>View details</Button>}
           loading={loading}
           error={error}
           onRetry={load}
@@ -214,7 +215,7 @@ export default function SaoGrievancesPage() {
         />
       </Card>
 
-      <GrievanceDetailDrawer grievance={selected} viewerRole="SUPER_ADMIN" onClose={close} onTransition={handleTransition} />
+      <GrievanceDetailDrawer grievance={selected} viewerRole="SUPER_ADMIN" onClose={close} onTransition={handleTransition} onDeleted={load} />
     </div>
   );
 }

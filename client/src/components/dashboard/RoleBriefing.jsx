@@ -38,7 +38,7 @@ const ACTIONS = {
   DEPARTMENT_HEAD: [{ label: 'Review approvals', to: '/dashboard/department-head/approvals', icon: ClipboardCheck }],
 };
 
-function BriefingBody({ data }) {
+function BriefingBody({ data, introduction }) {
   const { user, summary, attention: rawAttention = [], pillars = {}, insights = [], organizations } = data;
   const role = user?.role;
   const userKey = `${storedSchoolId()}.${role}.${user?.organization?.id ?? 'sao'}`;
@@ -93,6 +93,7 @@ function BriefingBody({ data }) {
   return (
     <div className="space-y-4">
       <BriefingHeader user={user} summary={{ ...summary, headline }} actions={actions} />
+      {introduction}
       {inboxFirst ? <>{attentionCard}{setupCard}</> : <>{setupCard}{attentionCard}</>}
       <details className="group overflow-hidden rounded-card border border-line bg-surface">
         <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-bold text-ink marker:content-none hover:bg-subtle focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-brand-700 sm:px-5">
@@ -120,7 +121,7 @@ function BriefingBody({ data }) {
  * areas, and what the AI noticed (with the "Why?" disclosure). Composed above each home page's own content.
  * A page that shows figures from the same payload (the student account panel) reads them through onData.
  */
-export default function RoleBriefing({ onData }) {
+export default function RoleBriefing({ onData, introduction }) {
   const [state, setState] = useState({ loading: true, error: null, data: null });
 
   const load = useCallback(() => {
@@ -149,5 +150,5 @@ export default function RoleBriefing({ onData }) {
     );
   }
 
-  return <BriefingBody data={state.data} />;
+  return <BriefingBody data={state.data} introduction={introduction} />;
 }

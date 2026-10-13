@@ -53,7 +53,7 @@ class GrievanceController extends Controller
 
         $query = Grievance::with(['organization:id,name,acronym', 'submitter:school_id,first_name,last_name']);
         $query = match ($request->user()->role) {
-            'STUDENT' => $query->where('submitted_by', $request->user()->school_id),
+            'STUDENT' => $query->withTrashed()->where('submitted_by', $request->user()->school_id),
             'ADMIN' => $query->where('organization_id', $request->user()->organization_id),
             default => $query,
         };
@@ -73,6 +73,9 @@ class GrievanceController extends Controller
 
     public function show(Request $request, Grievance $grievance)
     {
+        if ($grievance->trashed() && $request->user()->role !== 'STUDENT') {
+            return response()->json(['message' => 'Grievance not found.'], 404);
+        }
         if (! $this->visibleTo($grievance, $request->user())) {
             return response()->json(['message' => 'Grievance not found.'], 404);
         }
@@ -223,38 +226,26 @@ class GrievanceController extends Controller
 
     public function destroy(Request $request, Grievance $grievance)
     {
-        if (! $this->visibleTo($grievance, $request->user())) {
+        $student = $request->user()->role === 'STUDENT';
+        if (! ($student ? $grievance->submitted_by === $request->user()->school_id : $this->canTransition($grievance, $request->user()))) {
             return response()->json(['message' => 'Grievance not found.'], 404);
         }
+        DB::transaction(function () use ($request, $grievance, $student) {
+            $grievance = Grievance::whereKey($grievance->id)->lockForUpdate()->firstOrFail();
+            if ($student) {
+                abort_unless($grievance->status === 'submitted', 409, 'Only grievances that have not been reviewed can be deleted.');
+                Notification::where('reference_type', 'grievance')->where('reference_id', $grievance->id)->delete();
+                AuditLog::create(['organization_id' => null, 'user_id' => null, 'actor_role' => 'STUDENT', 'module' => 'grievances', 'action' => 'grievance_deleted', 'record_type' => Grievance::class, 'record_id' => $grievance->id, 'new_values' => ['urgency' => $grievance->urgency, 'category' => $grievance->category], 'ip_address' => $request->ip(), 'created_at' => now()]);
+                $grievance->forceDelete();
 
-        $deleted = DB::transaction(function () use ($request, $grievance) {
-            if (! Grievance::whereKey($grievance->id)->where('status', 'submitted')->delete()) {
-                return false;
+                return;
             }
-
-            Notification::where('reference_type', 'grievance')->where('reference_id', $grievance->id)->delete();
-            // organization_id and user_id are intentionally null - see store().
-            AuditLog::create([
-                'organization_id' => null,
-                'user_id' => null,
-                'actor_role' => $request->user()->role,
-                'module' => 'grievances',
-                'action' => 'grievance_deleted',
-                'record_type' => Grievance::class,
-                'record_id' => $grievance->id,
-                'new_values' => ['urgency' => $grievance->urgency, 'category' => $grievance->category],
-                'ip_address' => $request->ip(),
-                'created_at' => now(),
-            ]);
-
-            return true;
+            abort_unless(in_array($grievance->status, ['resolved', 'dismissed'], true), 409, 'Resolve or dismiss the grievance with remarks before deleting it from the review register.');
+            AuditLog::create(['organization_id' => null, 'user_id' => null, 'actor_role' => $request->user()->role, 'module' => 'grievances', 'action' => 'closed_grievance_deleted', 'record_type' => Grievance::class, 'record_id' => $grievance->id, 'new_values' => ['status' => $grievance->status], 'ip_address' => $request->ip(), 'created_at' => now()]);
+            $grievance->delete();
         });
 
-        if (! $deleted) {
-            return response()->json(['message' => 'Only grievances that have not been reviewed can be deleted.'], 409);
-        }
-
-        return response()->json(['message' => 'Grievance deleted.']);
+        return $student ? response()->json(['message' => 'Grievance deleted.']) : response()->noContent();
     }
 
     private function visibleTo(Grievance $grievance, $user): bool

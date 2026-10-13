@@ -234,7 +234,7 @@ describe('RoleBriefing', () => {
       expect(screen.getByText('1 item needs you today.')).toBeInTheDocument();
     });
 
-    it('SAO: the inbox leads with a count per review area, registrations first, and sets the headline', async () => {
+    it('SAO: the inbox leads with a count per review area and registrations first', async () => {
       const setup = withProgress([
         step('academic-year', 'Set the current academic year'),
         step('college-heads', 'Every college has a Department Head'),
@@ -263,7 +263,7 @@ describe('RoleBriefing', () => {
       ]);
       expect(within(inbox).getByRole('link', { name: /Registrations awaiting review/ })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending');
       expect(within(inbox).getByRole('link', { name: /Compliance submissions/ })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=review');
-      expect(screen.getByText('15 items need your attention: 3 registrations, 4 compliance submissions, 1 financial report, 2 urgent grievances, 5 clearances.')).toBeInTheDocument();
+      expect(screen.queryByText('15 items need your attention: 3 registrations, 4 compliance submissions, 1 financial report, 2 urgent grievances, 5 clearances.')).not.toBeInTheDocument();
       expect(screen.queryByText('server headline')).not.toBeInTheDocument();
 
       const primary = screen.getByRole('link', { name: 'Review registrations' });
@@ -301,7 +301,7 @@ describe('RoleBriefing', () => {
       vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { attention, organizations: [] }));
       renderBriefing();
       expect(await screen.findByRole('link', { name: 'Review financial reports' })).toHaveAttribute('href', '/dashboard/super-admin/compliance?tab=financial');
-      expect(screen.getByText('1 item needs your attention: 1 financial report.')).toBeInTheDocument();
+      expect(screen.queryByText('1 item needs your attention: 1 financial report.')).not.toBeInTheDocument();
     });
 
     it('adds the organizations health table only for the SAO', async () => {

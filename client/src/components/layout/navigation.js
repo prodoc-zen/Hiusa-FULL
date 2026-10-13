@@ -1,6 +1,6 @@
 import {
   BadgeCheck, BookOpen, Bot, Building2, CalendarDays, ChartColumn, ClipboardCheck, ClipboardList, CreditCard,
-  FileText, Fingerprint, Flag, GraduationCap, History, Home, LayoutDashboard, ListChecks, MapPin, Megaphone,
+  FileText, Fingerprint, Flag, GraduationCap, History, Home, ListChecks, MapPin, Megaphone,
   MessageSquare, Newspaper, Package, ReceiptText, SearchCheck, Settings, ShieldCheck, ShoppingCart, Store,
   TicketCheck, User, Users, UsersRound, Vote, WalletCards,
 } from 'lucide-react';
@@ -119,6 +119,7 @@ const NAV_BY_ROLE = {
   ],
   DEPARTMENT_HEAD: [
     dashboard('DEPARTMENT_HEAD'),
+    { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
     { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
     group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'College view (read only)' }),
@@ -141,9 +142,8 @@ const NAV_BY_ROLE = {
   SUPER_ADMIN: [
     dashboard('SUPER_ADMIN'),
     group('sao-organizations-group', 'Organizations', Building2, [
-      leaf('sao-agency', 'Agency overview', '/dashboard/super-admin/agency', LayoutDashboard),
+      leaf('sao-applications', 'Organization applications', '/dashboard/organization-applications', ClipboardCheck),
       leaf('sao-organizations', 'Registrations and organizations', '/dashboard/super-admin/organizations?status=pending', Store, { aliases: ['Organizations'] }),
-      leaf('sao-admins', 'Administrators', '/dashboard/super-admin/admins', UsersRound),
       leaf('sao-colleges', 'Colleges', '/dashboard/super-admin/colleges', Building2),
     ]),
     group('sao-reviews', 'Reviews', ClipboardCheck, [
@@ -166,7 +166,6 @@ const NAV_BY_ROLE = {
 // Every role shares the same footer: the account page and the page that ends the old orphan.
 export const footerNav = [
   { id: 'profile', label: 'Profile', path: '/dashboard/profile', icon: User },
-  { id: 'objectives', label: 'Study objectives', path: '/dashboard/objectives', icon: BookOpen },
 ];
 
 // Pages that left the sidebar but stay reachable from the command palette. Paths that are now

@@ -108,7 +108,7 @@ class ClientRouteAllowlistTest extends TestCase
         $this->assertSame('/dashboard/super-admin/compliance?tab=review', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/compliance?tab=review'));
         $this->assertSame('/dashboard/super-admin/organizations?status=pending&review=12', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/organizations?status=pending&review=12'));
         $this->assertSame('/dashboard/department-head/organizations?status=returned', $access->hrefFor('DEPARTMENT_HEAD', '/dashboard/department-head/organizations?status=returned'));
-        $this->assertSame('/dashboard/super-admin/admins?organization=7&create=1', $access->hrefFor('SUPER_ADMIN', '/dashboard/super-admin/admins?organization=7&create=1'));
+        $this->assertSame('/dashboard/organization-applications?status=endorsed', $access->hrefFor('SUPER_ADMIN', '/dashboard/organization-applications?status=endorsed'));
     }
 
     public function test_href_for_rejects_a_forbidden_path_even_with_a_valid_query(): void

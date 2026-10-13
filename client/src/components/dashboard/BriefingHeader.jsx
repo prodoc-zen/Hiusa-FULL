@@ -24,7 +24,7 @@ export default function BriefingHeader({ user, summary, actions }) {
           <h2 className="mt-1.5 text-xl font-bold leading-tight text-ink sm:text-2xl">
             Good {greetingFor()}, {formatDisplayText(user.first_name)}
           </h2>
-          <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-muted">{summary.headline}</p>
+          {user.role !== 'SUPER_ADMIN' && <p className="mt-1.5 max-w-2xl text-sm leading-6 text-ink-muted">{summary.headline}</p>}
         </div>
 
         {actions && actions.length > 0 && (

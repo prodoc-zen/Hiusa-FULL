@@ -189,7 +189,7 @@ class OrderController extends Controller
             'section' => ['nullable', 'string', 'max:60'],
             'role' => ['nullable', 'in:STUDENT,SBO_OFFICER,ADMIN'],
             'position_title' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'in:pending,paid,claimed,cancelled'],
+            'status' => ['nullable', 'in:pending,paid,claimed,cancelled,claimable'],
             'payment_status' => ['nullable', 'in:pending,paid,cancelled'],
             'payment_method' => ['nullable', 'in:cash,gcash,other'],
             'merchandise_id' => ['nullable', 'integer'],
@@ -237,7 +237,9 @@ class OrderController extends Controller
     private function applyOrderRecordFilters($query, array $filters): void
     {
         if (! empty($filters['status'])) {
-            $query->where('orders.status', $filters['status']);
+            $filters['status'] === 'claimable'
+                ? $query->whereIn('orders.status', ['paid', 'claimed'])
+                : $query->where('orders.status', $filters['status']);
         }
         if (! empty($filters['payment_status'])) {
             match ($filters['payment_status']) {

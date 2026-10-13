@@ -120,7 +120,7 @@ export default function OrganizationCompliancePage() {
         meta={ready && (
           <>
             {state.academicYear && <span className="text-xs font-semibold text-ink-muted-strong">Academic year {state.academicYear}</span>}
-            <div className="w-full max-w-xs">
+            <div className="w-full">
               <ProgressMeter label="Requirements met" value={approvedCount} max={state.requirements.length} valueLabel={`${approvedCount}/${state.requirements.length}`} />
             </div>
           </>

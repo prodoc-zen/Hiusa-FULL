@@ -101,7 +101,7 @@ describe('getBreadcrumbs', () => {
   it('adds the parent page on a record page: Home, group, list, record', () => {
     expect(getBreadcrumbs('/dashboard/super-admin/organizations/7', 'SUPER_ADMIN')).toEqual([
       { label: 'Home', to: '/dashboard/super-admin' },
-      { label: 'Organizations', to: '/dashboard/super-admin/agency' },
+      { label: 'Organizations', to: '/dashboard/organization-applications' },
       { label: 'Registrations and organizations', to: '/dashboard/super-admin/organizations' },
       { label: 'Organization overview' },
     ]);

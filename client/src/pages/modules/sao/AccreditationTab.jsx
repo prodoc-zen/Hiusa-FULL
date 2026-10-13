@@ -1,8 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Check, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, FlowStepper, ProgressMeter, StatusBadge } from '../../../components/ui';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
+import Modal from '../../../components/Modal';
+import { manilaDate } from '../../../lib/format';
 
 function orgApprovedCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'approved').length;
@@ -32,9 +34,10 @@ function sortByAttention(organizations) {
 
 export default function AccreditationTab({ overview, onRetry, onReviewOrganization }) {
   const rows = useMemo(() => sortByAttention(overview.organizations), [overview.organizations]);
+  const [selected, setSelected] = useState(null);
 
   const columns = [
-    { key: 'organization_name', header: 'Organization', render: (org) => <span className="font-bold text-ink">{org.organization_name}</span> },
+    { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="text-left font-bold text-brand-700 hover:underline" onClick={() => setSelected(org)}>{org.organization_name}</button> },
     {
       key: 'accreditation_status',
       header: 'Accreditation',
@@ -53,7 +56,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
       key: 'progress',
       header: 'Requirements met',
       render: (org) => (
-        <div className="min-w-[140px]">
+        <div className="min-w-[220px]">
           <ProgressMeter value={orgApprovedCount(org)} max={org.requirements.length || 1} valueLabel={`${orgApprovedCount(org)}/${org.requirements.length}`} />
         </div>
       ),
@@ -92,6 +95,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
   ];
 
   return (
+    <>
     <Card title="Organization accreditation" description={overview.academicYear ? `Academic year ${overview.academicYear}` : 'No active requirements are configured for this academic year yet.'}>
       <DataTable
         stickyHeader={false}
@@ -111,5 +115,10 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         )}
       />
     </Card>
+    <Modal open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelected(null)} maxWidth="max-w-2xl">
+      <ul className="divide-y divide-line">{selected?.requirements.map((requirement) => <li key={requirement.requirement_type_id} className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="text-sm font-bold text-ink">{requirement.requirement_name}</p>{requirement.deadline_at && <p className="mt-1 text-xs text-ink-muted">Due {manilaDate(requirement.deadline_at, 'long')}</p>}</div><StatusBadge label={requirement.status === 'not_submitted' ? 'Not submitted' : requirement.status.replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /></li>)}</ul>
+      {selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button size="sm" onClick={() => { onReviewOrganization(selected.organization_id); setSelected(null); }}>Review submissions</Button></div>}
+    </Modal>
+    </>
   );
 }

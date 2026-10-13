@@ -158,7 +158,7 @@ class AccountProfileController extends Controller
     {
         $actor = $request->user();
         $roles = ['STUDENT', 'SBO_OFFICER'];
-        if ($actor->role === 'SUPER_ADMIN') {
+        if ($actor->role === 'ADMIN') {
             $roles[] = 'ADMIN';
         }
         $data = $request->validate([

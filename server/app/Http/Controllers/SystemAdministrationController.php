@@ -164,42 +164,15 @@ class SystemAdministrationController extends Controller
 
     public function storeAdmin(Request $request)
     {
-        $this->normalizeAdminInput($request);
-        $data = $request->validate(['organization_id' => ['required', 'integer', Rule::exists('organizations', 'id')->where('is_active', true)], 'school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:100', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'position_title' => ['nullable', 'string', 'max:100'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
-        $organization = Organization::whereKey($data['organization_id'])->student()->first();
-        if (! $organization) {
-            return response()->json(['message' => 'Choose an active student organization.'], 422);
-        }
-
-        $admin = DB::transaction(function () use ($data, $organization, $request) {
-            $this->ensureAdminPosition($organization->id, $data['position_title'] ?? null);
-            $admin = User::create([
-                'organization_id' => $organization->id,
-                'school_id' => $data['school_id'],
-                'first_name' => $data['first_name'],
-                'last_name' => $data['last_name'],
-                'email' => $data['email'],
-                'contact_number' => $data['contact_number'] ?? null,
-                'position_title' => $data['position_title'] ?? null,
-                'password_hash' => $data['password'],
-                'must_change_password' => true,
-                'role' => 'ADMIN',
-                'account_status' => 'active',
-                'is_member' => true,
-                'department' => $organization->college,
-            ]);
-            Notification::create(['organization_id' => $organization->id, 'user_id' => $admin->school_id, 'notification_type' => 'general', 'title' => 'Administrator account created', 'message' => 'Your HIUSA administrator account has been created by the Student Affairs Office. Sign in using the credentials provided by SAO and change your password from your profile if needed.', 'is_read' => false, 'sent_at' => now()]);
-            $this->audit($request, 'administrator_created', $admin, ['administrator_id' => $admin->school_id, 'organization_id' => $organization->id], 'SAO created an organization Admin account.');
-
-            return $admin;
-        });
-
-        return response()->json($admin->load('organization:id,name,acronym'), 201);
+        abort(403, 'Organization administrators are appointed by their own organization. The first administrator is created through an endorsed registration application.');
     }
 
     public function updateAdmin(Request $request, User $user)
     {
-        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->student()->exists()) {
+        if ($request->filled('organization_id') && $request->integer('organization_id') !== (int) $user->organization_id) {
+            abort(403, 'Administrator appointments in another organization must be handled by that organization.');
+        }
+        if ($user->role !== 'ADMIN' || ! Organization::whereKey($user->organization_id)->where('organization_type', '!=', 'SYSTEM_ADMINISTRATION')->exists()) {
             return response()->json(['message' => 'Only administrator accounts are managed here.'], 422);
         }
         if ($request->hasAny(['password', 'password_confirmation', 'password_hash'])) {
@@ -292,90 +265,9 @@ class SystemAdministrationController extends Controller
         return response()->json($members);
     }
 
-    /**
-     * Term turnover in one step: the successor (an existing member or a new
-     * account) takes the outgoing administrator's position, and the outgoing
-     * account is deactivated rather than deleted, so everything it did stays
-     * attributed in the audit trail.
-     */
     public function handoverAdmin(Request $request, User $user)
     {
-        $organization = Organization::whereKey($user->organization_id)->student()->first();
-        if ($user->role !== 'ADMIN' || ! $organization) {
-            return response()->json(['message' => 'Only organization administrator accounts can be handed over.'], 422);
-        }
-        if ($user->account_status !== 'active') {
-            return response()->json(['message' => 'Only an active administrator can hand over the role.'], 422);
-        }
-
-        $this->normalizeAdminInput($request);
-        $mode = $request->validate(['mode' => ['required', 'in:existing,new']])['mode'];
-        $successor = null;
-        $newAccount = null;
-        if ($mode === 'existing') {
-            $successorId = $request->validate(['successor_school_id' => ['required', 'integer']])['successor_school_id'];
-            $successor = User::find($successorId);
-            $problem = match (true) {
-                ! $successor => 'No account has that School ID.',
-                $successor->is($user) => 'Choose someone other than the outgoing administrator.',
-                (int) $successor->organization_id !== (int) $organization->id => "{$successor->first_name} {$successor->last_name} does not have {$organization->name} as their primary organization, so they cannot become its administrator. Create a new account for them instead.",
-                $successor->account_status !== 'active' => 'The successor account is not active.',
-                ! in_array($successor->role, self::SUCCESSOR_ROLES, true) => 'Only a student, officer or administrator of this organization can take over.',
-                default => null,
-            };
-            if ($problem) {
-                return response()->json(['message' => $problem], 422);
-            }
-        } else {
-            $newAccount = $request->validate(['school_id' => ['required', 'integer', 'min:1', 'max:99999999', 'unique:users,school_id'], 'first_name' => ['required', 'string', 'max:60'], 'last_name' => ['required', 'string', 'max:60'], 'email' => ['required', 'email', 'max:100', 'unique:users,email'], 'contact_number' => ['nullable', 'string', 'max:30', 'regex:/^[0-9+\\-\\s()]{7,30}$/'], 'password' => ['required', 'string', 'min:8', 'confirmed']]);
-        }
-
-        $successor = DB::transaction(function () use ($request, $user, $organization, $mode, $successor, $newAccount) {
-            $outgoing = User::whereKey($user->school_id)->lockForUpdate()->first();
-            if (! $outgoing || $outgoing->role !== 'ADMIN' || $outgoing->account_status !== 'active') {
-                return response()->json(['message' => 'This administrator was already handed over. Refresh and check the current administrator.'], 409);
-            }
-            $user = $outgoing;
-            $position = $user->position_title;
-            $this->ensureAdminPosition($organization->id, $position);
-            if ($mode === 'new') {
-                $successor = User::create([
-                    'organization_id' => $organization->id,
-                    'school_id' => $newAccount['school_id'],
-                    'first_name' => $newAccount['first_name'],
-                    'last_name' => $newAccount['last_name'],
-                    'email' => $newAccount['email'],
-                    'contact_number' => $newAccount['contact_number'] ?? null,
-                    'position_title' => $position,
-                    'password_hash' => $newAccount['password'],
-                    'must_change_password' => true,
-                    'role' => 'ADMIN',
-                    'account_status' => 'active',
-                    'is_member' => true,
-                    'department' => $organization->college,
-                ]);
-            } else {
-                $successor->update(['role' => 'ADMIN', 'position_title' => $position]);
-            }
-
-            $user->update(['account_status' => 'inactive', 'position_title' => null]);
-            $user->tokens()->delete();
-
-            $role = $position ?: 'an administrator';
-            Notification::create(['organization_id' => $organization->id, 'user_id' => $successor->school_id, 'notification_type' => 'general', 'title' => 'You are now an organization administrator', 'message' => "The Student Affairs Office handed {$organization->name}'s administrator role to you as {$role}, taking over from {$user->first_name} {$user->last_name}.", 'is_read' => false, 'sent_at' => now()]);
-            Notification::create(['organization_id' => $organization->id, 'user_id' => $user->school_id, 'notification_type' => 'general', 'title' => 'Administrator role handed over', 'message' => "The Student Affairs Office handed your administrator role in {$organization->name} to {$successor->first_name} {$successor->last_name}. Your account is now inactive, and your records stay in the organization's history.", 'is_read' => false, 'sent_at' => now()]);
-            $this->audit($request, 'administrator_handover', $successor, ['outgoing_administrator_id' => $user->school_id, 'successor_id' => $successor->school_id, 'position_title' => $position, 'new_account' => $mode === 'new'], 'SAO handed an organization Admin role over to a successor.');
-
-            return $successor;
-        });
-        if ($successor instanceof JsonResponse) {
-            return $successor;
-        }
-
-        return response()->json([
-            'outgoing' => $user->fresh()->load('organization:id,name,acronym'),
-            'successor' => $successor->fresh()->load('organization:id,name,acronym'),
-        ]);
+        abort(403, 'Administrator appointments must be handled by the organization.');
     }
 
     public function initiateAdminPasswordReset(Request $request, User $user)

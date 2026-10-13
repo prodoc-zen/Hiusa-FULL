@@ -110,7 +110,8 @@ describe('StudentClearancePage', () => {
     mocks.getClearancePeriods.mockResolvedValue(page([]));
     mocks.getClearanceSignatures.mockResolvedValue(page([{ ...SIGNATURE, status: 'held', remarks: 'Unpaid organization dues.' }]));
     renderAt('/dashboard/clearances', <SignatoryClearancesPage />);
-    expect((await screen.findAllByText('On hold: Unpaid organization dues.')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Unpaid organization dues.')).length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Held').length).toBeGreaterThan(0);
   });
 
   it('names who opens a period when there is none, under one h1', async () => {
@@ -140,7 +141,7 @@ describe('SignatoryClearancesPage', () => {
 
   it('shows the stage on each signing row', async () => {
     renderAt('/dashboard/clearances', <SignatoryClearancesPage />);
-    expect((await screen.findAllByText('Waiting for Organization Treasurer signature')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Waiting for Organization treasurer signature')).length).toBeGreaterThan(0);
   });
 
   it('opens the signature from ?record= with a stepper and a sign callout for the Admin', async () => {

@@ -10,7 +10,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
-/** The merchandise DELETE route only deactivates an item, so what it tells the Admin must say deactivate. */
+/** The merchandise DELETE route removes a catalog item while preserving completed order history. */
 class MerchandiseDeactivateTest extends TestCase
 {
     use RefreshDatabase;
@@ -27,7 +27,7 @@ class MerchandiseDeactivateTest extends TestCase
         Sanctum::actingAs($this->admin);
     }
 
-    public function test_an_item_with_a_pending_order_refuses_to_deactivate_and_says_deactivate(): void
+    public function test_an_item_with_a_pending_order_refuses_to_delete(): void
     {
         $item = Merchandise::factory()->create(['organization_id' => $this->organization->id, 'is_active' => true]);
         $buyer = User::factory()->student()->create(['organization_id' => $this->organization->id]);
@@ -39,16 +39,18 @@ class MerchandiseDeactivateTest extends TestCase
 
         $response = $this->deleteJson("/api/merchandise/{$item->id}")->assertConflict();
 
-        $this->assertSame('Cannot deactivate an item with pending or paid orders.', $response->json('message'));
+        $this->assertSame('Cannot delete an item with pending or paid orders.', $response->json('message'));
         $this->assertTrue($item->fresh()->is_active);
+        $this->assertNull($item->fresh()->deleted_at);
     }
 
-    public function test_an_item_without_open_orders_is_deactivated(): void
+    public function test_an_item_without_open_orders_is_soft_deleted(): void
     {
         $item = Merchandise::factory()->create(['organization_id' => $this->organization->id, 'is_active' => true]);
 
-        $this->deleteJson("/api/merchandise/{$item->id}")->assertOk()->assertJsonPath('message', 'Item deactivated successfully.');
+        $this->deleteJson("/api/merchandise/{$item->id}")->assertOk()->assertJsonPath('message', 'Item deleted. Existing order records are preserved.');
 
-        $this->assertFalse($item->fresh()->is_active);
+        $this->assertSoftDeleted($item);
+        $this->assertFalse(Merchandise::withTrashed()->findOrFail($item->id)->is_active);
     }
 }

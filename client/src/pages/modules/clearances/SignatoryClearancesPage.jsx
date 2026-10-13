@@ -1,7 +1,7 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, NextStep, PageHeader, Select } from '../../../components/ui';
+import { Button, Card, DataTable, Drawer, EmptyState, FlowStepper, Input, NextStep, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriods, getClearanceSignatures, updateClearanceSignature } from '../../../services/clearanceService';
@@ -10,7 +10,7 @@ import notify from '../../../lib/notify';
 import { clearanceLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import useRecordParam from '../../../lib/useRecordParam';
 import SignAction from './SignAction';
-import { clearanceStageText, humanizeRole } from './clearanceLabels';
+import { clearanceStatusTone, humanizeRole } from './clearanceLabels';
 
 function getCurrentRole() {
   try {
@@ -141,6 +141,7 @@ export default function SignatoryClearancesPage() {
   }
 
   const columns = [
+    { key: 'selection', header: 'Select', render: (row) => row.status === 'pending' ? <label className="inline-flex min-h-11 min-w-11 items-center justify-center"><input type="checkbox" aria-label={`Select ${row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : row.student_id} for bulk clear`} checked={selectedIds.has(row.id)} onChange={() => toggleRow(row.id)} className="h-4 w-4 accent-brand-700" /></label> : null },
     {
       key: 'student',
       header: 'Student',
@@ -153,7 +154,8 @@ export default function SignatoryClearancesPage() {
     },
     { key: 'required_role', header: 'Role', render: (row) => humanizeRole(row.required_role) },
     { key: 'period', header: 'Period', render: (row) => row.clearancePeriod?.title || '-' },
-    { key: 'stage', header: 'Stage', render: (row) => <span className="text-xs font-semibold text-ink-muted-strong">{clearanceStageText({ signatures: [row] })}</span> },
+    { key: 'remarks', header: 'Remarks', render: (row) => row.remarks || (row.status === 'pending' ? `Waiting for ${humanizeRole(row.required_role)} signature` : '-') },
+    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} tone={clearanceStatusTone(row.status)} /> },
   ];
 
   async function sign(row, nextStatus, remarks) {
@@ -177,16 +179,8 @@ export default function SignatoryClearancesPage() {
           filtersActive={Boolean(periodId || status || search)}
           actions={(row) => (
             <div className="flex items-center justify-end gap-2">
-              {row.status === 'pending' && (
-                <input
-                  type="checkbox"
-                  aria-label={`Select ${row.student ? `${formatDisplayText(row.student.first_name)} ${formatDisplayText(row.student.last_name)}` : row.student_id} for bulk clear`}
-                  checked={selectedIds.has(row.id)}
-                  onChange={() => toggleRow(row.id)}
-                  className="h-4 w-4 accent-brand-700"
-                />
-              )}
               <SignAction
+                showStatus={false}
                 signatureId={row.id}
                 status={row.status}
                 remarks={row.remarks}

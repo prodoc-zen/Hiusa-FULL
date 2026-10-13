@@ -78,10 +78,10 @@ describe('desktop sidebar rail', () => {
     render(<MemoryRouter initialEntries={['/dashboard/super-admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole('button', { name: 'Organizations' }));
-    expect(screen.getByRole('link', { name: 'Administrators' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Administrators' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Administrators' }));
-    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/super-admin/admins');
+    fireEvent.click(screen.getByRole('link', { name: 'Organization applications' }));
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/organization-applications');
   });
 
   it.each([
@@ -127,13 +127,12 @@ describe('desktop sidebar rail', () => {
     headings.forEach((heading) => expect(heading.closest('a, button')).toBeNull());
   });
 
-  it.each(['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', 'SUPER_ADMIN'])('ends %s with Profile and Study objectives', (role) => {
+  it.each(['ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'STUDENT', 'SUPER_ADMIN'])('ends %s with Profile', (role) => {
     localStorage.setItem('user', JSON.stringify({ role, first_name: 'Test', last_name: 'User' }));
     render(<MemoryRouter initialEntries={['/dashboard/profile']}><SidebarHarness /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('href', '/dashboard/profile');
-    expect(screen.getByRole('link', { name: 'Study objectives' })).toHaveAttribute('href', '/dashboard/objectives');
+    expect(screen.queryByRole('link', { name: 'Study objectives' })).not.toBeInTheDocument();
     expect(screen.getByRole('link', { name: 'Profile' })).toHaveAttribute('aria-current', 'page');
-    expect(screen.getByRole('link', { name: 'Study objectives' })).not.toHaveAttribute('aria-current');
   });
 
   it.each([

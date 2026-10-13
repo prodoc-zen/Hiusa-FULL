@@ -353,7 +353,7 @@ describe("MerchandisePage fulfillment experience", () => {
     expect(views.getByRole("button", { name: "All orders" })).toHaveAttribute("aria-pressed", "true");
   });
 
-  it("loads only paid orders in the token validation queue", async () => {
+  it("loads all paid and claimed orders in the token validation queue", async () => {
     render(
       <MemoryRouter>
         <MerchandisePage initialTab="tokens" />
@@ -364,7 +364,7 @@ describe("MerchandisePage fulfillment experience", () => {
     expect(await screen.findByText("CLAIMTOKEN123456")).toBeInTheDocument();
     await waitFor(() =>
       expect(orderMocks.getOrders).toHaveBeenCalledWith(
-        expect.objectContaining({ status: "paid", sort: "oldest" }),
+        expect.objectContaining({ status: "claimable", sort: "oldest" }),
       ),
     );
   });
@@ -388,13 +388,16 @@ describe("MerchandisePage fulfillment experience", () => {
     response.data.data = [pendingOrder];
     orderMocks.getOrders.mockResolvedValue(response);
     render(<MemoryRouter><MerchandisePage initialTab="orders" /></MemoryRouter>);
-    fireEvent.click((await screen.findAllByRole("button", { name: /^Approve/ }))[0]);
+    fireEvent.click((await screen.findAllByRole("button", { name: 'Review', exact: true }))[0]);
+    const reviewDialog = screen.getByRole('dialog', { name: 'Merchandise order details' });
+    fireEvent.click(within(reviewDialog).getByRole('button', { name: 'Approve payment' }));
     expect(orderMocks.updateOrderStatus).not.toHaveBeenCalled();
     const dialog = screen.getByRole("dialog", { name: "Verify merchandise payment" });
     expect(dialog).toHaveTextContent("Rafael Aquino");
     expect(dialog).toHaveTextContent("BS Information Technology");
     expect(dialog).toHaveTextContent("250.00");
     expect(dialog).toHaveTextContent("ORD-28");
+    expect(screen.queryByRole('dialog', { name: 'Merchandise order details' })).not.toBeInTheDocument();
   });
 
   it("shows inventory top sellers from paid sales and requires a stock note", async () => {
@@ -763,20 +766,18 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(screen.getByRole("dialog")).toHaveTextContent("HIUSA Lanyard");
   });
 
-  it("deactivates an active item through the server rule instead of offering a delete", async () => {
-    merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deactivated successfully." } });
+  it("deletes an active item through the server rule", async () => {
+    merchandiseMocks.deleteItem.mockResolvedValue({ data: { message: "Item deleted." } });
     renderAt("/dashboard/merchandise/manage-inventory", "inventory");
 
-    expect(await screen.findByRole("button", { name: "Deactivate HIUSA Shirt" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Delete HIUSA Shirt" })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Deactivate HIUSA Shirt" }));
-    const dialog = await screen.findByRole("dialog", { name: "Deactivate Product" });
-    fireEvent.click(within(dialog).getByRole("button", { name: "Deactivate" }));
+    expect(await screen.findByRole("button", { name: "Delete HIUSA Shirt" })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Delete HIUSA Shirt" }));
+    const dialog = await screen.findByRole("dialog", { name: "Delete Product" });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Delete" }));
 
     await waitFor(() => expect(merchandiseMocks.deleteItem).toHaveBeenCalledWith(1));
-    expect(await screen.findByText("HIUSA Shirt was deactivated.")).toBeInTheDocument();
-    expect(screen.getByText("HIUSA Shirt")).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Deactivate HIUSA Shirt" })).not.toBeInTheDocument();
+    expect(await screen.findByText("HIUSA Shirt was deleted.")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Delete HIUSA Shirt" })).not.toBeInTheDocument();
   });
 
   it("keeps one primary action and a first-run state when there are no items", async () => {
@@ -790,11 +791,11 @@ describe("MerchandisePage inventory guidance and the Claim desk", () => {
     expect(screen.getByRole("dialog", { name: "Add merchandise product" })).toBeInTheDocument();
   });
 
-  it("titles the validation page the Claim desk and says so when nothing waits there", async () => {
+  it("titles the validation page the Claim desk and describes an empty combined token list", async () => {
     renderAt("/dashboard/merchandise/claim-tokens", "tokens");
 
     expect(await screen.findByRole("heading", { level: 1, name: "Claim desk" })).toBeInTheDocument();
-    expect(await screen.findByText("Nothing is waiting at the claim desk.")).toBeInTheDocument();
+    expect(await screen.findByText("No claim tokens yet.")).toBeInTheDocument();
     expect(screen.queryByText(/Validate/)).not.toBeInTheDocument();
   });
 });
