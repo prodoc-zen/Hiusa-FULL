@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   notifyError: vi.fn(),
   notifySuccess: vi.fn(),
 }));
+const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
 
 vi.mock('../../../services/complianceService', () => ({
   getComplianceStatus: mocks.getComplianceStatus,
@@ -24,6 +25,7 @@ vi.mock('../../../services/complianceService', () => ({
   reviewSubmission: mocks.reviewSubmission,
   downloadSubmissionDocument: mocks.downloadSubmissionDocument,
 }));
+vi.mock('../../../utils/openProtectedFile', () => openMocks);
 vi.mock('../../../services/systemAdministrationService', () => ({ getAcademicYears: vi.fn().mockResolvedValue([]) }));
 vi.mock('../../../lib/notify', () => ({ default: { success: mocks.notifySuccess, error: mocks.notifyError } }));
 vi.mock('./EventRequirementsTab', () => ({ default: () => <p>Event requirements content</p> }));
@@ -110,6 +112,22 @@ describe('OrganizationCompliancePage', () => {
     await screen.findByRole('list', { name: 'Accreditation progress' });
     expect(screen.queryByRole('button', { name: 'Open compliance' })).not.toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Open compliance' })).not.toBeInTheDocument();
+  });
+
+  it('lets an admin view and replace the returned file from the requirement row', async () => {
+    mocks.getComplianceStatus.mockResolvedValue(adminStatus('returned', [requirement('returned', {
+      submission_id: 12, file_name: 'old.pdf', submitted_at: '2026-09-10T08:00:00Z', remarks: 'Update the signatures.',
+    })]));
+    renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Officer Roster' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
+
+    fireEvent.click(screen.getAllByRole('button', { name: 'Actions for Officer Roster' })[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Replace document' }));
+    const drawer = await screen.findByRole('dialog');
+    expect(within(drawer).getByRole('button', { name: /View current file/ })).toBeInTheDocument();
+    expect(within(drawer).getByText('Update the signatures.')).toBeInTheDocument();
   });
 
   it('names who publishes requirements when none exist, under one h1', async () => {

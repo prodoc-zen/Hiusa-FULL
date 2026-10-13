@@ -246,7 +246,15 @@ class ElectionController extends Controller
             abort(404);
         }
 
-        return Storage::disk('local')->download($election->informative_letter_path, 'election-informative-letter.pdf');
+        $response = response()->file(Storage::disk('local')->path($election->informative_letter_path), [
+            'Content-Type' => 'application/pdf',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
+        $response->setContentDisposition('inline', 'election-informative-letter.pdf');
+        $response->setPrivate();
+        $response->headers->addCacheControlDirective('no-store');
+
+        return $response;
     }
 
     public function finalize(Request $request, $id)

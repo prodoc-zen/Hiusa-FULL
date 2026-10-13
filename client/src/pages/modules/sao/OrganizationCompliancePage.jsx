@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { File, Lock, ShieldCheck } from 'lucide-react';
+import { Eye, File, Pencil, ShieldCheck, Upload } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, FlowStepper, NextStep, PageHeader, ProgressMeter, SkeletonCard, StatusBadge } from '../../../components/ui';
 import { accreditationLifecycle, toNextStepProps } from '../../../lib/lifecycle';
 import notify from '../../../lib/notify';
@@ -10,6 +10,8 @@ import { getComplianceStatus, getRequirementTypes, getSubmissions, submitComplia
 import ComplianceDropzone, { validateComplianceFile } from './ComplianceDropzone';
 import { complianceStageText } from './complianceStage';
 import { RichTextBody } from '../../../components/RichText';
+import TableRowActions from '../../../components/TableRowActions';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 
 function getCurrentRole() {
   try {
@@ -81,6 +83,16 @@ export default function OrganizationCompliancePage() {
     setSelectedFile(validationError ? null : file);
   }
 
+  async function viewFile(requirement) {
+    const id = requirement.submission_id || requirement.submission?.id;
+    if (!id) return;
+    try {
+      await openProtectedFile(`/compliance/submissions/${id}/document`);
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Could not open this document.'));
+    }
+  }
+
   async function handleUpload() {
     if (!selectedFile || !uploadTarget) return;
     setUploading(true);
@@ -90,7 +102,10 @@ export default function OrganizationCompliancePage() {
         if (progressEvent.total) setUploadProgress(Math.round((progressEvent.loaded / progressEvent.total) * 100));
       });
       notify.success(`"${uploadTarget.requirement_name}" submitted to SAO for review.`);
-      closeUpload();
+      setUploadTarget(null);
+      setSelectedFile(null);
+      setFileError(null);
+      setUploadProgress(0);
       load();
     } catch (err) {
       setFileError(getApiErrorMessage(err, 'Could not submit this document.'));
@@ -158,13 +173,16 @@ export default function OrganizationCompliancePage() {
             rowKey={(requirement) => requirement.requirement_type_id}
             rows={state.requirements}
             columns={[
-              { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && requirement.submission?.remarks && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.submission.remarks}</p>}</div> },
-              { key: 'date', header: 'Submitted', render: (requirement) => requirement.submission?.submitted_at ? manilaDate(requirement.submission.submitted_at, 'long') : 'Not submitted' },
+              { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.description && <RichTextBody value={requirement.description} className="mt-1 max-w-xs text-xs text-ink-muted" />}{requirement.status === 'returned' && (requirement.remarks || requirement.submission?.remarks) && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks || requirement.submission.remarks}</p>}</div> },
+              { key: 'date', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
               { key: 'deadline', header: 'Deadline', render: (requirement) => <span className={deadlineTone(requirement)}>{manilaDate(requirement.deadline_at, 'long')} <span className="block text-xs">{relativeTime(requirement.deadline_at)}</span></span> },
               { key: 'status', header: 'Status', render: (requirement) => <div className="flex flex-col items-start gap-1"><StatusBadge status={requirement.status === 'not_submitted' ? 'pending' : requirement.status} label={requirement.status === 'not_submitted' ? 'Not submitted' : undefined} /><span className="text-xs font-semibold text-ink-muted-strong">{complianceStageText(requirement)}</span></div> },
-              { key: 'file', header: 'Upload', render: (requirement) => requirement.submission?.file_original_name ? <span className="inline-flex items-center gap-1 text-xs"><File size={13} aria-hidden="true" />{requirement.submission.file_original_name}</span> : 'No file' },
+              { key: 'file', header: 'File', render: (requirement) => requirement.file_name ? <span className="inline-flex items-center gap-1 break-all text-xs"><File size={13} aria-hidden="true" />{requirement.file_name}</span> : 'No file' },
             ]}
-            actions={(requirement) => requirement.status !== 'approved' ? <Button variant="secondary" size="sm" onClick={() => openUpload(requirement)}>{requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document'}</Button> : <span className="inline-flex items-center gap-1 text-xs text-ink-muted"><Lock size={13} />Locked</span>}
+            actions={(requirement) => <TableRowActions subject={requirement.requirement_name} actions={[
+              requirement.submission_id && { label: 'View file', icon: Eye, onClick: () => viewFile(requirement) },
+              requirement.status !== 'approved' && { label: requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document', icon: requirement.status === 'not_submitted' ? Upload : Pencil, onClick: () => openUpload(requirement) },
+            ]} />}
           />
         </Card>
       )}
@@ -183,12 +201,13 @@ export default function OrganizationCompliancePage() {
       >
         <div className="space-y-4">
           {uploadTarget?.description && <p className="text-sm font-medium text-ink-muted">{uploadTarget.description}</p>}
-          {uploadTarget?.status === 'returned' && uploadTarget.submission?.remarks && (
+          {uploadTarget?.status === 'returned' && (uploadTarget.remarks || uploadTarget.submission?.remarks) && (
             <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
               <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">Why this was returned</p>
-              <p className="mt-1 text-sm font-medium text-danger-strong">{uploadTarget.submission.remarks}</p>
+              <p className="mt-1 text-sm font-medium text-danger-strong">{uploadTarget.remarks || uploadTarget.submission.remarks}</p>
             </div>
           )}
+          {uploadTarget?.submission_id && <Button variant="secondary" size="sm" onClick={() => viewFile(uploadTarget)}><Eye size={15} aria-hidden="true" />View current file{uploadTarget.file_name ? `: ${uploadTarget.file_name}` : ''}</Button>}
           <ComplianceDropzone onFileSelected={handleFileSelected} disabled={uploading} error={fileError} />
           {selectedFile && !fileError && (
             <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">

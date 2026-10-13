@@ -1,6 +1,10 @@
-import { Drawer, FlowStepper, NextStep } from '../ui';
+import { useState } from 'react';
+import { Eye } from 'lucide-react';
+import { Button, DataTable, Drawer, FlowStepper, NextStep } from '../ui';
 import { financialReportLifecycle, toNextStepProps } from '../../lib/lifecycle';
 import { formatDisplayText } from '../../utils/displayText.js';
+import { openProtectedFile } from '../../utils/openProtectedFile';
+import { getApiErrorMessage } from '../../utils/apiError';
 
 export function withDraftDefault(report) {
   return { ...report, submission_status: report.submission_status || 'draft' };
@@ -22,12 +26,23 @@ export function reportNextStepProps(report, viewerRole, { onSubmit, submitting }
 }
 
 export default function ReportDetailDrawer({ report, viewerRole, onClose, files = [], onFilesChange, onSubmit, submitting }) {
+  const [fileError, setFileError] = useState('');
   if (!report) return null;
   const lifecycle = financialReportLifecycle(withDraftDefault(report), viewerRole);
   const canSubmit = viewerRole === 'ADMIN' && ['draft', 'rejected'].includes(withDraftDefault(report).submission_status);
   const nextStep = reportNextStepProps(report, viewerRole, { onSubmit: canSubmit ? onSubmit : undefined, submitting });
   const documentName = report.document_type === 'income_statement' ? 'Income statement' : 'Financial report';
   const generated = String(report.generated_at || '').slice(0, 10);
+  const documents = report.supporting_documents || [];
+
+  async function viewDocument(document) {
+    setFileError('');
+    try {
+      await openProtectedFile(document.open_url);
+    } catch (error) {
+      setFileError(getApiErrorMessage(error, 'Could not open this document.'));
+    }
+  }
 
   return (
     <Drawer open title={formatDisplayText(report.title)} description={[documentName, generated && `Generated ${generated}`].filter(Boolean).join(' · ')} onClose={onClose} width="max-w-xl">
@@ -35,6 +50,18 @@ export default function ReportDetailDrawer({ report, viewerRole, onClose, files 
         <FlowStepper steps={lifecycle.steps} ariaLabel="Financial report progress" />
         <NextStep {...nextStep} />
         {report.summary_text && <p className="border-t border-line pt-4 text-sm font-medium text-ink-muted-strong">{report.summary_text}</p>}
+        <div className="border-t border-line pt-4">
+          <h3 className="text-sm font-bold text-ink">Submitted supporting files</h3>
+          {fileError && <p role="alert" className="mt-2 text-sm font-medium text-danger-strong">{fileError}</p>}
+          {documents.length ? <DataTable
+            caption={`Supporting files for ${formatDisplayText(report.title)}`}
+            stickyHeader={false}
+            rows={documents}
+            rowKey={(document) => document.index}
+            columns={[{ key: 'file', header: 'File', render: (document) => <span className="break-all">{document.name}</span> }]}
+            actions={(document) => <Button variant="secondary" size="sm" onClick={() => viewDocument(document)}><Eye size={14} aria-hidden="true" />View file</Button>}
+          /> : <p className="mt-2 text-xs font-medium text-ink-muted">No supporting files submitted.</p>}
+        </div>
         {canSubmit && (
           <div className="border-t border-line pt-4">
             <label className="inline-flex min-h-11 cursor-pointer items-center rounded-control border border-line px-3 text-[13px] font-semibold text-ink hover:bg-subtle focus-within:outline-2 focus-within:outline-brand-600">

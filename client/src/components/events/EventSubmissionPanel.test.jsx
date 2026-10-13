@@ -14,7 +14,7 @@ const requirements = [
   { id: 1, name: 'Event Proposal', description: '', is_optional: false },
   { id: 2, name: 'Venue Permit', description: '', is_optional: true },
 ];
-const uploadedFile = { id: 5, original_name: 'proposal.pdf', requirement: { name: 'Event Proposal' } };
+const uploadedFile = { id: 5, requirement_id: 1, original_name: 'proposal.pdf', requirement: { name: 'Event Proposal' } };
 
 describe('EventSubmissionPanel', () => {
   beforeEach(() => {
@@ -28,7 +28,7 @@ describe('EventSubmissionPanel', () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'pending_sao' } });
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
-    expect(await screen.findByText('proposal.pdf', { exact: false })).toBeInTheDocument();
+    expect((await screen.findAllByText('proposal.pdf')).length).toBeGreaterThan(0);
     expect(screen.getByText('Review: pending sao')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Submit event files/ })).not.toBeInTheDocument();
     expect(mocks.getEventSubmission).toHaveBeenCalledWith(9);
@@ -68,7 +68,8 @@ describe('EventSubmissionPanel', () => {
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
-    fireEvent.click(await screen.findByRole('button', { name: 'View' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Event Proposal' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
 
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/events/9/submission/files/5'));
   });
@@ -78,8 +79,25 @@ describe('EventSubmissionPanel', () => {
     openMocks.openProtectedFile.mockRejectedValue({ userMessage: 'Allow pop-ups to open this file.' });
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'View' }));
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Event Proposal' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
+  });
+
+  it('shows rejected remarks and keeps an existing file while resubmitting', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'rejected', approval_remarks: 'Replace the permit.' } });
+    mocks.submitEventRequirements.mockResolvedValue({ data: { requirements, files: [uploadedFile], approval_status: 'pending' } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+
+    expect(await screen.findByText(/Replace the permit/)).toBeInTheDocument();
+    const proposalInput = screen.getByText('Event Proposal', { selector: 'label' }).querySelector('input[type="file"]');
+    const permitInput = screen.getByText('Venue Permit', { selector: 'label' }).querySelector('input[type="file"]');
+    expect(proposalInput).not.toBeRequired();
+    expect(permitInput).not.toBeRequired();
+    const permit = new File(['pdf'], 'permit.pdf', { type: 'application/pdf' });
+    fireEvent.change(permitInput, { target: { files: [permit] } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Submit event files to SAO' }).closest('form'));
+    await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, { 2: permit }));
   });
 
   it('shows the empty state when SAO has listed no requirements', async () => {
@@ -95,6 +113,6 @@ describe('EventSubmissionPanel', () => {
 
     expect(await screen.findByRole('alert')).toHaveTextContent('Could not load event requirements.');
     fireEvent.click(screen.getByRole('button', { name: 'Retry' }));
-    expect(await screen.findByText('Event Proposal', { exact: false })).toBeInTheDocument();
+    expect((await screen.findAllByText('Event Proposal', { exact: false })).length).toBeGreaterThan(0);
   });
 });

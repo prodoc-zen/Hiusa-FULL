@@ -7,6 +7,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronRight,
+  Eye,
   Clock3,
   LoaderCircle,
   MapPin,
@@ -29,7 +30,8 @@ import { electionLifecycle } from '../../../lib/lifecycle';
 import FeedbackToast from '../../../components/FeedbackToast';
 import Modal from '../../../components/Modal';
 import PaginationControls from '../../../components/PaginationControls';
-import { createElection, deleteElection, downloadElectionLetter, getElections, updateElection } from '../../../services/electionService';
+import { createElection, deleteElection, getElections, updateElection } from '../../../services/electionService';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { getAcademicPeriods } from '../../../services/systemAdministrationService';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -379,7 +381,7 @@ export default function ElectionPickerPage({ onSelect, startCreate = false, edit
                   <div className="mt-4 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] p-3"><div className="flex items-start gap-2 text-xs text-[#64748B]"><CalendarDays size={14} className="mt-0.5 shrink-0 text-[#0878B7]" /><span>{formatDateTime(election.start_time)}<br />{formatDateTime(election.end_time)}</span></div><div className="mt-2 flex items-center gap-2 text-xs text-[#64748B]"><MapPin size={14} className="text-[#0878B7]" /> {election.room || 'Online ballot'}</div></div>
                   <div className="mt-4 grid grid-cols-3 divide-x divide-[#DDE7EF] border-y border-[#DDE7EF] py-3 text-center"><div><p className="text-lg font-black text-[#0F172A]">{election.positions_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Positions</p></div><div><p className="text-lg font-black text-[#0F172A]">{election.candidates_count ?? 0}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Candidates</p></div><div><p className="text-lg font-black text-[#0F172A]">{votes}</p><p className="text-[10px] font-bold uppercase text-[#64748B]">Votes</p></div></div>
                   <button type="button" onClick={() => onSelect?.(election.id)} className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-4 text-sm font-bold text-white hover:bg-[#0F2F62]">Open election <ChevronRight size={16} /></button>
-                  {election.has_informative_letter && currentUser?.role !== 'STUDENT' && <button type="button" onClick={() => downloadElectionLetter(election.id).catch((requestError) => notify.error(getApiErrorMessage(requestError, 'Unable to download the letter.')))} className="mt-2 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#0878B7] hover:underline"><Upload size={14} className="rotate-180" /> Informative letter</button>}
+                  {election.has_informative_letter && currentUser?.role !== 'STUDENT' && <button type="button" onClick={() => openProtectedFile(`/elections/${election.id}/informative-letter`).catch((requestError) => notify.error(getApiErrorMessage(requestError, 'Unable to open the letter.')))} className="mt-2 inline-flex min-h-10 items-center gap-2 text-xs font-semibold text-[#0878B7] hover:underline"><Eye size={14} aria-hidden="true" /> View informative letter</button>}
                   {canManageElections && !viewingHistory && (
                     <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-[#EEF6FB] pt-3">
                       {election.status !== 'closed' && <button type="button" onClick={() => openEdit(election)} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-[#0F172A] hover:bg-[#F8FBFD]"><PencilLine size={14} /> {returned ? 'Edit and resubmit' : 'Edit'}</button>}

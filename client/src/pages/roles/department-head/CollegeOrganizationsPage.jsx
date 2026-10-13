@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, File } from 'lucide-react';
+import { Building2, CalendarClock, Eye } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -14,6 +14,15 @@ import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import useRecordParam from '../../../lib/useRecordParam';
 import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
+
+async function viewRegistrationFile(submissionId) {
+  try {
+    await openProtectedFile(`/compliance/submissions/${submissionId}/document`);
+  } catch (error) {
+    notify.error(getApiErrorMessage(error, 'Could not open this document.'));
+  }
+}
 
 const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
@@ -251,6 +260,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
                   {requirement.description && <span className="block">{requirement.description}</span>}
                   {requirement.deadline_at && <span className="block">Due {manilaDate(requirement.deadline_at, 'long')}</span>}
                   {requirement.current && <span className="block">Current file: {requirement.current.file_name || 'None'} ({(REQUIREMENT_STATUS[requirement.current.status] || REQUIREMENT_STATUS.not_submitted).label})</span>}
+                  {requirement.current?.submission_id && <button type="button" className="inline-flex min-h-11 items-center gap-1 font-bold text-brand-700 hover:underline" onClick={() => viewRegistrationFile(requirement.current.submission_id)}><Eye size={14} aria-hidden="true" />View current file</button>}
                   {chosen && <span className="block font-semibold text-ink">Selected: {chosen.name} ({formatSize(chosen.size)})</span>}
                 </>
               );
@@ -315,20 +325,16 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
         {checklist.length === 0 ? (
           <p className="mt-2 text-sm font-medium text-ink-muted">No registration documents are on file.</p>
         ) : (
-          <ul className="mt-2 divide-y divide-line-soft">
-            {checklist.map((item) => {
-              const status = REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted;
-              return (
-                <li key={item.requirement_type_id} className="flex flex-wrap items-start justify-between gap-2 py-3">
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold text-ink">{item.requirement_name}</p>
-                    <p className="mt-0.5 inline-flex items-center gap-1 break-all text-xs font-medium text-ink-muted"><File size={13} aria-hidden="true" />{item.file_name || 'No file'}</p>
-                  </div>
-                  <StatusBadge status={item.status} label={status.label} tone={status.tone} />
-                </li>
-              );
-            })}
-          </ul>
+          <DataTable
+            rows={checklist}
+            rowKey={(item) => item.requirement_type_id}
+            columns={[
+              { key: 'name', header: 'Requirement', render: (item) => item.requirement_name },
+              { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{item.file_name || 'No file'}</span> },
+              { key: 'status', header: 'Status', render: (item) => <StatusBadge status={item.status} label={(REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted).label} tone={(REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted).tone} /> },
+            ]}
+            actions={(item) => item.submission_id && <Button variant="secondary" size="sm" onClick={() => viewRegistrationFile(item.submission_id)}><Eye size={14} aria-hidden="true" />View file</Button>}
+          />
         )}
       </div>
       <div className="flex justify-end gap-2">

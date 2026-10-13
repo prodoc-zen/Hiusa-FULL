@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, useLocation } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SaoCompliancePage from './SaoCompliancePage';
@@ -157,11 +157,33 @@ describe('SaoCompliancePage', () => {
 
   it('jumps from an organization to its pending submissions', async () => {
     renderPage();
-    fireEvent.click((await screen.findAllByRole('button', { name: 'Review 1 submission' }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Computing Society' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Review 1 submission' }));
 
     expect((await screen.findAllByText('Semestral Accomplishment Report')).length).toBeGreaterThan(0);
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=review');
     await waitFor(() => expect(mocks.getSubmissions).toHaveBeenLastCalledWith(expect.objectContaining({ organization_id: '7', status: 'submitted' })));
+  });
+
+  it('shows every requirement in a table and opens an existing file from its row action', async () => {
+    mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [{
+      organization_id: 7, organization_name: 'Computing Society', accreditation_status: 'returned', requirements: [
+        { requirement_type_id: 4, requirement_name: 'Constitution', status: 'returned', submission_id: 12, file_name: 'constitution.pdf', submitted_at: '2026-09-10T08:00:00Z', remarks: 'Missing signature.' },
+        { requirement_type_id: 5, requirement_name: 'Officer Roster', status: 'not_submitted', submission_id: null, file_name: null },
+      ],
+    }] } });
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Computing Society' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View requirements' }));
+
+    const dialog = await screen.findByRole('dialog', { name: 'Computing Society' });
+    expect(within(dialog).getByRole('table', { name: 'Requirements for Computing Society' })).toBeInTheDocument();
+    expect(within(dialog).getAllByText('constitution.pdf').length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('No file').length).toBeGreaterThan(0);
+    expect(within(dialog).getAllByText('SAO: Missing signature.').length).toBeGreaterThan(0);
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'Actions for Constitution' })[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
   });
 
   describe('requirements tab', () => {

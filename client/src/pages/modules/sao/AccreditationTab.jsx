@@ -1,10 +1,14 @@
 import { useMemo, useState } from 'react';
-import { Check, ShieldCheck } from 'lucide-react';
+import { Eye, FileText, ShieldCheck } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, FlowStepper, ProgressMeter, StatusBadge } from '../../../components/ui';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
 import Modal from '../../../components/Modal';
 import { manilaDate } from '../../../lib/format';
+import TableRowActions from '../../../components/TableRowActions';
+import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { getApiErrorMessage } from '../../../utils/apiError';
+import notify from '../../../lib/notify';
 
 function orgApprovedCount(org) {
   return org.requirements.filter((requirement) => requirement.status === 'approved').length;
@@ -34,10 +38,19 @@ function sortByAttention(organizations) {
 
 export default function AccreditationTab({ overview, onRetry, onReviewOrganization }) {
   const rows = useMemo(() => sortByAttention(overview.organizations), [overview.organizations]);
-  const [selected, setSelected] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
+  const selected = rows.find((org) => org.organization_id === selectedId);
+
+  async function viewFile(requirement) {
+    try {
+      await openProtectedFile(`/compliance/submissions/${requirement.submission_id}/document`);
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Could not open this document.'));
+    }
+  }
 
   const columns = [
-    { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="text-left font-bold text-brand-700 hover:underline" onClick={() => setSelected(org)}>{org.organization_name}</button> },
+    { key: 'organization_name', header: 'Organization', render: (org) => <strong>{org.organization_name}</strong> },
     {
       key: 'accreditation_status',
       header: 'Accreditation',
@@ -72,26 +85,6 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
           : <span className="text-ink-muted">0</span>;
       },
     },
-    {
-      key: 'next_action',
-      header: 'Next action',
-      render: (org) => {
-        const pending = orgPendingCount(org);
-        if (pending > 0) {
-          return (
-            <Button size="sm" variant="secondary" className="h-11! sm:h-9!" onClick={() => onReviewOrganization(org.organization_id)}>
-              Review {pending} submission{pending === 1 ? '' : 's'}
-            </Button>
-          );
-        }
-        if (org.accreditation_status === 'incomplete') return <span className="text-sm font-medium text-ink-muted">Awaiting submission</span>;
-        if (org.accreditation_status === 'returned') return <span className="text-sm font-medium text-ink-muted">Waiting on the organization</span>;
-        if (org.accreditation_status === 'accredited') {
-          return <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-success-strong"><Check size={14} aria-hidden="true" />All caught up</span>;
-        }
-        return <span className="text-sm font-medium text-ink-muted">No active requirements</span>;
-      },
-    },
   ];
 
   return (
@@ -105,6 +98,10 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         loading={overview.loading}
         error={overview.error}
         onRetry={onRetry}
+        actions={(org) => <TableRowActions subject={org.organization_name} actions={[
+          { label: 'View requirements', icon: Eye, onClick: () => setSelectedId(org.organization_id) },
+          orgPendingCount(org) > 0 && { label: `Review ${orgPendingCount(org)} submission${orgPendingCount(org) === 1 ? '' : 's'}`, icon: FileText, onClick: () => onReviewOrganization(org.organization_id) },
+        ]} />}
         emptyState={(
           <EmptyState
             kind="first-run"
@@ -115,9 +112,22 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         )}
       />
     </Card>
-    <Modal open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelected(null)} maxWidth="max-w-2xl">
-      <ul className="divide-y divide-line">{selected?.requirements.map((requirement) => <li key={requirement.requirement_type_id} className="flex flex-wrap items-center justify-between gap-3 py-4"><div><p className="text-sm font-bold text-ink">{requirement.requirement_name}</p>{requirement.deadline_at && <p className="mt-1 text-xs text-ink-muted">Due {manilaDate(requirement.deadline_at, 'long')}</p>}</div><StatusBadge label={requirement.status === 'not_submitted' ? 'Not submitted' : requirement.status.replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /></li>)}</ul>
-      {selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button size="sm" onClick={() => { onReviewOrganization(selected.organization_id); setSelected(null); }}>Review submissions</Button></div>}
+    <Modal open={Boolean(selected)} title={selected?.organization_name || 'Requirement progress'} onClose={() => setSelectedId(null)} maxWidth="max-w-5xl">
+      <DataTable
+        caption={`Requirements for ${selected?.organization_name || 'organization'}`}
+        stickyHeader={false}
+        rowKey={(requirement) => requirement.requirement_type_id}
+        rows={selected?.requirements || []}
+        columns={[
+          { key: 'name', header: 'Requirement', render: (requirement) => <div><strong>{requirement.requirement_name}</strong>{requirement.status === 'returned' && requirement.remarks && <p className="mt-1 text-xs text-danger-strong">SAO: {requirement.remarks}</p>}</div> },
+          { key: 'deadline', header: 'Deadline', render: (requirement) => requirement.deadline_at ? manilaDate(requirement.deadline_at, 'long') : '—' },
+          { key: 'submitted', header: 'Submitted', render: (requirement) => requirement.submitted_at ? manilaDate(requirement.submitted_at, 'long') : 'Not submitted' },
+          { key: 'status', header: 'Status', render: (requirement) => <StatusBadge label={requirement.status === 'not_submitted' ? 'Not submitted' : requirement.status.replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },
+          { key: 'file', header: 'File', render: (requirement) => <span className="break-all text-xs">{requirement.file_name || 'No file'}</span> },
+        ]}
+        actions={(requirement) => requirement.submission_id && <TableRowActions subject={requirement.requirement_name} actions={[{ label: 'View file', icon: Eye, onClick: () => viewFile(requirement) }]} />}
+      />
+      {selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button size="sm" onClick={() => { onReviewOrganization(selected.organization_id); setSelectedId(null); }}>Review submissions</Button></div>}
     </Modal>
     </>
   );

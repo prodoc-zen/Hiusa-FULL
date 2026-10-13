@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   withdrawOrganization: vi.fn(),
 }));
 vi.mock('../../../services/collegeOrganizationService', () => mocks);
+const openMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+vi.mock('../../../utils/openProtectedFile', () => openMocks);
 
 const checklist = (status = 'submitted') => [
   { requirement_type_id: 1, requirement_name: 'Constitution', file_name: 'constitution.pdf', status, submission_id: 11 },
@@ -181,9 +183,22 @@ describe('CollegeOrganizationsPage', () => {
 
     const drawer = await screen.findByRole('dialog');
     expect(within(drawer).getByText('Pending review: waiting for SAO review')).toBeInTheDocument();
-    expect(within(drawer).getByText('constitution.pdf')).toBeInTheDocument();
-    expect(within(drawer).getByText('Submitted')).toBeInTheDocument();
-    expect(within(drawer).getByText('Approved')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('constitution.pdf').length).toBeGreaterThan(0);
+    expect(within(drawer).getAllByText('Submitted').length).toBeGreaterThan(0);
+    expect(within(drawer).getAllByText('Approved').length).toBeGreaterThan(0);
+  });
+
+  it('opens the registration file from the checklist and returned edit form', async () => {
+    renderPage();
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View checklist for Drama Guild' }))[0]);
+    const drawer = await screen.findByRole('dialog');
+    fireEvent.click(within(drawer).getAllByRole('button', { name: 'View file' })[0]);
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/11/document'));
+
+    fireEvent.click(within(drawer).getByRole('button', { name: 'Edit and resubmit' }));
+    const dialog = await screen.findByRole('dialog', { name: /Edit and resubmit Drama Guild/ });
+    fireEvent.click(within(dialog).getAllByRole('button', { name: 'View current file' })[0]);
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledTimes(2));
   });
 
   it('shows the SAO remarks of a returned registration beside the row', async () => {
@@ -302,7 +317,7 @@ describe('CollegeOrganizationsPage', () => {
     const drawer = await screen.findByRole('dialog');
 
     fireEvent.click(within(drawer).getByRole('button', { name: 'Close' }));
-    expect(within(drawer).getByText('constitution.pdf')).toBeInTheDocument();
+    expect(within(drawer).getAllByText('constitution.pdf').length).toBeGreaterThan(0);
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
   });
 
