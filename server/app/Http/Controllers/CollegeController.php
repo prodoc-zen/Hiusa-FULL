@@ -8,26 +8,83 @@ use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class CollegeController extends Controller
 {
     public function index()
     {
         $heads = $this->departmentHeadsByCollege();
+        $colleges = College::query()
+            ->withCount(['organizations' => fn ($query) => $query->student()])
+            ->with('homeOrganization:id,college_id,is_active')
+            ->orderBy('name')
+            ->get();
+        $organizations = Organization::whereIn('college_id', $colleges->pluck('id'))
+            ->orWhereIn('college', $colleges->pluck('name'))
+            ->get(['id', 'college_id', 'college']);
+        $organizationIds = $organizations->pluck('id');
+        $assignedOrganizationIds = DB::table('users')->whereIn('organization_id', $organizationIds)->pluck('organization_id')
+            ->merge(DB::table('account_profiles')->whereIn('organization_id', $organizationIds)->pluck('organization_id'))
+            ->unique();
 
         return response()->json(
-            College::query()
-                ->withCount(['organizations' => fn ($query) => $query->student()])
-                ->with('homeOrganization:id,college_id')
-                ->orderBy('name')
-                ->get()
-                ->each(function (College $college) use ($heads) {
+            $colleges->each(function (College $college) use ($heads, $organizations, $assignedOrganizationIds) {
                     $college->setAttribute('home_organization_id', $college->homeOrganization?->id);
+                    $homeIsActive = $college->homeOrganization?->is_active;
                     $college->unsetRelation('homeOrganization');
                     $college->setAttribute('department_head', $heads[$college->id] ?? null);
+                    $hasAssignments = $organizations->contains(fn ($organization) =>
+                        ((int) $organization->college_id === $college->id || $organization->college === $college->name)
+                        && ($organization->id !== $college->home_organization_id || $assignedOrganizationIds->contains($organization->id)));
+                    $college->setAttribute('has_assignments', $hasAssignments);
+                    $college->setAttribute('can_receive_transfer', $college->is_active && $homeIsActive && ! $hasAssignments);
                 })
         );
+    }
+
+    public function store(Request $request)
+    {
+        $request->merge([
+            'name' => is_string($request->input('name')) ? trim($request->input('name')) : $request->input('name'),
+            'code' => is_string($request->input('code')) ? (trim($request->input('code')) ?: null) : $request->input('code'),
+        ]);
+        $data = $request->validate([
+            'name' => ['required', 'string', 'max:255', Rule::unique('colleges', 'name')],
+            'code' => ['nullable', 'string', 'max:50', Rule::unique('colleges', 'code')],
+            'description' => ['nullable', 'string', 'max:3000'],
+        ]);
+
+        $college = DB::transaction(function () use ($request, $data) {
+            $college = College::create([...$data, 'is_active' => true]);
+            $name = $college->name;
+            for ($suffix = 2; Organization::where('name', $name)->exists(); $suffix++) {
+                $tail = ' (College'.($suffix > 2 ? ' '.$suffix : '').')';
+                $name = mb_substr($college->name, 0, 255 - mb_strlen($tail)).$tail;
+            }
+            $base = rtrim(mb_substr(Str::slug($name), 0, 240), '-') ?: 'college';
+            $slug = $base;
+            for ($suffix = 2; Organization::where('slug', $slug)->exists(); $suffix++) {
+                $slug = $base.'-'.$suffix;
+            }
+            $home = Organization::create([
+                'name' => $name,
+                'slug' => $slug,
+                'college' => $college->name,
+                'college_id' => $college->id,
+                'acronym' => $college->code,
+                'organization_type' => 'COLLEGE',
+                'is_active' => true,
+                'lifecycle_status' => 'active',
+            ]);
+            $this->audit($request, $college, 'created');
+
+            return $college->setAttribute('home_organization_id', $home->id);
+        });
+
+        return response()->json($college, 201);
     }
 
     /** One head per college: the active one, else an inactive one (the last by School ID) so the SAO can still reactivate it. */
@@ -79,32 +136,31 @@ class CollegeController extends Controller
             $target = ! empty($data['transfer_to_college_id']) ? College::whereKey($data['transfer_to_college_id'])->where('is_active', true)->lockForUpdate()->firstOrFail() : null;
             $organizationIds = Organization::where(fn ($query) => $query->where('college_id', $college->id)->orWhere('college', $college->name))->pluck('id');
             $homeId = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->value('id');
-            $studentIds = Organization::student()->whereIn('id', $organizationIds)->pluck('id');
-            $users = DB::table('users')->whereIn('organization_id', $organizationIds);
+            $assignedIds = $organizationIds->reject(fn ($id) => $id === $homeId)->values();
+            $userIds = DB::table('users')->whereIn('organization_id', $organizationIds)->pluck('school_id')
+                ->merge(DB::table('account_profiles')->whereIn('organization_id', $organizationIds)->pluck('user_school_id'))
+                ->unique();
+            $profileIds = DB::table('account_profiles')->whereIn('organization_id', $organizationIds)->pluck('id');
+            if (($assignedIds->isNotEmpty() || $userIds->isNotEmpty() || $profileIds->isNotEmpty()) && ! $target) {
+                throw ValidationException::withMessages(['transfer_to_college_id' => 'Choose an empty replacement college before deleting a college with organizations or users.']);
+            }
             if ($target) {
-                $targetHomeId = Organization::where('college_id', $target->id)->where('organization_type', 'COLLEGE')->value('id');
-                abort_if($homeId && ! $targetHomeId, 409, 'The destination college has no home organization.');
-                Organization::whereIn('id', $studentIds)->update(['college_id' => $target->id, 'college' => $target->name]);
-                if ($homeId && $targetHomeId) {
-                    Organization::whereIn('id', $studentIds)->where('parent_organization_id', $homeId)->update(['parent_organization_id' => $targetHomeId]);
+                $targetHomeId = Organization::where('college_id', $target->id)->where('organization_type', 'COLLEGE')->where('is_active', true)->value('id');
+                abort_if(! $targetHomeId || ! $this->replacementIsEmpty($target, $targetHomeId), 409, 'The replacement college must be empty and have a home organization.');
+                Organization::whereIn('id', $assignedIds)->update(['college_id' => $target->id, 'college' => $target->name]);
+                if ($homeId) {
+                    Organization::whereIn('id', $assignedIds)->where('parent_organization_id', $homeId)->update(['parent_organization_id' => $targetHomeId]);
+                    DB::table('users')->where('organization_id', $homeId)->update(['organization_id' => $targetHomeId, 'department' => $target->name]);
+                    DB::table('account_profiles')->where('organization_id', $homeId)->update(['organization_id' => $targetHomeId]);
                 }
-                DB::table('users')->whereIn('organization_id', $studentIds)->update(['department' => $target->name]);
+                DB::table('users')->whereIn('organization_id', $assignedIds)->update(['department' => $target->name]);
+            }
+            DB::table('personal_access_tokens')->where(fn ($q) => $q->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $userIds))->delete();
+            if ($homeId) {
                 Organization::whereKey($homeId)->update(['is_active' => false]);
-                $homeUsers = DB::table('users')->where('organization_id', $homeId)->pluck('school_id');
-                $homeProfiles = DB::table('account_profiles')->where('organization_id', $homeId)->pluck('id');
-                DB::table('users')->whereIn('school_id', $homeUsers)->update(['account_status' => 'inactive']);
-                DB::table('account_profiles')->whereIn('id', $homeProfiles)->update(['account_status' => 'inactive']);
-                DB::table('personal_access_tokens')->where(fn ($q) => $q->whereIn('account_profile_id', $homeProfiles)->orWhereIn('tokenable_id', $homeUsers))->delete();
-            } else {
-                $userIds = (clone $users)->pluck('school_id');
-                $profileIds = DB::table('account_profiles')->whereIn('organization_id', $organizationIds)->pluck('id');
-                Organization::whereIn('id', $organizationIds)->update(['is_active' => false]);
-                $users->update(['account_status' => 'inactive']);
-                DB::table('account_profiles')->whereIn('id', $profileIds)->update(['account_status' => 'inactive']);
-                DB::table('personal_access_tokens')->where(fn ($q) => $q->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $userIds))->delete();
             }
             $college->update(['is_active' => false]);
-            $this->audit($request, $college, $target ? 'deleted_and_transferred' : 'deleted_and_deactivated');
+            $this->audit($request, $college, $target ? 'deleted_and_transferred' : 'deleted_empty');
             $college->delete();
         });
         $logoPath = is_string($college->logo_url) ? parse_url($college->logo_url, PHP_URL_PATH) : null;
@@ -113,6 +169,20 @@ class CollegeController extends Controller
         }
 
         return response()->noContent();
+    }
+
+    private function replacementIsEmpty(College $college, int $homeId): bool
+    {
+        return ! $this->hasAssignments($college, $homeId);
+    }
+
+    private function hasAssignments(College $college, ?int $homeId): bool
+    {
+        $organizationIds = Organization::where(fn ($query) => $query->where('college_id', $college->id)->orWhere('college', $college->name))->pluck('id');
+
+        return Organization::whereIn('id', $organizationIds)->when($homeId, fn ($query) => $query->whereKeyNot($homeId))->exists()
+            || DB::table('users')->whereIn('organization_id', $organizationIds)->exists()
+            || DB::table('account_profiles')->whereIn('organization_id', $organizationIds)->exists();
     }
 
     private function audit(Request $request, College $college, string $action): void

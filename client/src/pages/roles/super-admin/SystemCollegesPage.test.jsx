@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import SystemCollegesPage from './SystemCollegesPage';
 
 const mocks = vi.hoisted(() => ({
-  getSystemColleges: vi.fn(), uploadSystemCollegeLogo: vi.fn(), deleteSystemCollege: vi.fn(),
+  getSystemColleges: vi.fn(), createSystemCollege: vi.fn(), uploadSystemCollegeLogo: vi.fn(), deleteSystemCollege: vi.fn(),
   createDepartmentHead: vi.fn(), updateDepartmentHead: vi.fn(), resetDepartmentHeadPassword: vi.fn(),
 }));
 vi.mock('../../../services/systemAdministrationService', () => mocks);
@@ -17,14 +17,30 @@ describe('SystemCollegesPage', () => {
     mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', code: 'COA', is_active: true, organizations_count: 2 }]);
   });
 
-  it('offers deletion while keeping college setup view only', async () => {
+  it('offers college creation and management', async () => {
     renderPage();
     expect(await screen.findByText('College of Arts')).toBeInTheDocument();
     expect(screen.getByText(/COA · 2 organizations/)).toBeInTheDocument();
-    expect(screen.queryByRole('button', { name: /add college/i })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Add college' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Delete College of Arts' })).toBeInTheDocument();
-    expect(screen.getByText("Assign each college's Department Head, open its organizations, update its logo, or delete it.")).toBeInTheDocument();
+    expect(screen.getByText("Add colleges, assign Department Heads, and manage each college's organizations.")).toBeInTheDocument();
+  });
+
+  it('adds a college and shows validation errors', async () => {
+    mocks.createSystemCollege.mockRejectedValueOnce({ response: { status: 422, data: { message: 'Invalid college.', errors: { name: ['The name has already been taken.'] } } } });
+    mocks.createSystemCollege.mockResolvedValueOnce({ id: 5, name: 'College of Science' });
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Add college' }));
+    const dialog = screen.getByRole('dialog', { name: 'Add college' });
+    fireEvent.change(within(dialog).getByLabelText(/College name/), { target: { value: 'College of Science' } });
+    fireEvent.change(within(dialog).getByLabelText('Code'), { target: { value: ' COS ' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add college' }));
+    expect(await within(dialog).findByText('The name has already been taken.')).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Add college' }));
+    await waitFor(() => expect(mocks.createSystemCollege).toHaveBeenCalledWith({ name: 'College of Science', code: 'COS', description: null }));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Add college' })).not.toBeInTheDocument());
+    expect(screen.getByRole('status')).toHaveTextContent('College of Science added');
   });
 
   it('has one h1, from the shared header, with a breadcrumb', async () => {
@@ -269,16 +285,27 @@ describe('SystemCollegesPage', () => {
     });
   });
 
-  it('allows deleting an assigned college and offers transfer before confirmation', async () => {
-    mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', is_active: true, organizations_count: 2 }, { id: 4, name: 'College of Science', is_active: true, organizations_count: 0 }]);
+  it('requires an empty replacement before deleting an assigned college', async () => {
+    mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', is_active: true, organizations_count: 2, has_assignments: true }, { id: 4, name: 'College of Science', is_active: true, organizations_count: 0, can_receive_transfer: true }, { id: 5, name: 'Busy College', is_active: true, organizations_count: 1, can_receive_transfer: false }]);
     mocks.deleteSystemCollege.mockResolvedValue({});
     renderPage();
     await screen.findByText('College of Arts');
     fireEvent.click(screen.getByRole('button', { name: 'Delete College of Arts' }));
     const dialog = screen.getByRole('dialog', { name: 'Delete College of Arts' });
-    expect(dialog).toHaveTextContent('deactivate its organizations and accounts');
-    fireEvent.change(within(dialog).getByLabelText('Transfer student organizations to'), { target: { value: '4' } });
+    expect(within(dialog).getByRole('button', { name: 'Delete college' })).toBeDisabled();
+    const replacement = within(dialog).getByLabelText(/Replacement college/);
+    expect(within(replacement).queryByRole('option', { name: 'Busy College' })).not.toBeInTheDocument();
+    fireEvent.change(replacement, { target: { value: '4' } });
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete college' }));
     await waitFor(() => expect(mocks.deleteSystemCollege).toHaveBeenCalledWith(3, '4'));
+  });
+
+  it('explains when a replacement college must be added first', async () => {
+    mocks.getSystemColleges.mockResolvedValue([{ id: 3, name: 'College of Arts', is_active: true, organizations_count: 2, has_assignments: true }]);
+    renderPage();
+    fireEvent.click(await screen.findByRole('button', { name: 'Delete College of Arts' }));
+    const dialog = screen.getByRole('dialog', { name: 'Delete College of Arts' });
+    expect(dialog).toHaveTextContent('add a new college first');
+    expect(within(dialog).getByRole('button', { name: 'Delete college' })).toBeDisabled();
   });
 });

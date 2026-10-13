@@ -102,7 +102,7 @@ class OverallFeedbackRegressionTest extends TestCase
         $this->post('/api/system/announcements/'.$response->json('id'), ['_method' => 'PUT', 'payload' => json_encode([...$fields, 'title' => 'Updated notice']), 'image' => UploadedFile::fake()->image('replacement.png')])->assertOk()->assertJsonPath('title', 'Updated notice');
     }
 
-    public function test_college_deletion_revokes_affected_sessions_and_leaves_other_colleges_active(): void
+    public function test_college_transfer_revokes_affected_sessions_and_leaves_accounts_active(): void
     {
         $college = College::create(['name' => 'Archived College', 'is_active' => true]);
         $org = Organization::factory()->create(['college' => $college->name]);
@@ -111,9 +111,12 @@ class OverallFeedbackRegressionTest extends TestCase
         $other = User::factory()->admin()->create();
         $other->createToken('session');
         Sanctum::actingAs(User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]));
-        $this->deleteJson('/api/system/colleges/'.$college->id)->assertNoContent();
+        $replacementId = $this->postJson('/api/system/colleges', ['name' => 'Replacement College'])->assertCreated()->json('id');
+        $this->deleteJson('/api/system/colleges/'.$college->id, ['transfer_to_college_id' => $replacementId])->assertNoContent();
         $this->assertSame(0, $member->tokens()->count());
         $this->assertSame(1, $other->tokens()->count());
+        $this->assertSame('active', $member->fresh()->account_status);
+        $this->assertSame($replacementId, $org->fresh()->college_id);
         $this->assertSame('active', $other->fresh()->account_status);
         $this->assertTrue($other->organization->is_active);
     }
