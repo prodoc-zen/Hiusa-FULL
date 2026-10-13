@@ -130,6 +130,17 @@ describe('OrganizationCompliancePage', () => {
     expect(within(drawer).getByText('Update the signatures.')).toBeInTheDocument();
   });
 
+  it('offers the SAO sample beside a returned compliance upload', async () => {
+    mocks.getComplianceStatus.mockResolvedValue(adminStatus('returned', [requirement('returned')]));
+    mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ id: 4, template_original_name: 'sample.pdf' }] } });
+    openMocks.openProtectedFile.mockResolvedValue();
+    renderAt('/dashboard/compliance', <OrganizationCompliancePage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Officer Roster' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'Replace document' }));
+    fireEvent.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'View sample format' }));
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/requirement-types/4/template'));
+  });
+
   it('names who publishes requirements when none exist, under one h1', async () => {
     mocks.getComplianceStatus.mockResolvedValue(adminStatus('not_applicable', []));
     renderAt('/dashboard/compliance', <OrganizationCompliancePage />);

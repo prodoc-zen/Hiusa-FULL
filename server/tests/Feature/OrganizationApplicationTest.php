@@ -67,6 +67,25 @@ class OrganizationApplicationTest extends TestCase
         $this->post('/api/organization-applications', $payload, ['Accept' => 'application/json'])->assertCreated();
     }
 
+    public function test_public_registration_exposes_only_current_active_requirement_samples(): void
+    {
+        $type = ComplianceRequirementType::findOrFail($this->requirementId);
+        $type->update(['template_url' => 'https://example.edu/constitution-guide']);
+        $this->getJson('/api/organization-applications/requirements')->assertOk()
+            ->assertJsonPath('requirements.0.template_url', 'https://example.edu/constitution-guide')
+            ->assertJsonPath('requirements.0.template_original_name', null);
+
+        Storage::disk('local')->put('compliance-requirement-templates/sample.pdf', '%PDF-1.4');
+        $type->update(['template_url' => null, 'template_path' => 'compliance-requirement-templates/sample.pdf', 'template_original_name' => 'sample.pdf']);
+        $this->get("/api/organization-applications/requirements/{$type->id}/template")->assertOk()
+            ->assertHeader('Content-Type', 'application/pdf');
+
+        $type->update(['is_active' => false]);
+        $this->get("/api/organization-applications/requirements/{$type->id}/template")->assertNotFound();
+        $type->update(['is_active' => true, 'name' => ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT]);
+        $this->get("/api/organization-applications/requirements/{$type->id}/template")->assertNotFound();
+    }
+
     public function test_verified_application_requires_own_college_endorsement_before_sao_approval(): void
     {
         Mail::fake();

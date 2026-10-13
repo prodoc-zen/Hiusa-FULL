@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ComplianceRequirementType extends Model
 {
+    protected $hidden = ['template_path'];
+
     public const SEMESTRAL_ACCOMPLISHMENT_REPORT = 'Semestral Accomplishment Report';
     public const SUPPORTED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
 
@@ -17,6 +19,9 @@ class ComplianceRequirementType extends Model
         'name',
         'description',
         'allowed_extensions',
+        'template_path',
+        'template_original_name',
+        'template_url',
         'deadline_at',
         'is_active',
         'created_by',

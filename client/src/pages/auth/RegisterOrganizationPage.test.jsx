@@ -5,6 +5,9 @@ import LandingPage from './LandingPage';
 import RegisterOrganizationPage from './RegisterOrganizationPage';
 import { getApplicationRequirements, getRegistrationColleges, submitOrganizationApplication } from '../../services/organizationApplicationService';
 
+const sampleMocks = vi.hoisted(() => ({ openProtectedFile: vi.fn() }));
+vi.mock('../../utils/openProtectedFile', () => sampleMocks);
+
 vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), getApplicationRequirements: vi.fn(), submitOrganizationApplication: vi.fn() }));
 
 describe('Public organization onboarding', () => {
@@ -69,6 +72,14 @@ describe('Public organization onboarding', () => {
     expect(screen.getByText('Accepted: PNG')).toBeInTheDocument();
     fireEvent.change(input, { target: { files: [new File(['%PDF-1.4'], 'portrait.pdf', { type: 'application/pdf' })] } });
     expect(screen.getByText('Accepted file types: PNG.')).toBeInTheDocument();
+  });
+
+  it('opens an attached sample from a public registration requirement', async () => {
+    getApplicationRequirements.mockResolvedValue({ data: { academic_semester: { academic_year: '2026-2027', number: 1 }, requirements: [{ id: 7, name: 'Constitution', template_original_name: 'sample.pdf' }] } });
+    sampleMocks.openProtectedFile.mockResolvedValue();
+    render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: 'View sample format' }));
+    await waitFor(() => expect(sampleMocks.openProtectedFile).toHaveBeenCalledWith('/organization-applications/requirements/7/template'));
   });
 
   it('does not offer submission until the SAO opens requirements', async () => {

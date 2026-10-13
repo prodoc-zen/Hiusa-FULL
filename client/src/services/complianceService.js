@@ -4,6 +4,13 @@ import api from './api';
 export const getRequirementTypes = (params) => api.get('/compliance/requirement-types', { params });
 export const createRequirementType = (data) => api.post('/compliance/requirement-types', data);
 export const updateRequirementType = (id, data) => api.put(`/compliance/requirement-types/${id}`, data);
+export const uploadRequirementSample = (id, file) => {
+  const data = new FormData();
+  data.append('template', file);
+  return api.post(`/compliance/requirement-types/${id}/template`, data);
+};
+export const setRequirementSampleLink = (id, url) => api.put(`/compliance/requirement-types/${id}/template-link`, { template_url: url });
+export const removeRequirementSample = (id) => api.delete(`/compliance/requirement-types/${id}/template`);
 
 // Accreditation status: SUPER_ADMIN gets every organization, ADMIN gets its own.
 export const getComplianceStatus = (params) => api.get('/compliance/status', { params });

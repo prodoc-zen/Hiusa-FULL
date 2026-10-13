@@ -188,6 +188,19 @@ describe('CollegeOrganizationsPage', () => {
     expect(within(drawer).getAllByText('Approved').length).toBeGreaterThan(0);
   });
 
+  it('opens the SAO sample while a returned registration is being corrected', async () => {
+    const returned = organization({ id: 3, name: 'Drama Guild', acronym: 'DRAMA', lifecycle_status: 'returned', review_remarks: 'Wrong format.', registration_requirements: [
+      { requirement_type_id: 1, requirement_name: 'Constitution', file_name: 'old.pdf', status: 'returned', submission_id: 11, template_original_name: 'sample.pdf' },
+    ] });
+    mocks.getCollegeOrganizations.mockResolvedValue(paginator([returned]));
+    openMocks.openProtectedFile.mockResolvedValue();
+    renderPage();
+    await screen.findAllByText('Drama Guild');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit and resubmit Drama Guild' })[0]);
+    fireEvent.click(await screen.findByRole('button', { name: 'View sample format' }));
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/requirement-types/1/template'));
+  });
+
   it('opens the registration file from the checklist and returned edit form', async () => {
     renderPage();
     fireEvent.click((await screen.findAllByRole('button', { name: 'View checklist for Drama Guild' }))[0]);

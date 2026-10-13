@@ -61,6 +61,7 @@ Route::post('/password/reset', [UserController::class, 'resetPassword'])->middle
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
 Route::get('/organization-applications/colleges', [OrganizationApplicationController::class, 'colleges'])->middleware('throttle:public');
 Route::get('/organization-applications/requirements', [OrganizationApplicationController::class, 'requirements'])->middleware('throttle:public');
+Route::get('/organization-applications/requirements/{requirementType}/template', [ComplianceController::class, 'publicRequirementTemplate'])->middleware('throttle:public');
 Route::post('/organization-applications', [OrganizationApplicationController::class, 'store'])->middleware('throttle:registration');
 Route::get('/organization-applications/{application}/verify', [OrganizationApplicationController::class, 'verify'])->middleware(['signed', 'throttle:public'])->name('organization-applications.verify');
 
@@ -330,6 +331,10 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::post('/compliance/requirement-types', [ComplianceController::class, 'storeRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/compliance/requirement-types/{requirementType}', [ComplianceController::class, 'updateRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/compliance/requirement-types/{requirementType}', [ComplianceController::class, 'destroyRequirementType'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::get('/compliance/requirement-types/{requirementType}/template', [ComplianceController::class, 'requirementTemplate'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/compliance/requirement-types/{requirementType}/template', [ComplianceController::class, 'uploadRequirementTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/compliance/requirement-types/{requirementType}/template-link', [ComplianceController::class, 'setRequirementTemplateLink'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::delete('/compliance/requirement-types/{requirementType}/template', [ComplianceController::class, 'removeRequirementTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);

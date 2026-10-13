@@ -86,7 +86,7 @@ class CollegeOrganizationController extends Controller
 
         return response()->json([
             'academic_semester' => $semester ? ['id' => $semester->id, 'number' => $semester->number, 'academic_year' => $semester->academicYear->label] : null,
-            'requirements' => $types->map(fn (ComplianceRequirementType $type) => [...$type->only(['id', 'name', 'description', 'deadline_at']), 'allowed_extensions' => $type->acceptedExtensions()])->values(),
+            'requirements' => $types->map(fn (ComplianceRequirementType $type) => [...$type->only(['id', 'name', 'description', 'deadline_at', 'template_original_name', 'template_url']), 'allowed_extensions' => $type->acceptedExtensions()])->values(),
         ]);
     }
 
@@ -375,6 +375,8 @@ class CollegeOrganizationController extends Controller
                 'requirement_type_id' => $type->id,
                 'requirement_name' => $type->name,
                 'allowed_extensions' => $type->acceptedExtensions(),
+                'template_original_name' => $type->template_original_name,
+                'template_url' => $type->template_url,
                 'file_name' => $byType->get($type->id)?->file_original_name,
                 'status' => $byType->get($type->id)?->status ?? 'not_submitted',
                 'submission_id' => $byType->get($type->id)?->id,
