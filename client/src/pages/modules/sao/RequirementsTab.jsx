@@ -11,6 +11,7 @@ import { manilaDate } from '../../../lib/format';
 import { unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getAcademicYears } from '../../../services/systemAdministrationService';
+import { fileTypesLabel, SUPPORTED_REQUIREMENT_EXTENSIONS } from '../../../utils/requirementFiles';
 import {
   createRequirementType,
   deleteRequirementType,
@@ -18,8 +19,8 @@ import {
   updateRequirementType,
 } from '../../../services/complianceService';
 
-const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', is_active: true };
-const FIELD_ORDER = ['academic_year', 'deadline_at', 'name'];
+const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
+const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
 const ROW_ACTION = 'h-11! sm:h-9!';
 
 export default function RequirementsTab({ currentAcademicYear, onChanged }) {
@@ -56,6 +57,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
       name: type.name || '',
       description: type.description || '',
       deadline_at: String(type.deadline_at || '').slice(0, 10),
+      allowed_extensions: type.allowed_extensions || SUPPORTED_REQUIREMENT_EXTENSIONS,
       is_active: type.is_active !== false,
     } : { ...EMPTY_TYPE_FORM, academic_year: currentAcademicYear || '' });
   }
@@ -66,6 +68,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     if (!typeForm.academic_year.trim()) errors.academic_year = 'Choose the academic year this requirement applies to.';
     if (!typeForm.deadline_at) errors.deadline_at = 'Set the deadline for organizations.';
     if (!typeForm.name.trim()) errors.name = 'Enter a name for this requirement.';
+    if (!typeForm.allowed_extensions.length) errors.allowed_extensions = 'Choose at least one accepted file type.';
     setFieldErrors(errors);
     const firstInvalid = FIELD_ORDER.find((key) => errors[key]);
     if (firstInvalid) {
@@ -76,10 +79,11 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     setTypeSaving(true);
     setTypeFormError(null);
     const payload = {
-      academic_year: typeForm.academic_year.trim(),
+      ...(typeModal.mode === 'create' ? { academic_year: typeForm.academic_year.trim() } : {}),
       name: typeForm.name.trim(),
       description: typeForm.description.trim() || null,
       deadline_at: typeForm.deadline_at,
+      allowed_extensions: typeForm.allowed_extensions,
       is_active: typeForm.is_active,
     };
 
@@ -143,14 +147,15 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{formatDisplayText(type.name)}</span> },
     { key: 'academic_year', header: 'Academic year' },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
+    { key: 'allowed_extensions', header: 'Accepted files', render: (type) => fileTypesLabel(type.allowed_extensions) },
     { key: 'description', header: 'Description', render: (type) => <RichTextBody as="span" value={type.description || 'No description.'} className="line-clamp-2 text-ink-muted" /> },
   ];
 
   return (
     <>
       <Card
-        title="Requirement catalog"
-        description="What every organization must submit, and by when."
+        title="Organization requirements"
+        description="Files for organization registration and accreditation, with deadlines and accepted formats."
         actions={<Button leftIcon={Plus} onClick={() => openTypeModal()}>New requirement</Button>}
       >
         {deleteError && (
@@ -184,8 +189,8 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
 
       <Modal
         open={Boolean(typeModal)}
-        title={typeModal?.mode === 'edit' ? 'Edit requirement' : 'New requirement'}
-        description="This requirement applies to every active organization for the academic year you set."
+        title={typeModal?.mode === 'edit' ? 'Edit organization requirement' : 'New organization requirement'}
+        description="Used for accreditation. Current-semester requirements also appear during organization registration."
         onClose={typeSaving ? undefined : () => setTypeModal(null)}
         closeOnEscape={!typeSaving}
         footer={(
@@ -196,8 +201,8 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
         )}
       >
         <form onSubmit={handleTypeSubmit} noValidate className="grid gap-4 sm:grid-cols-2">
-          <Field label="Academic year" required error={fieldErrors.academic_year}>
-            <Select ref={(node) => { fieldRefs.current.academic_year = node; }} autoFocus value={typeForm.academic_year} onChange={(event) => { setTypeForm({ ...typeForm, academic_year: event.target.value }); setFieldErrors((current) => ({ ...current, academic_year: null })); }}>
+          <Field label="Academic year" required error={fieldErrors.academic_year} hint={typeModal?.mode === 'edit' ? 'The academic year stays fixed after creation.' : undefined}>
+            <Select ref={(node) => { fieldRefs.current.academic_year = node; }} autoFocus disabled={typeModal?.mode === 'edit'} value={typeForm.academic_year} onChange={(event) => { setTypeForm({ ...typeForm, academic_year: event.target.value }); setFieldErrors((current) => ({ ...current, academic_year: null })); }}>
               <option value="">Choose academic year</option>
               {academicYears.map((year) => <option key={year.id} value={year.label}>{year.label}{year.is_current ? ' · Current' : ''}</option>)}
             </Select>
@@ -211,6 +216,24 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
           <Field label="Description" hint="Shown to organizations alongside this requirement." className="sm:col-span-2">
             <RichTextEditor ariaLabel="Requirement description" value={typeForm.description} onChange={(description) => setTypeForm({ ...typeForm, description })} rows={4} />
           </Field>
+          <fieldset className="sm:col-span-2" aria-describedby={fieldErrors.allowed_extensions ? 'organization-file-types-error' : undefined}>
+            <legend className="text-sm font-semibold text-ink">Accepted file types</legend>
+            <div className="mt-2 flex flex-wrap gap-x-4 gap-y-2">
+              {SUPPORTED_REQUIREMENT_EXTENSIONS.map((extension) => (
+                <label key={extension} className="inline-flex min-h-11 items-center gap-2 text-sm font-medium text-ink">
+                  <input type="checkbox" checked={typeForm.allowed_extensions.includes(extension)} onChange={(event) => {
+                    const allowed_extensions = event.target.checked
+                      ? [...typeForm.allowed_extensions, extension]
+                      : typeForm.allowed_extensions.filter((item) => item !== extension);
+                    setTypeForm({ ...typeForm, allowed_extensions });
+                    setFieldErrors((current) => ({ ...current, allowed_extensions: null }));
+                  }} />
+                  {extension.toUpperCase()}
+                </label>
+              ))}
+            </div>
+            {fieldErrors.allowed_extensions && <p id="organization-file-types-error" role="alert" className="text-xs text-danger-strong">{fieldErrors.allowed_extensions}</p>}
+          </fieldset>
           <div className="sm:col-span-2">
             <ActiveSwitch label="Requirement active" checked={typeForm.is_active} onChange={(isActive) => setTypeForm({ ...typeForm, is_active: isActive })} />
             <p className="text-xs font-medium text-ink-muted">Active requirements must be submitted by every organization. Turning one off changes accreditation for all of them.</p>

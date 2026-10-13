@@ -9,12 +9,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 class ComplianceRequirementType extends Model
 {
     public const SEMESTRAL_ACCOMPLISHMENT_REPORT = 'Semestral Accomplishment Report';
+    public const SUPPORTED_EXTENSIONS = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
 
     protected $fillable = [
         'academic_year',
         'academic_semester_id',
         'name',
         'description',
+        'allowed_extensions',
         'deadline_at',
         'is_active',
         'created_by',
@@ -24,8 +26,27 @@ class ComplianceRequirementType extends Model
     {
         return [
             'deadline_at' => 'datetime',
+            'allowed_extensions' => 'array',
             'is_active' => 'boolean',
         ];
+    }
+
+    public function acceptedExtensions(): array
+    {
+        if ($this->allowed_extensions) {
+            return $this->allowed_extensions;
+        }
+
+        return $this->academic_semester_id && $this->name !== self::SEMESTRAL_ACCOMPLISHMENT_REPORT
+            ? ['pdf']
+            : self::SUPPORTED_EXTENSIONS;
+    }
+
+    public function uploadRules(): array
+    {
+        $extensions = implode(',', $this->acceptedExtensions());
+
+        return ['file', 'mimes:'.$extensions, 'extensions:'.$extensions, 'max:10240'];
     }
 
     public function submissions(): HasMany

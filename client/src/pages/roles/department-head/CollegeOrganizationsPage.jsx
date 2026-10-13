@@ -15,6 +15,7 @@ import { headCollegeName, storedUser } from '../../../utils/collegeIdentity';
 import useRecordParam from '../../../lib/useRecordParam';
 import { RegistrationNextStep, RegistrationRowStatus, RegistrationStepper } from '../../../components/organizations/RegistrationFlow';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../../utils/requirementFiles';
 
 async function viewRegistrationFile(submissionId) {
   try {
@@ -24,7 +25,6 @@ async function viewRegistrationFile(submissionId) {
   }
 }
 
-const MAX_FILE_BYTES = 10 * 1024 * 1024;
 const HEX_COLOR = /^#[0-9a-fA-F]{6}$/;
 const FORM_FIELDS = ['name', 'acronym', 'description', 'color'];
 
@@ -76,13 +76,6 @@ function formatSize(bytes) {
   return bytes >= 1024 * 1024 ? `${(bytes / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`;
 }
 
-function validatePdf(file) {
-  const isPdf = file.type === 'application/pdf' || file.name.toLowerCase().endsWith('.pdf');
-  if (!isPdf) return 'Only PDF files are accepted.';
-  if (file.size > MAX_FILE_BYTES) return 'This file is larger than 10 MB. Choose a smaller file.';
-  return null;
-}
-
 function emptyForm(organization) {
   return {
     name: organization?.name || '',
@@ -120,8 +113,8 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
   }, [focusRequest]);
 
   const requirements = useMemo(() => (isResubmit
-    ? (organization.registration_requirements || []).map((item) => ({ id: item.requirement_type_id, name: item.requirement_name, current: item }))
-    : requirementsState.requirements.map((item) => ({ id: item.id, name: item.name, description: item.description, deadline_at: item.deadline_at }))), [isResubmit, organization, requirementsState.requirements]);
+    ? (organization.registration_requirements || []).map((item) => ({ id: item.requirement_type_id, name: item.requirement_name, allowed_extensions: item.allowed_extensions, current: item }))
+    : requirementsState.requirements.map((item) => ({ id: item.id, name: item.name, description: item.description, deadline_at: item.deadline_at, allowed_extensions: item.allowed_extensions }))), [isResubmit, organization, requirementsState.requirements]);
 
   function setField(key, value) {
     setFields((current) => ({ ...current, [key]: value }));
@@ -130,7 +123,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
 
   function chooseFile(requirementId, file) {
     if (!file) return;
-    const problem = validatePdf(file);
+    const problem = validateRequirementFile(file, requirements.find((item) => item.id === requirementId)?.allowed_extensions);
     setFileErrors((current) => ({ ...current, [requirementId]: problem || undefined }));
     setErrors((current) => ({ ...current, [`files.${requirementId}`]: undefined }));
     setFiles((current) => {
@@ -151,7 +144,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     if (fields.color && !HEX_COLOR.test(fields.color)) found.color = 'Use a color like #0B8ED0.';
     requirements.forEach((requirement) => {
       if (fileErrors[requirement.id]) found[`files.${requirement.id}`] = fileErrors[requirement.id];
-      else if (!isResubmit && !files[requirement.id]) found[`files.${requirement.id}`] = 'Attach a PDF for this requirement.';
+      else if (!isResubmit && !files[requirement.id]) found[`files.${requirement.id}`] = 'Attach a file for this requirement.';
     });
     return found;
   }
@@ -193,7 +186,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     <Modal
       open={open}
       title={isResubmit ? `Edit and resubmit ${organization.name}` : 'Register an organization'}
-      description={isResubmit ? 'Change the details and replace only the documents the SAO returned. Resubmitting sends it back to the SAO for review.' : 'The SAO reviews every registration. Attach all required documents as PDF files.'}
+      description={isResubmit ? 'Change the details and replace only the documents the SAO returned. Resubmitting sends it back to the SAO for review.' : 'The SAO reviews every registration. Attach all required documents in the accepted formats.'}
       onClose={() => !submitting && onClose()}
       closeOnBackdrop={false}
       maxWidth="max-w-[640px]"
@@ -248,8 +241,8 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
             <div>
               <h3 className="text-base font-bold text-ink">Registration requirements</h3>
               <p className="mt-1 text-xs font-medium text-ink-muted">
-                {isResubmit ? 'Documents already on file stay as they are. Choose a PDF only to replace one. ' : requirementsState.semester ? `Academic year ${requirementsState.semester.academic_year}, semester ${requirementsState.semester.number}. ` : ''}
-                PDF only, up to 10 MB each.
+                {isResubmit ? 'Documents already on file stay as they are. Choose a file only to replace one. ' : requirementsState.semester ? `Academic year ${requirementsState.semester.academic_year}, semester ${requirementsState.semester.number}. ` : ''}
+                Up to 10 MB each. Accepted types are listed per requirement.
               </p>
             </div>
             {requirements.map((requirement) => {
@@ -258,6 +251,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
               const hint = (
                 <>
                   {requirement.description && <span className="block">{requirement.description}</span>}
+                  <span className="block">Accepted: {fileTypesLabel(requirement.allowed_extensions)}</span>
                   {requirement.deadline_at && <span className="block">Due {manilaDate(requirement.deadline_at, 'long')}</span>}
                   {requirement.current && <span className="block">Current file: {requirement.current.file_name || 'None'} ({(REQUIREMENT_STATUS[requirement.current.status] || REQUIREMENT_STATUS.not_submitted).label})</span>}
                   {requirement.current?.submission_id && <button type="button" className="inline-flex min-h-11 items-center gap-1 font-bold text-brand-700 hover:underline" onClick={() => viewRegistrationFile(requirement.current.submission_id)}><Eye size={14} aria-hidden="true" />View current file</button>}
@@ -268,7 +262,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
                 <Field key={requirement.id} label={requirement.name} required={!isResubmit} hint={hint} error={errors[key]}>
                   <input
                     type="file"
-                    accept="application/pdf,.pdf"
+                    accept={fileAccept(requirement.allowed_extensions)}
                     onChange={(event) => { chooseFile(requirement.id, event.target.files?.[0]); event.target.value = ''; }}
                     className="block w-full rounded-control border border-line bg-surface p-2 text-sm font-medium text-ink file:mr-3 file:h-9 file:cursor-pointer file:rounded-control file:border file:border-line file:bg-surface file:px-3 file:text-xs file:font-bold file:text-ink"
                   />

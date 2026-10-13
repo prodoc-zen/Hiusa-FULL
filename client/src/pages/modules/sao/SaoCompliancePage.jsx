@@ -14,17 +14,26 @@ import RequirementsTab from './RequirementsTab';
 import ReviewQueueTab from './ReviewQueueTab';
 
 const PANEL_ID = 'sao-compliance-panel';
+const SUB_PANEL_ID = 'sao-compliance-subpanel';
 const DEFAULT_TAB = 'accreditation';
 const DEFAULT_REVIEW_FILTERS = { organizationId: '', status: 'submitted' };
 
 const TABS = [
-  { key: 'accreditation', label: 'Accreditation', icon: ShieldCheck, panelId: PANEL_ID },
-  { key: 'requirements', label: 'Requirements', icon: ClipboardList, panelId: PANEL_ID },
-  { key: 'review', label: 'Review queue', icon: Check, panelId: PANEL_ID },
-  { key: 'events', label: 'Event requirements', icon: CalendarCheck, panelId: PANEL_ID },
+  { key: 'organizations', label: 'Organizations', icon: ShieldCheck, panelId: PANEL_ID, defaultTab: 'accreditation' },
+  { key: 'event-reviews', label: 'Event reviews', icon: CalendarCheck, panelId: PANEL_ID, defaultTab: 'event-reviews' },
   { key: 'financial', label: 'Financial reports', icon: Wallet, panelId: PANEL_ID },
-  { key: 'documents', label: 'Track documents', icon: FolderSearch, panelId: PANEL_ID },
+  { key: 'settings', label: 'Requirement settings', icon: ClipboardList, panelId: PANEL_ID, defaultTab: 'requirements' },
+  { key: 'documents', label: 'Documents', icon: FolderSearch, panelId: PANEL_ID },
 ];
+const ORGANIZATION_TABS = [
+  { key: 'accreditation', label: 'Progress by organization', panelId: SUB_PANEL_ID },
+  { key: 'review', label: 'Review submissions', icon: Check, panelId: SUB_PANEL_ID },
+];
+const SETTING_TABS = [
+  { key: 'requirements', label: 'Organization requirements', panelId: SUB_PANEL_ID },
+  { key: 'events', label: 'Event requirements', panelId: SUB_PANEL_ID },
+];
+const TAB_GROUP = { accreditation: 'organizations', review: 'organizations', requirements: 'settings', events: 'settings', 'event-reviews': 'event-reviews', financial: 'financial', documents: 'documents' };
 
 function getCurrentRole() {
   try {
@@ -39,7 +48,8 @@ export default function SaoCompliancePage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedTab = searchParams.get('tab');
   const hasRecord = Boolean(searchParams.get('record'));
-  const activeTab = TABS.some((tab) => tab.key === requestedTab) ? requestedTab : (hasRecord ? 'review' : DEFAULT_TAB);
+  const activeTab = Object.hasOwn(TAB_GROUP, requestedTab) ? requestedTab : (hasRecord ? 'review' : DEFAULT_TAB);
+  const activeGroup = TAB_GROUP[activeTab];
 
   const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, organizations: [] });
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
@@ -87,35 +97,40 @@ export default function SaoCompliancePage() {
 
   const awaitingReview = overview.organizations.reduce((total, org) => total
     + org.requirements.filter((requirement) => requirement.status === 'submitted').length, 0);
-  const tabs = TABS.map((tab) => (tab.key === 'review' && awaitingReview > 0
+  const organizationTabs = ORGANIZATION_TABS.map((tab) => (tab.key === 'review' && awaitingReview > 0
     ? { ...tab, label: `${tab.label} (${awaitingReview})` }
     : tab));
-  const activeLabel = TABS.find((tab) => tab.key === activeTab).label;
+  const activeLabel = [...ORGANIZATION_TABS, ...SETTING_TABS, ...TABS].find((tab) => tab.key === activeTab).label;
 
   return (
     <div className="space-y-5 pb-8">
       <PageHeader />
 
-      <Tabs value={activeTab} onChange={changeTab} tabs={tabs} />
+      <Tabs value={activeGroup} onChange={(key) => changeTab(TABS.find((tab) => tab.key === key).defaultTab || key)} tabs={TABS} />
 
-      <div role="tabpanel" id={PANEL_ID} aria-label={activeLabel} className="space-y-5">
-        {activeTab === 'accreditation' && (
-          <AccreditationTab overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} />
-        )}
-        {activeTab === 'requirements' && (
-          <RequirementsTab currentAcademicYear={overview.academicYear} onChanged={loadOverview} />
-        )}
-        {activeTab === 'review' && (
-          <ReviewQueueTab
-            organizations={[...overview.organizations, ...pendingRegistrations]}
-            filters={reviewFilters}
-            onFiltersChange={setReviewFilters}
-            onChanged={loadOverview}
-          />
-        )}
-        {activeTab === 'events' && <EventRequirementsTab />}
-        {activeTab === 'financial' && <FinancialReportsTab />}
-        {activeTab === 'documents' && <DocumentsTab />}
+      <div role="tabpanel" id={PANEL_ID} aria-label={TABS.find((tab) => tab.key === activeGroup).label} className="space-y-5">
+        {activeGroup === 'organizations' && <Tabs value={activeTab} onChange={changeTab} tabs={organizationTabs} />}
+        {activeGroup === 'settings' && <Tabs value={activeTab} onChange={changeTab} tabs={SETTING_TABS} />}
+        <div role={activeGroup === 'organizations' || activeGroup === 'settings' ? 'tabpanel' : undefined} id={SUB_PANEL_ID} aria-label={activeLabel} className="space-y-5">
+          {activeTab === 'accreditation' && (
+            <AccreditationTab overview={overview} onRetry={loadOverview} onReviewOrganization={reviewOrganization} />
+          )}
+          {activeTab === 'requirements' && (
+            <RequirementsTab currentAcademicYear={overview.academicYear} onChanged={loadOverview} />
+          )}
+          {activeTab === 'review' && (
+            <ReviewQueueTab
+              organizations={[...overview.organizations, ...pendingRegistrations]}
+              filters={reviewFilters}
+              onFiltersChange={setReviewFilters}
+              onChanged={loadOverview}
+            />
+          )}
+          {activeTab === 'events' && <EventRequirementsTab />}
+          {activeTab === 'event-reviews' && <EventRequirementsTab mode="reviews" />}
+          {activeTab === 'financial' && <FinancialReportsTab />}
+          {activeTab === 'documents' && <DocumentsTab />}
+        </div>
       </div>
     </div>
   );

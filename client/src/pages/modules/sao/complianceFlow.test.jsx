@@ -172,7 +172,7 @@ describe('SaoCompliancePage review queue', () => {
   it('opens the review queue and the submission drawer from ?record= alone, across every status', async () => {
     renderAt('/dashboard/super-admin/compliance?record=12', <SaoCompliancePage />);
     const drawer = await screen.findByRole('dialog', { name: 'Officer Roster' });
-    expect(screen.getByRole('tab', { name: /Review queue/ })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: /Review submissions/ })).toHaveAttribute('aria-selected', 'true');
     expect(mocks.getSubmissions).toHaveBeenCalledWith(expect.objectContaining({ status: undefined }));
     expect(within(drawer).getByRole('list', { name: 'Compliance submission progress' })).toBeInTheDocument();
     expect(within(drawer).getByText('Review the submission')).toBeInTheDocument();
@@ -235,7 +235,7 @@ describe('SaoCompliancePage review queue', () => {
   it('keeps ?tab= working and shows a compact accreditation stepper on each organization row', async () => {
     renderAt('/dashboard/super-admin/compliance', <SaoCompliancePage />);
     expect((await screen.findAllByRole('progressbar', { name: 'Accreditation progress for Computing Society' })).length).toBeGreaterThan(0);
-    expect(screen.getByRole('tab', { name: 'Accreditation' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tab', { name: 'Progress by organization' })).toHaveAttribute('aria-selected', 'true');
   });
 
   it.each([

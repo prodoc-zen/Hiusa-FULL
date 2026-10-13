@@ -51,6 +51,22 @@ class OrganizationApplicationTest extends TestCase
         $application->documents()->create(['requirement_type_id' => $this->requirementId, 'file_path' => 'organization-applications/test/constitution.pdf', 'file_original_name' => 'constitution.pdf', 'mime_type' => 'application/pdf', 'file_size' => 8]);
     }
 
+    public function test_public_registration_uses_sao_file_types(): void
+    {
+        Mail::fake();
+        $college = College::create(['name' => 'College of Design', 'is_active' => true]);
+        ComplianceRequirementType::findOrFail($this->requirementId)->update(['allowed_extensions' => ['png']]);
+
+        $this->getJson('/api/organization-applications/requirements')->assertOk()
+            ->assertJsonPath('requirements.0.allowed_extensions.0', 'png');
+
+        $this->post('/api/organization-applications', $this->upload($college), ['Accept' => 'application/json'])
+            ->assertUnprocessable()->assertJsonValidationErrors("files.{$this->requirementId}");
+
+        $payload = [...$this->payload($college), 'files' => [$this->requirementId => UploadedFile::fake()->image('constitution.png')]];
+        $this->post('/api/organization-applications', $payload, ['Accept' => 'application/json'])->assertCreated();
+    }
+
     public function test_verified_application_requires_own_college_endorsement_before_sao_approval(): void
     {
         Mail::fake();

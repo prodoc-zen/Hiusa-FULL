@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Button, Field, Input, Select, Textarea } from '../../components/ui';
 import { getApplicationRequirements, getRegistrationColleges, submitOrganizationApplication } from '../../services/organizationApplicationService';
 import { getApiErrorMessage } from '../../utils/apiError';
+import { fileAccept, fileTypesLabel, validateRequirementFile } from '../../utils/requirementFiles';
 
 const INITIAL = { name: '', acronym: '', college_id: '', description: '', first_name: '', last_name: '', school_id: '', email: '', position_title: '' };
 const FIELDS = [['name', 'Organization name', 'text', 255], ['acronym', 'Organization code', 'text', 50], ['first_name', 'First name', 'text', 60], ['last_name', 'Last name', 'text', 60], ['school_id', 'School ID', 'number', 8], ['email', 'Email', 'email', 255], ['position_title', 'Position', 'text', 100]];
@@ -39,8 +40,9 @@ export default function RegisterOrganizationPage() {
   const change = (key) => (event) => setForm((current) => ({ ...current, [key]: event.target.value }));
 
   function chooseFile(id, file) {
-    setErrors((current) => ({ ...current, [`files.${id}`]: undefined }));
-    setFiles((current) => ({ ...current, [id]: file }));
+    const problem = file ? validateRequirementFile(file, requirements.find((item) => item.id === id)?.allowed_extensions) : null;
+    setErrors((current) => ({ ...current, [`files.${id}`]: problem ? [problem] : undefined }));
+    setFiles((current) => ({ ...current, [id]: problem ? undefined : file }));
   }
 
   async function submit(event) {
@@ -75,11 +77,12 @@ export default function RegisterOrganizationPage() {
           </fieldset>
           <fieldset disabled={busy} className="space-y-4 border-t border-[#DDE7EF] pt-5">
             <legend className="text-base font-bold text-[#0B1831]">Registration requirements</legend>
-            <p className="text-sm text-[#475569]">Academic year {semester?.academic_year}, semester {semester?.number}. Attach one PDF for each SAO requirement, up to 10 MB per file.</p>
+            <p className="text-sm text-[#475569]">Academic year {semester?.academic_year}, semester {semester?.number}. Attach one file for each SAO requirement, up to 10 MB per file.</p>
             {requirements.map((requirement) => <div key={requirement.id}>
               <label htmlFor={`requirement-${requirement.id}`} className="mb-1 block text-sm font-semibold text-[#0F172A]">{requirement.name} <span aria-hidden="true">*</span></label>
               {requirement.description && <p className="mb-2 text-xs text-[#475569]">{requirement.description}</p>}
-              <input id={`requirement-${requirement.id}`} type="file" accept="application/pdf,.pdf" required aria-invalid={Boolean(errors[`files.${requirement.id}`])} aria-describedby={errors[`files.${requirement.id}`] ? `requirement-error-${requirement.id}` : undefined} onChange={(event) => chooseFile(requirement.id, event.target.files?.[0])} className="block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm text-[#0F172A] file:mr-3 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-3 file:py-1 file:font-semibold file:text-[#0878B7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]" />
+              <p className="mb-2 text-xs text-[#475569]">Accepted: {fileTypesLabel(requirement.allowed_extensions)}</p>
+              <input id={`requirement-${requirement.id}`} type="file" accept={fileAccept(requirement.allowed_extensions)} required aria-invalid={Boolean(errors[`files.${requirement.id}`])} aria-describedby={errors[`files.${requirement.id}`] ? `requirement-error-${requirement.id}` : undefined} onChange={(event) => chooseFile(requirement.id, event.target.files?.[0])} className="block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white p-2 text-sm text-[#0F172A] file:mr-3 file:rounded file:border-0 file:bg-[#EEF6FB] file:px-3 file:py-1 file:font-semibold file:text-[#0878B7] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]" />
               {errors[`files.${requirement.id}`]?.[0] && <p id={`requirement-error-${requirement.id}`} className="mt-1 text-xs text-red-700">{errors[`files.${requirement.id}`][0]}</p>}
             </div>)}
           </fieldset>

@@ -45,7 +45,7 @@ class OrganizationApplicationController extends Controller
 
         return response()->json([
             'academic_semester' => $semester ? ['id' => $semester->id, 'number' => $semester->number, 'academic_year' => $semester->academicYear->label] : null,
-            'requirements' => $types->map(fn (ComplianceRequirementType $type) => $type->only(['id', 'name', 'description', 'deadline_at']))->values(),
+            'requirements' => $types->map(fn (ComplianceRequirementType $type) => [...$type->only(['id', 'name', 'description', 'deadline_at']), 'allowed_extensions' => $type->acceptedExtensions()])->values(),
         ]);
     }
 
@@ -72,7 +72,7 @@ class OrganizationApplicationController extends Controller
             'email' => ['required', 'email', 'max:255'],
             'position_title' => ['required', 'string', 'max:100'],
             'files' => ['required', 'array:'.$types->pluck('id')->implode(',')],
-            ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['required', 'file', 'mimes:pdf', 'max:10240']])->all(),
+            ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['required', ...$type->uploadRules()]])->all(),
         ]);
         unset($data['files']);
         $existing = User::whereKey($data['school_id'])->orWhere('email', $data['email'])->first();

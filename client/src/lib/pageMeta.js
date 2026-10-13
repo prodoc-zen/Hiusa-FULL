@@ -25,7 +25,7 @@ const PAGE_META = {
     parents: [{ label: 'Registrations and organizations', to: '/dashboard/super-admin/organizations' }],
   },
   '/dashboard/super-admin/colleges': { title: 'Colleges', purpose: 'Maintain the colleges assigned to student organizations.', group: 'Organizations' },
-  '/dashboard/super-admin/compliance': { title: 'Compliance', purpose: 'Review accreditation, requirements, event files and financial reports, and track every submitted file.', group: 'Reviews' },
+  '/dashboard/super-admin/compliance': { title: 'Compliance', purpose: 'Review organization and event submissions, track files and financial reports, and set document requirements.', group: 'Reviews' },
   '/dashboard/super-admin/venues': { title: 'Venues', purpose: 'See who has each venue and when, and decide booking requests with conflicts in view.', group: 'Reviews' },
   '/dashboard/super-admin/grievances': { title: 'Grievances', purpose: 'Review every confidential grievance university-wide and set its status.', group: 'Reviews' },
   '/dashboard/super-admin/clearances': { title: 'Clearances', purpose: 'Open a clearance period and track how many students have completed every signature.', group: 'Reviews' },
