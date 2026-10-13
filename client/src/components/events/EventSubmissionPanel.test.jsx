@@ -107,6 +107,17 @@ describe('EventSubmissionPanel', () => {
     await waitFor(() => expect(mocks.submitEventRequirements).toHaveBeenCalledWith(9, { 2: permit }));
   });
 
+  it('shows the SAO sample beside a rejected upload and opens it', async () => {
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements: [{ ...requirements[0], template_original_name: 'sample-proposal.pdf' }], files: [uploadedFile], approval_status: 'rejected', approval_remarks: 'Wrong format.' } });
+    openMocks.openProtectedFile.mockResolvedValue();
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    expect(await screen.findByText('SAO sample: sample-proposal.pdf')).toBeInTheDocument();
+    expect(screen.getByText(/Wrong format/)).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole('button', { name: 'View sample' }).at(-1));
+    await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/event-requirements/1/template'));
+    expect(screen.getByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+  });
+
   it('shows the empty state when SAO has listed no requirements', async () => {
     mocks.getEventSubmission.mockResolvedValue({ data: { requirements: [], files: [], approval_status: null } });
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);

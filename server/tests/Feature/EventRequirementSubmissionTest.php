@@ -102,6 +102,98 @@ class EventRequirementSubmissionTest extends TestCase
         $this->assertDatabaseHas('events', ['id' => $eventId, 'status' => 'approved']);
     }
 
+    public function test_sao_sample_template_is_private_and_can_be_replaced_or_removed(): void
+    {
+        Storage::fake('local');
+        $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
+        $director = User::factory()->superAdmin()->create(['organization_id' => $sao->id]);
+        $admin = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);
+        $head = User::factory()->departmentHead()->create(['organization_id' => $admin->organization_id]);
+        $student = User::factory()->student()->create(['organization_id' => $admin->organization_id]);
+
+        $this->get('/api/event-requirements/1/template')->assertUnauthorized();
+        Sanctum::actingAs($director);
+        $id = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
+            'template' => UploadedFile::fake()->image('sample.png'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('template');
+
+        $uploaded = $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
+            'template' => UploadedFile::fake()->create('proposal-sample.pdf', 20, 'application/pdf'),
+        ])->assertOk()->assertJsonPath('template_original_name', 'proposal-sample.pdf');
+        $this->assertArrayNotHasKey('template_path', $uploaded->json());
+        $this->getJson('/api/event-requirements')->assertOk()->assertJsonPath('0.template_original_name', 'proposal-sample.pdf')->assertDontSee('template_path');
+        $this->assertCount(1, Storage::disk('local')->files("event-requirement-templates/{$id}"));
+
+        Sanctum::actingAs($admin);
+        $this->get("/api/event-requirements/{$id}/template")->assertOk()->assertHeader('Content-Type', 'application/pdf');
+        $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
+            'template' => UploadedFile::fake()->create('hijacked.pdf', 20, 'application/pdf'),
+        ])->assertForbidden();
+        Sanctum::actingAs($head);
+        $this->get("/api/event-requirements/{$id}/template")->assertOk();
+        Sanctum::actingAs($student);
+        $this->get("/api/event-requirements/{$id}/template")->assertForbidden();
+
+        Sanctum::actingAs($director);
+        $this->putJson("/api/event-requirements/{$id}", ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'is_active' => false])->assertOk();
+        Sanctum::actingAs($admin);
+        $this->get("/api/event-requirements/{$id}/template")->assertNotFound();
+        Sanctum::actingAs($director);
+        $this->putJson("/api/event-requirements/{$id}", ['name' => 'Proposal', 'allowed_extensions' => ['pdf'], 'is_active' => true])->assertOk();
+        $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
+            'template' => UploadedFile::fake()->create('updated-sample.pdf', 20, 'application/pdf'),
+        ])->assertOk()->assertJsonPath('template_original_name', 'updated-sample.pdf');
+        $this->assertCount(1, Storage::disk('local')->files("event-requirement-templates/{$id}"));
+        $this->deleteJson("/api/event-requirements/{$id}/template")->assertOk()->assertJsonPath('template_original_name', null);
+        $this->assertSame([], Storage::disk('local')->files("event-requirement-templates/{$id}"));
+        $this->get("/api/event-requirements/{$id}/template")->assertNotFound();
+    }
+
+    public function test_admin_can_view_and_replace_files_after_sao_rejects_an_event_proposal(): void
+    {
+        Storage::fake('local');
+        $organization = Organization::factory()->create();
+        $director = User::factory()->superAdmin()->create(['organization_id' => Organization::where('slug', 'student-affairs-office')->firstOrFail()->id]);
+        $admin = User::factory()->admin()->create(['organization_id' => $organization->id]);
+        $head = User::factory()->departmentHead()->create(['organization_id' => $organization->id]);
+
+        Sanctum::actingAs($director);
+        $requirementId = $this->postJson('/api/event-requirements', ['name' => 'Proposal', 'allowed_extensions' => ['pdf']])->assertCreated()->json('id');
+        $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$requirementId}/template", [
+            'template' => UploadedFile::fake()->create('sample-proposal.pdf', 20, 'application/pdf'),
+        ])->assertOk();
+        Sanctum::actingAs($admin);
+        $eventId = $this->postJson('/api/events', [
+            'title' => 'Foundation Day', 'start_time' => now()->addDays(5)->toISOString(),
+            'end_time' => now()->addDays(5)->addHours(2)->toISOString(),
+        ])->assertCreated()->json('id');
+        $this->post("/api/events/{$eventId}/submission", ['documents' => [
+            $requirementId => UploadedFile::fake()->create('wrong-format.pdf', 20, 'application/pdf'),
+        ]])->assertOk();
+
+        Sanctum::actingAs($head);
+        $headRequest = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'DEPARTMENT_HEAD')->firstOrFail();
+        $this->patchJson('/api/approval-requests/'.$headRequest->id, ['status' => 'approved'])->assertOk();
+        Sanctum::actingAs($director);
+        $saoRequest = ApprovalRequest::where('entity_type', 'event')->where('entity_id', $eventId)->where('required_role', 'SUPER_ADMIN')->firstOrFail();
+        $this->patchJson('/api/approval-requests/'.$saoRequest->id, ['status' => 'rejected', 'remarks' => 'Use the sample proposal format.'])->assertOk();
+
+        Sanctum::actingAs($admin);
+        $submission = $this->getJson("/api/events/{$eventId}/submission")->assertOk()
+            ->assertJsonPath('approval_status', 'rejected')
+            ->assertJsonPath('approval_remarks', 'Use the sample proposal format.')
+            ->assertJsonPath('requirements.0.template_original_name', 'sample-proposal.pdf')
+            ->assertDontSee('template_path');
+        $oldFileId = $submission->json('files.0.id');
+        $this->get("/api/events/{$eventId}/submission/files/{$oldFileId}")->assertOk();
+        $this->post("/api/events/{$eventId}/submission", ['documents' => [
+            $requirementId => UploadedFile::fake()->create('corrected-proposal.pdf', 20, 'application/pdf'),
+        ]])->assertOk()->assertJsonPath('files.0.original_name', 'corrected-proposal.pdf');
+        $this->assertSame(1, EventRequirementFile::where('event_id', $eventId)->count());
+        $this->assertDatabaseHas('approval_requests', ['id' => $saoRequest->id, 'status' => 'pending']);
+    }
+
     public function test_missing_or_wrong_file_cannot_be_submitted_and_other_org_cannot_read(): void
     {
         Storage::fake('local');
@@ -121,6 +213,9 @@ class EventRequirementSubmissionTest extends TestCase
         $this->postJson('/api/events/'.$eventId.'/submission', ['documents' => []])->assertUnprocessable();
         $this->withHeader('Accept', 'application/json')->post('/api/events/'.$eventId.'/submission', [
             'documents' => [$requirement->json('id') => UploadedFile::fake()->image('wrong.png')],
+        ])->assertUnprocessable();
+        $this->withHeader('Accept', 'application/json')->post('/api/events/'.$eventId.'/submission', [
+            'documents' => [$requirement->json('id') => UploadedFile::fake()->create('disguised.txt', 20, 'application/pdf')],
         ])->assertUnprocessable();
 
         $other = User::factory()->admin()->create(['organization_id' => Organization::factory()->create()->id]);

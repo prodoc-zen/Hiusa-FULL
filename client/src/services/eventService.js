@@ -11,6 +11,12 @@ export const createEventRequirement = (data) => api.post('/event-requirements', 
 export const updateEventRequirement = (id, data) => api.put(`/event-requirements/${id}`, data);
 export const reorderEventRequirements = (ids) => api.put('/event-requirements/order', { ids });
 export const deleteEventRequirement = (id) => api.delete(`/event-requirements/${id}`);
+export const uploadEventRequirementTemplate = (id, file) => {
+  const data = new FormData();
+  data.append('template', file);
+  return api.post(`/event-requirements/${id}/template`, data);
+};
+export const removeEventRequirementTemplate = (id) => api.delete(`/event-requirements/${id}/template`);
 export const getEventSubmission = (id) => api.get(`/events/${id}/submission`);
 export const submitEventRequirements = (id, files) => {
   const data = new FormData();
