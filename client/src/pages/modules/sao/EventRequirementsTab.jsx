@@ -1,17 +1,18 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, FileText, Pencil, Trash2, X } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, Field, IconButton, Input, Select, Textarea } from '../../../components/ui';
+import { Check, Eye, FileText, Pencil, Trash2, X } from 'lucide-react';
+import { Button, Card, DataTable, EmptyState, Field, Input, Select, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
-import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, updateEventRequirement, uploadEventRequirementTemplate } from '../../../services/eventService';
+import { createEventRequirement, deleteEventRequirement, getEventRequirements, removeEventRequirementTemplate, setEventRequirementTemplateLink, updateEventRequirement, uploadEventRequirementTemplate } from '../../../services/eventService';
 import { getApprovalRequests, reviewApprovalRequest } from '../../../services/approvalService';
 import EventSubmissionPanel from '../../../components/events/EventSubmissionPanel';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import TableRowActions from '../../../components/TableRowActions';
 
 const empty = { name: '', description: '', allowed_extensions: ['pdf'], venue_type: 'all', is_optional: false, is_active: true };
 const ROW_ACTION = 'h-11! sm:h-9!';
@@ -28,6 +29,8 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
   const [removeTarget, setRemoveTarget] = useState(null);
   const [removeTemplateTarget, setRemoveTemplateTarget] = useState(null);
   const [templateFile, setTemplateFile] = useState(null);
+  const [sampleMode, setSampleMode] = useState('none');
+  const [sampleUrl, setSampleUrl] = useState('');
   const [templateError, setTemplateError] = useState(null);
   const templateInputRef = useRef(null);
   const [decision, setDecision] = useState(null);
@@ -64,6 +67,8 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
     setForm(empty);
     setNameError(null);
     setTemplateFile(null);
+    setSampleMode('none');
+    setSampleUrl('');
     setTemplateError(null);
     if (templateInputRef.current) templateInputRef.current.value = '';
   }
@@ -85,6 +90,10 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
   }
 
   async function viewTemplate(requirement) {
+    if (requirement.template_url) {
+      window.open(requirement.template_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
     try {
       await openProtectedFile(`/event-requirements/${requirement.id}/template`);
     } catch (cause) {
@@ -99,18 +108,34 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
       nameRef.current?.focus();
       return;
     }
+    if (sampleMode === 'file' && !templateFile && !editingRequirement?.template_original_name) {
+      setTemplateError('Choose a PDF sample file.');
+      return;
+    }
+    if (sampleMode === 'link') {
+      try {
+        const url = new URL(sampleUrl.trim());
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        setTemplateError('Enter a valid http or https sample link.');
+        return;
+      }
+    }
     if (templateError) return;
     setBusy(true);
     setSaving(true);
     setActionError('');
     try {
       const response = editingId ? await updateEventRequirement(editingId, form) : await createEventRequirement(form);
-      if (templateFile) {
+      const sampleChanged = (sampleMode === 'file' && templateFile) || sampleMode === 'link' || (sampleMode === 'none' && (editingRequirement?.template_original_name || editingRequirement?.template_url));
+      if (sampleChanged) {
         try {
-          await uploadEventRequirementTemplate(response.data.id, templateFile);
+          if (sampleMode === 'file') await uploadEventRequirementTemplate(response.data.id, templateFile);
+          else if (sampleMode === 'link') await setEventRequirementTemplateLink(response.data.id, sampleUrl.trim());
+          else await removeEventRequirementTemplate(response.data.id);
         } catch (cause) {
           setEditingId(response.data.id);
-          setActionError(`Requirement saved, but the sample template was not uploaded. ${getApiErrorMessage(cause, 'Try saving it again.')}`);
+          setActionError(`Requirement saved, but the sample was not updated. ${getApiErrorMessage(cause, 'Try saving it again.')}`);
           await load();
           return;
         }
@@ -150,6 +175,9 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
     setActionError('');
     try {
       await removeEventRequirementTemplate(requirement.id);
+      setSampleMode('none');
+      setSampleUrl('');
+      setTemplateFile(null);
       setRemoveTemplateTarget(null);
       notify.success('Sample template removed.');
       await load();
@@ -216,9 +244,9 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
       header: 'Details',
       render: (requirement) => `PDF · ${VENUE_TYPE_LABEL[requirement.venue_type] || 'All venues'} · ${requirement.is_active ? (requirement.is_optional ? 'If applicable' : 'Required') : 'Inactive'}`,
     },
-    { key: 'template', header: 'Sample template', render: (requirement) => requirement.template_original_name
-      ? <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => viewTemplate(requirement)}>View sample</Button>
-      : <span className="text-ink-muted">None</span> },
+    { key: 'template', header: 'Sample', render: (requirement) => requirement.template_url
+      ? <span className="text-ink-muted">Link</span>
+      : requirement.template_original_name ? <span className="text-ink-muted">PDF file</span> : <span className="text-ink-muted">None</span> },
   ];
   const editingRequirement = requirements.find((item) => item.id === editingId);
 
@@ -245,31 +273,20 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
             columns={checklistColumns}
             rows={requirements}
             loading={loading}
-            actions={(requirement) => (
-              <div className="flex justify-end gap-1.5">
-                <IconButton
-                  icon={Pencil}
-                  label={`Edit ${formatDisplayText(requirement.name)}`}
-                  variant="secondary"
-                  disabled={busy}
-                  onClick={() => {
+            actions={(requirement) => <TableRowActions subject={formatDisplayText(requirement.name)} actions={[
+              (requirement.template_url || requirement.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewTemplate(requirement) },
+              { label: 'Edit requirement', icon: Pencil, disabled: busy, onClick: () => {
                     setNameError(null);
                     setEditingId(requirement.id);
                     setForm({ name: requirement.name, description: requirement.description || '', allowed_extensions: ['pdf'], venue_type: requirement.venue_type || 'all', is_optional: requirement.is_optional, is_active: requirement.is_active });
+                    setSampleMode(requirement.template_url ? 'link' : requirement.template_original_name ? 'file' : 'none');
+                    setSampleUrl(requirement.template_url || '');
                     setTemplateFile(null);
                     setTemplateError(null);
                     if (templateInputRef.current) templateInputRef.current.value = '';
-                  }}
-                />
-                <IconButton
-                  icon={Trash2}
-                  label={`Remove ${formatDisplayText(requirement.name)}`}
-                  variant="danger"
-                  disabled={busy}
-                  onClick={() => { setActionError(''); setRemoveTarget(requirement); }}
-                />
-              </div>
-            )}
+                  } },
+              { label: 'Remove requirement', icon: Trash2, danger: true, disabled: busy, onClick: () => { setActionError(''); setRemoveTarget(requirement); } },
+            ]} />}
             emptyState={loadError ? <div /> : (
               <EmptyState
                 kind="first-run"
@@ -307,12 +324,22 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
                 <RichTextEditor maxLength={500} rows={3} value={form.description} onChange={(description) => setForm({ ...form, description })} />
               </Field>
               <p className="text-xs font-semibold text-ink-muted">Accepted file type: PDF</p>
-              <Field label="Sample template (PDF)" hint="Optional. Organizations can view this beside the upload field, including after a file is returned." error={templateError}>
-                <input ref={templateInputRef} type="file" accept=".pdf,application/pdf" onChange={(event) => chooseTemplate(event.target.files?.[0])} className="block min-h-11 w-full rounded-control border border-line bg-surface p-2 text-sm text-ink" />
+              <Field label="Sample format" hint="Optional. Organizations can open the sample before submitting or when correcting a returned file.">
+                <Select value={sampleMode} onChange={(event) => { setSampleMode(event.target.value); setTemplateError(null); }}>
+                  <option value="none">No sample</option>
+                  <option value="file">Attach a PDF</option>
+                  <option value="link">Use a link</option>
+                </Select>
               </Field>
-              {editingRequirement?.template_original_name && (
+              {sampleMode === 'file' && <Field label="Sample PDF file" hint={editingRequirement?.template_original_name ? 'Leave empty to keep the current file.' : undefined} error={templateError}>
+                <input ref={templateInputRef} type="file" accept=".pdf,application/pdf" onChange={(event) => chooseTemplate(event.target.files?.[0])} className="block min-h-11 w-full rounded-control border border-line bg-surface p-2 text-sm text-ink" />
+              </Field>}
+              {sampleMode === 'link' && <Field label="Sample link" error={templateError}>
+                <Input type="url" value={sampleUrl} onChange={(event) => { setSampleUrl(event.target.value); setTemplateError(null); }} placeholder="https://example.edu/event-proposal-format" maxLength={2048} />
+              </Field>}
+              {(editingRequirement?.template_original_name || editingRequirement?.template_url) && (
                 <div className="flex flex-wrap items-center gap-2 text-xs text-ink-muted">
-                  <span className="break-all">Current: {editingRequirement.template_original_name}</span>
+                  <span className="break-all">Current: {editingRequirement.template_original_name || editingRequirement.template_url}</span>
                   <Button type="button" size="sm" variant="secondary" onClick={() => viewTemplate(editingRequirement)}>View sample</Button>
                   <Button type="button" size="sm" variant="secondary" onClick={() => setRemoveTemplateTarget(editingRequirement)}>Remove sample</Button>
                 </div>
@@ -343,13 +370,11 @@ export default function EventRequirementsTab({ mode = 'settings' }) {
                     <h3 className="break-words text-sm font-bold text-ink">{formatDisplayText(approval.title)}</h3>
                     <p className="mt-0.5 text-xs font-medium text-ink-muted">Event #{approval.entity_id} · {formatDisplayText(approval.requester?.first_name)} {formatDisplayText(approval.requester?.last_name)}</p>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => setSelectedEventId(selectedEventId === approval.entity_id ? null : approval.entity_id)}>
-                      {selectedEventId === approval.entity_id ? 'Hide files' : 'View files'}
-                    </Button>
-                    <Button size="sm" variant="secondary" className={ROW_ACTION} leftIcon={X} disabled={busy} onClick={() => openDecision(approval, 'reject')}>Reject</Button>
-                    <Button size="sm" className={ROW_ACTION} leftIcon={Check} disabled={busy} onClick={() => openDecision(approval, 'approve')}>Approve</Button>
-                  </div>
+                  <TableRowActions subject={formatDisplayText(approval.title)} actions={[
+                    { label: selectedEventId === approval.entity_id ? 'Hide files' : 'View files', icon: Eye, onClick: () => setSelectedEventId(selectedEventId === approval.entity_id ? null : approval.entity_id) },
+                    { label: 'Approve', icon: Check, disabled: busy, onClick: () => openDecision(approval, 'approve') },
+                    { label: 'Reject', icon: X, danger: true, disabled: busy, onClick: () => openDecision(approval, 'reject') },
+                  ]} />
                 </div>
                 {selectedEventId === approval.entity_id && (
                   <div className="mt-3"><EventSubmissionPanel eventId={approval.entity_id} role="SUPER_ADMIN" /></div>

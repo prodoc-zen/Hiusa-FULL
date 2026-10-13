@@ -130,6 +130,7 @@ class EventRequirementSubmissionTest extends TestCase
         $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
             'template' => UploadedFile::fake()->create('hijacked.pdf', 20, 'application/pdf'),
         ])->assertForbidden();
+        $this->putJson("/api/event-requirements/{$id}/template-link", ['template_url' => 'https://example.edu/sample.pdf'])->assertForbidden();
         Sanctum::actingAs($head);
         $this->get("/api/event-requirements/{$id}/template")->assertOk();
         Sanctum::actingAs($student);
@@ -145,6 +146,16 @@ class EventRequirementSubmissionTest extends TestCase
             'template' => UploadedFile::fake()->create('updated-sample.pdf', 20, 'application/pdf'),
         ])->assertOk()->assertJsonPath('template_original_name', 'updated-sample.pdf');
         $this->assertCount(1, Storage::disk('local')->files("event-requirement-templates/{$id}"));
+        $this->putJson("/api/event-requirements/{$id}/template-link", ['template_url' => 'javascript:alert(1)'])
+            ->assertUnprocessable()->assertJsonValidationErrors('template_url');
+        $this->putJson("/api/event-requirements/{$id}/template-link", ['template_url' => 'https://example.edu/sample.pdf'])
+            ->assertOk()->assertJsonPath('template_url', 'https://example.edu/sample.pdf')
+            ->assertJsonPath('template_original_name', null);
+        $this->assertSame([], Storage::disk('local')->files("event-requirement-templates/{$id}"));
+        $this->get("/api/event-requirements/{$id}/template")->assertNotFound();
+        $this->withHeader('Accept', 'application/json')->post("/api/event-requirements/{$id}/template", [
+            'template' => UploadedFile::fake()->create('replacement.pdf', 20, 'application/pdf'),
+        ])->assertOk()->assertJsonPath('template_url', null);
         $this->deleteJson("/api/event-requirements/{$id}/template")->assertOk()->assertJsonPath('template_original_name', null);
         $this->assertSame([], Storage::disk('local')->files("event-requirement-templates/{$id}"));
         $this->get("/api/event-requirements/{$id}/template")->assertNotFound();

@@ -66,11 +66,32 @@ class EventRequirementController extends Controller
             $requirement->update([
                 'template_path' => $path,
                 'template_original_name' => mb_substr($file->getClientOriginalName(), 0, 255),
+                'template_url' => null,
             ]);
         } catch (\Throwable $error) {
             Storage::disk('local')->delete($path);
             throw $error;
         }
+        if ($previousPath) {
+            Storage::disk('local')->delete($previousPath);
+        }
+
+        return response()->json($requirement->fresh());
+    }
+
+    public function setTemplateLink(Request $request, EventRequirement $requirement)
+    {
+        if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
+            return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
+        }
+        $data = $request->validate(['template_url' => ['required', 'string', 'max:2048', 'url:http,https']]);
+
+        $previousPath = $requirement->template_path;
+        $requirement->update([
+            'template_url' => $data['template_url'],
+            'template_path' => null,
+            'template_original_name' => null,
+        ]);
         if ($previousPath) {
             Storage::disk('local')->delete($previousPath);
         }
@@ -84,7 +105,7 @@ class EventRequirementController extends Controller
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }
         $path = $requirement->template_path;
-        $requirement->update(['template_path' => null, 'template_original_name' => null]);
+        $requirement->update(['template_path' => null, 'template_original_name' => null, 'template_url' => null]);
         if ($path) {
             Storage::disk('local')->delete($path);
         }

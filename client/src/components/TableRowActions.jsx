@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Link } from 'react-router-dom';
 import { MoreVertical } from 'lucide-react';
 import { dashboardPopupLeft, dashboardPopupTop } from '../utils/dashboardPopupPosition';
 
@@ -114,13 +115,13 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
           </div>
           {available.map((action) => {
             const Icon = action.icon;
+            const ActionElement = action.to && !action.disabled ? Link : 'button';
             return (
-              <button
+              <ActionElement
                 key={action.label}
-                type="button"
+                {...(ActionElement === Link ? { to: action.to } : { type: 'button', disabled: action.disabled })}
                 role="menuitem"
-                disabled={action.disabled}
-                onClick={() => { setOpen(false); triggerRef.current?.focus(); action.onClick(); }}
+                onClick={() => { setOpen(false); triggerRef.current?.focus(); action.onClick?.(); }}
                 className={`group flex min-h-11 w-full items-center gap-3 rounded-lg px-2.5 text-left text-[13px] font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-not-allowed disabled:opacity-50 ${action.danger ? 'text-red-700 hover:bg-red-50' : 'text-slate-700 hover:bg-[#F8FBFD] hover:text-[#0878B7]'}`}
               >
                 <span className={`grid h-7 w-7 shrink-0 place-items-center rounded-lg border ${action.danger ? 'border-red-200 bg-red-50 text-red-700' : 'border-[#DDE7EF] bg-[#EEF6FB] text-[#0F2F62]'}`}>
@@ -128,7 +129,7 @@ export default function TableRowActions({ subject, actions, label = 'Actions' })
                 </span>
                 <span className="min-w-0 flex-1">{action.label}</span>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-slate-200 group-hover:bg-[#0B8ED0]" aria-hidden="true" />
-              </button>
+              </ActionElement>
             );
           })}
         </div>,

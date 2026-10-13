@@ -17,6 +17,7 @@ export const uploadEventRequirementTemplate = (id, file) => {
   return api.post(`/event-requirements/${id}/template`, data);
 };
 export const removeEventRequirementTemplate = (id) => api.delete(`/event-requirements/${id}/template`);
+export const setEventRequirementTemplateLink = (id, templateUrl) => api.put(`/event-requirements/${id}/template-link`, { template_url: templateUrl });
 export const getEventSubmission = (id) => api.get(`/events/${id}/submission`);
 export const submitEventRequirements = (id, files) => {
   const data = new FormData();

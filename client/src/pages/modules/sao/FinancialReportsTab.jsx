@@ -17,6 +17,7 @@ import { fetchAllPages } from '../../../services/pagination';
 import { getSystemOrganizations } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import TableRowActions from '../../../components/TableRowActions';
 
 const date = (value) => value
   ? new Date(value).toLocaleString('en-PH', { dateStyle: 'medium', timeStyle: 'short' })
@@ -206,10 +207,12 @@ export default function FinancialReportsTab() {
                     <p className="mt-1 text-xs text-slate-500">{report.organization?.acronym || formatDisplayText(report.organization?.name)} · {documentLabel(report.document_type)} · {date(report.submitted_at || report.generated_at)}</p>
                   </div>
                   <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-bold capitalize ${approval ? 'bg-amber-100 text-amber-800' : report.submission_status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-slate-100 text-slate-700'}`}>{statusLabel(report.submission_status)}</span>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => downloadReport(report)} disabled={downloadingId === report.id} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border border-[#DDE7EF] px-3 text-xs font-bold text-slate-700 hover:bg-[#F8FBFD] disabled:opacity-50"><Download size={14} />{downloadingId === report.id ? 'Downloading' : 'PDF'}</button>
-                    <button type="button" onClick={() => openReport(report)} className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-3 text-xs font-bold text-white hover:bg-[#0F2F62]"><Eye size={14} />View</button>
-                  </div>
+                  <TableRowActions subject={formatDisplayText(report.title)} actions={[
+                    { label: 'View report', icon: Eye, onClick: () => openReport(report) },
+                    { label: 'Download PDF', icon: Download, disabled: downloadingId === report.id, onClick: () => downloadReport(report) },
+                    approval && { label: 'Approve', icon: Check, onClick: () => setReviewAction({ approval, status: 'approved', report }) },
+                    approval && { label: 'Reject', icon: X, danger: true, onClick: () => setReviewAction({ approval, status: 'rejected', report }) },
+                  ]} />
                 </article>
               );
             })}

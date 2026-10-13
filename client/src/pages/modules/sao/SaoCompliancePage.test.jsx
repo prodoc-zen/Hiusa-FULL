@@ -57,6 +57,11 @@ function renderPage(entry = '/dashboard/super-admin/compliance') {
   );
 }
 
+async function chooseAction(subject, action) {
+  fireEvent.click((await screen.findAllByRole('button', { name: `Actions for ${subject}` }))[0]);
+  fireEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
 describe('SaoCompliancePage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -189,7 +194,7 @@ describe('SaoCompliancePage', () => {
   describe('requirements tab', () => {
     it('deletes a requirement after confirmation and refreshes the list', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Delete Officer Roster' }))[0]);
+      await chooseAction('Officer Roster', 'Delete requirement');
       mocks.getRequirementTypes.mockResolvedValue({ data: { data: [] } });
       fireEvent.click(await screen.findByRole('button', { name: 'Delete requirement' }));
 
@@ -200,7 +205,7 @@ describe('SaoCompliancePage', () => {
     it('shows the server message inline when submissions block the delete', async () => {
       mocks.deleteRequirementType.mockRejectedValue({ response: { status: 409, data: { message: 'This requirement cannot be deleted because it has submissions.' } } });
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Delete Officer Roster' }))[0]);
+      await chooseAction('Officer Roster', 'Delete requirement');
       fireEvent.click(await screen.findByRole('button', { name: 'Delete requirement' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('This requirement cannot be deleted because it has submissions.');
@@ -226,7 +231,7 @@ describe('SaoCompliancePage', () => {
     it('asks before marking a requirement inactive and says what it changes', async () => {
       mocks.updateRequirementType.mockResolvedValue({ data: {} });
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
-      fireEvent.click((await screen.findAllByRole('switch', { name: 'Officer Roster active' }))[0]);
+      await chooseAction('Officer Roster', 'Mark inactive');
       expect(mocks.updateRequirementType).not.toHaveBeenCalled();
       expect(await screen.findByText(/accreditation status is recalculated/)).toBeInTheDocument();
       fireEvent.click(screen.getByRole('button', { name: 'Mark inactive' }));
@@ -237,7 +242,7 @@ describe('SaoCompliancePage', () => {
       mocks.updateRequirementType.mockResolvedValue({ data: {} });
       mocks.getRequirementTypes.mockResolvedValue({ data: { data: [{ ...requirementType, is_active: false }] } });
       renderPage('/dashboard/super-admin/compliance?tab=requirements');
-      fireEvent.click((await screen.findAllByRole('switch', { name: 'Officer Roster active' }))[0]);
+      await chooseAction('Officer Roster', 'Mark active');
       await waitFor(() => expect(mocks.updateRequirementType).toHaveBeenCalledWith(4, { is_active: true }));
     });
 
@@ -274,8 +279,8 @@ describe('SaoCompliancePage', () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
       expect((await screen.findAllByText('Semestral report')).length).toBeGreaterThan(0);
 
-      fireEvent.click(screen.getAllByRole('button', { name: 'Approve' })[0]);
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Approve' })).at(-1));
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Approve');
+      fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
 
       await waitFor(() => expect(mocks.reviewSubmission).toHaveBeenCalledWith(12, { status: 'approved', submitted_at: submission.submitted_at }));
     });
@@ -286,14 +291,14 @@ describe('SaoCompliancePage', () => {
       expect((await screen.findAllByText('Renewal document')).length).toBeGreaterThan(0);
     });
 
-    it('names the organization on the open-document button', async () => {
+    it('names the organization on the row action menu', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      expect((await screen.findAllByRole('button', { name: 'Open Semestral Accomplishment Report for Computing Society' })).length).toBeGreaterThan(0);
+      expect((await screen.findAllByRole('button', { name: 'Actions for Semestral Accomplishment Report for Computing Society' })).length).toBeGreaterThan(0);
     });
 
     it('opens a submission document in a new tab through the shared helper', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Open Semestral Accomplishment Report for Computing Society' }))[0]);
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'View document');
 
       await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/compliance/submissions/12/document'));
       expect(mocks.downloadSubmissionDocument).not.toHaveBeenCalled();
@@ -318,7 +323,8 @@ describe('SaoCompliancePage', () => {
 
       expect((await screen.findAllByText('Registration document')).length).toBeGreaterThan(0);
       expect((await screen.findAllByText('Decided in the organization review')).length).toBeGreaterThan(0);
-      expect(screen.getAllByRole('link', { name: 'Open organization review' })[0]).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=21');
+      fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Letter of Intent for Robotics Guild' }))[0]);
+      expect(screen.getByRole('menuitem', { name: 'Open organization review' })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=21');
       expect(screen.queryByRole('button', { name: 'Approve' })).not.toBeInTheDocument();
       expect(screen.queryByRole('button', { name: 'Return' })).not.toBeInTheDocument();
     });
@@ -359,7 +365,7 @@ describe('SaoCompliancePage', () => {
 
     it('requires remarks to return a submission, with a field error instead of a disabled button', async () => {
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Return' }))[0]);
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Return');
 
       const confirm = await screen.findByRole('button', { name: 'Return to organization' });
       expect(confirm).toBeEnabled();
@@ -377,9 +383,8 @@ describe('SaoCompliancePage', () => {
     it('shows the archived-organization message inline', async () => {
       mocks.reviewSubmission.mockRejectedValue({ response: { status: 409, data: { message: 'This organization is archived and its documents are read only.' } } });
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Approve' }))[0]);
-      const confirmButtons = await screen.findAllByRole('button', { name: 'Approve' });
-      fireEvent.click(confirmButtons.at(-1));
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Approve');
+      fireEvent.click(await screen.findByRole('button', { name: 'Approve' }));
 
       expect(await screen.findByRole('alert')).toHaveTextContent('This organization is archived and its documents are read only.');
     });
@@ -387,7 +392,7 @@ describe('SaoCompliancePage', () => {
     it('shows the registration message inline when returning', async () => {
       mocks.reviewSubmission.mockRejectedValue({ response: { status: 409, data: { message: 'Registration documents are reviewed through the organization review.' } } });
       renderPage('/dashboard/super-admin/compliance?tab=review');
-      fireEvent.click((await screen.findAllByRole('button', { name: 'Return' }))[0]);
+      await chooseAction('Semestral Accomplishment Report for Computing Society', 'Return');
       fireEvent.change(await screen.findByLabelText(/Remarks/), { target: { value: 'Unsigned' } });
       fireEvent.click(screen.getByRole('button', { name: 'Return to organization' }));
 

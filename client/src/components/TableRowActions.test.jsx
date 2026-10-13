@@ -1,8 +1,14 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { MemoryRouter } from 'react-router-dom';
 import TableRowActions from './TableRowActions';
 
 describe('TableRowActions', () => {
+  it('renders a route action as a link inside the menu', () => {
+    render(<MemoryRouter><TableRowActions subject="Registration" actions={[{ label: 'Open review', to: '/reviews/7' }]} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for Registration' }));
+    expect(screen.getByRole('menuitem', { name: 'Open review' })).toHaveAttribute('href', '/reviews/7');
+  });
   it('opens from a clipped table, supports keyboard navigation, and runs the chosen action', () => {
     const onReview = vi.fn();
     const onReject = vi.fn();

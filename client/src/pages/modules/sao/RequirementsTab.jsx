@@ -1,12 +1,13 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, Plus } from 'lucide-react';
+import { ClipboardList, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, Field, Input, Select } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import ActiveSwitch from './ActiveSwitch';
+import TableRowActions from '../../../components/TableRowActions';
 import { manilaDate } from '../../../lib/format';
 import { unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
@@ -21,7 +22,6 @@ import {
 
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
 const FIELD_ORDER = ['academic_year', 'deadline_at', 'name', 'allowed_extensions'];
-const ROW_ACTION = 'h-11! sm:h-9!';
 
 export default function RequirementsTab({ currentAcademicYear, onChanged }) {
   const [types, setTypes] = useState({ loading: true, error: null, items: [] });
@@ -168,13 +168,11 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
           loading={types.loading}
           error={types.error}
           onRetry={loadTypes}
-          actions={(type) => (
-            <div className="flex items-center justify-end gap-1.5">
-              <ActiveSwitch label={`${formatDisplayText(type.name)} active`} checked={Boolean(type.is_active)} busy={togglingId === type.id} onChange={() => requestToggle(type)} />
-              <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => openTypeModal(type)}>Edit</Button>
-              <Button size="sm" variant="secondary" aria-label={`Delete ${formatDisplayText(type.name)}`} className={`${ROW_ACTION} text-danger-strong`} onClick={() => { setDeleteError(null); setDeleteTarget(type); }}>Delete</Button>
-            </div>
-          )}
+          actions={(type) => <TableRowActions subject={formatDisplayText(type.name)} actions={[
+            { label: 'Edit requirement', icon: Pencil, onClick: () => openTypeModal(type) },
+            { label: type.is_active ? 'Mark inactive' : 'Mark active', icon: Power, disabled: togglingId === type.id, onClick: () => requestToggle(type) },
+            { label: 'Delete requirement', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(type); } },
+          ]} />}
           emptyState={(
             <EmptyState
               kind="first-run"

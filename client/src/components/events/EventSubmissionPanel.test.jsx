@@ -76,7 +76,7 @@ describe('EventSubmissionPanel', () => {
 
     expect(screen.queryByRole('button', { name: 'Download' })).not.toBeInTheDocument();
     fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Event Proposal' }))[0]);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View submitted file' }));
 
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/events/9/submission/files/5'));
   });
@@ -87,7 +87,7 @@ describe('EventSubmissionPanel', () => {
     render(<EventSubmissionPanel eventId={9} role="SUPER_ADMIN" />);
 
     fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Event Proposal' }))[0]);
-    fireEvent.click(await screen.findByRole('menuitem', { name: 'View file' }));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View submitted file' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
   });
 
@@ -116,6 +116,15 @@ describe('EventSubmissionPanel', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'View sample' }).at(-1));
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/event-requirements/1/template'));
     expect(screen.getByRole('button', { name: 'Submit event files to SAO' })).toBeInTheDocument();
+  });
+
+  it('opens an SAO sample link from the upload form', async () => {
+    const openWindow = vi.spyOn(window, 'open').mockImplementation(() => null);
+    mocks.getEventSubmission.mockResolvedValue({ data: { requirements: [{ ...requirements[0], template_url: 'https://example.edu/sample' }], files: [], approval_status: null } });
+    render(<EventSubmissionPanel eventId={9} role="ADMIN" />);
+    expect(await screen.findByText('SAO sample: https://example.edu/sample')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'View sample' }));
+    expect(openWindow).toHaveBeenCalledWith('https://example.edu/sample', '_blank', 'noopener,noreferrer');
   });
 
   it('shows the empty state when SAO has listed no requirements', async () => {
