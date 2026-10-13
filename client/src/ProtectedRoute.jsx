@@ -25,7 +25,7 @@ export default function ProtectedRoute({ allowedRoles = null, children = null })
   const role = user?.role || null;
 
   if (!token) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/" replace />;
   }
 
   if (user?.must_change_password && location.pathname !== "/change-password") {

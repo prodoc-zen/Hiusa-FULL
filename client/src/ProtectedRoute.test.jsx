@@ -12,6 +12,7 @@ function renderAt(path) {
           <Route path="/change-password" element={<p>Change password page</p>} />
         </Route>
         <Route path="/login" element={<p>Login page</p>} />
+        <Route path="/" element={<p>Landing page</p>} />
       </Routes>
     </MemoryRouter>,
   );
@@ -50,9 +51,9 @@ describe('ProtectedRoute password change guard', () => {
     expect(screen.getByText('Student dashboard')).toBeInTheDocument();
   });
 
-  it('still sends a signed out visitor to login first', () => {
+  it('sends a signed out visitor to the landing page first', () => {
     renderAt('/change-password');
 
-    expect(screen.getByText('Login page')).toBeInTheDocument();
+    expect(screen.getByText('Landing page')).toBeInTheDocument();
   });
 });
