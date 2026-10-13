@@ -4,7 +4,7 @@ Source: the six-page `OVERALL (1).pdf` supplied with the October 13, 2026 reques
 
 ## Public onboarding
 
-`/` introduces HIUSA and offers **Register an organization** and **Log in**. `/register-organization` collects organization name, code, college, description, and the applicant's name, school ID, email, and position. Registration belongs to the organization; department heads review applications rather than submitting them.
+`/` introduces HIUSA and offers **Register an organization** and **Log in**. Signed-out dashboard visits and expired sessions return to `/`; direct `/login` remains available. `/register-organization` collects organization name, code, college, description, and the applicant's name, school ID, email, and position. Registration belongs to the organization; department heads review applications rather than submitting them.
 
 `POST /api/organization-applications` sends a signed verification link that expires after 48 hours. Verification changes the application from `pending_verification` to `pending_endorsement`. Expired unverified applications can be submitted again. Department heads see only their college's verified applications at `GET /api/organization-applications` and may endorse or reject through `PATCH /api/organization-applications/{application}/review`. Rejection requires remarks. Endorsement notifies SAO and changes the status to `endorsed`.
 
@@ -24,7 +24,7 @@ SAO can approve or reject only endorsed applications. Approval atomically create
 
 ## Design and validation
 
-Design follows `design.md`: HIUSA's existing logo, Poppins, navy structure, blue actions, subtle borders, compact tables, visible labels, and responsive stacks. The landing page uses navy to anchor the introduction; icons identify actual member, calendar, and record capabilities. Design dials: energy 2, rhythm 2, motion 1. No new image assets or fabricated metrics were introduced.
+Design follows `design.md`: HIUSA's existing logo, Poppins, navy structure, blue actions, subtle borders, compact tables, visible labels, and responsive stacks. The landing page uses navy to anchor the introduction and two locally bundled illustrative campus photos, with photographer credits in the footer. The photos are [Raúl Sotomayor on Pexels](https://www.pexels.com/photo/group-of-students-at-university-campus-in-mexico-33265685/) and [Armin Rimoldi on Pexels](https://www.pexels.com/photo/asian-student-discussing-project-with-classmate-5553639/), under the [Pexels license](https://www.pexels.com/license/). Icons identify actual member, calendar, and record capabilities. Design dials: energy 2, rhythm 2, motion 1. No fabricated metrics were introduced.
 
 Laravel tests use SQLite in memory, fake storage, fake mail or the array mailer, and disabled external AI integrations. React validation uses Vitest and Testing Library. No live browser automation, Playwright, or subagents are used, per the repository's temporary policy. Browser visual validation remains unperformed. FastAPI contracts are unchanged.
 

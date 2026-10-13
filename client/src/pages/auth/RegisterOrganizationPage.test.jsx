@@ -1,5 +1,5 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from './LandingPage';
 import RegisterOrganizationPage from './RegisterOrganizationPage';
@@ -17,7 +17,24 @@ describe('Public organization onboarding', () => {
     render(<MemoryRouter><LandingPage /></MemoryRouter>);
     expect(screen.getByRole('link', { name: 'Register an organization' })).toHaveAttribute('href', '/register-organization');
     expect(screen.getAllByRole('link', { name: 'Log in' })).toHaveLength(2);
+    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('From your first application to everyday campus work.');
+    expect(screen.getByRole('img', { name: 'Students together outside a university building' })).toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'Two students reviewing a document together' })).toBeInTheDocument();
+    expect(screen.getByRole('heading', { name: 'How registration works' })).toBeInTheDocument();
     expect(screen.queryByText(/study objectives/i)).not.toBeInTheDocument();
+  });
+
+  it.each([
+    ['Register an organization', 'Registration form'],
+    ['Log in', 'Login form'],
+  ])('opens %s from the landing page', (label, destination) => {
+    render(<MemoryRouter initialEntries={['/']}><Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/register-organization" element={<p>Registration form</p>} />
+      <Route path="/login" element={<p>Login form</p>} />
+    </Routes></MemoryRouter>);
+    fireEvent.click(screen.getAllByRole('link', { name: label })[0]);
+    expect(screen.getByText(destination)).toBeInTheDocument();
   });
 
   it('submits applicant name email and position and explains verification', async () => {
