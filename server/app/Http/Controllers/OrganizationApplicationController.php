@@ -2,18 +2,23 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\AcademicSemester;
 use App\Models\AccountProfile;
 use App\Models\AuditLog;
 use App\Models\College;
+use App\Models\ComplianceRequirementType;
 use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationApplication;
+use App\Models\OrganizationApplicationDocument;
+use App\Models\OrganizationComplianceSubmission;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\URL;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -21,6 +26,29 @@ use Illuminate\Validation\ValidationException;
 
 class OrganizationApplicationController extends Controller
 {
+    private const NO_REQUIREMENTS = 'No registration requirements are open. The SAO must activate a semester first.';
+
+    private function registrationRequirements(): array
+    {
+        $semester = AcademicSemester::active();
+        $types = $semester
+            ? ComplianceRequirementType::where('academic_semester_id', $semester->id)->where('is_active', true)
+                ->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->orderBy('id')->get()
+            : collect();
+
+        return [$semester, $types];
+    }
+
+    public function requirements()
+    {
+        [$semester, $types] = $this->registrationRequirements();
+
+        return response()->json([
+            'academic_semester' => $semester ? ['id' => $semester->id, 'number' => $semester->number, 'academic_year' => $semester->academicYear->label] : null,
+            'requirements' => $types->map(fn (ComplianceRequirementType $type) => $type->only(['id', 'name', 'description', 'deadline_at']))->values(),
+        ]);
+    }
+
     public function colleges()
     {
         return response()->json(College::where('is_active', true)->orderBy('name')->get(['id', 'name']));
@@ -28,6 +56,10 @@ class OrganizationApplicationController extends Controller
 
     public function store(Request $request)
     {
+        [$semester, $types] = $this->registrationRequirements();
+        if (! $semester || $types->isEmpty()) {
+            return response()->json(['message' => self::NO_REQUIREMENTS], 422);
+        }
         $request->merge(['email' => Str::lower(trim((string) $request->input('email')))]);
         $data = $request->validate([
             'college_id' => ['required', Rule::exists('colleges', 'id')->where('is_active', true)->whereNull('deleted_at')],
@@ -39,26 +71,52 @@ class OrganizationApplicationController extends Controller
             'last_name' => ['required', 'string', 'max:60'],
             'email' => ['required', 'email', 'max:255'],
             'position_title' => ['required', 'string', 'max:100'],
+            'files' => ['required', 'array:'.$types->pluck('id')->implode(',')],
+            ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['required', 'file', 'mimes:pdf', 'max:10240']])->all(),
         ]);
+        unset($data['files']);
         $existing = User::whereKey($data['school_id'])->orWhere('email', $data['email'])->first();
         if ($existing && ($existing->school_id !== (int) $data['school_id'] || Str::lower($existing->email) !== $data['email'] || $existing->role === 'SUPER_ADMIN' || $existing->account_status !== 'active')) {
             throw ValidationException::withMessages(['email' => 'Use the school ID and email belonging to the same applicant account.']);
         }
-        $application = DB::transaction(function () use ($data) {
-            College::whereKey($data['college_id'])->where('is_active', true)->lockForUpdate()->firstOrFail();
-            OrganizationApplication::where('status', 'pending_verification')->where('created_at', '<=', now()->subDays(2))->update(['status' => 'expired']);
-            if (OrganizationApplication::whereNotIn('status', ['rejected', 'approved', 'expired'])
-                ->where(fn ($q) => $q->where('name', $data['name'])->orWhere('acronym', $data['acronym']))->exists()) {
-                throw ValidationException::withMessages(['name' => 'An application for this organization is already being reviewed.']);
-            }
+        $stored = [];
+        try {
+            $application = DB::transaction(function () use ($data, $request, $semester, $types, &$stored) {
+                College::whereKey($data['college_id'])->where('is_active', true)->lockForUpdate()->firstOrFail();
+                abort_unless(AcademicSemester::active()?->id === $semester->id, 409, 'Registration requirements changed. Reload the form.');
+                $currentIds = $this->registrationRequirements()[1]->pluck('id')->all();
+                abort_unless($currentIds === $types->pluck('id')->all(), 409, 'Registration requirements changed. Reload the form.');
+                OrganizationApplication::where('status', 'pending_verification')->where('created_at', '<=', now()->subDays(2))->update(['status' => 'expired']);
+                if (OrganizationApplication::whereNotIn('status', ['rejected', 'approved', 'expired'])
+                    ->where(fn ($q) => $q->where('name', $data['name'])->orWhere('acronym', $data['acronym']))->exists()) {
+                    throw ValidationException::withMessages(['name' => 'An application for this organization is already being reviewed.']);
+                }
 
-            return OrganizationApplication::create($data);
-        });
+                $application = OrganizationApplication::create([...$data, 'requires_documents' => true, 'required_documents_count' => $types->count()]);
+                foreach ($types as $type) {
+                    $file = $request->file("files.{$type->id}");
+                    $stored[] = $path = $file->store('organization-applications/'.$application->id, 'local');
+                    $application->documents()->create([
+                        'requirement_type_id' => $type->id,
+                        'file_path' => $path,
+                        'file_original_name' => $file->getClientOriginalName(),
+                        'mime_type' => $file->getClientMimeType(),
+                        'file_size' => $file->getSize(),
+                    ]);
+                }
+
+                return $application;
+            });
+        } catch (\Throwable $error) {
+            Storage::disk('local')->delete($stored);
+            throw $error;
+        }
         try {
             $url = URL::temporarySignedRoute('organization-applications.verify', now()->addDays(2), ['application' => $application->id]);
             Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nVerify your HIUSA organization application using this link within 48 hours:\n{$url}\n\nYour department head will then review it for endorsement before SAO approval.", fn ($mail) => $mail->to($application->email)->subject('Verify your HIUSA organization application'));
         } catch (\Throwable $error) {
             $application->delete();
+            Storage::disk('local')->delete($stored);
             report($error);
 
             return response()->json(['message' => 'The verification email could not be sent. Please submit again later.'], 503);
@@ -98,7 +156,7 @@ class OrganizationApplicationController extends Controller
     public function index(Request $request)
     {
         $data = $request->validate(['status' => ['nullable', 'in:pending_endorsement,endorsed,approved,rejected'], 'per_page' => ['nullable', 'integer', 'min:1', 'max:100']]);
-        $query = OrganizationApplication::with('college:id,name')->whereNotNull('email_verified_at');
+        $query = OrganizationApplication::with(['college:id,name', 'documents.requirementType:id,name,description'])->whereNotNull('email_verified_at');
         if ($request->user()->role === 'DEPARTMENT_HEAD') {
             $this->scopeForHead($query, $request->user());
         }
@@ -109,6 +167,17 @@ class OrganizationApplicationController extends Controller
         return response()->json($query->latest()->paginate($data['per_page'] ?? 10));
     }
 
+    public function download(Request $request, OrganizationApplication $application, OrganizationApplicationDocument $document)
+    {
+        if ($request->user()->role === 'DEPARTMENT_HEAD' && ! $this->scopeForHead(OrganizationApplication::whereKey($application->id), $request->user())->exists()) {
+            abort(404);
+        }
+        abort_unless($application->email_verified_at && $document->organization_application_id === $application->id, 404);
+        abort_unless(Storage::disk('local')->exists($document->file_path), 404);
+
+        return Storage::disk('local')->download($document->file_path, $document->file_original_name);
+    }
+
     public function review(Request $request, OrganizationApplication $application, PasswordResetService $passwords)
     {
         $actor = $request->user();
@@ -117,47 +186,73 @@ class OrganizationApplicationController extends Controller
         }
         $data = $request->validate(['action' => ['required', Rule::in($actor->role === 'DEPARTMENT_HEAD' ? ['endorse', 'reject'] : ['approve', 'reject'])], 'remarks' => ['nullable', 'string', 'max:2000', 'required_if:action,reject']]);
         $newUser = false;
-        $admin = DB::transaction(function () use ($application, $data, $actor, &$newUser) {
-            $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
-            $expected = $actor->role === 'DEPARTMENT_HEAD' ? 'pending_endorsement' : 'endorsed';
-            abort_if($application->status !== $expected, 409, 'This application is not awaiting your review. Refresh the queue.');
-            abort_unless($application->email_verified_at, 409, 'The applicant must verify their email before review.');
-            $college = College::whereKey($application->college_id)->where('is_active', true)->lockForUpdate()->first();
-            abort_unless($college, 409, 'The college is no longer active.');
-            $admin = null;
-            if ($data['action'] === 'approve') {
-                abort_if(Organization::where('name', $application->name)->orWhere('acronym', $application->acronym)->exists(), 409, 'This organization is already registered.');
-                $organization = Organization::create(['name' => $application->name, 'slug' => Str::slug($application->name).'-'.Str::lower(Str::random(6)), 'acronym' => $application->acronym, 'college_id' => $college->id, 'college' => $college->name, 'parent_organization_id' => $college->homeOrganization?->id, 'description' => $application->description, 'organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'active', 'is_active' => true, 'submitted_at' => $application->created_at, 'reviewed_by' => $actor->school_id, 'reviewed_at' => now()]);
-                $admin = User::whereKey($application->school_id)->lockForUpdate()->first();
-                abort_if($admin && (Str::lower($admin->email) !== $application->email || $admin->role === 'SUPER_ADMIN' || $admin->account_status !== 'active'), 409, 'The applicant account has changed or is inactive.');
-                SboPosition::firstOrCreate(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => $application->position_title], ['is_active' => true]);
-                if ($admin) {
-                    AccountProfile::create(['user_school_id' => $admin->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active', 'position_title' => $application->position_title]);
-                } else {
-                    abort_if(User::where('email', $application->email)->exists(), 409, 'The applicant email is already assigned to another school ID.');
-                    $admin = User::create(['school_id' => $application->school_id, 'organization_id' => $organization->id, 'first_name' => $application->first_name, 'last_name' => $application->last_name, 'email' => $application->email, 'position_title' => $application->position_title, 'department' => $college->name, 'role' => 'ADMIN', 'account_status' => 'active', 'is_member' => true, 'password_hash' => Str::random(64)]);
-                    $newUser = true;
+        $copied = [];
+        try {
+            $admin = DB::transaction(function () use ($application, $data, $actor, &$newUser, &$copied) {
+                $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
+                $expected = $actor->role === 'DEPARTMENT_HEAD' ? 'pending_endorsement' : 'endorsed';
+                abort_if($application->status !== $expected, 409, 'This application is not awaiting your review. Refresh the queue.');
+                abort_unless($application->email_verified_at, 409, 'The applicant must verify their email before review.');
+                $documents = $application->documents()->get();
+                if ($application->requires_documents && $data['action'] !== 'reject') {
+                    abort_if($documents->count() !== $application->required_documents_count || $documents->contains(fn ($document) => ! Storage::disk('local')->exists($document->file_path)), 409, 'Required application documents are missing.');
                 }
-                $organization->update(['submitted_by' => $admin->school_id]);
-                $application->organization_id = $organization->id;
-            }
-            $application->status = match ($data['action']) {
-                'endorse' => 'endorsed', 'approve' => 'approved', default => 'rejected'
-            };
-            $application->remarks = $data['remarks'] ?? null;
-            if ($data['action'] === 'endorse') {
-                $application->endorsed_by = $actor->school_id;
-                $application->endorsed_at = now();
-                User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get()->each(fn ($user) => $this->notify($user, $application, 'Endorsed organization application for SAO review'));
-            } else {
-                $application->reviewed_by = $actor->school_id;
-                $application->reviewed_at = now();
-            }
-            $application->save();
-            AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => $application->status, 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['status' => $application->status], 'created_at' => now(), 'ip_address' => request()->ip()]);
+                $college = College::whereKey($application->college_id)->where('is_active', true)->lockForUpdate()->first();
+                abort_unless($college, 409, 'The college is no longer active.');
+                $admin = null;
+                if ($data['action'] === 'approve') {
+                    abort_if(Organization::where('name', $application->name)->orWhere('acronym', $application->acronym)->exists(), 409, 'This organization is already registered.');
+                    $organization = Organization::create(['name' => $application->name, 'slug' => Str::slug($application->name).'-'.Str::lower(Str::random(6)), 'acronym' => $application->acronym, 'college_id' => $college->id, 'college' => $college->name, 'parent_organization_id' => $college->homeOrganization?->id, 'description' => $application->description, 'organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'active', 'is_active' => true, 'submitted_at' => $application->created_at, 'reviewed_by' => $actor->school_id, 'reviewed_at' => now()]);
+                    $admin = User::whereKey($application->school_id)->lockForUpdate()->first();
+                    abort_if($admin && (Str::lower($admin->email) !== $application->email || $admin->role === 'SUPER_ADMIN' || $admin->account_status !== 'active'), 409, 'The applicant account has changed or is inactive.');
+                    SboPosition::firstOrCreate(['organization_id' => $organization->id, 'role' => 'ADMIN', 'title' => $application->position_title], ['is_active' => true]);
+                    if ($admin) {
+                        AccountProfile::create(['user_school_id' => $admin->school_id, 'organization_id' => $organization->id, 'role' => 'ADMIN', 'account_status' => 'active', 'position_title' => $application->position_title]);
+                    } else {
+                        abort_if(User::where('email', $application->email)->exists(), 409, 'The applicant email is already assigned to another school ID.');
+                        $admin = User::create(['school_id' => $application->school_id, 'organization_id' => $organization->id, 'first_name' => $application->first_name, 'last_name' => $application->last_name, 'email' => $application->email, 'position_title' => $application->position_title, 'department' => $college->name, 'role' => 'ADMIN', 'account_status' => 'active', 'is_member' => true, 'password_hash' => Str::random(64)]);
+                        $newUser = true;
+                    }
+                    $organization->update(['submitted_by' => $admin->school_id]);
+                    foreach ($documents as $document) {
+                        $path = 'compliance-submissions/'.$organization->id.'/'.Str::random(40).'.pdf';
+                        abort_unless(Storage::disk('local')->copy($document->file_path, $path), 500, 'Could not save the compliance document.');
+                        $copied[] = $path;
+                        OrganizationComplianceSubmission::create([
+                            'organization_id' => $organization->id,
+                            'requirement_type_id' => $document->requirement_type_id,
+                            'status' => 'submitted',
+                            'file_path' => $path,
+                            'file_original_name' => $document->file_original_name,
+                            'mime_type' => $document->mime_type,
+                            'file_size' => $document->file_size,
+                            'submitted_by' => $admin->school_id,
+                            'submitted_at' => now(),
+                        ]);
+                    }
+                    $application->organization_id = $organization->id;
+                }
+                $application->status = match ($data['action']) {
+                    'endorse' => 'endorsed', 'approve' => 'approved', default => 'rejected'
+                };
+                $application->remarks = $data['remarks'] ?? null;
+                if ($data['action'] === 'endorse') {
+                    $application->endorsed_by = $actor->school_id;
+                    $application->endorsed_at = now();
+                    User::where('role', 'SUPER_ADMIN')->where('account_status', 'active')->get()->each(fn ($user) => $this->notify($user, $application, 'Endorsed organization application for SAO review'));
+                } else {
+                    $application->reviewed_by = $actor->school_id;
+                    $application->reviewed_at = now();
+                }
+                $application->save();
+                AuditLog::create(['organization_id' => $actor->organization_id, 'user_id' => $actor->school_id, 'actor_role' => $actor->role, 'module' => 'organization_applications', 'action' => $application->status, 'record_type' => OrganizationApplication::class, 'record_id' => $application->id, 'new_values' => ['status' => $application->status], 'created_at' => now(), 'ip_address' => request()->ip()]);
 
-            return $admin;
-        });
+                return $admin;
+            });
+        } catch (\Throwable $error) {
+            Storage::disk('local')->delete($copied);
+            throw $error;
+        }
         $application->refresh();
         try {
             if ($newUser) {

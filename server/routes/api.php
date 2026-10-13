@@ -60,6 +60,7 @@ Route::post('/password/reset/validate', [UserController::class, 'validatePasswor
 Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:password');
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
 Route::get('/organization-applications/colleges', [OrganizationApplicationController::class, 'colleges'])->middleware('throttle:public');
+Route::get('/organization-applications/requirements', [OrganizationApplicationController::class, 'requirements'])->middleware('throttle:public');
 Route::post('/organization-applications', [OrganizationApplicationController::class, 'store'])->middleware('throttle:registration');
 Route::get('/organization-applications/{application}/verify', [OrganizationApplicationController::class, 'verify'])->middleware(['signed', 'throttle:public'])->name('organization-applications.verify');
 
@@ -122,6 +123,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     // distinct from all organization operation and AI-generation routes.
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::get('/organization-applications', [OrganizationApplicationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::get('/organization-applications/{application}/documents/{document}', [OrganizationApplicationController::class, 'download'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::patch('/organization-applications/{application}/review', [OrganizationApplicationController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/system/organizations', [SystemAdministrationController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::put('/system/organizations/{organization}', [SystemAdministrationController::class, 'updateOrganization'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -151,7 +153,6 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::get('/college/overview', [CollegeOrganizationController::class, 'overview'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations', [CollegeOrganizationController::class, 'index'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
     Route::get('/college/organizations/requirements', [CollegeOrganizationController::class, 'requirements'])->middleware(['throttle:api-read', 'role:DEPARTMENT_HEAD']);
-    Route::post('/college/organizations', [CollegeOrganizationController::class, 'store'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::put('/college/organizations/{organization}', [CollegeOrganizationController::class, 'update'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::delete('/college/organizations/{organization}', [CollegeOrganizationController::class, 'destroy'])->middleware(['throttle:api-write', 'role:DEPARTMENT_HEAD']);
     Route::patch('/system/organizations/{organization}/review', [OrganizationLifecycleController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);

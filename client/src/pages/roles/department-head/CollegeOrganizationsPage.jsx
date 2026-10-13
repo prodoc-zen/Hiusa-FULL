@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, File, Plus } from 'lucide-react';
+import { Building2, CalendarClock, File } from 'lucide-react';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { fetchAllPages } from '../../../services/pagination';
-import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, registerOrganization, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, resubmitOrganization, withdrawOrganization } from '../../../services/collegeOrganizationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -160,8 +160,7 @@ function OrganizationForm({ open, organization, onClose, onSaved }) {
     setSubmitting(true);
     const payload = { name: fields.name.trim(), acronym: fields.acronym.trim(), description: fields.description, color: fields.color };
     try {
-      if (isResubmit) await resubmitOrganization(organization.id, payload, files);
-      else await registerOrganization(payload, files);
+      await resubmitOrganization(organization.id, payload, files);
       notify.success(isResubmit ? 'Registration resubmitted to the SAO.' : 'Organization submitted to the SAO for review.');
       onSaved();
     } catch (err) {
@@ -453,8 +452,7 @@ export default function CollegeOrganizationsPage() {
   return (
     <div className="space-y-5 pb-8">
       <PageHeader
-        description="Student organizations registered under your college. Register new ones and follow their SAO review."
-        primary={<Button leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>}
+        description="Review applications from your college and follow their SAO review. Organizations apply from the public HIUSA home page."
       />
       <CollegeHeader overview={overview} />
       {missingRecord && <p role="alert" className="rounded-control border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">That organization is not in your college, so there is nothing to open.</p>}
@@ -472,7 +470,7 @@ export default function CollegeOrganizationsPage() {
             onRetry={load}
             filtersActive={tab !== 'all'}
             emptyState={tab === 'all'
-              ? <EmptyState title="No organizations yet" description="Register your first student organization. The SAO reviews it, then provides its administrator." action={<Button variant="secondary" leftIcon={Plus} onClick={() => setFormTarget({ mode: 'register' })}>Register an organization</Button>} />
+              ? <EmptyState title="No organizations yet" description="Organization representatives apply from the public HIUSA home page. Verified applications appear in Organization applications for your endorsement." />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
             actions={(organization) => (
               <div className="flex flex-wrap items-center justify-end gap-2">

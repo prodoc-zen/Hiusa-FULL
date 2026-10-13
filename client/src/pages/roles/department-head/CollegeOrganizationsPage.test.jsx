@@ -7,7 +7,6 @@ const mocks = vi.hoisted(() => ({
   getCollegeOrganizations: vi.fn(),
   getCollegeOverview: vi.fn(),
   getRegistrationRequirements: vi.fn(),
-  registerOrganization: vi.fn(),
   resubmitOrganization: vi.fn(),
   withdrawOrganization: vi.fn(),
 }));
@@ -58,13 +57,6 @@ function renderPage(entry = '/dashboard/department-head/organizations') {
 
 function chooseFile(label, file) {
   fireEvent.change(screen.getByLabelText(label), { target: { files: [file] } });
-}
-
-async function openRegisterForm() {
-  renderPage();
-  await screen.findAllByText('Robotics Society');
-  fireEvent.click(screen.getByRole('button', { name: 'Register an organization' }));
-  return screen.findByRole('dialog');
 }
 
 describe('CollegeOrganizationsPage', () => {
@@ -202,94 +194,11 @@ describe('CollegeOrganizationsPage', () => {
     expect(screen.getAllByRole('button', { name: 'Edit and resubmit Drama Guild' }).length).toBeGreaterThan(0);
   });
 
-  it('tells the head the SAO must activate a semester when no requirements are open', async () => {
-    mocks.getRegistrationRequirements.mockResolvedValue({ data: { academic_semester: null, requirements: [] } });
-    const dialog = await openRegisterForm();
-
-    expect(await within(dialog).findByText('No registration requirements are open. The SAO must activate a semester first.')).toBeInTheDocument();
-    expect(within(dialog).queryByLabelText(/Organization name/)).not.toBeInTheDocument();
-    expect(within(dialog).queryByRole('button', { name: 'Submit for review' })).not.toBeInTheDocument();
-  });
-
-  it('retries loading the requirements when they fail to load', async () => {
-    mocks.getRegistrationRequirements.mockRejectedValueOnce(new Error('network'));
-    const dialog = await openRegisterForm();
-
-    fireEvent.click(await within(dialog).findByRole('button', { name: 'Try again' }));
-
-    expect(await within(dialog).findByLabelText(/Constitution/)).toBeInTheDocument();
-  });
-
-  it('validates the registration before sending anything', async () => {
-    const dialog = await openRegisterForm();
-    await within(dialog).findByLabelText(/Constitution/);
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit for review' }));
-
-    expect(await within(dialog).findByText('Enter the organization name.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Enter the acronym.')).toBeInTheDocument();
-    expect(within(dialog).getAllByText('Attach a PDF for this requirement.')).toHaveLength(2);
-    expect(mocks.registerOrganization).not.toHaveBeenCalled();
-  });
-
-  it('rejects a file that is not a PDF or is over 10 MB and a malformed color', async () => {
-    const dialog = await openRegisterForm();
-    await within(dialog).findByLabelText(/Constitution/);
-
-    chooseFile(/Constitution/, new File(['x'], 'notes.docx', { type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }));
-    const big = pdf('big.pdf');
-    Object.defineProperty(big, 'size', { value: 11 * 1024 * 1024 });
-    chooseFile(/Officer list/, big);
-    fireEvent.change(within(dialog).getByPlaceholderText('#0B8ED0'), { target: { value: 'blue' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit for review' }));
-
-    expect(await within(dialog).findByText('Only PDF files are accepted.')).toBeInTheDocument();
-    expect(within(dialog).getByText('This file is larger than 10 MB. Choose a smaller file.')).toBeInTheDocument();
-    expect(within(dialog).getByText('Use a color like #0B8ED0.')).toBeInTheDocument();
-    expect(mocks.registerOrganization).not.toHaveBeenCalled();
-  });
-
-  it('submits the details and one PDF per requirement', async () => {
-    mocks.registerOrganization.mockResolvedValue({ data: organization({ id: 9 }) });
-    const dialog = await openRegisterForm();
-    await within(dialog).findByLabelText(/Constitution/);
-    expect(within(dialog).getByText('Signed copy of the constitution')).toBeInTheDocument();
-
-    fireEvent.change(within(dialog).getByLabelText(/Organization name/), { target: { value: ' Debate Society ' } });
-    fireEvent.change(within(dialog).getByLabelText(/Acronym/), { target: { value: 'DEBATE' } });
-    fireEvent.change(within(dialog).getByLabelText(/Description/), { target: { value: 'Argues for fun' } });
-    fireEvent.change(within(dialog).getByPlaceholderText('#0B8ED0'), { target: { value: '#112233' } });
-    const constitution = pdf('constitution.pdf');
-    const officers = pdf('officers.pdf');
-    chooseFile(/Constitution/, constitution);
-    chooseFile(/Officer list/, officers);
-    expect(within(dialog).getByText(/Selected: constitution\.pdf/)).toBeInTheDocument();
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit for review' }));
-
-    await waitFor(() => expect(mocks.registerOrganization).toHaveBeenCalledTimes(1));
-    expect(mocks.registerOrganization).toHaveBeenCalledWith(
-      { name: 'Debate Society', acronym: 'DEBATE', description: 'Argues for fun', color: '#112233' },
-      { 1: constitution, 2: officers },
-    );
-    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(mocks.getCollegeOrganizations).toHaveBeenCalledTimes(2);
-  });
-
-  it('shows server validation errors beside the matching field', async () => {
-    mocks.registerOrganization.mockRejectedValue({ response: { status: 422, data: { message: 'invalid', errors: { name: ['The name has already been taken.'], 'files.2': ['The files.2 must be a file of type: pdf.'] } } } });
-    const dialog = await openRegisterForm();
-    await within(dialog).findByLabelText(/Constitution/);
-
-    fireEvent.change(within(dialog).getByLabelText(/Organization name/), { target: { value: 'Chess Club' } });
-    fireEvent.change(within(dialog).getByLabelText(/Acronym/), { target: { value: 'CC' } });
-    chooseFile(/Constitution/, pdf());
-    chooseFile(/Officer list/, pdf());
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit for review' }));
-
-    const nameError = await within(dialog).findByText('The name has already been taken.');
-    expect(nameError).toHaveAttribute('id', within(dialog).getByLabelText(/Organization name/).getAttribute('aria-describedby'));
-    expect(within(dialog).getByText('The files.2 must be a file of type: pdf.')).toBeInTheDocument();
-    expect(screen.getByRole('dialog')).toBeInTheDocument();
+  it('does not let a Department Head register a new organization', async () => {
+    renderPage();
+    await screen.findAllByText('Chess Club');
+    expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
+    expect(screen.getByText(/Organizations apply from the public HIUSA home page/)).toBeInTheDocument();
   });
 
   it('prefills a returned registration and sends only the replaced files', async () => {
@@ -398,10 +307,12 @@ describe('CollegeOrganizationsPage', () => {
   });
 
   it('focuses the first invalid field when the form is submitted incomplete', async () => {
-    const dialog = await openRegisterForm();
-    await within(dialog).findByLabelText(/Constitution/);
-
-    fireEvent.click(within(dialog).getByRole('button', { name: 'Submit for review' }));
+    renderPage();
+    await screen.findAllByText('Drama Guild');
+    fireEvent.click(screen.getAllByRole('button', { name: 'Edit and resubmit Drama Guild' })[0]);
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Organization name/), { target: { value: '' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Resubmit to SAO' }));
 
     const name = within(dialog).getByLabelText(/Organization name/);
     expect(await within(dialog).findByText('Enter the organization name.')).toBeInTheDocument();
@@ -496,13 +407,13 @@ describe('CollegeOrganizationsPage', () => {
   });
 
   describe('first use', () => {
-    it('names the first step and offers to register when the college has no organizations', async () => {
+    it('directs new organizations to apply from the public home page', async () => {
       mocks.getCollegeOrganizations.mockResolvedValue(paginator([]));
       renderPage();
 
       expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
-      expect(screen.getByText(/Register your first student organization\. The SAO reviews it, then provides its administrator\./)).toBeInTheDocument();
-      expect(screen.getAllByRole('button', { name: 'Register an organization' })).toHaveLength(2);
+      expect(screen.getByText(/Organization representatives apply from the public HIUSA home page/)).toBeInTheDocument();
+      expect(screen.queryByRole('button', { name: 'Register an organization' })).not.toBeInTheDocument();
     });
 
     it('has one h1 from the shared header', async () => {

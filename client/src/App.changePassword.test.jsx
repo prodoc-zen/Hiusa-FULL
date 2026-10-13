@@ -29,11 +29,11 @@ describe('change password route', () => {
     expect(screen.queryByText('Student home')).not.toBeInTheDocument();
   });
 
-  it('keeps a signed out visitor on the login flow', async () => {
+  it('returns a signed out visitor to the landing page', async () => {
     localStorage.clear();
     render(<MemoryRouter initialEntries={['/change-password']}><App /></MemoryRouter>);
 
     expect(screen.queryByText('Change password page')).not.toBeInTheDocument();
-    expect(await screen.findByRole('heading', { name: 'Sign in to HIUSA' })).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: 'From your first application to everyday campus work.' })).toBeInTheDocument();
   });
 });

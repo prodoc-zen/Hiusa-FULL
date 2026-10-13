@@ -8,6 +8,7 @@ use App\Models\AuditLog;
 use App\Models\ComplianceRequirementType;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\OrganizationApplicationDocument;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use App\Services\Compliance\AccreditationStatusService;
@@ -151,7 +152,7 @@ class ComplianceController extends Controller
     {
         $deleted = DB::transaction(function () use ($request, $requirementType) {
             $locked = ComplianceRequirementType::whereKey($requirementType->id)->lockForUpdate()->firstOrFail();
-            if ($locked->submissions()->exists()) {
+            if ($locked->submissions()->exists() || OrganizationApplicationDocument::where('requirement_type_id', $locked->id)->exists()) {
                 return false;
             }
 
@@ -173,7 +174,7 @@ class ComplianceController extends Controller
         });
 
         if (! $deleted) {
-            return response()->json(['message' => 'This requirement already has submissions. Deactivate it to preserve those records.'], 409);
+            return response()->json(['message' => 'This requirement has submitted or application documents. Deactivate it to preserve those records.'], 409);
         }
 
         return response()->noContent();

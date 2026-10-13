@@ -2,7 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import api from './api';
 import { deleteClearancePeriod } from './clearanceService';
 import { deleteRequirementType, getComplianceDocuments } from './complianceService';
-import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, registerOrganization, resubmitOrganization } from './collegeOrganizationService';
+import { getCollegeOrganizations, getCollegeOverview, getRegistrationRequirements, resubmitOrganization } from './collegeOrganizationService';
+import { getApplicationRequirements, submitOrganizationApplication } from './organizationApplicationService';
 import { downloadFinancialReportDocument } from './financeService';
 import { deleteGrievance } from './grievanceService';
 import {
@@ -72,13 +73,15 @@ describe('hierarchy services', () => {
     expect(api.get).toHaveBeenCalledWith('/college/overview');
   });
 
-  it('registers an organization as multipart data with one file per requirement', () => {
+  it('submits the public organization application as multipart data with one file per requirement', () => {
     const charter = new File(['pdf'], 'charter.pdf', { type: 'application/pdf' });
-    registerOrganization({ name: 'Robotics Guild', acronym: 'ROBO', description: null, color: '#1A2B3C' }, { 12: charter });
+    getApplicationRequirements();
+    submitOrganizationApplication({ name: 'Robotics Guild', acronym: 'ROBO', email: 'alex@example.test' }, { 12: charter });
     const [url, data] = api.post.mock.calls[0];
-    expect(url).toBe('/college/organizations');
+    expect(api.get).toHaveBeenCalledWith('/organization-applications/requirements', { cache: false });
+    expect(url).toBe('/organization-applications');
     expect(data.get('name')).toBe('Robotics Guild');
-    expect(data.get('color')).toBe('#1A2B3C');
+    expect(data.get('email')).toBe('alex@example.test');
     expect(data.has('description')).toBe(false);
     expect(data.get('files[12]')).toBe(charter);
   });
