@@ -25,7 +25,7 @@ function mergeRequirements(statusRequirements, types, submissions) {
   return statusRequirements.map((requirement) => {
     const type = types.find((item) => item.id === requirement.requirement_type_id);
     const submission = submissions.find((item) => item.requirement_type?.id === requirement.requirement_type_id);
-    return { ...requirement, description: type?.description || null, submission: submission || null };
+    return { ...requirement, description: type?.description || null, allowed_extensions: type?.allowed_extensions, submission: submission || null };
   });
 }
 
@@ -78,7 +78,7 @@ export default function OrganizationCompliancePage() {
   }
 
   function handleFileSelected(file) {
-    const validationError = validateComplianceFile(file);
+    const validationError = validateComplianceFile(file, uploadTarget?.allowed_extensions);
     setFileError(validationError);
     setSelectedFile(validationError ? null : file);
   }
@@ -208,7 +208,7 @@ export default function OrganizationCompliancePage() {
             </div>
           )}
           {uploadTarget?.submission_id && <Button variant="secondary" size="sm" onClick={() => viewFile(uploadTarget)}><Eye size={15} aria-hidden="true" />View current file{uploadTarget.file_name ? `: ${uploadTarget.file_name}` : ''}</Button>}
-          <ComplianceDropzone onFileSelected={handleFileSelected} disabled={uploading} error={fileError} />
+          <ComplianceDropzone onFileSelected={handleFileSelected} disabled={uploading} error={fileError} allowedExtensions={uploadTarget?.allowed_extensions} />
           {selectedFile && !fileError && (
             <p className="inline-flex items-center gap-1.5 text-sm font-semibold text-ink">
               <File size={14} aria-hidden="true" /> {selectedFile.name}

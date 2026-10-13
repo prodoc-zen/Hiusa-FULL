@@ -61,6 +61,16 @@ describe('Public organization onboarding', () => {
     expect(screen.getByLabelText(/^Email/)).toHaveAttribute('aria-invalid', 'true');
   });
 
+  it('shows and checks the SAO file type for each registration document', async () => {
+    getApplicationRequirements.mockResolvedValue({ data: { academic_semester: { academic_year: '2026-2027', number: 1 }, requirements: [{ id: 7, name: 'Portrait', allowed_extensions: ['png'] }] } });
+    render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
+    const input = await screen.findByLabelText(/^Portrait/);
+    expect(input).toHaveAttribute('accept', '.png');
+    expect(screen.getByText('Accepted: PNG')).toBeInTheDocument();
+    fireEvent.change(input, { target: { files: [new File(['%PDF-1.4'], 'portrait.pdf', { type: 'application/pdf' })] } });
+    expect(screen.getByText('Accepted file types: PNG.')).toBeInTheDocument();
+  });
+
   it('does not offer submission until the SAO opens requirements', async () => {
     getApplicationRequirements.mockResolvedValue({ data: { academic_semester: null, requirements: [] } });
     render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);

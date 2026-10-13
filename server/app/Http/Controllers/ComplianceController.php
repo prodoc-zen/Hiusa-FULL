@@ -64,6 +64,8 @@ class ComplianceController extends Controller
             'academic_year' => ['required', 'string', 'max:20', ...(AcademicYear::exists() ? [Rule::exists('academic_years', 'label')] : [])],
             'name' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:3000'],
+            'allowed_extensions' => ['sometimes', 'required', 'array', 'min:1'],
+            'allowed_extensions.*' => ['required', 'string', 'distinct', Rule::in(ComplianceRequirementType::SUPPORTED_EXTENSIONS)],
             'deadline_at' => ['required', 'date'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
@@ -71,6 +73,7 @@ class ComplianceController extends Controller
         $activeSemester = AcademicSemester::active();
         $requirementType = ComplianceRequirementType::create([
             ...$data,
+            'allowed_extensions' => $data['allowed_extensions'] ?? ['pdf'],
             'academic_semester_id' => $activeSemester?->academicYear->label === $data['academic_year'] ? $activeSemester?->id : null,
             'is_active' => $data['is_active'] ?? true,
             'created_by' => $request->user()->school_id,
@@ -119,6 +122,8 @@ class ComplianceController extends Controller
         $data = $request->validate([
             'name' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:3000'],
+            'allowed_extensions' => ['sometimes', 'required', 'array', 'min:1'],
+            'allowed_extensions.*' => ['required', 'string', 'distinct', Rule::in(ComplianceRequirementType::SUPPORTED_EXTENSIONS)],
             'deadline_at' => ['sometimes', 'required', 'date'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
@@ -307,9 +312,10 @@ class ComplianceController extends Controller
     {
         $data = $request->validate([
             'requirement_type_id' => ['required', 'integer', Rule::exists('compliance_requirement_types', 'id')->where('is_active', true)],
-            'document' => ['required', 'file', 'mimes:pdf,jpg,jpeg,png,doc,docx,xls,xlsx', 'max:10240'],
+            'document' => ['required', 'file', 'max:10240'],
         ]);
         $requirement = ComplianceRequirementType::findOrFail($data['requirement_type_id']);
+        $request->validate(['document' => $requirement->uploadRules()]);
         if ($requirement->academic_semester_id && $requirement->academic_semester_id !== AcademicSemester::active()?->id) {
             return response()->json(['message' => 'Completed semester requirements are read only.'], 409);
         }

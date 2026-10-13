@@ -45,7 +45,7 @@ describe('EventRequirementsTab', () => {
   it('lists events waiting for SAO and approves one after confirming', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: { first_name: 'Ana', last_name: 'Cruz' } }] } });
     mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
-    render(<EventRequirementsTab />);
+    render(<EventRequirementsTab mode="reviews" />);
 
     expect(await screen.findByText('Foundation Day')).toBeInTheDocument();
     expect(mocks.getApprovalRequests).toHaveBeenCalledWith({ entity_type: 'event', status: 'pending', per_page: 100 });
@@ -61,7 +61,7 @@ describe('EventRequirementsTab', () => {
 
   it('keeps Approve as the only primary action per event and Reject secondary', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
-    render(<EventRequirementsTab />);
+    render(<EventRequirementsTab mode="reviews" />);
     await screen.findByText('Foundation Day');
 
     expect(screen.getByRole('button', { name: 'Approve' })).toHaveClass('bg-brand-700');
@@ -72,7 +72,7 @@ describe('EventRequirementsTab', () => {
   it('asks for remarks in a confirmation before rejecting', async () => {
     mocks.getApprovalRequests.mockResolvedValue({ data: { data: [{ id: 41, entity_id: 9, title: 'Foundation Day', requester: {} }] } });
     mocks.reviewApprovalRequest.mockResolvedValue({ data: {} });
-    render(<EventRequirementsTab />);
+    render(<EventRequirementsTab mode="reviews" />);
     await screen.findByText('Foundation Day');
 
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
@@ -88,7 +88,7 @@ describe('EventRequirementsTab', () => {
   });
 
   it('shows the empty queue message', async () => {
-    render(<EventRequirementsTab />);
+    render(<EventRequirementsTab mode="reviews" />);
     expect(await screen.findByText('No event submissions are waiting for review.')).toBeInTheDocument();
   });
 

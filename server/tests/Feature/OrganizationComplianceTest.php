@@ -63,6 +63,35 @@ class OrganizationComplianceTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_sao_sets_accepted_file_types_and_uploads_follow_the_current_setting(): void
+    {
+        Storage::fake('local');
+        $sao = $this->user('SUPER_ADMIN');
+        $admin = $this->user('ADMIN');
+        Sanctum::actingAs($sao);
+
+        $id = $this->postJson('/api/compliance/requirement-types', [
+            'academic_year' => '2026-2027',
+            'name' => 'Officer portraits',
+            'deadline_at' => now()->addMonth()->toISOString(),
+            'allowed_extensions' => ['png'],
+        ])->assertCreated()->assertJsonPath('allowed_extensions.0', 'png')->json('id');
+
+        $this->putJson("/api/compliance/requirement-types/{$id}", [
+            'allowed_extensions' => ['exe'],
+        ])->assertUnprocessable()->assertJsonValidationErrors('allowed_extensions.0');
+
+        Sanctum::actingAs($admin);
+        $this->postJson('/api/compliance/submissions', [
+            'requirement_type_id' => $id,
+            'document' => UploadedFile::fake()->create('wrong.pdf', 20, 'application/pdf'),
+        ])->assertUnprocessable()->assertJsonValidationErrors('document');
+        $this->postJson('/api/compliance/submissions', [
+            'requirement_type_id' => $id,
+            'document' => UploadedFile::fake()->image('portrait.png'),
+        ])->assertCreated();
+    }
+
     public function test_admin_submits_document_and_sao_reviews_it_to_accreditation(): void
     {
         Storage::fake('local');

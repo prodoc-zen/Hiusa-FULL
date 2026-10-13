@@ -16,7 +16,7 @@ const empty = { name: '', description: '', allowed_extensions: ['pdf'], venue_ty
 const ROW_ACTION = 'h-11! sm:h-9!';
 const VENUE_TYPE_LABEL = { on_campus: 'On campus', off_campus: 'Off campus' };
 
-export default function EventRequirementsTab() {
+export default function EventRequirementsTab({ mode = 'settings' }) {
   const [requirements, setRequirements] = useState([]);
   const [approvals, setApprovals] = useState([]);
   const [form, setForm] = useState(empty);
@@ -38,18 +38,20 @@ export default function EventRequirementsTab() {
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [requirementsResponse, approvalsResponse] = await Promise.all([
-        getEventRequirements(), getApprovalRequests({ entity_type: 'event', status: 'pending', per_page: 100 }),
-      ]);
-      setRequirements(requirementsResponse.data || []);
-      setApprovals(approvalsResponse.data?.data || []);
+      if (mode === 'reviews') {
+        const response = await getApprovalRequests({ entity_type: 'event', status: 'pending', per_page: 100 });
+        setApprovals(response.data?.data || []);
+      } else {
+        const response = await getEventRequirements();
+        setRequirements(response.data || []);
+      }
       setLoadError('');
     } catch (cause) {
-      setLoadError(getApiErrorMessage(cause, 'Could not load event requirements.'));
+      setLoadError(getApiErrorMessage(cause, mode === 'reviews' ? 'Could not load events waiting for SAO.' : 'Could not load event requirements.'));
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [mode]);
   useEffect(() => { load(); }, [load]);
 
   function resetForm() {
@@ -169,9 +171,9 @@ export default function EventRequirementsTab() {
         <p role="alert" className="rounded-lg border border-danger/30 bg-danger-tint p-3 text-sm font-semibold text-danger-strong">{actionError}</p>
       )}
 
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
+      {mode === 'settings' && <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,420px)]">
         <Card
-          title="Submission checklist"
+          title="Event requirements"
           description="Active items require one file each. Order is shared with organizations."
           actions={<span className="text-xs font-semibold text-ink-muted">{requirements.filter((item) => item.is_active).length} active</span>}
         >
@@ -215,7 +217,7 @@ export default function EventRequirementsTab() {
 
         <form onSubmit={save} noValidate className="h-fit">
           <Card
-            title={editingId ? 'Edit requirement' : 'Add requirement'}
+            title={editingId ? 'Edit event requirement' : 'Add event requirement'}
             description="Each active item needs one file for an event submission."
           >
             <div className="flex flex-col gap-4">
@@ -251,10 +253,10 @@ export default function EventRequirementsTab() {
             </div>
           </Card>
         </form>
-      </section>
+      </section>}
 
-      <Card title="Events waiting for SAO" description="Review each event's files, then approve it or reject it with remarks.">
-        {approvals.length === 0 ? (
+      {mode === 'reviews' && <Card title="Events waiting for SAO" description="Review each event's files, then approve it or reject it with remarks.">
+        {loading ? <p role="status" className="text-sm text-ink-muted">Loading events for review…</p> : approvals.length === 0 ? (
           !loadError && <EmptyState kind="first-run" icon={FileText} title="No event submissions are waiting for review." />
         ) : (
           <ul className="divide-y divide-line">
@@ -280,7 +282,7 @@ export default function EventRequirementsTab() {
             ))}
           </ul>
         )}
-      </Card>
+      </Card>}
 
       <ConfirmModal
         open={Boolean(removeTarget)}

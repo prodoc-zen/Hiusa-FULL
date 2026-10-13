@@ -81,29 +81,29 @@ describe('SaoCompliancePage', () => {
   it('defaults to the accreditation tab and falls back from unknown values', async () => {
     renderPage('/dashboard/super-admin/compliance?tab=nonsense');
     expect((await screen.findAllByText('Computing Society')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('tab', { name: 'Accreditation' })).toHaveAttribute('aria-selected', 'true');
-    expect(screen.getByRole('tabpanel')).toHaveAccessibleName('Accreditation');
+    expect(screen.getByRole('tab', { name: 'Progress by organization' })).toHaveAttribute('aria-selected', 'true');
+    expect(screen.getByRole('tabpanel', { name: 'Progress by organization' })).toBeInTheDocument();
   });
 
   it.each([
     ['events', 'Event requirements', 'Event requirements content'],
     ['financial', 'Financial reports', 'Financial reports content'],
-    ['documents', 'Track documents', 'Track documents content'],
+    ['documents', 'Documents', 'Track documents content'],
   ])('opens the %s tab from the query', async (key, label, content) => {
     renderPage(`/dashboard/super-admin/compliance?tab=${key}`);
     expect(await screen.findByText(content)).toBeInTheDocument();
     expect(screen.getByRole('tab', { name: label })).toHaveAttribute('aria-selected', 'true');
   });
 
-  it('lists the six tabs and keeps the active one in the query', async () => {
+  it('separates review work from requirement settings and keeps the active route', async () => {
     renderPage();
     await screen.findAllByText('Computing Society');
 
     expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Accreditation', 'Requirements', 'Review queue (1)', 'Event requirements', 'Financial reports', 'Track documents',
+      'Organizations', 'Event reviews', 'Financial reports', 'Requirement settings', 'Documents', 'Progress by organization', 'Review submissions (1)',
     ]);
 
-    fireEvent.click(screen.getByRole('tab', { name: 'Track documents' }));
+    fireEvent.click(screen.getByRole('tab', { name: 'Documents' }));
     expect((await screen.findAllByText('Track documents content')).length).toBeGreaterThan(0);
     expect(screen.getByTestId('search')).toHaveTextContent('?tab=documents');
   });
@@ -133,17 +133,17 @@ describe('SaoCompliancePage', () => {
     mocks.getComplianceStatus.mockResolvedValue({ data: { academic_year: '2026-2027', organizations: [status.organizations[1]] } });
     renderPage();
     await screen.findAllByText('Arts Guild');
-    expect(screen.getByRole('tab', { name: 'Review queue' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Review submissions' })).toBeInTheDocument();
   });
 
   it('moves between tabs with the arrow keys', async () => {
     renderPage();
     await screen.findAllByText('Computing Society');
 
-    fireEvent.keyDown(screen.getByRole('tab', { name: 'Accreditation' }), { key: 'ArrowRight' });
-    expect((await screen.findAllByText('Officer Roster')).length).toBeGreaterThan(0);
-    expect(screen.getByRole('tab', { name: 'Requirements' })).toHaveFocus();
-    expect(screen.getByTestId('search')).toHaveTextContent('?tab=requirements');
+    fireEvent.keyDown(screen.getByRole('tab', { name: 'Progress by organization' }), { key: 'ArrowRight' });
+    expect(screen.getByRole('tab', { name: 'Review submissions (1)' })).toHaveFocus();
+    expect(screen.getByTestId('search')).toHaveTextContent('?tab=review');
+    expect((await screen.findAllByText('Semestral Accomplishment Report')).length).toBeGreaterThan(0);
   });
 
   it('shows an accreditation error and retries', async () => {
@@ -215,10 +215,11 @@ describe('SaoCompliancePage', () => {
       fireEvent.click(screen.getAllByRole('button', { name: 'New requirement' })[0]);
       fireEvent.change(screen.getByPlaceholderText('e.g. Accomplishment report'), { target: { value: 'Officer list' } });
       fireEvent.change(screen.getByLabelText(/Deadline/), { target: { value: '2026-11-01' } });
+      fireEvent.click(screen.getByRole('checkbox', { name: 'PNG' }));
       fireEvent.click(screen.getByRole('button', { name: 'Add requirement' }));
 
       await waitFor(() => expect(mocks.createRequirementType).toHaveBeenCalledWith(expect.objectContaining({
-        academic_year: '2026-2027', name: 'Officer list', deadline_at: '2026-11-01',
+        academic_year: '2026-2027', name: 'Officer list', deadline_at: '2026-11-01', allowed_extensions: ['pdf', 'png'],
       })));
     });
 
