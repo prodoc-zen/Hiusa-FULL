@@ -16,7 +16,7 @@ const PAGE_META = {
   '/dashboard': { title: 'Dashboard', purpose: 'Start with what needs your attention today.', isHome: true },
 
   '/dashboard/super-admin': { title: 'Dashboard', purpose: 'Review reports, administer organizations, and publish university notices.', isHome: true },
-  '/dashboard/super-admin/agency': { title: 'Agency overview', purpose: 'Review the agency across organizations, colleges, and compliance.', group: 'Organizations' },
+  '/dashboard/organization-applications': { title: 'Organization applications', purpose: 'Review verified applications from your college or decide endorsed applications.', group: 'Organizations', byRole: { DEPARTMENT_HEAD: { group: null } } },
   '/dashboard/super-admin/organizations': { title: 'Registrations and organizations', purpose: 'Review registrations and manage student organizations.', group: 'Organizations' },
   '/dashboard/super-admin/organizations/:organizationId': {
     title: 'Organization overview',
@@ -25,7 +25,6 @@ const PAGE_META = {
     parents: [{ label: 'Registrations and organizations', to: '/dashboard/super-admin/organizations' }],
   },
   '/dashboard/super-admin/colleges': { title: 'Colleges', purpose: 'Maintain the colleges assigned to student organizations.', group: 'Organizations' },
-  '/dashboard/super-admin/admins': { title: 'Administrators', purpose: 'Manage authorized administrators for each organization.', group: 'Organizations' },
   '/dashboard/super-admin/compliance': { title: 'Compliance', purpose: 'Review accreditation, requirements, event files and financial reports, and track every submitted file.', group: 'Reviews' },
   '/dashboard/super-admin/venues': { title: 'Venues', purpose: 'See who has each venue and when, and decide booking requests with conflicts in view.', group: 'Reviews' },
   '/dashboard/super-admin/grievances': { title: 'Grievances', purpose: 'Review every confidential grievance university-wide and set its status.', group: 'Reviews' },
@@ -144,7 +143,6 @@ const PAGE_META = {
   '/dashboard/my-grievances': { title: 'My grievances', purpose: 'File a confidential concern and follow how it is handled.', group: 'Support' },
   '/dashboard/my-clearance': { title: 'My clearance', purpose: 'See which signatures you still need and why a clearance is on hold.', group: 'Support' },
 
-  '/dashboard/objectives': { title: 'Study objectives', purpose: 'See each objective the study set out to prove, next to the evidence the system produces.' },
   '/dashboard/profile': { title: 'Profile', purpose: 'Keep your personal details and account access current.' },
 };
 

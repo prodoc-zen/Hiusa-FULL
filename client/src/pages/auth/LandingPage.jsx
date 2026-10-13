@@ -1,0 +1,18 @@
+import { Link } from 'react-router-dom';
+import { CalendarDays, ClipboardCheck, Users } from 'lucide-react';
+import logo from '../../assets/Hiusa Logo.png';
+
+export default function LandingPage() {
+  return <div className="min-h-screen bg-[#EEF6FB] font-sans text-[#0F172A]">
+    <header className="border-b border-[#DDE7EF] bg-white"><nav aria-label="Public navigation" className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
+      <Link to="/" aria-label="HIUSA home" className="flex items-center gap-3"><img src={logo} alt="" className="h-11 w-11 object-contain" /><span className="text-xl font-black text-[#0B1831]">HIUSA</span></Link>
+      <Link to="/login" className="inline-flex min-h-11 items-center rounded-lg border border-[#DDE7EF] px-5 text-sm font-bold text-[#0878B7] hover:bg-[#EEF6FB]">Log in</Link>
+    </nav></header>
+    <main><section className="bg-[#0B1831] text-white"><div className="mx-auto grid max-w-6xl items-center gap-10 px-4 py-16 sm:px-6 sm:py-24 lg:grid-cols-[1.4fr_1fr]">
+      <div><p className="text-sm font-semibold text-[#16C7F3]">Student organizations. Connected.</p><h1 className="mt-4 max-w-2xl text-4xl font-extrabold leading-tight sm:text-5xl">One place to organize, serve, and lead.</h1><p className="mt-6 max-w-xl text-base leading-7 text-slate-200">HIUSA brings your organization’s members, events, finances, elections, and university requirements together. Spend less time chasing paperwork and more time supporting students.</p><div className="mt-8 flex flex-wrap gap-3"><Link to="/register-organization" className="inline-flex min-h-11 items-center justify-center rounded-lg bg-[#0878B7] px-5 py-3 text-sm font-bold text-white hover:bg-[#0F2F62]">Register an organization</Link><Link to="/login" className="inline-flex min-h-11 items-center justify-center rounded-lg border border-slate-500 px-5 py-3 text-sm font-bold hover:bg-[#0F2F62]">Log in</Link></div></div>
+      <div className="border-l border-slate-600 pl-6"><img src={logo} alt="HIUSA" className="h-32 w-32 rounded-lg bg-white p-4 object-contain" /><h2 className="mt-6 text-xl font-bold">From application to accreditation</h2><ol className="mt-5 space-y-5 text-sm leading-6 text-slate-200"><li><strong className="block text-white">01. Your organization applies</strong>An officer submits the organization and applicant details.</li><li><strong className="block text-white">02. Your department head endorses</strong>Your college reviews the application and recommends it to SAO.</li><li><strong className="block text-white">03. SAO approves</strong>The applicant receives administrator access and appoints the organization’s other administrators.</li></ol></div>
+    </div></section>
+    <section aria-label="What you can do with HIUSA" className="mx-auto grid max-w-6xl gap-8 px-4 py-12 sm:px-6 md:grid-cols-3">{[[Users, 'Bring your members together', 'Manage organization accounts, officer responsibilities, and student communication.'], [CalendarDays, 'Coordinate everyday work', 'Plan events, request venues, assign tasks, and manage merchandise orders.'], [ClipboardCheck, 'Keep records ready', 'Track finances, compliance documents, clearances, and approvals in one system.']].map(([Icon, title, text]) => <article key={title}><Icon size={24} className="text-[#0878B7]" aria-hidden="true" /><h2 className="mt-4 text-lg font-bold">{title}</h2><p className="mt-2 text-sm leading-6 text-[#64748B]">{text}</p></article>)}</section></main>
+    <footer className="border-t border-[#DDE7EF] px-4 py-6 text-center text-xs text-[#64748B]">HIUSA · Student organization management</footer>
+  </div>;
+}

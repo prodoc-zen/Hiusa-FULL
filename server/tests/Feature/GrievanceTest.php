@@ -444,7 +444,7 @@ class GrievanceTest extends TestCase
         $this->assertDatabaseMissing('audit_logs', ['action' => 'grievance_deleted']);
     }
 
-    public function test_sao_and_organization_admin_cannot_delete_a_grievance(): void
+    public function test_reviewers_must_close_a_grievance_before_deleting_and_other_roles_cannot_delete(): void
     {
         $organization = Organization::factory()->create();
         $student = $this->user('STUDENT', $organization->id);
@@ -452,7 +452,8 @@ class GrievanceTest extends TestCase
 
         foreach (['SUPER_ADMIN', 'ADMIN', 'SBO_OFFICER', 'DEPARTMENT_HEAD'] as $role) {
             Sanctum::actingAs($this->user($role, $organization->id));
-            $this->deleteJson("/api/grievances/{$grievance->id}")->assertForbidden();
+            $this->deleteJson("/api/grievances/{$grievance->id}")
+                ->assertStatus(in_array($role, ['SUPER_ADMIN', 'ADMIN'], true) ? 409 : 403);
         }
         $this->assertDatabaseHas('grievances', ['id' => $grievance->id]);
     }

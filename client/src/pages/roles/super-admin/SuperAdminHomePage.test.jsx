@@ -6,7 +6,7 @@ import SuperAdminHomePage from './SuperAdminHomePage';
 const mocks = vi.hoisted(() => ({ getSystemOrganizations: vi.fn(), getSystemOverview: vi.fn() }));
 
 vi.mock('../../../services/systemAdministrationService', () => mocks);
-vi.mock('../../../components/dashboard', () => ({ RoleBriefing: () => <div>Role briefing</div> }));
+vi.mock('../../../components/dashboard', () => ({ RoleBriefing: ({ introduction }) => <div>{introduction}</div> }));
 
 describe('SuperAdminHomePage', () => {
   beforeEach(() => {
@@ -26,7 +26,7 @@ describe('SuperAdminHomePage', () => {
     expect(screen.getByText('Financial reports to review').closest('div')).toHaveTextContent('4');
     expect(screen.queryByText(/SBOs/)).not.toBeInTheDocument();
     expect(screen.queryByText('Pending SAO Approvals')).not.toBeInTheDocument();
-    expect(screen.getByRole('navigation', { name: 'SAO actions' })).toBeInTheDocument();
+    expect(screen.getByRole('navigation', { name: 'Super Admin actions' })).toBeInTheDocument();
     expect(screen.queryByText(/Super Admin/)).not.toBeInTheDocument();
   });
 
@@ -44,7 +44,7 @@ describe('SuperAdminHomePage', () => {
     render(<MemoryRouter><SuperAdminHomePage /></MemoryRouter>);
 
     expect(await screen.findByText('No student organizations registered yet')).toBeInTheDocument();
-    expect(screen.getByRole('link', { name: 'Open colleges' })).toHaveAttribute('href', '/dashboard/super-admin/colleges');
-    expect(screen.queryByText('Registered organizations')).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Review applications' })).toHaveAttribute('href', '/dashboard/organization-applications');
+    expect(screen.getByText('Registered organizations')).toBeInTheDocument();
   });
 });

@@ -17,6 +17,7 @@ export const uploadSystemCollegeLogo = (id, file) => {
   return unwrap(api.post(`/system/colleges/${id}/logo`, data));
 };
 export const createDepartmentHead = (collegeId, payload) => unwrap(api.post(`/system/colleges/${collegeId}/department-head`, payload));
+export const deleteSystemCollege = (id, transferToCollegeId) => unwrap(api.delete(`/system/colleges/${id}`, { data: { transfer_to_college_id: transferToCollegeId || null } }));
 export const updateDepartmentHead = (id, payload) => unwrap(api.put(`/system/department-heads/${id}`, payload));
 export const resetDepartmentHeadPassword = (id) => unwrap(api.post(`/system/department-heads/${id}/password-reset`));
 export const getAcademicYears = () => unwrap(api.get('/system/academic-years'));
@@ -38,8 +39,17 @@ export const initiateSystemAdminPasswordReset = (id) => unwrap(api.post(`/system
 export const handoverSystemAdmin = (id, payload) => unwrap(api.post(`/system/admins/${id}/handover`, payload));
 export const getSystemOrganizationMembers = (organizationId, params) => unwrap(api.get(`/system/organizations/${organizationId}/members`, { params }));
 export const getGlobalAnnouncements = (params) => unwrap(api.get('/system/announcements', { params }));
-export const createGlobalAnnouncement = (payload) => unwrap(api.post('/system/announcements', payload));
-export const updateGlobalAnnouncement = (id, payload) => unwrap(api.put(`/system/announcements/${id}`, payload));
+function announcementUpload(payload, updating = false) {
+  const { image, ...fields } = payload;
+  if (!image) return payload;
+  const data = new FormData();
+  data.append('payload', JSON.stringify(fields));
+  data.append('image', image);
+  if (updating) data.append('_method', 'PUT');
+  return data;
+}
+export const createGlobalAnnouncement = (payload) => unwrap(api.post('/system/announcements', announcementUpload(payload)));
+export const updateGlobalAnnouncement = (id, payload) => unwrap(payload.image ? api.post(`/system/announcements/${id}`, announcementUpload(payload, true)) : api.put(`/system/announcements/${id}`, payload));
 export const archiveGlobalAnnouncement = (id) => unwrap(api.patch(`/system/announcements/${id}/archive`));
 export const getSystemAgency = () => unwrap(api.get('/system/agency'));
 export const getSystemOrganizationOverview = (id) => unwrap(api.get(`/system/organizations/${id}/overview`));

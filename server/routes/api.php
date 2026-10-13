@@ -31,6 +31,7 @@ use App\Http\Controllers\MyActivityController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\ObjectivesOverviewController;
 use App\Http\Controllers\OrderController;
+use App\Http\Controllers\OrganizationApplicationController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\OrganizationLifecycleController;
 use App\Http\Controllers\SboPositionController;
@@ -58,6 +59,9 @@ Route::post('/password/forgot', [UserController::class, 'requestPasswordReset'])
 Route::post('/password/reset/validate', [UserController::class, 'validatePasswordResetToken'])->middleware('throttle:password');
 Route::post('/password/reset', [UserController::class, 'resetPassword'])->middleware('throttle:password');
 Route::get('/organizations', [OrganizationController::class, 'index'])->middleware('throttle:public');
+Route::get('/organization-applications/colleges', [OrganizationApplicationController::class, 'colleges'])->middleware('throttle:public');
+Route::post('/organization-applications', [OrganizationApplicationController::class, 'store'])->middleware('throttle:registration');
+Route::get('/organization-applications/{application}/verify', [OrganizationApplicationController::class, 'verify'])->middleware(['signed', 'throttle:public'])->name('organization-applications.verify');
 
 Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache.api'])->group(function () {
     Route::get('/academic-periods', [AcademicSemesterController::class, 'index'])->middleware('throttle:api-read');
@@ -117,10 +121,13 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     // SAO Director: separate global administration endpoints, intentionally
     // distinct from all organization operation and AI-generation routes.
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/organization-applications', [OrganizationApplicationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
+    Route::patch('/organization-applications/{application}/review', [OrganizationApplicationController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/system/organizations', [SystemAdministrationController::class, 'organizations'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
     Route::put('/system/organizations/{organization}', [SystemAdministrationController::class, 'updateOrganization'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/organizations/{organization}/logo', [SystemAdministrationController::class, 'uploadOrganizationLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN', 'org.writable']);
     Route::get('/system/colleges', [CollegeController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::delete('/system/colleges/{college}', [CollegeController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/logo', [CollegeController::class, 'uploadLogo'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::post('/system/colleges/{college}/department-head', [SystemAdministrationController::class, 'storeDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/system/department-heads/{user}', [SystemAdministrationController::class, 'updateDepartmentHead'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
@@ -343,10 +350,10 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     // never accepted from input. See GrievanceController docblock for the
     // anonymity rule.
     Route::get('/grievances', [GrievanceController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
-    Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
+    Route::get('/grievances/{grievance}', [GrievanceController::class, 'show'])->withTrashed()->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
     Route::post('/grievances', [GrievanceController::class, 'store'])->middleware(['throttle:api-write', 'role:STUDENT']);
     Route::patch('/grievances/{grievance}/status', [GrievanceController::class, 'updateStatus'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
-    Route::delete('/grievances/{grievance}', [GrievanceController::class, 'destroy'])->middleware(['throttle:api-write', 'role:STUDENT']);
+    Route::delete('/grievances/{grievance}', [GrievanceController::class, 'destroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,STUDENT']);
 
     // Digital clearances: SUPER_ADMIN defines a period's required signatory
     // roles. The "sao" role is university-wide and signed only by

@@ -4,9 +4,11 @@ namespace App\Http\Controllers;
 
 use App\Models\AuditLog;
 use App\Models\College;
+use App\Models\Organization;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\Rule;
 
 class CollegeController extends Controller
 {
@@ -67,6 +69,50 @@ class CollegeController extends Controller
         }
 
         return response()->json($college->fresh());
+    }
+
+    public function destroy(Request $request, College $college)
+    {
+        $data = $request->validate(['transfer_to_college_id' => ['nullable', 'integer', Rule::exists('colleges', 'id')->where('is_active', true)->whereNull('deleted_at')->whereNot('id', $college->id)]]);
+        DB::transaction(function () use ($request, $college, $data) {
+            $college = College::whereKey($college->id)->lockForUpdate()->firstOrFail();
+            $target = ! empty($data['transfer_to_college_id']) ? College::whereKey($data['transfer_to_college_id'])->where('is_active', true)->lockForUpdate()->firstOrFail() : null;
+            $organizationIds = Organization::where(fn ($query) => $query->where('college_id', $college->id)->orWhere('college', $college->name))->pluck('id');
+            $homeId = Organization::where('college_id', $college->id)->where('organization_type', 'COLLEGE')->value('id');
+            $studentIds = Organization::student()->whereIn('id', $organizationIds)->pluck('id');
+            $users = DB::table('users')->whereIn('organization_id', $organizationIds);
+            if ($target) {
+                $targetHomeId = Organization::where('college_id', $target->id)->where('organization_type', 'COLLEGE')->value('id');
+                abort_if($homeId && ! $targetHomeId, 409, 'The destination college has no home organization.');
+                Organization::whereIn('id', $studentIds)->update(['college_id' => $target->id, 'college' => $target->name]);
+                if ($homeId && $targetHomeId) {
+                    Organization::whereIn('id', $studentIds)->where('parent_organization_id', $homeId)->update(['parent_organization_id' => $targetHomeId]);
+                }
+                DB::table('users')->whereIn('organization_id', $studentIds)->update(['department' => $target->name]);
+                Organization::whereKey($homeId)->update(['is_active' => false]);
+                $homeUsers = DB::table('users')->where('organization_id', $homeId)->pluck('school_id');
+                $homeProfiles = DB::table('account_profiles')->where('organization_id', $homeId)->pluck('id');
+                DB::table('users')->whereIn('school_id', $homeUsers)->update(['account_status' => 'inactive']);
+                DB::table('account_profiles')->whereIn('id', $homeProfiles)->update(['account_status' => 'inactive']);
+                DB::table('personal_access_tokens')->where(fn ($q) => $q->whereIn('account_profile_id', $homeProfiles)->orWhereIn('tokenable_id', $homeUsers))->delete();
+            } else {
+                $userIds = (clone $users)->pluck('school_id');
+                $profileIds = DB::table('account_profiles')->whereIn('organization_id', $organizationIds)->pluck('id');
+                Organization::whereIn('id', $organizationIds)->update(['is_active' => false]);
+                $users->update(['account_status' => 'inactive']);
+                DB::table('account_profiles')->whereIn('id', $profileIds)->update(['account_status' => 'inactive']);
+                DB::table('personal_access_tokens')->where(fn ($q) => $q->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $userIds))->delete();
+            }
+            $college->update(['is_active' => false]);
+            $this->audit($request, $college, $target ? 'deleted_and_transferred' : 'deleted_and_deactivated');
+            $college->delete();
+        });
+        $logoPath = is_string($college->logo_url) ? parse_url($college->logo_url, PHP_URL_PATH) : null;
+        if (is_string($logoPath) && str_starts_with($logoPath, '/storage/')) {
+            Storage::disk('public')->delete(substr($logoPath, strlen('/storage/')));
+        }
+
+        return response()->noContent();
     }
 
     private function audit(Request $request, College $college, string $action): void

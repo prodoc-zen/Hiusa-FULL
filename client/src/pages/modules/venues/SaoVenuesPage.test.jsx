@@ -231,7 +231,7 @@ describe('SaoVenuesPage', () => {
       expect(await dialog.findByText('Overlaps 2 other bookings for this venue')).toBeInTheDocument();
       expect(dialog.getByText(/Approved: Computer Society/)).toBeInTheDocument();
       expect(dialog.getByText(/Pending: Nursing Council/)).toBeInTheDocument();
-      expect(dialog.queryByText(/Touching Club/)).not.toBeInTheDocument();
+      expect(within(dialog.getByText('Overlaps 2 other bookings for this venue').parentElement).queryByText(/Touching Club/)).not.toBeInTheDocument();
       expect(venueMocks.getVenueAvailability).toHaveBeenCalledWith(8, { from: pending.start_time, to: pending.end_time });
     });
 

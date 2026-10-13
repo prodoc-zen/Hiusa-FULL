@@ -5,7 +5,6 @@ import SaoNotificationsPage from './SaoNotificationsPage';
 import GlobalAnnouncementsPage from './GlobalAnnouncementsPage';
 import AcademicYearsPage from './AcademicYearsPage';
 import GeneralAuditLogPage from '../admin/GeneralAuditLogPage';
-import StudyObjectivesPage from '../../modules/objectives/StudyObjectivesPage';
 
 const mocks = vi.hoisted(() => ({
   getNotifications: vi.fn(),
@@ -14,7 +13,6 @@ const mocks = vi.hoisted(() => ({
   getGlobalAnnouncements: vi.fn(),
   getAcademicYears: vi.fn(),
   getAuditLogs: vi.fn(),
-  getObjectivesOverview: vi.fn(),
 }));
 
 vi.mock('../../../services/notificationService', () => ({
@@ -41,7 +39,6 @@ vi.mock('../../../services/systemAdministrationService', () => ({
   deleteAcademicSemester: vi.fn(),
 }));
 vi.mock('../../../services/financeService', () => ({ getAuditLogs: mocks.getAuditLogs, exportAuditLogs: vi.fn() }));
-vi.mock('../../../services/objectivesService', () => ({ getObjectivesOverview: mocks.getObjectivesOverview }));
 vi.mock('../../../lib/notify', () => ({ default: { success: vi.fn(), error: vi.fn() } }));
 
 function renderAt(entry, element) {
@@ -57,9 +54,7 @@ beforeEach(() => {
   mocks.getGlobalAnnouncements.mockResolvedValue({ data: [] });
   mocks.getAcademicYears.mockResolvedValue([]);
   mocks.getAuditLogs.mockResolvedValue({ data: { data: [], total: 0, per_page: 10, current_page: 1 } });
-  mocks.getObjectivesOverview.mockResolvedValue({ data: { scope: { type: 'university' }, objectives: [] } });
 });
-
 describe('SaoNotificationsPage header', () => {
   it('has one h1, the pageMeta purpose line and Mark all as read as the single primary action', async () => {
     renderAt('/dashboard/super-admin/notifications', <SaoNotificationsPage />);
@@ -125,15 +120,5 @@ describe('GeneralAuditLogPage header', () => {
     expect(await screen.findByText('No audit activity matches these filters')).toBeInTheDocument();
     fireEvent.click(screen.getAllByRole('button', { name: 'Clear filters' }).at(-1));
     await waitFor(() => expect(screen.getByText('No audit activity yet')).toBeInTheDocument());
-  });
-});
-
-describe('StudyObjectivesPage header', () => {
-  it('takes its title and purpose from the page meta, under one h1', async () => {
-    renderAt('/dashboard/objectives', <StudyObjectivesPage />);
-    expect(screen.getAllByRole('heading', { level: 1 })).toHaveLength(1);
-    expect(screen.getByRole('heading', { level: 1 })).toHaveTextContent('Study objectives');
-    expect(screen.getByText(/See each objective the study set out to prove/)).toBeInTheDocument();
-    expect(await screen.findByText('No objectives are configured yet')).toBeInTheDocument();
   });
 });

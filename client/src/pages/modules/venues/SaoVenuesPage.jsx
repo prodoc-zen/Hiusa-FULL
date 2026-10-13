@@ -8,6 +8,7 @@ import {
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
+import BookingSchedulePreview from './BookingSchedulePreview';
 import notify from '../../../lib/notify';
 import { manilaDate } from '../../../lib/format';
 import { toNextStepProps, venueBookingLifecycle } from '../../../lib/lifecycle';
@@ -104,6 +105,7 @@ export default function SaoVenuesPage() {
   const [conflicts, setConflicts] = useState({ loading: false, error: false, items: [] });
   const [rejectRemarks, setRejectRemarks] = useState('');
   const [reviewBusy, setReviewBusy] = useState(false);
+  const [scheduleBooking, setScheduleBooking] = useState(null);
 
   const [calendarView, setCalendarView] = useState({ view: 'week', anchor: todayInManila() });
   const [calendar, setCalendar] = useState({ loading: true, error: null, slots: [], loaded: null, truncated: null });
@@ -444,12 +446,13 @@ export default function SaoVenuesPage() {
               </div>
             )}
             actions={(booking) => (
-              booking.status === 'pending' ? (
                 <div className="flex justify-end gap-1.5">
-                  <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => openReview(booking, 'reject')}>Reject</Button>
-                  <Button size="sm" className={ROW_ACTION} onClick={() => openReview(booking, 'approve')}>Approve</Button>
+                  <Button size="sm" variant="secondary" onClick={() => setScheduleBooking(booking)}>View schedule</Button>
+                  {booking.status === 'pending' && <>
+                  <Button size="sm" variant="secondary" onClick={() => openReview(booking, 'reject')}>Reject</Button>
+                  <Button size="sm" onClick={() => openReview(booking, 'approve')}>Approve</Button>
+                  </>}
                 </div>
-              ) : null
             )}
             pagination={(
               <PaginationControls
@@ -533,6 +536,7 @@ export default function SaoVenuesPage() {
           </>
         )}
       >
+        {reviewState?.booking && <div className="mb-5"><BookingSchedulePreview key={reviewState.booking.id} booking={reviewState.booking} /></div>}
         {conflicts.loading ? (
           <p className="text-sm font-medium text-ink-muted">Checking for overlapping bookings...</p>
         ) : conflicts.error ? (
@@ -566,6 +570,9 @@ export default function SaoVenuesPage() {
         <Field label="Remarks" required>
           <Textarea data-autofocus value={rejectRemarks} onChange={(event) => setRejectRemarks(event.target.value)} />
         </Field>
+      </Modal>
+      <Modal open={Boolean(scheduleBooking)} title="Booking schedule" onClose={() => setScheduleBooking(null)} maxWidth="max-w-3xl">
+        {scheduleBooking && <BookingSchedulePreview key={scheduleBooking.id} booking={scheduleBooking} />}
       </Modal>
     </div>
   );

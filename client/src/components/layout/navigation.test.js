@@ -78,6 +78,7 @@ const SPEC = {
   ],
   DEPARTMENT_HEAD: [
     { label: 'Dashboard', path: '/dashboard/department-head' },
+    { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
     { band: 'College view (read only)', label: 'Finance', children: FINANCE_MANAGER_LEAVES },
@@ -99,9 +100,8 @@ const SPEC = {
     {
       label: 'Organizations',
       children: [
-        ['Agency overview', '/dashboard/super-admin/agency'],
+        ['Organization applications', '/dashboard/organization-applications'],
         ['Registrations and organizations', '/dashboard/super-admin/organizations?status=pending'],
-        ['Administrators', '/dashboard/super-admin/admins'],
         ['Colleges', '/dashboard/super-admin/colleges'],
       ],
     },
@@ -137,9 +137,9 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   it.each([
     ['ADMIN', 10, 33],
     ['SBO_OFFICER', 9, 24],
-    ['DEPARTMENT_HEAD', 7, 10],
+    ['DEPARTMENT_HEAD', 8, 11],
     ['STUDENT', 7, 11],
-    ['SUPER_ADMIN', 5, 13],
+    ['SUPER_ADMIN', 5, 12],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {
     expect(getNavForRole(role)).toHaveLength(rows);
     expect(getNavLeaves(role)).toHaveLength(leaves);
@@ -153,17 +153,16 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
     }
   });
 
-  it('shares the footer: Profile, then the Study objectives link that ends the orphan page', () => {
+  it('shares a Profile footer without the removed Study objectives page', () => {
     expect(footerNav.map((item) => [item.label, item.path])).toEqual([
       ['Profile', '/dashboard/profile'],
-      ['Study objectives', '/dashboard/objectives'],
     ]);
   });
 
   it('opens a group on its first page', () => {
     const group = getNavForRole('SUPER_ADMIN')[1];
-    expect(resolveItemPath(group)).toBe('/dashboard/super-admin/agency');
-    expect(getVisibleChildren(group)).toHaveLength(4);
+    expect(resolveItemPath(group)).toBe('/dashboard/organization-applications');
+    expect(getVisibleChildren(group)).toHaveLength(3);
   });
 
   it('names the SAO and the finance slot the same way everywhere', () => {
@@ -202,7 +201,6 @@ describe('command palette pages', () => {
       (row.children ? row.children.map(([, path]) => path) : [row.path]).forEach((path) => expect(paths).toContain(path));
     });
     expect(paths).toContain('/dashboard/profile');
-    expect(paths).toContain('/dashboard/objectives');
   });
 
   it('keeps pages that left the Admin menu reachable, under old and new names', () => {
@@ -229,7 +227,7 @@ describe('command palette pages', () => {
   it('does not offer a page the role cannot open', () => {
     expect(getFlatPages('STUDENT').some((page) => page.path.includes('/admin/'))).toBe(false);
     expect(getFlatPages('DEPARTMENT_HEAD').some((page) => page.path.includes('cast-vote') || page.path.includes('/merchandise'))).toBe(false);
-    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/objectives')).toBe(true);
+    expect(getFlatPages('SUPER_ADMIN').every((page) => page.path.startsWith('/dashboard/super-admin') || page.path === '/dashboard/profile' || page.path === '/dashboard/organization-applications')).toBe(true);
   });
 
   it.each(ROLES)('omits Evaluation from navigation and search for %s', (role) => {

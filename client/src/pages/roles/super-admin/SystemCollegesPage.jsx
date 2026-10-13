@@ -1,14 +1,15 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Building2, ImagePlus, UserPlus } from 'lucide-react';
-import { Button, EmptyState, ErrorState, Field, Input, PageHeader, SkeletonCard, StatusBadge } from '../../../components/ui';
-import { getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
+import { Building2, ImagePlus, Trash2, UserPlus } from 'lucide-react';
+import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
+import Modal from '../../../components/Modal';
+import { deleteSystemCollege, getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { AssignDepartmentHeadModal, ManageDepartmentHeadModal, summarizeHead } from './DepartmentHeadDialogs';
 
-function CollegeCard({ college, uploading, onUpload, onAssign, onManage }) {
+function CollegeCard({ college, uploading, onUpload, onAssign, onManage, onDelete }) {
   const fileInput = useRef(null);
   const name = formatDisplayText(college.name);
   const head = college.department_head;
@@ -48,6 +49,7 @@ function CollegeCard({ college, uploading, onUpload, onAssign, onManage }) {
         <Button to={`/dashboard/super-admin/organizations?status=active&search=${encodeURIComponent(college.name)}`} variant="ghost" size="sm" className="max-md:min-h-[42px]" aria-label={`View organizations of ${name}`}>View organizations</Button>
         <input ref={fileInput} type="file" accept="image/jpeg,image/png,image/webp" aria-label={`Logo file for ${name}`} className="sr-only" tabIndex={-1} onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ''; if (file) onUpload(college, file); }} />
         <Button variant="secondary" size="sm" className="max-md:min-h-[42px]" leftIcon={ImagePlus} loading={uploading} onClick={() => fileInput.current?.click()} aria-label={`Upload logo for ${name}`}>Upload logo</Button>
+        <Button variant="danger" size="sm" className="max-md:min-h-[42px]" leftIcon={Trash2} onClick={() => onDelete(college)} aria-label={`Delete ${name}`}>Delete</Button>
       </div>
     </article>
   );
@@ -63,6 +65,10 @@ export default function SystemCollegesPage() {
   const [uploadError, setUploadError] = useState('');
   const [assigning, setAssigning] = useState(null);
   const [managing, setManaging] = useState(null);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [transferTo, setTransferTo] = useState('');
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -98,12 +104,27 @@ export default function SystemCollegesPage() {
     setNotice(message);
   }
 
+  async function confirmDelete() {
+    setDeleteBusy(true);
+    setDeleteError('');
+    try {
+      await deleteSystemCollege(deleteTarget.id, transferTo);
+      setDeleteTarget(null);
+      setNotice(transferTo ? 'College deleted. Its student organizations were transferred.' : 'College deleted. Its organizations and accounts were deactivated.');
+      await load();
+    } catch (cause) {
+      setDeleteError(getApiErrorMessage(cause, 'Could not delete this college.'));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
+
   const term = search.trim().toLowerCase();
   const visible = colleges.filter((college) => [college.name, college.code].some((value) => String(value || '').toLowerCase().includes(term)));
 
   return (
     <div className="space-y-5">
-      <PageHeader purpose="Assign each college's Department Head, open its organizations and update its logo." />
+      <PageHeader purpose="Assign each college's Department Head, open its organizations, update its logo, or delete it." />
       {error && !loading ? <ErrorState description={error} onRetry={load} /> : (
         <>
           <Field label="Search colleges" className="max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
@@ -112,7 +133,7 @@ export default function SystemCollegesPage() {
           {loading ? (
             <section aria-label="Loading colleges" className="grid gap-3 md:grid-cols-2"><SkeletonCard /><SkeletonCard /></section>
           ) : visible.length ? (
-            <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <CollegeCard key={college.id} college={college} uploading={uploadingId === college.id} onUpload={upload} onAssign={setAssigning} onManage={setManaging} />)}</section>
+            <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <CollegeCard key={college.id} college={college} uploading={uploadingId === college.id} onUpload={upload} onAssign={setAssigning} onManage={setManaging} onDelete={(item) => { setDeleteTarget(item); setTransferTo(''); setDeleteError(''); }} />)}</section>
           ) : (
             <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'The college list is empty. Colleges are added by the system administrators.'} />
           )}
@@ -120,6 +141,11 @@ export default function SystemCollegesPage() {
       )}
       {assigning && <AssignDepartmentHeadModal college={assigning} onClose={() => setAssigning(null)} onAssigned={(user, message) => headChanged(assigning.id, user, message)} />}
       {managing?.department_head && <ManageDepartmentHeadModal college={managing} head={managing.department_head} onClose={() => setManaging(null)} onChanged={(user, message) => headChanged(managing.id, user, message)} />}
+      <Modal open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.name || 'college'}`} onClose={deleteBusy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={deleteBusy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={deleteBusy} onClick={confirmDelete}>Delete college</Button></>}>
+        <p className="text-sm text-ink-muted">Choose a college to receive its student organizations, or leave this blank to deactivate its organizations and accounts. The department head account will be deactivated.</p>
+        <Field label="Transfer student organizations to" className="mt-4"><Select value={transferTo} onChange={(event) => setTransferTo(event.target.value)}><option value="">No transfer — deactivate</option>{colleges.filter((college) => college.id !== deleteTarget?.id && college.is_active).map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}</Select></Field>
+        {deleteError && <p role="alert" className="mt-3 text-sm text-danger-strong">{deleteError}</p>}
+      </Modal>
     </div>
   );
 }

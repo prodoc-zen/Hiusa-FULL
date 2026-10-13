@@ -88,7 +88,7 @@ class SetupChecklistTest extends TestCase
         $this->assertArrayNotHasKey('organizations', $steps, 'Only Department Heads register organizations now.');
         $this->assertFalse($steps['admins']['done']);
         $this->assertSame('1 of 2 organizations have an active administrator.', $steps['admins']['detail']);
-        $this->assertSame('/dashboard/super-admin/admins', $steps['admins']['href']);
+        $this->assertSame('/dashboard/organization-applications', $steps['admins']['href']);
     }
 
     public function test_a_student_checklist_omits_evaluation_even_when_a_window_is_open(): void

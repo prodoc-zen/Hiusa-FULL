@@ -1,29 +1,92 @@
-import { formatDisplayText } from '../../../utils/displayText.js';
-import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
-import FieldIcon from '../../../components/FieldIcon.jsx';
-import { useEffect, useState } from 'react';
-import { Archive, Megaphone, Plus, Send, Trash2 } from 'lucide-react';
-import { Button, EmptyState, PageHeader } from '../../../components/ui';
-import { archiveGlobalAnnouncement, createGlobalAnnouncement, deleteGlobalAnnouncement, getGlobalAnnouncements, updateGlobalAnnouncement } from '../../../services/systemAdministrationService';
-import AccessibleOverlay from '../../../components/AccessibleOverlay';
-import ConfirmModal from '../../../components/ConfirmModal';
-import notify from '../../../lib/notify';
-import { getApiErrorMessage } from '../../../utils/apiError';
+import { useCallback, useEffect, useState } from 'react';
+import { Archive, Plus } from 'lucide-react';
+import { Button, Card, Field, Input, PageHeader, Select } from '../../../components/ui';
+import Modal from '../../../components/Modal';
+import DateTimeInput from '../../../components/ui/DateTimeInput';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
-import { getSystemOrganizations } from '../../../services/systemAdministrationService';
+import PaginationControls from '../../../components/PaginationControls';
+import { archiveGlobalAnnouncement, createGlobalAnnouncement, deleteGlobalAnnouncement, getGlobalAnnouncements, getSystemOrganizations, updateGlobalAnnouncement } from '../../../services/systemAdministrationService';
+import { fetchAllPages, listMeta } from '../../../services/pagination';
+import { getApiErrorMessage } from '../../../utils/apiError';
+import { resolveAssetUrl } from '../../../utils/assetUrl';
 
-const roles = ['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'ADMIN'];
-const fresh = { title: '', body: '', target_scope: 'all_users', target_organization_ids: [], target_departments: [], target_roles: [], publish: false, is_important: false, is_pinned: false };
+const ROLES = ['STUDENT', 'SBO_OFFICER', 'DEPARTMENT_HEAD', 'ADMIN'];
+const FRESH = { title: '', body: '', target_scope: 'all_users', target_organization_ids: [], target_departments: [], target_roles: [], publish: false, is_important: false, is_pinned: false };
 
 export default function GlobalAnnouncementsPage() {
-  const [items, setItems] = useState([]); const [loaded, setLoaded] = useState(false); const [organizations, setOrganizations] = useState([]); const [form, setForm] = useState(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false); const [deleteTarget, setDeleteTarget] = useState(null); const [deleteBusy, setDeleteBusy] = useState(false); const [deleteError, setDeleteError] = useState('');
-  const confirmDelete = async () => { setDeleteBusy(true); setDeleteError(''); try { await deleteGlobalAnnouncement(deleteTarget.id); notify.success('Draft deleted.'); setDeleteTarget(null); load(); } catch (e) { setDeleteError(getApiErrorMessage(e, 'Could not delete this announcement.')); } finally { setDeleteBusy(false); } };
-  const load = () => getGlobalAnnouncements({ per_page: 100 }).then((data) => setItems(data.data || [])).catch(() => setError('Unable to load global announcements.')).finally(() => setLoaded(true));
-  useEffect(() => { load(); getSystemOrganizations({ per_page: 100 }).then((data) => setOrganizations(data.data || [])); }, []);
+  const [items, setItems] = useState([]);
+  const [organizations, setOrganizations] = useState([]);
+  const [form, setForm] = useState(null);
+  const [image, setImage] = useState(null);
+  const [preview, setPreview] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteError, setDeleteError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const [meta, setMeta] = useState({ currentPage: 1, total: 0, perPage: 10 });
+  const load = useCallback(() => {
+    setLoading(true);
+    getGlobalAnnouncements({ page, per_page: 10 }).then((data) => { setItems(data.data || []); setMeta(listMeta(data)); }).catch((e) => setError(getApiErrorMessage(e, 'Unable to load announcements.'))).finally(() => setLoading(false));
+  }, [page]);
+  useEffect(() => { load(); }, [load]);
+  useEffect(() => { fetchAllPages(getSystemOrganizations).then(setOrganizations).catch((e) => setError(getApiErrorMessage(e, 'Unable to load organization options.'))); }, []);
+  useEffect(() => {
+    if (!image) { setPreview(''); return; }
+    const url = URL.createObjectURL(image); setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [image]);
   const departments = [...new Set(organizations.map((org) => org.college).filter(Boolean))];
-  const toggle = (key, value) => setForm((previous) => ({ ...previous, [key]: previous[key].includes(value) ? previous[key].filter((item) => item !== value) : [...previous[key], value] }));
-  const save = async (event) => { event.preventDefault(); setBusy(true); setError(''); try { const payload = { ...form, target_organization_ids: form.target_organization_ids.map(Number), scheduled_at: form.scheduled_at || null, expires_at: form.expires_at || null }; form.id ? await updateGlobalAnnouncement(form.id, payload) : await createGlobalAnnouncement(payload); setForm(null); load(); } catch (e) { setError(e.response?.data?.message || 'Could not save the official announcement.'); } finally { setBusy(false); } };
-  const firstRun = loaded && !error && !items.length;
-  const createButton = <Button leftIcon={Plus} onClick={() => setForm(fresh)}>Create official notice</Button>;
-  return <div className="space-y-6"><PageHeader primary={firstRun ? undefined : createButton} />{error && <p role="alert" className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>}<section className="grid gap-4 md:grid-cols-2">{items.map((item) => <article key={item.id} className="rounded-lg border border-[#DDE7EF] bg-white p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-black uppercase tracking-widest text-[#0878B7]">Student Affairs Office · Official</p><h3 className="mt-1 font-bold text-slate-900">{formatDisplayText(item.title)}</h3></div><span className={`rounded-full px-2 py-1 text-[10px] font-bold ${item.published_at ? 'bg-emerald-50 text-emerald-700' : 'bg-amber-50 text-amber-700'}`}>{item.published_at ? 'PUBLISHED' : item.is_published ? 'SCHEDULED' : 'DRAFT'}</span></div><RichTextBody value={item.body} className="mt-3 line-clamp-3 text-sm text-slate-600" /><div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500"><span>{item.recipients_count || 0} recipients · {item.target_scope?.replaceAll('_', ' ')}</span><span className="flex gap-3">{!item.published_at && <button onClick={() => setForm({ ...item, target_organization_ids: (item.target_organization_ids || []).map(String), target_departments: item.target_departments || [], target_roles: item.target_roles || [], publish: Boolean(item.is_published) })} className="inline-flex min-h-11 items-center font-bold text-[#0878B7] sm:min-h-0">Edit draft</button>}{!item.published_at && <button onClick={() => { setDeleteError(''); setDeleteTarget(item); }} className="inline-flex min-h-11 items-center gap-1 font-bold text-[#DC2626] sm:min-h-0"><Trash2 size={14} /> Delete draft</button>}{item.is_published && <button onClick={async () => { await archiveGlobalAnnouncement(item.id); load(); }} className="inline-flex min-h-11 items-center gap-1 font-bold text-slate-600 sm:min-h-0"><Archive size={14} /> Archive</button>}</span></div></article>)}</section>{firstRun && <EmptyState kind="first-run" icon={Megaphone} title="No official announcements yet" description="Official notices reach every user, organization, or college you choose. Publish one here." action={createButton} />}{form && <AccessibleOverlay label={form.id ? "Edit official announcement" : "Create official announcement"} onClose={() => !busy && setForm(null)} className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/50 p-4"><form onSubmit={save} className="mx-auto my-4 w-full max-w-2xl rounded-lg bg-white p-6 shadow-2xl"><div className="flex items-center gap-3"><span className="grid h-10 w-10 place-items-center rounded-lg bg-[#E6F6FD] text-[#0F2F62]"><Megaphone size={20} /></span><div><h3 className="font-black text-slate-900">{form.id ? 'Edit official SAO announcement' : 'Create official SAO announcement'}</h3><p className="text-xs text-slate-500">Written manually by the SAO Director. AI drafting is not available here.</p></div></div><div className="mt-5 grid gap-4"><label className="text-sm font-semibold"><FieldIcon label="Title" />Title<input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" /></label><div><label htmlFor="official-announcement" className="text-sm font-semibold"><FieldIcon label="Announcement" />Announcement</label><RichTextEditor id="official-announcement" value={form.body} onChange={(body) => setForm({ ...form, body })} rows={5} /></div><label className="text-sm font-semibold"><FieldIcon label="Audience scope" />Audience scope<select value={form.target_scope} onChange={(e) => setForm({ ...form, target_scope: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3"><option value="all_users">All HIUSA users</option><option value="all_organizations">All organizations</option><option value="selected_organizations">Selected organizations</option><option value="all_departments">All departments</option><option value="selected_departments">Selected departments</option></select></label>{form.target_scope === 'selected_organizations' && <fieldset><legend className="text-sm font-semibold">Organizations</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{organizations.map((org) => <label key={org.id} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={form.target_organization_ids.includes(String(org.id))} onChange={() => toggle('target_organization_ids', String(org.id))} /> {org.acronym}</label>)}</div></fieldset>}{form.target_scope === 'selected_departments' && <fieldset><legend className="text-sm font-semibold">Departments</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{departments.map((department) => <label key={department} className="flex items-center gap-2 rounded-lg border p-2 text-sm"><input type="checkbox" checked={form.target_departments.includes(department)} onChange={() => toggle('target_departments', department)} /> {department}</label>)}</div></fieldset>}<fieldset><legend className="text-sm font-semibold">Optional role filter</legend><div className="mt-2 flex flex-wrap gap-2">{roles.map((role) => <label key={role} className="flex items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold"><input type="checkbox" checked={form.target_roles.includes(role)} onChange={() => toggle('target_roles', role)} /> {role.replaceAll('_', ' ')}</label>)}</div></fieldset><div className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold"><FieldIcon label="Schedule (optional)" />Schedule (optional)<DateTimeInput type="datetime-local" value={form.scheduled_at || ''} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" /></label><label className="text-sm font-semibold"><FieldIcon label="Expires (optional)" />Expires (optional)<DateTimeInput type="datetime-local" value={form.expires_at || ''} onChange={(e) => setForm({ ...form, expires_at: e.target.value })} className="mt-1 h-10 w-full rounded-lg border px-3" /></label></div><div className="flex flex-wrap gap-4"><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.is_important} onChange={(e) => setForm({ ...form, is_important: e.target.checked })} /> <FieldIcon label="Important" />Important</label><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.is_pinned} onChange={(e) => setForm({ ...form, is_pinned: e.target.checked })} /> <FieldIcon label="Pin announcement" />Pin announcement</label><label className="flex items-center gap-2 text-sm font-semibold"><input type="checkbox" checked={form.publish} onChange={(e) => setForm({ ...form, publish: e.target.checked })} /> <FieldIcon label="Confirm publish" />Confirm publish</label></div></div><div className="mt-6 flex justify-end gap-2"><button type="button" onClick={() => setForm(null)} className="px-4 py-2 text-sm font-bold text-slate-600">Cancel</button><button disabled={busy} className="inline-flex items-center gap-2 rounded-lg bg-[#0878B7] px-4 py-2 text-sm font-bold text-white"><Send size={15} /> {busy ? 'Saving…' : form.publish ? 'Publish official notice' : 'Save draft'}</button></div></form></AccessibleOverlay>}<ConfirmModal open={Boolean(deleteTarget)} title="Delete this draft?" message="The draft is removed and will never be sent. This cannot be undone. A published announcement cannot be deleted; archive it instead." recordName={deleteTarget?.title} confirmText="Delete draft" variant="danger" busy={deleteBusy} error={deleteError} onCancel={() => setDeleteTarget(null)} onConfirm={confirmDelete} /></div>;
+  const toggle = (key, value) => setForm((current) => ({ ...current, [key]: current[key].includes(value) ? current[key].filter((entry) => entry !== value) : [...current[key], value] }));
+  function open(item = null) {
+    setError(''); setImage(null);
+    setForm(item ? { ...item, target_organization_ids: (item.target_organization_ids || []).map(String), target_departments: item.target_departments || [], target_roles: item.target_roles || [], publish: Boolean(item.is_published) } : FRESH);
+  }
+  async function save(event) {
+    event.preventDefault(); setBusy(true); setError('');
+    try {
+      const payload = { ...form, target_organization_ids: form.target_organization_ids.map(Number), scheduled_at: form.scheduled_at || null, expires_at: form.expires_at || null, ...(image ? { image } : {}) };
+      if (form.id) await updateGlobalAnnouncement(form.id, payload); else await createGlobalAnnouncement(payload);
+      setForm(null); setImage(null); load();
+    } catch (e) { setError(getApiErrorMessage(e, 'Could not save the official announcement.')); }
+    finally { setBusy(false); }
+  }
+  async function archive(item) {
+    setBusy(true); setError('');
+    try { await archiveGlobalAnnouncement(item.id); load(); }
+    catch (e) { setError(getApiErrorMessage(e, 'Could not archive the announcement.')); }
+    finally { setBusy(false); }
+  }
+  async function confirmDelete() {
+    setBusy(true); setDeleteError('');
+    try { await deleteGlobalAnnouncement(deleteTarget.id); setDeleteTarget(null); load(); }
+    catch (e) { setDeleteError(getApiErrorMessage(e, 'Could not delete this draft.')); }
+    finally { setBusy(false); }
+  }
+  const firstRun = !loading && !error && !items.length;
+  const createButton = <Button leftIcon={Plus} onClick={() => open()}>Create official notice</Button>;
+  return <div className="space-y-5">
+    <PageHeader primary={firstRun ? undefined : createButton} />
+    {error && !form && <p role="alert" className="text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
+    {loading ? <p role="status" className="text-sm text-ink-muted">Loading announcements...</p> : <section className="grid gap-4 md:grid-cols-2">{items.map((item) => <Card key={item.id}><p className="text-xs font-semibold text-brand-700">Student Affairs Office</p><h2 className="mt-1 font-bold text-ink">{item.title}</h2><p className="mt-1 text-xs text-ink-muted">{item.published_at ? 'Published' : item.is_published ? 'Scheduled' : 'Draft'}</p>{item.image_url && <img src={resolveAssetUrl(item.image_url)} alt={`Photo for ${item.title}`} className="mt-3 max-h-64 w-full rounded-lg object-contain" />}<RichTextBody value={item.body} className="mt-3 line-clamp-3 text-sm text-ink-muted" /><div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-3"><span className="text-xs text-ink-muted">{item.recipients_count || 0} recipients</span><div className="flex gap-2">{!item.published_at && <Button size="sm" variant="secondary" onClick={() => open(item)}>Edit draft</Button>}{!item.published_at && <Button size="sm" variant="danger" onClick={() => { setDeleteTarget(item); setDeleteError(''); }}>Delete draft</Button>}{item.is_published && <Button size="sm" variant="secondary" leftIcon={Archive} disabled={busy} onClick={() => archive(item)}>Archive</Button>}</div></div></Card>)}</section>}
+    {firstRun && <div className="rounded-lg border border-line bg-white p-8 text-center"><p className="mb-4 text-sm text-ink-muted">No official announcements yet</p>{createButton}</div>}
+    <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="announcements" />
+    <Modal open={Boolean(deleteTarget)} title="Delete this draft?" onClose={busy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={busy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={busy} onClick={confirmDelete}>Delete draft</Button></>}><p className="text-sm text-ink-muted">{deleteTarget?.title} will be removed and never sent.</p>{deleteError && <p role="alert" className="mt-3 text-sm text-danger-strong">{deleteError}</p>}</Modal>
+    <Modal open={Boolean(form)} title={form?.id ? 'Edit official announcement' : 'Create official announcement'} onClose={busy ? undefined : () => setForm(null)} maxWidth="max-w-2xl" footer={<><Button variant="secondary" disabled={busy} onClick={() => setForm(null)}>Cancel</Button><Button type="submit" form="official-notice-form" loading={busy}>{form?.publish ? 'Publish official notice' : 'Save draft'}</Button></>}>
+      {form && <form id="official-notice-form" onSubmit={save} className="space-y-4">
+        {error && <p role="alert" className="text-sm text-red-700">{error}</p>}
+        <Field label="Title" required><Input required maxLength={255} value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} /></Field>
+        <Field label="Announcement" required><RichTextEditor value={form.body} onChange={(body) => setForm({ ...form, body })} rows={5} /></Field>
+        <Field label="Photo (optional)" hint="JPEG, PNG, or WebP, up to 5 MB."><Input type="file" accept="image/jpeg,image/png,image/webp" onChange={(e) => { const file = e.target.files?.[0]; if (file && file.size > 5 * 1024 * 1024) { setError('Choose a photo no larger than 5 MB.'); e.target.value = ''; return; } setError(''); setImage(file || null); }} /></Field>
+        {(preview || form.image_url) && <img src={preview || resolveAssetUrl(form.image_url)} alt="Announcement photo preview" className="max-h-56 w-full rounded-lg object-contain" />}
+        <Field label="Audience scope"><Select value={form.target_scope} onChange={(e) => setForm({ ...form, target_scope: e.target.value })}><option value="all_users">All HIUSA users</option><option value="all_organizations">All organizations</option><option value="selected_organizations">Selected organizations</option><option value="all_departments">All departments</option><option value="selected_departments">Selected departments</option></Select></Field>
+        {form.target_scope === 'selected_organizations' && <fieldset><legend className="text-sm font-semibold">Organizations</legend><div className="mt-2 grid gap-2 sm:grid-cols-2">{organizations.map((org) => <label key={org.id} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={form.target_organization_ids.includes(String(org.id))} onChange={() => toggle('target_organization_ids', String(org.id))} />{org.acronym}</label>)}</div></fieldset>}
+        {form.target_scope === 'selected_departments' && <fieldset><legend className="text-sm font-semibold">Departments</legend>{departments.map((department) => <label key={department} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={form.target_departments.includes(department)} onChange={() => toggle('target_departments', department)} />{department}</label>)}</fieldset>}
+        <fieldset><legend className="text-sm font-semibold">Optional role filter</legend><div className="flex flex-wrap gap-3">{ROLES.map((role) => <label key={role} className="flex min-h-11 items-center gap-2 text-xs"><input type="checkbox" checked={form.target_roles.includes(role)} onChange={() => toggle('target_roles', role)} />{role.replaceAll('_', ' ')}</label>)}</div></fieldset>
+        <div className="grid gap-4 sm:grid-cols-2"><Field label="Schedule (optional)"><DateTimeInput type="datetime-local" value={form.scheduled_at || ''} onChange={(e) => setForm({ ...form, scheduled_at: e.target.value })} /></Field><Field label="Expires (optional)"><DateTimeInput type="datetime-local" value={form.expires_at || ''} onChange={(e) => setForm({ ...form, expires_at: e.target.value })} /></Field></div>
+        <div className="flex flex-wrap gap-4">{[['is_important', 'Important'], ['is_pinned', 'Pin announcement'], ['publish', 'Confirm publish']].map(([key, label]) => <label key={key} className="flex min-h-11 items-center gap-2 text-sm"><input type="checkbox" checked={Boolean(form[key])} onChange={(e) => setForm({ ...form, [key]: e.target.checked })} />{label}</label>)}</div>
+      </form>}
+    </Modal>
+  </div>;
 }

@@ -1,7 +1,7 @@
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import GlobalAnnouncementsPage from './GlobalAnnouncementsPage';
-import { deleteGlobalAnnouncement, getGlobalAnnouncements } from '../../../services/systemAdministrationService';
+import { createGlobalAnnouncement, deleteGlobalAnnouncement, getGlobalAnnouncements } from '../../../services/systemAdministrationService';
 
 vi.mock('../../../services/systemAdministrationService', () => ({
   getGlobalAnnouncements: vi.fn(),
@@ -48,5 +48,39 @@ describe('GlobalAnnouncementsPage delete', () => {
     fireEvent.click(within(dialog).getByRole('button', { name: 'Delete draft' }));
 
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('Published announcements cannot be deleted. Archive them instead.');
+  });
+});
+
+describe('Official announcement photos', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(getGlobalAnnouncements).mockResolvedValue({ data: [], total: 0, current_page: 1, last_page: 1 });
+    URL.createObjectURL = vi.fn(() => 'blob:announcement-photo');
+    URL.revokeObjectURL = vi.fn();
+  });
+
+  it('previews and submits a photo with the official notice', async () => {
+    vi.mocked(createGlobalAnnouncement).mockResolvedValue({ id: 1 });
+    render(<GlobalAnnouncementsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create official notice' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/^Title/), { target: { value: 'Campus assembly' } });
+    const photo = new File(['photo'], 'assembly.png', { type: 'image/png' });
+    fireEvent.change(within(dialog).getByLabelText('Photo (optional)'), { target: { files: [photo] } });
+    expect(await within(dialog).findByRole('img', { name: 'Announcement photo preview' })).toHaveAttribute('src', 'blob:announcement-photo');
+    fireEvent.submit(within(dialog).getByLabelText(/^Title/).closest('form'));
+    await waitFor(() => expect(createGlobalAnnouncement).toHaveBeenCalledWith(expect.objectContaining({ title: 'Campus assembly', target_scope: 'all_users', image: photo })));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:announcement-photo');
+  });
+
+  it('shows upload validation errors in the editor', async () => {
+    vi.mocked(createGlobalAnnouncement).mockRejectedValue({ response: { status: 422, data: { errors: { image: ['The photo is invalid.'] } } } });
+    render(<GlobalAnnouncementsPage />);
+    fireEvent.click(screen.getByRole('button', { name: 'Create official notice' }));
+    const dialog = screen.getByRole('dialog');
+    fireEvent.submit(within(dialog).getByLabelText(/^Title/).closest('form'));
+    expect(await within(dialog).findByRole('alert')).toHaveTextContent('The photo is invalid.');
+    expect(within(dialog).getByRole('button', { name: 'Save draft' })).not.toBeDisabled();
   });
 });

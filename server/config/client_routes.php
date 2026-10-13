@@ -32,11 +32,10 @@ $pendingClient = [];
 return [
     'SUPER_ADMIN' => [
         '/dashboard/super-admin',
-        '/dashboard/super-admin/agency',
         '/dashboard/super-admin/organizations',
         '/dashboard/super-admin/organizations/:organizationId',
         '/dashboard/super-admin/colleges',
-        '/dashboard/super-admin/admins',
+        '/dashboard/organization-applications',
         '/dashboard/super-admin/announcements',
         '/dashboard/super-admin/notifications',
         '/dashboard/super-admin/compliance',
@@ -45,7 +44,6 @@ return [
         '/dashboard/super-admin/clearances',
         '/dashboard/super-admin/audit-logs',
         '/dashboard/super-admin/academic-years',
-        '/dashboard/objectives',
         '/dashboard/profile',
     ],
 
@@ -91,7 +89,6 @@ return [
         '/dashboard/venues',
         '/dashboard/grievances',
         '/dashboard/clearances',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/manage-elections',
@@ -125,7 +122,6 @@ return [
         '/dashboard/tasks/ai-delegation',
         '/dashboard/venues',
         '/dashboard/clearances',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/manage-candidates',
@@ -135,6 +131,7 @@ return [
     ],
 
     'DEPARTMENT_HEAD' => [
+        '/dashboard/organization-applications',
         '/dashboard/department-head',
         '/dashboard/department-head/approvals',
         '/dashboard/department-head/organizations',
@@ -145,7 +142,6 @@ return [
         '/dashboard/finance/budget-allocation',
         '/dashboard/finance/financial-insights',
         '/dashboard/finance/transaction-history',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/election-results',
@@ -162,7 +158,6 @@ return [
         '/dashboard/merchandise/my-orders',
         '/dashboard/my-grievances',
         '/dashboard/my-clearance',
-        '/dashboard/objectives',
         '/dashboard/profile',
         '/dashboard/elections',
         '/dashboard/elections/cast-vote',

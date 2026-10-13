@@ -148,6 +148,12 @@ class GlobalAnnouncementController extends Controller
 
     private function validatedPayload(Request $request, bool $updating = false): array
     {
+        if ($request->has('payload')) {
+            $request->validate(['payload' => ['required', 'json', 'max:100000']]);
+            $fields = json_decode($request->input('payload'), true);
+            abort_unless(is_array($fields), 422, 'Invalid announcement payload.');
+            $request->merge($fields);
+        }
         $required = $updating ? ['sometimes', 'required'] : ['required'];
         $data = $request->validate([
             'title' => [...$required, 'string', 'max:255'], 'body' => [...$required, 'string'],
