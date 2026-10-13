@@ -94,7 +94,7 @@ class DepartmentHeadProvisioningTest extends TestCase
 
         Sanctum::actingAs($impostor);
         $this->getJson('/api/college/organizations')->assertForbidden();
-        $this->postJson('/api/college/organizations', [])->assertForbidden();
+        $this->postJson('/api/college/organizations', [])->assertStatus(405);
         $this->getJson('/api/college/organizations/requirements')->assertForbidden();
     }
 

@@ -3,14 +3,15 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import LandingPage from './LandingPage';
 import RegisterOrganizationPage from './RegisterOrganizationPage';
-import { getRegistrationColleges, submitOrganizationApplication } from '../../services/organizationApplicationService';
+import { getApplicationRequirements, getRegistrationColleges, submitOrganizationApplication } from '../../services/organizationApplicationService';
 
-vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), submitOrganizationApplication: vi.fn() }));
+vi.mock('../../services/organizationApplicationService', () => ({ getRegistrationColleges: vi.fn(), getApplicationRequirements: vi.fn(), submitOrganizationApplication: vi.fn() }));
 
 describe('Public organization onboarding', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getRegistrationColleges.mockResolvedValue({ data: [{ id: 2, name: 'College of Computing' }] });
+    getApplicationRequirements.mockResolvedValue({ data: { academic_semester: { academic_year: '2026-2027', number: 1 }, requirements: [{ id: 7, name: 'Constitution' }] } });
   });
 
   it('offers registration and login from the landing page', () => {
@@ -44,8 +45,10 @@ describe('Public organization onboarding', () => {
     for (const [label, value] of [['Organization name', 'Computing Council'], ['Organization code', 'CC'], ['First name', 'Alex'], ['Last name', 'Rivera'], ['School ID', '12345678'], ['Email', 'alex@example.test'], ['Position', 'President'], ['College', '2']]) {
       fireEvent.change(screen.getByLabelText(new RegExp(`^${label}`)), { target: { value } });
     }
-    fireEvent.click(screen.getByRole('button', { name: 'Submit application' }));
-    await waitFor(() => expect(submitOrganizationApplication).toHaveBeenCalledWith(expect.objectContaining({ first_name: 'Alex', last_name: 'Rivera', email: 'alex@example.test', position_title: 'President', college_id: '2' })));
+    const document = new File(['%PDF-1.4'], 'constitution.pdf', { type: 'application/pdf' });
+    fireEvent.change(screen.getByLabelText(/^Constitution/), { target: { files: [document] } });
+    fireEvent.submit(screen.getByRole('button', { name: 'Submit application' }).closest('form'));
+    await waitFor(() => expect(submitOrganizationApplication).toHaveBeenCalledWith(expect.objectContaining({ first_name: 'Alex', last_name: 'Rivera', email: 'alex@example.test', position_title: 'President', college_id: '2' }), { 7: document }));
     expect(await screen.findByRole('status')).toHaveTextContent('Check your email');
   });
 
@@ -56,5 +59,12 @@ describe('Public organization onboarding', () => {
     fireEvent.submit(screen.getByRole('button', { name: 'Submit application' }).closest('form'));
     expect((await screen.findAllByText('Use the applicant email.')).length).toBeGreaterThan(0);
     expect(screen.getByLabelText(/^Email/)).toHaveAttribute('aria-invalid', 'true');
+  });
+
+  it('does not offer submission until the SAO opens requirements', async () => {
+    getApplicationRequirements.mockResolvedValue({ data: { academic_semester: null, requirements: [] } });
+    render(<MemoryRouter><RegisterOrganizationPage /></MemoryRouter>);
+    expect(await screen.findByText('No registration requirements are open. The SAO must activate a semester first.')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Submit application' })).not.toBeInTheDocument();
   });
 });

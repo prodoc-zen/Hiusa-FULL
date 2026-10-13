@@ -13,7 +13,6 @@ export const getCollegeOrganizations = (params) => api.get('/college/organizatio
 
 export const getRegistrationRequirements = () => api.get('/college/organizations/requirements');
 
-export const registerOrganization = (fields, files) => api.post('/college/organizations', registrationForm(fields, files));
 
 export const resubmitOrganization = (id, fields, files = {}) => {
   const data = registrationForm(fields, files);

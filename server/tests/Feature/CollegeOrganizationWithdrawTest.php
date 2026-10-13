@@ -12,7 +12,6 @@ use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
@@ -68,12 +67,24 @@ class CollegeOrganizationWithdrawTest extends TestCase
         $typeIds = ComplianceRequirementType::where('academic_semester_id', $semesterId)->where('name', '!=', ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT)->pluck('id');
 
         Sanctum::actingAs($this->head);
+        $organization = Organization::create([
+            'name' => 'Robotics Guild', 'slug' => 'robotics-guild', 'acronym' => 'ROBO',
+            'college_id' => $this->ccs->id, 'college' => $this->ccs->name,
+            'organization_type' => 'STUDENT_ORGANIZATION', 'lifecycle_status' => 'pending',
+            'is_active' => false, 'submitted_by' => $this->head->school_id, 'submitted_at' => now(),
+        ]);
+        foreach ($typeIds as $id) {
+            $path = "compliance-submissions/{$organization->id}/requirement-{$id}.pdf";
+            Storage::disk('local')->put($path, '%PDF-1.4');
+            OrganizationComplianceSubmission::create([
+                'organization_id' => $organization->id, 'requirement_type_id' => $id,
+                'status' => 'submitted', 'file_path' => $path, 'file_original_name' => "requirement-{$id}.pdf",
+                'mime_type' => 'application/pdf', 'file_size' => 8,
+                'submitted_by' => $this->head->school_id, 'submitted_at' => now(),
+            ]);
+        }
 
-        return $this->post('/api/college/organizations', [
-            'name' => 'Robotics Guild',
-            'acronym' => 'ROBO',
-            'files' => $typeIds->mapWithKeys(fn ($id) => [$id => UploadedFile::fake()->create("requirement-{$id}.pdf", 120, 'application/pdf')])->all(),
-        ], ['Accept' => 'application/json'])->assertCreated()->json('id');
+        return $organization->id;
     }
 
     public function test_head_withdraws_a_pending_registration_and_the_sao_is_told(): void
