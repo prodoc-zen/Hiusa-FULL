@@ -2,9 +2,9 @@ import { formatDisplayText } from '../../../utils/displayText.js';
 import { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Building2, ImagePlus, Trash2, UserPlus } from 'lucide-react';
-import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Select, SkeletonCard, StatusBadge } from '../../../components/ui';
+import { Button, EmptyState, ErrorState, Field, Input, PageHeader, Select, SkeletonCard, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
-import { deleteSystemCollege, getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
+import { createSystemCollege, deleteSystemCollege, getSystemColleges, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
 import { AssignDepartmentHeadModal, ManageDepartmentHeadModal, summarizeHead } from './DepartmentHeadDialogs';
@@ -69,6 +69,11 @@ export default function SystemCollegesPage() {
   const [transferTo, setTransferTo] = useState('');
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  const [adding, setAdding] = useState(false);
+  const [addForm, setAddForm] = useState({ name: '', code: '', description: '' });
+  const [addBusy, setAddBusy] = useState(false);
+  const [addError, setAddError] = useState('');
+  const [addFieldErrors, setAddFieldErrors] = useState({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -104,13 +109,33 @@ export default function SystemCollegesPage() {
     setNotice(message);
   }
 
+  async function addCollege(event) {
+    event.preventDefault();
+    setAddBusy(true);
+    setAddError('');
+    setAddFieldErrors({});
+    try {
+      const saved = await createSystemCollege({ name: addForm.name.trim(), code: addForm.code.trim() || null, description: addForm.description.trim() || null });
+      setAdding(false);
+      setAddForm({ name: '', code: '', description: '' });
+      setNotice(`${formatDisplayText(saved.name)} added. You can now assign a Department Head.`);
+      await load();
+    } catch (cause) {
+      const fieldErrors = cause.response?.data?.errors || {};
+      setAddError(Object.keys(fieldErrors).length ? 'Please correct the highlighted fields.' : getApiErrorMessage(cause, 'Could not add this college.'));
+      setAddFieldErrors(fieldErrors);
+    } finally {
+      setAddBusy(false);
+    }
+  }
+
   async function confirmDelete() {
     setDeleteBusy(true);
     setDeleteError('');
     try {
       await deleteSystemCollege(deleteTarget.id, transferTo);
       setDeleteTarget(null);
-      setNotice(transferTo ? 'College deleted. Its student organizations were transferred.' : 'College deleted. Its organizations and accounts were deactivated.');
+      setNotice(transferTo ? 'College deleted. Its organizations and users were moved to the replacement college.' : 'Empty college deleted.');
       await load();
     } catch (cause) {
       setDeleteError(getApiErrorMessage(cause, 'Could not delete this college.'));
@@ -121,10 +146,12 @@ export default function SystemCollegesPage() {
 
   const term = search.trim().toLowerCase();
   const visible = colleges.filter((college) => [college.name, college.code].some((value) => String(value || '').toLowerCase().includes(term)));
+  const replacements = colleges.filter((college) => college.id !== deleteTarget?.id && college.can_receive_transfer);
 
   return (
     <div className="space-y-5">
-      <PageHeader purpose="Assign each college's Department Head, open its organizations, update its logo, or delete it." />
+      <PageHeader purpose="Add colleges, assign Department Heads, and manage each college's organizations." />
+      <Button onClick={() => { setAddError(''); setAddFieldErrors({}); setAdding(true); }}>Add college</Button>
       {error && !loading ? <ErrorState description={error} onRetry={load} /> : (
         <>
           <Field label="Search colleges" className="max-w-md"><Input type="search" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="College name or code" /></Field>
@@ -135,15 +162,24 @@ export default function SystemCollegesPage() {
           ) : visible.length ? (
             <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <CollegeCard key={college.id} college={college} uploading={uploadingId === college.id} onUpload={upload} onAssign={setAssigning} onManage={setManaging} onDelete={(item) => { setDeleteTarget(item); setTransferTo(''); setDeleteError(''); }} />)}</section>
           ) : (
-            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'The college list is empty. Colleges are added by the system administrators.'} />
+            <EmptyState kind={colleges.length ? 'filtered' : 'first-run'} icon={Building2} title="No colleges found" description={colleges.length ? 'No colleges match your search.' : 'Add the first college to begin assigning Department Heads.'} />
           )}
         </>
       )}
       {assigning && <AssignDepartmentHeadModal college={assigning} onClose={() => setAssigning(null)} onAssigned={(user, message) => headChanged(assigning.id, user, message)} />}
       {managing?.department_head && <ManageDepartmentHeadModal college={managing} head={managing.department_head} onClose={() => setManaging(null)} onChanged={(user, message) => headChanged(managing.id, user, message)} />}
-      <Modal open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.name || 'college'}`} onClose={deleteBusy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={deleteBusy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={deleteBusy} onClick={confirmDelete}>Delete college</Button></>}>
-        <p className="text-sm text-ink-muted">Choose a college to receive its student organizations, or leave this blank to deactivate its organizations and accounts. The department head account will be deactivated.</p>
-        <Field label="Transfer student organizations to" className="mt-4"><Select value={transferTo} onChange={(event) => setTransferTo(event.target.value)}><option value="">No transfer — deactivate</option>{colleges.filter((college) => college.id !== deleteTarget?.id && college.is_active).map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}</Select></Field>
+      <Modal open={adding} title="Add college" onClose={addBusy ? undefined : () => setAdding(false)} footer={<><Button variant="secondary" disabled={addBusy} onClick={() => setAdding(false)}>Cancel</Button><Button type="submit" form="add-college-form" loading={addBusy}>Add college</Button></>}>
+        <form id="add-college-form" onSubmit={addCollege} className="space-y-4">
+          <Field label="College name" required error={addFieldErrors.name?.[0]}><Input required maxLength={255} value={addForm.name} onChange={(event) => setAddForm((form) => ({ ...form, name: event.target.value }))} /></Field>
+          <Field label="Code" error={addFieldErrors.code?.[0]}><Input maxLength={50} value={addForm.code} onChange={(event) => setAddForm((form) => ({ ...form, code: event.target.value }))} /></Field>
+          <Field label="Description" error={addFieldErrors.description?.[0]}><Textarea maxLength={3000} rows={3} value={addForm.description} onChange={(event) => setAddForm((form) => ({ ...form, description: event.target.value }))} /></Field>
+          {addError && <p role="alert" className="text-sm text-danger-strong">{addError}</p>}
+        </form>
+      </Modal>
+      <Modal open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.name || 'college'}`} onClose={deleteBusy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={deleteBusy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={deleteBusy} disabled={Boolean(deleteTarget?.has_assignments && !transferTo)} onClick={confirmDelete}>Delete college</Button></>}>
+        <p className="text-sm text-ink-muted">{deleteTarget?.has_assignments ? 'This college has organizations or users. Choose an empty active college to receive them before deleting it. Their accounts will stay active, but they will need to sign in again.' : 'This college has no assigned organizations or users and can be deleted.'}</p>
+        {deleteTarget?.has_assignments && <Field label="Replacement college" required className="mt-4"><Select required value={transferTo} onChange={(event) => setTransferTo(event.target.value)}><option value="">Select an empty college</option>{replacements.map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}</Select></Field>}
+        {deleteTarget?.has_assignments && !replacements.length && <p className="mt-3 text-sm text-ink-muted">No empty college is available. Cancel this dialog and add a new college first.</p>}
         {deleteError && <p role="alert" className="mt-3 text-sm text-danger-strong">{deleteError}</p>}
       </Modal>
     </div>

@@ -11,6 +11,7 @@ export const uploadSystemOrganizationLogo = (id, file) => {
   return unwrap(api.post(`/system/organizations/${id}/logo`, data));
 };
 export const getSystemColleges = () => unwrap(api.get('/system/colleges'));
+export const createSystemCollege = (payload) => unwrap(api.post('/system/colleges', payload));
 export const uploadSystemCollegeLogo = (id, file) => {
   const data = new FormData();
   data.append('logo', file);
