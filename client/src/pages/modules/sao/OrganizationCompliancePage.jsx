@@ -12,6 +12,7 @@ import { complianceStageText } from './complianceStage';
 import { RichTextBody } from '../../../components/RichText';
 import TableRowActions from '../../../components/TableRowActions';
 import { openProtectedFile } from '../../../utils/openProtectedFile';
+import { openRequirementSample } from '../../../utils/requirementSample';
 
 function getCurrentRole() {
   try {
@@ -25,7 +26,7 @@ function mergeRequirements(statusRequirements, types, submissions) {
   return statusRequirements.map((requirement) => {
     const type = types.find((item) => item.id === requirement.requirement_type_id);
     const submission = submissions.find((item) => item.requirement_type?.id === requirement.requirement_type_id);
-    return { ...requirement, description: type?.description || null, allowed_extensions: type?.allowed_extensions, submission: submission || null };
+    return { ...requirement, description: type?.description || null, allowed_extensions: type?.allowed_extensions, template_url: type?.template_url, template_original_name: type?.template_original_name, submission: submission || null };
   });
 }
 
@@ -90,6 +91,14 @@ export default function OrganizationCompliancePage() {
       await openProtectedFile(`/compliance/submissions/${id}/document`);
     } catch (error) {
       notify.error(getApiErrorMessage(error, 'Could not open this document.'));
+    }
+  }
+
+  async function viewSample(requirement) {
+    try {
+      await openRequirementSample(requirement);
+    } catch (error) {
+      notify.error(getApiErrorMessage(error, 'Could not open the sample file.'));
     }
   }
 
@@ -180,6 +189,7 @@ export default function OrganizationCompliancePage() {
               { key: 'file', header: 'File', render: (requirement) => requirement.file_name ? <span className="inline-flex items-center gap-1 break-all text-xs"><File size={13} aria-hidden="true" />{requirement.file_name}</span> : 'No file' },
             ]}
             actions={(requirement) => <TableRowActions subject={requirement.requirement_name} actions={[
+              (requirement.template_url || requirement.template_original_name) && { label: 'View sample format', icon: Eye, onClick: () => viewSample(requirement) },
               requirement.submission_id && { label: 'View file', icon: Eye, onClick: () => viewFile(requirement) },
               requirement.status !== 'approved' && { label: requirement.status === 'not_submitted' ? 'Upload document' : 'Replace document', icon: requirement.status === 'not_submitted' ? Upload : Pencil, onClick: () => openUpload(requirement) },
             ]} />}
@@ -201,6 +211,7 @@ export default function OrganizationCompliancePage() {
       >
         <div className="space-y-4">
           {uploadTarget?.description && <p className="text-sm font-medium text-ink-muted">{uploadTarget.description}</p>}
+          {(uploadTarget?.template_url || uploadTarget?.template_original_name) && <Button variant="secondary" size="sm" onClick={() => viewSample(uploadTarget)}>View sample format</Button>}
           {uploadTarget?.status === 'returned' && (uploadTarget.remarks || uploadTarget.submission?.remarks) && (
             <div className="rounded-control border border-danger/30 bg-danger-tint p-3">
               <p className="text-xs font-bold uppercase tracking-wide text-danger-strong">Why this was returned</p>

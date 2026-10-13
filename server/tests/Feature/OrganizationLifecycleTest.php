@@ -195,7 +195,7 @@ class OrganizationLifecycleTest extends TestCase
         $this->assertSame('pending', $pending['lifecycle_status']);
         $this->assertNotNull($pending['submitted_at']);
         $this->assertCount(10, $pending['registration_requirements']);
-        $this->assertSame(['requirement_type_id', 'requirement_name', 'allowed_extensions', 'file_name', 'status', 'submission_id'], array_keys($pending['registration_requirements'][0]));
+        $this->assertSame(['requirement_type_id', 'requirement_name', 'allowed_extensions', 'template_original_name', 'template_url', 'file_name', 'status', 'submission_id'], array_keys($pending['registration_requirements'][0]));
         $this->assertSame('submitted', $pending['registration_requirements'][0]['status']);
         $this->assertStringEndsWith('.pdf', $pending['registration_requirements'][0]['file_name']);
         $this->assertSame(0, $pending['members_count']);
@@ -203,7 +203,7 @@ class OrganizationLifecycleTest extends TestCase
 
         $requirements = $this->getJson('/api/college/organizations/requirements')->assertOk();
         $this->assertCount(10, $requirements->json('requirements'));
-        $this->assertSame(['id', 'name', 'description', 'deadline_at', 'allowed_extensions'], array_keys($requirements->json('requirements.0')));
+        $this->assertSame(['id', 'name', 'description', 'deadline_at', 'template_original_name', 'template_url', 'allowed_extensions'], array_keys($requirements->json('requirements.0')));
         $this->assertSame(1, $requirements->json('academic_semester.number'));
     }
 

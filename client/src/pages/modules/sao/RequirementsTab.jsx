@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { ClipboardList, Pencil, Plus, Power, Trash2 } from 'lucide-react';
+import { ClipboardList, Eye, Pencil, Plus, Power, Trash2 } from 'lucide-react';
 import { Button, Card, DataTable, EmptyState, Field, Input, Select } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import RichTextEditor, { RichTextBody } from '../../../components/RichText';
@@ -12,12 +12,16 @@ import { manilaDate } from '../../../lib/format';
 import { unwrapList } from '../../../services/pagination';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { getAcademicYears } from '../../../services/systemAdministrationService';
-import { fileTypesLabel, SUPPORTED_REQUIREMENT_EXTENSIONS } from '../../../utils/requirementFiles';
+import { fileAccept, fileTypesLabel, SUPPORTED_REQUIREMENT_EXTENSIONS, validateRequirementFile } from '../../../utils/requirementFiles';
+import { openRequirementSample } from '../../../utils/requirementSample';
 import {
   createRequirementType,
   deleteRequirementType,
   getRequirementTypes,
+  removeRequirementSample,
+  setRequirementSampleLink,
   updateRequirementType,
+  uploadRequirementSample,
 } from '../../../services/complianceService';
 
 const EMPTY_TYPE_FORM = { academic_year: '', name: '', description: '', deadline_at: '', allowed_extensions: ['pdf'], is_active: true };
@@ -37,6 +41,9 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState(null);
+  const [sampleMode, setSampleMode] = useState('none');
+  const [sampleFile, setSampleFile] = useState(null);
+  const [sampleUrl, setSampleUrl] = useState('');
 
   const loadTypes = useCallback(() => {
     setTypes((current) => ({ ...current, loading: true, error: null }));
@@ -52,6 +59,9 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     setTypeFormError(null);
     setFieldErrors({});
     setTypeModal({ mode: type ? 'edit' : 'create', type });
+    setSampleMode(type?.template_url ? 'link' : type?.template_original_name ? 'file' : 'none');
+    setSampleFile(null);
+    setSampleUrl(type?.template_url || '');
     setTypeForm(type ? {
       academic_year: type.academic_year || '',
       name: type.name || '',
@@ -69,9 +79,18 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     if (!typeForm.deadline_at) errors.deadline_at = 'Set the deadline for organizations.';
     if (!typeForm.name.trim()) errors.name = 'Enter a name for this requirement.';
     if (!typeForm.allowed_extensions.length) errors.allowed_extensions = 'Choose at least one accepted file type.';
+    if (sampleMode === 'file' && !sampleFile && !typeModal?.type?.template_original_name) errors.sample = 'Choose a sample file.';
+    if (sampleMode === 'link') {
+      try {
+        const url = new URL(sampleUrl.trim());
+        if (!['http:', 'https:'].includes(url.protocol)) throw new Error('Invalid protocol');
+      } catch {
+        errors.sample = 'Enter a valid http or https sample link.';
+      }
+    }
     setFieldErrors(errors);
     const firstInvalid = FIELD_ORDER.find((key) => errors[key]);
-    if (firstInvalid) {
+    if (firstInvalid || errors.sample) {
       fieldRefs.current[firstInvalid]?.focus();
       return;
     }
@@ -88,13 +107,27 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     };
 
     try {
-      if (typeModal.mode === 'edit') {
-        await updateRequirementType(typeModal.type.id, payload);
-        notify.success('Requirement updated.');
-      } else {
-        await createRequirementType(payload);
-        notify.success('Requirement added. Every active organization has been notified.');
+      const response = typeModal.mode === 'edit'
+        ? await updateRequirementType(typeModal.type.id, payload)
+        : await createRequirementType(payload);
+      const savedType = response.data;
+      const previous = typeModal.type;
+      const sampleChanged = (sampleMode === 'file' && sampleFile)
+        || (sampleMode === 'link' && sampleUrl.trim() !== (previous?.template_url || ''))
+        || (sampleMode === 'none' && (previous?.template_original_name || previous?.template_url));
+      if (sampleChanged) {
+        try {
+          if (sampleMode === 'file') await uploadRequirementSample(savedType.id, sampleFile);
+          else if (sampleMode === 'link') await setRequirementSampleLink(savedType.id, sampleUrl.trim());
+          else await removeRequirementSample(savedType.id);
+        } catch (cause) {
+          setTypeModal({ mode: 'edit', type: savedType });
+          setTypeFormError(`Requirement saved, but the sample was not updated. ${getApiErrorMessage(cause, 'Try saving it again.')}`);
+          loadTypes();
+          return;
+        }
       }
+      notify.success(typeModal.mode === 'edit' ? 'Requirement updated.' : 'Requirement added. Every active organization has been notified.');
       setTypeModal(null);
       loadTypes();
       onChanged();
@@ -143,11 +176,20 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
     }
   }
 
+  async function viewSample(type) {
+    try {
+      await openRequirementSample(type);
+    } catch (cause) {
+      notify.error(getApiErrorMessage(cause, 'Could not open the sample file.'));
+    }
+  }
+
   const columns = [
     { key: 'name', header: 'Requirement', render: (type) => <span className="font-bold text-ink">{formatDisplayText(type.name)}</span> },
     { key: 'academic_year', header: 'Academic year' },
     { key: 'deadline_at', header: 'Deadline', render: (type) => manilaDate(type.deadline_at, 'long') },
     { key: 'allowed_extensions', header: 'Accepted files', render: (type) => fileTypesLabel(type.allowed_extensions) },
+    { key: 'sample', header: 'Sample format', render: (type) => type.template_original_name || (type.template_url ? 'Link' : 'None') },
     { key: 'description', header: 'Description', render: (type) => <RichTextBody as="span" value={type.description || 'No description.'} className="line-clamp-2 text-ink-muted" /> },
   ];
 
@@ -169,6 +211,7 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
           error={types.error}
           onRetry={loadTypes}
           actions={(type) => <TableRowActions subject={formatDisplayText(type.name)} actions={[
+            (type.template_url || type.template_original_name) && { label: 'View sample', icon: Eye, onClick: () => viewSample(type) },
             { label: 'Edit requirement', icon: Pencil, onClick: () => openTypeModal(type) },
             { label: type.is_active ? 'Mark inactive' : 'Mark active', icon: Power, disabled: togglingId === type.id, onClick: () => requestToggle(type) },
             { label: 'Delete requirement', icon: Trash2, danger: true, onClick: () => { setDeleteError(null); setDeleteTarget(type); } },
@@ -232,6 +275,28 @@ export default function RequirementsTab({ currentAcademicYear, onChanged }) {
             </div>
             {fieldErrors.allowed_extensions && <p id="organization-file-types-error" role="alert" className="text-xs text-danger-strong">{fieldErrors.allowed_extensions}</p>}
           </fieldset>
+          <Field label="Sample format" hint="Optional. Applicants and organization admins can view it before submitting." className="sm:col-span-2">
+            <Select value={sampleMode} onChange={(event) => { setSampleMode(event.target.value); setFieldErrors((current) => ({ ...current, sample: null })); }}>
+              <option value="none">No sample</option>
+              <option value="file">Attach a file</option>
+              <option value="link">Use a link</option>
+            </Select>
+          </Field>
+          {sampleMode === 'file' && <Field label="Sample file" hint={typeModal?.type?.template_original_name ? 'Leave empty to keep the current file.' : 'Up to 10 MB.'} error={fieldErrors.sample} className="sm:col-span-2">
+            <input type="file" accept={fileAccept(SUPPORTED_REQUIREMENT_EXTENSIONS)} onChange={(event) => {
+              const file = event.target.files?.[0];
+              const problem = file ? validateRequirementFile(file, SUPPORTED_REQUIREMENT_EXTENSIONS) : null;
+              setSampleFile(problem ? null : file);
+              setFieldErrors((current) => ({ ...current, sample: problem }));
+            }} className="block min-h-11 w-full rounded-control border border-line bg-surface p-2 text-sm text-ink" />
+          </Field>}
+          {sampleMode === 'link' && <Field label="Sample link" error={fieldErrors.sample} className="sm:col-span-2">
+            <Input type="url" maxLength={2048} value={sampleUrl} onChange={(event) => { setSampleUrl(event.target.value); setFieldErrors((current) => ({ ...current, sample: null })); }} placeholder="https://example.edu/sample-format" />
+          </Field>}
+          {(typeModal?.type?.template_original_name || typeModal?.type?.template_url) && <div className="sm:col-span-2 flex flex-wrap items-center gap-2 text-xs text-ink-muted">
+            <span className="break-all">Current: {typeModal.type.template_original_name || typeModal.type.template_url}</span>
+            <Button type="button" size="sm" variant="secondary" onClick={() => viewSample(typeModal.type)}>View sample</Button>
+          </div>}
           <div className="sm:col-span-2">
             <ActiveSwitch label="Requirement active" checked={typeForm.is_active} onChange={(isActive) => setTypeForm({ ...typeForm, is_active: isActive })} />
             <p className="text-xs font-medium text-ink-muted">Active requirements must be submitted by every organization. Turning one off changes accreditation for all of them.</p>

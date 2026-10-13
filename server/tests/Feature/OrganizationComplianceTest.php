@@ -63,6 +63,44 @@ class OrganizationComplianceTest extends TestCase
         ])->assertForbidden();
     }
 
+    public function test_sao_can_attach_link_replace_and_remove_a_sample_for_an_organization_requirement(): void
+    {
+        Storage::fake('local');
+        $sao = $this->user('SUPER_ADMIN');
+        $admin = $this->user('ADMIN');
+        Sanctum::actingAs($sao);
+        $id = $this->postJson('/api/compliance/requirement-types', [
+            'academic_year' => '2026-2027', 'name' => 'Financial Statement', 'deadline_at' => now()->addMonth()->toISOString(),
+        ])->assertCreated()->json('id');
+
+        $this->putJson("/api/compliance/requirement-types/{$id}/template-link", ['template_url' => 'javascript:alert(1)'])
+            ->assertUnprocessable()->assertJsonValidationErrors('template_url');
+        $this->putJson("/api/compliance/requirement-types/{$id}/template-link", ['template_url' => 'https://example.edu/statement-guide'])
+            ->assertOk()->assertJsonPath('template_url', 'https://example.edu/statement-guide');
+        $this->getJson('/api/compliance/requirement-types')->assertOk()->assertJsonMissingPath('data.0.template_path');
+
+        $response = $this->post("/api/compliance/requirement-types/{$id}/template", [
+            'template' => UploadedFile::fake()->create('statement.pdf', 10, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertOk()->assertJsonPath('template_url', null)
+            ->assertJsonPath('template_original_name', 'statement.pdf');
+        $this->assertArrayNotHasKey('template_path', $response->json());
+        $path = ComplianceRequirementType::findOrFail($id)->template_path;
+        Storage::disk('local')->assertExists($path);
+
+        Sanctum::actingAs($admin);
+        $this->post("/api/compliance/requirement-types/{$id}/template", [
+            'template' => UploadedFile::fake()->create('other.pdf', 10, 'application/pdf'),
+        ], ['Accept' => 'application/json'])->assertForbidden();
+        $this->deleteJson("/api/compliance/requirement-types/{$id}/template")->assertForbidden();
+        $this->get("/api/compliance/requirement-types/{$id}/template")->assertOk()->assertHeader('Content-Type', 'application/pdf');
+
+        Sanctum::actingAs($sao);
+        $this->deleteJson("/api/compliance/requirement-types/{$id}/template")->assertOk()
+            ->assertJsonPath('template_original_name', null);
+        Storage::disk('local')->assertMissing($path);
+        $this->get("/api/compliance/requirement-types/{$id}/template")->assertNotFound();
+    }
+
     public function test_sao_sets_accepted_file_types_and_uploads_follow_the_current_setting(): void
     {
         Storage::fake('local');
