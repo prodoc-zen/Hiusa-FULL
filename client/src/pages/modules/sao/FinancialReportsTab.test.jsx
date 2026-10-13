@@ -31,6 +31,11 @@ const report = {
   supporting_documents: [],
 };
 
+async function viewReportFromMenu() {
+  fireEvent.click(screen.getByRole('button', { name: 'Actions for September Income Statement' }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: 'View report' }));
+}
+
 describe('FinancialReportsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,7 +74,7 @@ describe('FinancialReportsTab', () => {
     render(<FinancialReportsTab />);
     await screen.findByText('September Income Statement');
 
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    await viewReportFromMenu();
     expect(await screen.findByText('Income and expenses were calculated from the saved ledger.')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Approve' }));
     fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
@@ -77,11 +82,21 @@ describe('FinancialReportsTab', () => {
     await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'approved' }));
   });
 
+  it('offers pending decisions in the report row menu', async () => {
+    render(<FinancialReportsTab />);
+    await screen.findByText('September Income Statement');
+    fireEvent.click(screen.getByRole('button', { name: 'Actions for September Income Statement' }));
+    expect(screen.getByRole('menuitem', { name: 'Download PDF' })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('menuitem', { name: 'Approve' }));
+    fireEvent.click(await screen.findByRole('button', { name: 'Approve report' }));
+    await waitFor(() => expect(approvalMocks.reviewApprovalRequest).toHaveBeenCalledWith(31, { status: 'approved' }));
+  });
+
   it('returns a report to the organization only with a reason', async () => {
     render(<FinancialReportsTab />);
     await screen.findByText('September Income Statement');
 
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    await viewReportFromMenu();
     await screen.findByText('Income and expenses were calculated from the saved ledger.');
     fireEvent.click(screen.getByRole('button', { name: 'Reject' }));
 
@@ -100,7 +115,7 @@ describe('FinancialReportsTab', () => {
     render(<FinancialReportsTab />);
     await screen.findByText('September Income Statement');
 
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    await viewReportFromMenu();
     fireEvent.click(await screen.findByRole('button', { name: 'Receipts.pdf' }));
 
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/financial-reports/8/documents/0'));
@@ -113,7 +128,7 @@ describe('FinancialReportsTab', () => {
     render(<FinancialReportsTab />);
     await screen.findByText('September Income Statement');
 
-    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+    await viewReportFromMenu();
     fireEvent.click(await screen.findByRole('button', { name: 'Receipts.pdf' }));
 
     expect(await screen.findByText('Allow pop-ups to open this file.')).toBeInTheDocument();

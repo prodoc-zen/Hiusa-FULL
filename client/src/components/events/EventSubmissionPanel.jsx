@@ -50,6 +50,10 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
   }
 
   async function viewTemplate(requirement) {
+    if (requirement.template_url) {
+      window.open(requirement.template_url, '_blank', 'noopener,noreferrer');
+      return;
+    }
     try {
       await openProtectedFile(`/event-requirements/${requirement.id}/template`);
     } catch (cause) {
@@ -78,12 +82,13 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
         columns={[
           { key: 'name', header: 'Requirement', render: (item) => <div><strong>{formatDisplayText(item.name)}</strong>{item.description && <RichTextBody value={item.description} className="mt-1 text-xs text-slate-600" />}</div> },
           { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{byRequirement.get(item.id)?.original_name || 'No file'}</span> },
-          { key: 'sample', header: 'SAO sample', render: (item) => item.template_original_name
-            ? <Button size="sm" variant="secondary" onClick={() => viewTemplate(item)}>View sample</Button>
-            : 'No sample' },
+          { key: 'sample', header: 'SAO sample', render: (item) => item.template_url ? 'Link' : item.template_original_name ? 'PDF file' : 'No sample' },
           { key: 'status', header: 'Status', render: (item) => <StatusBadge label={byRequirement.has(item.id) ? 'Submitted' : 'Not submitted'} tone={byRequirement.has(item.id) ? 'info' : 'neutral'} /> },
         ]}
-        actions={(item) => byRequirement.has(item.id) && <TableRowActions subject={formatDisplayText(item.name)} actions={[{ label: 'View file', icon: Eye, onClick: () => view(byRequirement.get(item.id)) }]} />}
+        actions={(item) => (byRequirement.has(item.id) || item.template_url || item.template_original_name) && <TableRowActions subject={formatDisplayText(item.name)} actions={[
+          byRequirement.has(item.id) && { label: 'View submitted file', icon: Eye, onClick: () => view(byRequirement.get(item.id)) },
+          (item.template_url || item.template_original_name) && { label: 'View SAO sample', icon: FileText, onClick: () => viewTemplate(item) },
+        ]} />}
       /></div>}
       {submission?.approval_status === 'rejected' && submission.approval_remarks && <p className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700"><strong>Why this was returned:</strong> {submission.approval_remarks}</p>}
       {maySubmit && <form onSubmit={submit} className="mt-3 space-y-3">
@@ -93,8 +98,8 @@ export default function EventSubmissionPanel({ eventId, role, onSubmitted }) {
             {formatDisplayText(requirement.name)} <span className="font-normal text-slate-500">(PDF{requirement.is_optional ? ', if applicable' : ''})</span>
             <input required={!requirement.is_optional && !byRequirement.has(requirement.id)} type="file" accept=".pdf,application/pdf" onChange={(event) => setFiles((current) => ({ ...current, [requirement.id]: event.target.files?.[0] || null }))} className="mt-1 block min-h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 py-2 text-xs" />
           </label>
-          {requirement.template_original_name && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-            <span>SAO sample: {requirement.template_original_name}</span>
+          {(requirement.template_original_name || requirement.template_url) && <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+            <span className="break-all">SAO sample: {requirement.template_original_name || requirement.template_url}</span>
             <Button type="button" size="sm" variant="secondary" onClick={() => viewTemplate(requirement)}>View sample</Button>
           </div>}
         </div>)}

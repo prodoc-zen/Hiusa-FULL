@@ -36,6 +36,7 @@
 - **Validate Approver Permission:** `ApprovalRequestController@review` checks the required role and prevents requesters from reviewing their own submissions.
 - **Load Pending Approval Requests:** the approval list loads pending requests for the current reviewer role by default.
 - **Open Request Details:** approval responses include derived title and summary details for each request.
+- **SAO Review Actions:** organization submissions, event reviews, financial report inbox rows, documents, and requirement settings place record actions in the shared three-dot menu. Decision confirmations and form submission controls remain visible in their dialogs.
 - **View Related Details:** the review API derives details for events, budgets, announcements, elections, merchandise payments, and financial reports.
 - **Approve Request:** approving updates the approval request and applies the approval to the related entity when applicable. Financial reports move from Department Head approval to SAO approval before becoming approved.
 - **Reject Request:** rejecting requires a reason in both UI and API validation, updates the request, and applies rejection to supported entities.

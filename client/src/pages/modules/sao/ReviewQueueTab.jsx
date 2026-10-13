@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, IconButton, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
+import { Check, ExternalLink, RotateCcw } from 'lucide-react';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
+import TableRowActions from '../../../components/TableRowActions';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
 import PaginationControls from '../../../components/PaginationControls';
@@ -213,25 +214,12 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
             </p>
           </div>
         )}
-        actions={(submission) => (
-          <div className="flex justify-end gap-1.5">
-            <IconButton
-              icon={ExternalLink}
-              label={`Open ${submission.requirement_type?.name || 'document'} for ${submission.organization?.name || 'organization'}`}
-              onClick={() => openDocument(submission)}
-              disabled={openingDocumentId === submission.id}
-            />
-            {registrationReview(submission)?.href && (
-              <Button to={registrationReview(submission).href} size="sm" variant="secondary" className={ROW_ACTION}>Open organization review</Button>
-            )}
-            {submission.status === 'submitted' && !submission.is_registration && (
-              <>
-                <Button size="sm" variant="secondary" className={ROW_ACTION} onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); }}>Return</Button>
-                <Button size="sm" className={ROW_ACTION} onClick={() => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); }}>Approve</Button>
-              </>
-            )}
-          </div>
-        )}
+        actions={(submission) => <TableRowActions subject={`${submission.requirement_type?.name || 'Document'} for ${submission.organization?.name || 'organization'}`} actions={[
+          { label: 'View document', icon: ExternalLink, disabled: openingDocumentId === submission.id, onClick: () => openDocument(submission) },
+          registrationReview(submission)?.href && { label: 'Open organization review', icon: ExternalLink, to: registrationReview(submission).href },
+          submission.status === 'submitted' && !submission.is_registration && { label: 'Approve', icon: Check, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'approve' }); } },
+          submission.status === 'submitted' && !submission.is_registration && { label: 'Return', icon: RotateCcw, danger: true, onClick: () => { setReviewError(null); setReviewTarget({ submission, action: 'return' }); } },
+        ]} />}
         pagination={(
           <PaginationControls
             currentPage={queue.meta.currentPage}

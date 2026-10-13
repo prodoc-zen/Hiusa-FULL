@@ -183,6 +183,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::post('/event-requirements', [EventRequirementController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/event-requirements/{requirement}/template', [EventRequirementController::class, 'template'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/event-requirements/{requirement}/template', [EventRequirementController::class, 'uploadTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
+    Route::put('/event-requirements/{requirement}/template-link', [EventRequirementController::class, 'setTemplateLink'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/event-requirements/{requirement}/template', [EventRequirementController::class, 'removeTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/event-requirements/order', [EventRequirementController::class, 'reorder'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::put('/event-requirements/{requirement}', [EventRequirementController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);

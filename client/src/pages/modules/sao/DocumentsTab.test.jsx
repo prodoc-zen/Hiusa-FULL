@@ -43,6 +43,11 @@ async function expandFirst() {
   await screen.findByRole('heading', { name: 'Event requirements' });
 }
 
+async function chooseFileAction(item, action) {
+  fireEvent.click(screen.getByRole('button', { name: `Actions for ${item}` }));
+  fireEvent.click(await screen.findByRole('menuitem', { name: action }));
+}
+
 describe('DocumentsTab', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -91,9 +96,8 @@ describe('DocumentsTab', () => {
     await expandFirst();
 
     const registration = screen.getByRole('heading', { name: 'Registration documents' }).closest('section');
-    const links = within(registration).getAllByRole('link', { name: 'Open organization review' });
-    expect(links).toHaveLength(1);
-    expect(links[0]).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=7');
+    fireEvent.click(within(registration).getByRole('button', { name: 'Actions for Letter of Intent' }));
+    expect(screen.getByRole('menuitem', { name: 'Open organization review' })).toHaveAttribute('href', '/dashboard/super-admin/organizations?status=pending&review=7');
     expect(within(registration).getByText('Returned by the SAO')).toBeInTheDocument();
   });
 
@@ -171,7 +175,7 @@ describe('DocumentsTab', () => {
     openMocks.openProtectedFile.mockResolvedValue();
     await expandFirst();
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Event Proposal' }));
+    await chooseFileAction('Event Proposal', 'View file');
     await waitFor(() => expect(openMocks.openProtectedFile).toHaveBeenCalledWith('/events/9/submission/files/2'));
   });
 
@@ -179,7 +183,7 @@ describe('DocumentsTab', () => {
     openMocks.openProtectedFile.mockRejectedValue({ userMessage: 'Allow pop-ups to open this file.' });
     await expandFirst();
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Event Proposal' }));
+    await chooseFileAction('Event Proposal', 'View file');
     expect(await screen.findByRole('alert')).toHaveTextContent('Allow pop-ups to open this file.');
   });
 
@@ -188,7 +192,7 @@ describe('DocumentsTab', () => {
     await expandFirst();
     const callsBefore = complianceMocks.getComplianceDocuments.mock.calls.length;
 
-    fireEvent.click(screen.getByRole('button', { name: 'View Letter of Intent' }));
+    await chooseFileAction('Letter of Intent', 'View file');
 
     expect(await screen.findByRole('alert')).toHaveTextContent('This registration was withdrawn');
     expect(screen.queryByText(/404|Could not open/)).not.toBeInTheDocument();

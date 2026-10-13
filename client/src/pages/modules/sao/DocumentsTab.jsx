@@ -12,6 +12,7 @@ import { openProtectedFile } from '../../../utils/openProtectedFile';
 import { isFileGone, openFileErrorMessage } from '../../../utils/openFileError';
 import { getAcademicPeriods, getSystemOrganizations } from '../../../services/systemAdministrationService';
 import { getComplianceDocuments } from '../../../services/complianceService';
+import TableRowActions from '../../../components/TableRowActions';
 
 const FAMILIES = [
   { key: 'event_requirement', label: 'Event requirements' },
@@ -195,22 +196,10 @@ export default function DocumentsTab() {
                       <StatusBadge status={row.status} />
                       {stage && <span className="text-xs font-semibold text-ink-muted-strong">{stage}</span>}
                     </div>
-                    <div className="flex flex-wrap gap-2">
-                      {reviewHref && (
-                        <Button to={reviewHref} size="sm" variant="secondary" className="h-11! sm:h-9!">Open organization review</Button>
-                      )}
-                      <Button
-                        size="sm"
-                        variant="secondary"
-                        className="h-11! sm:h-9!"
-                        leftIcon={ExternalLink}
-                        onClick={() => openDocument(row, organizationId)}
-                        disabled={openingKey === key}
-                        aria-label={`View ${formatDisplayText(row.item)}`}
-                      >
-                        View
-                      </Button>
-                    </div>
+                    <TableRowActions subject={formatDisplayText(row.item)} actions={[
+                      { label: 'View file', icon: ExternalLink, disabled: openingKey === key, onClick: () => openDocument(row, organizationId) },
+                      reviewHref && { label: 'Open organization review', icon: ExternalLink, to: reviewHref },
+                    ]} />
                   </li>
                 );
               })}
