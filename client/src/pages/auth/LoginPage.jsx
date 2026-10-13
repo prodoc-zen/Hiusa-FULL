@@ -65,6 +65,7 @@ export default function LoginPage() {
 
   return (
     <AuthLayout>
+      <Link to="/" className="mb-4 inline-flex min-h-11 items-center text-sm font-bold text-brand-700 hover:text-navy-950">← Back to HIUSA home</Link>
       <h1 className="text-[28px] font-extrabold leading-tight text-ink">Sign in to HIUSA</h1>
       <p className="mt-1.5 text-sm font-medium text-ink-muted">Use your school ID to open your organization workspace.</p>
 

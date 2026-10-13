@@ -83,7 +83,7 @@ function DashboardIndexRedirect() {
     return <Navigate to={`/dashboard/${path}`} replace />;
   }
 
-  return <Navigate to="/login" replace />;
+  return <Navigate to="/" replace />;
 }
 
 function ElectionsIndexRedirect() {
@@ -187,7 +187,7 @@ function AnnouncementsIndexRedirect() {
 }
 
 function NotFoundRedirect() {
-  return <Navigate to={localStorage.getItem('auth_token') ? '/dashboard' : '/login'} replace />;
+  return <Navigate to={localStorage.getItem('auth_token') ? '/dashboard' : '/'} replace />;
 }
 
 function App() {

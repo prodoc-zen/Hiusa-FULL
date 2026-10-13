@@ -65,4 +65,21 @@ describe('api interceptor password change handling', () => {
     expect(error.isForbidden).toBe(true);
     expect(error.isPasswordChangeRequired).toBeUndefined();
   });
+
+  it('returns an expired session to the landing page', async () => {
+    failWith(401, { message: 'Unauthenticated.' });
+
+    await api.get('/dashboard/briefing').catch(() => {});
+
+    expect(assign).toHaveBeenCalledWith('/');
+    expect(localStorage.getItem('auth_token')).toBeNull();
+  });
+
+  it('keeps invalid login feedback on the login page', async () => {
+    failWith(401, { message: 'Invalid credentials.' });
+
+    await api.post('/login').catch(() => {});
+
+    expect(assign).not.toHaveBeenCalled();
+  });
 });

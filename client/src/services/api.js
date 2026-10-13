@@ -61,7 +61,9 @@ api.interceptors.response.use(
       clearApiCache();
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
-      window.location.href = '/login';
+      if (error.config?.url !== '/login') {
+        window.location.assign('/');
+      }
       return Promise.reject(error);
     }
 
