@@ -4,6 +4,8 @@ import RichTextEditor, { RichTextBody } from '../../../components/RichText';
 import { useCallback, useEffect, useState } from 'react';
 import { Building2, PencilLine, Plus, Search, Trash2 } from 'lucide-react';
 import AccessibleOverlay from '../../../components/AccessibleOverlay';
+import Modal from '../../../components/Modal';
+import { Button, Field, Select } from '../../../components/ui';
 import { createSystemCollege, deleteSystemCollege, getSystemColleges, updateSystemCollege, uploadSystemCollegeLogo } from '../../../services/systemAdministrationService';
 import { getApiErrorMessage } from '../../../utils/apiError';
 import { resolveAssetUrl } from '../../../utils/assetUrl';
@@ -33,6 +35,8 @@ export default function SystemCollegesPage() {
   const [error, setError] = useState('');
   const [formError, setFormError] = useState('');
   const [notice, setNotice] = useState('');
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [transferTo, setTransferTo] = useState('');
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -67,11 +71,16 @@ export default function SystemCollegesPage() {
   }
 
   async function remove(college) {
-    if (!window.confirm(`Delete ${college.name}?`)) return;
+    setDeleteTarget(college);
+    setTransferTo('');
+  }
+
+  async function confirmRemove() {
     setBusy(true);
     try {
-      await deleteSystemCollege(college.id);
-      setNotice('College deleted.');
+      await deleteSystemCollege(deleteTarget.id, transferTo);
+      setDeleteTarget(null);
+      setNotice(transferTo ? 'College deleted. Its organizations and accounts were transferred.' : 'College deleted. Its organizations and accounts were set inactive.');
       await load();
     } catch (cause) {
       setError(getApiErrorMessage(cause, 'Could not delete the college.'));
@@ -86,8 +95,12 @@ export default function SystemCollegesPage() {
     {error && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error} <button type="button" onClick={load} className="font-bold underline">Retry</button></p>}
     {notice && <p role="status" className="rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-800">{notice}</p>}
     <label className="flex min-h-11 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-white px-3 text-slate-600"><Search size={17} /><input aria-label="Search colleges" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search college name or code" className="w-full bg-transparent text-sm outline-none" /></label>
-    {loading ? <p role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-6 text-sm text-slate-600">Loading colleges...</p> : <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <article key={college.id} className="rounded-lg border border-[#DDE7EF] bg-white p-4"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#EEF6FB] text-[#0F2F62]" style={college.color ? { borderLeft: `4px solid ${college.color}` } : undefined}>{college.logo_url ? <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} />}</span><div className="min-w-0 flex-1"><h2 className="flex items-center gap-2 break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(college.name)}<span className="h-3 w-3 shrink-0 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: college.color || '#DDE7EF' }} /></h2><p className="mt-1 text-xs text-slate-600">{college.code || 'No code'} · {college.organizations_count} organization(s) · {college.is_active ? 'Active' : 'Inactive'}</p>{college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-slate-600" />}</div></div><div className="mt-4 flex justify-end gap-2 border-t border-[#DDE7EF] pt-3"><button type="button" disabled={busy} onClick={() => { setFormError(''); setFormCollege(college); }} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-xs font-bold text-[#0878B7]"><PencilLine size={15} />Edit</button><button type="button" disabled={busy || college.organizations_count > 0} onClick={() => remove(college)} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-xs font-bold text-red-700 disabled:opacity-40" title={college.organizations_count > 0 ? 'Reassign organizations before deleting' : undefined}><Trash2 size={15} />Delete</button></div></article>)}</section>}
+    {loading ? <p role="status" className="rounded-lg border border-[#DDE7EF] bg-white p-6 text-sm text-slate-600">Loading colleges...</p> : <section className="grid gap-3 md:grid-cols-2">{visible.map((college) => <article key={college.id} className="rounded-lg border border-[#DDE7EF] bg-white p-4"><div className="flex items-start gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-[#EEF6FB] text-[#0F2F62]">{college.logo_url ? <img src={resolveAssetUrl(college.logo_url)} alt="" className="h-full w-full object-cover" /> : <Building2 size={19} />}</span><div className="min-w-0 flex-1"><h2 className="flex items-center gap-2 break-words text-sm font-bold text-[#0F172A]">{formatDisplayText(college.name)}<span className="h-3 w-3 shrink-0 rounded-sm border border-[#DDE7EF]" style={{ backgroundColor: college.color || '#DDE7EF' }} /></h2><p className="mt-1 text-xs text-slate-600">{college.code || 'No code'} · {college.organizations_count} organization(s) · {college.is_active ? 'Active' : 'Inactive'}</p>{college.description && <RichTextBody value={college.description} className="mt-2 break-words text-xs text-slate-600" />}</div></div><div className="mt-4 flex justify-end gap-2 border-t border-[#DDE7EF] pt-3"><button type="button" disabled={busy} onClick={() => { setFormError(''); setFormCollege(college); }} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-xs font-bold text-[#0878B7]"><PencilLine size={15} />Edit</button><button type="button" disabled={busy} onClick={() => remove(college)} className="inline-flex min-h-11 items-center gap-1 rounded-lg px-3 text-xs font-bold text-red-700 disabled:opacity-40"><Trash2 size={15} />Delete</button></div></article>)}</section>}
     {!loading && !visible.length && <p className="rounded-lg border border-dashed border-[#DDE7EF] bg-white p-8 text-center text-sm text-slate-600">{colleges.length ? 'No colleges match your search.' : 'No colleges yet. Add the first college.'}</p>}
     {formCollege !== undefined && <CollegeFormModal key={formCollege?.id || 'new'} college={formCollege} busy={busy} error={formError} onClose={() => setFormCollege(undefined)} onSave={save} />}
+    <Modal open={Boolean(deleteTarget)} title={`Delete ${deleteTarget?.name || 'college'}?`} description="Historical records are preserved. Without a transfer, organizations and accounts under this college become inactive and their sessions are revoked." onClose={busy ? undefined : () => setDeleteTarget(null)} footer={<><Button variant="secondary" disabled={busy} onClick={() => setDeleteTarget(null)}>Cancel</Button><Button variant="danger" loading={busy} onClick={confirmRemove}>Delete college</Button></>}>
+      <Field label="Transfer to another college (optional)"><Select value={transferTo} onChange={(e) => setTransferTo(e.target.value)}><option value="">Deactivate organizations and accounts</option>{colleges.filter((college) => college.id !== deleteTarget?.id && college.is_active).map((college) => <option key={college.id} value={college.id}>{college.name}</option>)}</Select></Field>
+      {error && <p role="alert" className="mt-3 text-sm text-red-700">{error}</p>}
+    </Modal>
   </div>;
 }

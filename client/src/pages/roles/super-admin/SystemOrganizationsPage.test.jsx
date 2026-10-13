@@ -38,22 +38,22 @@ describe('SystemOrganizationsPage', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Add existing user' }));
     expect(screen.queryByRole('dialog', { name: 'Edit organization' })).not.toBeInTheDocument();
     expect(await screen.findByRole('radio', { name: /Ana Reyes/ })).toBeInTheDocument();
-    expect(screen.getByRole('option', { name: 'Admin', exact: true })).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: 'Admin', exact: true })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Cancel' }));
     expect(screen.getByRole('dialog', { name: 'Edit organization' })).toBeInTheDocument();
     expect(screen.getByLabelText('Organization name')).toHaveValue('Changed name');
   });
 
-  it('adds an Admin to a suborganization from its action menu and displays its profile count', async () => {
+  it('shows admin profile counts without allowing SAO to appoint administrators', async () => {
     mocks.getSystemOrganizations.mockResolvedValue({ data: [{ id: 4, name: 'Arts Club', acronym: 'AC', college: 'College of Arts', parent_organization_id: 3, is_active: true, users_count: 1, administrators_count: 1, administrators: [] }], current_page: 1, last_page: 1 });
     render(<SystemOrganizationsPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Arts Club' }));
     expect(screen.getByText(/1 members.*1 admins/)).toBeInTheDocument();
     fireEvent.click(screen.getByRole('menuitem', { name: 'Add existing user' }));
     fireEvent.click(await screen.findByRole('radio', { name: /Ana Reyes/ }));
-    fireEvent.change(screen.getByLabelText('Role in destination organization'), { target: { value: 'ADMIN' } });
+    expect(screen.queryByRole('option', { name: 'Admin', exact: true })).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'Add user' }));
-    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 4, school_id: 123, role: 'ADMIN' }));
+    await waitFor(() => expect(profileMocks.inviteAccountProfile).toHaveBeenCalledWith({ organization_id: 4, school_id: 123, role: 'STUDENT' }));
   });
 
   it('opens profile management from the editor and preserves unsaved changes', async () => {

@@ -65,11 +65,30 @@ class CollegeController extends Controller
 
     public function destroy(Request $request, College $college)
     {
-        if (Organization::where('college', $college->name)->exists()) {
-            return response()->json(['message' => 'This college is assigned to an organization. Reassign that organization before deleting it.'], 409);
-        }
-        $this->audit($request, $college, 'deleted');
-        $college->delete();
+        $data = $request->validate(['transfer_to_college_id' => ['nullable', 'integer', Rule::exists('colleges', 'id')->where('is_active', true)->whereNull('deleted_at')->whereNot('id', $college->id)]]);
+        DB::transaction(function () use ($request, $college, $data) {
+            $college = College::whereKey($college->id)->lockForUpdate()->firstOrFail();
+            $target = ! empty($data['transfer_to_college_id']) ? College::whereKey($data['transfer_to_college_id'])->where('is_active', true)->lockForUpdate()->firstOrFail() : null;
+            $organizationIds = Organization::where('college', $college->name)->pluck('id');
+            $users = DB::table('users')->where(fn ($q) => $q->whereIn('organization_id', $organizationIds)->orWhere('department', $college->name));
+            if ($target) {
+                Organization::whereIn('id', $organizationIds)->update(['college' => $target->name]);
+                $users->update(['department' => $target->name]);
+            } else {
+                $userIds = (clone $users)->pluck('school_id');
+                $profileIds = DB::table('account_profiles')->where(fn ($q) => $q->whereIn('organization_id', $organizationIds)
+                    ->orWhereExists(fn ($user) => $user->selectRaw('1')->from('users')
+                        ->whereColumn('users.school_id', 'account_profiles.user_school_id')
+                        ->whereColumn('users.organization_id', 'account_profiles.organization_id')->whereIn('users.school_id', $userIds)))->pluck('id');
+                Organization::whereIn('id', $organizationIds)->update(['is_active' => false]);
+                $users->update(['account_status' => 'inactive']);
+                DB::table('account_profiles')->whereIn('id', $profileIds)->update(['account_status' => 'inactive']);
+                DB::table('personal_access_tokens')->where(fn ($q) => $q->whereIn('account_profile_id', $profileIds)->orWhereIn('tokenable_id', $userIds))->delete();
+            }
+            $college->update(['is_active' => false]);
+            $this->audit($request, $college, $target ? 'deleted_and_transferred' : 'deleted_and_deactivated');
+            $college->delete();
+        });
         $logoPath = is_string($college->logo_url) ? parse_url($college->logo_url, PHP_URL_PATH) : null;
         if (is_string($logoPath) && str_starts_with($logoPath, '/storage/')) {
             Storage::disk('public')->delete(substr($logoPath, strlen('/storage/')));

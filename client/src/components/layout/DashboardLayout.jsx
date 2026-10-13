@@ -24,7 +24,7 @@ const pageTitles = {
   '/dashboard/my-grievances': 'My Grievances',
   '/dashboard/clearances': 'Clearance Signing',
   '/dashboard/my-clearance': 'My Clearance',
-  '/dashboard/objectives': 'Study Objectives in Action',
+  '/dashboard/organization-applications': 'Organization applications',
   '/dashboard/super-admin/event-requirements': 'Event Requirements',
   '/dashboard/super-admin/admins': 'Administrators',
   '/dashboard/super-admin/announcements': 'Official SAO Announcements',

@@ -78,10 +78,11 @@ describe('desktop sidebar rail', () => {
     render(<MemoryRouter initialEntries={['/dashboard/super-admin']}><SidebarHarness initialCollapsed /></MemoryRouter>);
 
     fireEvent.click(screen.getByRole('button', { name: 'SAO Administration' }));
-    expect(screen.getByRole('link', { name: 'Administrators' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'Administrators' })).not.toBeInTheDocument();
+    expect(screen.getByRole('link', { name: 'Organization applications' })).toBeInTheDocument();
     expect(screen.queryByRole('link', { name: 'Manage Users' })).not.toBeInTheDocument();
-    fireEvent.click(screen.getByRole('link', { name: 'Administrators' }));
-    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/super-admin/admins');
+    fireEvent.click(screen.getByRole('link', { name: 'Organization applications' }));
+    expect(screen.getByTestId('route')).toHaveTextContent('/dashboard/organization-applications');
   });
 
   it.each([

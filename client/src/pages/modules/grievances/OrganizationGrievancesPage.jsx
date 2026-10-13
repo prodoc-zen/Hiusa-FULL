@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Card, DataTable, PageHeader, Select, StatusBadge } from '../../../components/ui';
+import { Button, Card, DataTable, PageHeader, Select, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { getGrievances, updateGrievanceStatus } from '../../../services/grievanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
@@ -97,6 +97,7 @@ export default function OrganizationGrievancesPage() {
         <DataTable
           columns={columns}
           rows={rows}
+          actions={(row) => <Button size="sm" variant="secondary" onClick={() => setSelected(row)}>View details</Button>}
           loading={loading}
           error={error}
           onRetry={load}
@@ -135,7 +136,7 @@ export default function OrganizationGrievancesPage() {
         />
       </Card>
 
-      <GrievanceDetailDrawer grievance={selected} viewerRole="ADMIN" onClose={() => setSelected(null)} onTransition={handleTransition} />
+      <GrievanceDetailDrawer grievance={selected} viewerRole="ADMIN" onClose={() => setSelected(null)} onTransition={handleTransition} onDeleted={load} />
     </div>
   );
 }

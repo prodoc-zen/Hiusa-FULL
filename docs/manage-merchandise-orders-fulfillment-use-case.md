@@ -41,5 +41,6 @@
 - **Approve Payment:** an SBO Officer may submit payment review to Admin through the approval queue. An Admin may also approve or reject directly from Manage Orders, bypassing the officer review. Direct Admin approval remains amount/proof validated, audit logged, resolves any pending payment approval request, creates/links the receipt transaction, releases the claim token, and notifies the buyer.
 - **Reject Payment:** cancelling an order stores review remarks, restores stock when needed, and notifies the buyer.
 - **Validate Claim Token:** `POST /orders/claim` rejects invalid, unpaid, or already claimed tokens.
+- **Claim Register:** All claim tokens requests `GET /orders?status=claimable`; the backend combines `paid` and `claimed` before pagination. Pending and cancelled orders are excluded, and organization isolation still applies. Pending claim and Claimed remain separate filters.
 - **Release Merchandise Item:** successful claim marks the order as claimed and records verifier/timestamp.
 - **Update Order Status:** fulfillment actions update order status through `OrderController`.

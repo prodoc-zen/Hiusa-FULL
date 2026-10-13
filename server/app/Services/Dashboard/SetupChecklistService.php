@@ -46,10 +46,10 @@ class SetupChecklistService
             $this->step('organizations', 'Register the student organizations', 'Each organization gets its own members, records and dashboard.', $organizationIds->isNotEmpty(), '/dashboard/super-admin/organizations'),
             $this->step(
                 'admins',
-                'Give every organization an administrator',
+                'Review endorsed organization applications',
                 $organizationIds->isEmpty() ? 'Register an organization first.' : "{$withAdmin} of {$organizationIds->count()} organizations have an active administrator.",
                 $organizationIds->isNotEmpty() && $withAdmin >= $organizationIds->count(),
-                '/dashboard/super-admin/admins',
+                '/dashboard/organization-applications',
             ),
             $this->step('requirements', 'Publish the accreditation requirements', 'Organizations then see what to submit and by when.', DB::table('compliance_requirement_types')->exists(), '/dashboard/super-admin/compliance'),
             $this->step('venues', 'List the venues organizations can book', 'Bookings are checked against each other for conflicts.', DB::table('venues')->exists(), '/dashboard/super-admin/venues'),

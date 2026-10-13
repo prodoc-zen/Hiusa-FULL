@@ -19,7 +19,7 @@ class SuperAdminFingerprintTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_sao_director_creates_and_manages_admin_accounts_through_system_administration(): void
+    public function test_organization_admin_creates_admin_accounts_and_sao_can_only_manage_existing_accounts(): void
     {
         $organization = Organization::factory()->create();
         $sao = Organization::where('slug', 'student-affairs-office')->firstOrFail();
@@ -31,7 +31,9 @@ class SuperAdminFingerprintTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $payload = $this->adminPayload(880002);
-        $created = $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])
+        $this->postJson('/api/system/admins', [...$payload, 'organization_id' => $organization->id])->assertForbidden();
+        Sanctum::actingAs($admin);
+        $created = $this->postJson('/api/users', $payload)
             ->assertCreated()
             ->assertJsonPath('role', 'ADMIN');
 
@@ -43,6 +45,7 @@ class SuperAdminFingerprintTest extends TestCase
         $this->putJson('/api/system/admins/'.$createdId, ['first_name' => 'Managed'])
             ->assertOk()
             ->assertJsonPath('first_name', 'Managed');
+        $this->putJson('/api/system/admins/'.$createdId, ['organization_id' => Organization::factory()->create()->id])->assertForbidden();
     }
 
     public function test_one_probe_identifies_an_enrolled_user_in_the_same_organization_and_checks_them_in(): void

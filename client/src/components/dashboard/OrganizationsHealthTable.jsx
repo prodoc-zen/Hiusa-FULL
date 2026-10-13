@@ -1,4 +1,5 @@
 import { formatDisplayText } from '../../utils/displayText.js';
+import { useState } from 'react';
 import { Building2 } from 'lucide-react';
 import DataTable from '../ui/DataTable';
 import EmptyState from '../ui/EmptyState';
@@ -6,6 +7,7 @@ import OrgMark from '../ui/OrgMark';
 import StatusBadge from '../ui/StatusBadge';
 import { Meter } from '../charts';
 import { number, relativeTime } from '../../lib/format';
+import PaginationControls from '../PaginationControls';
 
 const ACCREDITATION = {
   accredited: { tone: 'success', label: 'Accredited' },
@@ -22,7 +24,7 @@ const COLUMNS = [
     render: (row) => (
       <div className="flex min-w-0 items-center gap-2.5">
         <OrgMark name={row.name} acronym={row.abbreviation} size="sm" />
-        <span className="truncate font-semibold text-ink">{formatDisplayText(row.name)}</span>
+        <span className="break-words font-semibold text-ink">{formatDisplayText(row.name)}</span>
       </div>
     ),
   },
@@ -58,15 +60,18 @@ const COLUMNS = [
  * SUPER_ADMIN only).
  */
 export default function OrganizationsHealthTable({ organizations = [], loading = false, error = null, onRetry }) {
+  const [page, setPage] = useState(1);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(organizations.length / 10)));
   return (
     <DataTable
       columns={COLUMNS}
-      rows={organizations}
+      rows={organizations.slice((currentPage - 1) * 10, currentPage * 10)}
       rowKey={(row) => row.id}
       loading={loading}
       error={error}
       onRetry={onRetry}
       caption="Organization governance health"
+      pagination={<PaginationControls currentPage={currentPage} totalItems={organizations.length} pageSize={10} onPageChange={setPage} label="organizations" />}
       emptyState={(
         <EmptyState
           kind="first-run"

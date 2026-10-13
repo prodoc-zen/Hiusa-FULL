@@ -1,5 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useState } from 'react';
+import { deleteGrievance } from '../../../services/grievanceService';
 import { ShieldCheck, UserRound } from 'lucide-react';
 import { Button, Drawer, Field, StatusBadge, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
@@ -86,10 +87,18 @@ function TransitionModal({ transition, onCancel, onConfirm, submitting, error })
   );
 }
 
-export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, onTransition }) {
+export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, onTransition, onDeleted }) {
   const [pendingTransition, setPendingTransition] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  async function confirmDelete() {
+    setSubmitting(true); setError('');
+    try { await deleteGrievance(grievance.id); setDeleteOpen(false); onDeleted?.(); onClose(); }
+    catch (err) { setError(err.response?.data?.message || 'Could not delete this closed grievance.'); }
+    finally { setSubmitting(false); }
+  }
 
   function closeTransition() {
     if (submitting) return;
@@ -149,7 +158,7 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
             )}
 
             {isTerminal ? (
-              <p className="text-xs font-semibold text-ink-muted">This grievance is closed and cannot be reopened.</p>
+              <div className="space-y-3"><p className="text-xs font-semibold text-ink-muted">This grievance is closed and cannot be reopened.</p><Button variant="danger" size="sm" onClick={() => setDeleteOpen(true)}>Delete closed grievance</Button></div>
             ) : (
               <div className="border-t border-line pt-4">
                 <p className="text-xs font-bold uppercase tracking-wide text-ink-soft">Update status</p>
@@ -178,6 +187,9 @@ export default function GrievanceDetailDrawer({ grievance, viewerRole, onClose, 
         submitting={submitting}
         error={error}
       />
+      <Modal open={deleteOpen} title="Delete closed grievance?" description="Remove this closed case from the review register? Historical evidence and the student's own record are preserved." onClose={submitting ? undefined : () => { setDeleteOpen(false); setError(''); }} closeOnBackdrop={!submitting} closeOnEscape={!submitting} maxWidth="max-w-md" footer={<><Button variant="secondary" disabled={submitting} onClick={() => { setDeleteOpen(false); setError(''); }}>Cancel</Button><Button variant="danger" loading={submitting} onClick={confirmDelete}>Delete closed grievance</Button></>}>
+        {error && <p role="alert" className="text-sm text-danger-strong">{error}</p>}
+      </Modal>
     </>
   );
 }

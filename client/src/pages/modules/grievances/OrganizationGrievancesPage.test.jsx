@@ -5,11 +5,13 @@ import OrganizationGrievancesPage from './OrganizationGrievancesPage';
 const mocks = vi.hoisted(() => ({
   getGrievances: vi.fn(),
   updateGrievanceStatus: vi.fn(),
+  deleteGrievance: vi.fn(),
 }));
 
 vi.mock('../../../services/grievanceService', () => ({
   getGrievances: mocks.getGrievances,
   updateGrievanceStatus: mocks.updateGrievanceStatus,
+  deleteGrievance: mocks.deleteGrievance,
 }));
 
 const ANONYMOUS_GRIEVANCE = {
@@ -29,6 +31,17 @@ function envelope(data) {
 }
 
 describe('OrganizationGrievancesPage', () => {
+  it('confirms deletion only for a closed grievance and closes its drawer', async () => {
+    mocks.getGrievances.mockResolvedValue(envelope([{ ...ANONYMOUS_GRIEVANCE, status: 'resolved', remarks: 'Repaired.' }]));
+    mocks.deleteGrievance.mockResolvedValue({});
+    render(<OrganizationGrievancesPage />);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'View details' }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: 'Delete closed grievance' }));
+    const confirm = screen.getByRole('dialog', { name: 'Delete closed grievance?' });
+    fireEvent.click(within(confirm).getByRole('button', { name: 'Delete closed grievance' }));
+    await waitFor(() => expect(mocks.deleteGrievance).toHaveBeenCalledWith(1));
+    await waitFor(() => expect(screen.queryByRole('dialog', { name: 'Delete closed grievance?' })).not.toBeInTheDocument());
+  });
   beforeEach(() => vi.clearAllMocks());
 
   it('shows an empty state when the organization has no grievances', async () => {
