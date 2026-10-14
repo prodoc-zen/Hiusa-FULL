@@ -90,6 +90,9 @@ class ComplianceDocumentService
             ->mapWithKeys(fn (User $user) => [$user->school_id => trim($user->first_name.' '.$user->last_name)]);
 
         return [$rows->map(fn (array $row) => [
+            'id' => $row['id'],
+            'requirement_type_id' => $row['requirement_type_id'] ?? null,
+            'allowed_extensions' => $row['allowed_extensions'] ?? null,
             'source' => $row['source'],
             'family' => $row['family'],
             'organization' => $row['organization']?->only(['id', 'name', 'acronym']),
@@ -159,7 +162,7 @@ class ComplianceDocumentService
     }
 
     /** SQL twin of settle(): the same registration, semestral and renewal split, so counts match the file list. */
-    private const COMPLIANCE_FAMILY_SQL = "case when o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.name = ? then 'semestral_report' else 'semester_renewal' end";
+    private const COMPLIANCE_FAMILY_SQL = "case when s.is_registration_document = 1 or o.lifecycle_status in ('pending', 'returned') or (o.submitted_at is not null and s.submitted_at <= o.reviewed_at) then 'registration' when t.name = ? then 'semestral_report' else 'semester_renewal' end";
 
     private function complianceCounts(array $organizationIds, ?int $semesterId): Collection
     {
@@ -207,14 +210,13 @@ class ComplianceDocumentService
         return $counts;
     }
 
-    /** Submitted reports in scope; the SAO sees only those the Department Head has approved. */
+    /** Submitted reports in scope, including files still awaiting Department Head review. */
     private function submittedReports(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
     {
         $period = 'coalesce((select academic_semester_id from events where events.id = financial_reports.event_id), '
             .'(select id from academic_semesters where date(starts_on) <= date(financial_reports.submitted_at) and date(ends_on) >= date(financial_reports.submitted_at) order by id limit 1))';
 
         return FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
-            ->when($viewerRole === 'SUPER_ADMIN', fn ($filtered) => $filtered->whereNotNull('department_head_approved_at'))
             ->when($semesterId, fn ($filtered) => $filtered->whereRaw("{$period} = ?", [$semesterId]));
     }
 
@@ -260,8 +262,9 @@ class ComplianceDocumentService
      * The one rule for what counts as a registration document, shared by Track documents and the review queue.
      * A file filed before the SAO approved the registration stays a registration document after the organization turns active.
      */
-    public function isRegistrationFile(?Organization $organization, ?DateTimeInterface $submittedAt): bool
+    public function isRegistrationFile(?Organization $organization, ?DateTimeInterface $submittedAt, bool $marked = false): bool
     {
+        if ($marked) return true;
         if (in_array($organization?->lifecycle_status, self::REGISTRATION_LIFECYCLES, true)) {
             return true;
         }
@@ -278,7 +281,7 @@ class ComplianceDocumentService
         }
 
         $row['family'] = match (true) {
-            $this->isRegistrationFile($organization, $row['submitted_at']) => 'registration',
+            $this->isRegistrationFile($organization, $row['submitted_at'], $row['is_registration_document'] ?? false) => 'registration',
             $row['is_semestral'] => 'semestral_report',
             default => 'semester_renewal',
         };
@@ -299,15 +302,19 @@ class ComplianceDocumentService
             ->when($family, fn ($query) => $query->whereRaw(self::COMPLIANCE_FAMILY_SQL.' = ?', [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $family]))
             ->with('requirementType:id,academic_year,academic_semester_id,name')
             ->orderByDesc('s.submitted_at')->orderByDesc('s.id')->limit($limit)
-            ->get(['s.id', 's.organization_id', 's.requirement_type_id', 's.status', 's.file_original_name', 's.submitted_by', 's.submitted_at', 's.reviewed_at'])
+            ->get(['s.id', 's.organization_id', 's.requirement_type_id', 's.status', 's.file_original_name', 's.is_registration_document', 's.submitted_by', 's.submitted_at', 's.reviewed_at'])
             ->map(function (OrganizationComplianceSubmission $submission) use ($semesters) {
                 $type = $submission->requirementType;
                 $semester = $semesters->get($type->academic_semester_id);
 
                 return [
+                    'id' => $submission->id,
+                    'requirement_type_id' => $submission->requirement_type_id,
+                    'allowed_extensions' => $type->acceptedExtensions(),
                     'source' => 'compliance',
                     'family' => 'semester_renewal',
                     'is_semestral' => $type->name === ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT,
+                    'is_registration_document' => $submission->is_registration_document,
                     'organization_id' => $submission->organization_id,
                     'item' => $type->name,
                     'parent_title' => $type->academic_year.($semester ? ', Semester '.$semester->number : ''),
@@ -331,9 +338,9 @@ class ComplianceDocumentService
         return EventRequirementFile::from('event_requirement_files as f')
             ->whereIn('f.organization_id', $organizationIds)
             ->when($semesterId, fn ($query) => $query->join('events as e', 'e.id', '=', 'f.event_id')->where('e.academic_semester_id', $semesterId))
-            // The SAO can only open an event's files once the Department Head has approved it and an SAO review exists.
+            // The SAO repository includes files sent to the Department Head, before SAO review starts.
             ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->joinSub(
-                DB::table('approval_requests')->select('entity_id')->distinct()->where('entity_type', 'event')->where('required_role', 'SUPER_ADMIN'),
+                DB::table('approval_requests')->select('entity_id')->distinct()->where('entity_type', 'event'),
                 'sao_review',
                 'sao_review.entity_id',
                 '=',
@@ -357,6 +364,7 @@ class ComplianceDocumentService
             [$status, $stage] = self::EVENT_STATE[$stages[$file->event_id]['approval_stage'] ?? null] ?? ['submitted', null];
 
             return [
+                'id' => $file->id,
                 'source' => 'event_requirement',
                 'family' => 'event_requirement',
                 'organization_id' => $file->organization_id,
@@ -408,6 +416,7 @@ class ComplianceDocumentService
                     : '';
                 $rows->push([
                     ...$row,
+                    'id' => $report->id,
                     'source' => 'financial_report',
                     'family' => 'financial_report',
                     'item' => $report->title,
@@ -420,6 +429,7 @@ class ComplianceDocumentService
                 foreach ($report->supporting_documents ?? [] as $index => $document) {
                     $rows->push([
                         ...$row,
+                        'id' => $report->id.'-'.$index,
                         'source' => 'financial_supporting_document',
                         'family' => 'financial_supporting_document',
                         'item' => $document['name'],

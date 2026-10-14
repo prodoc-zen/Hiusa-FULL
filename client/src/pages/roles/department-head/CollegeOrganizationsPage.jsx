@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Building2, CalendarClock, Eye } from 'lucide-react';
+import { Building2, CalendarClock, Eye, Pencil, Trash2 } from 'lucide-react';
+import TableRowActions from '../../../components/TableRowActions';
 import { Button, Card, DataTable, Drawer, EmptyState, ErrorState, Field, Input, OrgMark, PageHeader, Skeleton, StatusBadge, Tabs, Textarea } from '../../../components/ui';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -337,7 +338,7 @@ function OrganizationDetails({ organization, onClose, onEdit }) {
               { key: 'file', header: 'File', render: (item) => <span className="break-all text-xs">{item.file_name || 'No file'}</span> },
               { key: 'status', header: 'Status', render: (item) => <StatusBadge status={item.status} label={(REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted).label} tone={(REQUIREMENT_STATUS[item.status] || REQUIREMENT_STATUS.not_submitted).tone} /> },
             ]}
-            actions={(item) => item.submission_id && <Button variant="secondary" size="sm" onClick={() => viewRegistrationFile(item.submission_id)}><Eye size={14} aria-hidden="true" />View file</Button>}
+            actions={(item) => item.submission_id && <TableRowActions subject={item.requirement_name} actions={[{ label: 'View file', icon: Eye, onClick: () => viewRegistrationFile(item.submission_id) }]} />}
           />
         )}
       </div>
@@ -482,13 +483,11 @@ export default function CollegeOrganizationsPage() {
             emptyState={tab === 'all'
               ? <EmptyState title="No organizations yet" description="Organization representatives apply from the public HIUSA home page. Verified applications appear in Organization applications for your endorsement." />
               : <EmptyState kind="filtered" title={`No ${LIFECYCLE[tab].label.toLowerCase()} organizations`} description="Choose another status to see the rest of your college." />}
-            actions={(organization) => (
-              <div className="flex flex-wrap items-center justify-end gap-2">
-                <Button variant="secondary" size="sm" className="max-sm:h-[42px]" aria-label={`View checklist for ${organization.name}`} onClick={() => openDetails(organization)}>View checklist</Button>
-                {organization.lifecycle_status === 'returned' && <Button size="sm" className="max-sm:h-[42px]" aria-label={`Edit and resubmit ${organization.name}`} onClick={() => setFormTarget({ mode: 'resubmit', organization })}>Edit and resubmit</Button>}
-                {['pending', 'returned'].includes(organization.lifecycle_status) && <Button variant="danger" size="sm" className="max-sm:h-[42px]" aria-label={`Withdraw ${organization.name}`} onClick={() => { setWithdrawError(null); setWithdrawTarget(organization); }}>Withdraw</Button>}
-              </div>
-            )}
+            actions={(organization) => <TableRowActions subject={organization.name} actions={[
+              { label: 'View checklist', icon: Eye, onClick: () => openDetails(organization) },
+              organization.lifecycle_status === 'returned' && { label: 'Edit and resubmit', icon: Pencil, onClick: () => setFormTarget({ mode: 'resubmit', organization }) },
+              ['pending', 'returned'].includes(organization.lifecycle_status) && { label: 'Withdraw', icon: Trash2, danger: true, onClick: () => { setWithdrawError(null); setWithdrawTarget(organization); } },
+            ]} />}
           />
         </div>
       </Card>

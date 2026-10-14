@@ -54,7 +54,7 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         ];
     }
 
-    public function test_a_new_head_receives_profiles_for_already_approved_organizations_in_their_college(): void
+    public function test_a_new_head_has_college_scope_without_organization_profiles(): void
     {
         $approved = $this->makeCollegeStudentOrganization($this->computing);
         $other = $this->makeCollegeStudentOrganization($this->business);
@@ -71,8 +71,11 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         Sanctum::actingAs($this->director);
 
         $this->postJson("/api/system/colleges/{$this->computing->id}/department-head", $this->payload())->assertCreated();
-        $this->assertDatabaseHas('account_profiles', ['user_school_id' => 20269001, 'organization_id' => $approved->id, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => 20269001, 'organization_id' => $this->computingHome->id, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => 20269001, 'organization_id' => $approved->id]);
         $this->assertDatabaseMissing('account_profiles', ['user_school_id' => 20269001, 'organization_id' => $other->id]);
+        $this->assertContains($approved->id, User::findOrFail(20269001)->scopedOrganizationIds());
+        $this->assertNotContains($other->id, User::findOrFail(20269001)->scopedOrganizationIds());
     }
 
     public function test_the_sao_creates_a_head_who_signs_in_and_gets_college_scope(): void

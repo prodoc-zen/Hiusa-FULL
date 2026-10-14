@@ -33,3 +33,12 @@ export const downloadSubmissionDocument = (id) =>
 export const deleteRequirementType = (id) => api.delete(`/compliance/requirement-types/${id}`);
 
 export const getComplianceDocuments = (params) => api.get('/compliance/documents', { params });
+export const replaceComplianceFile = (id, file, submittedAt) => {
+  const data = new FormData();
+  data.append('document', file);
+  data.append('submitted_at', submittedAt);
+  return api.post(`/compliance/submissions/${id}/document`, data);
+};
+export const deleteComplianceFile = (id, submittedAt) => api.delete(`/compliance/submissions/${id}`, { data: { submitted_at: submittedAt } });
+export const getFileStorage = () => api.get('/system/file-storage');
+export const updateFileStorage = (limits) => api.put('/system/file-storage', limits);

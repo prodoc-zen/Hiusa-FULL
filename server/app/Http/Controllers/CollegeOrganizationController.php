@@ -11,6 +11,7 @@ use App\Models\Notification;
 use App\Models\Organization;
 use App\Models\OrganizationComplianceSubmission;
 use App\Models\User;
+use App\Services\SubmissionStoragePolicy;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
 use Illuminate\Support\Collection;
@@ -90,7 +91,7 @@ class CollegeOrganizationController extends Controller
         ]);
     }
 
-    public function store(Request $request)
+    public function store(Request $request, SubmissionStoragePolicy $storagePolicy)
     {
         $user = $request->user();
         $college = $this->college($user);
@@ -108,6 +109,7 @@ class CollegeOrganizationController extends Controller
             ...$types->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => ['required', ...$type->uploadRules()]])->all(),
         ]);
         $slug = $this->slugFor($data['name']);
+        $storagePolicy->assertUpload(array_values($request->file('files', [])), field: 'files');
 
         $stored = [];
         try {
@@ -137,6 +139,7 @@ class CollegeOrganizationController extends Controller
                     OrganizationComplianceSubmission::create([
                         'organization_id' => $organization->id,
                         'requirement_type_id' => $type->id,
+                        'is_registration_document' => true,
                         ...$this->fileAttributes($path, $file, $user),
                     ]);
                 }
@@ -154,7 +157,7 @@ class CollegeOrganizationController extends Controller
         return response()->json($this->present($college, $organization->id), 201);
     }
 
-    public function update(Request $request, string $organization)
+    public function update(Request $request, string $organization, SubmissionStoragePolicy $storagePolicy)
     {
         $user = $request->user();
         $college = $this->college($user);
@@ -173,6 +176,9 @@ class CollegeOrganizationController extends Controller
                 ->get()->mapWithKeys(fn (ComplianceRequirementType $type) => ["files.{$type->id}" => $type->uploadRules()])->all(),
         ]);
         $changes = Arr::only($data, ['name', 'acronym', 'description', 'color']);
+        $replacing = $request->file('files', []);
+        $replacedBytes = OrganizationComplianceSubmission::where('organization_id', $organization->id)->whereIn('requirement_type_id', array_keys($replacing))->sum('file_size');
+        $storagePolicy->assertUpload(array_values($replacing), $organization->id, (int) $replacedBytes, 'files');
         if (isset($changes['name'])) {
             $changes['slug'] = $this->slugFor($changes['name'], $organization->id);
         }

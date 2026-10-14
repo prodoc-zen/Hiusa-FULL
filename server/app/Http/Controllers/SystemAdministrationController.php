@@ -12,7 +12,6 @@ use App\Models\Organization;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\AccountProfileDeletionService;
-use App\Services\DepartmentHeadProfileService;
 use App\Services\PasswordResetService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -29,7 +28,7 @@ class SystemAdministrationController extends Controller
 
     private const ACTIVE_HEAD_EXISTS = 'This college already has an active Department Head. Deactivate the current one first.';
 
-    public function __construct(private readonly PasswordResetService $passwordResetService, private readonly DepartmentHeadProfileService $headProfiles) {}
+    public function __construct(private readonly PasswordResetService $passwordResetService) {}
 
     public function overview(Request $request)
     {
@@ -333,9 +332,8 @@ class SystemAdministrationController extends Controller
                     'department' => $college->name,
                     'updated_at' => now(),
                 ]);
-                $this->headProfiles->backfillApprovedOrganizations($college->id);
                 $user->tokens()->delete();
-                Notification::create(['organization_id' => $home->id, 'user_id' => $user->school_id, 'notification_type' => 'general', 'title' => 'Department Head profile added', 'message' => "Your HIUSA Department Head profile for {$college->name} is ready. Sign in with your existing credentials; your organization profile remains available in the profile menu.", 'is_read' => false, 'sent_at' => now()]);
+                Notification::create(['organization_id' => $home->id, 'user_id' => $user->school_id, 'notification_type' => 'general', 'title' => 'Department Head profile added', 'message' => "Your HIUSA Department Head profile for {$college->name} is ready. Sign in with your existing credentials to oversee organizations across the college.", 'is_read' => false, 'sent_at' => now()]);
                 $this->audit($request, 'department_head_assigned', $user, ['department_head_id' => $user->school_id, 'college_id' => $college->id, 'organization_id' => $home->id], 'SAO added a college Department Head profile to an existing account.');
 
                 return $user->fresh();
@@ -365,7 +363,6 @@ class SystemAdministrationController extends Controller
                 'is_member' => true,
                 'department' => $college->name,
             ]);
-            $this->headProfiles->backfillApprovedOrganizations($college->id);
             Notification::create(['organization_id' => $home->id, 'user_id' => $head->school_id, 'notification_type' => 'general', 'title' => 'Department Head account created', 'message' => "Your HIUSA Department Head account for {$college->name} has been created by the Student Affairs Office. Sign in using the credentials provided by SAO and change your password from your profile if needed.", 'is_read' => false, 'sent_at' => now()]);
             $this->audit($request, 'department_head_created', $head, ['department_head_id' => $head->school_id, 'college_id' => $college->id, 'organization_id' => $home->id], 'SAO created a college Department Head account.');
 
@@ -402,9 +399,6 @@ class SystemAdministrationController extends Controller
             $old = $user->toArray();
             $emailChanges = isset($data['email']) && $data['email'] !== $user->email;
             $user->update($data);
-            if ($reactivates) {
-                $this->headProfiles->backfillApprovedOrganizations((int) $home->college_id);
-            }
             if ($emailChanges || ($data['account_status'] ?? $user->account_status) !== 'active') {
                 $user->tokens()->delete();
             }

@@ -16,7 +16,8 @@ describe('Organization application review', () => {
     getOrganizationApplications.mockResolvedValue({ data: { data: [{ ...application, status }], total: 1, current_page: 1, per_page: 10 } });
     reviewOrganizationApplication.mockResolvedValue({ data: { email_sent: true } });
     render(<OrganizationApplicationsPage />);
-    fireEvent.click((await screen.findAllByRole('button', { name: 'View application' }))[0]);
+    fireEvent.click((await screen.findAllByRole('button', { name: 'Actions for Computing Council' }))[0]);
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'View application' }));
     const dialog = screen.getByRole('dialog');
     expect(within(dialog).getByText('alex@example.test')).toBeInTheDocument();
     expect(within(dialog).getByRole('button', { name: 'View constitution.pdf' })).toBeInTheDocument();

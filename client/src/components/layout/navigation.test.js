@@ -52,7 +52,7 @@ const SPEC = {
     { band: 'Community', label: 'Voting', children: [['Elections', '/dashboard/elections/manage-elections'], ['Results', '/dashboard/elections/election-results']] },
     { band: 'Community', label: 'Store', children: [['Inventory', '/dashboard/merchandise/manage-inventory'], ['Orders', '/dashboard/merchandise/manage-orders'], ['Claim desk', '/dashboard/merchandise/claim-tokens']] },
     { band: 'Community', label: 'Updates', children: [['Announcements', '/dashboard/announcements/manage-announcements'], ['Feed', '/dashboard/announcements/view-announcements']] },
-    { band: 'Records', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
+    { band: 'Records', label: 'Records', children: [['Compliance', '/dashboard/compliance'], ['Submitted files', '/dashboard/submitted-files'], ['Grievances', '/dashboard/grievances'], ['Clearance signing', '/dashboard/clearances'], ['Audit log', '/dashboard/audit-logs']] },
     { band: 'Me', label: 'My activity', children: MY_ACTIVITY_LEAVES },
   ],
   SBO_OFFICER: [
@@ -81,6 +81,7 @@ const SPEC = {
     { label: 'Organization applications', path: '/dashboard/organization-applications' },
     { label: 'Approvals', path: '/dashboard/department-head/approvals' },
     { label: 'Organizations', path: '/dashboard/department-head/organizations' },
+    { label: 'Submitted files', path: '/dashboard/submitted-files' },
     { band: 'College view (read only)', label: 'Finance', children: FINANCE_MANAGER_LEAVES },
     { band: 'College view (read only)', label: 'Calendar', path: '/dashboard/events/activity-calendar' },
     { band: 'College view (read only)', label: 'Election results', path: '/dashboard/elections/election-results' },
@@ -135,9 +136,9 @@ describe('sidebar per role, against docs/UX_FLOW.md section 3.2', () => {
   });
 
   it.each([
-    ['ADMIN', 10, 33],
+    ['ADMIN', 10, 34],
     ['SBO_OFFICER', 9, 24],
-    ['DEPARTMENT_HEAD', 8, 11],
+    ['DEPARTMENT_HEAD', 9, 12],
     ['STUDENT', 7, 11],
     ['SUPER_ADMIN', 5, 12],
   ])('%s has %i rows and %i leaves, as the spec counts them', (role, rows, leaves) => {

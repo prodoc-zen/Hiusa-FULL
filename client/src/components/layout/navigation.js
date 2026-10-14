@@ -78,6 +78,7 @@ const L = {
   feed: leaf('view-announcements', 'Feed', '/dashboard/announcements/view-announcements', Newspaper, { aliases: ['Announcements Feed'] }),
 
   compliance: leaf('gov-compliance', 'Compliance', '/dashboard/compliance', ClipboardCheck),
+  submittedFiles: leaf('submitted-files', 'Submitted files', '/dashboard/submitted-files', FileText),
   grievances: leaf('gov-grievances', 'Grievances', '/dashboard/grievances', MessageSquare),
   clearanceSigning: leaf('gov-clearances', 'Clearance signing', '/dashboard/clearances', ShieldCheck, { aliases: ['Clearances'] }),
   auditLog: leaf('audit-logs', 'Audit log', '/dashboard/audit-logs', History, { aliases: ['General Audit Log'] }),
@@ -103,7 +104,7 @@ const NAV_BY_ROLE = {
     group('voting', 'Voting', electionsPillar.icon, [L.elections, L.results], { band: 'Community' }),
     group('store', 'Store', merchandisePillar.icon, [L.inventory, L.orders, L.claimDesk], { band: 'Community' }),
     group('updates', 'Updates', communicationPillar.icon, [L.announcements, L.feed], { band: 'Community' }),
-    group('records', 'Records', ShieldCheck, [L.compliance, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
+    group('records', 'Records', ShieldCheck, [L.compliance, L.submittedFiles, L.grievances, L.clearanceSigning, L.auditLog], { band: 'Records' }),
     myActivity(),
   ],
   SBO_OFFICER: [
@@ -122,6 +123,7 @@ const NAV_BY_ROLE = {
     { id: 'organization-applications', label: 'Organization applications', icon: ClipboardCheck, path: '/dashboard/organization-applications' },
     { id: 'approvals', label: 'Approvals', icon: ClipboardCheck, path: '/dashboard/department-head/approvals', also: ['/dashboard/approvals'] },
     { id: 'college-organizations', label: 'Organizations', icon: Building2, path: '/dashboard/department-head/organizations' },
+    { id: 'college-files', label: 'Submitted files', icon: FileText, path: '/dashboard/submitted-files' },
     group('finance', 'Finance', financePillar.icon, [L.budgets, L.ledger, L.reports, L.forecast], { band: 'College view (read only)' }),
     { id: 'activity-calendar', label: 'Calendar', icon: CalendarDays, path: '/dashboard/events/activity-calendar', aliases: ['Activity Calendar'], band: 'College view (read only)' },
     { id: 'election-results', label: 'Election results', icon: ChartColumn, path: '/dashboard/elections/election-results', aliases: ['Results'], band: 'College view (read only)' },

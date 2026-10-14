@@ -42,6 +42,7 @@ const PAGE_META = {
   '/dashboard/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/approvals': { title: 'Approvals', purpose: 'Review approval requests awaiting your sign-off.' },
   '/dashboard/department-head/organizations': { title: 'Organizations', purpose: 'Review the student organizations in your college.' },
+  '/dashboard/submitted-files': { title: 'Submitted files', purpose: 'View documents submitted by your organization or college.', group: 'Records', byRole: { DEPARTMENT_HEAD: { group: null } } },
   '/dashboard/approval-requests/new': { title: 'New request', purpose: 'Choose a request type to begin the approval process.', byRole: { ADMIN: { group: 'Approvals' } } },
   '/dashboard/approval-requests/new/announcement': {
     title: 'Announcement request',

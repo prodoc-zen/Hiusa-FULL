@@ -167,13 +167,13 @@ class FinancialReportDocumentsTest extends TestCase
         $this->getJson('/api/financial-reports/'.$report->id.'/documents/0')->assertNotFound();
     }
 
-    public function test_sao_reads_the_document_only_after_the_department_head_approved_the_report(): void
+    public function test_sao_repository_reads_submitted_document_before_department_head_review(): void
     {
         $world = $this->world();
         $report = $this->submittedReportWithDocument($world);
 
         $this->actingAsFresh($world['director']);
-        $this->getJson('/api/financial-reports/'.$report->id.'/documents/0')->assertNotFound();
+        $this->get('/api/financial-reports/'.$report->id.'/documents/0')->assertOk();
 
         $report->update(['department_head_approved_at' => now(), 'department_head_approved_by' => $world['head']->school_id, 'submission_status' => 'pending_sao']);
         $this->get('/api/financial-reports/'.$report->id.'/documents/0')->assertOk();

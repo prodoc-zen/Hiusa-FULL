@@ -21,6 +21,7 @@ use App\Http\Controllers\EventRequirementController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
+use App\Http\Controllers\FileStorageController;
 use App\Http\Controllers\FinancialSemesterController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
@@ -129,6 +130,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     // SAO Director: separate global administration endpoints, intentionally
     // distinct from all organization operation and AI-generation routes.
     Route::get('/system/overview', [SystemAdministrationController::class, 'overview'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::get('/system/file-storage', [FileStorageController::class, 'show'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN']);
+    Route::put('/system/file-storage', [FileStorageController::class, 'update'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/organization-applications', [OrganizationApplicationController::class, 'index'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/organization-applications/{application}/documents/{document}', [OrganizationApplicationController::class, 'download'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::patch('/organization-applications/{application}/review', [OrganizationApplicationController::class, 'review'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
@@ -344,6 +347,8 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);
+    Route::post('/compliance/submissions/{submission}/document', [ComplianceController::class, 'replaceSubmissionDocument'])->middleware(['throttle:api-write', 'role:ADMIN', 'org.writable']);
+    Route::delete('/compliance/submissions/{submission}', [ComplianceController::class, 'deleteSubmission'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN']);
     Route::patch('/compliance/submissions/{submission}/review', [ComplianceController::class, 'reviewSubmission'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/compliance/submissions/{submission}/document', [ComplianceController::class, 'downloadSubmission'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::get('/compliance/documents', [ComplianceController::class, 'documents'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);

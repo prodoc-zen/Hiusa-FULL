@@ -258,7 +258,7 @@ class ComplianceDocumentsTest extends TestCase
         $this->getJson('/api/compliance/documents?source=bogus')->assertUnprocessable();
     }
 
-    public function test_draft_reports_are_not_listed_and_sao_only_sees_reports_the_department_head_approved(): void
+    public function test_draft_reports_are_not_listed_and_sao_repository_includes_submitted_reports(): void
     {
         $this->periods();
         $college = $this->college('College of Computing');
@@ -268,8 +268,8 @@ class ComplianceDocumentsTest extends TestCase
         FinancialReport::create(['organization_id' => $organization->id, 'report_type' => 'monthly', 'title' => 'Done', 'submission_status' => 'approved', 'submitted_at' => '2026-09-21 08:00:00', 'department_head_approved_at' => '2026-09-22 08:00:00']);
 
         Sanctum::actingAs($this->director());
-        $sao = collect($this->getJson('/api/compliance/documents?source=financial_report')->assertOk()->assertJsonPath('total', 1)->json('data'));
-        $this->assertSame(['Done' => 'approved'], $sao->pluck('status', 'item')->all());
+        $sao = collect($this->getJson('/api/compliance/documents?source=financial_report')->assertOk()->assertJsonPath('total', 2)->json('data'));
+        $this->assertSame(['Done' => 'approved', 'With head' => 'under_review'], $sao->pluck('status', 'item')->all());
 
         Sanctum::actingAs($this->collegeHead($college));
         $head = collect($this->getJson('/api/compliance/documents?source=financial_report')->assertOk()->assertJsonPath('total', 2)->json('data'));
@@ -463,14 +463,14 @@ class ComplianceDocumentsTest extends TestCase
         $this->eventWithFile($organization, $admin, 'Cleared', ['DEPARTMENT_HEAD' => 'approved', 'SUPER_ADMIN' => 'approved'], approved: true);
 
         Sanctum::actingAs($this->director());
-        $sao = collect($this->getJson('/api/compliance/documents?source=event_requirement')->assertOk()->assertJsonPath('total', 3)->json('data'));
-        $this->assertEquals(['Cleared' => 'approved', 'Awaiting SAO' => 'under_review', 'Old Routing' => 'under_review'], $sao->pluck('status', 'parent_title')->all());
-        $this->assertEquals(['Cleared' => null, 'Awaiting SAO' => 'sao', 'Old Routing' => 'sao'], $sao->pluck('stage', 'parent_title')->all());
+        $sao = collect($this->getJson('/api/compliance/documents?source=event_requirement')->assertOk()->assertJsonPath('total', 4)->json('data'));
+        $this->assertEquals(['Cleared' => 'approved', 'Old Routing' => 'under_review', 'Awaiting SAO' => 'under_review', 'Awaiting Head' => 'under_review'], $sao->pluck('status', 'parent_title')->all());
+        $this->assertEquals(['Cleared' => null, 'Old Routing' => 'sao', 'Awaiting SAO' => 'sao', 'Awaiting Head' => 'department_head'], $sao->pluck('stage', 'parent_title')->all());
         foreach ($sao as $row) {
             $response = $this->get('/api/'.ltrim($row['open_url'], '/'))->assertOk();
             $this->assertStringStartsWith('inline', $response->headers->get('Content-Disposition'));
         }
-        $this->get('/api/events/'.$withHead['event']->id.'/submission/files/'.$withHead['file']->id)->assertNotFound();
+        $this->get('/api/events/'.$withHead['event']->id.'/submission/files/'.$withHead['file']->id)->assertOk();
 
         Sanctum::actingAs($this->collegeHead($college));
         $head = collect($this->getJson('/api/compliance/documents?source=event_requirement')->assertOk()->assertJsonPath('total', 4)->json('data'));

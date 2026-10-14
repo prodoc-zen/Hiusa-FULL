@@ -245,7 +245,7 @@ Format: group (band): children in order, each `Label  route`.
   - Store: Inventory `/dashboard/merchandise/manage-inventory`; Orders `/dashboard/merchandise/manage-orders`; Claim desk `/dashboard/merchandise/claim-tokens`
   - Updates: Announcements `/dashboard/announcements/manage-announcements` (New announcement is its primary button); Feed `/dashboard/announcements/view-announcements`
 - Records band
-  - Records: Compliance `/dashboard/compliance`; Grievances `/dashboard/grievances`; Clearance signing `/dashboard/clearances`; Audit log `/dashboard/audit-logs`
+  - Records: Compliance `/dashboard/compliance`; Submitted files `/dashboard/submitted-files`; Grievances `/dashboard/grievances`; Clearance signing `/dashboard/clearances`; Audit log `/dashboard/audit-logs`
 - Me band
   - My activity: Vote `/dashboard/elections/cast-vote`; Shop `/dashboard/merchandise/order-merchandise`; My orders `/dashboard/merchandise/my-orders`; My receipts `/dashboard/finance/personal-receipts`; Statement of account `/dashboard/finance/statement-of-account`
 - Footer: Profile `/dashboard/profile`; Study objectives `/dashboard/objectives` (new link, ends the orphan)
@@ -267,6 +267,7 @@ Format: group (band): children in order, each `Label  route`.
 - Dashboard `/dashboard/department-head`
 - Approvals `/dashboard/department-head/approvals` (the one route; `/dashboard/approvals` redirects here for this role)
 - Organizations `/dashboard/department-head/organizations`
+- Submitted files `/dashboard/submitted-files`
 - College view (read only) band: Finance: Budgets; Ledger; Financial reports; Forecast (routes as Admin); Calendar `/dashboard/events/activity-calendar`; Election results `/dashboard/elections/election-results`; Announcements `/dashboard/announcements/view-announcements`
 
 **STUDENT** (7 rows, 11 leaves; same size, renamed and reordered)
