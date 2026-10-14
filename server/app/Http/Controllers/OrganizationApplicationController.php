@@ -15,6 +15,7 @@ use App\Models\OrganizationComplianceSubmission;
 use App\Models\SboPosition;
 use App\Models\User;
 use App\Services\PasswordResetService;
+use App\Services\DepartmentHeadProfileService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Mail;
@@ -113,7 +114,8 @@ class OrganizationApplicationController extends Controller
         }
         try {
             $url = URL::temporarySignedRoute('organization-applications.verify', now()->addDays(2), ['application' => $application->id]);
-            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nVerify your HIUSA organization application using this link within 48 hours:\n{$url}\n\nYour department head will then review it for endorsement before SAO approval.", fn ($mail) => $mail->to($application->email)->subject('Verify your HIUSA organization application'));
+            $trackingUrl = $this->trackingUrl($application);
+            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nVerify your HIUSA organization application using this link within 48 hours:\n{$url}\n\nYour department head will then review it for endorsement before SAO approval. Track your application here:\n{$trackingUrl}\n\nThe private tracking link expires in 30 days. You can request a new one from the HIUSA home page.", fn ($mail) => $mail->to($application->email)->subject('Verify your HIUSA organization application'));
         } catch (\Throwable $error) {
             $application->delete();
             Storage::disk('local')->delete($stored);
@@ -127,10 +129,10 @@ class OrganizationApplicationController extends Controller
 
     public function verify(OrganizationApplication $application)
     {
-        DB::transaction(function () use ($application) {
+        $verified = DB::transaction(function () use ($application) {
             $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
             if ($application->status !== 'pending_verification') {
-                return;
+                return false;
             }
             abort_unless($application->college?->is_active, 409, 'This application’s college is no longer active.');
             $application->update(['status' => 'pending_endorsement', 'email_verified_at' => now()]);
@@ -138,9 +140,69 @@ class OrganizationApplicationController extends Controller
             User::where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')
                 ->whereHas('organization', fn ($org) => $org->where('organization_type', 'COLLEGE')->where('college_id', $college->id))
                 ->get()->each(fn ($user) => $this->notify($user, $application, 'Organization application awaiting endorsement'));
+            return true;
         });
 
+        if ($verified) {
+            $this->sendTrackingUpdate($application->refresh(), 'Your email is verified. Your application is now with your Department Head for endorsement.');
+        }
+
         return redirect(rtrim(config('app.frontend_url'), '/').'/register-organization?verified=1');
+    }
+
+    private function trackingUrl(OrganizationApplication $application): string
+    {
+        $signed = URL::temporarySignedRoute('organization-applications.track', now()->addDays(30), [
+            'application' => $application->id,
+        ], absolute: false);
+
+        return rtrim(config('app.frontend_url'), '/').'/track-organization/'.$application->id.'?'.parse_url($signed, PHP_URL_QUERY);
+    }
+
+    private function sendTrackingUpdate(OrganizationApplication $application, string $update): void
+    {
+        try {
+            $url = $this->trackingUrl($application);
+            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\n{$update}\n\nTrack your application here:\n{$url}\n\nThis private link expires in 30 days.",
+                fn ($mail) => $mail->to($application->email)->subject('HIUSA organization application status'));
+        } catch (\Throwable $error) {
+            report($error);
+        }
+    }
+
+    public function track(OrganizationApplication $application)
+    {
+        return response()->json([
+            'application' => [
+                'name' => $application->name,
+                'college' => $application->college?->name,
+                'status' => $application->status,
+                'submitted_at' => $application->created_at,
+                'email_verified_at' => $application->email_verified_at,
+                'endorsed_at' => $application->endorsed_at,
+                'reviewed_at' => $application->reviewed_at,
+                'remarks' => $application->status === 'rejected' ? $application->remarks : null,
+            ],
+        ]);
+    }
+
+    public function requestTrackingLink(Request $request)
+    {
+        $data = $request->validate([
+            'school_id' => ['required', 'integer', 'min:1', 'max:99999999'],
+            'email' => ['required', 'email', 'max:255'],
+            'organization_name' => ['required', 'string', 'max:255'],
+        ]);
+        $application = OrganizationApplication::where('school_id', $data['school_id'])
+            ->whereRaw('LOWER(email) = ?', [Str::lower(trim($data['email']))])
+            ->whereRaw('LOWER(name) = ?', [Str::lower(trim($data['organization_name']))])
+            ->latest()->first();
+
+        if ($application) {
+            $this->sendTrackingUpdate($application, 'Here is the tracking link you requested.');
+        }
+
+        return response()->json(['message' => 'If those details match an application, we will email a private tracking link.']);
     }
 
     private function authorizeEdit(Request $request, OrganizationApplication $application): void
@@ -296,6 +358,7 @@ class OrganizationApplicationController extends Controller
         User::where('role', 'DEPARTMENT_HEAD')->where('account_status', 'active')
             ->whereHas('organization', fn ($query) => $query->where('organization_type', 'COLLEGE')->where('college_id', $college->id))
             ->get()->each(fn ($user) => $this->notify($user, $application, 'Resubmitted organization application awaiting endorsement'));
+        $this->sendTrackingUpdate($application, 'Your revised application is now with your Department Head for endorsement.');
 
         return response()->json(['message' => 'Application resubmitted for Department Head endorsement.'], 200);
     }
@@ -334,7 +397,7 @@ class OrganizationApplicationController extends Controller
         return Storage::disk('local')->download($document->file_path, $document->file_original_name);
     }
 
-    public function review(Request $request, OrganizationApplication $application, PasswordResetService $passwords)
+    public function review(Request $request, OrganizationApplication $application, PasswordResetService $passwords, DepartmentHeadProfileService $headProfiles)
     {
         $actor = $request->user();
         if ($actor->role === 'DEPARTMENT_HEAD' && ! $this->scopeForHead(OrganizationApplication::whereKey($application->id), $actor)->exists()) {
@@ -345,7 +408,7 @@ class OrganizationApplicationController extends Controller
         $editToken = null;
         $copied = [];
         try {
-            $admin = DB::transaction(function () use ($application, $data, $actor, &$newUser, &$editToken, &$copied) {
+            $admin = DB::transaction(function () use ($application, $data, $actor, $headProfiles, &$newUser, &$editToken, &$copied) {
                 $application = OrganizationApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
                 if ($actor->role === 'DEPARTMENT_HEAD' && ! $this->scopeForHead(OrganizationApplication::whereKey($application->id), $actor)->exists()) {
                     abort(404);
@@ -374,6 +437,7 @@ class OrganizationApplicationController extends Controller
                         $newUser = true;
                     }
                     $organization->update(['submitted_by' => $admin->school_id]);
+                    $headProfiles->assignForOrganization($organization);
                     foreach ($documents as $document) {
                         $path = 'compliance-submissions/'.$organization->id.'/'.Str::random(40).'.pdf';
                         abort_unless(Storage::disk('local')->copy($document->file_path, $path), 500, 'Could not save the compliance document.');
@@ -427,7 +491,8 @@ class OrganizationApplicationController extends Controller
                 $editUrl = $this->editUrl($application, $editToken);
                 $editInstructions = "\n\nReview the remarks, edit your application, and resubmit it here:\n{$editUrl}\nThis private link expires in 14 days and stops working after you resubmit.";
             }
-            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nYour application for {$application->name} is now {$application->status}.\n".($application->remarks ?: '').$editInstructions.($admin ? "\nYou are the organization's first administrator. Sign in at ".rtrim(config('app.frontend_url'), '/').'/login'.($newUser ? '. A separate email contains your password setup link.' : ' using your existing account.') : ''), fn ($mail) => $mail->to($application->email)->subject('HIUSA organization application update'));
+            $trackingInstructions = "\n\nTrack your application here:\n".$this->trackingUrl($application)."\nThis private link expires in 30 days.";
+            Mail::raw("Hello {$application->first_name} {$application->last_name},\n\nYour application for {$application->name} is now {$application->status}.\n".($application->remarks ?: '').$editInstructions.$trackingInstructions.($admin ? "\nYou are the organization's first administrator. Sign in at ".rtrim(config('app.frontend_url'), '/').'/login'.($newUser ? '. A separate email contains your password setup link.' : ' using your existing account.') : ''), fn ($mail) => $mail->to($application->email)->subject('HIUSA organization application update'));
             $application->setAttribute('email_sent', true);
         } catch (\Throwable $error) {
             report($error);

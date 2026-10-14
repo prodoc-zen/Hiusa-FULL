@@ -4,6 +4,8 @@ export const getRegistrationColleges = () => api.get('/organization-applications
 export const getApplicationRequirements = () => api.get('/organization-applications/requirements', { cache: false });
 export const getRejectedApplication = (id, query) => api.get(`/organization-applications/${id}/edit?${query}`, { cache: false });
 export const requestApplicationEditLink = (details) => api.post('/organization-applications/edit-link', details);
+export const requestApplicationTrackingLink = (details) => api.post('/organization-applications/tracking-link', details);
+export const getApplicationTracking = (id, query) => api.get(`/organization-applications/${id}/track?${query}`, { cache: false });
 export const submitOrganizationApplication = (fields, files) => {
   const data = new FormData();
   Object.entries(fields).forEach(([key, value]) => data.append(key, value));

@@ -7,6 +7,7 @@ use App\Models\AuditLog;
 use App\Models\College;
 use App\Models\Notification;
 use App\Models\Organization;
+use App\Models\OrganizationApplication;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -51,6 +52,27 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
             'password_confirmation' => 'Dean2026!Pass',
             ...$overrides,
         ];
+    }
+
+    public function test_a_new_head_receives_profiles_for_already_approved_organizations_in_their_college(): void
+    {
+        $approved = $this->makeCollegeStudentOrganization($this->computing);
+        $other = $this->makeCollegeStudentOrganization($this->business);
+        OrganizationApplication::create([
+            'college_id' => $this->computing->id, 'name' => $approved->name, 'acronym' => $approved->acronym,
+            'school_id' => 12345678, 'first_name' => 'Alex', 'last_name' => 'Rivera', 'email' => 'alex@example.test',
+            'position_title' => 'President', 'status' => 'approved', 'email_verified_at' => now(), 'organization_id' => $approved->id,
+        ]);
+        OrganizationApplication::create([
+            'college_id' => $this->business->id, 'name' => $other->name, 'acronym' => $other->acronym,
+            'school_id' => 23456789, 'first_name' => 'Pat', 'last_name' => 'Lee', 'email' => 'pat@example.test',
+            'position_title' => 'President', 'status' => 'approved', 'email_verified_at' => now(), 'organization_id' => $other->id,
+        ]);
+        Sanctum::actingAs($this->director);
+
+        $this->postJson("/api/system/colleges/{$this->computing->id}/department-head", $this->payload())->assertCreated();
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => 20269001, 'organization_id' => $approved->id, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseMissing('account_profiles', ['user_school_id' => 20269001, 'organization_id' => $other->id]);
     }
 
     public function test_the_sao_creates_a_head_who_signs_in_and_gets_college_scope(): void

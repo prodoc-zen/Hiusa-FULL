@@ -45,6 +45,7 @@ export default function LandingPage() {
               <Link to="/register-organization" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#0878B7] px-6 py-3 text-sm font-bold text-white hover:bg-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Register an organization <ArrowRight size={17} aria-hidden="true" /></Link>
               <Link to="/login" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/70 px-6 py-3 text-sm font-bold text-white hover:bg-white/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Log in</Link>
             </div>
+            <Link to="/track-organization" className="mt-5 inline-flex min-h-11 w-fit items-center text-sm font-semibold text-[#DCEAF5] underline underline-offset-4 hover:text-white focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white">Already applied? Track your application</Link>
           </div>
           <div className="relative min-h-64 sm:min-h-80 lg:min-h-full">
             <img src={campusPhoto} alt="Students together outside a university building" fetchPriority="high" className="absolute inset-0 h-full w-full object-cover object-center" />

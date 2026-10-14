@@ -10,6 +10,7 @@ const LoginPage = lazy(() => import('./pages/auth/LoginPage'));
 const LandingPage = lazy(() => import('./pages/auth/LandingPage'));
 const RegisterOrganizationPage = lazy(() => import('./pages/auth/RegisterOrganizationPage'));
 const RequestApplicationEditLinkPage = lazy(() => import('./pages/auth/RequestApplicationEditLinkPage'));
+const TrackOrganizationPage = lazy(() => import('./pages/auth/TrackOrganizationPage'));
 const OrganizationApplicationsPage = lazy(() => import('./pages/modules/sao/OrganizationApplicationsPage'));
 const RecoverAccountPage = lazy(() => import('./pages/auth/RecoverAccountPage'));
 const ResetPasswordPage = lazy(() => import('./pages/auth/ResetPasswordPage'));
@@ -203,6 +204,8 @@ function App() {
       <Route path="/register-organization" element={<RegisterOrganizationPage />} />
       <Route path="/register-organization/edit-link" element={<RequestApplicationEditLinkPage />} />
       <Route path="/register-organization/edit/:applicationId" element={<RegisterOrganizationPage />} />
+      <Route path="/track-organization" element={<RequestApplicationEditLinkPage tracking />} />
+      <Route path="/track-organization/:applicationId" element={<TrackOrganizationPage />} />
       {UiKitPage && <Route path="/dev/ui-kit" element={<UiKitPage />} />}
       <Route element={<LoggedInRoute />}>
         <Route path="/login" element={<LoginPage />} />
