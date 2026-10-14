@@ -237,7 +237,19 @@ describe('TopBar notifications', () => {
     fireEvent.click(await screen.findByRole('button', { name: /Student Council/ }));
 
     await waitFor(() => expect(authMocks.switchAccountProfile).toHaveBeenCalledWith(2));
-    expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch organization. Try again.');
+    expect(await screen.findByRole('alert')).toHaveTextContent('Could not switch profile. Try again.');
+  });
+
+  it('labels the independent college profile and a separate organization profile', async () => {
+    authMocks.getAccountProfiles.mockResolvedValue({ data: { active_profile_id: 1, profiles: [
+      { id: 1, role: 'DEPARTMENT_HEAD', account_status: 'active', organization: { id: 1, name: 'College of Arts', organization_type: 'COLLEGE', is_active: true } },
+      { id: 2, role: 'STUDENT', account_status: 'active', organization: { id: 2, name: 'Arts Guild', organization_type: 'STUDENT_ORGANIZATION', is_active: true } },
+    ] } });
+    render(<MemoryRouter><TopBar onMenuToggle={() => {}} /></MemoryRouter>);
+    fireEvent.click(screen.getByRole('button', { name: 'Account menu for Test User' }));
+
+    expect(await screen.findByText('College profile · Department Head')).toBeInTheDocument();
+    expect(screen.getByText('Organization profile · Student')).toBeInTheDocument();
   });
 
   it('explains when there is only one profile and can retry a failed load', async () => {

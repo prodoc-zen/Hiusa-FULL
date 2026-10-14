@@ -108,6 +108,40 @@ class DepartmentHeadProvisioningTest extends TestCase
         $this->getJson('/api/college/organizations')->assertOk();
     }
 
+    public function test_an_organization_can_invite_a_same_college_head_without_changing_their_college_profile(): void
+    {
+        $head = $this->makeCollegeHead($this->college);
+        $homeId = $head->organization_id;
+        Sanctum::actingAs($this->admin);
+
+        $this->getJson('/api/account-profiles/candidates?organization_id='.$this->organization->id.'&search='.$head->school_id)
+            ->assertOk()->assertJsonPath('data.0.school_id', $head->school_id);
+        $organizationProfileId = $this->postJson('/api/account-profiles/invite', [
+            'organization_id' => $this->organization->id,
+            'school_id' => $head->school_id,
+            'role' => 'STUDENT',
+        ])->assertCreated()->assertJsonPath('role', 'STUDENT')->json('id');
+
+        $this->assertSame($homeId, $head->fresh()->organization_id);
+        $this->assertSame('DEPARTMENT_HEAD', $head->fresh()->role);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $homeId, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $this->organization->id, 'role' => 'STUDENT']);
+
+        $otherCollege = $this->makeCollege('CBE');
+        $foreignHead = $this->makeCollegeHead($otherCollege);
+        $this->getJson('/api/account-profiles/candidates?organization_id='.$this->organization->id.'&search='.$foreignHead->school_id)
+            ->assertOk()->assertJsonPath('total', 0);
+        $this->postJson('/api/account-profiles/invite', [
+            'organization_id' => $this->organization->id,
+            'school_id' => $foreignHead->school_id,
+            'role' => 'STUDENT',
+        ])->assertUnprocessable()->assertJsonValidationErrors('school_id');
+
+        $this->deleteJson('/api/account-profiles/'.$organizationProfileId)->assertOk()->assertJsonPath('account_deleted', false);
+        $this->assertDatabaseHas('users', ['school_id' => $head->school_id, 'organization_id' => $homeId, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $head->school_id, 'organization_id' => $homeId, 'role' => 'DEPARTMENT_HEAD']);
+    }
+
     public function test_an_admin_cannot_change_an_existing_department_head(): void
     {
         $head = User::factory()->departmentHead()->create(['organization_id' => $this->organization->id]);

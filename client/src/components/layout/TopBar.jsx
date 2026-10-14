@@ -211,7 +211,7 @@ export default function TopBar({ onMenuToggle }) {
       const destinations = { SUPER_ADMIN: '/dashboard/super-admin', ADMIN: '/dashboard/admin', SBO_OFFICER: '/dashboard/officer', DEPARTMENT_HEAD: '/dashboard/department-head', STUDENT: '/dashboard/student' };
       window.location.assign(destinations[response.data.user.role] || '/dashboard');
     } catch {
-      setProfileError('Could not switch organization. Try again.');
+      setProfileError('Could not switch profile. Try again.');
       setSwitchingProfile(false);
     }
   }
@@ -507,11 +507,11 @@ export default function TopBar({ onMenuToggle }) {
                     const current = profile.id === (activeProfileId ?? user?.active_profile_id);
                     return <button key={profile.id} type="button" disabled={current || switchingProfile} onClick={() => handleSwitchProfile(profile)} aria-current={current ? 'true' : undefined} className={`flex min-h-14 w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0] disabled:cursor-default ${current ? 'bg-[#EEF6FB]' : 'hover:bg-[#F8FBFD] active:bg-[#EEF6FB]'} ${switchingProfile && !current ? 'opacity-60' : ''}`}>
                       <span aria-hidden="true" className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold ${current ? 'bg-[#0F2F62] text-white' : 'bg-[#EEF6FB] text-[#0F2F62]'}`}>{(profile.organization?.acronym || profile.organization?.name || '?').slice(0, 2).toUpperCase()}</span>
-                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-slate-600">{ROLE_LABELS[profile.role] || profile.role}</span></span>
+                      <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-[#0F172A]">{formatDisplayText(profile.organization?.name) || 'Organization'}</span><span className="block text-xs text-slate-600">{profile.organization?.organization_type === 'COLLEGE' ? 'College profile' : 'Organization profile'} · {ROLE_LABELS[profile.role] || profile.role}</span></span>
                       {current && <span className="text-xs font-semibold text-[#0F2F62]">Current</span>}
                     </button>;
                   })}
-                  {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-slate-600">This is your only active profile. Other profiles appear here when an organization adds you.</p>}
+                  {availableProfiles.length === 1 && <p className="px-2 pb-2 text-xs leading-5 text-slate-600">{availableProfiles[0].organization?.organization_type === 'COLLEGE' ? 'Your college dashboard is available without an organization membership. If an organization adds you, its profile will appear here.' : 'This is your only active profile. Other profiles appear here when an organization adds you.'}</p>}
                 </div>}
                 {switchingProfile && <p role="status" className="px-2 py-2 text-xs text-slate-600">Switching profile…</p>}
               </section>

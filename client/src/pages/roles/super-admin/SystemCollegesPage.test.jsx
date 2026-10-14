@@ -196,6 +196,21 @@ describe('SystemCollegesPage', () => {
       expect(screen.getByRole('button', { name: /Manage Department Head/ })).toBeInTheDocument();
     });
 
+    it('assigns an existing member using their School ID and keeps their current credentials', async () => {
+      withoutHead();
+      mocks.createDepartmentHead.mockResolvedValue({ school_id: 20269001, first_name: 'Ramon', last_name: 'Castillo', email: 'ramon@example.edu', account_status: 'active' });
+      const dialog = await openAssignment();
+      fireEvent.click(within(dialog).getByRole('radio', { name: /Existing member/ }));
+      expect(within(dialog).queryByLabelText(/^Password/)).not.toBeInTheDocument();
+      fireEvent.change(within(dialog).getByLabelText(/School ID/), { target: { value: '20269001' } });
+      fireEvent.click(within(dialog).getByRole('button', { name: 'Assign Department Head' }));
+
+      await waitFor(() => expect(mocks.createDepartmentHead).toHaveBeenCalledWith(3, {
+        account_mode: 'existing', school_id: 20269001,
+      }));
+      expect(await screen.findByText('Ramon Castillo')).toBeInTheDocument();
+    });
+
     it('shows server field errors under the field and a conflict as a form message', async () => {
       withoutHead();
       const dialog = await openAssignment();

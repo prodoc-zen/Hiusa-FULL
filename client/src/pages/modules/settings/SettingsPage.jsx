@@ -186,7 +186,7 @@ export default function SettingsPage() {
             <div className="flex gap-3 py-4">
               <Building2 size={17} className="mt-0.5 shrink-0 text-[#0878B7]" />
               <div className="min-w-0">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">Organization</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[#94A3B8]">{currentUser.organization?.organization_type === 'COLLEGE' ? 'College' : 'Organization'}</p>
                 <p className="mt-1 break-words text-sm font-bold leading-5 text-[#0F172A]">{organizationName}</p>
               </div>
             </div>
@@ -218,7 +218,7 @@ export default function SettingsPage() {
               </div>
               <div>
                 <h2 className="text-base font-extrabold text-[#0F172A]">Personal information</h2>
-                <p className="mt-0.5 text-xs font-medium text-[#64748B]">Update the name and email shown across your organization.</p>
+                <p className="mt-0.5 text-xs font-medium text-[#64748B]">Update the name and email shown across your profiles.</p>
               </div>
             </div>
 

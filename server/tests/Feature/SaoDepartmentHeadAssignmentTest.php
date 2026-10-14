@@ -72,6 +72,7 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         $this->assertSame($this->computing->name, $head->department);
         $this->assertTrue(Hash::check('Dean2026!Pass', $head->password_hash));
         $this->assertSame('DEPARTMENT_HEAD', $head->accountProfiles()->where('organization_id', $this->computingHome->id)->value('role'));
+        $this->assertSame(1, $head->accountProfiles()->count());
         $this->assertSame(1, Notification::where('user_id', 20269001)->where('organization_id', $this->computingHome->id)->count());
         $audit = AuditLog::where('action', 'department_head_created')->sole();
         $this->assertSame($this->director->school_id, $audit->user_id);
@@ -110,6 +111,58 @@ class SaoDepartmentHeadAssignmentTest extends TestCase
         $this->postJson($url, $this->payload(['password_confirmation' => 'different']))->assertUnprocessable()->assertJsonValidationErrors(['password']);
         $this->postJson($url, $this->payload(['password' => 'short', 'password_confirmation' => 'short']))->assertUnprocessable()->assertJsonValidationErrors(['password']);
         $this->assertSame(0, User::where('role', 'DEPARTMENT_HEAD')->count());
+    }
+
+    public function test_sao_can_add_a_college_profile_to_an_existing_member_without_losing_their_organization_profile(): void
+    {
+        $organization = $this->makeCollegeStudentOrganization($this->computing);
+        $member = User::factory()->student()->create(['organization_id' => $organization->id, 'department' => $this->computing->name]);
+        $originalPassword = $member->getRawOriginal('password_hash');
+        $oldToken = $member->createToken('session')->plainTextToken;
+        Sanctum::actingAs($this->director);
+
+        $this->postJson("/api/system/colleges/{$this->computing->id}/department-head", [
+            'account_mode' => 'existing', 'school_id' => $member->school_id,
+        ])->assertCreated()->assertJsonPath('role', 'DEPARTMENT_HEAD')
+            ->assertJsonPath('organization_id', $this->computingHome->id);
+
+        $this->assertSame($originalPassword, $member->fresh()->getRawOriginal('password_hash'));
+        $this->assertSame(0, $member->tokens()->count());
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $member->school_id, 'organization_id' => $organization->id, 'role' => 'STUDENT']);
+        $this->assertDatabaseHas('account_profiles', ['user_school_id' => $member->school_id, 'organization_id' => $this->computingHome->id, 'role' => 'DEPARTMENT_HEAD']);
+        $this->assertDatabaseHas('audit_logs', ['action' => 'department_head_assigned', 'user_id' => $this->director->school_id]);
+
+        $this->app['auth']->forgetGuards();
+        $this->withToken($oldToken)->getJson('/api/user/profiles')->assertUnauthorized();
+        $token = $this->postJson('/api/login', ['school_id' => $member->school_id, 'password' => 'password'])
+            ->assertOk()->assertJsonPath('user.role', 'DEPARTMENT_HEAD')->json('access_token');
+        $this->app['auth']->forgetGuards();
+        $profiles = $this->withToken($token)->getJson('/api/user/profiles')->assertOk()->assertJsonCount(2, 'profiles')->json('profiles');
+        $organizationProfile = collect($profiles)->firstWhere('organization_id', $organization->id);
+        $collegeProfile = collect($profiles)->firstWhere('organization_id', $this->computingHome->id);
+        $this->withToken($token)->getJson('/api/college/organizations')->assertOk();
+        $this->withToken($token)->postJson('/api/user/profiles/'.$organizationProfile['id'].'/switch')
+            ->assertOk()->assertJsonPath('user.role', 'STUDENT');
+        $this->withToken($token)->getJson('/api/college/organizations')->assertForbidden();
+        $this->withToken($token)->postJson('/api/user/profiles/'.$collegeProfile['id'].'/switch')
+            ->assertOk()->assertJsonPath('user.role', 'DEPARTMENT_HEAD');
+        $this->withToken($token)->getJson('/api/college/organizations')->assertOk();
+    }
+
+    public function test_existing_member_assignment_requires_the_same_college_and_sao_role(): void
+    {
+        $foreign = User::factory()->student()->create(['organization_id' => $this->makeCollegeStudentOrganization($this->business)->id]);
+        $inactive = User::factory()->student()->create(['organization_id' => $this->makeCollegeStudentOrganization($this->computing)->id, 'account_status' => 'inactive']);
+        $admin = User::factory()->admin()->create(['organization_id' => $this->makeCollegeStudentOrganization($this->computing)->id]);
+        $url = "/api/system/colleges/{$this->computing->id}/department-head";
+        Sanctum::actingAs($admin);
+        $this->postJson($url, ['account_mode' => 'existing', 'school_id' => $foreign->school_id])->assertForbidden();
+        Sanctum::actingAs($this->director);
+        foreach ([$foreign, $inactive, $admin] as $user) {
+            $this->postJson($url, ['account_mode' => 'existing', 'school_id' => $user->school_id])
+                ->assertUnprocessable()->assertJsonValidationErrors('school_id');
+        }
+        $this->assertDatabaseMissing('account_profiles', ['organization_id' => $this->computingHome->id, 'user_school_id' => $foreign->school_id]);
     }
 
     public function test_an_unknown_college_is_not_found(): void

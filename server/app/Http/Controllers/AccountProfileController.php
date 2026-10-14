@@ -22,7 +22,7 @@ class AccountProfileController extends Controller
         return response()->json([
             'active_profile_id' => $request->user()->currentAccessToken()?->account_profile_id
                 ?? $request->user()->active_profile_id,
-            'profiles' => $request->user()->accountProfiles()->with('organization:id,name,acronym,college,parent_organization_id,is_active')
+            'profiles' => $request->user()->accountProfiles()->with('organization:id,name,acronym,college,organization_type,parent_organization_id,is_active')
                 ->orderBy('id')->get(),
         ]);
     }
@@ -68,9 +68,19 @@ class AccountProfileController extends Controller
     private function eligibleUsers(Organization $organization): Builder
     {
         // The primary organization identifies the college even for legacy users without a department.
-        return User::where('role', '!=', 'SUPER_ADMIN')
-            ->whereHas('organization', fn ($query) => $query->where('college', $organization->college)
-                ->where('organization_type', 'STUDENT_ORGANIZATION'))
+        return User::where('role', '!=', 'SUPER_ADMIN')->where('account_status', 'active')
+            ->where(function ($query) use ($organization) {
+                $query->whereHas('organization', fn ($organizationQuery) => $organizationQuery
+                    ->where('college', $organization->college)->where('organization_type', 'STUDENT_ORGANIZATION'))
+                    ->orWhere(function ($query) use ($organization) {
+                        $query->where('role', 'DEPARTMENT_HEAD')
+                            ->whereHas('organization', fn ($organizationQuery) => $organizationQuery
+                                ->where('organization_type', 'COLLEGE')
+                                ->where('college', $organization->college)
+                                ->whereNotNull('college_id')
+                                ->where('college_id', $organization->college_id));
+                    });
+            })
             ->where(fn ($query) => $query->whereNull('department')->orWhere('department', '')->orWhere('department', $organization->college))
             ->whereHas('accountProfiles', fn ($query) => $query->where('account_status', 'active')
                 ->whereHas('organization', fn ($query) => $query->where('college', $organization->college)->where('is_active', true)));
