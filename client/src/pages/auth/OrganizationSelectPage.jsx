@@ -1,3 +1,4 @@
+import HiusaSelect from '../../components/ui/Select';
 import { formatDisplayText } from '../../utils/displayText.js';
 import FieldIcon from '../../components/FieldIcon.jsx';
 import { useEffect, useMemo, useState } from 'react';
@@ -146,7 +147,7 @@ export default function OrganizationSelectPage() {
             <label className="block">
               <span className="mb-1.5 block text-[13px] font-semibold text-slate-800"><FieldIcon label="Organization or SAO access" />Organization or SAO access</span>
               <span className="relative block">
-                <select
+                <HiusaSelect
                   value={selectedId}
                   onChange={(event) => {
                     setSelectedId(event.target.value);
@@ -161,7 +162,7 @@ export default function OrganizationSelectPage() {
                       {organization.organization_type === 'SYSTEM_ADMINISTRATION' ? `${formatDisplayText(organization.name)} (System Access)` : formatDisplayText(organization.name)}
                     </option>
                   ))}
-                </select>
+                </HiusaSelect>
                 <ChevronDown className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
               </span>
             </label>

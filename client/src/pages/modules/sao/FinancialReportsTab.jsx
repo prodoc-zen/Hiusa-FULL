@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useCallback, useEffect, useMemo, useState } from 'react';
@@ -36,9 +37,9 @@ function downloadBlob(response, fallbackName) {
   URL.revokeObjectURL(url);
 }
 
-export default function FinancialReportsTab() {
+export default function FinancialReportsTab({ initialOrganizationId = '' }) {
   const [organizations, setOrganizations] = useState([]);
-  const [organizationId, setOrganizationId] = useState('');
+  const [organizationId, setOrganizationId] = useState(initialOrganizationId);
   const [reports, setReports] = useState([]);
   const [pendingApprovals, setPendingApprovals] = useState(new Map());
   const [meta, setMeta] = useState({ current_page: 1, per_page: 20, total: 0 });
@@ -64,7 +65,7 @@ export default function FinancialReportsTab() {
       }).filter(([, value]) => value !== '' && value !== undefined));
       const [reportResponse, approvalResponse] = await Promise.all([
         getFinancialReports(params),
-        getApprovalRequests({ status: 'pending', entity_type: 'financial_report', per_page: 100 }),
+        getApprovalRequests({ status: 'pending', entity_type: 'financial_report', per_page: 100, organization_id: organizationId || undefined }),
       ]);
       setReports(reportResponse.data.data || []);
       setMeta(reportResponse.data);
@@ -141,7 +142,7 @@ export default function FinancialReportsTab() {
   ].filter(Boolean), [filters, organizationId, organizations]);
 
   const clearFilters = () => {
-    setOrganizationId('');
+    setOrganizationId(initialOrganizationId);
     setFilters({ search: '', status: '', document_type: '' });
   };
 
@@ -170,21 +171,21 @@ export default function FinancialReportsTab() {
           resultLabel={meta.total === 1 ? 'financial report' : 'financial reports'}
           secondaryClassName="grid gap-3 sm:grid-cols-3"
         >
-          <select aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          {!initialOrganizationId && <HiusaSelect aria-label="Organization" value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All organizations</option>
             {organizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.acronym} - {formatDisplayText(organization.name)}</option>)}
-          </select>
-          <select aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          </HiusaSelect>}
+          <HiusaSelect aria-label="Document type" value={filters.document_type} onChange={(event) => setFilters((current) => ({ ...current, document_type: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All document types</option>
             <option value="financial_report">Financial reports</option>
             <option value="income_statement">Income statements</option>
-          </select>
-          <select aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
+          </HiusaSelect>
+          <HiusaSelect aria-label="Report status" value={filters.status} onChange={(event) => setFilters((current) => ({ ...current, status: event.target.value }))} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none">
             <option value="">All statuses</option>
             <option value="pending_sao">Awaiting SAO review</option>
             <option value="approved">Approved</option>
             <option value="rejected">Rejected</option>
-          </select>
+          </HiusaSelect>
         </TableFilterBar>
       </section>
 

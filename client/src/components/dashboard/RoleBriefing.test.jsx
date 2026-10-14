@@ -300,10 +300,12 @@ describe('RoleBriefing', () => {
       expect(screen.queryByText('1 item needs your attention: 1 financial report.')).not.toBeInTheDocument();
     });
 
-    it('adds the organizations health table only for the SAO', async () => {
+    it('keeps organization indicators out of the SAO dashboard', async () => {
       vi.mocked(getBriefing).mockResolvedValue(briefing('SUPER_ADMIN', { organizations: [] }));
       renderBriefing();
-      expect(await screen.findByText('No organizations yet')).toBeInTheDocument();
+      expect(await screen.findByRole('heading', { name: 'Review inbox' })).toBeInTheDocument();
+      expect(screen.queryByText('Organization indicators')).not.toBeInTheDocument();
+      expect(screen.queryByText('No organizations yet')).not.toBeInTheDocument();
     });
   });
 });

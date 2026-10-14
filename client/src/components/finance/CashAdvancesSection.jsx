@@ -1,3 +1,4 @@
+import HiusaSelect from '../ui/Select';
 import { useCallback, useEffect, useState } from 'react';
 import { HandCoins, Plus } from 'lucide-react';
 import AccessibleOverlay from '../AccessibleOverlay';
@@ -141,9 +142,9 @@ export default function CashAdvancesSection({ onLedgerChange }) {
         <div className="flex flex-wrap items-end gap-2">
           <label className="text-xs font-semibold text-slate-600">
             <span className="block">Status</span>
-            <select value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm text-[#0F172A]">
+            <HiusaSelect value={status} onChange={(event) => setStatus(event.target.value)} className="mt-1 h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm text-[#0F172A]">
               {STATUS_FILTERS.map(([value, label]) => <option key={value || 'all'} value={value}>{label}</option>)}
-            </select>
+            </HiusaSelect>
           </label>
           <Button variant="secondary" onClick={() => { setFormError(''); setRequestOpen(true); }}><Plus size={16} aria-hidden="true" /> Request cash advance</Button>
         </div>

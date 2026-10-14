@@ -14,6 +14,7 @@ export const removeRequirementSample = (id) => api.delete(`/compliance/requireme
 
 // Accreditation status: SUPER_ADMIN gets every organization, ADMIN gets its own.
 export const getComplianceStatus = (params) => api.get('/compliance/status', { params });
+export const sendComplianceReminder = (organizationId, data) => api.post(`/compliance/organizations/${organizationId}/reminders`, data);
 
 // Submissions: SUPER_ADMIN reviews across organizations, ADMIN sees its own.
 export const getSubmissions = (params) => api.get('/compliance/submissions', { params });

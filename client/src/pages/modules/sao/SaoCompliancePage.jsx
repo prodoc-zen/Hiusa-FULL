@@ -11,6 +11,7 @@ import EventRequirementsTab from './EventRequirementsTab';
 import FinancialReportsTab from './FinancialReportsTab';
 import RequirementsTab from './RequirementsTab';
 import ReviewQueueTab from './ReviewQueueTab';
+import OrganizationReviewFolders from './OrganizationReviewFolders';
 
 const PANEL_ID = 'sao-compliance-panel';
 const SUB_PANEL_ID = 'sao-compliance-subpanel';
@@ -51,7 +52,7 @@ export default function SaoCompliancePage() {
 
   const [overview, setOverview] = useState({ loading: true, error: null, academicYear: null, organizations: [] });
   const [pendingRegistrations, setPendingRegistrations] = useState([]);
-  const [reviewFilters, setReviewFilters] = useState(hasRecord ? { organizationId: '', status: '' } : DEFAULT_REVIEW_FILTERS);
+  const [reviewFilters, setReviewFilters] = useState(hasRecord ? { organizationId: '', status: '' } : { ...DEFAULT_REVIEW_FILTERS, organizationId: searchParams.get('organization') || '' });
 
   const loadOverview = useCallback(() => {
     setOverview((current) => ({ ...current, loading: true, error: null }));
@@ -78,6 +79,11 @@ export default function SaoCompliancePage() {
   }, [role]);
 
   const changeTab = useCallback((key) => setSearchParams({ tab: key }), [setSearchParams]);
+
+  function changeReviewFilters(filters) {
+    setReviewFilters(filters);
+    setSearchParams((current) => { const next = new URLSearchParams(current); if (filters.organizationId) next.set('organization', filters.organizationId); else next.delete('organization'); return next; });
+  }
 
   function reviewOrganization(organizationId) {
     setReviewFilters({ organizationId: String(organizationId), status: 'submitted' });
@@ -121,14 +127,17 @@ export default function SaoCompliancePage() {
           {activeTab === 'review' && (
             <ReviewQueueTab
               organizations={[...overview.organizations, ...pendingRegistrations]}
+              organizationsLoading={overview.loading}
+              organizationsError={overview.error}
+              onRetryOrganizations={loadOverview}
               filters={reviewFilters}
-              onFiltersChange={setReviewFilters}
+              onFiltersChange={changeReviewFilters}
               onChanged={loadOverview}
             />
           )}
           {activeTab === 'events' && <EventRequirementsTab />}
-          {activeTab === 'event-reviews' && <EventRequirementsTab mode="reviews" />}
-          {activeTab === 'financial' && <FinancialReportsTab />}
+          {activeTab === 'event-reviews' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Event reviews">{(organizationId) => <EventRequirementsTab key={organizationId} mode="reviews" organizationId={organizationId} />}</OrganizationReviewFolders>}
+          {activeTab === 'financial' && <OrganizationReviewFolders overview={overview} onRetry={loadOverview} title="Financial reports">{(organizationId) => <FinancialReportsTab key={organizationId} initialOrganizationId={organizationId} />}</OrganizationReviewFolders>}
         </div>
       </div>
     </div>

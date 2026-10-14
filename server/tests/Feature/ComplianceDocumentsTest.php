@@ -160,6 +160,21 @@ class ComplianceDocumentsTest extends TestCase
         return compact('submission', 'file', 'event', 'report');
     }
 
+    public function test_search_finds_files_in_every_source_and_keeps_counts_and_pages_in_sync(): void
+    {
+        $this->periods();
+        $organization = $this->studentOrganization('Coding Club');
+        $made = $this->documentsFor($organization, $this->submitter($organization));
+        Sanctum::actingAs($this->director());
+        foreach (['loi' => 1, 'letter' => 2, 'summit' => 1, 'receipts' => 1, 'bank' => 1, 'September Financial Report' => 3, 'missing' => 0] as $search => $count) {
+            $response = $this->getJson('/api/compliance/documents?organization_id='.$organization->id.'&search='.urlencode($search).'&per_page=1')->assertOk()->assertJsonPath('total', $count);
+            $this->assertCount(min(1, $count), $response->json('data'));
+        }
+        $this->getJson('/api/compliance/documents?organization_id='.$organization->id.'&search=Financial&per_page=1&page=3')->assertOk()->assertJsonPath('total', 3)->assertJsonCount(1, 'data');
+        $made['report']->update(['supporting_documents' => []]);
+        $this->getJson('/api/compliance/documents?organization_id='.$organization->id.'&source=financial_report&search=.pdf')->assertOk()->assertJsonPath('total', 1);
+    }
+
     public function test_documents_union_lists_every_source_with_the_normalized_shape(): void
     {
         $this->periods();

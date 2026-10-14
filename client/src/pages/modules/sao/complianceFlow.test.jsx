@@ -34,6 +34,7 @@ vi.mock('./DocumentsTab', () => ({ default: () => <p>Track documents content</p>
 vi.mock('./RequirementsTab', () => ({ default: () => <p>Requirements content</p> }));
 
 function renderAt(entry, element) {
+  if (entry === '/dashboard/super-admin/compliance?tab=review') entry += '&organization=7';
   return render(<MemoryRouter initialEntries={[entry]}>{element}</MemoryRouter>);
 }
 
@@ -239,8 +240,8 @@ describe('SaoCompliancePage review queue', () => {
   it('names who sends submissions on the empty queue', async () => {
     mocks.getSubmissions.mockResolvedValue(queue([]));
     renderAt('/dashboard/super-admin/compliance?tab=review', <SaoCompliancePage />);
-    expect(await screen.findByText('Nothing to review')).toBeInTheDocument();
-    expect(screen.getByText(/Organization admins upload each requirement from their Compliance page/)).toBeInTheDocument();
+    expect(await screen.findByText('No submissions match these filters')).toBeInTheDocument();
+    expect(screen.getByText(/Try a different status or organization/)).toBeInTheDocument();
   });
 
   it('keeps ?tab= working and shows a compact accreditation stepper on each organization row', async () => {

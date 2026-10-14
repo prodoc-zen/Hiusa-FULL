@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { useEffect, useId, useMemo, useState } from 'react';
@@ -207,7 +208,7 @@ function CandidateForm({
           <div>
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Position *" />Position *</label>
             <div className="relative">
-              <select
+              <HiusaSelect
                 value={form.position_id}
                 onChange={(event) => setForm({ ...form, position_id: event.target.value })}
                 className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -216,7 +217,7 @@ function CandidateForm({
                 {positions.map((position) => (
                   <option key={position.id} value={position.id}>{formatDisplayText(position.title)}</option>
                 ))}
-              </select>
+              </HiusaSelect>
               <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
             </div>
           </div>
@@ -224,7 +225,7 @@ function CandidateForm({
           <div>
             <label className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Party List" />Party List</label>
             <div className="relative">
-              <select
+              <HiusaSelect
                 value={form.partylist_id}
                 onChange={(event) => setForm({ ...form, partylist_id: event.target.value })}
                 className="h-11 w-full appearance-none rounded-lg border border-[#DDE7EF] bg-white px-3 pr-9 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -233,7 +234,7 @@ function CandidateForm({
                 {partylists.map((partylist) => (
                   <option key={partylist.id} value={partylist.id}>{formatDisplayText(partylist.name)}{partylist.acronym ? ` (${partylist.acronym})` : ''}</option>
                 ))}
-              </select>
+              </HiusaSelect>
               <ChevronDown size={15} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-slate-500" />
             </div>
           </div>

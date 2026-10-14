@@ -28,7 +28,7 @@ class ClearanceTest extends TestCase
         $periodId = $this->postJson('/api/clearance-periods', [
             'academic_year' => '2026-2027',
             'title' => 'Second Semester Clearance',
-            'required_roles' => ['organization_treasurer', 'adviser', 'sao'],
+            'required_roles' => ['organization', 'department_head', 'sao'],
         ])->assertCreated()->json('id');
 
         $this->assertDatabaseCount('clearance_signatures', 3);
@@ -47,7 +47,7 @@ class ClearanceTest extends TestCase
         $studentA = $this->user('STUDENT', $orgA->id);
         Sanctum::actingAs($superAdmin);
         $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated();
 
         $signature = ClearanceSignature::where('student_id', $studentA->school_id)->firstOrFail();
@@ -89,10 +89,10 @@ class ClearanceTest extends TestCase
         $student = $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer', 'sao'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization', 'sao'],
         ])->assertCreated()->json('id');
 
-        $orgSignature = ClearanceSignature::where('student_id', $student->school_id)->where('required_role', 'organization_treasurer')->firstOrFail();
+        $orgSignature = ClearanceSignature::where('student_id', $student->school_id)->where('required_role', 'organization')->firstOrFail();
         $saoSignature = ClearanceSignature::where('student_id', $student->school_id)->where('required_role', 'sao')->firstOrFail();
 
         Sanctum::actingAs($admin);
@@ -117,7 +117,7 @@ class ClearanceTest extends TestCase
         $this->assertTrue($thisPeriod['is_complete']);
     }
 
-    public function test_holding_a_signature_requires_a_reason_and_a_held_line_can_still_be_cleared_but_cleared_is_terminal(): void
+    public function test_holds_require_a_reason_and_cleared_lines_can_be_reopened_with_a_reason(): void
     {
         $superAdmin = $this->user('SUPER_ADMIN');
         $organization = Organization::factory()->create();
@@ -125,7 +125,7 @@ class ClearanceTest extends TestCase
         $student = $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($superAdmin);
         $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated();
         $signature = ClearanceSignature::where('student_id', $student->school_id)->firstOrFail();
 
@@ -138,8 +138,8 @@ class ClearanceTest extends TestCase
         $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'cleared'])
             ->assertOk()->assertJsonPath('status', 'cleared');
 
-        // Cleared is terminal - it cannot be reopened.
         $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'held', 'remarks' => 'Reopen attempt.'])->assertStatus(409);
+        $this->patchJson("/api/clearance-signatures/{$signature->id}", ['status' => 'pending', 'remarks' => 'Wrong student selected.'])->assertOk()->assertJsonPath('status', 'pending');
     }
 
     public function test_admin_and_sbo_officer_can_list_clearance_periods_but_only_super_admin_can_open_one(): void
@@ -150,7 +150,7 @@ class ClearanceTest extends TestCase
         $officer = $this->user('SBO_OFFICER', $organization->id);
         Sanctum::actingAs($superAdmin);
         $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated();
 
         Sanctum::actingAs($admin);
@@ -172,7 +172,7 @@ class ClearanceTest extends TestCase
         $studentB = User::factory()->create(['role' => 'STUDENT', 'organization_id' => $organization->id, 'account_status' => 'active', 'first_name' => 'Bianca', 'last_name' => 'Cruz']);
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($admin);
@@ -196,7 +196,7 @@ class ClearanceTest extends TestCase
         User::factory()->count(3)->create(['role' => 'STUDENT', 'organization_id' => $organization->id, 'account_status' => 'active']);
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer', 'organization_adviser'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization', 'department_head'],
         ])->assertCreated()->json('id');
 
         Sanctum::actingAs($admin);
@@ -222,14 +222,14 @@ class ClearanceTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated()->json('id');
 
         $this->assertDatabaseHas('clearance_signatures', [
             'clearance_period_id' => $periodId,
             'student_id' => $officerWhoIsAlsoAStudentElsewhere->school_id,
             'organization_id' => $child->id,
-            'required_role' => 'organization_treasurer',
+            'required_role' => 'organization',
         ]);
         $this->assertDatabaseHas('notifications', [
             'user_id' => $officerWhoIsAlsoAStudentElsewhere->school_id, 'organization_id' => $child->id,
@@ -250,12 +250,12 @@ class ClearanceTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated()->json('id');
 
         $this->assertDatabaseHas('clearance_signatures', [
             'clearance_period_id' => $periodId, 'student_id' => $student->school_id,
-            'organization_id' => $main->id, 'required_role' => 'organization_treasurer',
+            'organization_id' => $main->id, 'required_role' => 'organization',
         ]);
         $this->assertDatabaseCount('clearance_signatures', 1);
     }
@@ -277,7 +277,7 @@ class ClearanceTest extends TestCase
 
         Sanctum::actingAs($superAdmin);
         $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated();
         $signature = ClearanceSignature::where('student_id', $childStudent->school_id)->firstOrFail();
 
@@ -301,7 +301,7 @@ class ClearanceTest extends TestCase
         $studentB = $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($superAdmin);
         $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated();
 
         Sanctum::actingAs($studentA);
@@ -320,7 +320,7 @@ class ClearanceTest extends TestCase
         $student = $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Mistaken Clearance', 'required_roles' => ['organization_treasurer', 'sao'],
+            'academic_year' => '2026-2027', 'title' => 'Mistaken Clearance', 'required_roles' => ['organization', 'sao'],
         ])->assertCreated()->json('id');
         $this->assertDatabaseCount('clearance_signatures', 2);
 
@@ -340,7 +340,7 @@ class ClearanceTest extends TestCase
         $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Live Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Live Clearance', 'required_roles' => ['organization'],
         ])->assertCreated()->json('id');
         $signature = ClearanceSignature::where('clearance_period_id', $periodId)->firstOrFail();
 
@@ -364,7 +364,7 @@ class ClearanceTest extends TestCase
         $this->user('STUDENT', $organization->id);
         Sanctum::actingAs($superAdmin);
         $periodId = $this->postJson('/api/clearance-periods', [
-            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization_treasurer'],
+            'academic_year' => '2026-2027', 'title' => 'Clearance', 'required_roles' => ['organization'],
         ])->assertCreated()->json('id');
 
         foreach (['ADMIN', 'SBO_OFFICER', 'STUDENT', 'DEPARTMENT_HEAD'] as $role) {

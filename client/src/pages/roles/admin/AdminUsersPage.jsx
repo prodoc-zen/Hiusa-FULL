@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
@@ -721,14 +722,14 @@ export default function AdminUsersPage() {
       <Field label="Profile photo (optional)" error={modalFieldErrors.photo?.[0]} className="sm:col-span-2"><input type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => (mode === 'create' ? setCreatePhoto : setEditPhoto)(event.target.files?.[0] || null)} className="w-full rounded-lg border border-[#DDE7EF] p-2 text-xs" /><span className="mt-1 block text-[11px] text-slate-500">JPEG, PNG, or WebP, up to 2 MB.</span></Field>
       <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Role and academic details</h3></div>
       <Field label="Role" required error={modalFieldErrors.role?.[0]}>
-        <select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || (mode === 'edit' && selectedUser?.role === 'ADMIN')} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
+        <HiusaSelect value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value, position_title: '' })} disabled={actorRole === 'SBO_OFFICER' || (mode === 'edit' && selectedUser?.role === 'ADMIN')} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100 disabled:text-slate-500">
           {(mode === 'edit' && selectedUser?.role === 'ADMIN' ? ['ADMIN'] : roles).map((role) => (
             <option key={role} value={role}>{ROLE_LABELS[role]}</option>
           ))}
-        </select>
+        </HiusaSelect>
       </Field>
       {['ADMIN', 'SBO_OFFICER'].includes(form.role) && <Field label="Organization Position" error={modalFieldErrors.position_title?.[0]}>
-        <select
+        <HiusaSelect
           value={form.position_title}
           onChange={(event) => setForm({ ...form, position_title: event.target.value })}
           disabled={!['ADMIN', 'SBO_OFFICER'].includes(form.role)}
@@ -738,17 +739,17 @@ export default function AdminUsersPage() {
           {sboPositions.filter((position) => position.is_active && position.role === form.role && !/^adviser$/i.test(position.title.trim())).map((position) => (
             <option key={position.id} value={position.title}>{formatDisplayText(position.title)}</option>
           ))}
-        </select>
+        </HiusaSelect>
       </Field>}
       <Field label="Course / Program" required={form.role === 'STUDENT' && mode === 'create'} error={modalFieldErrors.program?.[0]}>
-        <select value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</select>
+        <HiusaSelect value={form.program} onChange={(event) => setForm({ ...form, program: event.target.value, section: '' })} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"><option value="">Choose a program</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
         {form.role === 'STUDENT' && !academicStructure.programs?.length && <span className="mt-1 block text-xs text-amber-700">Configure a program in Programs & Sections first.</span>}
       </Field>
       <Field label="Year Level" error={modalFieldErrors.year_level?.[0]}>
-        <select value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</select>
+        <HiusaSelect value={form.year_level} onChange={(event) => setForm({ ...form, year_level: event.target.value, section: '' })} disabled={!form.program} className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15 disabled:bg-slate-100"><option value="">Choose a year level</option>{programYears(academicStructure.programs?.find((program) => program.name === form.program)).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
       </Field>
       <Field label="Major / Specialization" error={modalFieldErrors.major?.[0]}><input value={form.major} onChange={(event) => setForm({ ...form, major: event.target.value })} placeholder="Optional specialization" className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" /></Field>
-      <Field label="Section" error={modalFieldErrors.section?.[0]}><select value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</select></Field>
+      <Field label="Section" error={modalFieldErrors.section?.[0]}><HiusaSelect value={form.section} onChange={(event) => setForm({ ...form, section: event.target.value })} disabled={!form.program || !form.year_level} className="h-11 w-full rounded-xl border border-[#DDE7EF] px-3 text-sm outline-none disabled:bg-slate-100"> <option value="">Choose a section</option>{academicStructure.programs?.find((program) => program.name === form.program)?.sections?.filter((section) => Number(section.year_level) === yearNumber(form.year_level)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect></Field>
       {mode === 'create' && (
         <>
           <div className="mt-2 border-t border-[#DDE7EF] pt-4 sm:col-span-2"><h3 className="text-sm font-bold text-[#0F2F62]">Set password</h3></div>
@@ -835,7 +836,7 @@ export default function AdminUsersPage() {
           resultLabel={meta.total === 1 ? 'user' : 'users'}
           secondaryClassName="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"
         >
-          <select
+          <HiusaSelect
             value={roleFilter}
             onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}
             className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -844,12 +845,12 @@ export default function AdminUsersPage() {
             {visibleFilterRoles.map((role) => (
               <option key={role} value={role}>{ROLE_LABELS[role]}</option>
             ))}
-          </select>
-          <select aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</select>
-          <select aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</select>
-          <select aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</select>
-          <select aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></select>
-          <select aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></select>
+          </HiusaSelect>
+          <HiusaSelect aria-label="Filter by program" value={programFilter} onChange={(event) => { setProgramFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All programs</option>{academicStructure.programs?.map((program) => <option key={program.id} value={program.name}>{formatDisplayText(program.name)}</option>)}</HiusaSelect>
+          <HiusaSelect aria-label="Filter by year level" value={yearLevelFilter} onChange={(event) => { setYearLevelFilter(event.target.value); setSectionFilter('all'); }} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All year levels</option>{Array.from(new Set((academicStructure.programs || []).flatMap(programYears))).map((year) => <option key={year}>{year}</option>)}</HiusaSelect>
+          <HiusaSelect aria-label="Filter by section" value={sectionFilter} onChange={(event) => setSectionFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All sections</option>{academicStructure.programs?.filter((program) => programFilter === 'all' || program.name === programFilter).flatMap((program) => program.sections || []).filter((section) => yearLevelFilter === 'all' || Number(section.year_level) === yearNumber(yearLevelFilter)).map((section) => <option key={section.id} value={section.name}>{formatDisplayText(section.name)}</option>)}</HiusaSelect>
+          <HiusaSelect aria-label="Filter by account status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="all">All account statuses</option><option value="active">Active</option><option value="inactive">Inactive</option><option value="disabled">Disabled</option></HiusaSelect>
+          <HiusaSelect aria-label="Sort users" value={sort} onChange={(event) => setSort(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0]"><option value="name">Name A–Z</option><option value="school_id">School ID</option><option value="program">Program / Year / Section</option><option value="newest">Newest accounts</option></HiusaSelect>
         </TableFilterBar>
         <div className="space-y-3 md:hidden" aria-label="Users">
           {loading && Array.from({ length: 3 }, (_, index) => <div key={`user-card-skeleton-${index}`} className="h-32 animate-pulse rounded-xl bg-slate-100" />)}

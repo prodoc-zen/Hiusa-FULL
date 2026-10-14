@@ -14,14 +14,15 @@ use App\Http\Controllers\ClearanceController;
 use App\Http\Controllers\CollegeController;
 use App\Http\Controllers\CollegeOrganizationController;
 use App\Http\Controllers\ComplianceController;
+use App\Http\Controllers\ComplianceReminderController;
 use App\Http\Controllers\DashboardBriefingController;
 use App\Http\Controllers\ElectionController;
 use App\Http\Controllers\EventController;
 use App\Http\Controllers\EventRequirementController;
+use App\Http\Controllers\FileStorageController;
 use App\Http\Controllers\FinancialAccountabilityController;
 use App\Http\Controllers\FinancialForecastController;
 use App\Http\Controllers\FinancialReportController;
-use App\Http\Controllers\FileStorageController;
 use App\Http\Controllers\FinancialSemesterController;
 use App\Http\Controllers\FingerprintController;
 use App\Http\Controllers\GcashSettingsController;
@@ -349,6 +350,7 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     Route::put('/compliance/requirement-types/{requirementType}/template-link', [ComplianceController::class, 'setRequirementTemplateLink'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/compliance/requirement-types/{requirementType}/template', [ComplianceController::class, 'removeRequirementTemplate'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::get('/compliance/status', [ComplianceController::class, 'status'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
+    Route::post('/compliance/organizations/{organization}/reminders', [ComplianceReminderController::class, 'store'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,DEPARTMENT_HEAD']);
     Route::get('/compliance/submissions', [ComplianceController::class, 'submissions'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,DEPARTMENT_HEAD']);
     Route::post('/compliance/submissions', [ComplianceController::class, 'storeSubmission'])->middleware(['throttle:api-write', 'role:ADMIN']);
     Route::post('/compliance/submissions/{submission}/document', [ComplianceController::class, 'replaceSubmissionDocument'])->middleware(['throttle:api-write', 'role:ADMIN', 'org.writable']);
@@ -385,11 +387,11 @@ Route::middleware(['auth:sanctum', 'account.profile', 'password.changed', 'cache
     // roles. The "sao" role is university-wide and signed only by
     // SUPER_ADMIN; every other role is signed only by its own organization's
     // ADMIN or SBO_OFFICER. See ClearanceController docblock.
-    Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::get('/clearance-periods', [ClearanceController::class, 'periodsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::post('/clearance-periods', [ClearanceController::class, 'periodsStore'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
     Route::delete('/clearance-periods/{clearancePeriod}', [ClearanceController::class, 'periodsDestroy'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN']);
-    Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::get('/clearance-periods/{clearancePeriod}/students', [ClearanceController::class, 'studentsIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
     Route::get('/clearances/mine', [ClearanceController::class, 'mine'])->middleware(['throttle:api-read', 'role:STUDENT']);
-    Route::get('/clearance-signatures', [ClearanceController::class, 'signaturesIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
-    Route::patch('/clearance-signatures/{clearanceSignature}', [ClearanceController::class, 'sign'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER']);
+    Route::get('/clearance-signatures', [ClearanceController::class, 'signaturesIndex'])->middleware(['throttle:api-read', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
+    Route::patch('/clearance-signatures/{clearanceSignature}', [ClearanceController::class, 'sign'])->middleware(['throttle:api-write', 'role:SUPER_ADMIN,ADMIN,SBO_OFFICER,DEPARTMENT_HEAD']);
 });

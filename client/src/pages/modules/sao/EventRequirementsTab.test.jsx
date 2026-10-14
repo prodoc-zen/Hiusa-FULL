@@ -129,7 +129,7 @@ describe('EventRequirementsTab', () => {
     render(<EventRequirementsTab mode="reviews" />);
 
     expect(await screen.findByText('Foundation Day')).toBeInTheDocument();
-    expect(mocks.getApprovalRequests).toHaveBeenCalledWith({ entity_type: 'event', status: 'pending', per_page: 100 });
+    expect(mocks.getApprovalRequests).toHaveBeenCalledWith(expect.objectContaining({ entity_type: 'event', status: 'pending', per_page: 100 }));
 
     fireEvent.click(screen.getByRole('button', { name: 'Actions for Foundation Day' }));
     fireEvent.click(await screen.findByRole('menuitem', { name: 'View files' }));

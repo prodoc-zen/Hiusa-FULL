@@ -10,19 +10,13 @@ use App\Models\Notification;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
-/**
- * Digital clearances. SUPER_ADMIN opens a clearance period with a list of
- * required signatory roles. The special role "sao" is university-wide and
- * may only be signed by SUPER_ADMIN; every other role is organization-scoped
- * and may only be signed by an ADMIN or SBO_OFFICER of that student's own
- * organization (see canSign()). A clearance_signatures row exists per
- * (period, student, required role) from the moment the period is created,
- * so progress can always be read directly without recomputing membership.
- */
 class ClearanceController extends Controller
 {
     private const SAO_ROLE = 'sao';
+
+    private const SIGNATORY_ROLES = ['organization', 'department_head', self::SAO_ROLE];
 
     public function periodsIndex(Request $request)
     {
@@ -38,7 +32,7 @@ class ClearanceController extends Controller
             'title' => ['required', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:3000'],
             'required_roles' => ['required', 'array', 'min:1', 'max:10'],
-            'required_roles.*' => ['required', 'string', 'max:50'],
+            'required_roles.*' => ['required', Rule::in(self::SIGNATORY_ROLES)],
             'deadline_at' => ['nullable', 'date'],
         ]);
         $requiredRoles = array_values(array_unique($data['required_roles']));
@@ -123,7 +117,10 @@ class ClearanceController extends Controller
     {
         $deleted = DB::transaction(function () use ($request, $clearancePeriod) {
             $statuses = ClearanceSignature::where('clearance_period_id', $clearancePeriod->id)->lockForUpdate()->pluck('status');
-            if ($statuses->contains(fn (string $status) => $status !== 'pending')) {
+            $hasHistory = AuditLog::where('record_type', ClearanceSignature::class)
+                ->whereIn('record_id', ClearanceSignature::withoutGlobalScopes()->where('clearance_period_id', $clearancePeriod->id)->select('id'))->exists()
+                || ClearanceSignature::withoutGlobalScopes()->where('clearance_period_id', $clearancePeriod->id)->whereNotNull('signed_at')->exists();
+            if ($hasHistory || $statuses->contains(fn (string $status) => $status !== 'pending')) {
                 return false;
             }
 
@@ -165,7 +162,7 @@ class ClearanceController extends Controller
             ->distinct();
 
         if ($request->user()->role !== 'SUPER_ADMIN') {
-            $studentIdsQuery->where('organization_id', $request->user()->organization_id);
+            $studentIdsQuery->whereIn('organization_id', $request->user()->scopedOrganizationIds());
         }
 
         if (! empty($filters['q'])) {
@@ -197,6 +194,7 @@ class ClearanceController extends Controller
                     'id' => $row->id,
                     'required_role' => $row->required_role,
                     'status' => $row->status,
+                    'remarks' => $row->remarks,
                 ])->values(),
             ];
         })->values();
@@ -239,18 +237,26 @@ class ClearanceController extends Controller
         $filters = $request->validate([
             'clearance_period_id' => ['nullable', 'integer', 'exists:clearance_periods,id'],
             'status' => ['nullable', 'in:pending,cleared,held'],
+            'q' => ['nullable', 'string', 'max:150'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
         ]);
 
         $query = ClearanceSignature::with(['student:school_id,first_name,last_name', 'clearancePeriod:id,title,academic_year']);
         if ($request->user()->role === 'SUPER_ADMIN') {
             $query->where('required_role', self::SAO_ROLE);
+        } elseif ($request->user()->role === 'DEPARTMENT_HEAD') {
+            $query->where('required_role', 'department_head')->whereIn('organization_id', $request->user()->scopedOrganizationIds());
         } else {
-            $query->where('required_role', '!=', self::SAO_ROLE)->where('organization_id', $request->user()->organization_id);
+            $query->where('required_role', 'organization')
+                ->where('organization_id', $request->user()->organization_id);
         }
         $query
             ->when($filters['clearance_period_id'] ?? null, fn ($q, $id) => $q->where('clearance_period_id', $id))
             ->when($filters['status'] ?? null, fn ($q, $status) => $q->where('status', $status));
+        if ($search = trim($filters['q'] ?? '')) {
+            $query->whereHas('student', fn ($student) => $student->where('school_id', 'like', "%{$search}%")
+                ->orWhere('first_name', 'like', "%{$search}%")->orWhere('last_name', 'like', "%{$search}%"));
+        }
 
         return response()->json($query->orderBy('id')->paginate($filters['per_page'] ?? 20));
     }
@@ -262,24 +268,27 @@ class ClearanceController extends Controller
         }
 
         $data = $request->validate([
-            'status' => ['required', 'in:cleared,held'],
-            'remarks' => ['nullable', 'string', 'max:2000', 'required_if:status,held'],
+            'status' => ['required', 'in:pending,cleared,held'],
+            'remarks' => ['nullable', 'string', 'max:2000', 'required_if:status,held', 'required_if:status,pending'],
         ]);
 
         $result = DB::transaction(function () use ($request, $clearanceSignature, $data) {
             $signature = ClearanceSignature::whereKey($clearanceSignature->id)->lockForUpdate()->first();
-            if ($signature->status === 'cleared') {
+            if ($signature->status === $data['status']) {
+                return ['conflict' => 'This clearance line already has that status.'];
+            }
+            if ($signature->status === 'cleared' && $data['status'] !== 'pending') {
                 return ['conflict' => 'This clearance line has already been cleared.'];
             }
-            if ($signature->status === 'held' && $data['status'] !== 'cleared') {
-                return ['conflict' => 'This clearance line is already held.'];
+            if ($data['status'] === 'pending' && $signature->status !== 'cleared') {
+                return ['conflict' => 'Only a cleared line can be reopened.'];
             }
 
             $signature->update([
                 'status' => $data['status'],
                 'remarks' => $data['remarks'] ?? null,
-                'signed_by' => $request->user()->school_id,
-                'signed_at' => now(),
+                'signed_by' => $data['status'] === 'pending' ? null : $request->user()->school_id,
+                'signed_at' => $data['status'] === 'pending' ? null : now(),
             ]);
 
             AuditLog::create([
@@ -287,7 +296,9 @@ class ClearanceController extends Controller
                 'user_id' => $request->user()->school_id,
                 'actor_role' => $request->user()->role,
                 'module' => 'clearances',
-                'action' => $data['status'] === 'cleared' ? 'signature_cleared' : 'signature_held',
+                'action' => match ($data['status']) {
+                    'cleared' => 'signature_cleared', 'held' => 'signature_held', default => 'signature_reopened'
+                },
                 'record_type' => ClearanceSignature::class,
                 'record_id' => $signature->id,
                 'new_values' => ['required_role' => $signature->required_role, 'status' => $data['status'], 'remarks' => $data['remarks'] ?? null],
@@ -315,9 +326,11 @@ class ClearanceController extends Controller
                 'user_id' => $student->school_id,
                 'notification_type' => 'general',
                 'title' => $result['is_complete'] ? 'Your clearance is complete' : 'Your clearance was updated',
-                'message' => $data['status'] === 'cleared'
-                    ? ($result['is_complete'] ? 'All required signatures are complete.' : "Your \"{$signature->required_role}\" clearance signature was cleared.")
-                    : "Your \"{$signature->required_role}\" clearance signature is on hold: ".$data['remarks'],
+                'message' => match ($data['status']) {
+                    'cleared' => $result['is_complete'] ? 'All required signatures are complete.' : "Your \"{$signature->required_role}\" clearance signature was cleared.",
+                    'held' => "Your \"{$signature->required_role}\" clearance signature is on hold: ".$data['remarks'],
+                    default => "Your \"{$signature->required_role}\" clearance was reopened: ".$data['remarks'],
+                },
                 'reference_type' => 'clearance_signature',
                 'reference_id' => $signature->id,
                 'is_read' => false,
@@ -334,7 +347,13 @@ class ClearanceController extends Controller
             return $user->role === 'SUPER_ADMIN';
         }
 
+        if ($signature->required_role === 'department_head') {
+            return $user->role === 'DEPARTMENT_HEAD'
+                && in_array($signature->organization_id, $user->scopedOrganizationIds(), true);
+        }
+
         return in_array($user->role, ['ADMIN', 'SBO_OFFICER'], true)
+            && $signature->required_role === 'organization'
             && $user->organization_id === $signature->organization_id;
     }
 }

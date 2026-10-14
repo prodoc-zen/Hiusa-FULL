@@ -1,6 +1,6 @@
 import { formatDisplayText } from '../../../utils/displayText.js';
 import { useCallback, useEffect, useState } from 'react';
-import { Drawer, EmptyState, ErrorState, Input, SkeletonText, StatusBadge } from '../../../components/ui';
+import { Button, Card, EmptyState, ErrorState, Input, SkeletonText, StatusBadge } from '../../../components/ui';
 import PaginationControls from '../../../components/PaginationControls';
 import { getClearancePeriodStudents, updateClearanceSignature } from '../../../services/clearanceService';
 import { listMeta, unwrapList } from '../../../services/pagination';
@@ -34,7 +34,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
 
   async function handleSign(signatureId, status, remarks) {
     await updateClearanceSignature(signatureId, { status, remarks });
-    notify.success(status === 'cleared' ? 'Signature cleared.' : 'Signature put on hold.');
+    notify.success(status === 'cleared' ? 'Signature cleared.' : status === 'pending' ? 'Clearance reopened.' : 'Signature put on hold.');
     load();
     onSignatureChanged?.();
   }
@@ -53,10 +53,11 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
   }
 
   return (
-    <Drawer open={Boolean(period)} title={formatDisplayText(period?.title)} description={period ? `${period.academic_year} · SAO signature line` : undefined} onClose={onClose} width="max-w-5xl">
+    <Card bodyClassName="p-0">
+      {period && <div className="border-b border-line p-4"><Button variant="secondary" size="sm" onClick={onClose}>Back to periods</Button><h2 className="mt-3 text-lg font-bold text-ink">{formatDisplayText(period.title)}</h2><p className="text-sm text-ink-muted">{period.academic_year} · Student clearance roster</p></div>}
       {period && (
         <div className="flex flex-col gap-4">
-          <Input value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" />
+          <div className="p-4"><Input type="search" value={q} onChange={(event) => setQ(event.target.value)} placeholder="Search by name or school ID..." aria-label="Search students" /></div>
 
           {loading && <SkeletonText lines={6} />}
           {!loading && error && <ErrorState description={error} onRetry={load} />}
@@ -64,7 +65,7 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
             <EmptyState kind={q ? 'filtered' : 'first-run'} query={q} onClearFilters={() => setQ('')} title="No students in this period" description={q ? 'No student in this period matches this search.' : 'Opening a period adds a signature line for every active student. None are on this one yet.'} />
           )}
 
-          {!loading && !error && students.length > 0 && <div className="overflow-x-auto rounded-lg border border-line">
+          {!loading && !error && students.length > 0 && <div className="overflow-x-auto border-y border-line">
             <table className="w-full min-w-[650px] text-left text-sm">
               <caption className="sr-only">Student clearance signatures</caption>
               <thead className="bg-subtle text-xs font-bold text-ink-muted"><tr>
@@ -83,10 +84,10 @@ export default function ClearancePeriodStudentsDrawer({ period, onClose, onSigna
           </div>}
 
           {!loading && !error && students.length > 0 && (
-            <PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="students" />
+            <div className="p-4"><PaginationControls currentPage={meta.currentPage} totalItems={meta.total} pageSize={meta.perPage} onPageChange={setPage} label="students" /></div>
           )}
         </div>
       )}
-    </Drawer>
+    </Card>
   );
 }

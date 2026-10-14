@@ -70,6 +70,18 @@ class ComplianceDocumentService
 
     public function __construct(private readonly EventApprovalChain $approvalChain) {}
 
+    private ?string $search = null;
+
+    private function matchesSearch(?string $text): bool
+    {
+        return $this->search === null || str_contains(mb_strtolower($text ?? ''), mb_strtolower($this->search));
+    }
+
+    private function searchLike(): string
+    {
+        return '%'.addcslashes($this->search ?? '', '\\%_').'%';
+    }
+
     /**
      * One page of the list, newest submission first, and how many rows the whole list has. Each source reads
      * only as many rows as the page reaches (callers keep page times page size within MAX_WINDOW).
@@ -77,8 +89,9 @@ class ComplianceDocumentService
      * @param  array<int, int>  $organizationIds
      * @return array{0: Collection<int, array<string, mixed>>, 1: int}
      */
-    public function page(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $page, int $perPage): array
+    public function page(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole, ?string $family, int $page, int $perPage, ?string $search = null): array
     {
+        $this->search = trim($search ?? '') ?: null;
         $source ??= $family ? self::FAMILY_SOURCE[$family] : null;
         if ($family && $source !== self::FAMILY_SOURCE[$family]) {
             return [collect(), 0];
@@ -119,6 +132,7 @@ class ComplianceDocumentService
      */
     public function organizationSummaries(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole = null, ?string $family = null): Collection
     {
+        $this->search = null;
         $counts = $this->counts($organizationIds, $semesterId, $source ?? ($family ? self::FAMILY_SOURCE[$family] : null), $viewerRole, $family);
 
         $organizations = Organization::whereIn('id', $counts->pluck('organization_id')->unique())->get(['id', 'name', 'acronym', 'college_id'])->keyBy('id');
@@ -170,6 +184,7 @@ class ComplianceDocumentService
             ->join('compliance_requirement_types as t', 't.id', '=', 's.requirement_type_id')
             ->join('organizations as o', 'o.id', '=', 's.organization_id')
             ->whereIn('s.organization_id', $organizationIds)
+            ->when($this->search !== null, fn ($query) => $query->where(fn ($match) => $match->where('s.file_original_name', 'like', $this->searchLike())->orWhere('t.name', 'like', $this->searchLike())))
             ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
             ->selectRaw(
                 's.organization_id, '.self::COMPLIANCE_FAMILY_SQL.' as family, count(*) as total, max(s.submitted_at) as latest',
@@ -191,6 +206,21 @@ class ComplianceDocumentService
     private function financialCounts(array $organizationIds, ?int $semesterId, ?string $source, ?string $viewerRole): Collection
     {
         $query = $this->submittedReports($organizationIds, $semesterId, $viewerRole);
+        if ($this->search !== null) {
+            $parts = [];
+            foreach ($query->select(['organization_id', 'title', 'supporting_documents', 'submitted_at'])->cursor() as $report) {
+                $reportMatches = $this->matchesSearch($report->title.'.pdf');
+                $documentCount = collect($report->supporting_documents ?? [])->filter(fn ($document) => $this->matchesSearch($document['name'] ?? '') || $this->matchesSearch($report->title))->count();
+                if ($source !== 'financial_supporting_document' && $reportMatches) {
+                    $parts[] = $this->countPart($report->organization_id, 'financial_report', 1, $report->submitted_at?->toDateTimeString());
+                }
+                if ($source !== 'financial_report' && $documentCount > 0) {
+                    $parts[] = $this->countPart($report->organization_id, 'financial_supporting_document', $documentCount, $report->submitted_at?->toDateTimeString());
+                }
+            }
+
+            return collect($parts);
+        }
         $documents = $this->documentCountSql($query);
 
         $totals = $query
@@ -213,10 +243,12 @@ class ComplianceDocumentService
     /** Submitted reports in scope, including files still awaiting Department Head review. */
     private function submittedReports(array $organizationIds, ?int $semesterId, ?string $viewerRole): Builder
     {
+        $fileName = DB::connection()->getDriverName() === 'sqlite' ? "(title || '.pdf')" : "concat(title, '.pdf')";
         $period = 'coalesce((select academic_semester_id from events where events.id = financial_reports.event_id), '
             .'(select id from academic_semesters where date(starts_on) <= date(financial_reports.submitted_at) and date(ends_on) >= date(financial_reports.submitted_at) order by id limit 1))';
 
         return FinancialReport::whereIn('organization_id', $organizationIds)->whereNotNull('submitted_at')
+            ->when($this->search !== null, fn ($query) => $query->where(fn ($match) => $match->whereRaw($fileName.' like ?', [$this->searchLike()])->orWhere('supporting_documents', 'like', $this->searchLike())))
             ->when($semesterId, fn ($filtered) => $filtered->whereRaw("{$period} = ?", [$semesterId]));
     }
 
@@ -264,7 +296,9 @@ class ComplianceDocumentService
      */
     public function isRegistrationFile(?Organization $organization, ?DateTimeInterface $submittedAt, bool $marked = false): bool
     {
-        if ($marked) return true;
+        if ($marked) {
+            return true;
+        }
         if (in_array($organization?->lifecycle_status, self::REGISTRATION_LIFECYCLES, true)) {
             return true;
         }
@@ -298,6 +332,7 @@ class ComplianceDocumentService
             ->join('compliance_requirement_types as t', 't.id', '=', 's.requirement_type_id')
             ->join('organizations as o', 'o.id', '=', 's.organization_id')
             ->whereIn('s.organization_id', $organizationIds)
+            ->when($this->search !== null, fn ($query) => $query->where(fn ($match) => $match->where('s.file_original_name', 'like', $this->searchLike())->orWhere('t.name', 'like', $this->searchLike())))
             ->when($semesterId, fn ($query) => $query->where('t.academic_semester_id', $semesterId))
             ->when($family, fn ($query) => $query->whereRaw(self::COMPLIANCE_FAMILY_SQL.' = ?', [ComplianceRequirementType::SEMESTRAL_ACCOMPLISHMENT_REPORT, $family]))
             ->with('requirementType:id,academic_year,academic_semester_id,name')
@@ -338,6 +373,13 @@ class ComplianceDocumentService
         return EventRequirementFile::from('event_requirement_files as f')
             ->whereIn('f.organization_id', $organizationIds)
             ->when($semesterId, fn ($query) => $query->join('events as e', 'e.id', '=', 'f.event_id')->where('e.academic_semester_id', $semesterId))
+            ->when($this->search !== null, function ($query) use ($semesterId) {
+                if (! $semesterId) {
+                    $query->join('events as e', 'e.id', '=', 'f.event_id');
+                }
+                $query->join('event_requirements as r', 'r.id', '=', 'f.requirement_id')
+                    ->where(fn ($match) => $match->where('f.original_name', 'like', $this->searchLike())->orWhere('r.name', 'like', $this->searchLike())->orWhere('e.title', 'like', $this->searchLike()));
+            })
             // The SAO repository includes files sent to the Department Head, before SAO review starts.
             ->when($viewerRole === 'SUPER_ADMIN', fn ($query) => $query->joinSub(
                 DB::table('approval_requests')->select('entity_id')->distinct()->where('entity_type', 'event'),
@@ -388,7 +430,8 @@ class ComplianceDocumentService
         $query = $this->submittedReports($organizationIds, $semesterId, $viewerRole);
         $reports = $query
             ->when($source === 'financial_supporting_document', fn ($withDocuments) => $withDocuments->whereRaw($this->documentCountSql($query).' > 0'))
-            ->orderByDesc('submitted_at')->orderByDesc('id')->limit($limit)
+            ->orderByDesc('submitted_at')->orderByDesc('id')
+            ->when($this->search === null, fn ($bounded) => $bounded->limit($limit))
             ->get(['id', 'organization_id', 'event_id', 'report_type', 'title', 'period_start', 'period_end', 'supporting_documents', 'submission_status', 'submitted_at', 'generated_by', 'department_head_approved_at', 'sao_approved_at']);
         $eventSemesters = Event::whereIn('id', $reports->pluck('event_id')->filter()->unique())->pluck('academic_semester_id', 'id');
         $approvals = $this->latestApprovals('financial_report', $reports->pluck('id'));
@@ -410,7 +453,7 @@ class ComplianceDocumentService
                 'academic_semester_id' => $reportSemesterId,
             ];
 
-            if ($source !== 'financial_supporting_document') {
+            if ($source !== 'financial_supporting_document' && $this->matchesSearch($report->title.'.pdf')) {
                 $period = $report->period_start && $report->period_end
                     ? ', '.$report->period_start->format('M j, Y').' to '.$report->period_end->format('M j, Y')
                     : '';
@@ -427,6 +470,9 @@ class ComplianceDocumentService
             }
             if ($source !== 'financial_report') {
                 foreach ($report->supporting_documents ?? [] as $index => $document) {
+                    if (! $this->matchesSearch($document['name'] ?? '') && ! $this->matchesSearch($report->title)) {
+                        continue;
+                    }
                     $rows->push([
                         ...$row,
                         'id' => $report->id.'-'.$index,

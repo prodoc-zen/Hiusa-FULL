@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
@@ -77,10 +78,10 @@ function CatalogFields({ value, onChange, images, onImagesChange }) {
   const changeVariant = (index, patch) => onChange({ ...value, variants: variants.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row) });
   return <>
     <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Category *" />Category *
-      <select value={categoryIsCustom ? "Other" : value.category} onChange={(event) => onChange({ ...value, category: event.target.value === "Other" ? "" : event.target.value, category_custom: event.target.value === "Other" })} required className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm">
+      <HiusaSelect value={categoryIsCustom ? "Other" : value.category} onChange={(event) => onChange({ ...value, category: event.target.value === "Other" ? "" : event.target.value, category_custom: event.target.value === "Other" })} required className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm">
         <option value="">Select category</option>
         {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
-      </select>
+      </HiusaSelect>
       {categoryIsCustom && <input value={value.category} onChange={(event) => onChange({ ...value, category: event.target.value, category_custom: true })} placeholder="Enter category name" required className="mt-2 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" />}
     </label>
     <div className="grid gap-3 sm:grid-cols-3">
@@ -303,10 +304,10 @@ function AddStockModal({
         </p>
         <div className="mt-4 space-y-1.5">
           {variants?.length > 0 && <label className="block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Variant" />Variant
-            <select value={variantId} onChange={(event) => onVariantChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" required>
+            <HiusaSelect value={variantId} onChange={(event) => onVariantChange(event.target.value)} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" required>
               <option value="">Select variant</option>
               {variants.map((variant) => <option key={variant.id} value={variant.id}>{formatDisplayText(variant.name)} · {variant.stock_quantity} in stock</option>)}
-            </select>
+            </HiusaSelect>
           </label>}
           <label className="text-[13px] font-semibold text-[#0F172A]">
            <FieldIcon label="Quantity to Add" /> Quantity to Add
@@ -1852,7 +1853,7 @@ export default function MerchandisePage({ initialTab }) {
           {cartError && <p role="alert" className="mb-3 rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-700">{cartError}</p>}
           {productPreview && <div className="grid gap-4 sm:grid-cols-[180px_minmax(0,1fr)]">
             {productPreview.image_url ? <img src={resolveAssetUrl(productPreview.image_url)} alt={formatDisplayText(productPreview.name)} className="aspect-square w-full rounded-lg border border-[#DDE7EF] object-cover" /> : <div className="grid aspect-square place-items-center rounded-lg bg-[#EEF6FB]"><Package size={42} className="text-[#0878B7]" /></div>}
-            <div className="min-w-0 space-y-3"><p className="text-xl font-black text-[#0F2F62]">{fmt(productPreview.effective_price ?? productPreview.price)}</p><p className="text-sm font-semibold text-[#0F172A]">{productPreview.stock_quantity} unit{productPreview.stock_quantity === 1 ? '' : 's'} in stock</p>{productPreview.description && <RichTextBody value={productPreview.description} className="text-sm leading-6 text-slate-600" />}{productPreview.variants?.length > 0 && <label className="block text-xs font-bold text-[#0F2F62]">Size / variant<select value={selectedVariants[productPreview.id] || ''} onChange={(event) => setSelectedVariants((current) => ({ ...current, [productPreview.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Select variant</option>{productPreview.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{formatDisplayText(variant.name)} · {variant.stock_quantity} in stock</option>)}</select></label>}<label className="block text-xs font-bold text-[#0F2F62]">Quantity<input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => setDraftQty((current) => ({ ...current, [productPreview.id]: Math.max(1, Math.min(productPreview.stock_quantity, Number(event.target.value || 1))) }))} className="mt-1 h-11 w-24 rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label></div>
+            <div className="min-w-0 space-y-3"><p className="text-xl font-black text-[#0F2F62]">{fmt(productPreview.effective_price ?? productPreview.price)}</p><p className="text-sm font-semibold text-[#0F172A]">{productPreview.stock_quantity} unit{productPreview.stock_quantity === 1 ? '' : 's'} in stock</p>{productPreview.description && <RichTextBody value={productPreview.description} className="text-sm leading-6 text-slate-600" />}{productPreview.variants?.length > 0 && <label className="block text-xs font-bold text-[#0F2F62]">Size / variant<HiusaSelect value={selectedVariants[productPreview.id] || ''} onChange={(event) => setSelectedVariants((current) => ({ ...current, [productPreview.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm"><option value="">Select variant</option>{productPreview.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{formatDisplayText(variant.name)} · {variant.stock_quantity} in stock</option>)}</HiusaSelect></label>}<label className="block text-xs font-bold text-[#0F2F62]">Quantity<input type="number" min="1" max={productPreview.stock_quantity} value={draftQty[productPreview.id] || 1} onChange={(event) => setDraftQty((current) => ({ ...current, [productPreview.id]: Math.max(1, Math.min(productPreview.stock_quantity, Number(event.target.value || 1))) }))} className="mt-1 h-11 w-24 rounded-lg border border-[#DDE7EF] px-3 text-sm" /></label></div>
           </div>}
         </Modal>
         {/* Student metric cards */}
@@ -1922,7 +1923,7 @@ export default function MerchandisePage({ initialTab }) {
                     className="min-w-0 flex-1 bg-transparent text-[13px] outline-none placeholder:text-slate-500"
                   />
                 </label>
-                <div className="relative"><SlidersHorizontal size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select
+                <div className="relative"><SlidersHorizontal size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect
                   aria-label="Filter merchandise category"
                   value={studentCategory}
                   onChange={(event) => setStudentCategory(event.target.value)}
@@ -1933,8 +1934,8 @@ export default function MerchandisePage({ initialTab }) {
                       {category === "all" ? "All categories" : category}
                     </option>
                   ))}
-                </select></div>
-                <div className="relative"><Settings2 size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select
+                </HiusaSelect></div>
+                <div className="relative"><Settings2 size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect
                   aria-label="Sort merchandise"
                   value={studentItemSort}
                   onChange={(event) => setStudentItemSort(event.target.value)}
@@ -1944,7 +1945,7 @@ export default function MerchandisePage({ initialTab }) {
                   <option value="stock">Most stock</option>
                   <option value="price-low">Price: low to high</option>
                   <option value="price-high">Price: high to low</option>
-                </select></div>
+                </HiusaSelect></div>
               </div>
               <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[#EEF6FB] pt-3">
                 <p className="flex items-center gap-2 text-xs font-semibold text-slate-500">
@@ -2028,9 +2029,9 @@ export default function MerchandisePage({ initialTab }) {
                       {item.description && <RichTextBody value={item.description} className="mt-2 min-h-10 line-clamp-2 text-[12px] leading-5 text-slate-500" />}
                       <button type="button" onClick={() => { setCartError(null); setProductPreview(item); }} className="mt-2 w-fit text-xs font-bold text-[#0878B7] hover:underline">View product details</button>
                       {item.variants?.length > 0 && <label className="mt-3 block text-xs font-semibold text-[#0F2F62]"><FieldIcon label="Size / variant" />Size / variant
-                        <select value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${formatDisplayText(item.name)}`}>
+                        <HiusaSelect value={selectedVariants[item.id] || ""} onChange={(event) => setSelectedVariants((prev) => ({ ...prev, [item.id]: event.target.value }))} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm" aria-label={`Select variant for ${formatDisplayText(item.name)}`}>
                           <option value="">Select variant</option>{item.variants.map((variant) => <option key={variant.id} value={variant.id} disabled={variant.stock_quantity === 0}>{formatDisplayText(variant.name)} · {variant.stock_quantity} available</option>)}
-                        </select>
+                        </HiusaSelect>
                       </label>}
                       <div className="mt-auto flex items-center gap-2 border-t border-[#EEF6FB] pt-4">
                         <button
@@ -2513,7 +2514,7 @@ export default function MerchandisePage({ initialTab }) {
                   <label className="text-[13px] font-semibold text-[#0F172A]">
                    <FieldIcon label="Payment Method" /> Payment Method
                   </label>
-                  <select
+                  <HiusaSelect
                     value={checkoutPayment.method}
                     onChange={(e) =>
                       setCheckoutPayment((current) => ({
@@ -2531,7 +2532,7 @@ export default function MerchandisePage({ initialTab }) {
                       GCash (single order only)
                       {!gcashSettings?.gcash_qr_url ? " - unavailable" : ""}
                     </option>
-                  </select>
+                  </HiusaSelect>
                   <p className="mt-1 text-xs font-medium text-slate-600">
                     {checkoutPayment.method === "gcash"
                       ? "Next: an officer checks your proof. Once it is verified, your claim token appears in My orders."
@@ -2853,7 +2854,7 @@ export default function MerchandisePage({ initialTab }) {
               </p>
             </div>
             <div className="flex w-full gap-2 sm:w-auto">
-              <div className="relative min-w-0"><SlidersHorizontal size={14} className="pointer-events-none absolute left-3 top-3 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter inventory by category" value={inventoryCategory} onChange={(event) => setInventoryCategory(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><option value="all">All categories</option>{inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}</select></div>
+              <div className="relative min-w-0"><SlidersHorizontal size={14} className="pointer-events-none absolute left-3 top-3 text-[#0878B7]" aria-hidden="true" /><HiusaSelect aria-label="Filter inventory by category" value={inventoryCategory} onChange={(event) => setInventoryCategory(event.target.value)} className="h-10 w-full min-w-0 rounded-lg border border-[#DDE7EF] bg-white pl-8 pr-3 text-xs font-semibold text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-[#16C7F3]"><option value="all">All categories</option>{inventoryCategories.map((category) => <option key={category} value={category}>{category}</option>)}</HiusaSelect></div>
               <div className="flex h-10 flex-1 items-center gap-2 rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 sm:flex-none">
                 <Search size={15} className="text-slate-500" />
                 <input
@@ -3062,7 +3063,7 @@ export default function MerchandisePage({ initialTab }) {
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] pl-9 pr-3 text-sm outline-none focus:border-[#0B8ED0]"
                 />
               </label>
-              <select
+              <HiusaSelect
                 aria-label="Merchandise item"
                 value={orderFilters.merchandise_id}
                 onChange={(event) =>
@@ -3079,8 +3080,8 @@ export default function MerchandisePage({ initialTab }) {
                     {formatDisplayText(item.name)}
                   </option>
                 ))}
-              </select>
-              <select
+              </HiusaSelect>
+              <HiusaSelect
                 aria-label="Sort orders"
                 value={orderFilters.sort}
                 onChange={(event) =>
@@ -3095,12 +3096,12 @@ export default function MerchandisePage({ initialTab }) {
                 <option value="student">Student name</option>
                 <option value="item">Merchandise item</option>
                 <option value="status">Order status</option>
-              </select>
+              </HiusaSelect>
             </div>
             {showAdvancedFilters && (
               <div id="order-advanced-filters" className="mt-4 border-t border-[#DDE7EF] pt-4">
                 <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-5">
-                  <select
+                  <HiusaSelect
                     aria-label="Program or course"
                     value={orderFilters.program}
                     onChange={(event) =>
@@ -3119,8 +3120,8 @@ export default function MerchandisePage({ initialTab }) {
                         {formatDisplayText(program.name)}
                       </option>
                     ))}
-                  </select>
-                  <select
+                  </HiusaSelect>
+                  <HiusaSelect
                     aria-label="Major or specialization"
                     value={orderFilters.major}
                     onChange={(event) =>
@@ -3135,8 +3136,8 @@ export default function MerchandisePage({ initialTab }) {
                     {orderFilterOptions.majors?.map((value) => (
                       <option key={value}>{value}</option>
                     ))}
-                  </select>
-                  <select
+                  </HiusaSelect>
+                  <HiusaSelect
                     aria-label="Year level"
                     value={orderFilters.year_level}
                     disabled={!orderFilters.program}
@@ -3155,8 +3156,8 @@ export default function MerchandisePage({ initialTab }) {
                         <option key={year}>{year}</option>
                       ),
                     )}
-                  </select>
-                  <select
+                  </HiusaSelect>
+                  <HiusaSelect
                     aria-label="Section"
                     value={orderFilters.section}
                     disabled={!orderFilters.program || !orderFilters.year_level}
@@ -3174,8 +3175,8 @@ export default function MerchandisePage({ initialTab }) {
                         {formatDisplayText(section.name)}
                       </option>
                     ))}
-                  </select>
-                  <select
+                  </HiusaSelect>
+                  <HiusaSelect
                     aria-label="User role"
                     value={orderFilters.role}
                     onChange={(event) =>
@@ -3192,8 +3193,8 @@ export default function MerchandisePage({ initialTab }) {
                         {value.replaceAll("_", " ")}
                       </option>
                     ))}
-                  </select>
-                  <select
+                  </HiusaSelect>
+                  <HiusaSelect
                     aria-label="SBO position"
                     value={orderFilters.position_title}
                     onChange={(event) =>
@@ -3208,8 +3209,8 @@ export default function MerchandisePage({ initialTab }) {
                     {orderFilterOptions.positions?.map((value) => (
                       <option key={value}>{value}</option>
                     ))}
-                  </select>
-                  <select
+                  </HiusaSelect>
+                  <HiusaSelect
                     aria-label="Payment method"
                     value={orderFilters.payment_method}
                     onChange={(event) =>
@@ -3224,7 +3225,7 @@ export default function MerchandisePage({ initialTab }) {
                     {orderFilterOptions.payment_methods?.map((value) => (
                       <option key={value}>{value.toUpperCase()}</option>
                     ))}
-                  </select>
+                  </HiusaSelect>
                   <div className="flex h-11 items-center rounded-lg border border-[#DDE7EF] bg-[#F8FBFD] px-3 text-xs font-bold text-slate-500">
                     10 rows per page
                   </div>
@@ -3903,7 +3904,7 @@ export default function MerchandisePage({ initialTab }) {
                 Orders waiting to be claimed and orders already released.
               </p>
               </div>
-              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><select aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="claimable">All claim tokens</option><option value="paid">Pending claim</option><option value="claimed">Claimed</option></select></div>
+              <div className="relative"><Ticket size={15} className="pointer-events-none absolute left-3 top-3.5 text-[#0878B7]" aria-hidden="true" /><HiusaSelect aria-label="Filter claim tokens by status" value={tokenStatusFilter} onChange={(event) => setTokenStatusFilter(event.target.value)} className="h-11 rounded-lg border border-[#DDE7EF] bg-white pl-9 pr-3 text-sm"><option value="claimable">All claim tokens</option><option value="paid">Pending claim</option><option value="claimed">Claimed</option></HiusaSelect></div>
             </div>
             {loading ? (
               <div className="space-y-2 p-5">
@@ -4072,7 +4073,7 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">
                  <FieldIcon label="Selling Status" /> Selling Status
                 </label>
-                <select
+                <HiusaSelect
                   value={form.is_active ? "1" : "0"}
                   onChange={(e) =>
                     setForm({ ...form, is_active: e.target.value === "1" })
@@ -4081,7 +4082,7 @@ export default function MerchandisePage({ initialTab }) {
                 >
                   <option value="1">Active</option>
                   <option value="0">Inactive</option>
-                </select>
+                </HiusaSelect>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">
@@ -4235,7 +4236,7 @@ export default function MerchandisePage({ initialTab }) {
                 <label className="text-[13px] font-semibold text-[#0F172A]">
                  <FieldIcon label="Selling Status" /> Selling Status
                 </label>
-                <select
+                <HiusaSelect
                   value={editForm.is_active ? "1" : "0"}
                   onChange={(e) =>
                     setEditForm({
@@ -4247,7 +4248,7 @@ export default function MerchandisePage({ initialTab }) {
                 >
                   <option value="1">Active</option>
                   <option value="0">Inactive</option>
-                </select>
+                </HiusaSelect>
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]">

@@ -160,7 +160,7 @@ class AnnouncementController extends Controller
             ->where(function ($scope) use ($user) {
                 $scope->whereIn('organization_id', $user->scopedOrganizationIds())
                     ->orWhere(function ($global) use ($user) {
-                        $global->where('announcement_source', 'SAO')
+                        $global->whereIn('announcement_source', ['SAO', 'COMPLIANCE'])
                             ->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id));
                     });
             });
@@ -325,7 +325,7 @@ class AnnouncementController extends Controller
     {
         return Announcement::where(function ($scope) use ($user) {
             $scope->whereIn('organization_id', $user->scopedOrganizationIds())
-                ->orWhere(fn ($global) => $global->where('announcement_source', 'SAO')->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
+                ->orWhere(fn ($global) => $global->whereIn('announcement_source', ['SAO', 'COMPLIANCE'])->whereHas('recipients', fn ($recipients) => $recipients->where('user_id', $user->school_id)));
         })
             ->where('is_published', true)
             ->where('approval_status', 'approved')
@@ -416,7 +416,7 @@ class AnnouncementController extends Controller
 
     public function update(Request $request, $id)
     {
-        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
+        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->where('announcement_source', 'ORGANIZATION')->find($id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -514,7 +514,7 @@ class AnnouncementController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
+        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->where('announcement_source', 'ORGANIZATION')->find($id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);
@@ -552,7 +552,7 @@ class AnnouncementController extends Controller
 
     public function togglePublish(Request $request, $id)
     {
-        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->find($id);
+        $announcement = Announcement::where('organization_id', $request->user()->organization_id)->where('announcement_source', 'ORGANIZATION')->find($id);
 
         if (! $announcement) {
             return response()->json(['message' => 'Announcement not found.'], 404);

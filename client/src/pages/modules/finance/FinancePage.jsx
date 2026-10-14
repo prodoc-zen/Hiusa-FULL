@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import DateTimeInput from '../../../components/ui/DateTimeInput.jsx';
 import FieldIcon from '../../../components/FieldIcon.jsx';
@@ -451,7 +452,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
     const activeFilters = { ...Object.fromEntries(Object.entries(filters).filter(([, value]) => value !== '')), ...organizationScope };
     // Budgets, forecasts, reports, and the event dropdown source have no server-side
     // filter that narrows them down, and every one of them doubles as either a full
-    // catalog view or a <select> option list elsewhere on this page - so they are
+    // catalog view or a <HiusaSelect> option list elsewhere on this page - so they are
     // fetched in full (across every page) rather than left truncated at page one.
     Promise.all([
       canViewTransactions ? getTransactions({ page, ...activeFilters, ...(searchTerm.trim() ? { search: searchTerm.trim() } : {}) }) : Promise.resolve({ data: { data: [] } }),
@@ -1064,7 +1065,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
       {isDepartmentHead && OVERSIGHT_TABS.includes(activeTab) && (
         <div className="max-w-sm">
           <label htmlFor="finance-organization" className="mb-1.5 block text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Organization" />Organization</label>
-          <select
+          <HiusaSelect
             id="finance-organization"
             value={organizationFilter}
             onChange={(event) => { setOrganizationFilter(event.target.value); load(1, txFilters, search, event.target.value); }}
@@ -1072,7 +1073,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
           >
             <option value="">All organizations</option>
             {collegeOrganizations.map((organization) => <option key={organization.id} value={String(organization.id)}>{organization.name}</option>)}
-          </select>
+          </HiusaSelect>
         </div>
       )}
 
@@ -1122,8 +1123,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             resultLabel={txMeta.total === 1 ? 'transaction' : 'transactions'}
             secondaryClassName="grid gap-3 sm:grid-cols-2 xl:grid-cols-[150px_minmax(180px,1fr)_160px_160px_auto]"
           >
-            <select aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; const period = academicPeriods.find((item) => String(item.id) === id); setTransactionPeriodId(id); setTxFilters((current) => ({ ...current, from: period?.starts_on?.slice(0, 10) || '', to: period?.ends_on?.slice(0, 10) || '' })); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</select>
-            <select
+            <HiusaSelect aria-label="Filter by academic semester" value={transactionPeriodId} onChange={(event) => { const id = event.target.value; const period = academicPeriods.find((item) => String(item.id) === id); setTransactionPeriodId(id); setTxFilters((current) => ({ ...current, from: period?.starts_on?.slice(0, 10) || '', to: period?.ends_on?.slice(0, 10) || '' })); }} className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All semesters</option>{academicPeriods.filter((period) => ['active', 'closed'].includes(period.status)).map((period) => <option key={period.id} value={period.id}>AY {period.academic_year?.label} · {period.number === 1 ? '1st' : '2nd'} Semester ({period.status})</option>)}</HiusaSelect>
+            <HiusaSelect
               value={txFilters.type}
               onChange={(e) => setTxFilters({ ...txFilters, type: e.target.value })}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
@@ -1132,8 +1133,8 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <option value="">All types</option>
               <option value="income">Income</option>
               <option value="expense">Expense</option>
-            </select>
-            <select
+            </HiusaSelect>
+            <HiusaSelect
               value={txFilters.event_id}
               onChange={(e) => setTxFilters({ ...txFilters, event_id: e.target.value })}
               className="h-10 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0]"
@@ -1141,7 +1142,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
             >
               <option value="">All events</option>
               {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
-            </select>
+            </HiusaSelect>
             <DateTimeInput
               type="date"
               value={txFilters.from}
@@ -1578,21 +1579,21 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
 
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="text-xs font-bold text-slate-600"><FieldIcon label="Covered period" />Covered period
-                  <select value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                  <HiusaSelect value={reportForm.report_type} onChange={(event) => setReportForm({ ...reportForm, report_type: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="semester">Semester</option>
                     <option value="event">One event</option>
                     <option value="monthly">This month</option>
                     <option value="custom">Custom dates</option>
-                  </select>
+                  </HiusaSelect>
                 </label>
                 {reportForm.report_type === 'semester' ? <label className="text-xs font-bold text-slate-600"><FieldIcon label="Semester" />Semester
-                  <select required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</select>
+                  <HiusaSelect required value={reportForm.financial_semester_id} onChange={(event) => setReportForm({ ...reportForm, financial_semester_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">Select semester</option>{semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)} ({String(semester.starts_on).slice(0, 10)} to {String(semester.ends_on).slice(0, 10)})</option>)}</HiusaSelect>
                 </label> : null}
                 {reportForm.report_type === 'event' && <label className="text-xs font-bold text-slate-600"><FieldIcon label="Event" />Event
-                  <select required value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
+                  <HiusaSelect required value={reportForm.event_id} onChange={(event) => setReportForm({ ...reportForm, event_id: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-2 focus:ring-[#16C7F3]/20">
                     <option value="">Select event</option>
                     {events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}
-                  </select>
+                  </HiusaSelect>
                 </label>}
                 {reportForm.report_type === 'custom' && <div className="grid gap-3 sm:col-span-2 sm:grid-cols-2">
                   <label className="text-xs font-bold text-slate-600"><FieldIcon label="Start date" />Start date<DateTimeInput type="date" required value={reportForm.period_start} onChange={(event) => setReportForm({ ...reportForm, period_start: event.target.value })} className="mt-1 h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus:border-[#0B8ED0] focus:outline-none focus:ring-2 focus:ring-[#16C7F3]/30" /></label>
@@ -1705,9 +1706,9 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <p className="mt-1 text-xs text-slate-600">Each saved report moves from draft to the Department Head, then the SAO.</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
                 <input aria-label="Search report history" placeholder="Search reports" value={reportFilter.search} onChange={(event) => setReportFilter({ ...reportFilter, search: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] px-3 text-sm" />
-                <select aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</select>
-                <select aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></select>
-                <select aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</select>
+                <HiusaSelect aria-label="Filter reports by status" value={reportFilter.status} onChange={(event) => setReportFilter({ ...reportFilter, status: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All statuses</option>{['draft', 'pending_department_head', 'pending_sao', 'approved', 'rejected'].map((status) => <option key={status} value={status}>{status.replaceAll('_', ' ')}</option>)}</HiusaSelect>
+                <HiusaSelect aria-label="Filter reports by document" value={reportFilter.document_type} onChange={(event) => setReportFilter({ ...reportFilter, document_type: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All documents</option><option value="financial_report">Financial report</option><option value="income_statement">Income statement</option></HiusaSelect>
+                <HiusaSelect aria-label="Filter reports by event" value={reportFilter.event_id} onChange={(event) => setReportFilter({ ...reportFilter, event_id: event.target.value })} className="h-11 rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm"><option value="">All events</option>{events.map((event) => <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>)}</HiusaSelect>
               </div>
             </div>
             {recordMissing && <div className="border-b border-[#DDE7EF] p-4">{missingRecordNotice('report')}</div>}
@@ -1869,20 +1870,20 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Type *" />Type *</label>
-                  <select
+                  <HiusaSelect
                     value={form.type}
                     onChange={(e) => setForm({ ...form, type: e.target.value })}
                     className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
                   >
                     <option value="expense">Expense</option>
                     <option value="income">Income</option>
-                  </select>
+                  </HiusaSelect>
                 </div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Category" />Category</label>
-                  <select
+                  <HiusaSelect
                     value={form.category}
                     onChange={(e) => setForm({ ...form, category: e.target.value })}
                     className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -1890,7 +1891,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {['Operations', 'Events', 'Elections', 'Merchandise', 'General'].map((c) => (
                       <option key={c}>{c}</option>
                     ))}
-                  </select>
+                  </HiusaSelect>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Date *" />Date *</label>
@@ -1905,7 +1906,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Linked Budget" />Linked Budget</label>
-                  <select
+                  <HiusaSelect
                     value={form.budget_id}
                     onChange={(e) => {
                       const budgetId = e.target.value;
@@ -1920,11 +1921,11 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                         {formatDisplayText(budget.title)}{budget.approval_status !== 'approved' ? ` (${budget.approval_status || 'pending'})` : ''}
                       </option>
                     ))}
-                  </select>
+                  </HiusaSelect>
                 </div>
                 <div className="space-y-1.5">
                   <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Linked Event" />Linked Event</label>
-                  <select
+                  <HiusaSelect
                     value={form.event_id}
                     onChange={(e) => setForm({ ...form, event_id: e.target.value })}
                     className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -1933,7 +1934,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                     {events.map((event) => (
                       <option key={event.id} value={event.id}>{formatDisplayText(event.title)}</option>
                     ))}
-                  </select>
+                  </HiusaSelect>
                 </div>
               </div>
               <div className="space-y-1.5">
@@ -2013,7 +2014,7 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
               </div>
               <div className="space-y-1.5">
                 <label className="text-[13px] font-semibold text-[#0F172A]"><FieldIcon label="Linked Event (optional)" />Linked Event (optional)</label>
-                <select
+                <HiusaSelect
                   value={budgetForm.event_id}
                   onChange={(e) => setBudgetForm({ ...budgetForm, event_id: e.target.value })}
                   className="h-11 w-full rounded-lg border border-[#DDE7EF] px-3 text-sm outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15"
@@ -2022,14 +2023,14 @@ export default function FinancePage({ initialTab = 'transactions', startBudgetPr
                   {events.map((ev) => (
                     <option key={ev.id} value={ev.id}>{formatDisplayText(ev.title)}</option>
                   ))}
-                </select>
+                </HiusaSelect>
               </div>
               <div className="space-y-1.5">
                 <label htmlFor="budget-semester" className="text-[13px] font-semibold text-[#0F172A]">Financial semester (optional)</label>
-                <select id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">
+                <HiusaSelect id="budget-semester" value={budgetForm.financial_semester_id} onChange={(e) => setBudgetForm({ ...budgetForm, financial_semester_id: e.target.value })} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm focus-visible:outline-2 focus-visible:outline-[#0B8ED0]">
                   <option value="">No semester</option>
                   {semesters.map((semester) => <option key={semester.id} value={semester.id}>{formatDisplayText(semester.name)}</option>)}
-                </select>
+                </HiusaSelect>
                 <button type="button" onClick={() => { closeBudgetForm(); setActiveTab('reports'); }} className="min-h-11 self-start text-left text-xs font-semibold text-[#0878B7] underline hover:text-[#0F2F62] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#0B8ED0]">Need a new semester? Add one in Financial Reports</button>
               </div>
               {budgetFormError && <p className="text-xs text-red-600">{budgetFormError}</p>}

@@ -23,7 +23,7 @@ const PENDING_ROW = {
   id: 11,
   status: 'pending',
   remarks: null,
-  required_role: 'organization_treasurer',
+  required_role: 'organization',
   student_id: 501,
   student: { first_name: 'Maria', last_name: 'Santos' },
   clearancePeriod: { id: 1, title: 'Second Semester Clearance', academic_year: '2026-2027' },
@@ -57,7 +57,7 @@ describe('SignatoryClearancesPage', () => {
 
     render(<MemoryRouter><SignatoryClearancesPage /></MemoryRouter>);
     const [row] = (await screen.findAllByText('Maria Santos')).map((el) => el.closest('tr') || el.closest('li'));
-    fireEvent.click(within(row).getByRole('button', { name: 'Actions for Organization treasurer' }));
+    fireEvent.click(within(row).getByRole('button', { name: 'Actions for Organization' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'Hold' }));
 
     const holdConfirm = screen.getByRole('button', { name: 'Hold this signature' });

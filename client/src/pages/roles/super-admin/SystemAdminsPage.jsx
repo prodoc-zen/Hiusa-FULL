@@ -1,3 +1,4 @@
+import HiusaSelect from '../../../components/ui/Select';
 import { formatDisplayText } from '../../../utils/displayText.js';
 import FieldIcon from '../../../components/FieldIcon.jsx';
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -377,7 +378,7 @@ export default function SystemAdminsPage() {
               className="min-w-0 flex-1 bg-transparent text-sm outline-none"
             />
           </label>
-          <select
+          <HiusaSelect
             aria-label="Filter by organization"
             value={organizationFilter}
             onChange={(event) => setOrganizationFilter(event.target.value)}
@@ -389,8 +390,8 @@ export default function SystemAdminsPage() {
                 {organization.acronym}: {formatDisplayText(organization.name)}
               </option>
             ))}
-          </select>
-          <select
+          </HiusaSelect>
+          <HiusaSelect
             aria-label="Filter by account status"
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
@@ -400,7 +401,7 @@ export default function SystemAdminsPage() {
             <option value="active">Active</option>
             <option value="inactive">Inactive</option>
             <option value="disabled">Disabled</option>
-          </select>
+          </HiusaSelect>
         </div>
       </section>
 
@@ -544,7 +545,7 @@ export default function SystemAdminsPage() {
               </label>
               <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
                 <FieldIcon label="Assigned organization *" />Assigned organization *
-                <select required disabled={form.organization_locked} value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
+                <HiusaSelect required disabled={form.organization_locked} value={form.organization_id} onChange={(event) => updateField("organization_id", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0] focus:ring-4 focus:ring-[#16C7F3]/15">
                   <option value="">Select an active student organization</option>
                   {organizations
                     .filter((organization) => organization.is_active || String(organization.id) === form.organization_id)
@@ -553,7 +554,7 @@ export default function SystemAdminsPage() {
                         {organization.acronym}: {formatDisplayText(organization.name)}{organization.is_active ? "" : " (inactive)"}
                       </option>
                     ))}
-                </select>
+                </HiusaSelect>
                 {form.organization_locked && <span className="block text-xs font-medium text-slate-500">Locked to the organization you are provisioning.</span>}
               </label>
               {!isEditing && (
@@ -602,11 +603,11 @@ export default function SystemAdminsPage() {
               {isEditing && (
                 <label className="space-y-1.5 text-[13px] font-semibold text-[#0F172A] sm:col-span-2">
                  <FieldIcon label="Account status" /> Account status
-                  <select value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
+                  <HiusaSelect value={form.account_status} onChange={(event) => updateField("account_status", event.target.value)} className="h-11 w-full rounded-lg border border-[#DDE7EF] bg-white px-3 text-sm font-normal outline-none focus:border-[#0B8ED0]">
                     <option value="active">Active: can sign in</option>
                     <option value="inactive">Inactive: temporarily unavailable</option>
                     <option value="disabled">Disabled: access revoked</option>
-                  </select>
+                  </HiusaSelect>
                 </label>
               )}
               {error && (

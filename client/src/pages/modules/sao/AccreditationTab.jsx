@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import { Eye, FileText, ShieldCheck } from 'lucide-react';
-import { Button, Card, DataTable, EmptyState, FlowStepper, ProgressMeter, StatusBadge } from '../../../components/ui';
+import { Bell, Eye, FileText, ShieldCheck } from 'lucide-react';
+import { Button, Card, DataTable, EmptyState, FlowStepper, Input, ProgressMeter, StatusBadge } from '../../../components/ui';
+import ComplianceReminderModal from './ComplianceReminderModal';
 import { accreditationLifecycle } from '../../../lib/lifecycle';
 import { accreditationBadge } from '../../roles/super-admin/agencyStatus';
 import Modal from '../../../components/Modal';
@@ -36,9 +37,11 @@ function sortByAttention(organizations) {
     || String(a.organization_name).localeCompare(String(b.organization_name)));
 }
 
-export default function AccreditationTab({ overview, onRetry, onReviewOrganization }) {
-  const rows = useMemo(() => sortByAttention(overview.organizations), [overview.organizations]);
+export default function AccreditationTab({ overview, onRetry, onReviewOrganization, role = 'SUPER_ADMIN' }) {
+  const [search, setSearch] = useState('');
+  const rows = useMemo(() => sortByAttention(overview.organizations).filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase())), [overview.organizations, search]);
   const [selectedId, setSelectedId] = useState(null);
+  const [reminder, setReminder] = useState(null);
   const selected = rows.find((org) => org.organization_id === selectedId);
 
   async function viewFile(requirement) {
@@ -56,7 +59,7 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
       header: 'Accreditation',
       render: (org) => {
         const badge = accreditationBadge(org.accreditation_status);
-        const stage = accreditationLifecycle({ status: org.accreditation_status, total: org.requirements.length, approved: orgApprovedCount(org) }, 'SUPER_ADMIN');
+        const stage = accreditationLifecycle({ status: org.accreditation_status, total: org.requirements.length, approved: orgApprovedCount(org) }, role);
         return (
           <div className="flex min-w-[170px] flex-col items-start gap-1.5">
             <StatusBadge tone={badge.tone} label={badge.label} />
@@ -98,9 +101,11 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
         loading={overview.loading}
         error={overview.error}
         onRetry={onRetry}
+        filters={<div className="mb-4"><Input type="search" aria-label="Search organizations" placeholder="Search organizations" value={search} onChange={(event) => setSearch(event.target.value)} /></div>}
         actions={(org) => <TableRowActions subject={org.organization_name} actions={[
           { label: 'View requirements', icon: Eye, onClick: () => setSelectedId(org.organization_id) },
-          orgPendingCount(org) > 0 && { label: `Review ${orgPendingCount(org)} submission${orgPendingCount(org) === 1 ? '' : 's'}`, icon: FileText, onClick: () => onReviewOrganization(org.organization_id) },
+          onReviewOrganization && orgPendingCount(org) > 0 && { label: `Review ${orgPendingCount(org)} submission${orgPendingCount(org) === 1 ? '' : 's'}`, icon: FileText, onClick: () => onReviewOrganization(org.organization_id) },
+          org.requirements.some((item) => item.status !== 'approved') && { label: 'Send compliance reminder', icon: Bell, onClick: () => setReminder({ organization: org }) },
         ]} />}
         emptyState={(
           <EmptyState
@@ -125,10 +130,14 @@ export default function AccreditationTab({ overview, onRetry, onReviewOrganizati
           { key: 'status', header: 'Status', render: (requirement) => <StatusBadge label={requirement.status === 'not_submitted' ? 'Not submitted' : requirement.status.replaceAll('_', ' ')} tone={requirement.status === 'approved' ? 'success' : requirement.status === 'returned' ? 'danger' : 'info'} /> },
           { key: 'file', header: 'File', render: (requirement) => <span className="break-all text-xs">{requirement.file_name || 'No file'}</span> },
         ]}
-        actions={(requirement) => requirement.submission_id && <TableRowActions subject={requirement.requirement_name} actions={[{ label: 'View file', icon: Eye, onClick: () => viewFile(requirement) }]} />}
+        actions={(requirement) => <TableRowActions subject={requirement.requirement_name} actions={[
+          requirement.submission_id && { label: 'View file', icon: Eye, onClick: () => viewFile(requirement) },
+          requirement.status !== 'approved' && { label: 'Send compliance reminder', icon: Bell, onClick: () => { setReminder({ organization: selected, requirementId: requirement.requirement_type_id }); setSelectedId(null); } },
+        ]} />}
       />
-      {selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button size="sm" onClick={() => { onReviewOrganization(selected.organization_id); setSelectedId(null); }}>Review submissions</Button></div>}
+      {onReviewOrganization && selected?.requirements.some((requirement) => requirement.status === 'submitted') && <div className="mt-4 flex justify-end"><Button size="sm" onClick={() => { onReviewOrganization(selected.organization_id); setSelectedId(null); }}>Review submissions</Button></div>}
     </Modal>
+    {reminder && <ComplianceReminderModal {...reminder} onClose={() => setReminder(null)} />}
     </>
   );
 }

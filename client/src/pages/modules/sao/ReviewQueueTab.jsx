@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Check, ExternalLink, RotateCcw } from 'lucide-react';
-import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
+import { Check, ExternalLink, FolderOpen, RotateCcw } from 'lucide-react';
+import { Button, Card, DataTable, Drawer, EmptyState, Field, FlowStepper, Input, NextStep, Select, StatusBadge, Textarea } from '../../../components/ui';
 import TableRowActions from '../../../components/TableRowActions';
 import Modal from '../../../components/Modal';
 import ConfirmModal from '../../../components/ConfirmModal';
@@ -39,8 +39,10 @@ function stageInput(submission) {
   return { status: submission.status, remarks: submission.remarks, requirement_name: submission.requirement_type?.name };
 }
 
-export default function ReviewQueueTab({ organizations, filters, onFiltersChange, onChanged }) {
+export default function ReviewQueueTab({ organizations, organizationsLoading, organizationsError, onRetryOrganizations, filters, onFiltersChange, onChanged }) {
   const { organizationId, status } = filters;
+  const [search, setSearch] = useState('');
+  const [fileSearch, setFileSearch] = useState('');
   const [recordId, setRecordId] = useRecordParam();
   const [pinned, setPinned] = useState(null);
   const [queue, setQueue] = useState({ loading: true, error: null, items: [], meta: { total: 0, currentPage: 1, lastPage: 1, perPage: 20 } });
@@ -59,13 +61,14 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
       page: target,
       status: status || undefined,
       organization_id: organizationId || undefined,
+      search: fileSearch.trim() || undefined,
     })
       .then((response) => setQueue({ loading: false, error: null, items: unwrapList(response.data), meta: listMeta(response.data) }))
       .catch((err) => setQueue((current) => ({ ...current, loading: false, error: getApiErrorMessage(err, 'Could not load the review queue.') })));
-  }, [status, organizationId]);
+  }, [status, organizationId, fileSearch]);
 
   useEffect(() => { loadQueue(page); }, [loadQueue, page]);
-  useEffect(() => { setPage(1); }, [status, organizationId]);
+  useEffect(() => { setPage(1); }, [status, organizationId, fileSearch]);
 
   const found = recordId ? queue.items.find((item) => String(item.id) === recordId) ?? null : null;
   const openSubmission = found ?? (pinned && String(pinned.id) === recordId ? pinned : null);
@@ -181,6 +184,23 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
 
   const filtersActive = Boolean(organizationId) || status !== DEFAULT_STATUS;
 
+  if (!organizationId && !recordId) {
+    const visible = organizations.filter((org) => org.organization_name.toLowerCase().includes(search.trim().toLowerCase()));
+    return <Card title="Review submissions by organization" description="Choose an organization to see its submitted requirements.">
+      <DataTable stickyHeader={false} rowKey={(org) => org.organization_id} rows={visible} loading={organizationsLoading} error={organizationsError} onRetry={onRetryOrganizations} filtersActive={Boolean(search)}
+        filters={<div className="mb-4"><Input type="search" aria-label="Search review organizations" placeholder="Search organizations" value={search} onChange={(event) => setSearch(event.target.value)} /></div>}
+        columns={[
+          { key: 'organization_name', header: 'Organization', render: (org) => <button type="button" className="flex min-h-11 items-center gap-2 text-left font-bold text-brand-700" onClick={() => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: '' }); }}><FolderOpen size={18} aria-hidden="true" />{org.organization_name}</button> },
+          { key: 'submitted', header: 'Awaiting review', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'submitted').length : 'Registration review' },
+          { key: 'missing', header: 'Not submitted', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'not_submitted').length : 'See registration' },
+          { key: 'returned', header: 'Returned', render: (org) => org.requirements ? org.requirements.filter((item) => item.status === 'returned').length : 'See registration' },
+        ]}
+        actions={(org) => <TableRowActions subject={org.organization_name} actions={[{ label: 'Open submissions', icon: FolderOpen, onClick: () => { setFileSearch(''); onFiltersChange({ organizationId: String(org.organization_id), status: '' }); } }]} />}
+        emptyState={<EmptyState kind={search ? 'filtered' : 'first-run'} title={search ? 'No matching organizations' : 'No organizations to review'} description={search ? 'Try another organization name.' : 'Organizations appear here when they register or become active.'} />}
+      />
+    </Card>;
+  }
+
   return (
     <Card title="Review queue" description="Open a submission's document, then approve it or return it with remarks. Registration documents of a new organization are decided in its organization review.">
       {reviewError && (
@@ -196,6 +216,8 @@ export default function ReviewQueueTab({ organizations, filters, onFiltersChange
         filtersActive={filtersActive}
         filters={(
           <div className="flex flex-col gap-3 border-b border-line bg-surface p-3 sm:flex-row sm:items-center sm:p-4">
+            <Button variant="secondary" size="sm" onClick={() => { setRecordId(null); setFileSearch(''); onFiltersChange({ organizationId: '', status: DEFAULT_STATUS }); }}>All organizations</Button>
+            <Input type="search" aria-label="Search submissions" placeholder="Search requirement or file" value={fileSearch} onChange={(event) => setFileSearch(event.target.value)} />
             <Select aria-label="Filter by status" value={status} onChange={(event) => onFiltersChange({ ...filters, status: event.target.value })} className="sm:w-56">
               <option value="submitted">Awaiting review</option>
               <option value="approved">Approved</option>

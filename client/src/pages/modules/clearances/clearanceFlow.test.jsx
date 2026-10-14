@@ -225,7 +225,8 @@ describe('SaoClearancesPage', () => {
 
   it('opens the period roster from ?record= with the stage of each student', async () => {
     renderAt('/dashboard/super-admin/clearances?record=1', <SaoClearancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Second Semester Clearance' });
+    const drawer = (await screen.findByRole('table', { name: 'Student clearance signatures' })).closest('section');
+    expect(drawer.closest('[role="dialog"]')).toBeNull();
     expect(await within(drawer).findByText('Maria Santos')).toBeInTheDocument();
     expect(within(drawer).getByText('Waiting for SAO signature')).toBeInTheDocument();
     expect(within(drawer).getByRole('table', { name: 'Student clearance signatures' })).toBeInTheDocument();
@@ -235,7 +236,7 @@ describe('SaoClearancesPage', () => {
   it('shows a held student as blocked with the signatory named', async () => {
     mocks.getClearancePeriodStudents.mockResolvedValue(page([{ ...STUDENT, signatures: [{ id: 1, required_role: 'adviser', status: 'held' }, { id: 2, required_role: 'sao', status: 'pending' }] }]));
     renderAt('/dashboard/super-admin/clearances?record=1', <SaoClearancesPage />);
-    const drawer = await screen.findByRole('dialog', { name: 'Second Semester Clearance' });
+    const drawer = (await screen.findByRole('table', { name: 'Student clearance signatures' })).closest('section');
     expect(await within(drawer).findByText('On hold by Adviser')).toBeInTheDocument();
   });
 
@@ -248,7 +249,8 @@ describe('SaoClearancesPage', () => {
     renderAt('/dashboard/super-admin/clearances', <SaoClearancesPage />);
     fireEvent.click(await screen.findByRole('button', { name: 'Actions for Second Semester Clearance' }));
     fireEvent.click(screen.getByRole('menuitem', { name: 'View students' }));
-    expect(await screen.findByRole('dialog', { name: 'Second Semester Clearance' })).toBeInTheDocument();
+    expect(await screen.findByRole('table', { name: 'Student clearance signatures' })).toBeInTheDocument();
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
   });
 
   it('puts the one New clearance period button in the empty state, not the header', async () => {
